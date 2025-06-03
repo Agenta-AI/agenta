@@ -27,6 +27,7 @@ export interface NumberMetadata extends BaseMetadata {
 export interface BooleanMetadata extends BaseMetadata {
     type: "boolean"
     default?: boolean
+    options?: SelectOptions
 }
 
 export interface ArrayMetadata<T extends ConfigMetadata = ConfigMetadata> extends BaseMetadata {

@@ -19,6 +19,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontSize: theme.fontSizeHeading5,
         fontWeight: theme.fontWeightMedium,
         lineHeight: theme.lineHeightHeading5,
+        textWrap: "nowrap",
     },
     subTitle: {
         fontSize: theme.fontSize,

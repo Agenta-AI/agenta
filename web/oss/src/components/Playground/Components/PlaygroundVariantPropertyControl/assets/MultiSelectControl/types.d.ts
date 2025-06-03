@@ -6,6 +6,7 @@ export interface SelectControlProps extends Omit<SelectProps, "onChange"> {
     withTooltip?: boolean
     description?: string
     onChange?: (value: string | string[]) => void
+    disableClear?: boolean
 }
 
 // Export Ant Design types for convenience

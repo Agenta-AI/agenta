@@ -5,7 +5,7 @@ import {Button, Input} from "antd"
 
 import {ModelNameInputProps} from "./types"
 
-const ModelNameInput = ({onDelete, ...props}: ModelNameInputProps) => {
+const ModelNameInput = ({onDelete, disabled, ...props}: ModelNameInputProps) => {
     return (
         <div className="w-full relative">
             <Input placeholder="Enter model name" className="w-full" {...props} />
@@ -14,6 +14,7 @@ const ModelNameInput = ({onDelete, ...props}: ModelNameInputProps) => {
                 type="link"
                 className="absolute top-[1px] right-1"
                 onClick={onDelete}
+                disabled={disabled}
             />
         </div>
     )

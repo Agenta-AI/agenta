@@ -38,7 +38,7 @@ class TestsetsService:
         artifact_slug: str,
         #
         artifact_flags: Optional[TestsetFlags] = None,
-        artifact_metadata: Optional[Tags] = None,
+        artifact_meta: Optional[Tags] = None,
         artifact_name: Optional[str] = None,
         artifact_description: Optional[str] = None,
     ) -> Optional[TestsetArtifact]:
@@ -49,7 +49,7 @@ class TestsetsService:
             artifact_slug=artifact_slug,
             #
             artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_metadata=artifact_metadata,
+            artifact_meta=artifact_meta,
             artifact_name=artifact_name,
             artifact_description=artifact_description,
         )
@@ -90,7 +90,7 @@ class TestsetsService:
         artifact_id: UUID,
         #
         artifact_flags: Optional[TestsetFlags] = None,
-        artifact_metadata: Optional[Tags] = None,
+        artifact_meta: Optional[Tags] = None,
         artifact_name: Optional[str] = None,
         artifact_description: Optional[str] = None,
     ) -> Optional[TestsetArtifact]:
@@ -101,7 +101,7 @@ class TestsetsService:
             artifact_id=artifact_id,
             #
             artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_metadata=artifact_metadata,
+            artifact_meta=artifact_meta,
             artifact_name=artifact_name,
             artifact_description=artifact_description,
         )
@@ -163,7 +163,7 @@ class TestsetsService:
         project_id: UUID,
         #
         artifact_flags: Optional[TestsetFlags] = None,
-        artifact_metadata: Optional[Tags] = None,
+        artifact_meta: Optional[Tags] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[TestsetArtifact]:
@@ -171,7 +171,7 @@ class TestsetsService:
             project_id=project_id,
             #
             artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_metadata=artifact_metadata,
+            artifact_meta=artifact_meta,
             #
             include_archived=include_archived,
         )
@@ -195,7 +195,7 @@ class TestsetsService:
         variant_slug: str,
         #
         variant_flags: Optional[TestsetFlags] = None,
-        variant_metadata: Optional[Tags] = None,
+        variant_meta: Optional[Tags] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
     ) -> Optional[TestsetVariant]:
@@ -208,7 +208,7 @@ class TestsetsService:
             variant_slug=variant_slug,
             #
             variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_metadata=variant_metadata,
+            variant_meta=variant_meta,
             variant_name=variant_name,
             variant_description=variant_description,
         )
@@ -251,7 +251,7 @@ class TestsetsService:
         variant_id: UUID,
         #
         variant_flags: Optional[TestsetFlags] = None,
-        variant_metadata: Optional[Tags] = None,
+        variant_meta: Optional[Tags] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
     ) -> Optional[TestsetVariant]:
@@ -262,7 +262,7 @@ class TestsetsService:
             variant_id=variant_id,
             #
             variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_metadata=variant_metadata,
+            variant_meta=variant_meta,
             variant_name=variant_name,
             variant_description=variant_description,
         )
@@ -324,7 +324,7 @@ class TestsetsService:
         project_id: UUID,
         #
         variant_flags: Optional[TestsetFlags] = None,
-        variant_metadata: Optional[Tags] = None,
+        variant_meta: Optional[Tags] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[TestsetVariant]:
@@ -332,7 +332,7 @@ class TestsetsService:
             project_id=project_id,
             #
             variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_metadata=variant_metadata,
+            variant_meta=variant_meta,
             #
             include_archived=include_archived,
         )
@@ -357,12 +357,12 @@ class TestsetsService:
         depth: Optional[int] = None,
         #
         variant_flags: Optional[TestsetFlags] = None,
-        variant_metadata: Optional[Tags] = None,
+        variant_meta: Optional[Tags] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
         #
         revision_flags: Optional[TestsetFlags] = None,
-        revision_metadata: Optional[Tags] = None,
+        revision_meta: Optional[Tags] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
         revision_message: Optional[str] = None,
@@ -379,12 +379,12 @@ class TestsetsService:
             depth=depth,
             #
             variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_metadata=variant_metadata,
+            variant_meta=variant_meta,
             variant_name=variant_name,
             variant_description=variant_description,
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             revision_name=revision_name,
             revision_description=revision_description,
             revision_message=revision_message,
@@ -412,7 +412,7 @@ class TestsetsService:
         revision_slug: str,
         #
         revision_flags: Optional[TestsetFlags] = None,
-        revision_metadata: Optional[Tags] = None,
+        revision_meta: Optional[Tags] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
     ) -> Optional[TestsetRevision]:
@@ -425,7 +425,7 @@ class TestsetsService:
             revision_slug=revision_slug,
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             revision_name=revision_name if revision_name else revision_slug,
             revision_description=revision_description,
         )
@@ -481,7 +481,7 @@ class TestsetsService:
         revision_id: UUID,
         #
         revision_flags: Optional[TestsetFlags] = None,
-        revision_metadata: Optional[Tags] = None,
+        revision_meta: Optional[Tags] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
     ) -> Optional[TestsetRevision]:
@@ -492,7 +492,7 @@ class TestsetsService:
             revision_id=revision_id,
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             revision_name=revision_name,
             revision_description=revision_description,
         )
@@ -554,7 +554,7 @@ class TestsetsService:
         project_id: UUID,
         #
         revision_flags: Optional[TestsetFlags] = None,
-        revision_metadata: Optional[Tags] = None,
+        revision_meta: Optional[Tags] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[TestsetRevision]:
@@ -563,7 +563,7 @@ class TestsetsService:
             #
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             #
             include_archived=include_archived,
         )
@@ -599,7 +599,7 @@ class TestsetsService:
         revision_slug: str,
         #
         revision_flags: Optional[TestsetFlags] = None,
-        revision_metadata: Optional[Tags] = None,
+        revision_meta: Optional[Tags] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
         revision_message: Optional[str] = None,
@@ -641,7 +641,7 @@ class TestsetsService:
             revision_slug=revision_slug,
             #
             revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             revision_name=revision_name,
             revision_description=revision_description,
             revision_message=revision_message,

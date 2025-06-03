@@ -4,19 +4,22 @@ import {useOrgData} from "@/oss/contexts/org.context"
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
 
-import {annotationsTransformer} from "./assets/transformer"
+import {transformApiData} from "./assets/transformer"
+import {AnnotationDto} from "./types"
 
-const useAnnotations = () => {
+const useAnnotations = (queries?: {annotation: Record<string, any>}) => {
     const {selectedOrg} = useOrgData()
     const {projectId} = getCurrentProject()
     const workspace = selectedOrg?.default_workspace
     const members = workspace?.members || []
 
     const fetcher = async () => {
-        const data = await queryAllAnnotations()
+        const data = await queryAllAnnotations(queries)
 
         return (
-            data?.annotations.map((annotation) => annotationsTransformer(annotation, members)) || []
+            data?.annotations.map((annotation) =>
+                transformApiData<AnnotationDto>({data: annotation, members}),
+            ) || []
         )
     }
 

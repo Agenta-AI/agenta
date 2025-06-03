@@ -35,7 +35,7 @@ ag.init()
 
 def annotate(trace_id, span_id, score, comment, evaluator_slug):
     """Create an annotation for a specific trace/span with evaluation data.
-    
+
     Args:
         trace_id: The ID of the trace to annotate
         span_id: The ID of the span to annotate
@@ -47,7 +47,7 @@ def annotate(trace_id, span_id, score, comment, evaluator_slug):
         "Content-Type": "application/json",
         "Authorization": f"ApiKey {os.environ['AGENTA_API_KEY']}",
     }
-    
+
     annotation_data = {
         "annotation": {
             "data": {"outputs": {"score": score, "comment": comment}},
@@ -74,16 +74,16 @@ def annotate(trace_id, span_id, score, comment, evaluator_slug):
 @ag.instrument()
 def generate(topic="witches", genre="comedy"):
     """Generate a story using OpenAI and annotate the trace.
-    
+
     Args:
         topic: The topic of the story
         genre: The genre of the story
-    
+
     Returns:
         The OpenAI response
     """
     client = OpenAI()
-    
+
     # Instrument OpenAI library to capture traces
     OpenAIInstrumentor().instrument()
 
@@ -97,20 +97,20 @@ def generate(topic="witches", genre="comedy"):
             },
         ],
     )
-    
+
     # OPTION 1: Annotate the last completed span (the OpenAI span)
     # span_ctx = ag.tracing.get_last_span_context()
     # trace_id = f"{span_ctx.trace_id:032x}"
     # span_id = f"{span_ctx.span_id:016x}"
-    
+
     # OPTION 2: Annotate the current span (the generate span instrumented with ag.instrument)
     # span_ctx = ag.tracing.get_span_context()
     # trace_id = f"{span_ctx.trace_id:032x}"
     # span_id = f"{span_ctx.span_id:016x}"
-    
+
     # OPTION 3 (Recommended): Use the helper function (annotates the current span)
     link = ag.tracing.build_invocation_link()
-    
+
     # Create an annotation for this invocation
     annotate(
         trace_id=link.trace_id,
@@ -119,7 +119,7 @@ def generate(topic="witches", genre="comedy"):
         comment="This is an example annotation comment",
         evaluator_slug="simple-score",  # Your evaluator slug
     )
-    
+
     return response
 
 

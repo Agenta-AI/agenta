@@ -1,6 +1,7 @@
 import {memo, useMemo} from "react"
 
-import {Select, Tooltip, Typography} from "antd"
+import {X} from "@phosphor-icons/react"
+import {Button, Select, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControlWrapper"
@@ -29,6 +30,8 @@ const SelectControl = ({
     className,
     onChange,
     showSearch = true,
+    allowClear = false,
+    disableClear = false,
     ...rest
 }: SelectControlProps) => {
     /**
@@ -47,6 +50,7 @@ const SelectControl = ({
         if (!_options) return []
         if (Array.isArray(_options)) {
             return _options.map((option) => ({
+                className: option?.className || "",
                 value: option.value || option,
                 label: ALL_LABEL_MAPS[option.value || ""] || option.label || option.value || option,
             }))
@@ -73,24 +77,35 @@ const SelectControl = ({
                     {label}
                 </Typography.Text>
             ) : null}
-            <Select<string | string[]>
-                showSearch={showSearch}
-                mode={mode}
-                size={size}
-                value={value || null}
-                onChange={onChange}
-                options={options}
-                popupMatchSelectWidth={false}
-                disabled={disabled}
-                filterOption={(input, option) =>
-                    (option?.label?.toLocaleString() ?? "")
-                        .toLowerCase()
-                        .includes(input.toLowerCase())
-                }
-                className={clsx([className])}
-                placeholder={mode === "multiple" ? "Select multiple" : "Select one"}
-                {...rest}
-            />
+            <div className="flex items-center gap-2">
+                <Select<string | string[]>
+                    showSearch={showSearch}
+                    mode={mode}
+                    size={size}
+                    value={value || null}
+                    onChange={onChange}
+                    options={options}
+                    popupMatchSelectWidth={false}
+                    disabled={disabled}
+                    filterOption={(input, option) =>
+                        (option?.label?.toLocaleString() ?? "")
+                            .toLowerCase()
+                            .includes(input.toLowerCase())
+                    }
+                    className={clsx(["w-full", className])}
+                    placeholder={mode === "multiple" ? "Select multiple" : "Select one"}
+                    {...rest}
+                />
+                {value?.length || allowClear ? (
+                    <Button
+                        icon={<X size={14} />}
+                        type="text"
+                        size="small"
+                        onClick={() => onChange?.("")}
+                        disabled={disabled || disableClear}
+                    />
+                ) : null}
+            </div>
         </PlaygroundVariantPropertyControlWrapper>
     )
 }

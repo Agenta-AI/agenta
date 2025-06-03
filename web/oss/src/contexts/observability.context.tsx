@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {createContext, PropsWithChildren, useContext, useState} from "react"
+import {createContext, PropsWithChildren, useContext, useMemo, useState} from "react"
 
 import {useRouter} from "next/router"
 
@@ -7,7 +7,9 @@ import {SortResult} from "@/oss/components/Filters/Sort"
 import {Filter} from "@/oss/lib/Types"
 import {useTraces} from "@/oss/services/observability/hooks/useTraces"
 
-import {TracesWithAnnotations} from "../components/pages/observability/ObservabilityDashboard"
+import useAnnotations from "../lib/hooks/useAnnotations"
+import {attachAnnotationsToTraces} from "../lib/hooks/useAnnotations/assets/helpers"
+import {TracesWithAnnotations} from "../services/observability/types"
 
 interface ObservabilityContextType {
     traces: TracesWithAnnotations[]
@@ -59,6 +61,7 @@ export const getObservabilityValues = () => observabilityContextValues
 
 const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const router = useRouter()
+    const {data: annotations} = useAnnotations()
     const appId = router.query.app_id as string
     // query states
     const [searchQuery, setSearchQuery] = useState("")
@@ -90,6 +93,10 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     }
     const {traces, traceCount} = data || {}
 
+    const tracesWithAnnotations: TracesWithAnnotations[] = useMemo(() => {
+        return attachAnnotationsToTraces(traces || [], annotations || [])
+    }, [traces, annotations])
+
     const clearQueryStates = () => {
         setSearchQuery("")
         setTraceTabs("tree")
@@ -98,7 +105,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
         setPagination({page: 1, size: 10})
     }
 
-    observabilityContextValues.traces = traces || []
+    observabilityContextValues.traces = tracesWithAnnotations
     observabilityContextValues.isLoading = isLoading
     observabilityContextValues.fetchTraces = fetchTraces
     observabilityContextValues.count = traceCount
@@ -107,7 +114,7 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     return (
         <ObservabilityContext.Provider
             value={{
-                traces: traces || [],
+                traces: tracesWithAnnotations,
                 isLoading,
                 fetchTraces,
                 count: traceCount || 0,

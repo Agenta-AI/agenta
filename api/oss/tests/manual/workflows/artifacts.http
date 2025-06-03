@@ -24,7 +24,7 @@ Authorization: ApiKey {{api_key}}
     "name": "artifact {{$guid}}",
     "description": "artifact description",
     "slug": "artifact-{{$guid}}",
-    "metadata": {
+    "meta": {
       "key1": "value",
       "key2": "value",
       "key3": "value"
@@ -64,7 +64,7 @@ Authorization: ApiKey {{api_key}}
     "slug": "artifact-slug-{{$guid}}",
     "name": "artifact 1 (updated)",
     "description": "artifact description (updated)",
-    "metadata": {
+    "meta": {
       "key1": "tag 1",
       "key2": "tag 2",
       "key3": "tag 3"
@@ -126,13 +126,13 @@ Authorization: ApiKey {{api_key}}
   }
 }
 
-### query by artifact metadata
+### query by artifact meta
 POST {{base_url}}/artifacts/query
 Content-Type: application/json
 Authorization: ApiKey {{api_key}}
 
 {
-  "artifact_metadata": {
+  "artifact_meta": {
     "key3": "value"
   }
 }

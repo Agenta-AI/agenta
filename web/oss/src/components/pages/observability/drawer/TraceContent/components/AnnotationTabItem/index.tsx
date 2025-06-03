@@ -1,14 +1,18 @@
+import {useMemo} from "react"
+
 import {MinusOutlined, PlusOutlined} from "@ant-design/icons"
 import {ChatText} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Space, Table, Typography} from "antd"
 import type {TableProps} from "antd/es/table"
 import clsx from "clsx"
 import {createUseStyles} from "react-jss"
-import {v4 as uuidv4} from "uuid"
 
+import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {JSSTheme} from "@/oss/lib/Types"
 
+import {NUMERIC_METRIC_TYPES, USEABLE_METRIC_TYPES} from "../../../AnnotateDrawer/assets/constants"
 import NoTraceAnnotations from "../../../TraceSidePanel/TraceAnnotations/components/NoTraceAnnotations"
 
 import {getAnnotationTableColumns} from "./assets/getAnnotationTableColumns"
@@ -28,17 +32,74 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
     const classes = useStyles()
+    const {data: evaluators} = useEvaluators()
 
-    const groupedByReference = annotations.reduce(
+    // Last minute changes to display multiselect values in the table. This is not the best way to do it but it works for now.
+    const mergedAnnWithEvaluator = useMemo(() => {
+        return annotations.map((ann) => {
+            const outputs = (ann.data?.outputs as Record<string, any>) || {}
+            const allAnnMetrics = {...outputs.metrics, ...outputs.notes, ...outputs.extra}
+            const evaluator = evaluators.find((e) => e.slug === ann.references?.evaluator?.slug)
+
+            if (!evaluator) return ann
+
+            const evalMetricsSchema =
+                evaluator.data?.service?.format?.properties?.outputs?.properties || {}
+
+            const grouped = Object.entries(allAnnMetrics).reduce(
+                (acc, [key, value]) => {
+                    const schema = evalMetricsSchema[key]
+                    if (!schema) return acc
+
+                    let type: string
+                    let metricValue = value
+
+                    if (schema.anyOf) {
+                        type = "class"
+                    } else if (schema.type === "array") {
+                        type = "array"
+                    } else if (schema.type && USEABLE_METRIC_TYPES.includes(schema.type)) {
+                        type = schema.type
+                    } else {
+                        return acc // Skip if no matching type
+                    }
+
+                    const metricObj = {value: metricValue, type}
+
+                    if (NUMERIC_METRIC_TYPES.includes(type) || type === "boolean") {
+                        acc.metrics[key] = metricObj
+                    } else if (type === "string") {
+                        acc.notes[key] = metricObj
+                    } else {
+                        acc.extra[key] = metricObj
+                    }
+
+                    return acc
+                },
+                {metrics: {}, notes: {}, extra: {}} as Record<string, Record<string, any>>,
+            )
+
+            return {
+                ...ann,
+                data: {
+                    ...ann.data,
+                    outputs: grouped,
+                },
+                evaluator,
+            }
+        })
+    }, [annotations, evaluators])
+
+    const groupedByReference = mergedAnnWithEvaluator.reduce(
         (acc, item) => {
-            const key = item.references?.evaluator?.slug || ""
+            const slug = item.references?.evaluator?.slug || "unknown-slug"
+            const kind = item.kind || "unknown-type"
+            const key = `${slug}::${kind}`
+
             if (!acc[key]) {
                 acc[key] = []
             }
-            acc[key].push({
-                ...item,
-                id: uuidv4(), // Add unique ID here
-            })
+            acc[key].push({...item})
             return acc
         },
         {} as Record<string, AnnotationDto[]>,
@@ -61,7 +122,7 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
                             key: "text",
                             dataIndex: "text",
                             render: (_, record) => (
-                                <div className="w-fit text-wrap">{record.value}</div>
+                                <div className="w-fit text-wrap">{record.value.value}</div>
                             ),
                         },
                     ]}
@@ -112,28 +173,34 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
     return (
         <Space direction="vertical" size={16} className="w-full">
             {Object.entries(groupedByReference).length > 0 ? (
-                Object.entries(groupedByReference).map(([reference, annotations]) => (
-                    <Space direction="vertical" key={reference} className="w-full @container">
-                        <Typography.Text>{reference}</Typography.Text>
-                        <Table
-                            columns={getAnnotationTableColumns(reference, annotations)}
-                            pagination={false}
-                            scroll={{x: "max-content"}}
-                            bordered
-                            expandable={expandable}
-                            dataSource={annotations}
-                            className={clsx(
-                                "[&_.ant-table-expanded-row-fixed]:!w-[100cqw] [&_.ant-table-expanded-row-fixed]:!px-0 [&_.ant-table-expanded-row-fixed]:!sticky [&_.ant-table-expanded-row-fixed]:!left-0",
-                                classes.table,
-                            )}
-                            rowKey="id"
-                        />
-                    </Space>
-                ))
+                Object.entries(groupedByReference).map(([key, annotations]) => {
+                    const [slug, kind] = key.split("::")
+
+                    return (
+                        <Space direction="vertical" key={key} className="w-full @container">
+                            <Space>
+                                <Typography.Text className="font-medium">{slug}</Typography.Text>
+                                <CustomAntdTag bordered={false} value={kind} />
+                            </Space>
+
+                            <Table
+                                columns={getAnnotationTableColumns(slug, annotations)}
+                                pagination={false}
+                                scroll={{x: "max-content"}}
+                                bordered
+                                expandable={expandable}
+                                dataSource={annotations}
+                                className={clsx(
+                                    "[&_.ant-table-expanded-row-fixed]:!w-[100cqw] [&_.ant-table-expanded-row-fixed]:!px-0 [&_.ant-table-expanded-row-fixed]:!sticky [&_.ant-table-expanded-row-fixed]:!left-0",
+                                    classes.table,
+                                )}
+                                rowKey="span_id"
+                            />
+                        </Space>
+                    )
+                })
             ) : (
-                <div className="grid place-items-center h-full p-8">
-                    <NoTraceAnnotations />
-                </div>
+                <NoTraceAnnotations />
             )}
         </Space>
     )

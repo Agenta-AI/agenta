@@ -2,6 +2,7 @@ import {memo, useCallback} from "react"
 
 import {X} from "@phosphor-icons/react"
 import {Slider, InputNumber, Typography, Tooltip, Button} from "antd"
+import clsx from "clsx"
 
 import {useDebounceInput} from "@/oss/hooks/useDebounceInput"
 
@@ -28,6 +29,10 @@ const MinMaxControl = ({
     withTooltip,
     onChange,
     disabled,
+    placeholder,
+    allowClear = false,
+    disableClear = false,
+    className,
 }: MinMaxControlProps) => {
     const [localValue, setLocalValue] = useDebounceInput<number | null>(
         value ?? null,
@@ -49,7 +54,7 @@ const MinMaxControl = ({
     )
 
     return (
-        <PlaygroundVariantPropertyControlWrapper className="!gap-0 mb-0">
+        <PlaygroundVariantPropertyControlWrapper className={clsx("!gap-0 mb-0", className)}>
             <Tooltip title={description || ""} placement="right">
                 <div className="flex items-center gap-2 justify-between">
                     <Typography.Text className="playground-property-control-label">
@@ -64,15 +69,17 @@ const MinMaxControl = ({
                             value={localValue}
                             onChange={handleValueChange}
                             disabled={disabled}
-                            className="w-[60px] [&_input]:!text-center [&:hover_input]:!text-left"
+                            className="w-[60px] [&_input]:!text-center [&:hover_input]:!text-left [&_input]:!capitalize"
+                            placeholder={placeholder}
                         />
 
-                        {localValue ? (
+                        {localValue || localValue === 0 || allowClear ? (
                             <Button
                                 icon={<X size={14} />}
                                 type="text"
                                 size="small"
-                                onClick={() => handleValueChange(0)}
+                                onClick={() => handleValueChange(null)}
+                                disabled={disabled || disableClear}
                             />
                         ) : null}
                     </div>

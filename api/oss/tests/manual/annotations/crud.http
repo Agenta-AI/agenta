@@ -33,7 +33,7 @@ Authorization: {{authorization}}
                 }
             }
         },
-        "metadata": {
+        "meta": {
             "name": "Test Annotation",
             "description": "This is a test annotation.",
             "tags": ["test", "annotation"]
@@ -66,6 +66,35 @@ Authorization: {{authorization}}
 GET {{base_url}}/{{trace_id}}/{{span_id}}
 Content-Type: application/json
 Authorization: {{authorization}}
+
+###
+# EDIT ANNOTATION
+# @name edit_annotation
+PATCH {{base_url}}/{{trace_id}}/{{span_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "annotation": {
+        "data": {
+            "outputs": {
+                "integer": 1,
+                "float": 2.71,
+                "string": "Aloha! Mahalo!",
+                "boolean": false,
+                "array": [-1],
+                "object": {
+                    "hello": "world"
+                }
+            }
+        },
+        "meta": {
+            "name": "Test another Annotation",
+            "description": "This is another test annotation.",
+            "tags": ["test", "another", "annotation"]
+        }
+    }
+}
 
 ###
 # DELETE ANNOTATION
@@ -175,7 +204,7 @@ Authorization: {{authorization}}
 
 {
     "annotation": {
-        "metadata": {
+        "meta": {
             "name": "Test Annotation"
         }
     }

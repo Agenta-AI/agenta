@@ -1,24 +1,18 @@
-import {ReactNode, useState} from "react"
+import {useState} from "react"
 
 import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
-import {Button, Drawer, Flex, Splitter} from "antd"
+import {Button, Flex, Splitter} from "antd"
 
-type GenericDrawerProps = {
-    expandable?: boolean
-    headerExtra?: ReactNode
-    mainContent: ReactNode
-    extraContent?: ReactNode
-    sideContent?: ReactNode
-    initialWidth?: number
-    externalKey?: string
-} & React.ComponentProps<typeof Drawer>
+import EnhancedDrawer from "../EnhancedUIs/Drawer"
+
+import {GenericDrawerProps} from "./types"
 
 const GenericDrawer = ({...props}: GenericDrawerProps) => {
     const initialWidth = props.initialWidth || 1200
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
     return (
-        <Drawer
+        <EnhancedDrawer
             closeIcon={null}
             destroyOnClose
             width={drawerWidth}
@@ -68,7 +62,7 @@ const GenericDrawer = ({...props}: GenericDrawerProps) => {
                     </Splitter.Panel>
                 )}
             </Splitter>
-        </Drawer>
+        </EnhancedDrawer>
     )
 }
 

@@ -93,9 +93,9 @@ class WorkflowData(BaseModel):
 
 
 class WorkflowFlags(BaseModel):
-    is_custom: Optional[bool] = False
-    is_evaluator: Optional[bool] = False
-    is_human: Optional[bool] = False
+    is_custom: Optional[bool] = None
+    is_evaluator: Optional[bool] = None
+    is_human: Optional[bool] = None
 
 
 class WorkflowArtifact(Artifact):
@@ -123,6 +123,6 @@ class WorkflowQuery(BaseModel):
     revision_ref: Optional[WorkflowRevision] = None
 
     flags: Optional[WorkflowFlags] = None
-    metadata: Optional[Tags] = None
+    meta: Optional[Tags] = None
 
     include_archived: Optional[bool] = None

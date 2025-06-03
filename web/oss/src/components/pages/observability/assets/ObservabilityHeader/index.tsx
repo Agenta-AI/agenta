@@ -271,7 +271,7 @@ const ObservabilityHeader = ({
                             onApplyFilter={onApplyFilter}
                             onClearFilter={onClearFilter}
                         />
-                        <Sort onSortApply={onSortApply} defaultSortValue="1 month" />
+                        <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
                         {isScrolled && (
                             <>
                                 <Space className="shrink-0 hidden xl:flex">

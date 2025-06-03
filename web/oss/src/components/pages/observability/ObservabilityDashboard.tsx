@@ -11,9 +11,8 @@ import ObservabilityContextProvider, {
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
 import useAnnotations from "@/oss/lib/hooks/useAnnotations"
-import {groupAnnotationsByReferenceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+import {_AgentaRootsResponse, TracesWithAnnotations} from "@/oss/services/observability/types"
 
 import ResizableTitle from "../../ResizableTitle"
 
@@ -28,11 +27,6 @@ const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader")
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
 const TestsetDrawer = dynamic(() => import("./drawer/TestsetDrawer/TestsetDrawer"), {ssr: false})
 
-export type TracesWithAnnotations = _AgentaRootsResponse & {
-    annotations: AnnotationDto[] | undefined
-    aggregatedEvaluatorMetrics: Record<string, any>
-}
-
 const ObservabilityDashboard = () => {
     const {traces, isLoading, traceTabs, fetchTraces} = useObservabilityData()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
@@ -42,28 +36,6 @@ const ObservabilityDashboard = () => {
     const {data: annotations} = useAnnotations()
 
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useState(true)
-
-    const tracesWithAnnotations: TracesWithAnnotations[] = useMemo(() => {
-        function attachAnnotations(trace: any): any {
-            const matchingAnnotations = annotations?.filter(
-                (annotation: AnnotationDto) =>
-                    annotation.links?.invocation?.trace_id ===
-                        (trace.invocationIds?.trace_id || "") &&
-                    annotation.links?.invocation?.span_id === (trace.invocationIds?.span_id || ""),
-            )
-
-            return {
-                ...trace,
-                annotations: matchingAnnotations,
-                aggregatedEvaluatorMetrics: groupAnnotationsByReferenceId(
-                    matchingAnnotations || [],
-                ),
-                children: trace.children?.map(attachAnnotations),
-            }
-        }
-
-        return traces.map(attachAnnotations)
-    }, [traces, annotations])
 
     const initialColumns = useMemo(
         () => getObservabilityColumns({annotations: annotations || []}),
@@ -85,10 +57,7 @@ const ObservabilityDashboard = () => {
         [selectedTraceId, traces, traceTabs],
     )
 
-    const activeTrace = useMemo(
-        () => tracesWithAnnotations[activeTraceIndex] ?? null,
-        [activeTraceIndex, traces],
-    )
+    const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
 
     const [selected, setSelected] = useState("")
 
@@ -111,9 +80,9 @@ const ObservabilityDashboard = () => {
     }
 
     const selectedItem = useMemo(() => {
-        if (!tracesWithAnnotations?.length || !selected) return null
+        if (!traces?.length || !selected) return null
 
-        const item = getNodeById(tracesWithAnnotations, selected)
+        const item = getNodeById(traces, selected)
         if (!item || !item.invocationIds) return null
 
         const {trace_id, span_id} = item.invocationIds
@@ -129,7 +98,7 @@ const ObservabilityDashboard = () => {
             ...item,
             annotations: matchingAnnotations,
         }
-    }, [selected, tracesWithAnnotations, traces, annotations])
+    }, [selected, traces, annotations])
 
     const handleResize =
         (key: string) =>
@@ -195,7 +164,7 @@ const ObservabilityDashboard = () => {
                     }}
                     loading={isLoading}
                     columns={mergedColumns as TableColumnType<TracesWithAnnotations>[]}
-                    dataSource={tracesWithAnnotations}
+                    dataSource={traces}
                     bordered
                     style={{cursor: "pointer"}}
                     onRow={(record) => ({

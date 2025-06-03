@@ -24,7 +24,7 @@ Authorization: ApiKey {{api_key}}
     "name": "artifact {{$guid}}",
     "description": "artifact description",
     "slug": "artifact-{{$guid}}",
-    "metadata": {
+    "meta": {
       "key1": "value",
       "key2": "value",
       "key3": "value"
@@ -57,7 +57,7 @@ Authorization: ApiKey {{api_key}}
     "name": "variant {{$guid}}",
     "description": "variant description 1",
     "slug": "variant-{{$guid}}",
-    "metadata": {
+    "meta": {
       "tag1": "true",
       "tag2": "true"
     },
@@ -93,7 +93,7 @@ Authorization: ApiKey {{api_key}}
     "name": "revision {{$guid}}",
     "description": "revision 1 description",
     "slug": "revision-{{$guid}}",
-    "metadata": {
+    "meta": {
       "tag1": "true",
       "tag2": "true"
     },
@@ -198,7 +198,7 @@ Authorization: ApiKey {{api_key}}
     "name": "revision {{$guid}}",
     "description": "revision description {{$guid}}",
     "id": "{{add_workflow_revision.response.body.revision.id}}",
-    "metadata": {
+    "meta": {
       "tag1": "string",
       "tag2": "string"
     },
@@ -327,7 +327,7 @@ Authorization: ApiKey {{api_key}}
     "slug": "revision-{{$guid}}",
     "description": "revision description {{$guid}}",
     "id": "{{add_workflow_revision.response.body.revision.id}}",
-    "metadata": {
+    "meta": {
       "tag1": "string",
       "tag2": "string"
     },

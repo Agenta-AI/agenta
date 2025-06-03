@@ -92,7 +92,7 @@ class ExceptionDTO(BaseModel):
 
 Data = Dict[str, Any]
 Metrics = Dict[str, Any]
-Metadata = Dict[str, Any]
+Meta = Dict[str, Any]
 Refs = Dict[str, Any]
 
 
@@ -174,7 +174,7 @@ class SpanDTO(BaseModel):
 
     data: Optional[Data] = None
     metrics: Optional[Metrics] = None
-    meta: Optional[Metadata] = None
+    meta: Optional[Meta] = None
     refs: Optional[Refs] = None
 
     links: Optional[List[LinkDTO]] = None

@@ -24,28 +24,36 @@ Authorization: {{authorization}}
         "slug": "{{$guid}}",
         "name": "Evaluator Name",
         "description": "Evaluator description",
-        "tags": {
+        "meta": {
             "tag1": "tag1",
             "tag2": "tag2"
         },
-        "format": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "type": "object",
-            "properties": {
-                "id": { "type": "integer" },
-                "score": { "type": "number" },
-                "name": { "type": "string" },
-                "active": { "type": "boolean" },
-                "metadata": {
+        "flags": {
+            "is_custom": false,
+            "is_human": true
+        },
+        "data": {
+            "service": {
+                "agenta": "v0.1.0",
+                "format": {
                     "type": "object",
                     "properties": {
-                        "version": { "type": "integer" },
-                        "notes": { "type": "string" }
+                        "id": { "type": "integer" },
+                        "score": { "type": "number" },
+                        "name": { "type": "string" },
+                        "active": { "type": "boolean" },
+                        "meta": {
+                            "type": "object",
+                            "properties": {
+                                "version": { "type": "integer" },
+                                "notes": { "type": "string" }
+                            },
+                            "required": ["version"]
+                        }
                     },
-                    "required": ["version"]
+                    "required": ["id", "name"]
                 }
-            },
-            "required": ["id", "name"]
+            }
         }
     }
 }
@@ -71,33 +79,39 @@ Authorization: {{authorization}}
 {
     "evaluator": {
         "id": "{{evaluator_id}}",
-        "slug": "{{$guid}}",
-        "name": "Updated Evaluator Name",
-        "description": "Updated Evaluator description",
-        "tags": {
-            "tag1": "tag1",
+        "name": "Another Evaluator Name",
+        "description": "Another Evaluator description",
+        "meta": {
+            "tag1": "tag3",
             "tag2": "tag2",
-            "tag3": "tag3"
+            "tag3": "tag1"
         },
-        "format": {
-            "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "type": "object",
-            "properties": {
-                "id": { "type": "integer" },
-                "score": { "type": "number" },
-                "name": { "type": "string" },
-                "active": { "type": "boolean" },
-                "another": { "type": "boolean" },
-                "metadata": {
+        "flags": {
+            "is_custom": false,
+            "is_human": false
+        },
+        "data": {
+            "service": {
+                "agenta": "v0.1.0",
+                "format": {
                     "type": "object",
                     "properties": {
-                        "version": { "type": "integer" },
-                        "notes": { "type": "string" }
+                        "id": { "type": "integer" },
+                        "score": { "type": "number" },
+                        "name": { "type": "string" },
+                        "active": { "type": "boolean" },
+                        "meta": {
+                            "type": "object",
+                            "properties": {
+                                "version": { "type": "integer" },
+                                "notes": { "type": "string" }
+                            },
+                            "required": ["version"]
+                        }
                     },
-                    "required": ["version"]
+                    "required": ["id", "name"]
                 }
-            },
-            "required": ["id", "name"]
+            }
         }
     }
 }
@@ -123,3 +137,82 @@ Authorization: {{authorization}}
 POST {{base_url}}/query
 Content-Type: application/json
 Authorization: {{authorization}}
+
+###
+# query EVALUATORS
+# @name query_evaluators
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator": {
+        "meta": {
+            "tag1": "tag3",
+            "tag2": "tag2",
+            "tag3": "tag1"
+        }
+    }
+}
+
+###
+# query EVALUATORS
+# @name query_evaluators
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator": {
+        "meta": {
+            "tag1": "tag1",
+            "tag2": "tag2"
+        }
+    }
+}
+
+###
+# query EVALUATORS
+# @name query_evaluators
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator": {
+        "flags": {
+            "is_human": true
+        }
+    }
+}
+
+
+###
+# query EVALUATORS
+# @name query_evaluators
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator": {
+        "flags": {
+            "is_human": false
+        }
+    }
+}
+
+###
+# query EVALUATORS
+# @name query_evaluators
+POST {{base_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator": {
+        "flags": {
+            "is_evaluator": false
+        }
+    }
+}

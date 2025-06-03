@@ -10,7 +10,7 @@ from oss.src.core.shared.dtos import (
     Version,
     Lifecycle,
     Flags,
-    Metadata,
+    Meta,
     Header,
     Data,
 )
@@ -24,12 +24,12 @@ class Commit(BaseModel):
 
 class Artifact(Identifier, Slug, Lifecycle, Header):
     flags: Optional[Flags] = None
-    metadata: Optional[Metadata] = None
+    meta: Optional[Meta] = None
 
 
 class Variant(Identifier, Slug, Lifecycle, Header):
     flags: Optional[Flags] = None
-    metadata: Optional[Metadata] = None
+    meta: Optional[Meta] = None
 
     artifact_id: Optional[UUID] = None
     artifact: Optional[Artifact] = None
@@ -37,7 +37,7 @@ class Variant(Identifier, Slug, Lifecycle, Header):
 
 class Revision(Identifier, Slug, Version, Lifecycle, Header, Commit):
     flags: Optional[Flags] = None
-    metadata: Optional[Metadata] = None
+    meta: Optional[Meta] = None
 
     data: Optional[Data] = None
 

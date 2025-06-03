@@ -11,7 +11,7 @@ from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.git.dtos import (
     Flags,
-    Metadata,
+    Meta,
     Data,
     Artifact,
     Variant,
@@ -52,7 +52,7 @@ class GitDAO(GitDAOInterface):
         artifact_slug: str,
         #
         artifact_flags: Optional[Flags] = None,
-        artifact_metadata: Optional[Metadata] = None,
+        artifact_meta: Optional[Meta] = None,
         artifact_name: Optional[str] = None,
         artifact_description: Optional[str] = None,
     ) -> Optional[Artifact]:
@@ -64,7 +64,7 @@ class GitDAO(GitDAOInterface):
             created_by_id=user_id,
             #
             flags=artifact_flags,
-            metadata=artifact_metadata,
+            meta=artifact_meta,
             name=artifact_name,
             description=artifact_description,
         )
@@ -137,7 +137,7 @@ class GitDAO(GitDAOInterface):
         artifact_id: UUID,
         #
         artifact_flags: Optional[Flags] = None,
-        artifact_metadata: Optional[Metadata] = None,
+        artifact_meta: Optional[Meta] = None,
         artifact_name: Optional[str] = None,
         artifact_description: Optional[str] = None,
     ) -> Optional[Artifact]:
@@ -161,7 +161,7 @@ class GitDAO(GitDAOInterface):
             artifact_dbe.updated_at = now
             artifact_dbe.updated_by_id = user_id
             artifact_dbe.flags = artifact_flags
-            artifact_dbe.metadata = artifact_metadata
+            artifact_dbe.meta = artifact_meta
             artifact_dbe.name = artifact_name
             artifact_dbe.description = artifact_description
 
@@ -261,7 +261,7 @@ class GitDAO(GitDAOInterface):
         project_id: UUID,
         #
         artifact_flags: Optional[Flags] = None,
-        artifact_metadata: Optional[Metadata] = None,
+        artifact_meta: Optional[Meta] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[Artifact]:
@@ -275,9 +275,9 @@ class GitDAO(GitDAOInterface):
                     self.ArtifactDBE.flags.contains(artifact_flags)  # type: ignore
                 )
 
-            if artifact_metadata:
+            if artifact_meta:
                 query = query.filter(
-                    self.ArtifactDBE.metadata.contains(artifact_metadata)  # type: ignore
+                    self.ArtifactDBE.meta.contains(artifact_meta)  # type: ignore
                 )
 
             # using include_* means defaulting to non-archived only
@@ -317,7 +317,7 @@ class GitDAO(GitDAOInterface):
         variant_slug: str,
         #
         variant_flags: Optional[Flags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
     ) -> Optional[Variant]:
@@ -331,7 +331,7 @@ class GitDAO(GitDAOInterface):
             created_by_id=user_id,
             #
             flags=variant_flags,
-            metadata=variant_metadata,
+            meta=variant_meta,
             name=variant_name,
             description=variant_description,
         )
@@ -415,7 +415,7 @@ class GitDAO(GitDAOInterface):
         variant_id: UUID,
         #
         variant_flags: Optional[Flags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
     ) -> Optional[Variant]:
@@ -439,7 +439,7 @@ class GitDAO(GitDAOInterface):
             variant_dbe.updated_at = now
             variant_dbe.updated_by_id = user_id
             variant_dbe.flags = variant_flags
-            variant_dbe.metadata = variant_metadata
+            variant_dbe.meta = variant_meta
             variant_dbe.name = variant_name
             variant_dbe.description = variant_description
 
@@ -545,7 +545,7 @@ class GitDAO(GitDAOInterface):
         project_id: UUID,
         #
         variant_flags: Optional[Flags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[Variant]:
@@ -559,9 +559,9 @@ class GitDAO(GitDAOInterface):
                     self.VariantDBE.flags.contains(variant_flags)  # type: ignore
                 )
 
-            if variant_metadata:
+            if variant_meta:
                 query = query.filter(
-                    self.VariantDBE.metadata.contains(variant_metadata)  # type: ignore
+                    self.VariantDBE.meta.contains(variant_meta)  # type: ignore
                 )
 
             # using include_* means defaulting to non-archived only
@@ -606,12 +606,12 @@ class GitDAO(GitDAOInterface):
         depth: Optional[int] = None,
         #
         variant_flags: Optional[Flags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
         revision_message: Optional[str] = None,
@@ -641,7 +641,7 @@ class GitDAO(GitDAOInterface):
             variant_slug=variant_slug,
             #
             variant_flags=variant_flags,
-            variant_metadata=variant_metadata,
+            variant_meta=variant_meta,
             variant_name=variant_name,
             variant_description=variant_description,
         )
@@ -662,7 +662,7 @@ class GitDAO(GitDAOInterface):
                 revision_slug=revision.slug + _hash,
                 #
                 revision_flags=revision.flags,
-                revision_metadata=revision.metadata,
+                revision_meta=revision.meta,
                 revision_name=revision.name,
                 revision_description=revision.description,
                 revision_message=revision.message,
@@ -679,7 +679,7 @@ class GitDAO(GitDAOInterface):
             revision_slug=revision_slug,
             #
             revision_flags=revision_flags,
-            revision_metadata=revision_metadata,
+            revision_meta=revision_meta,
             revision_name=revision_name,
             revision_description=revision_description,
             revision_message=revision_message,
@@ -705,7 +705,7 @@ class GitDAO(GitDAOInterface):
         revision_slug: str,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
     ) -> Optional[Revision]:
@@ -721,7 +721,7 @@ class GitDAO(GitDAOInterface):
             created_by_id=user_id,
             #
             flags=revision_flags,
-            metadata=revision_metadata,
+            meta=revision_meta,
             name=revision_name,
             description=revision_description,
             author=user_id,
@@ -828,7 +828,7 @@ class GitDAO(GitDAOInterface):
         revision_id: UUID,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
     ) -> Optional[Revision]:
@@ -852,7 +852,7 @@ class GitDAO(GitDAOInterface):
             revision_dbe.updated_at = now
             revision_dbe.updated_by_id = user_id
             revision_dbe.flags = revision_flags
-            revision_dbe.metadata = revision_metadata
+            revision_dbe.meta = revision_meta
             revision_dbe.name = revision_name
             revision_dbe.description = revision_description
 
@@ -958,7 +958,7 @@ class GitDAO(GitDAOInterface):
         project_id: UUID,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[Revision]:
@@ -972,9 +972,9 @@ class GitDAO(GitDAOInterface):
                     self.RevisionDBE.flags.contains(revision_flags)  # type: ignore
                 )
 
-            if revision_metadata:
+            if revision_meta:
                 query = query.filter(
-                    self.RevisionDBE.metadata.contains(revision_metadata)  # type: ignore
+                    self.RevisionDBE.meta.contains(revision_meta)  # type: ignore
                 )
 
             # using include_* means defaulting to non-archived only
@@ -1021,7 +1021,7 @@ class GitDAO(GitDAOInterface):
         revision_slug: str,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
         revision_message: Optional[str] = None,
@@ -1039,7 +1039,7 @@ class GitDAO(GitDAOInterface):
             created_by_id=user_id,
             #
             flags=revision_flags,
-            metadata=revision_metadata,
+            meta=revision_meta,
             name=revision_name,
             description=revision_description,
             author=user_id,

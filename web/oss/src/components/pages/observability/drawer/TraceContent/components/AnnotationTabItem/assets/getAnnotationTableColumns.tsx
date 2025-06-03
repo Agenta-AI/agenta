@@ -1,6 +1,6 @@
-import {Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 
+import CustomAntdTag from "@/oss/components/ui/CustomAntdTag"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
@@ -11,14 +11,18 @@ export const getAnnotationTableColumns = (
 ): ColumnsType<AnnotationDto> => {
     return [
         {
-            title: "Evaluator",
-            key: "evaluator",
-            width: 280,
+            title: "Created by",
+            key: "created_by",
+            width: 200,
             onHeaderCell: () => ({
-                style: {minWidth: 280},
+                style: {minWidth: 200},
             }),
             render: (_, record) => {
-                return <Typography.Text>{record?.references?.evaluator?.slug}</Typography.Text>
+                return (
+                    <div className="flex items-center justify-start">
+                        <UserAvatarTag modifiedBy={record.createdBy || ""} />
+                    </div>
+                )
             },
         },
         {
@@ -27,36 +31,58 @@ export const getAnnotationTableColumns = (
             align: "start",
             children: Array.from(
                 new Set(
-                    groupAnnotations.flatMap((a) => Object.keys(a.data?.outputs?.metrics || {})),
+                    groupAnnotations.flatMap((a) =>
+                        Object.keys((a.data?.outputs?.metrics || {}) as Record<string, any>).concat(
+                            Object.keys((a.data?.outputs?.extra || {}) as Record<string, any>),
+                        ),
+                    ),
                 ),
             ).map((metricKey) => ({
                 title: metricKey,
                 key: `metrics-${reference}-${metricKey}`,
                 onHeaderCell: () => ({style: {minWidth: 160}}),
                 render: (_: any, record: any) => {
-                    if (!record.data?.outputs?.metrics) {
+                    if (!record.data?.outputs?.metrics || !record.data?.outputs?.extra) {
                         return <span className="text-gray-500">–</span>
                     }
 
-                    const value = record.data.outputs.metrics[metricKey]
+                    const value = record.data.outputs.metrics[metricKey]?.value
+                    const extraValue = record.data.outputs.extra[metricKey]?.value
+
                     return value !== undefined ? (
-                        <span>{getStringOrJson(value)}</span>
+                        typeof value === "boolean" ? (
+                            <CustomAntdTag
+                                value={getStringOrJson(value)}
+                                className="w-fit"
+                                bordered={false}
+                            />
+                        ) : (
+                            <span>{getStringOrJson(value)}</span>
+                        )
+                    ) : extraValue !== undefined ? (
+                        Array.isArray(extraValue) ? (
+                            <div className="flex items-center gap-2 max-w-[450px] overflow-x-auto [&::-webkit-scrollbar]:!w-0">
+                                {extraValue.map((item, index) => (
+                                    <CustomAntdTag
+                                        key={index}
+                                        value={getStringOrJson(item)}
+                                        className="w-fit"
+                                        bordered={false}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <CustomAntdTag
+                                value={getStringOrJson(extraValue)}
+                                className="w-fit"
+                                bordered={false}
+                            />
+                        )
                     ) : (
                         <span className="text-gray-500">–</span>
                     )
                 },
             })),
-        },
-        {
-            title: "Type",
-            key: "type",
-            width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
-            }),
-            render: (_, record) => {
-                return <div>{record.kind}</div>
-            },
         },
         {
             title: "Source",
@@ -77,22 +103,7 @@ export const getAnnotationTableColumns = (
                 style: {minWidth: 200},
             }),
             render: (_, record) => {
-                return <div>{record.created_at}</div>
-            },
-        },
-        {
-            title: "Created by",
-            key: "created_by",
-            width: 200,
-            onHeaderCell: () => ({
-                style: {minWidth: 200},
-            }),
-            render: (_, record) => {
-                return (
-                    <div className="flex items-center justify-start">
-                        <UserAvatarTag modifiedBy={record.created_by_id || ""} />
-                    </div>
-                )
+                return <div>{record.createdAt}</div>
             },
         },
     ]

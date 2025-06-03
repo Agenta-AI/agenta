@@ -148,10 +148,10 @@ class TagsDBA:
     )
 
 
-class MetadataDBA:
+class MetaDBA:
     __abstract__ = True
 
-    metadata = Column(
+    meta = Column(
         JSONB(none_as_null=True),
         nullable=True,
     )

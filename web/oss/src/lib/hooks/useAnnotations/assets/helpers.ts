@@ -60,18 +60,19 @@ export const groupOutputValues = (outputs: Record<string, any>): Record<string, 
     const grouped: Record<string, any> = {
         metrics: {},
         notes: {},
+        extra: {}, // we need the other data type info to add those in the endpoint when updating annotations
     }
 
     function recurse(obj: Record<string, any>) {
         for (const [key, value] of Object.entries(obj)) {
             if (value === null) continue
 
-            if (typeof value === "object" && !Array.isArray(value)) {
-                recurse(value)
-            } else if (typeof value === "number" || typeof value === "boolean") {
+            if (typeof value === "number" || typeof value === "boolean") {
                 grouped.metrics[key] = value
-            } else {
+            } else if (typeof value === "string") {
                 grouped.notes[key] = value
+            } else {
+                grouped.extra[key] = value
             }
         }
     }
@@ -123,7 +124,7 @@ export const groupAnnotationsByReferenceId = (
 
             grouped[evaluatorSlot][metricName].values.push({
                 value,
-                user: annotation.created_by_id || "",
+                user: annotation.createdBy || "",
             })
         }
     }
@@ -161,4 +162,21 @@ export const groupAnnotationsByReferenceId = (
     }
 
     return result
+}
+
+export function attachAnnotationsToTraces(traces: any[], annotations: AnnotationDto[] = []) {
+    function attach(trace: any): any {
+        const matchingAnnotations = annotations.filter(
+            (annotation: AnnotationDto) =>
+                annotation.links?.invocation?.trace_id === (trace.invocationIds?.trace_id || "") &&
+                annotation.links?.invocation?.span_id === (trace.invocationIds?.span_id || ""),
+        )
+        return {
+            ...trace,
+            annotations: matchingAnnotations,
+            aggregatedEvaluatorMetrics: groupAnnotationsByReferenceId(matchingAnnotations),
+            children: trace.children?.map(attach),
+        }
+    }
+    return traces.map(attach)
 }

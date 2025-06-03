@@ -85,8 +85,8 @@ def parse_testset_query_request(
     testset_flags: Optional[str] = Query(
         None, description='JSON string of flags, e.g. {"key": value}'
     ),
-    testset_metadata: Optional[str] = Query(
-        None, description='JSON string of metadata, e.g. {"key": value}'
+    testset_meta: Optional[str] = Query(
+        None, description='JSON string of meta, e.g. {"key": value}'
     ),
     include_archived: Optional[bool] = Query(None),
 ) -> TestsetQuery:
@@ -106,19 +106,19 @@ def parse_testset_query_request(
 
             log.error("Failed to parse testset_flags (%s)", testset_flags)
 
-    if testset_metadata:
+    if testset_meta:
         try:
-            testset_metadata = loads(testset_metadata)
+            testset_meta = loads(testset_meta)
         except Exception:  # pylint: disable=broad-except
-            testset_metadata = None
+            testset_meta = None
 
-            log.error(f"Failed to parse testset_metadata ({testset_metadata})")
+            log.error(f"Failed to parse testset_meta ({testset_meta})")
 
     return parse_testset_body_request(
         testset_ref=testset_ref,
         #
         testset_flags=testset_flags,
-        testset_metadata=testset_metadata,
+        testset_meta=testset_meta,
         #
         include_archived=include_archived,
     )
@@ -128,7 +128,7 @@ def parse_testset_body_request(
     testset_ref: Optional[Reference] = None,
     #
     testset_flags: Optional[TestsetFlags] = None,
-    testset_metadata: Optional[Tags] = None,
+    testset_meta: Optional[Tags] = None,
     #
     include_archived: Optional[bool] = None,
 ) -> TestsetQuery:
@@ -139,7 +139,7 @@ def parse_testset_body_request(
             testset_ref=testset_ref,
             #
             flags=testset_flags,
-            metadata=testset_metadata,
+            meta=testset_meta,
             #
             include_archived=include_archived,
         )
@@ -160,8 +160,8 @@ def parse_variant_query_request(
         None,
         description='JSON string of reference, e.g. {"key": value}',
     ),
-    variant_metadata: Optional[str] = Query(
-        None, description='JSON string of metadata, e.g. {"key": value}'
+    variant_meta: Optional[str] = Query(
+        None, description='JSON string of meta, e.g. {"key": value}'
     ),
     variant_flags: Optional[str] = Query(
         None, description='JSON string of flags, e.g. {"key": value}'
@@ -192,20 +192,20 @@ def parse_variant_query_request(
 
             log.error("Failed to parse variant_flags (%s)", variant_flags)
 
-    if variant_metadata:
+    if variant_meta:
         try:
-            variant_metadata = loads(variant_metadata)
+            variant_meta = loads(variant_meta)
         except Exception:  # pylint: disable=broad-except
-            variant_metadata = None
+            variant_meta = None
 
-            log.error(f"Failed to parse variant_metadata ({variant_metadata})")
+            log.error(f"Failed to parse variant_meta ({variant_meta})")
 
     return parse_variant_body_request(
         testset_ref=testset_ref,
         variant_ref=variant_ref,
         #
         variant_flags=variant_flags,
-        variant_metadata=variant_metadata,
+        variant_meta=variant_meta,
         #
         include_archived=include_archived,
     )
@@ -216,7 +216,7 @@ def parse_variant_body_request(
     variant_ref: Optional[Reference] = None,
     #
     variant_flags: Optional[TestsetFlags] = None,
-    variant_metadata: Optional[Tags] = None,
+    variant_meta: Optional[Tags] = None,
     #
     include_archived: Optional[bool] = None,
 ) -> TestsetQuery:
@@ -228,7 +228,7 @@ def parse_variant_body_request(
             variant_ref=variant_ref,
             #
             flags=variant_flags,
-            metadata=variant_metadata,
+            meta=variant_meta,
             #
             include_archived=include_archived,
         )
@@ -249,8 +249,8 @@ def parse_revision_query_request(
         None,
         description='JSON string of ref, e.g. {"key": value}',
     ),
-    revision_metadata: Optional[str] = Query(
-        None, description='JSON string of metadata, e.g. {"key": value}'
+    revision_meta: Optional[str] = Query(
+        None, description='JSON string of meta, e.g. {"key": value}'
     ),
     revision_flags: Optional[str] = Query(
         None, description='JSON string of flags, e.g. {"key": value}'
@@ -281,20 +281,20 @@ def parse_revision_query_request(
 
             log.error("Failed to parse revision_flags (%s)", revision_flags)
 
-    if revision_metadata:
+    if revision_meta:
         try:
-            revision_metadata = loads(revision_metadata)
+            revision_meta = loads(revision_meta)
         except Exception:  # pylint: disable=broad-except
-            revision_metadata = None
+            revision_meta = None
 
-            log.error(f"Failed to parse revision_metadata ({revision_metadata})")
+            log.error(f"Failed to parse revision_meta ({revision_meta})")
 
     return parse_revision_body_request(
         variant_ref=variant_ref,
         revision_ref=revision_ref,
         #
         revision_flags=revision_flags,
-        revision_metadata=revision_metadata,
+        revision_meta=revision_meta,
         #
         include_archived=include_archived,
     )
@@ -305,7 +305,7 @@ def parse_revision_body_request(
     revision_ref: Optional[Reference] = None,
     #
     revision_flags: Optional[TestsetFlags] = None,
-    revision_metadata: Optional[Tags] = None,
+    revision_meta: Optional[Tags] = None,
     #
     include_archived: Optional[bool] = None,
 ) -> TestsetQuery:
@@ -317,7 +317,7 @@ def parse_revision_body_request(
             revision_ref=revision_ref,
             #
             flags=revision_flags,
-            metadata=revision_metadata,
+            meta=revision_meta,
             #
             include_archived=include_archived,
         )
@@ -345,7 +345,7 @@ def merge_requests(
         revision_ref=query_body.revision_ref or query_param.revision_ref,
         #
         flags=query_body.flags or query_param.flags,
-        metadata=query_body.metadata or query_param.metadata,
+        meta=query_body.meta or query_param.meta,
         #
         include_archived=query_body.include_archived or query_param.include_archived,
     )

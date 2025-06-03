@@ -3,7 +3,7 @@ from uuid import UUID
 from abc import abstractmethod
 
 
-from oss.src.core.shared.dtos import Reference, Metadata, Flags, Data
+from oss.src.core.shared.dtos import Reference, Meta, Flags, Data
 from oss.src.core.git.dtos import Commit, Artifact, Variant, Revision
 
 
@@ -34,7 +34,7 @@ class GitDAOInterface:
         artifact_slug: str,
         #
         artifact_flags: Optional[Flags] = None,
-        artifact_metadata: Optional[Metadata] = None,
+        artifact_meta: Optional[Meta] = None,
         artifact_name: Optional[str] = None,
         artifact_description: Optional[str] = None,
     ) -> Optional[Artifact]:
@@ -60,7 +60,7 @@ class GitDAOInterface:
         artifact_id: UUID,
         #
         artifact_flags: Optional[Flags] = None,
-        artifact_metadata: Optional[Metadata] = None,
+        artifact_meta: Optional[Meta] = None,
         artifact_name: Optional[str] = None,
         artifact_description: Optional[str] = None,
     ) -> Optional[Artifact]:
@@ -95,7 +95,7 @@ class GitDAOInterface:
         project_id: UUID,
         #
         artifact_flags: Optional[Flags] = None,
-        artifact_metadata: Optional[Metadata] = None,
+        artifact_meta: Optional[Meta] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[Artifact]:
@@ -117,7 +117,7 @@ class GitDAOInterface:
         variant_slug: str,
         #
         variant_flags: Optional[Flags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
     ) -> Optional[Variant]:
@@ -144,7 +144,7 @@ class GitDAOInterface:
         variant_id: UUID,
         #
         variant_flags: Optional[Flags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
     ) -> Optional[Variant]:
@@ -179,7 +179,7 @@ class GitDAOInterface:
         project_id: UUID,
         #
         variant_flags: Optional[Flags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[Variant]:
@@ -202,12 +202,12 @@ class GitDAOInterface:
         depth: Optional[int] = None,
         #
         variant_flags: Optional[Flags] = None,
-        variant_metadata: Optional[Metadata] = None,
+        variant_meta: Optional[Meta] = None,
         variant_name: Optional[str] = None,
         variant_description: Optional[str] = None,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
         revision_message: Optional[str] = None,
@@ -231,7 +231,7 @@ class GitDAOInterface:
         revision_slug: str,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
     ) -> Optional[Revision]:
@@ -258,7 +258,7 @@ class GitDAOInterface:
         revision_id: UUID,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
     ) -> Optional[Revision]:
@@ -293,7 +293,7 @@ class GitDAOInterface:
         project_id: UUID,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         #
         include_archived: Optional[bool] = None,
     ) -> List[Revision]:
@@ -314,7 +314,7 @@ class GitDAOInterface:
         revision_slug: str,
         #
         revision_flags: Optional[Flags] = None,
-        revision_metadata: Optional[Metadata] = None,
+        revision_meta: Optional[Meta] = None,
         revision_name: Optional[str] = None,
         revision_description: Optional[str] = None,
         revision_message: Optional[str] = None,

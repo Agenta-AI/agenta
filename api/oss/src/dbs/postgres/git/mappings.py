@@ -1,6 +1,10 @@
 from typing import TypeVar, Type
 from uuid import UUID
 
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
 
 DBE_T = TypeVar("DBE_T")  # pylint: disable=invalid-name
 DTO_T = TypeVar("DTO_T")  # pylint: disable=invalid-name
@@ -31,9 +35,8 @@ def map_dbe_to_dto(
 
     dbe_fields = {column.name for column in dbe.__table__.columns}
     dto_fields = set(DTO.model_fields.keys())
-
-    # Map common fields between DBE and DTO
     common_fields = dbe_fields & dto_fields
+
     attributes = {
         field: getattr(dbe, field) for field in common_fields if hasattr(dbe, field)
     }

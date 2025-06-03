@@ -5,21 +5,21 @@ import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
+import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {useObservabilityData} from "@/oss/contexts/observability.context"
 import {JSSTheme} from "@/oss/lib/Types"
-import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+import {_AgentaRootsResponse, TracesWithAnnotations} from "@/oss/services/observability/types"
 
 import DeleteTraceModal from "../components/DeleteTraceModal"
-import {TracesWithAnnotations} from "../ObservabilityDashboard"
 
 interface TraceHeaderProps {
     activeTrace: TracesWithAnnotations
     traces: _AgentaRootsResponse[]
     setSelectedTraceId: (val: string) => void
     activeTraceIndex?: number
-    setIsAnnotationsSectionOpen: Dispatch<SetStateAction<boolean>>
-    isAnnotationsSectionOpen: boolean
-    setSelected: Dispatch<SetStateAction<string>>
+    setIsAnnotationsSectionOpen?: Dispatch<SetStateAction<boolean>>
+    isAnnotationsSectionOpen?: boolean
+    setSelected?: Dispatch<SetStateAction<string>>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -73,7 +73,7 @@ const TraceHeader = ({
                         const firstTrace = nextPageTraces[0]
                         const id = traceTabs === "node" ? firstTrace.node.id : firstTrace.root.id
                         setSelectedTraceId(id)
-                        setSelected(firstTrace.node.id)
+                        setSelected?.(firstTrace.node.id)
                     }
                 } catch (error) {
                     console.error("Error navigating to next page:", error)
@@ -84,7 +84,7 @@ const TraceHeader = ({
             const nextTrace = traces[activeTraceIndex + 1]
             const id = traceTabs === "node" ? nextTrace.node.id : nextTrace.root.id
             setSelectedTraceId(id)
-            setSelected(nextTrace.node.id)
+            setSelected?.(nextTrace.node.id)
         }
     }, [activeTraceIndex, traces, traceTabs, pagination, count, navigateToPage, fetchTraces])
 
@@ -108,7 +108,7 @@ const TraceHeader = ({
                     const lastTrace = prevPageTraces[prevPageTraces.length - 1]
                     const id = traceTabs === "node" ? lastTrace.node.id : lastTrace.root.id
                     setSelectedTraceId(id)
-                    setSelected(lastTrace.node.id)
+                    setSelected?.(lastTrace.node.id)
                 }
             } catch (error) {
                 console.error("Error navigating to previous page:", error)
@@ -118,7 +118,7 @@ const TraceHeader = ({
             const prevTrace = traces[activeTraceIndex - 1]
             const id = traceTabs === "node" ? prevTrace.node.id : prevTrace.root.id
             setSelectedTraceId(id)
-            setSelected(prevTrace.node.id)
+            setSelected?.(prevTrace.node.id)
         }
     }, [activeTraceIndex, traces, traceTabs, pagination, navigateToPage, fetchTraces])
 
@@ -142,17 +142,21 @@ const TraceHeader = ({
                     </div>
 
                     <Typography.Text className={classes.title}>Trace</Typography.Text>
-                    <Tag className="font-normal"># {activeTrace.root.id}</Tag>
+                    <TooltipWithCopyAction copyText={activeTrace.root.id} title="Copy trace id">
+                        <Tag className="font-normal"># {activeTrace.root.id}</Tag>
+                    </TooltipWithCopyAction>
                 </Space>
 
                 <Space>
                     <Button icon={<DeleteOutlined />} onClick={() => setIsDeleteModalOpen(true)} />
-                    <Button
-                        icon={<SidebarSimple size={14} />}
-                        type={isAnnotationsSectionOpen ? "default" : "primary"}
-                        className="shrink-0 flex items-center justify-center"
-                        onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
-                    />
+                    {setIsAnnotationsSectionOpen && (
+                        <Button
+                            icon={<SidebarSimple size={14} />}
+                            type={isAnnotationsSectionOpen ? "default" : "primary"}
+                            className="shrink-0 flex items-center justify-center"
+                            onClick={() => setIsAnnotationsSectionOpen((prev) => !prev)}
+                        />
+                    )}
                 </Space>
             </div>
 

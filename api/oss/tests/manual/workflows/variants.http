@@ -24,7 +24,7 @@ Authorization: ApiKey {{api_key}}
     "name": "artifact {{$guid}}",
     "description": "artifact description",
     "slug": "artifact-{{$guid}}",
-    "metadata": {
+    "meta": {
       "key1": "value",
       "key2": "value",
       "key3": "value"
@@ -58,7 +58,7 @@ Authorization: ApiKey {{api_key}}
     "name": "variant {{$guid}}",
     "description": "variant description 1",
     "slug": "variant-{{$guid}}",
-    "metadata": {
+    "meta": {
       "tag1": "true",
       "tag2": "true"
     },
@@ -95,7 +95,7 @@ Authorization: ApiKey {{api_key}}
     "id": "{{add_workflow_variant.response.body.variant.id}}",
     "name": "variant 1 (updated)",
     "description": "variant description 1 (updated)",
-    "metadata": {
+    "meta": {
       "tag1": "true",
       "tag2": "true"
     },
@@ -140,7 +140,7 @@ Authorization: ApiKey {{api_key}}
     "name": "revision {{$guid}}",
     "description": "revision description",
     "slug": "revision-{{$guid}}",
-    "metadata": {
+    "meta": {
       "tag1": "true",
       "tag2": "true"
     },
@@ -190,7 +190,7 @@ Authorization: ApiKey {{api_key}}
       "name": "variant-{{$guid}}",
       "description": "variant description",
       "slug": "variant-{{$guid}}",
-      "metadata": {
+      "meta": {
         "tag1": "true",
         "tag2": "true"
       },
@@ -221,7 +221,7 @@ Authorization: ApiKey {{api_key}}
     "name": "revision (forked)",
     "description": "revision (forked) description",
     "slug": "revision-{{$guid}}",
-    "metadata": {
+    "meta": {
       "tag1": "true",
       "tag2": "true"
     },
@@ -272,7 +272,7 @@ Authorization: ApiKey {{api_key}}
       "name": "variant 1 (forked-{{$guid}})",
       "description": "variant description (forked)",
       "slug": "variant-{{$guid}}",
-      "metadata": {
+      "meta": {
         "tag1": "true",
         "tag2": "true"
       },
@@ -324,13 +324,13 @@ Authorization: ApiKey {{api_key}}
   }
 }
 
-### query by artifact metadata
+### query by artifact meta
 POST {{base_url}}/variants/query
 Content-Type: application/json
 Authorization: ApiKey {{api_key}}
 
 {
-  "artifact_metadata": {
+  "artifact_meta": {
     "key3": "value"
   }
 }
