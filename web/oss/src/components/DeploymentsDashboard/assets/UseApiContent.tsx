@@ -33,7 +33,8 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
     const params = useMemo(() => {
         const _variant: any = (variants || []).find(
             (item) =>
-                (item?.id || item?.variantId) === selectedEnvironment?.deployed_app_variant_id,
+                (item?.id || item?.variantId) ===
+                selectedEnvironment?.deployed_app_variant_revision_id,
         )
         const {inputParams, isChatVariant} = _variant || {}
 
@@ -49,7 +50,7 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
     }, [
         variants,
         currentApp,
-        selectedEnvironment?.deployed_app_variant_id,
+        selectedEnvironment?.deployed_app_variant_revision_id,
         selectedEnvironment?.name,
     ])
 

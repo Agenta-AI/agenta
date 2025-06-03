@@ -38,6 +38,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
         "& .ant-collapse-header": {
             alignItems: "center !important",
+            height: 42,
         },
         "& .ant-collapse-content": {
             borderTop: `1px solid ${theme.colorBorder} !important`,

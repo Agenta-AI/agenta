@@ -182,8 +182,7 @@ const Filters: React.FC<Props> = ({
                                             !label.value ? "Column" : label.label
                                         }
                                         popupMatchSelectWidth={220}
-                                        popupClassName="capitalize"
-                                        className="capitalize w-[200px]"
+                                        className="w-[200px]"
                                         suffixIcon={<CaretDown size={14} />}
                                         onChange={(value) =>
                                             onFilterChange({columnName: "key", value, idx})

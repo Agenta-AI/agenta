@@ -8,6 +8,12 @@ from datetime import datetime, timedelta, time
 from fastapi import Query, HTTPException
 
 from oss.src.apis.fastapi.observability.opentelemetry.semconv import CODEX
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__file__)
+
+from oss.src.apis.fastapi.observability.utils.serialization import decode_key, decode_value, encode_key
+from oss.src.apis.fastapi.observability.utils.marshalling import unmarshal_attributes
 
 from oss.src.apis.fastapi.observability.models import (
     LegacyDataPoint,
@@ -43,6 +49,11 @@ from oss.src.core.observability.dtos import (
     AnalyticsDTO,
     ConditionDTO,
 )
+from oss.src.apis.fastapi.observability.extractors.span_processor import SpanProcessor
+from oss.src.apis.fastapi.observability.extractors.span_data_builders import NodeBuilder
+
+node_builder_instance = NodeBuilder()
+span_processor = SpanProcessor(builders=[node_builder_instance])
 
 
 # --- PARSE QUERY / ANALYTICS DTO ---
@@ -176,139 +187,14 @@ def parse_analytics_dto(
 # --- PARSE SPAN DTO ---
 
 
-def _unmarshal_attributes(
-    marshalled: Dict[str, Any],
-) -> Dict[str, Any]:
-    """
-    Unmarshals a dictionary of marshalled attributes into a nested dictionary
-
-    Example:
-    marshalled = {
-        "ag.type": "tree",
-        "ag.node.name": "root",
-        "ag.node.children.0.name": "child1",
-        "ag.node.children.1.name": "child2"
-    }
-    unmarshalled = {
-        "ag": {
-            "type": "tree",
-            "node": {
-                "name": "root",
-                "children": [
-                    {
-                        "name": "child1",
-                    },
-                    {
-                        "name": "child2",
-                    }
-                ]
-            }
-        }
-    }
-    """
-    unmarshalled = {}
-
-    for key, value in marshalled.items():
-        keys = key.split(".")
-
-        level = unmarshalled
-
-        for i, part in enumerate(keys[:-1]):
-            if part.isdigit():
-                part = int(part)
-
-                if not isinstance(level, list):
-                    level = []
-
-                while len(level) <= part:
-                    level.append({})
-
-                level = level[part]
-
-            else:
-                if part not in level:
-                    level[part] = {} if not keys[i + 1].isdigit() else []
-
-                level = level[part]
-
-        last_key = keys[-1]
-
-        if last_key.isdigit():
-            last_key = int(last_key)
-
-            if not isinstance(level, list):
-                level = []
-
-            while len(level) <= last_key:
-                level.append(None)
-
-            level[last_key] = value
-
-        else:
-            level[last_key] = value
-
-    return unmarshalled
-
-
-def _encode_key(
-    namespace,
-    key: str,
-) -> str:
-    return f"ag.{namespace}.{key}"
-
-
-def _decode_key(
-    namespace,
-    key: str,
-) -> str:
-    return key.replace(f"ag.{namespace}.", "")
-
-
-def _encode_value(
-    value: Any,
-) -> Optional[Any]:
-    if value is None:
-        return None
-
-    if isinstance(value, (str, int, float, bool, bytes)):
-        return value
-
-    if isinstance(value, dict) or isinstance(value, list):
-        encoded = dumps(value)
-        value = "@ag.type=json:" + encoded
-        return value
-
-    return repr(value)
-
-
-def _decode_value(
-    value: Any,
-) -> Any:
-    if isinstance(value, (int, float, bool, bytes)):
-        return value
-
-    if isinstance(value, str):
-        if value == "@ag.type=none:":
-            return None
-
-        if value.startswith("@ag.type=json:"):
-            encoded = value[len("@ag.type=json:") :]
-            value = loads(encoded)
-            return value
-
-        return value
-
-    return value
-
-
 def _get_attributes(
     attributes: Attributes,
     namespace: str,
 ):
     return {
-        _decode_key(namespace, key): _decode_value(value)
+        decode_key(namespace, key): decode_value(value)
         for key, value in attributes.items()
-        if key != _decode_key(namespace, key)
+        if key != decode_key(namespace, key)
     }
 
 
@@ -318,10 +204,10 @@ def _parse_from_types(
     types = _get_attributes(otel_span_dto.attributes, "type")
 
     if types.get("tree"):
-        del otel_span_dto.attributes[_encode_key("type", "tree")]
+        del otel_span_dto.attributes[encode_key("type", "tree")]
 
     if types.get("node"):
-        del otel_span_dto.attributes[_encode_key("type", "node")]
+        del otel_span_dto.attributes[encode_key("type", "node")]
 
     return types
 
@@ -409,34 +295,34 @@ def _parse_from_attributes(
     _data = _get_attributes(otel_span_dto.attributes, "data")
 
     for key in _data.keys():
-        del otel_span_dto.attributes[_encode_key("data", key)]
+        del otel_span_dto.attributes[encode_key("data", key)]
 
-    # _data = _unmarshal_attributes(_data)
+    # _data = unmarshal_attributes(_data)
     _data = _data if _data else None
 
     # METRICS
     _metrics = _get_attributes(otel_span_dto.attributes, "metrics")
 
     for key in _metrics.keys():
-        del otel_span_dto.attributes[_encode_key("metrics", key)]
+        del otel_span_dto.attributes[encode_key("metrics", key)]
 
-    # _metrics = _unmarshal_attributes(_metrics)
+    # _metrics = unmarshal_attributes(_metrics)
     _metrics = _metrics if _metrics else None
 
     # META
     _meta = _get_attributes(otel_span_dto.attributes, "meta")
 
     for key in _meta.keys():
-        del otel_span_dto.attributes[_encode_key("meta", key)]
+        del otel_span_dto.attributes[encode_key("meta", key)]
 
-    # _meta = _unmarshal_attributes(_meta)
+    # _meta = unmarshal_attributes(_meta)
     _meta = _meta if _meta else None
 
     # REFS
     _refs = _get_attributes(otel_span_dto.attributes, "refs")
 
     for key in _refs.keys():
-        del otel_span_dto.attributes[_encode_key("refs", key)]
+        del otel_span_dto.attributes[encode_key("refs", key)]
 
     _refs = _refs if _refs else None
 
@@ -476,9 +362,34 @@ def _parse_from_events(
     return exception
 
 
+
 def parse_from_otel_span_dto(
     otel_span_dto: OTelSpanDTO,
 ) -> SpanDTO:
+    """
+    Process an OpenTelemetry span into a SpanDTO using the new architecture.
+
+    This function maintains the same signature as the original but uses the new
+    SpanProcessor internally (with NodeBuilder) for better handling of different data formats.
+    The result from the processor is a dictionary, from which the 'node_builder' output is extracted.
+    """
+    processed_results = span_processor.process(otel_span_dto)
+    span_dto = processed_results.get("node_builder")
+
+    if not isinstance(span_dto, SpanDTO):
+        log.error(
+            f"NodeBuilder did not produce a valid SpanDTO for trace_id {otel_span_dto.context.trace_id}, "
+            f"span_id {otel_span_dto.context.span_id}. Processor results: {processed_results}"
+        )
+
+    return span_dto
+
+
+def _parse_from_otel_span_dto_legacy(
+    otel_span_dto: OTelSpanDTO,
+) -> SpanDTO:
+    """Legacy implementation of parse_from_otel_span_dto for fallback."""
+
     trace_id = otel_span_dto.context.trace_id[2:]
     span_id = otel_span_dto.context.span_id[2:]
 
@@ -542,7 +453,11 @@ def parse_from_otel_span_dto(
     duration = round((time.end - time.start).total_seconds() * 1_000, 3)  # milliseconds
 
     status = StatusDTO(
-        code=otel_span_dto.status_code.value.replace("STATUS_CODE_", ""),
+        code=(
+            otel_span_dto.status_code.value.replace("STATUS_CODE_", "")
+            if otel_span_dto.status_code
+            else None
+        ),
         message=otel_span_dto.status_message,
     )
 
@@ -557,7 +472,6 @@ def parse_from_otel_span_dto(
         data, metrics, meta, refs = _parse_from_attributes(otel_span_dto)
     except:  # pylint: disable=bare-except
         pass
-
     if metrics is None:
         metrics = dict()
 
@@ -613,26 +527,26 @@ def _parse_to_attributes(
         _data = span_dto.data
 
         for key, value in _data.items():
-            attributes[_encode_key("data", key)] = _encode_value(value)
+            attributes[encode_key("data", key)] = encode_key(value)
 
     # METRICS
     if span_dto.metrics:
         _metrics = span_dto.metrics
 
         for key, value in _metrics.items():
-            attributes[_encode_key("metrics", key)] = _encode_value(value)
+            attributes[encode_key("metrics", key)] = encode_key(value)
 
     # META
     if span_dto.meta:
         _meta = span_dto.meta
 
         for key, value in _meta.items():
-            attributes[_encode_key("meta", key)] = _encode_value(value)
+            attributes[encode_key("meta", key)] = encode_key(value)
 
     # REFS
     if span_dto.refs:
         for key, value in span_dto.refs.items():
-            attributes[_encode_key("refs", key)] = _encode_value(value)
+            attributes[encode_key("refs", key)] = encode_key(value)
 
     return attributes
 
@@ -642,9 +556,9 @@ def _parse_to_types(
     attributes: Attributes,
 ) -> Attributes:
     if span_dto.tree.type:
-        attributes[_encode_key("type", "tree")] = span_dto.tree.type.value
+        attributes[encode_key("type", "tree")] = span_dto.tree.type.value
     if span_dto.node.type:
-        attributes[_encode_key("type", "node")] = span_dto.node.type.value
+        attributes[encode_key("type", "node")] = span_dto.node.type.value
 
 
 def _parse_to_semconv(
@@ -685,7 +599,7 @@ def _parse_to_links(
                         span_id="0x" + link.id.hex[16:],
                     ),
                     attributes={
-                        _encode_key("type", "link"): link.type,
+                        encode_key("type", "link"): link.type,
                     },
                 )
             )
@@ -769,7 +683,7 @@ def parse_to_agenta_span_dto(
 ) -> SpanDTO:
     # DATA
     if span_dto.data:
-        span_dto.data = _unmarshal_attributes(span_dto.data)
+        span_dto.data = unmarshal_attributes(span_dto.data)
 
         if "outputs" in span_dto.data:
             if (
@@ -780,19 +694,19 @@ def parse_to_agenta_span_dto(
 
     # METRICS
     if span_dto.metrics:
-        span_dto.metrics = _unmarshal_attributes(span_dto.metrics)
+        span_dto.metrics = unmarshal_attributes(span_dto.metrics)
 
     # META
     if span_dto.meta:
-        span_dto.meta = _unmarshal_attributes(span_dto.meta)
+        span_dto.meta = unmarshal_attributes(span_dto.meta)
 
     # REFS
     if span_dto.refs:
-        span_dto.refs = _unmarshal_attributes(span_dto.refs)
+        span_dto.refs = unmarshal_attributes(span_dto.refs)
 
     # EXCEPTION
     if span_dto.exception:
-        span_dto.exception.attributes = _unmarshal_attributes(
+        span_dto.exception.attributes = unmarshal_attributes(
             span_dto.exception.attributes
         )
 
