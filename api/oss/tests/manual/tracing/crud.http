@@ -1,7 +1,16 @@
 @host = http://localhost
+@token = change-me
 @base_url = {{host}}/api/preview/tracing
-@api_key = UGZaImq8.a94d2c99eab827b1cd27678358016a61f2e92c2cdea8f33b1cf3cc2afb7065e8
 
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
 
 ###
 
@@ -9,7 +18,7 @@
 # @name add_trace
 POST {{base_url}}/traces/
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
     "traces": {
@@ -107,7 +116,7 @@ Authorization: ApiKey {{api_key}}
 # @name add_trace
 POST {{base_url}}/traces/
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
     "spans": [
@@ -197,7 +206,7 @@ Authorization: ApiKey {{api_key}}
 # @name fetch_trace
 GET {{base_url}}/traces/{{add_trace.response.body.links[0].trace_id}}
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 # HTTP/1.1 200 OK
 # SAME AS ADD TRACE
@@ -206,9 +215,9 @@ Authorization: ApiKey {{api_key}}
 
 # TRACE TREE
 # @name edit_trace
-PUT {{base_url}}/traces/{{add_trace.response.body.links[0].trace_id}}
+PUT {{base_url}}/traces/
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
     "traces": {
@@ -305,7 +314,7 @@ Authorization: ApiKey {{api_key}}
 # @name delete_trace
 DELETE {{base_url}}/traces/{{add_trace.response.body.links[0].trace_id}}
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 # HTTP/1.1 202 Accepted
 # ...

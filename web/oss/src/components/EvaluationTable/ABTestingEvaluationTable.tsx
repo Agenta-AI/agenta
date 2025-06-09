@@ -91,15 +91,21 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
         },
     })
 
-    const num_of_rows = evaluationResults?.votes_data.nb_of_rows || 0
-    const flag_votes = evaluationResults?.votes_data.flag_votes?.number_of_votes || 0
-    const positive_votes = evaluationResults?.votes_data.positive_votes.number_of_votes || 0
-    const appVariant1 =
-        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[0]?.variantId]
-            ?.number_of_votes || 0
-    const appVariant2 =
-        evaluationResults?.votes_data?.variants_votes_data?.[evaluation.variants[1]?.variantId]
-            ?.number_of_votes || 0
+    const {numOfRows, flagVotes, positiveVotes, appVariant1Votes, appVariant2Votes} =
+        useMemo(() => {
+            const votesData = evaluationResults?.votes_data || {}
+            const variantsVotesData = votesData.variants_votes_data || {}
+
+            const [variant1, variant2] = evaluation.variants || []
+
+            return {
+                numOfRows: votesData.nb_of_rows || 0,
+                flagVotes: votesData.flag_votes?.number_of_votes || 0,
+                positiveVotes: votesData.positive_votes?.number_of_votes || 0,
+                appVariant1Votes: variantsVotesData?.[variant1?.variantId]?.number_of_votes || 0,
+                appVariant2Votes: variantsVotesData?.[variant2?.variantId]?.number_of_votes || 0,
+            }
+        }, [evaluationResults, evaluation.variants])
 
     const depouncedUpdateEvaluationScenario = useCallback(
         debounce((data: Partial<EvaluationScenario>, scenarioId) => {
@@ -173,7 +179,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
     )
 
     const handleVoteClick = useCallback(
-        (id: string, vote: string) => {
+        async (id: string, vote: string) => {
             const rowIndex = rows.findIndex((row) => row.id === id)
             const evaluation_scenario_id = rows[rowIndex]?.id
 
@@ -187,7 +193,8 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     })),
                     inputs: rows[rowIndex].inputs,
                 }
-                updateEvaluationScenarioData(evaluation_scenario_id, data)
+                await updateEvaluationScenarioData(evaluation_scenario_id, data)
+                await mutate()
             }
         },
         [rows, setRowValue, updateEvaluationScenarioData, evalVariants],
@@ -504,7 +511,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                         title={`${
                                             evaluation.variants[0]?.variantName || ""
                                         } is better:`}
-                                        value={`${appVariant1} out of ${num_of_rows}`}
+                                        value={`${appVariant1Votes} out of ${numOfRows}`}
                                         className={classes.stat}
                                     />
                                 </Col>
@@ -513,21 +520,21 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                         title={`${
                                             evaluation.variants[1]?.variantName || ""
                                         } is better:`}
-                                        value={`${appVariant2} out of ${num_of_rows}`}
+                                        value={`${appVariant2Votes} out of ${numOfRows}`}
                                         className={classes.stat}
                                     />
                                 </Col>
                                 <Col span={4}>
                                     <Statistic
                                         title="Both are good:"
-                                        value={`${positive_votes} out of ${num_of_rows}`}
+                                        value={`${positiveVotes} out of ${numOfRows}`}
                                         className={classes.statCorrect}
                                     />
                                 </Col>
                                 <Col span={4}>
                                     <Statistic
                                         title="Both are bad:"
-                                        value={`${flag_votes} out of ${num_of_rows}`}
+                                        value={`${flagVotes} out of ${numOfRows}`}
                                         className={classes.statWrong}
                                     />
                                 </Col>

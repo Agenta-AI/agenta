@@ -1,0 +1,407 @@
+@host = http://localhost
+@token = change-me
+@base_url = {{host}}/api/preview/evaluations
+
+###
+# @name create_account
+POST {{host}}/api/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+
+### - RUNS ---------------------------------------------------------------------
+
+### 1.1. REQUEST: Create run(s)
+# @name create_runs
+POST {{base_url}}/runs/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "runs": [
+    {
+      "key": "demo-evaluation",
+      "name": "Demo run",
+      "description": "run to test basic creation",
+      "meta": {
+        "my-meta": "aloha"
+      },
+      "data": {
+        "steps": [
+          {
+            "key": "input",
+            "is_testcase": true,
+            "references": {
+              "testset": {
+                "id": "4448964e-dc0d-41ec-a855-46773decad01"
+              },
+              "testset_variant": {
+                "id": "80b80599-737e-4454-a01f-96151b077040"
+              },
+              "testset_revision": {
+                "id": "08a8084c-96d8-4642-a695-8b2537d24211"
+              }
+            }
+          },
+          {
+            "key": "invocation",
+            "references": {
+              "application": {
+                "id": "c9d5e07c-2324-4b63-85a5-b83fa1a1f2ba"
+              },
+              "application_variant": {
+                "id": "c96ca14e-5eda-4390-a659-2f5425d07a31"
+              },
+              "application_revision": {
+                "id": "3b98bd3c-ed4c-4114-91da-20ade9958ab9"
+              }
+            },
+            "inputs": [
+              { "key": "input" }
+            ]
+          },
+          {
+            "key": "annotation",
+            "references": {
+              "evaluator": {
+                "id": "2037d384-f201-455f-b890-b6be8fdb017c"
+              },
+              "evaluator_variant": {
+                "id": "79b34629-7836-4bce-a1ee-fa4d80e7c7e0"
+              },
+              "evaluator_revision": {
+                "id": "24840975-d42f-451a-8a9a-2596e4bb54df"
+              }
+            },
+            "inputs": [
+              { "key": "input" },
+              { "key": "invocation" }
+            ]
+          }
+        ],
+        "mappings": [
+          {
+            "kind": "input",
+            "name": "Country",
+            "step": {
+              "key": "input",
+              "path": "country"
+            }
+          },
+          {
+            "kind": "ground_truth",
+            "name": "Capital (expected)",
+            "step": {
+              "key": "input",
+              "path": "correct_answer"
+            }
+          },
+          {
+            "kind": "application",
+            "name": "Capital (actual)",
+            "step": {
+              "key": "invocation",
+              "path": "data.outputs.answer"
+            }
+          },
+          {
+            "kind": "evaluator",
+            "name": "Score",
+            "step": {
+              "key": "annotation",
+              "path": "data.outputs.score"
+            }
+          },
+          {
+            "kind": "evaluator",
+            "name": "Confidence",
+            "step": {
+              "key": "annotation",
+              "path": "data.outputs.confidence"
+            }
+          },
+          {
+            "kind": "evaluator",
+            "name": "Explanation",
+            "step": {
+              "key": "annotation",
+              "path": "data.outputs.explanation"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
+
+###
+@run_id = {{create_runs.response.body.runs[0].id}}
+
+### 1.2. REQUEST: Close run
+POST {{base_url}}/runs/{{run_id}}/close
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### 1.3. REQUEST: Get run
+GET {{base_url}}/runs/{{run_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### - SCENARIOS ----------------------------------------------------------------
+
+### 2.1. REQUEST: Create scenarios
+# @name create_scenarios
+POST {{base_url}}/scenarios/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "scenarios": [
+    {
+      "run_id": "{{run_id}}"
+    },
+    {
+      "run_id": "{{run_id}}"
+    }
+  ]
+}
+
+###
+@scenario_id_1 = {{create_scenarios.response.body.scenarios[0].id}}
+@scenario_id_2 = {{create_scenarios.response.body.scenarios[1].id}}
+
+### 2.1.1. REQUEST: Get all scenarios by run_id
+# @name get_scenarios
+GET {{base_url}}/scenarios/?run_id={{run_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### 2.1.2. REQUEST: Get scenarios by run_id with windowing
+# @name get_scenarios
+GET {{base_url}}/scenarios/?run_id={{run_id}}&limit=2
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+@next_scenario = {{get_scenarios.response.body.scenarios[1].id}}
+
+### 2.1.3. REQUEST: Get scenarios by run_id with windowing
+# @name get_scenarios
+GET {{base_url}}/scenarios/?run_id={{run_id}}&limit=2&next={{next_scenario}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### - STEPS --------------------------------------------------------------------
+
+### 3.1.1 REQUEST: Create input steps for scenarios 1 and 2
+# @name create_steps
+POST {{base_url}}/steps/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "steps": [
+    {
+      "status": "success",
+      "key": "input",
+      "repeat_id": "e0f2b1a4-3c8d-4b5c-9f7d-6a0e1f3a2b5c",
+      "retry_id": "ed775bb9-a493-4465-8fe7-54d249d94009",
+      "hash_id": "f5d1c10f-e0b6-4f29-ac3c-33d86b4eb3d2",
+      "testcase_id": "5619b65c-8639-40c8-be68-c8b661f22dbe",
+      "scenario_id": "{{scenario_id_1}}",
+      "run_id": "{{run_id}}"
+    },
+    {
+      "status": "success",
+      "key": "input",
+      "repeat_id": "482af080-388a-4340-99b5-aef3d2815f08",
+      "retry_id": "a04274cd-3624-4a0f-8c52-c430c2742da9",
+      "hash_id": "91034143-fb8e-424e-98cf-a808da7479ef",
+      "testcase_id": "1b3c9a82-c97b-44ec-a77d-73c754069c70",
+      "scenario_id": "{{scenario_id_2}}",
+      "run_id": "{{run_id}}"
+    }
+  ]
+}
+
+### 3.1.2 REQUEST: Create invocation step for scenario 1
+POST {{base_url}}/steps/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "steps": [
+    {
+      "status": "success",
+      "key": "invocation",
+      "trace_id": "b84f3862c7b74e759e19eeee88b5a1ba",
+      "repeat_id": "e0f2b1a4-3c8d-4b5c-9f7d-6a0e1f3a2b5c",
+      "retry_id": "8ed80b5f-4a62-42cd-893b-df695224007c",
+      "scenario_id": "{{scenario_id_1}}",
+      "run_id": "{{run_id}}"
+    }
+  ]
+}
+
+### 3.1.3 REQUEST: Create annotation step for scenario 1
+POST {{base_url}}/steps/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "steps": [
+    {
+      "status": "success",
+      "key": "annotation",
+      "trace_id": "306eb5ccd299493bb651985dff3ad9a7",
+      "repeat_id": "e0f2b1a4-3c8d-4b5c-9f7d-6a0e1f3a2b5c",
+      "retry_id": "bd64c09a-3504-4e7d-8cd5-de3d20d75eac",
+      "scenario_id": "{{scenario_id_1}}",
+      "run_id": "{{run_id}}"
+    }
+  ]
+}
+
+### 3.1.4 REQUEST: Create invocation step for scenario 2
+POST {{base_url}}/steps/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "steps": [
+    {
+      "status": "success",
+      "key": "invocation",
+       "trace_id": "0773c47f216349ed8e5617830ae436ce",
+      "repeat_id": "482af080-388a-4340-99b5-aef3d2815f08",
+      "retry_id":"cfcd1fd1-1794-47bc-893a-b5d88183ca56",
+      "scenario_id": "{{scenario_id_2}}",
+      "run_id": "{{run_id}}"
+    }
+  ]
+}
+
+### 3.1.5 REQUEST: Create annotation step for scenario 2
+POST {{base_url}}/steps/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "steps": [
+    {
+      "status": "success",
+      "key": "annotation",
+      "trace_id": "09989c5181784174ad44dd19da5b4f67",
+      "repeat_id": "482af080-388a-4340-99b5-aef3d2815f08",
+      "retry_id": "1907c5f3-a3df-4b64-af5f-fedb6c933d7e",
+      "scenario_id": "{{scenario_id_2}}",
+      "run_id": "{{run_id}}"
+    }
+  ]
+}
+
+### 3.2.1 REQUEST: Get all steps by run_id
+# @name get_all_steps
+GET {{base_url}}/steps/?run_id={{run_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+
+###
+@next_step = {{get_steps.response.body.steps[1].id}}
+
+### 3.2.2 REQUEST: Get all steps by run_id with windowing
+# @name get_steps
+GET {{base_url}}/steps/?run_id={{run_id}}&limit=2
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### 3.2.3 REQUEST: Get all steps by run_id with windowing
+# @name get_steps
+GET {{base_url}}/steps/?run_id={{run_id}}&limit=2&next={{next_step}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### 3.3.1 REQUEST: Get all steps by run_id and key
+GET {{base_url}}/steps/?run_id={{run_id}}&key=invocation&key=annotation
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### 3.3.2 REQUEST: Get all steps by run_id and status
+GET {{base_url}}/steps/?run_id={{run_id}}&status=pending&status=success
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### 3.3.3 REQUEST: Get all steps by run_id and scenario_id
+GET {{base_url}}/steps/?run_id={{run_id}}&scenario_id={{scenario_id_1}}&scenario_id={{scenario_id_2}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### - METRICS ------------------------------------------------------------------
+
+### 6.1 REQUEST: Create run metrics
+POST {{base_url}}/metrics/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "metrics": [
+    {
+      "run_id": "{{run_id}}",
+      "data": {
+        "score": 0.95,
+        "confidence": 0.9,
+        "latency": 0.92,
+        "errors": 0.93,
+        "cost": 0.91
+      }
+    }
+  ]
+}
+
+### 6.2 Create scenario metrics
+POST {{base_url}}/metrics/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "metrics": [
+    {
+      "run_id": "{{run_id}}",
+      "scenario_id": "{{scenario_id_1}}",
+      "data": {
+        "score": 0.95,
+        "confidence": 0.9,
+        "latency": 0.92,
+        "errors": 0.93,
+        "cost": 0.91
+      }
+    },
+    {
+      "run_id": "{{run_id}}",
+      "scenario_id": "{{scenario_id_2}}",
+      "data": {
+        "score": 0.95,
+        "confidence": 0.9,
+        "latency": 0.92,
+        "errors": 0.93,
+        "cost": 0.91
+      }
+    }
+  ]
+}
+
+
+### 9. REQUEST: Get all metrics by run_id
+GET {{base_url}}/metrics/?run_id={{run_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+### 9. REQUEST: Get all metrics by run_id and scenario_id
+GET {{base_url}}/metrics/?run_id={{run_id}}&scenario_id={{scenario_id_1}}
+Content-Type: application/json
+Authorization: {{authorization}}

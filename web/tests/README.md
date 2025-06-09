@@ -1,5 +1,158 @@
 # Agenta Web Tests
 
+End-to-end tests for the Agenta web application. This guide reflects the latest runner, environment, and CI/CD integration logic as of 2025.
+
+---
+
+## Supported Environments & Presets
+
+- `local` – Local development (requires explicit `--license`)
+- `staging`, `beta`, `prod`, `demo` – Cloud environments (license always `ee`)
+- `oss` – OSS cloud (license always `oss`)
+
+**License logic:**
+- For `staging`, `beta`, `prod`, `demo`: license is always `ee` (enforced by runner)
+- For `oss`: license is always `oss` (enforced by runner)
+- For `local`: must specify `--license oss` or `--license ee`
+
+---
+
+## Required Environment Variables
+
+- `TESTMAIL_API_KEY` – Required for all test runs (email-based auth)
+- `TESTMAIL_NAMESPACE` – Required for all test runs (email-based auth)
+- `AGENTA_OSS_OWNER_PASSWORD` – Required only for OSS runs (preset/license = `oss`)
+- `AGENTA_OSS_OWNER_EMAIL` – Optional for OSS runs. If provided, must end with `@inbox.testmail.app` and local part must start with `TESTMAIL_NAMESPACE`. If not provided, a valid testmail address will be auto-generated.
+- `AGENTA_API_URL` – Set automatically in CI workflows for teardown and API flows.
+
+All required secrets are injected automatically in CI via the reusable workflow.
+
+---
+
+## Setup
+
+1. Install dependencies:
+
+```bash
+pnpm install
+```
+
+2. Create a `.env` file in `web/tests/` with at least:
+
+```env
+TESTMAIL_API_KEY=your_api_key
+TESTMAIL_NAMESPACE=your_namespace
+# Optional:
+MAX_WORKERS=4
+RETRIES=2
+```
+
+---
+
+## Running Tests
+
+Run tests using the unified runner script:
+
+```bash
+# Local OSS
+pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss
+
+# Local EE
+pnpm tsx playwright/scripts/run-tests.ts --preset local --license ee --web-url http://localhost:3001
+
+# Staging
+pnpm tsx playwright/scripts/run-tests.ts --preset staging
+
+# Beta
+pnpm tsx playwright/scripts/run-tests.ts --preset beta
+
+# Prod
+pnpm tsx playwright/scripts/run-tests.ts --preset prod
+
+# Demo
+pnpm tsx playwright/scripts/run-tests.ts --preset demo
+
+# OSS cloud
+pnpm tsx playwright/scripts/run-tests.ts --preset oss
+
+# With annotation filters (e.g., smoke tests for apps)
+pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --scope apps --coverage smoke
+
+# With lens/case/speed filters
+pnpm tsx playwright/scripts/run-tests.ts --preset prod --lens functional --case typical --speed fast
+```
+
+You can also provide a custom env file:
+
+```bash
+pnpm tsx playwright/scripts/run-tests.ts --preset oss --env-file ./my.env
+```
+
+---
+
+## Annotation Flags
+
+You can filter tests using these flags:
+- `--scope <auth|apps|playground|datasets|evaluations>`
+- `--coverage <smoke|sanity|light|full>`
+- `--path <happy|grumpy>`
+- `--env <local|staging|beta|prod|demo|oss>`
+- `--feature <ee>` (only allowed if `--license ee`)
+- `--entitlement <hobby|pro>`
+- `--permission <owner|editor|viewer>`
+- `--lens <functional|performance|security>`
+- `--case <typical|edge>`
+- `--speed <fast|slow>`
+
+**Notes:**
+- If you use `--license oss`, you **must** set `AGENTA_OSS_OWNER_PASSWORD`.
+- `AGENTA_OSS_OWNER_EMAIL` is optional for OSS, but if provided, must be a valid testmail address for your namespace.
+- `--feature` can only be used with license `ee`.
+- All other Playwright CLI options (e.g. `--ui`, `--workers`, etc.) are supported.
+
+---
+
+## Environment Variable Loading
+
+- The runner loads `.env` from `web/tests/` by default.
+- If you provide `--env-file <path>`, that file is loaded after the default for any missing variables.
+
+---
+
+## CI/CD & Workflow Integration
+
+- All required secrets and API URLs are injected automatically in CI via the reusable workflow (`.github/workflows/62-testing.yml`).
+- No need to set these manually in per-environment workflows.
+- The Playwright teardown script uses `AGENTA_API_URL` to clean up test data.
+
+---
+
+## Best Practices
+
+- **Type Safety:** Always use API response types from `web/oss/src/lib/Types.ts` in E2E tests. Do not define custom interfaces or use `any` for backend responses.
+- **Dynamic Selectors:** Use API responses to drive selectors and assertions for robust, non-brittle tests.
+- **API-driven Assertions:** Always assert backend responses/messages for actions that mutate state.
+
+---
+
+## Test Tags
+
+Tests can be filtered using the following tags:
+
+- `@scope:` - Test category (auth, apps, playground, etc.)
+- `@coverage:` - Test coverage level (smoke, sanity, light, full)
+- `@path:` - Test path type (happy, grumpy)
+- `@feature-scope:` - Feature availability (ee, common)
+- `@lens:` - Test lens (functional, performance, security)
+- `@case:` - Test case type (typical, edge)
+- `@speed:` - Test speed type (fast, slow)
+
+Tags affect user authentication requirements. For example:
+- Tests with `@feature-scope:ee` always require authentication
+- Cloud environments always require authentication
+- Tests with `@scope:auth` require authentication in any environment
+
+
 End-to-end tests for Agenta web application.
 
 ## Setup
@@ -28,32 +181,81 @@ RETRIES=2           # Number of test retries (default: 0)
 - Local OSS: Make sure Agenta is running on http://localhost:3000
 - Staging/Beta: Ensure you have access to the cloud environments
 
-## Usage Examples
+## Environment Variable Loading
 
-Run tests against specific environments in parallel:
+The test runner (`playwright/scripts/run-tests.ts`) loads environment variables from two sources:
+
+1. The default `.env` file at `web/tests/.env` is always loaded first.
+2. If you provide the `--env-file <path>` option, that file is loaded after the default.
+
+> **Note:** Variables from the first file loaded (the default `.env`) will be used if there are duplicates. The `--env-file` only extends the environment with any variables not already set. There is no overriding unless you unset variables manually or use the `override: true` option with dotenv (which is not the default).
+
+### Usage Examples
+
+Run tests using the new unified runner script:
 
 ```bash
-# Run against multiple environments
-npm run test:e2e -- --project staging --project beta
+# Run against local OSS (requires --license)
+pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss
 
-# Run cloud-only features
-npm run test:e2e -- --project staging-cloud-only --project beta-cloud-only
+# Run with an additional env file (variables extend, not override, the default .env)
+pnpm tsx playwright/scripts/run-tests.ts --preset oss --env-file ./my.env
 
-# Run with test filters
-npm run test:e2e -- --project staging -- --project beta --grep @scope:auth
+# Run against local EE (custom web-url and api-url)
+pnpm tsx playwright/scripts/run-tests.ts --preset local --license ee --web-url http://localhost:3001 --api-url http://localhost:3001/api
+
+# Run against staging environment
+pnpm tsx playwright/scripts/run-tests.ts --preset staging
+
+# Run against beta environment
+pnpm tsx playwright/scripts/run-tests.ts --preset beta
+
+# Run with annotation filters (e.g., only smoke tests for apps)
+pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --scope apps --coverage smoke
+
+# Run all tests (coverage full is default, so no filter is applied)
+pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --coverage full
+
+# Combine multiple annotation filters
+pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --scope apps --coverage smoke --path happy
+
+# EE-only feature test (requires --license ee)
+pnpm tsx playwright/scripts/run-tests.ts --preset staging --license ee --feature ee
+
+# Use entitlement and permission filters
+pnpm tsx playwright/scripts/run-tests.ts --entitlement hobby --permission owner
 
 # Control parallelism
-npm run test:e2e -- --project staging --project beta --workers 4
+pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --workers 4
+```
+
+### Annotation Flags
+
+You can filter tests using these flags:
+- `--scope <auth|apps|playground|datasets|evaluations>`
+- `--coverage <smoke|sanity|light|full>`
+- `--path <happy|grumpy>`
+- `--env <local|staging|beta|oss>`
+- `--feature <ee>` (only allowed if `--license ee`)
+- `--entitlement <hobby|pro>`
+- `--permission <owner|editor|viewer>`
+
+**Note:**
+- If you use `--license oss`, you **must** set the `AGENTA_OSS_OWNER_PASSWORD` environment variable (either in your shell or in a `.env` file in the tests directory). The runner will exit with an error if this is missing.
+- `--feature` can only be used if the license is `ee`. If you provide `--feature` with any other license, the script will exit with an error.
+- `--entitlement` and `--permission` are always optional and can be combined with other filters.
+- `--coverage full` means all coverage levels are included (no coverage filter is applied), but other annotation filters (e.g. `--scope`, `--path`) will still be used if present.
+- You no longer need to use `--project` or `--grep` directly; the script handles project selection and annotation mapping for you.
+- All other Playwright CLI options (e.g. `--ui`, `--workers`, etc.) are supported.
+
 ```
 
 ## Available Projects
 
-- `local` - OSS features only
-- `local-cloud` - All features
+- `local` - OSS
 - `staging` - All features
 - `beta` - All features
-- `staging-cloud-only` - Cloud features only
-- `beta-cloud-only` - Cloud features only
+- `oss` - OSS features only
 
 ## Test Tags
 
@@ -62,40 +264,13 @@ Tests can be filtered using the following tags:
 - `@scope:` - Test category (auth, apps, playground, etc.)
 - `@coverage:` - Test coverage level (smoke, sanity, light, full)
 - `@path:` - Test path type (happy, grumpy)
-- `@feature-scope:` - Feature availability (cloud-only, common)
+- `@feature-scope:` - Feature availability (ee, common)
 
 Tags affect user authentication requirements. For example:
 
-- Tests with `@feature-scope:cloud-only` always require authentication
+- Tests with `@feature-scope:ee` always require authentication
 - Cloud environments always require authentication
 - Tests with `@scope:auth` require authentication in any environment
-
-## Project Structure
-
-```
-agenta-web-tests/
-├── tests/
-│   ├── fixtures/
-│   │   ├── auth/
-│   │   │   ├── loginWithEmail.fixture.ts  # Email-based authentication
-│   │   │   └── postSignup.fixture.ts      # New user onboarding flow
-│   │   └── user.fixture/                  # User state management
-│   │       ├── index.ts                   # Main fixture
-│   │       ├── types.ts                   # Type definitions
-│   │       └── utilities.ts               # Helper functions
-│   ├── cloud/
-│   │   └── app/                          # App-related tests
-│   │       ├── create.spec.ts            # App creation tests
-│   │       └── helpers/                  # Reusable app test helpers
-│   └── oss/
-├── playwright/
-│   ├── config/       # Test configuration
-│   └── scripts/      # Test runner scripts
-├── utils/
-│   ├── testmail.ts   # Testmail.app API client
-│   └── types.d.ts    # Type definitions
-└── playwright.config.ts
-```
 
 ## Test Organization
 
@@ -190,7 +365,7 @@ Tests use testmail.app for email-based authentication, managed by the user fixtu
 2. Authentication state is maintained across tests in the same group
 3. Authentication is automatic based on:
    - Environment type (cloud vs OSS)
-   - Test tags (cloud-only features)
+   - Test tags (ee features)
    - Explicit auth requirements
 
 Configure environment variables:

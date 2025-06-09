@@ -1,60 +1,63 @@
-import {expect} from "@playwright/test"
-import type {UIHelpers} from "./types"
+import {expect, Locator, Page} from "@playwright/test"
+
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
+
+import {clickButton, selectOption, typeWithDelay, waitForPath} from "./helpers"
+import {UIHelpers} from "./types"
+
+export const expectText = async (page: Page, text: string, options = {}) => {
+    let locator
+    const role = options.role
+    if (role) {
+        locator = page.getByRole(role, {name: text})
+    } else {
+        locator = page.getByText(text, {exact: options.exact})
+    }
+
+    if (options.multiple) {
+        const count = await locator.count()
+        expect(count).toBeGreaterThan(0)
+    } else {
+        await expect(locator).toBeVisible()
+    }
+}
+
+export const expectNoText = async (page: Page, text: string) => {
+    await expect(page.getByText(text)).not.toBeVisible()
+}
+
+export const selectOptions = async (page: Page, labels: string[]) => {
+    for (const label of labels) {
+        await page.getByLabel(label).check()
+    }
+}
 
 export const uiHelpers = () => {
     return async ({page}: FixtureContext, use: UseFn<UIHelpers>) => {
         await use({
             expectText: async (text: string, options = {}) => {
-                let locator
-                const role = options.role
-                if (role) {
-                    locator = page.getByRole(role, {name: text})
-                } else {
-                    locator = page.getByText(text, {exact: options.exact})
-                }
-
-                if (options.multiple) {
-                    const count = await locator.count()
-                    expect(count).toBeGreaterThan(0)
-                } else {
-                    await expect(locator).toBeVisible()
-                }
+                await expectText(page, text, options)
             },
 
             expectNoText: async (text) => {
-                await expect(page.getByText(text)).not.toBeVisible()
+                await expectNoText(page, text)
             },
 
             typeWithDelay: async (selector, text, delay = 50) => {
-                const input = page.locator(selector)
-                await input.click()
-                await input.pressSequentially(text, {delay})
+                await typeWithDelay(page, selector, text, delay)
             },
 
             clickButton: async (name, locator) => {
-                const button = (locator || page).getByRole("button", {name}).first()
-                await button.click()
+                await clickButton(page, name, locator)
             },
 
             selectOption: async ({label, text}) => {
-                if (text) {
-                    if (Array.isArray(text)) {
-                        const [textValue, options] = text
-                        await page.getByText(textValue, options).click()
-                    } else {
-                        await page.getByText(text).click()
-                    }
-                } else if (label) {
-                    await page.getByLabel(label).check()
-                }
+                await selectOption(page, {label, text})
             },
 
             selectOptions: async (labels) => {
-                for (const label of labels) {
-                    await page.getByLabel(label).check()
-                }
+                await selectOptions(page, labels)
             },
 
             expectPath: async (path) => {
@@ -62,7 +65,7 @@ export const uiHelpers = () => {
             },
 
             waitForPath: async (path) => {
-                await page.waitForURL(path, {waitUntil: "domcontentloaded"})
+                await waitForPath(page, path)
             },
 
             waitForLoadingState: async (text) => {

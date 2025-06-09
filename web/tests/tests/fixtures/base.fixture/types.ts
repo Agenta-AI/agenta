@@ -1,6 +1,7 @@
 import type {Page} from "@playwright/test"
-import type {UIHelpers} from "./uiHelpers/types"
+
 import type {ApiHelpers} from "./apiHelpers/types"
+import type {UIHelpers} from "./uiHelpers/types"
 
 export interface BaseFixture {
     page: Page
@@ -8,4 +9,6 @@ export interface BaseFixture {
     apiHelpers: ApiHelpers
 }
 
-export type FixtureContext = {page: Page}
+export interface FixtureContext {
+    page: Page
+}

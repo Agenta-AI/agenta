@@ -76,7 +76,6 @@ fixtures/
 Required environment:
 
 ```bash
-TEST_ENV=local|cloud     # Test environment
 TESTMAIL_API_KEY=xxx    # Email service auth
 ```
 

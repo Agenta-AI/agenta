@@ -1,4 +1,5 @@
 import axios from "axios"
+
 import type Testmail from "./types"
 
 export class TestmailClient {

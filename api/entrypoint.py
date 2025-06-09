@@ -133,6 +133,7 @@ app.add_middleware(
     allow_headers=allow_headers,
 )
 
+app.include_router(user_profile.admin_router, prefix="/admin/accounts")
 app.include_router(health_router.router, prefix="/health")
 app.include_router(
     permissions_router.router, prefix="/permissions", tags=["Access Control"]

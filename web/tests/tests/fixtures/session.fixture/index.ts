@@ -1,5 +1,7 @@
-import {test as baseTest} from "../base.fixture"
 import {chromium, type BrowserContext, TestType} from "@playwright/test"
+
+import {test as baseTest} from "../base.fixture"
+
 import type {SessionState, SessionFixtures, SessionWorkerFixtures} from "./types"
 
 // State management at worker level

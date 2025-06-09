@@ -1,108 +1,102 @@
-@host = http://localhost/api
-@api_key = xxxxxxx.xxxxxxxxxxxxxxxxxxxxxx
-@token = xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+@host = http://localhost
+@token = change-me
 @base_url = {{host}}/api/preview/workflows
 
 ###
 # @name create_account
-POST {{host}}/admin/account
+POST {{host}}/api/admin/account
 Content-Type: application/json
 Authorization: Access {{token}}
 
-### 
+###
 @user_id = {{create_account.response.body.user.id}}
 @authorization = {{create_account.response.body.scopes[0].credentials}}
 
+
 ###
-# @name add_workflow_artifact
-POST {{base_url}}/artifacts/
+# @name create_workflow
+POST {{base_url}}/
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
-  "artifact": {
-    "name": "artifact {{$guid}}",
-    "description": "artifact description",
-    "slug": "artifact-{{$guid}}",
-    "meta": {
-      "key1": "value",
-      "key2": "value",
-      "key3": "value"
-    },
+  "workflow": {
+    "slug": "workflow-{{$guid}}",
+    "name": "Workflow {{$guid}}",
+    "description": "Workflow Description",
     "flags": {
-      "is_executable": false,
-      "is_custom": false,
-      "is_application": false,
+      "is_custom": false,      
       "is_evaluator": false,
-      "is_auto": false,
-      "is_human": false,
-      "is_for_members": false,
-      "is_for_endusers": false
+      "is_human": false
+    },
+    "tags": {
+      "tag1": "value1",
+      "tag2": "value2",
+      "tag3": "value3"
+    },
+    "meta": {
+      "meta1": "value1",
+      "meta2": "value2",
+      "meta3": "value3"
     }
   }
 }
 
 ###
-@artifact_id = {{add_workflow_artifact.response.body.artifact.id}}
-@artifact_slug = {{add_workflow_artifact.response.body.artifact.slug}}
+@workflow_id = {{create_workflow.response.body.workflow.id}}
+@workflow_slug = {{create_workflow.response.body.workflow.slug}}
 
 ###
-# @name fetch_artifact
-GET {{base_url}}/artifacts/{{artifact_id}}
+# @name fetch_workflow
+GET {{base_url}}/{{workflow_id}}
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 ###
-# @name edit_workflow_artifact
-PUT {{base_url}}/artifacts/{{artifact_id}}
+# @name edit_workflow
+PUT {{base_url}}/{{workflow_id}}
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
-  "artifact": {
-    "id": "{{artifact_id}}",
-    "slug": "artifact-slug-{{$guid}}",
-    "name": "artifact 1 (updated)",
-    "description": "artifact description (updated)",
+  "workflow": {
+    "id": "{{workflow_id}}",
+    "name": "Workflow 1 (updated)",
+    "description": "Workflow description (updated)",
     "meta": {
       "key1": "tag 1",
       "key2": "tag 2",
       "key3": "tag 3"
     },
     "flags": {
-      "is_application": false,
+      "is_custom": false,      
       "is_evaluator": false,
-      "is_executable": false,
-      "is_custom": false,
-      "is_auto": false,
-      "is_human": false,
-      "is_for_members": false,
-      "is_for_endusers": false
+      "is_human": false
     }
   }
 }
 
 ###
 # @name archive_workflow_artifact
-POST {{base_url}}/artifacts/{{artifact_id}}/archive
+POST {{base_url}}/{{artifact_id}}/archive
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 ###
 # @name unarchive_workflow_artifact
-POST {{base_url}}/artifacts/{{artifact_id}}/unarchive
+POST {{base_url}}/{{artifact_id}}/unarchive
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 ### query by artifact reference (id)
-GET {{base_url}}/artifacts/?artifact_ref={"id"="{{artifact_id}"}}
+GET {{base_url}}/?artifact_ref={"id"="{{artifact_id}"}}
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 ### query by artifact reference (id)
-POST {{base_url}}/artifacts/query
+POST {{base_url}}/query
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
   "artifact_ref": {
@@ -111,14 +105,14 @@ Authorization: ApiKey {{api_key}}
 }
 
 ### query by artifact reference (slug)
-GET {{base_url}}/artifacts/?artifact_ref={"slug"="{{artifact_slug}}"}
+GET {{base_url}}/?artifact_ref={"slug"="{{artifact_slug}}"}
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 ### query by artifact reference (slug)
-POST {{base_url}}/artifacts/query
+POST {{base_url}}/query
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
   "artifact_ref": {
@@ -127,9 +121,9 @@ Authorization: ApiKey {{api_key}}
 }
 
 ### query by artifact meta
-POST {{base_url}}/artifacts/query
+POST {{base_url}}/query
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
   "artifact_meta": {
@@ -138,9 +132,9 @@ Authorization: ApiKey {{api_key}}
 }
 
 ### query by artifact flags
-POST {{base_url}}/artifacts/query
+POST {{base_url}}/query
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
   "artifact_flags": {
@@ -149,18 +143,18 @@ Authorization: ApiKey {{api_key}}
 }
 
 ### query all (excluding archived)
-POST {{base_url}}/artifacts/query
+POST {{base_url}}/query
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
   "include_archived": false
 }
 
 ### query all including archived
-POST {{base_url}}/artifacts/query
+POST {{base_url}}/query
 Content-Type: application/json
-Authorization: ApiKey {{api_key}}
+Authorization: {{authorization}}
 
 {
   "include_archived": true
