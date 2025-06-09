@@ -1,8 +1,7 @@
-import {Page} from "@playwright/test"
 import type {BaseFixture} from "../../base.fixture/types"
 
 export interface AuthHelpers {
-    loginWithEmail: (email: string, options?: LoginOptions) => Promise<void>
+    loginWithEmail: (email: string, password?: string, options?: LoginOptions) => Promise<void>
     completePostSignup: () => Promise<void>
     completeLLMKeysCheck: () => Promise<void>
 }
@@ -21,12 +20,12 @@ export interface AuthResponse {
         isPrimaryUser: boolean
         tenantIds: string[]
         emails: string[]
-        loginMethods: Array<{
+        loginMethods: {
             recipeId: string
             recipeUserId: string
             timeJoined: number
             verified: boolean
-        }>
+        }[]
         timeJoined: number
     }
     createdNewRecipeUser: boolean

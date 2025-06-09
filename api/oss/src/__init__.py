@@ -95,7 +95,12 @@ def override_passwordless_apis(
                 "uid": response.user.id,
                 "email": response.user.emails[0],
             }
-            await create_accounts(payload)
+            if is_ee():
+                await create_accounts(payload)
+            else:
+                raise Exception(
+                    "passwordless account creation is not available in OSS."
+                )
 
         return response
 
@@ -133,7 +138,12 @@ def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
                 "uid": response.user.id,
                 "email": response.user.emails[0],
             }
-            await create_accounts(payload)
+            if is_ee():
+                await create_accounts(payload)
+            else:
+                raise Exception(
+                    "third-party-api account creation is not available in OSS."
+                )
 
         return response
 

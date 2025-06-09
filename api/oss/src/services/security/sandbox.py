@@ -64,7 +64,6 @@ def execute_code_safely(
         "datetime",
         "json",
         "requests",
-        "numpy",
         "typing",
     ]
 

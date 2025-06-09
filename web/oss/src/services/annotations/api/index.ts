@@ -20,7 +20,7 @@ export const queryAllAnnotations = async (queries?: {
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/api/preview/annotations/query?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/preview/annotations/query?project_id=${projectId}`,
         Object.keys(queries?.annotation || {}).length > 0 ? queries : {},
     )
 
@@ -48,7 +48,7 @@ export const updateAnnotation = async ({
     const {projectId} = getCurrentProject()
 
     return await axios.patch(
-        `${getAgentaApiUrl()}/api/preview/annotations/${traceId}/${spanId}?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}?project_id=${projectId}`,
         payload,
     )
 }

@@ -1,8 +1,10 @@
-import type {AuthHelpers, AuthResponse} from "./types"
+import {expect} from "@playwright/test"
+
 import {getTestmailClient} from "../../../../utils/testmail"
 import type {BaseFixture} from "../../base.fixture/types"
 import {UseFn} from "../../types"
-import {expect} from "@playwright/test"
+
+import type {AuthHelpers, AuthResponse} from "./types"
 
 export const authHelpers = () => {
     return async ({page, uiHelpers, apiHelpers}: BaseFixture, use: UseFn<AuthHelpers>) => {
@@ -46,7 +48,7 @@ export const authHelpers = () => {
 
             completePostSignup: async () => {
                 await uiHelpers.expectText("Tell us about yourself")
-                await uiHelpers.selectOption({text: "1-10"})
+                await uiHelpers.selectOption({text: "2-10"})
                 await uiHelpers.selectOption({text: "Hobbyist"})
                 await uiHelpers.selectOption({text: "Just exploring"})
                 await uiHelpers.clickButton("Continue")
@@ -54,12 +56,19 @@ export const authHelpers = () => {
                 await uiHelpers.expectText("What brings you here?")
                 await uiHelpers.selectOption({text: "Evaluating LLM Applications"})
                 await uiHelpers.selectOption({
-                    text: ["Just exploring", {exact: true}],
+                    text: ["Github", {exact: true}],
                 })
                 await uiHelpers.clickButton("Continue")
             },
 
-            loginWithEmail: async (email, options = {}) => {
+            loginWithEmail: async (
+                email: string,
+                password?: string,
+                options: {
+                    timeout?: number
+                    inputDelay?: number
+                } = {},
+            ) => {
                 const {timeout, inputDelay = 100} = options
                 const testmail = getTestmailClient()
 
@@ -75,34 +84,45 @@ export const authHelpers = () => {
                 }
 
                 await page.goto("/auth")
+                await page.evaluate(() => window.localStorage.clear())
+
                 const timestamp = Date.now()
                 await uiHelpers.typeWithDelay('input[type="email"]', email)
-                await uiHelpers.clickButton("Continue with email")
-                await uiHelpers.expectText("Verify your email")
 
-                try {
-                    const otp = await testmail.waitForOTP(email, {
-                        timeout,
-                        timestamp_from: timestamp,
-                    })
-                    const responsePromise = apiHelpers.waitForApiResponse<AuthResponse>({
-                        route: "/api/auth/signinup/code/consume",
-                        validateStatus: true,
-                    })
+                const signinButton = await page.getByRole("button", {name: "Sign in"})
 
-                    await fillOTPDigits(otp, inputDelay)
-                    await uiHelpers.clickButton("Next")
-                    const responseData = await responsePromise
-
-                    if (responseData.createdNewRecipeUser) {
-                        await uiHelpers.waitForPath("/post-signup")
-                        await helpers.completePostSignup()
-                    }
-
+                const hasSigninButton = await signinButton.isVisible()
+                if (hasSigninButton) {
+                    await uiHelpers.typeWithDelay("input[type='password']", password)
+                    await signinButton.click()
                     await uiHelpers.waitForPath("/apps")
-                } catch (error) {
-                    console.error("Error in login flow:", error)
-                    throw error
+                } else {
+                    await uiHelpers.clickButton("Continue with email")
+                    await uiHelpers.expectText("Verify your email")
+                    try {
+                        const otp = await testmail.waitForOTP(email, {
+                            timeout,
+                            timestamp_from: timestamp,
+                        })
+                        const responsePromise = apiHelpers.waitForApiResponse<AuthResponse>({
+                            route: "/api/auth/signinup/code/consume",
+                            validateStatus: true,
+                        })
+
+                        await fillOTPDigits(otp, inputDelay)
+                        await uiHelpers.clickButton("Next")
+                        const responseData = await responsePromise
+
+                        if (responseData.createdNewRecipeUser) {
+                            await uiHelpers.waitForPath("/post-signup")
+                            await helpers.completePostSignup()
+                        }
+
+                        await uiHelpers.waitForPath("/apps")
+                    } catch (error) {
+                        console.error("Error in login flow:", error)
+                        throw error
+                    }
                 }
             },
         }

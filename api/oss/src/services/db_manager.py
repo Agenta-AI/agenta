@@ -892,10 +892,11 @@ async def check_if_user_exists_and_create_organization(user_email: str):
             )
 
             # update default project with organization and workspace ids
-            await update_default_project(
+            await create_or_update_default_project(
                 values_to_update={
                     "organization_id": organization_db.id,
                     "workspace_id": workspace_db.id,
+                    "project_name": organization_name,
                 }
             )
             return organization_db
@@ -931,6 +932,125 @@ async def check_if_user_invitation_exists(email: str, organization_id: str):
             return False
 
         return True
+
+
+async def delete_accounts() -> None:
+    async with engine.core_session() as session:
+        # fetch all projects
+
+        stmt = select(ProjectDB)
+
+        result = await session.execute(stmt)
+
+        projects = result.scalars().all()
+
+        # delete all projects
+
+        for project in projects:
+            try:
+                await session.delete(project)
+                log.info(
+                    "[scopes] project deleted",
+                    project_id=project.id,
+                )
+            except Exception as e:
+                log.error(
+                    "[scopes] error deleting project",
+                    project_id=project.id,
+                    error=str(e),
+                )
+
+        # fetch all workspaces
+
+        stmt = select(WorkspaceDB)
+
+        result = await session.execute(stmt)
+
+        workspaces = result.scalars().all()
+
+        # delete all workspaces
+
+        for workspace in workspaces:
+            try:
+                await session.delete(workspace)
+                log.info(
+                    "[scopes] workspace deleted",
+                    workspace_id=workspace.id,
+                )
+            except Exception as e:
+                log.error(
+                    "[scopes] error deleting workspace",
+                    workspace_id=workspace.id,
+                    error=str(e),
+                )
+
+        # fetch all organizations
+
+        stmt = select(OrganizationDB)
+
+        result = await session.execute(stmt)
+
+        organizations = result.scalars().all()
+
+        # delete all organizations
+
+        for organization in organizations:
+            try:
+                await session.delete(organization)
+                log.info(
+                    "[scopes] organization deleted",
+                    organization_id=organization.id,
+                )
+            except Exception as e:
+                log.error(
+                    "[scopes] error deleting organization",
+                    organization_id=organization.id,
+                    error=str(e),
+                )
+
+        await session.commit()
+
+        # fetch all users
+
+        stmt = select(UserDB)
+
+        result = await session.execute(stmt)
+
+        users = result.scalars().all()
+
+        # delete all users (supertokens)
+
+        for user in users:
+            try:
+                await delete_user_from_supertokens(user.uid)
+                log.info(
+                    "[scopes] user deleted (supertokens)",
+                    user_uid=user.uid,
+                )
+            except Exception as e:
+                log.error(
+                    "[scopes] error deleting user from supertokens",
+                    user_uid=user.uid,
+                    error=str(e),
+                )
+
+        # delete all users
+
+        for user in users:
+            try:
+                await session.delete(user)
+                log.info(
+                    "[scopes] user deleted",
+                    user_id=user.id,
+                )
+            except Exception as e:
+                log.error(
+                    "[scopes] error deleting user",
+                    user_id=user.id,
+                    error=str(e),
+                )
+
+        await session.commit()
 
 
 async def create_accounts(payload: dict) -> UserDB:
@@ -1058,7 +1178,7 @@ async def update_organization(organization_id: str, values_to_update: Dict[str, 
         await session.refresh(organization)
 
 
-async def update_default_project(values_to_update: Dict[str, Any]):
+async def create_or_update_default_project(values_to_update: Dict[str, Any]):
     """Update the specified project in the database.
 
     Args:
@@ -1068,8 +1188,11 @@ async def update_default_project(values_to_update: Dict[str, Any]):
     async with engine.core_session() as session:
         result = await session.execute(select(ProjectDB).filter_by(is_default=True))
         project = result.scalar()
+
         if project is None:
-            raise Exception(f"Default project not found")
+            project = ProjectDB(project_name="Default Project", is_default=True)
+
+            session.add(project)
 
         for key, value in values_to_update.items():
             if hasattr(project, key):

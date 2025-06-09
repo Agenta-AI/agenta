@@ -1,0 +1,9 @@
+click
+python-dotenv
+requests
+httpx
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
+pytest-httpx

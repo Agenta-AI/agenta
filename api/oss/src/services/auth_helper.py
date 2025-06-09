@@ -127,25 +127,24 @@ async def _authenticate(request: Request):
         if request.url.path.startswith(_PUBLIC_ENDPOINTS):
             return
 
-        if is_ee():
-            if request.url.path.startswith(_ADMIN_ENDPOINT_PREFIX):
-                auth_header = (
-                    request.headers.get("Authorization")
-                    or request.headers.get("authorization")
-                    or None
-                )
+        if request.url.path.startswith(_ADMIN_ENDPOINT_PREFIX):
+            auth_header = (
+                request.headers.get("Authorization")
+                or request.headers.get("authorization")
+                or None
+            )
 
-                if not auth_header:
-                    raise UnauthorizedException()
+            if not auth_header:
+                raise UnauthorizedException()
 
-                if not auth_header.startswith(_ACCESS_TOKEN_PREFIX):
-                    raise UnauthorizedException()
+            if not auth_header.startswith(_ACCESS_TOKEN_PREFIX):
+                raise UnauthorizedException()
 
-                access_token = auth_header[len(_ACCESS_TOKEN_PREFIX) :]
+            access_token = auth_header[len(_ACCESS_TOKEN_PREFIX) :]
 
-                return await verify_access_token(
-                    access_token=access_token,
-                )
+            return await verify_access_token(
+                access_token=access_token,
+            )
 
         auth_header = (
             request.headers.get("Authorization")

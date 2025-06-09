@@ -24,14 +24,15 @@ supported_llm_models = {
         "deepinfra/mistralai/Mistral-7B-Instruct-v0.1",
     ],
     "Gemini": [
+        "gemini/gemini-2.5-flash-preview-05-20",
         "gemini/gemini-2.5-flash-preview-04-17",
-        "gemini/gemini-2.5-pro-exp-03-25",
         "gemini/gemini-2.0-flash-001",
+        "gemini/gemini-2.5-pro-preview-05-06",
         "gemini/gemini-2.0-flash-lite-preview-02-05",
         "gemini/gemini-1.5-pro-latest",
+        "gemini/gemini-2.0-flash-lite",
         "gemini/gemini-1.5-flash",
         "gemini/gemini-1.5-flash-8b",
-        "gemini/gemma-3-27b-it",
     ],
     "Groq": [
         "groq/deepseek-r1-distill-llama-70b",

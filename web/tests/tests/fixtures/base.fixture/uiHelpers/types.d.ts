@@ -1,5 +1,4 @@
-import type {Page, Locator} from "@playwright/test"
-import type {UseFn} from "../types"
+import {Page, Locator} from "@playwright/test"
 
 // Extract AriaRole from Playwright's types
 type GetByRoleOptions = Parameters<Page["getByRole"]>[1]

@@ -20,7 +20,7 @@ from agenta.sdk.tracing.conventions import Reference
 log = get_module_logger(__name__)
 
 
-class TraceProcessor(BatchSpanProcessor):
+class TraceProcessor(SpanProcessor):
     def __init__(
         self,
         span_exporter: SpanExporter,
@@ -31,14 +31,6 @@ class TraceProcessor(BatchSpanProcessor):
         max_export_batch_size: int = None,
         export_timeout_millis: float = None,
     ):
-        super().__init__(
-            span_exporter,
-            _DEFAULT_MAX_QUEUE_SIZE,
-            5 * 1000 if inline else _DEFAULT_SCHEDULE_DELAY_MILLIS,  # < 5 seconds
-            _DEFAULT_MAX_EXPORT_BATCH_SIZE,
-            500 if inline else _DEFAULT_EXPORT_TIMEOUT_MILLIS,  # < 1 second
-        )
-
         self.references = references or dict()
         self.inline = inline is True
 
@@ -48,6 +40,18 @@ class TraceProcessor(BatchSpanProcessor):
             self._exporter = span_exporter
             self._spans: Dict[int, List[ReadableSpan]] = dict()
         # --- INLINE
+
+        # --- DISTRIBUTED
+        else:
+            # Use composition instead of inheritance to avoid relying on BatchSpanProcessor internals
+            self._delegate = BatchSpanProcessor(
+                span_exporter,
+                max_queue_size or _DEFAULT_MAX_QUEUE_SIZE,
+                schedule_delay_millis or _DEFAULT_SCHEDULE_DELAY_MILLIS,
+                max_export_batch_size or _DEFAULT_MAX_EXPORT_BATCH_SIZE,
+                export_timeout_millis or _DEFAULT_EXPORT_TIMEOUT_MILLIS,
+            )
+        # --- DISTRIBUTED
 
     def on_start(
         self,
@@ -79,9 +83,6 @@ class TraceProcessor(BatchSpanProcessor):
     ):
         # --- INLINE
         if self.inline:
-            if self.done:
-                return
-
             if span.context.trace_id not in self._spans:
                 self._spans[span.context.trace_id] = list()
 
@@ -95,7 +96,7 @@ class TraceProcessor(BatchSpanProcessor):
 
         # --- DISTRIBUTED
         else:
-            super().on_end(span)
+            self._delegate.on_end(span)
         # --- DISTRIBUTED
 
     def export(
@@ -106,11 +107,7 @@ class TraceProcessor(BatchSpanProcessor):
         if self.inline:
             spans = self._spans[trace_id]
 
-            for span in spans:
-                self.queue.appendleft(span)
-
-            with self.condition:
-                self.condition.notify()
+            self._exporter.export(spans)
 
             del self._spans[trace_id]
         # --- INLINE
@@ -119,10 +116,34 @@ class TraceProcessor(BatchSpanProcessor):
         self,
         timeout_millis: int = None,
     ) -> bool:
-        ret = super().force_flush(timeout_millis)
+        # --- INLINE
+        if self.inline:
+            try:
+                ret = self._exporter.force_flush(timeout_millis)
+            except:  # pylint: disable=bare-except
+                ret = True
+        # --- INLINE
+
+        # --- DISTRIBUTED
+        else:
+            ret = self._delegate.force_flush(timeout_millis)
+        # --- DISTRIBUTED
 
         if not ret:
             log.warning("Agenta - Skipping export due to timeout.")
+
+        return ret
+
+    def shutdown(self) -> None:
+        # --- INLINE
+        if self.inline:
+            self._exporter.shutdown()
+        # --- INLINE
+
+        # --- DISTRIBUTED
+        else:
+            self._delegate.shutdown()
+        # --- DISTRIBUTED
 
     def is_ready(
         self,
