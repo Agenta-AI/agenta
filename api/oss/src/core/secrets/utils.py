@@ -2,7 +2,7 @@ import os
 from uuid import UUID
 from typing import Dict, Any
 
-from oss.src.dbs.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.secrets.services import VaultService
 from oss.src.models.api.evaluation_model import LMProvidersEnum
 

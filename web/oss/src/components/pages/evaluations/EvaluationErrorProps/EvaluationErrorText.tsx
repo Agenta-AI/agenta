@@ -7,7 +7,7 @@ interface EvaluationErrorTextProps {
 
 const EvaluationErrorText = ({text, handleOnClick}: EvaluationErrorTextProps) => {
     return (
-        <Typography.Text type={"danger"} strong>
+        <Typography.Text type={"danger"}>
             {text}{" "}
             <Button size="small" className="text-xs" type="text" onClick={() => handleOnClick()}>
                 (more details)

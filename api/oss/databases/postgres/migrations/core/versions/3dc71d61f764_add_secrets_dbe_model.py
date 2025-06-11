@@ -11,7 +11,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-from oss.src.dbs.secrets.custom_fields import PGPString
+from oss.src.dbs.postgres.secrets.custom_fields import PGPString
 
 
 # revision identifiers, used by Alembic.

@@ -19,7 +19,7 @@ r = Redis(
     port=REDIS_PORT,
     db=AGENTA_CACHE_DB,
     decode_responses=True,
-    socket_timeout=0.100,  # read/write timeout
+    socket_timeout=0.5,  # read/write timeout
 )
 
 

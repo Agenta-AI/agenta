@@ -1,5 +1,5 @@
 import {ExclamationCircleOutlined} from "@ant-design/icons"
-import {Modal, Typography} from "antd"
+import {Collapse, Modal, Typography, theme} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
@@ -10,6 +10,7 @@ interface EvaluationErrorModalProps {
     modalErrorMsg: {
         message: string
         stackTrace: string
+        errorType: "invoke" | "evaluation"
     }
 }
 
@@ -17,7 +18,10 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     errModalStackTrace: {
         "& code": {
             display: "block",
+            whiteSpace: "pre-wrap",
         },
+        maxHeight: 300,
+        overflow: "auto",
     },
 }))
 
@@ -27,6 +31,11 @@ const EvaluationErrorModal = ({
     modalErrorMsg,
 }: EvaluationErrorModalProps) => {
     const classes = useStyles()
+
+    const errorText =
+        modalErrorMsg.errorType === "invoke"
+            ? "Failed to invoke the LLM application with the following exception:"
+            : "Failed to compute evaluation with the following exception:"
 
     return (
         <Modal
@@ -41,18 +50,27 @@ const EvaluationErrorModal = ({
             }
             onCancel={() => setIsErrorModalOpen(false)}
         >
-            <Typography.Paragraph>
-                Failed to invoke the LLM application with the following exception:
-            </Typography.Paragraph>
+            <Typography.Paragraph>{errorText}</Typography.Paragraph>
             {modalErrorMsg.message && (
-                <Typography.Paragraph type="danger" strong>
+                <Typography.Paragraph type="danger">
                     {modalErrorMsg.message}
                 </Typography.Paragraph>
             )}
             {modalErrorMsg.stackTrace && (
-                <Typography.Paragraph code className={classes.errModalStackTrace}>
-                    {modalErrorMsg.stackTrace}
-                </Typography.Paragraph>
+                <Collapse
+                    ghost
+                    items={[
+                        {
+                            key: "1",
+                            label: "Traceback",
+                            children: (
+                                <Typography.Paragraph code className={classes.errModalStackTrace}>
+                                    {modalErrorMsg.stackTrace}
+                                </Typography.Paragraph>
+                            ),
+                        },
+                    ]}
+                />
             )}
         </Modal>
     )

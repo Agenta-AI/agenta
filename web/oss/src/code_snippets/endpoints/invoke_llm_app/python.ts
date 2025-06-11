@@ -6,7 +6,7 @@ url = "${uri}"
 params = ${params}
 headers = {
     "Content-Type": "application/json",    
-    "Authorization": "ApiKey x.xxxxxxxx", # Add your API key here, when using cloud
+    "Authorization": "ApiKey x.xxxxxxxx", # Add your API key here
 }
 
 response = requests.post(url, json=params, headers=headers)

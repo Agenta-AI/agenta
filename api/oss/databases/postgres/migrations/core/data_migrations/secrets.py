@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy import Connection, update, func
 
 from oss.src.utils.env import env
-from oss.src.dbs.secrets.dbes import SecretsDBE
+from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.dtos import (
     StandardProviderDTO,
     StandardProviderSettingsDTO,

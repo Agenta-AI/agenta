@@ -1,11 +1,11 @@
 import json
 from uuid import UUID
 
-from oss.src.dbs.secrets.dbes import SecretsDBE
-from oss.src.models.db.postgres_engine import db_engine as engine
+from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
+from oss.src.models.db.postgres_engine import db_engine as engine
 from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
-from oss.src.dbs.secrets.mappings import (
+from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dto_to_dbe,
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe_update,

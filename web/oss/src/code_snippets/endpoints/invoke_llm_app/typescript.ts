@@ -8,7 +8,7 @@ const generate = async () => {
     const data = ${params};
     const headers = {
         "Content-Type": "application/json",
-        "Authorization": "ApiKey x.xxxxxxxx" // Add your API key here, when using cloud
+        "Authorization": "ApiKey x.xxxxxxxx" // Add your API key here
     };
 
     const response = await axios.post(url, data, { headers });
