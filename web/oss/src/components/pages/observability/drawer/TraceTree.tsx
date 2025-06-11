@@ -110,14 +110,18 @@ const TreeContent = ({value}: {value: _AgentaRootsResponse}) => {
                     {(metrics?.unit?.costs?.total || metrics?.acc?.costs?.total) && (
                         <div className={classes.treeContent}>
                             <Coins />
-                            {formatCurrency(metrics?.unit?.costs?.total || metrics?.acc?.costs?.total)}
+                            {formatCurrency(
+                                metrics?.unit?.costs?.total || metrics?.acc?.costs?.total,
+                            )}
                         </div>
                     )}
 
                     {!!(metrics?.unit?.tokens?.total || metrics?.acc?.tokens?.total) && (
                         <div className={classes.treeContent}>
                             <PlusCircle />
-                            {formatTokenUsage(metrics?.unit?.tokens?.total || metrics?.acc?.tokens?.total)}
+                            {formatTokenUsage(
+                                metrics?.unit?.tokens?.total || metrics?.acc?.tokens?.total,
+                            )}
                         </div>
                     )}
                 </Space>

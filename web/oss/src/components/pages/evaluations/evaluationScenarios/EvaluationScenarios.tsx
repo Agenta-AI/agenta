@@ -85,7 +85,11 @@ const EvaluationScenarios: FC<Props> = () => {
     }
 
     const uniqueCorrectAnswers: CorrectAnswer[] = uniqBy(scenarios[0]?.correct_answers || [], "key")
-    const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
+    const [modalErrorMsg, setModalErrorMsg] = useState({
+        message: "",
+        stackTrace: "",
+        errorType: "evaluation" as "invoke" | "evaluation",
+    })
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
     const colDefs = useMemo(() => {
@@ -160,6 +164,7 @@ const EvaluationScenarios: FC<Props> = () => {
                                     setModalErrorMsg({
                                         message: result.error?.message || "",
                                         stackTrace: result.error?.stacktrace || "",
+                                        errorType: "evaluation",
                                     })
                                     setIsErrorModalOpen(true)
                                 }}
@@ -216,6 +221,7 @@ const EvaluationScenarios: FC<Props> = () => {
                                 setModalErrorMsg({
                                     message: result.error?.message || "",
                                     stackTrace: result.error?.stacktrace || "",
+                                    errorType: "evaluation",
                                 })
                                 setIsErrorModalOpen(true)
                             }}

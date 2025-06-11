@@ -35,7 +35,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
     check_for_new_migrations as check_for_new_tracing_migrations,
 )
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
-from oss.src.dbs.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.secrets.services import VaultService
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.services.auth_helper import authentication_middleware

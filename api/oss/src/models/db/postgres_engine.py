@@ -26,6 +26,10 @@ class DBEngine:
 
         self.core_engine: AsyncEngine = create_async_engine(
             url=self.postgres_uri_core,
+            pool_pre_ping=True,
+            pool_recycle=1800,
+            pool_size=25,
+            max_overflow=50,
         )  # type: ignore
         self.async_core_session_maker = async_sessionmaker(
             bind=self.core_engine,

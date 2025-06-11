@@ -219,8 +219,13 @@ const AutoEvaluation = () => {
         }
     }
 
-    const handleNavigation = (variantName: string, revisionNum: string) => {
-        router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
+    const handleNavigation = (variantRevisionId: string) => {
+        router.push({
+            pathname: `/apps/${appId}/playground`,
+            query: {
+                revisions: JSON.stringify([variantRevisionId]),
+            },
+        })
     }
 
     const evaluatorConfigs = useMemo(
@@ -428,10 +433,7 @@ const AutoEvaluation = () => {
                                     icon: <Rocket size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        handleNavigation(
-                                            record.variants[0].variantName,
-                                            record.revisions[0],
-                                        )
+                                        handleNavigation(record.variant_revision_ids[0])
                                     },
                                 },
                                 {

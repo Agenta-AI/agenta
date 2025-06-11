@@ -127,8 +127,13 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
         fetchEvaluations()
     }, [appId])
 
-    const handleNavigation = (variantName: string, revisionNum: string) => {
-        router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
+    const handleNavigation = (variantRevisionId: string) => {
+        router.push({
+            pathname: `/apps/${appId}/playground`,
+            query: {
+                revisions: JSON.stringify([variantRevisionId]),
+            },
+        })
     }
 
     const rowSelection = {
@@ -328,10 +333,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                         icon: <Rocket size={16} />,
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()
-                                            handleNavigation(
-                                                record.variantNames[0],
-                                                record.revisions[0],
-                                            )
+                                            handleNavigation(record.variant_revision_ids[0])
                                         },
                                     },
                                     {
@@ -340,10 +342,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                         icon: <Rocket size={16} />,
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()
-                                            handleNavigation(
-                                                record.variantNames[1],
-                                                record.revisions[1],
-                                            )
+                                            handleNavigation(record.variant_revision_ids[1])
                                         },
                                     },
                                     {

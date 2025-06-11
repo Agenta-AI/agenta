@@ -7,7 +7,7 @@ from oss.src.dbs.postgres.shared.dbas import (
     LegacyLifecycleDBA,
     HeaderDBA,
 )
-from oss.src.dbs.secrets.custom_fields import PGPString
+from oss.src.dbs.postgres.secrets.custom_fields import PGPString
 
 
 class SecretsDBA(ProjectScopeDBA, LegacyLifecycleDBA, HeaderDBA):

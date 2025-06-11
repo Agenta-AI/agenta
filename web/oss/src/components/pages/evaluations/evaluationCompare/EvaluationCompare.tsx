@@ -87,7 +87,11 @@ const EvaluationCompareMode: FC<Props> = () => {
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
-    const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
+    const [modalErrorMsg, setModalErrorMsg] = useState({
+        message: "",
+        stackTrace: "",
+        errorType: "invoke" as "invoke" | "evaluation",
+    })
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
     const handleOpenChangeDiff: DropdownProps["onOpenChange"] = (nextOpen, info) => {
@@ -203,6 +207,7 @@ const EvaluationCompareMode: FC<Props> = () => {
                                     setModalErrorMsg({
                                         message: result.error?.message || "",
                                         stackTrace: result.error?.stacktrace || "",
+                                        errorType: "invoke",
                                     })
                                     setIsErrorModalOpen(true)
                                 }}
@@ -289,6 +294,7 @@ const EvaluationCompareMode: FC<Props> = () => {
                                     setModalErrorMsg({
                                         message: result.error?.message || "",
                                         stackTrace: result.error?.stacktrace || "",
+                                        errorType: "evaluation",
                                     })
                                     setIsErrorModalOpen(true)
                                 }}

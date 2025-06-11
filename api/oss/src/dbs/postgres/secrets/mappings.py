@@ -1,7 +1,7 @@
 import uuid
 import json
 
-from oss.src.dbs.secrets.dbes import SecretsDBE
+from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.dtos import (
     Header,
     SecretKind,
