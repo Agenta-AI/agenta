@@ -20,7 +20,6 @@ import {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import {componentLogger} from "../../assets/utilities/componentLogger"
 import usePlayground from "../../hooks/usePlayground"
 import {findPropertyInObject, findVariantById} from "../../hooks/usePlayground/assets/helpers"
-import {constructChatHistory} from "../../hooks/usePlayground/assets/messageHelpers"
 import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
 import {PlaygroundStateData} from "../../hooks/usePlayground/types"
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
@@ -71,7 +70,6 @@ const PromptMessageConfig = ({
     isJSON,
     ...props
 }: PromptMessageConfigProps) => {
-    const [_messageId, _setMessageId] = useState("")
     const [minimized, setMinimized] = useState(false)
     const {message} = usePlayground({
         variantId,
@@ -259,7 +257,7 @@ const PromptMessageConfig = ({
     const [editor] = useLexicalComposerContext()
     const [_language, _setLanguage] = useState("json")
     useEffect(() => {
-        return mergeRegister(
+        const unregister = mergeRegister(
             editor.registerUpdateListener(({editorState}) => {
                 editorState.read(() => {
                     const root = $getRoot()
@@ -274,33 +272,48 @@ const PromptMessageConfig = ({
                 })
             }),
         )
+        return unregister
     }, [editor])
 
     const _resultHashes = useMemo(() => {
         if (!messageRow?.history?.value) return []
 
-        if (_messageId) {
-            const chatHistory = constructChatHistory({
-                messageRow,
-                messageId: _messageId,
-                variantId,
-                includeResults: true,
-            })
+        const results: string[] = []
 
-            return chatHistory?.map((history: any) => history?.result).filter(Boolean) || []
+        if (messageId) {
+            const historyItem = messageRow.history.value.find((h) => h.__id === messageId)
+
+            if (historyItem) {
+                Object.values(historyItem.__runs || {}).forEach((run) => {
+                    // Only include results from runs associated with the selected messageId
+                    if (run?.__result && run.messageId === messageId) results.push(run.__result)
+                })
+            } else {
+                for (const history of messageRow.history.value) {
+                    for (const run of Object.values(history.__runs || {})) {
+                        if (run?.message?.__id === messageId) {
+                            if (run.__result) results.push(run.__result)
+                        }
+
+                        if (
+                            Array.isArray(run?.messages) &&
+                            run.messages.some((m) => m.__id === messageId)
+                        ) {
+                            if (run.__result) results.push(run.__result)
+                        }
+                    }
+                }
+            }
+        } else {
+            messageRow.history.value.forEach((history) => {
+                const result = history.__runs?.[variantId]?.__result
+                if (result) results.push(result)
+            })
         }
 
-        const results =
-            messageRow?.history.value
-                .map((history) => history.__runs?.[variantId]?.__result)
-                .filter(Boolean) || []
-
         return results
-    }, [_messageId])
+    }, [messageId, messageRow, variantId])
 
-    const onClickTestsetDrawer = useCallback(() => {
-        _setMessageId(messageId)
-    }, [messageId])
     const toolInfo = useMemo(() => {
         if (!message || !isTool) return null
         const _value = propsInitialValue || value
@@ -411,7 +424,6 @@ const PromptMessageConfig = ({
                                 actions={{
                                     deleteMessage,
                                     rerunMessage,
-                                    onClickTestsetDrawer,
                                 }}
                             ></PlaygroundVariantPropertyControl>
                             {!disabled && (
@@ -451,7 +463,7 @@ const PromptMessageConfig = ({
                                 <span>{toolInfo?.function?.name}</span>
                             </TooltipWithCopyAction>
                             <TooltipWithCopyAction title={"Call id"}>
-                                <span>{value?.id}</span>
+                                <span>{value?.__id}</span>
                             </TooltipWithCopyAction>
                         </div>
                     </div>
@@ -484,7 +496,6 @@ const PromptMessageConfig = ({
                                 actions={{
                                     deleteMessage,
                                     rerunMessage,
-                                    onClickTestsetDrawer,
                                     minimize: () => {
                                         setMinimized((current) => !current)
                                     },

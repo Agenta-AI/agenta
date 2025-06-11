@@ -12,9 +12,11 @@ The evaluator has the following parameters:
 
 You can configure the prompt used for evaluation. The prompt can contain multiple messages in OpenAI format (role/content). All messages in the prompt have access to the inputs, outputs, and reference answers (any columns in the test set). To reference these in your prompts, use the following variables:
 
-- `correct_answer`: the column with the reference answer in the test set. You can configure the name of this column under `Advanced Setting` in the configuration modal.
+- `correct_answer`: the column with the reference answer in the test set (optional). You can configure the name of this column under `Advanced Setting` in the configuration modal.
 - `prediction`: the output of the llm application
 - `$input_column_name`: the value of any input column for the given row of your test set
+
+If no `correct_answer` column is present in your test set, the variable will be left blank in the prompt.
 
 Here's the default prompt used for the country expert demo application (note that it uses the `country` input column from our test set):
 

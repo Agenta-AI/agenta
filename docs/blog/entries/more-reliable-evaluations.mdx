@@ -1,0 +1,42 @@
+---
+title: "More Reliable Evaluations"
+slug: more-reliable-evaluations
+date: 2024-07-05
+tags: [v0.18.0]
+---
+
+
+import Image from "@theme/IdealImage";
+
+
+
+
+<div>
+  <Image
+    img={require("/images/changelog/export_evaluation.png")}
+    alt="Button for exporting evaluation results"
+    style={{
+      display: "block",
+      margin: "20px auto",
+      textAlign: "center",
+    }}
+  />
+</div>
+
+We have worked extensively on improving the **reliability of evaluations**. Specifically:
+
+- We improved the status for evaluations and added a new `Queued` status
+- We improved the error handling in evaluations. Now we show the exact error message that caused the evaluation to fail.
+- We fixed issues that caused evaluations to run infinitely
+- We fixed issues in the calculation of scores in human evaluations.
+- We fixed small UI issues with large output in human evaluations.
+- We have added a new export button in the evaluation view to export the results as a CSV file.
+
+Additionally, we have added a new [Cookbook for run evaluation using the SDK](/tutorials/sdk/evaluate-with-SDK).
+
+In **observability**:
+
+- We have added a **new integration with [Litellm](https://litellm.ai/)** to automatically trace all LLM calls done through it.
+- Now we automatically propagate cost and token usage from spans to traces.
+
+---

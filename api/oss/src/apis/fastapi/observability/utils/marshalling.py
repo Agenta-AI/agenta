@@ -1,4 +1,8 @@
 from typing import Any, Dict, List, Union
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__file__)
+
 
 def marshall(
     d: Union[Dict[str, Any], list],
@@ -97,46 +101,38 @@ def unmarshal_attributes(
         }
     }
     """
+
     unmarshalled = {}
 
     for key, value in marshalled.items():
         keys = key.split(".")
+        current = unmarshalled
 
-        level = unmarshalled
+        for i, key in enumerate(keys):
+            is_last = i == len(keys) - 1
+            next_key = keys[i + 1] if not is_last else None
+            is_index = key.isdigit()
+            key = int(key) if is_index else key
 
-        for i, part in enumerate(keys[:-1]):
-            if part.isdigit():
-                part = int(part)
-
-                if not isinstance(level, list):
-                    level = []
-
-                while len(level) <= part:
-                    level.append({})
-
-                level = level[part]
-
+            if is_last:
+                if isinstance(current, list) and isinstance(key, int):
+                    while len(current) <= key:
+                        current.append(None)
+                    current[key] = value
+                elif isinstance(current, dict):
+                    current[key] = value
             else:
-                if part not in level:
-                    level[part] = {} if not keys[i + 1].isdigit() else []
+                next_is_index = next_key.isdigit() if next_key else False
 
-                level = level[part]
-
-        last_key = keys[-1]
-
-        if last_key.isdigit():
-            last_key = int(last_key)
-
-            if not isinstance(level, list):
-                level = []
-
-            while len(level) <= last_key:
-                level.append(None)
-
-            level[last_key] = value
-
-        else:
-            level[last_key] = value
+                if isinstance(current, list) and isinstance(key, int):
+                    while len(current) <= key:
+                        current.append([] if next_is_index else {})
+                    if current[key] is None:
+                        current[key] = [] if next_is_index else {}
+                    current = current[key]
+                elif isinstance(current, dict):
+                    if key not in current:
+                        current[key] = [] if next_is_index else {}
+                    current = current[key]
 
     return unmarshalled
-

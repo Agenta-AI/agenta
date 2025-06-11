@@ -410,13 +410,30 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
 /****************************** changelog file ******************************/
 .container_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Info-styles-module,
 .container_mt6G {
-  display: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  margin-bottom: 0;
+  margin-top: 10px;
+  max-width: 1030px;
+  margin-right: auto;
+  margin-left: auto;
 }
 .title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
 .title_f1Hy {
   margin-top: 40px;
   margin-bottom: 10px;
-  padding-left: 20%;
+  max-width: 1030px;
+  margin-right: auto;
+  margin-left: auto;
+}
+/* center the changelog main header and hide its date */
+.changelog-main header .margin-vert--md {
+  display: none;
+}
+.changelog-main header h1 {
+  text-align: center;
 }
 .blog-post-page .col[class*="col--"] {
   flex: 0 !important;
@@ -429,9 +446,11 @@ li.sidebar-section-title > div.menu__list-item-collapsible a {
   --ifm-col-width: 100% !important;
   flex: 0 0;
   margin-left: 0;
-  max-width: 100% !important;
+  max-width: 1030px !important;
   padding: 0 var(--ifm-spacing-horizontal);
   width: 100%;
+  margin-right: auto;
+  margin-left: auto;
 }
 .blog-post-page .row {
   display: block;
