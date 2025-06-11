@@ -114,7 +114,9 @@ async def map(
 
 
 def get_correct_answer(
-    data_point: Dict[str, Any], settings_values: Dict[str, Any]
+    data_point: Dict[str, Any],
+    settings_values: Dict[str, Any],
+    required: bool = True,
 ) -> Any:
     """
     Helper function to retrieve the correct answer from the data point based on the settings values.
@@ -122,24 +124,29 @@ def get_correct_answer(
     Args:
         data_point (Dict[str, Any]): The data point containing the correct answer.
         settings_values (Dict[str, Any]): The settings values containing the key for the correct answer.
+        required (bool, optional): Whether to raise an error if the column is missing. Defaults to ``True``.
 
     Returns:
         Any: The correct answer from the data point.
 
     Raises:
-        ValueError: If the correct answer key is not provided or not found in the data point.
+        ValueError: If ``required`` is ``True`` and the correct answer column is missing in the data point.
     """
     correct_answer_key = settings_values.get("correct_answer_key")
     if correct_answer_key is None:
-        raise ValueError("No correct answer keys provided.")
+        if required:
+            raise ValueError("No correct answer keys provided.")
+        return None
     if isinstance(correct_answer_key, str) and correct_answer_key.startswith(
         "testcase."
     ):
         correct_answer_key = correct_answer_key[len("testcase.") :]
     if correct_answer_key not in data_point:
-        raise ValueError(
-            f"Correct answer column '{correct_answer_key}' not found in the test set."
-        )
+        if required:
+            raise ValueError(
+                f"Correct answer column '{correct_answer_key}' not found in the test set."
+            )
+        return None
     return data_point[correct_answer_key]
 
 
@@ -412,7 +419,9 @@ async def auto_ai_critique(
     """
     try:
         output = validate_string_output("ai_critique", output)
-        correct_answer = get_correct_answer(data_point, settings_values)
+        correct_answer = get_correct_answer(
+            data_point, settings_values, required=False
+        )
         inputs = {
             "prompt_user": app_params.get("prompt_user", ""),
             "prediction": output,

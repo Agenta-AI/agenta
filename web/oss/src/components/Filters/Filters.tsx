@@ -54,6 +54,10 @@ const Filters: React.FC<Props> = ({
     const [filter, setFilter] = useState<Filter[]>(() =>
         !filterData?.length ? emptyFilter : filterData,
     )
+    const sanitizedFilters = useMemo(
+        () => filter.filter(({key, operator}) => key && operator),
+        [filter],
+    )
     const [isFilterOpen, setIsFilterOpen] = useState(false)
 
     useLazyEffect(() => {
@@ -123,8 +127,6 @@ const Filters: React.FC<Props> = ({
     }
 
     const applyFilter = () => {
-        const sanitizedFilters = filter.filter(({key, operator}) => key && operator)
-
         if (!isEqual(sanitizedFilters, filterData)) {
             onApplyFilter(sanitizedFilters)
         }
@@ -282,7 +284,9 @@ const Filters: React.FC<Props> = ({
                 {...buttonProps}
             >
                 Filters
-                {filter.length > 0 && <CustomAntdBadge count={filter.length} />}
+                {sanitizedFilters.length > 0 && (
+                    <CustomAntdBadge count={sanitizedFilters.length} />
+                )}
             </Button>
         </Popover>
     )

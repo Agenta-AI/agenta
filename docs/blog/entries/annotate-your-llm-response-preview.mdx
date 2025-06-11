@@ -1,0 +1,39 @@
+---
+title: "Annotate Your LLM Response (preview)"
+slug: annotate-your-llm-response-preview
+date: 2025-05-15
+tags: [v0.45.0]
+---
+
+
+import Image from "@theme/IdealImage";
+
+
+One of the major feature requests we had was the ability to capture user feedback and annotations (e.g. scores) to LLM responses traced in Agenta. 
+
+Today we're previewing one of a family of features around this topic. 
+
+As of today you can use the annotation API to add annotations to LLM responses traced in Agenta. 
+
+This is useful to:
+- Collect user feedback on LLM responses
+- Run custom evaluation workflows
+- Measure application performance in real-time
+
+Check out the how to [annotate traces from API](/evaluation/annotate-api) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
+
+<Image
+  style={{
+    display: "block",
+    margin: "20px",
+    textAlign: "center",
+  }}
+  img={require("/images/evaluation/evaluation-screenshot-jupyter.png")}
+  alt="Screenshot showing annotations in the Agenta UI" 
+  loading="lazy"
+/>
+
+Other stuff: 
+- We have cut our migration process to take a couple of minutes instead of an hour.
+
+---

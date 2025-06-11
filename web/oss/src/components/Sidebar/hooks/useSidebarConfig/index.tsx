@@ -13,11 +13,13 @@ import {
     Lightning,
     Rocket,
     CloudArrowUp,
+    ChatCircle,
 } from "@phosphor-icons/react"
 
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useOrgData} from "@/oss/contexts/org.context"
 import {useAppId} from "@/oss/hooks/useAppId"
+import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
@@ -28,6 +30,7 @@ export const useSidebarConfig = () => {
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
+    const {toggle, isVisible} = useCrispChat()
 
     const sidebarConfig: SidebarConfig[] = [
         {
@@ -116,6 +119,17 @@ export const useSidebarConfig = () => {
             icon: <Gear size={16} />,
             isBottom: true,
             isHidden: true,
+        },
+        {
+            key: "support-chat-link",
+            title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
+            icon: <ChatCircle size={16} />,
+            isBottom: true,
+            isHidden: !isDemo(),
+            onClick: (e) => {
+                e.preventDefault()
+                toggle()
+            },
         },
         {
             key: "help-docs-link",

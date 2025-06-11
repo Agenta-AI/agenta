@@ -1,4 +1,4 @@
-import {useCallback} from "react"
+import {useCallback, useEffect} from "react"
 
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -70,6 +70,20 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
         )
     }, [mutate])
 
+    useEffect(() => {
+        const listener = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!isRunning) runTests?.()
+            }
+        }
+        document.addEventListener("keydown", listener, true)
+        return () => {
+            document.removeEventListener("keydown", listener, true)
+        }
+    }, [runTests, isRunning])
+
     return (
         <section
             className={clsx(
@@ -99,12 +113,14 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                 />
 
                 {!isRunning ? (
-                    <RunButton
-                        isRunAll
-                        type="primary"
-                        onClick={() => runTests?.()}
-                        disabled={isRunning}
-                    />
+                    <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
+                        <RunButton
+                            isRunAll
+                            type="primary"
+                            onClick={() => runTests?.()}
+                            disabled={isRunning}
+                        />
+                    </Tooltip>
                 ) : (
                     <RunButton isCancel onClick={() => cancelRunTests?.()} className="flex" />
                 )}

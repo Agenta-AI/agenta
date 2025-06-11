@@ -9,7 +9,7 @@ export interface SidebarConfig {
     isHidden?: boolean
     isBottom?: boolean
     submenu?: Omit<SidebarConfig, "submenu">[]
-    onClick?: () => void
+    onClick?: (e: React.MouseEvent) => void
     tag?: string
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string

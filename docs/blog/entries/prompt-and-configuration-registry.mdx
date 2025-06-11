@@ -1,0 +1,33 @@
+---
+title: "Prompt and Configuration Registry"
+slug: prompt-and-configuration-registry
+date: 2024-05-01
+tags: [v0.14.0]
+---
+
+
+import Image from "@theme/IdealImage";
+
+
+
+
+We've introduced a feature that allows you to use Agenta as a prompt registry or management system. In the deployment view, we now provide an endpoint to directly fetch the latest version of your prompt. Here is how it looks like:
+
+```
+
+from agenta import Agenta
+agenta = Agenta()
+config = agenta.get_config(base_id="xxxxx", environment="production", cache_timeout=200) # Fetches the configuration with caching
+
+```
+
+You can find additional documentation [here](/prompt-engineering/prompt-management/how-to-integrate-with-agenta).
+
+**Improvements**
+
+- Previously, publishing a variant from the playground to an environment was a manual process., from now on we are publishing by default to the production environment.
+  <Image
+    img={require("/images/changelog/publish_to_production_by_default_screenshot.png")}
+  />
+
+---

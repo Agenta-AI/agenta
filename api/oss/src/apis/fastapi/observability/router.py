@@ -1,5 +1,3 @@
-import posthog
-
 from typing import Dict, List, Union, Literal
 from uuid import UUID
 
@@ -18,7 +16,6 @@ from oss.src.core.observability.dtos import (
     ConditionDTO,
     Focus,
 )
-from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.core.observability.utils import FilteringException
 
@@ -30,7 +27,6 @@ from oss.src.apis.fastapi.observability.utils.processing import (
     parse_query_request,
     parse_analytics_dto,
     parse_from_otel_span_dto,
-    _parse_from_otel_span_dto_legacy,
     parse_to_otel_span_dto,
     parse_to_agenta_span_dto,
     parse_legacy_analytics_dto,
@@ -188,30 +184,6 @@ class ObservabilityRouter:
         Receive traces via OTLP.
         """
 
-        cache_key = {
-            "feature_flag": "new-span-processor",
-        }
-
-        flag_use_new_span_processor = await get_cache(
-            project_id="system",
-            user_id="system",
-            namespace="posthog_feature_flags",
-            key=cache_key,
-        )
-
-        if flag_use_new_span_processor is None:
-            flag_use_new_span_processor = posthog.feature_enabled("new-span-processor", "user distinct id")
-
-            await set_cache(
-                project_id="system",
-                user_id="system",
-                namespace="posthog_feature_flags",
-                key=cache_key,
-                value=flag_use_new_span_processor,
-                ttl=60,
-            )
-
-        log.debug("Using new span processor: %s", flag_use_new_span_processor)
 
         otlp_stream = None
         try:
@@ -252,14 +224,9 @@ class ObservabilityRouter:
         span_dtos = None
         try:
             # ---------------------------------------------------------------- #
-            if flag_use_new_span_processor:
-                span_dtos = [
-                    parse_from_otel_span_dto(otel_span) for otel_span in otel_spans
-                ]
-            else:
-                span_dtos = [
-                    _parse_from_otel_span_dto_legacy(otel_span) for otel_span in otel_spans
-                ]
+            span_dtos = [
+                parse_from_otel_span_dto(otel_span) for otel_span in otel_spans
+            ]
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(

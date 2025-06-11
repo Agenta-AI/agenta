@@ -4,6 +4,7 @@ import {v4 as uuidv4} from "uuid"
 
 import ChatInputs from "@/oss/components/ChatInputs/ChatInputs"
 import {ChatRole, Evaluation, Variant} from "@/oss/lib/Types"
+import {safeParse} from "@/oss/lib/helpers/utils"
 
 import {VARIANT_COLORS} from "./assets/styles"
 import VariantAlphabet from "./VariantAlphabet"
@@ -32,6 +33,11 @@ const EvaluationChatResponse: React.FC<Props> = ({
 }) => {
     const classes = useStyles()
     const color = VARIANT_COLORS[index]
+    const parsedOutput = safeParse(outputText || "", null)
+    const messageContent =
+        parsedOutput && typeof parsedOutput === "object" && "content" in parsedOutput
+            ? parsedOutput.content
+            : outputText || ""
 
     return (
         <Space direction="vertical" size="middle">
@@ -49,7 +55,7 @@ const EvaluationChatResponse: React.FC<Props> = ({
                 </Space>
             )}
             <ChatInputs
-                value={[{role: ChatRole.Assistant, content: outputText || "", id: uuidv4()}]}
+                value={[{role: ChatRole.Assistant, content: messageContent, id: uuidv4()}]}
                 readonly
             />
         </Space>
