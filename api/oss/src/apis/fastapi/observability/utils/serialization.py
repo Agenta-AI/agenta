@@ -4,18 +4,21 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__file__)
 
-NAMESPACE_PREFIX_FEATURE_MAPPING = {"ag.data.": "mdata",
-                                    "ag.metrics.": "metrics",
-                                    "ag.meta.": "meta",
-                                    "ag.refs.": "refs",
-                                    "ag.type.": "type",
-                                    "ag.links.": "links",
-                                    "ag.exception.": "exception"}
+NAMESPACE_PREFIX_FEATURE_MAPPING = {
+    "ag.data.": "mdata",
+    "ag.metrics.": "metrics",
+    "ag.meta.": "meta",
+    "ag.refs.": "refs",
+    "ag.type.": "type",
+    "ag.links.": "links",
+    "ag.exception.": "exception",
+}
+
 
 def process_attribute(attribute: Tuple[str, Any], prefix: str) -> Dict[str, Any]:
-    """Process a single attribute (key, value) by removing the prefix to the key and decoding the value.
-    """
+    """Process a single attribute (key, value) by removing the prefix to the key and decoding the value."""
     return {remove_prefix(prefix, attribute[0]): decode_value(attribute[1])}
+
 
 def remove_prefix(prefix: str, key: str):
     """Decode a prefixd key by removing the prefix prefix.
@@ -25,6 +28,7 @@ def remove_prefix(prefix: str, key: str):
         return key[len(prefix) :]
     return key
 
+
 def decode_key(namespace, key: str):
     """Decode a namespaced key by removing the namespace prefix.
     Example: ag.meta.request.model -> request.model
@@ -33,6 +37,7 @@ def decode_key(namespace, key: str):
     if key.startswith(prefix):
         return key[len(prefix) :]
     return key
+
 
 def decode_value(
     value: Any,
@@ -57,6 +62,7 @@ def decode_value(
             pass
         return value
     return value
+
 
 def encode_key(
     namespace,

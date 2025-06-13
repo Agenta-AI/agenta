@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
@@ -120,7 +120,7 @@ async def list_app_variants(
         namespace="list_app_variants",
         key=cache_key,
         value=app_variants,
-        ttl=0.05,  # seconds
+        ttl=60,  # seconds
     )
 
     return app_variants
@@ -265,6 +265,11 @@ async def create_app(
             detail="App with the same name already exists",
         )
 
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+    )
+
     return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
 
 
@@ -308,6 +313,12 @@ async def update_app(
                 status_code=403,
             )
     await db_manager.update_app(app_id=app_id, values_to_update=payload.model_dump())
+
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+    )
+
     return UpdateAppOutput(app_id=app_id, app_name=payload.app_name)
 
 
@@ -408,6 +419,11 @@ async def add_variant_from_url(
             app_variant_db,
         )
 
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+        )
+
         return app_variant_dto
 
     except Exception as e:
@@ -503,6 +519,11 @@ async def remove_app(
 
     await app_manager.remove_app(app)
 
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+    )
+
 
 @router.get(
     "/{app_id}/environments/",
@@ -570,7 +591,7 @@ async def list_environments(
         namespace="list_environments",
         key=cache_key,
         value=environments,
-        ttl=0.05,  # seconds
+        ttl=60,  # seconds
     )
 
     return environments

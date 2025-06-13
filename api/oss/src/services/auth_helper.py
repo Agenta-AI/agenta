@@ -1,6 +1,7 @@
 import traceback
 from typing import Optional
 from datetime import datetime, timezone, timedelta
+import asyncio
 
 from pydantic import ValidationError
 from fastapi import Request, HTTPException, Response
@@ -22,6 +23,8 @@ from oss.src.services.exceptions import (
     UnauthorizedException,
     TooManyRequestsException,
     InternalServerErrorException,
+    GatewayTimeoutException,
+    code_to_phrase,
 )
 
 if is_ee():
@@ -63,6 +66,8 @@ _SECRET_EXP = 15 * 60  # 15 minutes
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
 _NULL_UUID = "null"
+
+_SUPERTOKENS_TIMEOUT = 15  # 15 seconds or whatever you need
 
 
 async def authentication_middleware(request: Request, call_next):
@@ -269,7 +274,17 @@ async def verify_bearer_token(
             user_id = user_id.get("user_id")
 
         else:
-            user_info = await get_supertokens_user_by_id(user_id=session_user_id)
+            try:
+                user_info = await asyncio.wait_for(
+                    get_supertokens_user_by_id(user_id=session_user_id),
+                    timeout=_SUPERTOKENS_TIMEOUT,
+                )
+            except Exception as e:
+                log.error("Timeout: get_user_from_supertokens()")
+
+                raise GatewayTimeoutException(
+                    detail="Failed to reach auth provider. Please try again later.",
+                ) from e
 
             if not user_info:
                 await set_cache(
@@ -497,6 +512,9 @@ async def verify_bearer_token(
         request.state.workspace_id = state.get("workspace_id")
         request.state.organization_id = state.get("organization_id")
         request.state.credentials = state.get("credentials")
+
+    except GatewayTimeoutException as exc:
+        raise exc
 
     except UnauthorizedException as exc:
         await set_cache(

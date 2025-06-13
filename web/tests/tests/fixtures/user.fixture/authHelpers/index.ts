@@ -84,6 +84,7 @@ export const authHelpers = () => {
                 }
 
                 await page.goto("/auth")
+                // @ts-ignore
                 await page.evaluate(() => window.localStorage.clear())
 
                 const timestamp = Date.now()
@@ -93,7 +94,7 @@ export const authHelpers = () => {
 
                 const hasSigninButton = await signinButton.isVisible()
                 if (hasSigninButton) {
-                    await uiHelpers.typeWithDelay("input[type='password']", password)
+                    await uiHelpers.typeWithDelay("input[type='password']", password as string)
                     await signinButton.click()
                     await uiHelpers.waitForPath("/apps")
                 } else {

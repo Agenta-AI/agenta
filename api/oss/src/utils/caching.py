@@ -14,6 +14,9 @@ REDIS_PORT = 6378
 AGENTA_CACHE_DB = 1
 AGENTA_CACHE_TTL = 15  # 15 seconds
 
+SCAN_BATCH_SIZE = 500
+DELETE_BATCH_SIZE = 1000
+
 r = Redis(
     host=REDIS_HOST,
     port=REDIS_PORT,
@@ -83,6 +86,26 @@ def _deserialize(
     return model.model_validate(data)
 
 
+async def _scan_keys(pattern: str) -> list[str]:
+    """Retrieve all matching keys using SCAN."""
+    cursor = 0
+    keys: list[str] = []
+    try:
+        while True:
+            cursor, batch = await r.scan(
+                cursor=cursor, 
+                match=pattern, 
+                count=SCAN_BATCH_SIZE,
+            )
+            keys.extend(batch)
+            if cursor == 0:
+                break
+        return keys
+    except Exception as e:
+        log.warn(f"Error scanning keys with pattern {pattern}: {e}")
+        return []
+
+
 # ---------------------------
 # 🚀 Public Async Cache Interface
 # ---------------------------
@@ -147,6 +170,45 @@ async def get_cache(
             key=key,
             model=model,
             is_list=is_list,
+        )
+        log.warn(e)
+        return None
+
+
+async def invalidate_cache(
+    project_id: str,
+    user_id: str,
+    namespace: Optional[str] = None,
+    key: Optional[Union[str, dict]] = None,
+) -> Optional[bool]:
+    """Invalidate cached values.
+
+    If ``key`` is provided, only the cache entry for that key is deleted.
+    If ``namespace`` is provided without ``key``, all keys under that
+    namespace are removed. If neither ``namespace`` nor ``key`` are provided,
+    all cache entries for the project/user pair are deleted.
+    """
+    try:
+        if key is not None and namespace is not None:
+            cache_name = _pack(project_id, user_id, namespace, key)
+            await r.delete(cache_name)
+        else:
+            pattern = (
+                f"{project_id}:{user_id}:{namespace}:*"
+                if namespace
+                else f"{project_id}:{user_id}:*"
+            )
+            keys = await _scan_keys(pattern)
+            for i in range(0, len(keys), DELETE_BATCH_SIZE):
+                await r.delete(*keys[i : i + DELETE_BATCH_SIZE])
+        return True
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        log.warn(
+            "[cache] INVALIDATE",
+            project_id=project_id,
+            user_id=user_id,
+            namespace=namespace,
+            key=key,
         )
         log.warn(e)
         return None

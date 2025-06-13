@@ -116,26 +116,38 @@ async function globalSetup(config: FullConfig) {
             if (responseData.createdNewRecipeUser) {
                 console.log("[global-setup] New user detected, completing post-signup flow")
                 await page.waitForURL(`${baseURL}/post-signup`, {waitUntil: "load"})
+
                 const tellUsAboutYourselfLocator = page.getByText("Tell us about yourself")
                 await tellUsAboutYourselfLocator.waitFor({state: "visible"})
-                await selectOption(page, {text: "2-10"})
-                await selectOption(page, {text: "Hobbyist"})
-                await selectOption(page, {text: "Just exploring"})
-                await clickButton(page, "Continue")
+                const isOptionVisible = await page
+                    .getByRole("option", {name: "Hobbyist"})
+                    .isVisible()
 
-                const whatBringsYouHereLocator = page.getByText("What brings you here?")
-                await whatBringsYouHereLocator.waitFor({state: "visible"})
+                if (isOptionVisible) {
+                    await selectOption(page, {text: "2-10"})
+                    await selectOption(page, {text: "Hobbyist"})
+                    await selectOption(page, {text: "Just exploring"})
+                    await clickButton(page, "Continue")
 
-                await selectOption(page, {text: "Evaluating LLM Applications"})
-                await selectOption(page, {
-                    text: "Github",
-                })
-                await clickButton(page, "Continue")
-                console.log("[global-setup] Post-signup flow completed")
+                    const whatBringsYouHereLocator = page.getByText("What brings you here?")
+                    await whatBringsYouHereLocator.waitFor({state: "visible"})
+
+                    await selectOption(page, {text: "Evaluating LLM Applications"})
+                    await selectOption(page, {
+                        text: "Github",
+                    })
+                    await clickButton(page, "Continue")
+                    console.log("[global-setup] Post-signup flow completed")
+                    console.log(
+                        `[global-setup] Waiting for navigation to: ${baseURL}/apps`,
+                    )
+                    await waitForPath(page, `${baseURL}/apps`)
+                } else {
+                    console.log(
+                        "[global-setup] Post-signup flow not completed due to missing options",
+                    )
+                }
             }
-
-            console.log(`[global-setup] Waiting for navigation to: ${baseURL}/apps`)
-            await waitForPath(page, `${baseURL}/apps`)
         } catch (error) {
             console.error("[global-setup] Error in login flow:", error)
             throw error

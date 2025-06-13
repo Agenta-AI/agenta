@@ -28,6 +28,41 @@ interface ApiHandlerOptions<T> {
 }
 ```
 
+## Application Helpers
+
+### getApp
+
+```typescript
+getApp(type?: APP_TYPE): Promise<ListAppsItem>
+
+// Example
+const app = await apiHelpers.getApp('CHAT')
+```
+
+Fetches application information. If no type is provided, returns the first available app.
+
+### getTestsets
+
+```typescript
+getTestsets(): Promise<testset[]>
+
+// Example
+const testsets = await apiHelpers.getTestsets()
+```
+
+Retrieves all available test sets.
+
+### getVariants
+
+```typescript
+getVariants(appId: string): Promise<(ApiVariant & {name: string})[]>
+
+// Example
+const variants = await apiHelpers.getVariants('app-123')
+```
+
+Fetches all variants for a specific application.
+
 ## Common Patterns
 
 ### Response Race Pattern
@@ -96,3 +131,6 @@ await apiHelpers.waitForApiResponse({
 - Automatic JSON parsing
 - Error handling with clear messages
 - Support for async validation
+- Automatic navigation handling for application pages
+- Built-in response validation and type safety
+- Debug logging for API requests and responses

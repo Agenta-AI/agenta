@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request, Body, status
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
@@ -100,6 +100,11 @@ async def add_variant_from_base_and_config(
     app_variant_db = await db_manager.get_app_variant_instance_by_id(
         str(db_app_variant.id), str(db_app_variant.project_id)
     )
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+    )
+
     return await converters.app_variant_db_to_output(app_variant_db)
 
 
@@ -142,6 +147,10 @@ async def remove_variant(
         )
 
         await db_manager.mark_app_variant_as_hidden(app_variant_id=variant_id)
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+        )
     except Exception as e:
         detail = f"Error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -198,6 +207,10 @@ async def update_variant_parameters(
             object_type="variant",
             project_id=str(variant_db.project_id),
         )
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+        )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -252,6 +265,10 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
             object_id=str(db_app_variant.app_id),
             object_type="app",
             project_id=str(db_app_variant.project_id),
+        )
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
         )
 
     except ValueError as e:
@@ -349,7 +366,7 @@ async def get_variant_revisions(
         namespace="get_variant_revisions",
         key=cache_key,
         value=app_variant_revisions,
-        ttl=0.05,  # seconds
+        ttl=60,  # seconds
     )
 
     return app_variant_revisions
@@ -442,6 +459,10 @@ async def remove_variant_revision(
         await db_manager.mark_app_variant_revision_as_hidden(
             variant_revision_id=revision_id
         )
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+        )
     except Exception as e:
         detail = f"Error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -525,6 +546,11 @@ async def configs_add(
             detail="Config not found.",
         )
 
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+    )
+
     return config
 
 
@@ -607,7 +633,7 @@ async def configs_fetch(
         namespace="configs_fetch",
         key=cache_key,
         value=config,
-        ttl=0.05,  # seconds
+        ttl=60,  # seconds
     )
 
     if not config:
@@ -654,6 +680,11 @@ async def configs_fork(
             detail="Config not found.",
         )
 
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+    )
+
     return config
 
 
@@ -678,6 +709,11 @@ async def configs_commit(
             status_code=404,
             detail="Config not found.",
         )
+
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+    )
 
     return config
 
@@ -708,6 +744,11 @@ async def configs_deploy(
             detail="Config not found.",
         )
 
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+    )
+
     return config
 
 
@@ -726,6 +767,11 @@ async def configs_delete(
         project_id=request.state.project_id,
         variant_ref=variant_ref,
         application_ref=application_ref,
+        user_id=request.state.user_id,
+    )
+
+    await invalidate_cache(
+        project_id=request.state.project_id,
         user_id=request.state.user_id,
     )
 

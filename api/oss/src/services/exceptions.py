@@ -83,6 +83,18 @@ class InternalServerErrorException(HTTPException):
         super().__init__(self.code, self.detail)
 
 
+class GatewayTimeoutException(HTTPException):
+    def __init__(
+        self,
+        code: int = 504,
+        detail: str = "Gateway Timeout",
+    ):
+        self.code = code
+        self.detail = detail
+
+        super().__init__(self.code, self.detail)
+
+
 class SuperTokensNotAllowedException(APIResponse):
     status: str = "SIGN_UP_NOT_ALLOWED"
 

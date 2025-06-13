@@ -65,6 +65,7 @@ If Agenta doesn't start properly, check these common issues:
    docker logs agenta-oss-gh-web
    docker logs agenta-oss-gh-api
    ```
+4. SDK connectivity issues: If you're using the Agenta SDK from outside Docker to connect to your localhost Agenta instance and experiencing connection failures, ensure the `DOCKER_NETWORK_MODE` environment variable is unset (this is the default behavior).
 
 
 :::info

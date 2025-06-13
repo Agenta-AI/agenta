@@ -95,9 +95,12 @@ class LogfireAdapter(BaseAdapter):
             and transformed_attributes.get("ag.metrics.unit.tokens.completion")
             and not transformed_attributes.get("ag.metrics.unit.tokens.total")
         ):
-            transformed_attributes["ag.metrics.unit.tokens.total"] = (
-                transformed_attributes.get("ag.metrics.unit.tokens.prompt")
-                + transformed_attributes.get("ag.metrics.unit.tokens.completion")
+            transformed_attributes[
+                "ag.metrics.unit.tokens.total"
+            ] = transformed_attributes.get(
+                "ag.metrics.unit.tokens.prompt"
+            ) + transformed_attributes.get(
+                "ag.metrics.unit.tokens.completion"
             )
         if not has_logfire_data:
             return

@@ -12,7 +12,11 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__file__)
 
-from oss.src.apis.fastapi.observability.utils.serialization import decode_key, decode_value, encode_key
+from oss.src.apis.fastapi.observability.utils.serialization import (
+    decode_key,
+    decode_value,
+    encode_key,
+)
 from oss.src.apis.fastapi.observability.utils.marshalling import unmarshal_attributes
 
 from oss.src.apis.fastapi.observability.models import (
@@ -362,7 +366,6 @@ def _parse_from_events(
     return exception
 
 
-
 def parse_from_otel_span_dto(
     otel_span_dto: OTelSpanDTO,
 ) -> SpanDTO:
@@ -383,7 +386,6 @@ def parse_from_otel_span_dto(
         )
 
     return span_dto
-
 
 
 def _parse_to_attributes(

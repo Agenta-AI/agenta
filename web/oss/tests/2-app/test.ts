@@ -1,13 +1,7 @@
-import {
-    TestScope,
-    TestCoverage,
-    TestPath,
-    createTagString,
-} from "@agenta/web-tests/playwright/config/testTags"
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
 
-import type {AppFixtures, CreateAppResponse} from "./types"
+import type {AppFixtures, CreateAppResponse} from "./assets/types"
 
 /**
  * App-specific test fixtures extending the base test fixture.
@@ -42,19 +36,22 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
      */
     createNewApp: async ({page, uiHelpers, apiHelpers}, use) => {
         await use(async (appName: string, appType) => {
-            const button = await page
-                .locator("div")
-                .filter({hasText: /^Create New Prompt$/})
-                .nth(2)
+            await uiHelpers.clickButton("Create New Prompt")
 
-            await expect(button).toBeVisible()
+            const input = page.getByRole("textbox", {name: "Enter a name"})
+            let dialog = page.getByRole("dialog")
 
-            await button.click()
-            const input = await page.getByRole("textbox", {name: "Enter a name"})
-            const dialog = await page.getByRole("dialog")
-            await expect(dialog).toBeVisible()
+            // Wait for dialog with a short timeout
+            const isDialogVisible = await dialog.isVisible().catch(() => false)
+
+            // If dialog is not visible, click the button and wait for it
+            if (!isDialogVisible) {
+                await uiHelpers.clickButton("Create New Prompt")
+                dialog = page.getByRole("dialog")
+                await expect(dialog).toBeVisible()
+            }
             await expect(input).toBeVisible()
-            const dialogTitle = await dialog.getByText("Create New Prompt").first()
+            const dialogTitle = dialog.getByText("Create New Prompt").first()
             await expect(dialogTitle).toBeVisible()
             await uiHelpers.typeWithDelay('input[placeholder="Enter a name"]', appName)
             await page.getByText(appType).first().click()
@@ -98,9 +95,3 @@ const testWithAppFixtures = baseTest.extend<AppFixtures>({
 // export const test = testWithAppFixtures
 // createAuthTest<AppFixtures>(testWithAppFixtures);
 export {expect, testWithAppFixtures as test}
-export const tags = [
-    createTagString("scope", TestScope.APPS),
-    createTagString("coverage", TestCoverage.SMOKE),
-    createTagString("coverage", TestCoverage.LIGHT),
-    createTagString("path", TestPath.HAPPY),
-]

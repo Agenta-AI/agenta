@@ -24,7 +24,9 @@ _PROVIDER_KINDS = []
 for provider_kind in StandardProviderKind.__args__[0].__args__:  # type: ignore
     _PROVIDER_KINDS.append(provider_kind)
 
-_CACHE_ENABLED = getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+_CACHE_ENABLED = (
+    getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+)
 
 _cache = TTLLRUCache()
 

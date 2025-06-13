@@ -74,6 +74,8 @@ export interface ListAppsItem {
     updated_at: string
 }
 
+export type APP_TYPE = "completion" | "chat" | "custom"
+
 export interface AppVariant {
     id: number
     name: string

@@ -1,4 +1,10 @@
-# Agenta Web Tests
+# Agenta Cloud E2E Tests
+
+## 📚 E2E Reference Guides
+
+- [E2E Test Generation Guide](guides/E2E_TEST_GENERATION_GUIDE.md)
+- [E2E Test Organization Guide](guides/E2E_TEST_ORGANIZATION_GUIDE.md)
+- [Utilities & Fixtures Guide](guides/UTILITIES_AND_FIXTURES_GUIDE.md)
 
 End-to-end tests for the Agenta web application. This guide reflects the latest runner, environment, and CI/CD integration logic as of 2025.
 
@@ -26,6 +32,15 @@ End-to-end tests for the Agenta web application. This guide reflects the latest 
 - `AGENTA_API_URL` – Set automatically in CI workflows for teardown and API flows.
 
 All required secrets are injected automatically in CI via the reusable workflow.
+
+## Environment Variable Loading
+
+The test runner (`playwright/scripts/run-tests.ts`) loads environment variables from two sources:
+
+1. The default `.env` file at `web/tests/.env` is always loaded first.
+2. If you provide the `--env-file <path>` option, that file is loaded after the default.
+
+> **Note:** Variables from the first file loaded (the default `.env`) will be used if there are duplicates. The `--env-file` only extends the environment with any variables not already set. There is no overriding unless you unset variables manually or use the `override: true` option with dotenv (which is not the default).
 
 ---
 
@@ -110,12 +125,6 @@ You can filter tests using these flags:
 - `--feature` can only be used with license `ee`.
 - All other Playwright CLI options (e.g. `--ui`, `--workers`, etc.) are supported.
 
----
-
-## Environment Variable Loading
-
-- The runner loads `.env` from `web/tests/` by default.
-- If you provide `--env-file <path>`, that file is loaded after the default for any missing variables.
 
 ---
 
@@ -155,90 +164,11 @@ Tags affect user authentication requirements. For example:
 
 End-to-end tests for Agenta web application.
 
-## Setup
-
-1. Install dependencies:
-
-```bash
-npm install
-```
-
-2. Configure environment variables:
-
-```bash
-# .env
-# Required for email-based authentication testing
-TESTMAIL_API_KEY=your_api_key
-TESTMAIL_NAMESPACE=your_namespace
-
-# Optional test configuration
-MAX_WORKERS=4        # Number of parallel workers (default: 2)
-RETRIES=2           # Number of test retries (default: 0)
-```
 
 3. Configure test environment:
 
 - Local OSS: Make sure Agenta is running on http://localhost:3000
 - Staging/Beta: Ensure you have access to the cloud environments
-
-## Environment Variable Loading
-
-The test runner (`playwright/scripts/run-tests.ts`) loads environment variables from two sources:
-
-1. The default `.env` file at `web/tests/.env` is always loaded first.
-2. If you provide the `--env-file <path>` option, that file is loaded after the default.
-
-> **Note:** Variables from the first file loaded (the default `.env`) will be used if there are duplicates. The `--env-file` only extends the environment with any variables not already set. There is no overriding unless you unset variables manually or use the `override: true` option with dotenv (which is not the default).
-
-### Usage Examples
-
-Run tests using the new unified runner script:
-
-```bash
-# Run against local OSS (requires --license)
-pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss
-
-# Run with an additional env file (variables extend, not override, the default .env)
-pnpm tsx playwright/scripts/run-tests.ts --preset oss --env-file ./my.env
-
-# Run against local EE (custom web-url and api-url)
-pnpm tsx playwright/scripts/run-tests.ts --preset local --license ee --web-url http://localhost:3001 --api-url http://localhost:3001/api
-
-# Run against staging environment
-pnpm tsx playwright/scripts/run-tests.ts --preset staging
-
-# Run against beta environment
-pnpm tsx playwright/scripts/run-tests.ts --preset beta
-
-# Run with annotation filters (e.g., only smoke tests for apps)
-pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --scope apps --coverage smoke
-
-# Run all tests (coverage full is default, so no filter is applied)
-pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --coverage full
-
-# Combine multiple annotation filters
-pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --scope apps --coverage smoke --path happy
-
-# EE-only feature test (requires --license ee)
-pnpm tsx playwright/scripts/run-tests.ts --preset staging --license ee --feature ee
-
-# Use entitlement and permission filters
-pnpm tsx playwright/scripts/run-tests.ts --entitlement hobby --permission owner
-
-# Control parallelism
-pnpm tsx playwright/scripts/run-tests.ts --preset local --license oss --workers 4
-```
-
-### Annotation Flags
-
-You can filter tests using these flags:
-- `--scope <auth|apps|playground|datasets|evaluations>`
-- `--coverage <smoke|sanity|light|full>`
-- `--path <happy|grumpy>`
-- `--env <local|staging|beta|oss>`
-- `--feature <ee>` (only allowed if `--license ee`)
-- `--entitlement <hobby|pro>`
-- `--permission <owner|editor|viewer>`
 
 **Note:**
 - If you use `--license oss`, you **must** set the `AGENTA_OSS_OWNER_PASSWORD` environment variable (either in your shell or in a `.env` file in the tests directory). The runner will exit with an error if this is missing.

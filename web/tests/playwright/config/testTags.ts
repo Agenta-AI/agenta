@@ -9,6 +9,9 @@ export const TestScope = {
     PLAYGROUND: "playground", // Playground flows
     DATASETS: "datasets", // Dataset flows
     EVALUATIONS: "evaluations", // Evaluation flows
+    SETTINGS: "settings", // Settings flows
+    DEPLOYMENT: "deployment", // Deployment flows
+    OBSERVABILITY: "observability"
 } as const
 
 /**

@@ -2,7 +2,8 @@ from typing import Optional, List
 from uuid import UUID
 from traceback import format_exc
 
-from sqlalchemy import distinct, Column
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy import distinct, text
 from sqlalchemy import Select
 from sqlalchemy.dialects.postgresql import dialect
 from sqlalchemy.future import select
@@ -33,6 +34,7 @@ from oss.src.dbs.postgres.tracing.utils import combine, filter
 log = get_module_logger(__name__)
 
 DEBUG_ARGS = {"dialect": dialect(), "compile_kwargs": {"literal_binds": True}}
+STATEMENT_TIMEOUT = 15_000  # milliseconds
 
 
 class TracingDAO(TracingDAOInterface):
@@ -442,6 +444,9 @@ class TracingDAO(TracingDAOInterface):
 
         try:
             async with engine.tracing_session() as session:
+                stmt = text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'")
+                await session.execute(stmt)
+
                 # BASE (SUB-)QUERY
                 query: Select = select(SpanDBE)
                 # ----------------
@@ -510,6 +515,18 @@ class TracingDAO(TracingDAOInterface):
             span_dtos = [map_span_dbe_to_span_dto(span_dbe=dbe) for dbe in dbes]
 
             return span_dtos
+
+        except DBAPIError as e:
+            log.error(f"{type(e).__name__}: {e}")
+            log.error(format_exc())
+
+            if "QueryCanceledError" in str(e.orig):
+                raise Exception(
+                    "Query execution was cancelled due to timeout. "
+                    "Please try again with a smaller time window."
+                ) from e  # pylint: disable=broad-exception-raised
+
+            raise e
 
         except Exception as e:
             log.error(f"{type(e).__name__}: {e}")

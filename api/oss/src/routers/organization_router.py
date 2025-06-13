@@ -292,7 +292,6 @@ async def resend_user_invitation_to_organization(
         project_id=request.state.project_id,
         user_id=request.state.user_id,
     )
-
     return invite_user
 
 
@@ -341,5 +340,4 @@ async def accept_organization_invitation(
             organization_id=org_id,
             email=payload.email,
         )
-
     return JSONResponse({"message": "Added user to workspace"}, status_code=200)
