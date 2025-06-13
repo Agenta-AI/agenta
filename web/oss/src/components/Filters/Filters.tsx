@@ -284,9 +284,7 @@ const Filters: React.FC<Props> = ({
                 {...buttonProps}
             >
                 Filters
-                {sanitizedFilters.length > 0 && (
-                    <CustomAntdBadge count={sanitizedFilters.length} />
-                )}
+                {sanitizedFilters.length > 0 && <CustomAntdBadge count={sanitizedFilters.length} />}
             </Button>
         </Popover>
     )

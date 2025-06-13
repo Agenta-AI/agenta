@@ -52,9 +52,7 @@ const EvaluationErrorModal = ({
         >
             <Typography.Paragraph>{errorText}</Typography.Paragraph>
             {modalErrorMsg.message && (
-                <Typography.Paragraph type="danger">
-                    {modalErrorMsg.message}
-                </Typography.Paragraph>
+                <Typography.Paragraph type="danger">{modalErrorMsg.message}</Typography.Paragraph>
             )}
             {modalErrorMsg.stackTrace && (
                 <Collapse

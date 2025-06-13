@@ -29,10 +29,10 @@ if (missingEnvVars.length > 0) {
 const require = createRequire(import.meta.url)
 export default defineConfig({
     testDir: `../${process.env.PROJECT_DIRECTORY}/tests`,
-    fullyParallel: true,
+    fullyParallel: false, // Temporarily disabled parallel worker
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : process.env.RETRIES ? parseInt(process.env.RETRIES) : 0,
-    workers: process.env.CI ? 1 : process.env.MAX_WORKERS ? parseInt(process.env.MAX_WORKERS) : 2, // Allow 2 parallel environments by default
+    workers: 1, // Temporarily disabled parallel worker
     reporter: "html",
     globalSetup: require.resolve("./playwright/global-setup"),
     globalTeardown: require.resolve("./playwright/global-teardown"),

@@ -2,7 +2,7 @@ from typing import Dict, List, Union, Literal
 from uuid import UUID
 
 from fastapi import Request, Depends, Query, status, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.observability.service import ObservabilityService
@@ -55,6 +55,14 @@ if is_ee():
         NOT_ENTITLED_RESPONSE,
     )
 
+# OTLP Protobuf response message for full success
+from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
+    ExportTraceServiceResponse,
+)
+
+# Protobuf Status for error responses
+from google.rpc.status_pb2 import Status as ProtoStatus
+
 log = get_module_logger(__name__)
 
 
@@ -79,7 +87,7 @@ class ObservabilityRouter:
             methods=["POST"],
             operation_id="otlp_v1_traces",
             summary="Receive /v1/traces via OTLP",
-            status_code=status.HTTP_202_ACCEPTED,
+            status_code=status.HTTP_200_OK,
             response_model=CollectStatusResponse,
         )
 
@@ -101,7 +109,7 @@ class ObservabilityRouter:
             methods=["POST"],
             operation_id="otlp_receiver",
             summary="Receive traces via OTLP",
-            status_code=status.HTTP_202_ACCEPTED,
+            status_code=status.HTTP_200_OK,
             response_model=CollectStatusResponse,
         )
 
@@ -184,7 +192,6 @@ class ObservabilityRouter:
         Receive traces via OTLP.
         """
 
-
         otlp_stream = None
         try:
             # ---------------------------------------------------------------- #
@@ -196,10 +203,12 @@ class ObservabilityRouter:
                 request.state.project_id,
                 str(e),
             )
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid request body: not a valid OTLP stream.",
-            ) from e
+            err_status = ProtoStatus(message="Invalid request body: not a valid OTLP stream.")
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
 
         otel_spans = None
         try:
@@ -216,10 +225,12 @@ class ObservabilityRouter:
                 "OTLP stream: %s",
                 otlp_stream,
             )
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to parse OTLP stream.",
-            ) from e
+            err_status = ProtoStatus(message="Failed to parse OTLP stream.")
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         span_dtos = None
         try:
@@ -240,10 +251,12 @@ class ObservabilityRouter:
                     UUID(otel_span.context.trace_id[2:]),
                     otel_span,
                 )
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to parse OTEL span.",
-            ) from e
+            err_status = ProtoStatus(message="Failed to parse OTEL span.")
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         # -------------------------------------------------------------------- #
         delta = sum([1 for span_dto in span_dtos if span_dto.parent is None])
@@ -256,7 +269,12 @@ class ObservabilityRouter:
             )
 
             if not check:
-                return NOT_ENTITLED_RESPONSE(Tracker.COUNTERS)
+                err_status = ProtoStatus(message="You have reached your quota limit. Please upgrade your plan to continue.")
+                return Response(
+                    content=err_status.SerializeToString(),
+                    media_type="application/x-protobuf",
+                    status_code=status.HTTP_403_FORBIDDEN,
+                )
         # -------------------------------------------------------------------- #
 
         try:
@@ -278,12 +296,27 @@ class ObservabilityRouter:
                     span_dto.tree.id,
                     span_dto,
                 )
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to ingest spans.",
-            ) from e
+            err_status = ProtoStatus(message="Failed to ingest spans.")
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
-        return CollectStatusResponse(version=self.VERSION, status="processing")
+        # ------------------------------------------------------------------ #
+        # According to the OTLP/HTTP spec a full-success response must be an
+        # HTTP 200 with a serialized ExportTraceServiceResponse protobuf and
+        # the same Content-Type that the client used (we only support binary
+        # protobuf at the moment).
+        # ------------------------------------------------------------------ #
+
+        export_response = ExportTraceServiceResponse()  # empty == full success
+
+        return Response(
+            content=export_response.SerializeToString(),
+            media_type="application/x-protobuf",
+            status_code=status.HTTP_200_OK,
+        )
 
     ### QUERIES
 

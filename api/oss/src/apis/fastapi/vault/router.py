@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.utils.common import is_ee
 from oss.src.core.secrets.services import VaultService
@@ -90,6 +90,10 @@ class VaultRouter:
             project_id=UUID(request.state.project_id),
             create_secret_dto=body,
         )
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+        )
         return vault_secret
 
     @handle_exceptions()
@@ -132,7 +136,7 @@ class VaultRouter:
             namespace="list_secrets",
             key=cache_key,
             value=secrets_dtos,
-            ttl=0.05,  # seconds
+            ttl=60,  # seconds
         )
 
         return secrets_dtos
@@ -190,6 +194,10 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
             )
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+        )
         return secrets_dto
 
     @handle_exceptions()
@@ -211,5 +219,9 @@ class VaultRouter:
         await self.service.delete_secret(
             project_id=UUID(request.state.project_id),
             secret_id=UUID(secret_id),
+        )
+        await invalidate_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
         )
         return status.HTTP_204_NO_CONTENT

@@ -6,8 +6,9 @@ import posthog
 
 from google.protobuf.json_format import MessageToDict
 
-# from opentelemetry.proto.trace.v1 import trace_pb2 as Trace_Proto
-import oss.src.apis.fastapi.observability.opentelemetry.traces_proto as Trace_Proto
+# Use official OpenTelemetry proto definitions
+from opentelemetry.proto.trace.v1 import trace_pb2 as Trace_Proto
+from opentelemetry.proto.collector.trace.v1 import trace_service_pb2 as TraceService_Proto
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.observability.dtos import (
@@ -111,13 +112,28 @@ def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
     except (OSError, zlib.error) as e:
         log.error("Decompression failed: {%s}", e)
 
-    proto = Trace_Proto.TracesData()
+    # According to OTLP spec, the HTTP payload is an ExportTraceServiceRequest.
+    # We first try to parse using that message. If that fails (e.g. legacy
+    # clients sending raw TracesData) we fall back to the older TracesData
+    # message for backward-compatibility.
 
-    proto.ParseFromString(otlp_stream)
+    export_request = TraceService_Proto.ExportTraceServiceRequest()
+
+    try:
+        export_request.ParseFromString(otlp_stream)
+        resource_spans_iterable = export_request.resource_spans
+    except Exception:
+        # Fallback to legacy TracesData parser.
+        legacy_proto = getattr(Trace_Proto, "TracesData", None)
+        if legacy_proto is None:
+            raise
+        legacy_msg = legacy_proto()
+        legacy_msg.ParseFromString(otlp_stream)
+        resource_spans_iterable = legacy_msg.resource_spans
 
     otel_span_dtos = []
 
-    for resource_span in proto.resource_spans:
+    for resource_span in resource_spans_iterable:
         for scope_span in resource_span.scope_spans:
             for span in scope_span.spans:
                 # SPAN CONTEXT

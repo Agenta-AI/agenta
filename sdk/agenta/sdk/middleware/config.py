@@ -17,7 +17,9 @@ from agenta.sdk.utils.exceptions import suppress
 import agenta as ag
 
 
-_CACHE_ENABLED = getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+_CACHE_ENABLED = (
+    getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+)
 
 _cache = TTLLRUCache()
 

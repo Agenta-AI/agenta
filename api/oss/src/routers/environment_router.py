@@ -4,6 +4,7 @@ from fastapi import Request
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager, app_manager
 from oss.src.utils.common import APIRouter, is_ee
+from oss.src.utils.caching import invalidate_cache
 from oss.src.models.api.api_models import DeployToEnvironmentPayload
 
 if is_ee():
@@ -60,4 +61,9 @@ async def deploy_to_environment(
         object_id=payload.variant_id,
         object_type="variant",
         project_id=str(variant.project_id),
+    )
+
+    await invalidate_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
     )

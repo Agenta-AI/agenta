@@ -1,12 +1,27 @@
-import {test as baseTest, tags as _tags} from "./test"
-import {AppType} from "./types"
+import {
+    createTagString,
+    TestCoverage,
+    TestPath,
+    TestScope,
+} from "@agenta/web-tests/playwright/config/testTags"
+import {AppType} from "./assets/types"
+import {test as baseTest} from "./test"
 
-export const tags = _tags
-export {baseTest as test}
+const tag = [
+    createTagString("scope", TestScope.APPS),
+    createTagString("scope", TestScope.PLAYGROUND), //This is important for the playground tests
+    createTagString("scope", TestScope.EVALUATIONS),
+    createTagString("scope", TestScope.DEPLOYMENT),
+    createTagString("scope", TestScope.OBSERVABILITY),
+    createTagString("coverage", TestCoverage.SMOKE),
+    createTagString("coverage", TestCoverage.LIGHT),
+    createTagString("path", TestPath.HAPPY),
+]
 
 const tests = () => {
     baseTest(
         `creates new completion prompt app`,
+        {tag},
         async ({navigateToApps, createNewApp, verifyAppCreation}) => {
             await navigateToApps()
 
@@ -20,6 +35,7 @@ const tests = () => {
 
     baseTest(
         `creates new chat prompt app`,
+        {tag},
         async ({navigateToApps, createNewApp, verifyAppCreation}) => {
             await navigateToApps()
 
@@ -33,3 +49,4 @@ const tests = () => {
 }
 
 export default tests
+export {baseTest as test}

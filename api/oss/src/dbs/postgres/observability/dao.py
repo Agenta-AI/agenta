@@ -3,11 +3,11 @@ from datetime import datetime, timedelta, time, timezone
 from traceback import print_exc
 from uuid import UUID
 
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy import and_, or_, not_, distinct, Column, func, cast, text
 from sqlalchemy import TIMESTAMP, Enum, UUID as SQLUUID, Integer, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.future import select
-from sqlalchemy.dialects import postgresql
 
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.observability.dbes import NodesDBE
@@ -58,6 +58,8 @@ _SUGGESTED_BUCKETS_LIST = [
     (1440, "1 day"),
 ]
 
+STATEMENT_TIMEOUT = 15_000  # milliseconds
+
 
 class ObservabilityDAO(ObservabilityDAOInterface):
     def __init__(self):
@@ -72,6 +74,9 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     ) -> Tuple[List[SpanDTO], Optional[int]]:
         try:
             async with engine.tracing_session() as session:
+                stmt = text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'")
+                await session.execute(stmt)
+
                 # BASE (SUB-)QUERY
                 query = select(NodesDBE)
                 # ----------------
@@ -189,12 +194,28 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
             return [map_span_dbe_to_span_dto(span) for span in spans], count
 
+        except DBAPIError as e:
+            print_exc()
+
+            if "QueryCanceledError" in str(e.orig):
+                raise FilteringException(
+                    "Query execution was cancelled due to timeout. "
+                    "Please try again with a smaller time window."
+                ) from e
+
+            raise e
+
         except AttributeError as e:
             print_exc()
 
             raise FilteringException(
-                "Failed to run query due to non-existent key(s)."
+                "Failed to run analytics due to non-existent key(s)."
             ) from e
+
+        except Exception as e:
+            print_exc()
+
+            raise e
 
     async def analytics(
         self,
@@ -204,6 +225,9 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     ) -> Tuple[List[BucketDTO], Optional[int]]:
         try:
             async with engine.tracing_session() as session:
+                stmt = text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'")
+                await session.execute(stmt)
+
                 # WINDOWING
                 today = datetime.now()
                 start_of_next_day = datetime.combine(
@@ -449,12 +473,28 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
             return bucket_dtos, count
 
+        except DBAPIError as e:
+            print_exc()
+
+            if "QueryCanceledError" in str(e.orig):
+                raise FilteringException(
+                    "Query execution was cancelled due to timeout. "
+                    "Please try again with a smaller time window."
+                ) from e
+
+            raise e
+
         except AttributeError as e:
             print_exc()
 
             raise FilteringException(
                 "Failed to run analytics due to non-existent key(s)."
             ) from e
+
+        except Exception as e:
+            print_exc()
+
+            raise e
 
     async def create_one(
         self,

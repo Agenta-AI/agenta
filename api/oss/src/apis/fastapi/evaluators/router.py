@@ -148,18 +148,18 @@ class EvaluatorsRouter:
 
         workflow_flags = WorkflowFlags(**evaluator_flags.model_dump())
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.create_artifact(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_slug=evaluator_request.evaluator.slug,
-                #
-                artifact_flags=workflow_flags,
-                artifact_meta=evaluator_request.evaluator.meta,
-                artifact_name=evaluator_request.evaluator.name,
-                artifact_description=evaluator_request.evaluator.description,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.create_artifact(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_slug=evaluator_request.evaluator.slug,
+            #
+            artifact_flags=workflow_flags,
+            artifact_meta=evaluator_request.evaluator.meta,
+            artifact_name=evaluator_request.evaluator.name,
+            artifact_description=evaluator_request.evaluator.description,
         )
 
         if workflow_artifact is None:
@@ -170,18 +170,18 @@ class EvaluatorsRouter:
 
         workflow_variant_slug = uuid4().hex
 
-        workflow_variant: Optional[WorkflowVariant] = (
-            await self.workflows_service.create_variant(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_id=workflow_artifact.id,
-                #
-                variant_slug=workflow_variant_slug,
-                #
-                variant_flags=workflow_flags,
-                variant_meta=evaluator_request.evaluator.meta,
-            )
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.create_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_id=workflow_artifact.id,
+            #
+            variant_slug=workflow_variant_slug,
+            #
+            variant_flags=workflow_flags,
+            variant_meta=evaluator_request.evaluator.meta,
         )
 
         if workflow_variant is None:
@@ -192,19 +192,19 @@ class EvaluatorsRouter:
 
         workflow_revision_slug = uuid4().hex
 
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.create_revision(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_id=workflow_artifact.id,
-                variant_id=workflow_variant.id,
-                #
-                revision_slug=workflow_revision_slug,
-                #
-                revision_flags=workflow_flags,
-                revision_meta=evaluator_request.evaluator.meta,
-            )
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.create_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_id=workflow_artifact.id,
+            variant_id=workflow_variant.id,
+            #
+            revision_slug=workflow_revision_slug,
+            #
+            revision_flags=workflow_flags,
+            revision_meta=evaluator_request.evaluator.meta,
         )
 
         if workflow_revision is None:
@@ -215,19 +215,19 @@ class EvaluatorsRouter:
 
         workflow_revision_slug = uuid4().hex
 
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.commit_revision(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                variant_id=workflow_variant.id,
-                #
-                revision_slug=workflow_revision_slug,
-                #
-                revision_flags=workflow_flags,
-                revision_meta=evaluator_request.evaluator.meta,
-                revision_data=evaluator_request.evaluator.data,
-            )
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.commit_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            variant_id=workflow_variant.id,
+            #
+            revision_slug=workflow_revision_slug,
+            #
+            revision_flags=workflow_flags,
+            revision_meta=evaluator_request.evaluator.meta,
+            revision_data=evaluator_request.evaluator.data,
         )
 
         if workflow_revision is None:
@@ -281,12 +281,12 @@ class EvaluatorsRouter:
             id=evaluator_id,
         )
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.fetch_artifact(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=workflow_artifact_ref,
         )
 
         if workflow_artifact is None:
@@ -295,12 +295,12 @@ class EvaluatorsRouter:
                 detail="Basic evaluator not found. Please check the ID and try again.",
             )
 
-        workflow_variant: Optional[WorkflowVariant] = (
-            await self.workflows_service.fetch_variant(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_variant(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=workflow_artifact_ref,
         )
 
         if workflow_variant is None:
@@ -313,12 +313,12 @@ class EvaluatorsRouter:
             id=workflow_variant.id,
         )
 
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.fetch_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                variant_ref=workflow_variant_ref,
-            )
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.fetch_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            variant_ref=workflow_variant_ref,
         )
 
         if workflow_revision is None:
@@ -394,12 +394,12 @@ class EvaluatorsRouter:
             id=evaluator_request.evaluator.id,
         )
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.fetch_artifact(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=workflow_artifact_ref,
         )
 
         if workflow_artifact is None:
@@ -408,18 +408,18 @@ class EvaluatorsRouter:
                 detail="Basic evaluator not found. Please check the ID and try again.",
             )
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.edit_artifact(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_id=evaluator_request.evaluator.id,
-                #
-                artifact_flags=workflow_flags,
-                artifact_meta=evaluator_request.evaluator.meta,
-                artifact_name=evaluator_request.evaluator.name,
-                artifact_description=evaluator_request.evaluator.description,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.edit_artifact(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_id=evaluator_request.evaluator.id,
+            #
+            artifact_flags=workflow_flags,
+            artifact_meta=evaluator_request.evaluator.meta,
+            artifact_name=evaluator_request.evaluator.name,
+            artifact_description=evaluator_request.evaluator.description,
         )
 
         if workflow_artifact is None:
@@ -428,12 +428,12 @@ class EvaluatorsRouter:
                 detail="Failed to edit evaluator. Please try again or contact support.",
             )
 
-        workflow_variant: Optional[WorkflowVariant] = (
-            await self.workflows_service.fetch_variant(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.fetch_variant(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=workflow_artifact_ref,
         )
 
         if workflow_variant is None:
@@ -442,16 +442,16 @@ class EvaluatorsRouter:
                 detail="Basic evaluator not found. Please check the ID and try again.",
             )
 
-        workflow_variant: Optional[WorkflowVariant] = (
-            await self.workflows_service.edit_variant(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                variant_id=workflow_variant.id,
-                #
-                variant_flags=workflow_flags,
-                variant_meta=evaluator_request.evaluator.meta,
-            )
+        workflow_variant: Optional[
+            WorkflowVariant
+        ] = await self.workflows_service.edit_variant(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            variant_id=workflow_variant.id,
+            #
+            variant_flags=workflow_flags,
+            variant_meta=evaluator_request.evaluator.meta,
         )
 
         if workflow_variant is None:
@@ -464,12 +464,12 @@ class EvaluatorsRouter:
             id=workflow_variant.id,
         )
 
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.fetch_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                variant_ref=workflow_variant_ref,
-            )
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.fetch_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            variant_ref=workflow_variant_ref,
         )
 
         if workflow_revision is None:
@@ -480,19 +480,19 @@ class EvaluatorsRouter:
 
         workflow_revision_slug = uuid4().hex
 
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.commit_revision(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                variant_id=workflow_variant.id,
-                #
-                revision_slug=workflow_revision_slug,
-                #
-                revision_flags=workflow_flags,
-                revision_meta=evaluator_request.evaluator.meta,
-                revision_data=evaluator_request.evaluator.data,
-            )
+        workflow_revision: Optional[
+            WorkflowRevision
+        ] = await self.workflows_service.commit_revision(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            variant_id=workflow_variant.id,
+            #
+            revision_slug=workflow_revision_slug,
+            #
+            revision_flags=workflow_flags,
+            revision_meta=evaluator_request.evaluator.meta,
+            revision_data=evaluator_request.evaluator.data,
         )
 
         if workflow_revision is None:
@@ -545,12 +545,12 @@ class EvaluatorsRouter:
             id=evaluator_id,
         )
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.fetch_artifact(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=workflow_artifact_ref,
         )
 
         if workflow_artifact is None:
@@ -559,13 +559,13 @@ class EvaluatorsRouter:
                 detail="Basic evaluator not found. Please check the ID and try again.",
             )
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.archive_artifact(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_id=evaluator_id,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.archive_artifact(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_id=evaluator_id,
         )
 
         if workflow_artifact is None:
@@ -616,12 +616,12 @@ class EvaluatorsRouter:
             id=evaluator_id,
         )
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.fetch_artifact(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_ref=workflow_artifact_ref,
         )
 
         if workflow_artifact is None:
@@ -630,13 +630,13 @@ class EvaluatorsRouter:
                 detail="Basic evaluator not found. Please check the ID and try again.",
             )
 
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.unarchive_artifact(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                artifact_id=evaluator_id,
-            )
+        workflow_artifact: Optional[
+            WorkflowArtifact
+        ] = await self.workflows_service.unarchive_artifact(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            artifact_id=evaluator_id,
         )
 
         if workflow_artifact is None:
@@ -704,13 +704,13 @@ class EvaluatorsRouter:
             meta=meta,
         )
 
-        workflow_artifacts: List[WorkflowArtifact] = (
-            await self.workflows_service.query_artifacts(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_flags=flags,
-                artifact_meta=meta,
-            )
+        workflow_artifacts: List[
+            WorkflowArtifact
+        ] = await self.workflows_service.query_artifacts(
+            project_id=UUID(request.state.project_id),
+            #
+            artifact_flags=flags,
+            artifact_meta=meta,
         )
 
         if workflow_artifacts is None:
@@ -724,12 +724,12 @@ class EvaluatorsRouter:
                 id=workflow_artifact.id,
             )
 
-            workflow_variant: Optional[WorkflowVariant] = (
-                await self.workflows_service.fetch_variant(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    artifact_ref=workflow_artifact_ref,
-                )
+            workflow_variant: Optional[
+                WorkflowVariant
+            ] = await self.workflows_service.fetch_variant(
+                project_id=UUID(request.state.project_id),
+                #
+                artifact_ref=workflow_artifact_ref,
             )
 
             if workflow_variant is None:
@@ -739,12 +739,12 @@ class EvaluatorsRouter:
                 id=workflow_variant.id,
             )
 
-            workflow_revision: Optional[WorkflowRevision] = (
-                await self.workflows_service.fetch_revision(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    variant_ref=workflow_variant_ref,
-                )
+            workflow_revision: Optional[
+                WorkflowRevision
+            ] = await self.workflows_service.fetch_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                variant_ref=workflow_variant_ref,
             )
 
             if workflow_revision is None:

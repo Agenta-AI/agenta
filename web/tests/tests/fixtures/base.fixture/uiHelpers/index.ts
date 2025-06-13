@@ -1,41 +1,43 @@
-import {expect, Locator, Page} from "@playwright/test"
+import {expect} from "@playwright/test"
 
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 
-import {clickButton, selectOption, typeWithDelay, waitForPath} from "./helpers"
+import {
+    clickButton,
+    clickTab,
+    clickTableRowButton,
+    clickTableRowIcon,
+    confirmModal,
+    expectNoText,
+    expectText,
+    selectOption,
+    selectOptions,
+    typeWithDelay,
+    waitForPath,
+    clickTableRow,
+    selectTableRowInput
+} from "./helpers"
 import {UIHelpers} from "./types"
-
-export const expectText = async (page: Page, text: string, options = {}) => {
-    let locator
-    const role = options.role
-    if (role) {
-        locator = page.getByRole(role, {name: text})
-    } else {
-        locator = page.getByText(text, {exact: options.exact})
-    }
-
-    if (options.multiple) {
-        const count = await locator.count()
-        expect(count).toBeGreaterThan(0)
-    } else {
-        await expect(locator).toBeVisible()
-    }
-}
-
-export const expectNoText = async (page: Page, text: string) => {
-    await expect(page.getByText(text)).not.toBeVisible()
-}
-
-export const selectOptions = async (page: Page, labels: string[]) => {
-    for (const label of labels) {
-        await page.getByLabel(label).check()
-    }
-}
 
 export const uiHelpers = () => {
     return async ({page}: FixtureContext, use: UseFn<UIHelpers>) => {
         await use({
+            clickTab: async (name) => {
+                await clickTab(page, name)
+            },
+            clickTableRow: async (rowText: string) => {
+                await clickTableRow(page, rowText)
+            },
+            clickTableRowButton: async ({rowText, buttonName}: {rowText: string | RegExp; buttonName: string | RegExp}) => {
+                await clickTableRowButton(page, {rowText, buttonName})
+            },
+            clickTableRowIcon: async ({rowText, icon}: {rowText: string; icon: string}) => {
+                await clickTableRowIcon(page, {rowText, icon})
+            },
+            confirmModal: async (buttonText?: string | RegExp) => {
+                await confirmModal(page, buttonText)
+            },
             expectText: async (text: string, options = {}) => {
                 await expectText(page, text, options)
             },
@@ -53,7 +55,7 @@ export const uiHelpers = () => {
             },
 
             selectOption: async ({label, text}) => {
-                await selectOption(page, {label, text})
+                await selectOption(page, {label, text: text as string})
             },
 
             selectOptions: async (labels) => {
@@ -64,7 +66,7 @@ export const uiHelpers = () => {
                 await expect(page).toHaveURL(new RegExp(path))
             },
 
-            waitForPath: async (path) => {
+            waitForPath: async (path: string) => {
                 await waitForPath(page, path)
             },
 
@@ -73,6 +75,10 @@ export const uiHelpers = () => {
                 await expect(loading).toBeVisible()
                 await expect(loading).not.toBeVisible()
             },
+
+            selectTableRowInput: async ({rowText, inputType, checked}) => {
+                await selectTableRowInput({page, rowText, inputType, checked})
+            },  
         })
     }
 }

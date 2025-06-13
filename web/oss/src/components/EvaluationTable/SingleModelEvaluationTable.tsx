@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useState, useMemo} from "react"
 
 import {
     Button,
@@ -74,7 +74,35 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
         variants,
     )
 
-    const variantData = data?.variants || []
+    // Select the correct variant revisions for this evaluation
+    const variantData = useMemo(() => {
+        const allVariantData = data?.variants || []
+        if (!allVariantData.length) return []
+
+        return evaluation.variants.map((evVariant, idx) => {
+            const revisionId = evaluation.variant_revision_ids?.[idx]
+            const revisionNumber = evaluation.revisions?.[idx]
+
+            // 1. Try to find by exact revision id
+            let selected = allVariantData.find((v) => v.id === revisionId)
+
+            // 2. Try by variantId & revision number
+            if (!selected && revisionNumber !== undefined) {
+                selected = allVariantData.find(
+                    (v) => v.variantId === evVariant.variantId && v.revision === revisionNumber,
+                )
+            }
+
+            // 3. Fallback – latest revision for that variant
+            if (!selected) {
+                selected = allVariantData.find(
+                    (v) => v.variantId === evVariant.variantId && v.isLatestRevision,
+                )
+            }
+
+            return selected || evVariant
+        })
+    }, [data?.variants, evaluation.variants, evaluation.variant_revision_ids, evaluation.revisions])
 
     const [rows, setRows] = useState<SingleModelEvaluationRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
@@ -220,7 +248,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                               })
                             : variantData[idx].promptOptParams!,
                         appId || "",
-                        variants[idx].baseId || "",
+                        variantData[idx].baseId || "",
                         variantData[idx].isChatVariant
                             ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
                             : [],

@@ -20,7 +20,9 @@ log = get_module_logger(__name__)
 AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
 
 
-_CACHE_ENABLED = getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+_CACHE_ENABLED = (
+    getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
+)
 
 _ALWAYS_ALLOW_LIST = [f"{AGENTA_RUNTIME_PREFIX}/health"]
 

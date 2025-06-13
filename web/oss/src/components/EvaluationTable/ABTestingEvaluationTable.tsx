@@ -76,7 +76,35 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
         evalVariants,
     )
 
-    const variantData = data?.variants || []
+    // Select the correct variant revisions for this evaluation
+    const variantData = useMemo(() => {
+        const allVariantData = data?.variants || []
+        if (!allVariantData.length) return []
+
+        return evaluation.variants.map((evVariant, idx) => {
+            const revisionId = evaluation.variant_revision_ids?.[idx]
+            const revisionNumber = evaluation.revisions?.[idx]
+
+            // 1. Try to find by exact revision id
+            let selected = allVariantData.find((v) => v.id === revisionId)
+
+            // 2. Try by variantId & revision number
+            if (!selected && revisionNumber !== undefined) {
+                selected = allVariantData.find(
+                    (v) => v.variantId === evVariant.variantId && v.revision === revisionNumber,
+                )
+            }
+
+            // 3. Fallback – latest revision for that variant
+            if (!selected) {
+                selected = allVariantData.find(
+                    (v) => v.variantId === evVariant.variantId && v.isLatestRevision,
+                )
+            }
+
+            return selected || evVariant
+        })
+    }, [data?.variants, evaluation.variants, evaluation.variant_revision_ids, evaluation.revisions])
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
@@ -202,7 +230,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
 
     const runEvaluation = useCallback(
         async (id: string, count = 1, showNotification = true) => {
-            const _variantData = data?.variants || []
+            const _variantData = variantData
             const rowIndex = rows.findIndex((row) => row.id === id)
             const inputParamsDict = rows[rowIndex].inputs.reduce(
                 (acc: Record<string, any>, item) => {
@@ -224,16 +252,16 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     try {
                         const result = await callVariant(
                             inputParamsDict,
-                            (data?.variants || [])[idx].inputParams!,
-                            (data?.variants || [])[idx].parameters
+                            variantData[idx].inputParams!,
+                            variantData[idx].parameters
                                 ? transformToRequestBody({
-                                      variant: (data?.variants || [])[idx],
+                                      variant: variantData[idx],
                                       allMetadata: getAllMetadata(),
                                   })
-                                : (data?.variants || [])[idx].promptOptParams!,
+                                : variantData[idx].promptOptParams!,
                             appId || "",
-                            variant.baseId || "",
-                            (data?.variants || [])[idx].isChatVariant
+                            variantData[idx].baseId || "",
+                            variantData[idx].isChatVariant
                                 ? testsetRowToChatMessages(
                                       evaluation.testset.csvdata[rowIndex],
                                       false,
@@ -241,9 +269,9 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                 : [],
                             undefined,
                             true,
-                            !!(data?.variants || [])[idx].parameters, // isNewVariant
-                            (data?.variants || [])[idx].isCustom,
-                            (data?.variants || [])[idx].uriObject,
+                            !!variantData[idx].parameters, // isNewVariant
+                            variantData[idx].isCustom,
+                            variantData[idx].uriObject,
                         )
 
                         let res: BaseResponse | undefined
@@ -299,7 +327,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
             )
         },
         [
-            data?.variants,
+            variantData,
             rows,
             evalVariants,
             updateEvaluationScenarioData,

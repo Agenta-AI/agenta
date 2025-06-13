@@ -153,9 +153,7 @@ class NodeBuilder(SpanDataBuilder):
         links = features.links
 
         otel = OTelExtraDTO(
-            kind=(
-                otel_span_dto.kind.value if otel_span_dto.kind else None
-            ),
+            kind=(otel_span_dto.kind.value if otel_span_dto.kind else None),
             attributes=otel_span_dto.attributes,
             events=otel_span_dto.events,
             links=otel_span_dto.links,

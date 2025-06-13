@@ -12,7 +12,8 @@ log = get_module_logger(__name__)
 
 
 class LitellmProtocol(Protocol):
-    async def acompletion(self, *args: Any, **kwargs: Any) -> Any: ...
+    async def acompletion(self, *args: Any, **kwargs: Any) -> Any:
+        ...
 
 
 litellm: Optional[LitellmProtocol] = None  # pylint: disable=invalid-name
