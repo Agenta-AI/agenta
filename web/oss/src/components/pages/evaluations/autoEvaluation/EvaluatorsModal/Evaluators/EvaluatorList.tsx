@@ -128,7 +128,6 @@ const EvaluatorList = ({
                             onClick={(e) => e.stopPropagation()}
                             icon={<MoreOutlined />}
                             size="small"
-                            data-cy="evaluator-menu-button"
                         />
                     </Dropdown>
                 )
@@ -147,7 +146,6 @@ const EvaluatorList = ({
                 bordered
                 onRow={(record) => ({
                     style: {cursor: "pointer"},
-                    "data-cy": "evaluator-list",
                     onClick: () => {
                         const selectedEval = evaluators.find((e) => e.key === record.evaluator_key)
                         if (selectedEval) {

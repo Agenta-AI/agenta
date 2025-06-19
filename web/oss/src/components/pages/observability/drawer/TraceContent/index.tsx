@@ -1,20 +1,20 @@
 import {useMemo, useState} from "react"
 
 import {Database} from "@phosphor-icons/react"
-import {Button, Divider, Space, Tabs, TabsProps, Tag, Typography} from "antd"
+import {Button, Divider, Space, Tabs, TabsProps, Tag, Typography, Tooltip} from "antd"
 import dynamic from "next/dynamic"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {KeyValuePair} from "@/oss/lib/Types"
-import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+import {TracesWithAnnotations} from "@/oss/services/observability/types"
 
 import AccordionTreePanel from "../../components/AccordionTreePanel"
-import {TracesWithAnnotations} from "../../ObservabilityDashboard"
 import AnnotateDrawerButton from "../AnnotateDrawer/assets/AnnotateDrawerButton"
 
 import {useStyles} from "./assets/styles"
 import AnnotationTabItem from "./components/AnnotationTabItem"
 import OverviewTabItem from "./components/OverviewTabItem"
+import clsx from "clsx"
 
 const TestsetDrawer = dynamic(() => import("../TestsetDrawer/TestsetDrawer"), {ssr: false})
 
@@ -57,42 +57,28 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
     )
 
     return (
-        <div className={classes.container}>
+        <div className={clsx("flex w-full h-full flex-1", classes.container)}>
             <div className="flex-1 flex flex-col overflow-auto">
                 <div>
                     <div className="p-4 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                            <Typography.Text className={classes.title}>
+                        <Tooltip
+                            placement="topLeft"
+                            title={activeTrace?.node?.name}
+                            mouseEnterDelay={0.25}
+                        >
+                            <Typography.Text
+                                className={clsx("truncate text-nowrap flex-1", classes.title)}
+                            >
                                 {activeTrace?.node?.name}
                             </Typography.Text>
-                            <TooltipWithCopyAction
-                                copyText={activeTrace.span_id}
-                                title="Copy span id"
-                                tooltipProps={{placement: "bottom", arrow: true}}
-                            >
-                                <Tag className="font-normal truncate"># {activeTrace.span_id}</Tag>
-                            </TooltipWithCopyAction>
-                        </div>
-
-                        <Space>
-                            <Button
-                                className="flex items-center"
-                                onClick={() => setIsTestsetDrawerOpen(true)}
-                                disabled={!activeTrace?.key}
-                            >
-                                <Database size={14} />
-                                Add to testset
-                            </Button>
-
-                            <AnnotateDrawerButton
-                                label="Annotate"
-                                data={activeTrace?.annotations || []}
-                                traceSpanIds={{
-                                    traceId: activeTrace?.trace_id,
-                                    spanId: activeTrace?.span_id,
-                                }}
-                            />
-                        </Space>
+                        </Tooltip>
+                        <TooltipWithCopyAction
+                            copyText={activeTrace.span_id}
+                            title="Copy span id"
+                            tooltipProps={{placement: "bottom", arrow: true}}
+                        >
+                            <Tag className="font-normal truncate"># {activeTrace.span_id}</Tag>
+                        </TooltipWithCopyAction>
                     </div>
                     <Divider className="m-0" />
                 </div>
@@ -103,7 +89,28 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                         activeKey={tab}
                         onChange={setTab}
                         items={items}
-                        className={classes.tabs}
+                        className={clsx("flex flex-col h-full", classes.tabs)}
+                        tabBarExtraContent={
+                            <Space className="mr-4">
+                                <Button
+                                    className="flex items-center"
+                                    onClick={() => setIsTestsetDrawerOpen(true)}
+                                    disabled={!activeTrace?.key}
+                                >
+                                    <Database size={14} />
+                                    Add to testset
+                                </Button>
+
+                                <AnnotateDrawerButton
+                                    label="Annotate"
+                                    data={activeTrace?.annotations || []}
+                                    traceSpanIds={{
+                                        traceId: activeTrace?.trace_id,
+                                        spanId: activeTrace?.span_id,
+                                    }}
+                                />
+                            </Space>
+                        }
                     />
                 </div>
             </div>

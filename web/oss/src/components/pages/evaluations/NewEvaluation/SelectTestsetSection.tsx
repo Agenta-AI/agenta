@@ -86,7 +86,7 @@ const SelectTestsetSection = ({
             {
                 key: "testsetPanel",
                 label: (
-                    <Space data-cy="evaluation-testset-collapse-header">
+                    <Space>
                         <div>Select Testset</div>
                         {selectedTestset && (
                             <Tag closeIcon={<CloseCircleOutlined />} onClose={handleRemoveTestset}>
@@ -118,7 +118,6 @@ const SelectTestsetSection = ({
                                 handlePanelChange("variantPanel")
                             },
                         }}
-                        data-cy="evaluation-testset-table"
                         className={`ph-no-capture`}
                         columns={columns}
                         dataSource={filteredTestset}

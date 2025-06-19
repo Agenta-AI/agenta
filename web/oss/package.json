@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.48.4",
+    "version": "0.48.5",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -13,9 +13,6 @@
         "start": "next start",
         "lint": "next lint",
         "lint-fix": "next lint --fix",
-        "cypress:open": "cypress open",
-        "cypress:run": "cypress run",
-        "test": "cypress run",
         "format": "prettier --check .",
         "format-fix": "prettier --write .",
         "types:check": "tsc",

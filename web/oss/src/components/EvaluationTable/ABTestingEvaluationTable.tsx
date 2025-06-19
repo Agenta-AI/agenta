@@ -508,12 +508,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 <Row align="middle">
                     <Col span={12}>
                         <Space>
-                            <Button
-                                type="primary"
-                                onClick={runAllEvaluations}
-                                size="large"
-                                data-cy="abTesting-run-all-button"
-                            >
+                            <Button type="primary" onClick={runAllEvaluations} size="large">
                                 Run All
                             </Button>
                             <SecondaryButton

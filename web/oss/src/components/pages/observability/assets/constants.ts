@@ -1,3 +1,7 @@
+import {Download, Gear, LineSegments, Sparkle, TreeStructure} from "@phosphor-icons/react"
+
+import {NodeType} from "@/oss/services/observability/types"
+
 export const FILTER_COLUMNS = [
     {type: "exists", value: "tree.id", label: "Tree ID"},
     {type: "exists", value: "node.id", label: "Node ID"},
@@ -23,3 +27,61 @@ export const FILTER_COLUMNS = [
     {type: "exists", value: "refs.environment.slug", label: "Environment Slug"},
     {type: "exists", value: "refs.environment.version", label: "Environment Version"},
 ]
+
+export const nodeTypeStyles = {
+    [NodeType.AGENT]: {
+        bgColor: "#E6F4FF",
+        color: "#4096FF",
+        icon: Gear,
+    },
+    [NodeType.WORKFLOW]: {
+        color: "#586673",
+        bgColor: "#F5F7FA",
+        icon: TreeStructure,
+    },
+    [NodeType.CHAIN]: {
+        bgColor: "#E6F4FF",
+        color: "#4096FF",
+        icon: Gear,
+    },
+    [NodeType.TASK]: {
+        bgColor: "#EAEFF5",
+        color: "#586673",
+        icon: TreeStructure,
+    },
+    [NodeType.TOOL]: {
+        bgColor: "#F9F0FF",
+        color: "#9254DE",
+        icon: Download,
+    },
+    [NodeType.EMBEDDING]: {
+        bgColor: "#FFFBE6",
+        color: "#D4B106",
+        icon: LineSegments,
+    },
+    [NodeType.COMPLETION]: {
+        bgColor: "#E6FFFB",
+        color: "#13C2C2",
+        icon: Sparkle,
+    },
+    [NodeType.QUERY]: {
+        bgColor: "#FFFBE6",
+        color: "#D4B106",
+        icon: LineSegments,
+    },
+    [NodeType.CHAT]: {
+        bgColor: "#E6FFFB",
+        color: "#13C2C2",
+        icon: Sparkle,
+    },
+    [NodeType.RERANK]: {
+        bgColor: "#FFFBE6",
+        color: "#D4B106",
+        icon: LineSegments,
+    },
+    default: {
+        bgColor: "#F5F7FA",
+        color: "#586673",
+        icon: TreeStructure,
+    },
+}

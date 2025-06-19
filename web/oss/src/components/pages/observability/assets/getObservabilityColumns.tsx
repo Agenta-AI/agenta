@@ -8,10 +8,11 @@ import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {TracesWithAnnotations} from "@/oss/services/observability/types"
 
-import {nodeTypeStyles} from "../components/AvatarTreeContent"
 import StatusRenderer from "../components/StatusRenderer"
-import {TracesWithAnnotations} from "../ObservabilityDashboard"
+
+import {nodeTypeStyles} from "./constants"
 
 interface ObservabilityColumnsProps {
     annotations: AnnotationDto[]

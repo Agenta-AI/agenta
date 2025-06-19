@@ -118,7 +118,6 @@ const Evaluators = ({
                             type="primary"
                             icon={<PlusOutlined />}
                             onClick={() => setCurrent(1)}
-                            data-cy="create-new-evaluator-button"
                         >
                             Create new evaluator
                         </Button>

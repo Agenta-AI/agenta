@@ -48,7 +48,7 @@ const SelectVariantSection = ({
             {
                 key: "variantPanel",
                 label: (
-                    <Space data-cy="evaluation-variant-collapse-header">
+                    <Space>
                         <div>Select Variant</div>
                         <Space>
                             {selectedVariants.length
@@ -98,7 +98,6 @@ const SelectVariantSection = ({
                         onRowClick={() => {}}
                         className="ph-no-capture"
                         rowKey={"id"}
-                        data-cy="evaluation-variant-table"
                     />
                 ),
             },

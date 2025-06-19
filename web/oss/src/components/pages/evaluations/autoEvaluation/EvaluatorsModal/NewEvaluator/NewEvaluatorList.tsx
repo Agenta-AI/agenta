@@ -71,7 +71,6 @@ const CreateEvaluatorList = ({
             scroll={{x: true, y: 550}}
             style={{cursor: "pointer"}}
             onRow={(record) => ({
-                "data-cy": "new-evaluator-list",
                 className: classes.evaluatorCardHover,
                 onClick: () => {
                     setSelectedEvaluator(record)

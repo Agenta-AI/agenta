@@ -113,7 +113,7 @@ const AppCard: React.FC<{
                     </Dropdown>
                 }
             >
-                <div data-cy="app-card-link" className={classes.app_card_link}>
+                <div className={classes.app_card_link}>
                     <div>
                         <Text>Type</Text>
                         <Tag className="mr-0">{app.app_type}</Tag>

@@ -1,34 +1,17 @@
-import {Dispatch, SetStateAction, useCallback, useState} from "react"
+import {useCallback, useState} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
-import {createUseStyles} from "react-jss"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {useObservabilityData} from "@/oss/contexts/observability.context"
-import {JSSTheme} from "@/oss/lib/Types"
-import {_AgentaRootsResponse, TracesWithAnnotations} from "@/oss/services/observability/types"
+import {_AgentaRootsResponse} from "@/oss/services/observability/types"
 
-import DeleteTraceModal from "../components/DeleteTraceModal"
+import DeleteTraceModal from "../../components/DeleteTraceModal"
 
-interface TraceHeaderProps {
-    activeTrace: TracesWithAnnotations
-    traces: _AgentaRootsResponse[]
-    setSelectedTraceId: (val: string) => void
-    activeTraceIndex?: number
-    setIsAnnotationsSectionOpen?: Dispatch<SetStateAction<boolean>>
-    isAnnotationsSectionOpen?: boolean
-    setSelected?: Dispatch<SetStateAction<string>>
-}
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    title: {
-        fontSize: theme.fontSizeHeading5,
-        fontWeight: theme.fontWeightMedium,
-        lineHeight: theme.lineHeightHeading5,
-    },
-}))
+import {useStyles} from "./assets/styles"
+import {TraceHeaderProps} from "./assets/types"
 
 const TraceHeader = ({
     activeTrace,

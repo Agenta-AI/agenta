@@ -128,11 +128,17 @@ async def remove_user_from_workspace(
                 },
             )
 
-        check, _, _ = await check_entitlements(
-            organization_id=request.state.organization_id,
-            key=Gauge.USERS,
-            delta=-1,
-        )
+        owner = await db_manager.get_organization_owner(request.state.organization_id)
+        owner_domain = owner.email.split("@")[-1].lower() if owner else ""
+        user_domain = email.split("@")[-1].lower()
+        skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
+
+        if not skip_meter:
+            await check_entitlements(
+                organization_id=request.state.organization_id,
+                key=Gauge.USERS,
+                delta=-1,
+            )
 
         delete_user_from_workspace = await workspace_manager.remove_user_from_workspace(
             workspace_id, email

@@ -1,5 +1,5 @@
 import {ExclamationCircleOutlined} from "@ant-design/icons"
-import {Collapse, Modal, Typography, theme} from "antd"
+import {Collapse, Modal, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"

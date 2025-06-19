@@ -142,7 +142,6 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                         placeholder="Enter a name"
                         value={testsetName}
                         onChange={(e) => setTestsetName(e.target.value)}
-                        data-cy="upload-testset-file-name"
                     />
                 </div>
 
@@ -300,7 +299,6 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     loading={uploadLoading}
                     type="primary"
                     onClick={() => form.submit()}
-                    data-cy="testset-upload-button"
                 >
                     Create test set
                 </Button>

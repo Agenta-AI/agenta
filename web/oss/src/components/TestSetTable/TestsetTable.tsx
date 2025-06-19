@@ -320,14 +320,8 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
                     value={testsetName}
                     onChange={handleTestsetNameChange}
                     placeholder="Test Set Name"
-                    data-cy="testset-name-input"
                 />
-                <Button
-                    loading={isLoading}
-                    data-cy="testset-save-button"
-                    onClick={() => onSaveData()}
-                    type="primary"
-                >
+                <Button loading={isLoading} onClick={() => onSaveData()} type="primary">
                     Save Test Set
                 </Button>
             </div>
@@ -365,9 +359,7 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
 
             {selectedRow && (
                 <div className={classes.btnContainer}>
-                    <Button onClick={onAddRow} data-cy="add-new-testset-row">
-                        Add Row
-                    </Button>
+                    <Button onClick={onAddRow}>Add Row</Button>
                     <Button onClick={onDeleteRow} disabled={selectedRow.length < 1}>
                         Delete Row{selectedRow.length > 1 && "s"}
                     </Button>

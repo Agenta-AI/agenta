@@ -156,7 +156,6 @@ const TableHeaderComponent = ({
                         value={scopedInputValues[index]}
                         onChange={(event) => handleInputChange(index, event)}
                         size="small"
-                        data-cy="testset-header-column-edit-input"
                     />
                 ) : (
                     displayName
@@ -169,14 +168,12 @@ const TableHeaderComponent = ({
                             onClick={handleSave}
                             type="default"
                             className={classes.saveBtn}
-                            data-cy="testset-header-column-save-button"
                         />
                     ) : (
                         <Button
                             icon={<EditOutlined />}
                             onClick={() => setIsEditInputOpen(true)}
                             type="text"
-                            data-cy="testset-header-column-edit-button"
                         />
                     )}
 

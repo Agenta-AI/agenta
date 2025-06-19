@@ -111,7 +111,6 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
                         onClick={getOnClick(variant.variantId)}
                         type={value === variant.variantId ? "primary" : undefined}
                         danger
-                        data-cy="evaluation-vote-panel-comparison-vote-button"
                         disabled={!outputs?.length}
                     >
                         {String.fromCharCode(65 + ix)}: {variant.variantName}
@@ -139,7 +138,6 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
                     type={value === goodId ? "primary" : undefined}
                     key={goodId}
                     onClick={getOnClick(goodId)}
-                    data-cy="evaluation-vote-panel-comparison-both-good-vote-button-button"
                     disabled={!outputs?.length}
                 >
                     Both are good
@@ -150,7 +148,6 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
                 type={value === badId ? "primary" : undefined}
                 key={badId}
                 onClick={getOnClick(badId)}
-                data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"
                 disabled={!outputs?.length}
             >
                 Both are bad
@@ -276,7 +273,6 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
                             }
                             min={min}
                             max={max}
-                            data-cy="evaluation-vote-panel-numeric-vote-input"
                             onChange={(score) => _onChange(variant.variantId, score)}
                             disabled={!outputs?.length}
                         />
@@ -333,7 +329,6 @@ const RatingVote: React.FC<RatingVoteProps> = ({
                                 defaultValue={finalValue || undefined}
                                 tooltips={["0%", "25%", "50%", "75%", "100%"]}
                                 allowClear={false}
-                                data-cy="evaluation-vote-panel-rating-vote-input"
                                 character={({index = 0, value = 0}) => {
                                     const rateColors: Record<number, string> = {
                                         1: "#D61010",

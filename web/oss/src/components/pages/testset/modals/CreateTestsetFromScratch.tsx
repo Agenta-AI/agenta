@@ -154,7 +154,6 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                     placeholder="Enter a name"
                     value={testsetName}
                     onChange={(e) => setTestsetName(e.target.value)}
-                    data-cy="testset-name-input"
                 />
             </div>
 
@@ -167,7 +166,6 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                     disabled={!testsetName}
                     onClick={onSubmit}
                     loading={isLoading}
-                    data-cy="create-new-testset-button"
                 >
                     {mode === "rename" ? "Rename" : "Create test set"}
                 </Button>

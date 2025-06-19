@@ -67,11 +67,7 @@ const CreateVariantModalContent = ({
                                 onChange={handleTemplateVariantChange}
                                 options={variants?.map((variant) => ({
                                     value: variant.variantName,
-                                    label: (
-                                        <div data-cy="new-variant-modal-label">
-                                            {variant.variantName}
-                                        </div>
-                                    ),
+                                    label: <div>{variant.variantName}</div>,
                                 }))}
                             />
                         </Form.Item>
@@ -89,10 +85,7 @@ const CreateVariantModalContent = ({
                             }
                             help={nameExists ? "Variant name already exists" : ""}
                         >
-                            <Input
-                                onChange={handleVariantNameChange}
-                                data-cy="new-variant-modal-input"
-                            />
+                            <Input onChange={handleVariantNameChange} />
                         </Form.Item>
                     </div>
 

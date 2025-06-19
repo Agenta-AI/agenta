@@ -114,7 +114,7 @@ async def lifespan(application: FastAPI, cache=True):
 app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)
 
 app.middleware("http")(authentication_middleware)
-app.middleware("http")(analytics_middleware)
+# app.middleware("http")(analytics_middleware)
 
 if is_ee():
     import ee.src.main as ee

@@ -3,6 +3,7 @@ import {useMemo, useState} from "react"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Tabs} from "antd"
+import dynamic from "next/dynamic"
 
 import fetchConfigcURLCode from "@/oss/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/oss/code_snippets/endpoints/fetch_config/python"
@@ -18,6 +19,11 @@ import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {createParams} from "@/oss/pages/apps/[app_id]/endpoints"
 
+const ApiKeyInput = dynamic(
+    () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
+    {ssr: false},
+)
+
 interface UseApiContentProps {
     variants: EnhancedVariant[]
     selectedEnvironment: DeploymentRevisions
@@ -27,6 +33,7 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
     const appId = useAppId()
     const {currentApp} = useAppsData()
     const [selectedLang, setSelectedLang] = useState("python")
+    const [apiKeyValue, setApiKeyValue] = useState("")
 
     const {data: uri} = useURI(appId, selectedEnvironment.deployed_app_variant_id || "")
 
@@ -55,15 +62,27 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
     ])
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
-        python: invokeLlmApppythonCode(uri!, params),
-        bash: invokeLlmAppcURLCode(uri!, params),
-        typescript: invokeLlmApptsCode(uri!, params),
+        python: invokeLlmApppythonCode(uri!, params, apiKeyValue || "x.xxxxxxxx"),
+        bash: invokeLlmAppcURLCode(uri!, params, apiKeyValue || "x.xxxxxxxx"),
+        typescript: invokeLlmApptsCode(uri!, params, apiKeyValue || "x.xxxxxxxx"),
     }
 
     const fetchConfigCodeSnippet: Record<string, string> = {
-        python: fetchConfigpythonCode(currentApp?.app_name!, selectedEnvironment?.name!),
-        bash: fetchConfigcURLCode(currentApp?.app_name!, selectedEnvironment?.name!),
-        typescript: fetchConfigtsCode(currentApp?.app_name!, selectedEnvironment?.name!),
+        python: fetchConfigpythonCode(
+            currentApp?.app_name!,
+            selectedEnvironment?.name!,
+            apiKeyValue || "x.xxxxxxxx",
+        ),
+        bash: fetchConfigcURLCode(
+            currentApp?.app_name!,
+            selectedEnvironment?.name!,
+            apiKeyValue || "x.xxxxxxxx",
+        ),
+        typescript: fetchConfigtsCode(
+            currentApp?.app_name!,
+            selectedEnvironment?.name!,
+            apiKeyValue || "x.xxxxxxxx",
+        ),
     }
 
     return (
@@ -75,11 +94,17 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
                     key: "python",
                     label: "Python",
                     children: (
-                        <LanguageCodeBlock
-                            fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                            invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                            selectedLang={selectedLang}
-                        />
+                        <div className="flex flex-col gap-6">
+                            <ApiKeyInput
+                                apiKeyValue={apiKeyValue}
+                                onApiKeyChange={setApiKeyValue}
+                            />
+                            <LanguageCodeBlock
+                                fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                selectedLang={selectedLang}
+                            />
+                        </div>
                     ),
                     icon: <PythonOutlined />,
                 },
@@ -87,11 +112,17 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
                     key: "typescript",
                     label: "TypeScript",
                     children: (
-                        <LanguageCodeBlock
-                            fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                            invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                            selectedLang={selectedLang}
-                        />
+                        <div className="flex flex-col gap-6">
+                            <ApiKeyInput
+                                apiKeyValue={apiKeyValue}
+                                onApiKeyChange={setApiKeyValue}
+                            />
+                            <LanguageCodeBlock
+                                fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                selectedLang={selectedLang}
+                            />
+                        </div>
                     ),
                     icon: <FileTs size={14} />,
                 },
@@ -99,11 +130,17 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
                     key: "bash",
                     label: "cURL",
                     children: (
-                        <LanguageCodeBlock
-                            fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                            invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                            selectedLang={selectedLang}
-                        />
+                        <div className="flex flex-col gap-6">
+                            <ApiKeyInput
+                                apiKeyValue={apiKeyValue}
+                                onApiKeyChange={setApiKeyValue}
+                            />
+                            <LanguageCodeBlock
+                                fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                selectedLang={selectedLang}
+                            />
+                        </div>
                     ),
                     icon: <FileCode size={14} />,
                 },

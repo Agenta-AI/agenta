@@ -349,7 +349,6 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                         icon={<Plus size={14} />}
                         className={classes.button}
                         onClick={() => setIsEvalModalOpen(true)}
-                        data-cy="new-human-eval-modal-button"
                     >
                         Start new evaluation
                     </Button>
