@@ -50,7 +50,6 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                 } else {
                     const node = (
                         <Link
-                            data-cy={item.key}
                             className="w-full"
                             href={item.link || "#"}
                             onClick={item.onClick}

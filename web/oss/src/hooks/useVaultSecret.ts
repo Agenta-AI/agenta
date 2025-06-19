@@ -171,6 +171,11 @@ export const useVaultSecret = () => {
     const {data, isLoading, mutate} = useSWR(
         migrationStatus?.migrated ? "vault/secrets" : null,
         fetchVaultSecret,
+        {
+            revalidateOnFocus: false,
+            revalidateOnReconnect: false,
+            revalidateIfStale: false,
+        },
     )
 
     const customRowSecrets = useMemo(() => {

@@ -46,12 +46,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
             bordered={false}
             expandIcon={({isActive}) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
         >
-            <Collapse.Panel
-                key="1"
-                header="Advanced Settings"
-                data-cy="new-evaluator-advance-settings"
-                forceRender
-            >
+            <Collapse.Panel key="1" header="Advanced Settings" forceRender>
                 {settings.map((field) => {
                     const rules = [
                         {required: field.required ?? true, message: "This field is required"},
@@ -80,7 +75,6 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
                             selectedTestcase.testcase ? (
                                 <AutoComplete
                                     options={generatePaths(selectedTestcase)}
-                                    data-cy="new-evaluator-advance-settings-input"
                                     filterOption={(inputValue, option) =>
                                         option!.value
                                             .toUpperCase()
@@ -88,7 +82,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({settings, selectedTe
                                     }
                                 />
                             ) : field.type === "string" || field.type === "regex" ? (
-                                <Input data-cy="new-evaluator-advance-settings-input" />
+                                <Input />
                             ) : field.type === "number" ? (
                                 <InputNumber min={field.min} max={field.max} step={0.1} />
                             ) : field.type === "boolean" || field.type === "bool" ? (

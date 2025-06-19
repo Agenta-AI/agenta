@@ -1,6 +1,6 @@
 import {js as beautify} from "js-beautify"
 
-export default function tsCode(appName: string, env_name: string): string {
+export default function tsCode(appName: string, env_name: string, apiKey: string): string {
     const codeString = `import axios from 'axios';
 
 const getConfig = async (appName: string, environmentSlug: string) => {
@@ -21,7 +21,7 @@ const getConfig = async (appName: string, environmentSlug: string) => {
         }, {
             headers: {
                 'Content-Type': 'application/json',    
-                'Authorization': "ApiKey x.xxxxxxxx", // Add your API key here
+                'Authorization': "ApiKey ${apiKey}", // Add your API key here
             },
         });
 

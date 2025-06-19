@@ -58,7 +58,13 @@ _SUGGESTED_BUCKETS_LIST = [
     (1440, "1 day"),
 ]
 
-STATEMENT_TIMEOUT = 15_000  # milliseconds
+STATEMENT_TIMEOUT = 60_000  # milliseconds
+COLUMNS_TO_EXCLUDE = ["content"]
+COLUMNS_TO_INCLUDE = [
+    column
+    for column in NodesDBE.__table__.columns
+    if column.name not in COLUMNS_TO_EXCLUDE
+]
 
 
 class ObservabilityDAO(ObservabilityDAOInterface):
@@ -78,7 +84,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 await session.execute(stmt)
 
                 # BASE (SUB-)QUERY
-                query = select(NodesDBE)
+                query = select(*COLUMNS_TO_INCLUDE)
                 # ----------------
 
                 # GROUPING
@@ -157,7 +163,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 if grouping and grouping_column:
                     subquery = query.subquery()
 
-                    query = select(NodesDBE)
+                    query = select(*COLUMNS_TO_INCLUDE)
                     query = query.filter(
                         grouping_column.in_(select(subquery.c["grouping_key"]))
                     )
@@ -189,7 +195,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------
 
                 # QUERY EXECUTION
-                spans = (await session.execute(query)).scalars().all()
+                spans = (await session.execute(query)).all()
                 # ---------------
 
             return [map_span_dbe_to_span_dto(span) for span in spans], count

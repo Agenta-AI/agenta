@@ -1,3 +1,5 @@
+import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+
 export const filterColumns = [
     {type: "exists", value: "tree.id", label: "tree ID"},
     {type: "exists", value: "node.id", label: "node ID"},
@@ -33,3 +35,20 @@ export const filterColumns = [
     {type: "exists", value: "refs.application.id", label: "application ID"},
     {type: "exists", value: "refs.application.slug", label: "application slug"},
 ]
+
+export const filterTree = (node: _AgentaRootsResponse, search: string) => {
+    const nameMatches = node.node?.name?.toLowerCase().includes(search.toLowerCase())
+
+    const filteredChildren = (node.children || [])
+        .map((child) => filterTree(child, search))
+        .filter(Boolean) as _AgentaRootsResponse[]
+
+    if (nameMatches || filteredChildren.length > 0) {
+        return {
+            ...node,
+            children: filteredChildren,
+        }
+    }
+
+    return null
+}

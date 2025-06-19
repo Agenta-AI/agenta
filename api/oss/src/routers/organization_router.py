@@ -213,14 +213,20 @@ async def invite_user_to_organization(
                 },
             )
 
-        check, _, _ = await check_entitlements(
-            organization_id=request.state.organization_id,
-            key=Gauge.USERS,
-            delta=1,
-        )
+        owner = await db_manager.get_organization_owner(org_id)
+        owner_domain = owner.email.split("@")[-1].lower() if owner else ""
+        user_domain = payload[0].email.split("@")[-1].lower()
+        skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
 
-        if not check:
-            return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
+        if not skip_meter:
+            check, _, _ = await check_entitlements(
+                organization_id=request.state.organization_id,
+                key=Gauge.USERS,
+                delta=1,
+            )
+
+            if not check:
+                return NOT_ENTITLED_RESPONSE(Tracker.GAUGES)
 
         invite_user = await workspace_manager.invite_user_to_workspace(
             payload=payload,

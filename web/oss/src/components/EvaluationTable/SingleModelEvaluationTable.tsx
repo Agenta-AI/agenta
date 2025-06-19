@@ -475,12 +475,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                 <Row align="middle">
                     <Col span={12}>
                         <Space>
-                            <Button
-                                type="primary"
-                                onClick={runAllEvaluations}
-                                size="large"
-                                data-cy="single-model-run-all-button"
-                            >
+                            <Button type="primary" onClick={runAllEvaluations} size="large">
                                 Run All
                             </Button>
                             <SecondaryButton
@@ -500,7 +495,6 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                                 size="large"
                                 onClick={() => setIsTestsetModalOpen(true)}
                                 disabled={false}
-                                data-cy="single-model-save-testset-button"
                             >
                                 Save Testset
                             </Button>

@@ -158,7 +158,7 @@ const HumanEvaluationModal = ({
             return {
                 label: (
                     <>
-                        <div data-cy={`testset-${index}`}>{testset.name}</div>
+                        <div>{testset.name}</div>
                     </>
                 ),
                 key: `${testset.name}-${testset._id}`,
@@ -216,10 +216,7 @@ const HumanEvaluationModal = ({
                 filteredVariants.push({
                     label: (
                         <>
-                            <div
-                                data-cy={`variant-${idx}`}
-                                className="flex items-center justify-between"
-                            >
+                            <div className="flex items-center justify-between">
                                 <VariantDetailsWithStatus
                                     variantName={variant.variantName || variant.name}
                                     revision={variant.revision}
@@ -325,10 +322,7 @@ const HumanEvaluationModal = ({
                             <div>
                                 <p>Which testset you want to use?</p>
                                 <Dropdown menu={getTestsetDropdownMenu()}>
-                                    <Button
-                                        className={classes.dropdownBtn}
-                                        data-cy="selected-testset"
-                                    >
+                                    <Button className={classes.dropdownBtn}>
                                         <div className={classes.dropdownStyles}>
                                             {selectedTestset.name}
                                             <CaretDown size={16} />
@@ -345,7 +339,6 @@ const HumanEvaluationModal = ({
                                     <Dropdown key={index} menu={getVariantsDropdownMenu(index)}>
                                         <Button
                                             className={classes.variantDropdown}
-                                            data-cy={`variants-dropdown-${index}`}
                                             style={{marginTop: index === 1 ? 8 : 0}}
                                         >
                                             <div className={classes.dropdownStyles}>
@@ -387,7 +380,6 @@ const HumanEvaluationModal = ({
                                     <Button
                                         onClick={onStartEvaluation}
                                         type="primary"
-                                        data-cy="start-new-evaluation-button"
                                         icon={<Play size={14} />}
                                         className="flex items-center"
                                     >

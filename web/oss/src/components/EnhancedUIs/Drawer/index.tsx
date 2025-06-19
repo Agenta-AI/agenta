@@ -16,6 +16,24 @@ const EnhancedDrawer = ({children, ...props}: EnhancedDrawerProps) => {
         }
     }, [isVisible])
 
+    // Effect to close drawer when outside click
+    useEffect(() => {
+        if (!shouldRender) return
+
+        function handleClickOutside(event: MouseEvent) {
+            if ((event.target as HTMLElement).closest(".variant-table-row")) {
+                return
+            } else if ((event.target as HTMLElement).closest(".ant-layout")) {
+                props.onClose?.({} as any)
+            }
+        }
+
+        document.addEventListener("click", handleClickOutside)
+        return () => {
+            document.removeEventListener("click", handleClickOutside)
+        }
+    }, [shouldRender])
+
     const handleAfterClose = (open: boolean) => {
         props.afterOpenChange?.(open)
         if (!open) {

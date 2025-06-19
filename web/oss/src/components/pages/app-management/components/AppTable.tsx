@@ -119,7 +119,6 @@ const AppTable = ({
                 bordered
                 onRow={(record) => ({
                     style: {cursor: "pointer"},
-                    "data-cy": "apps-list",
                     onClick: () => router.push(`/apps/${record.app_id}/overview`),
                 })}
                 locale={{emptyText: <NoResultsFound />}}

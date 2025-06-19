@@ -3,8 +3,8 @@ import {createUseStyles} from "react-jss"
 import {v4 as uuidv4} from "uuid"
 
 import ChatInputs from "@/oss/components/ChatInputs/ChatInputs"
-import {ChatRole, Evaluation, Variant} from "@/oss/lib/Types"
 import {safeParse} from "@/oss/lib/helpers/utils"
+import {ChatRole, Evaluation, Variant} from "@/oss/lib/Types"
 
 import {VARIANT_COLORS} from "./assets/styles"
 import VariantAlphabet from "./VariantAlphabet"

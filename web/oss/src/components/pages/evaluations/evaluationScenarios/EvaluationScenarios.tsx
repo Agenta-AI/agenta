@@ -424,7 +424,6 @@ const EvaluationScenarios: FC<Props> = () => {
                     className={`${
                         appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"
                     } ${classes.table}`}
-                    data-cy="evalaution-scenarios-table"
                 >
                     <AgGridReact<_EvaluationScenario>
                         gridRef={setGridRef}

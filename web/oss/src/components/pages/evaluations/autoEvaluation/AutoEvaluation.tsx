@@ -538,7 +538,6 @@ const AutoEvaluation = () => {
                         icon={<Plus size={14} />}
                         className={classes.button}
                         onClick={() => setNewEvalModalOpen(true)}
-                        data-cy="new-evaluation-button"
                     >
                         Start new evaluation
                     </Button>
@@ -561,7 +560,6 @@ const AutoEvaluation = () => {
                         className={classes.button}
                         onClick={() => setIsDeleteEvalMultipleModalOpen(true)}
                         disabled={selectedRowKeys.length == 0}
-                        data-cy="delete-evaluation-button"
                     >
                         Delete
                     </Button>
@@ -570,7 +568,6 @@ const AutoEvaluation = () => {
                         icon={<ArrowsLeftRight size={14} />}
                         className={classes.button}
                         disabled={compareDisabled}
-                        data-cy="evaluation-results-compare-button"
                         onClick={() =>
                             router.push(
                                 `/apps/${appId}/evaluations/results/compare?evaluations=${selectedRowKeys.join(",")}`,

@@ -152,7 +152,7 @@ export const useSidebarConfig = () => {
                 {
                     key: "slack-connect",
                     title: "Slack Support",
-                    link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA",
+                    link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
                     icon: <SlackLogo size={16} />,
                 },
                 {

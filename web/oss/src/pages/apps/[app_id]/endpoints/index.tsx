@@ -199,7 +199,7 @@ export default function VariantEndpoint() {
     ]
 
     return (
-        <div className={classes.container} data-cy="endpoints">
+        <div className={classes.container}>
             <Title level={3}>
                 <ApiOutlined />
                 API endpoint

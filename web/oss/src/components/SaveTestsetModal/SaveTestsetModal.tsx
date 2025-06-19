@@ -68,10 +68,7 @@ const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
                     rules={[{required: true, message: "Please enter test set name!"}]}
                     name="testset_name"
                 >
-                    <Input
-                        placeholder="Test set name"
-                        data-cy="single-model-save-testset-modal-input"
-                    />
+                    <Input placeholder="Test set name" />
                 </Form.Item>
             </Form>
         </Modal>

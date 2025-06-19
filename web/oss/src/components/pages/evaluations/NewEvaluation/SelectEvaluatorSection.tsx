@@ -90,10 +90,7 @@ const SelectEvaluatorSection = ({
             {
                 key: "evaluatorPanel",
                 label: (
-                    <div
-                        className="flex items-center gap-2"
-                        data-cy="evaluation-evaluator-collapse-header"
-                    >
+                    <div className="flex items-center gap-2">
                         <div>Select Evaluator</div>
                         <div className="flex items-center gap-2 flex-1 flex-wrap">
                             {selectedEvalConfig.length
@@ -128,7 +125,6 @@ const SelectEvaluatorSection = ({
                     <Input.Search
                         placeholder="Search"
                         className="w-[300px]"
-                        data-cy="evaluation-search-evaluator"
                         onClick={(event) => {
                             event.stopPropagation()
                         }}
@@ -157,7 +153,6 @@ const SelectEvaluatorSection = ({
                             },
                         }}
                         className="ph-no-capture"
-                        data-cy="evaluation-evaluator-table"
                         columns={columns}
                         rowKey={"id"}
                         dataSource={filteredEvalConfigs}

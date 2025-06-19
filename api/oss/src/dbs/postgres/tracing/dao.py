@@ -34,7 +34,7 @@ from oss.src.dbs.postgres.tracing.utils import combine, filter
 log = get_module_logger(__name__)
 
 DEBUG_ARGS = {"dialect": dialect(), "compile_kwargs": {"literal_binds": True}}
-STATEMENT_TIMEOUT = 15_000  # milliseconds
+STATEMENT_TIMEOUT = 60_000  # milliseconds
 
 
 class TracingDAO(TracingDAOInterface):

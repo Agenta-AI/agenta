@@ -85,7 +85,7 @@ const EditAppModal = ({appDetails, ...props}: EditAppModalProps) => {
                 />
                 {appNameExist && <div className={classes.modalError}>App name already exists</div>}
                 {appNameInput.length > 0 && !isAppNameInputValid(appNameInput) && (
-                    <div className={classes.modalError} data-cy="enter-app-name-modal-text-warning">
+                    <div className={classes.modalError}>
                         App name must contain only letters, numbers, underscore, or dash
                     </div>
                 )}

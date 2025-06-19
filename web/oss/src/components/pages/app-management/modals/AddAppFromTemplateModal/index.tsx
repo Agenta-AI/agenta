@@ -79,7 +79,6 @@ const AddAppFromTemplatedModal = ({
                     <Text className={classes.label}>Provide the name of the application</Text>
                     <Input
                         placeholder="Enter a name"
-                        data-cy="enter-app-name-input"
                         value={newApp}
                         onChange={(e) => setNewApp(e.target.value)}
                         onKeyDown={handleEnterKeyPress}
@@ -93,10 +92,7 @@ const AddAppFromTemplatedModal = ({
                         </Typography.Text>
                     )}
                     {newApp.length > 0 && !isAppNameInputValid(newApp) && (
-                        <Typography.Text
-                            className={classes.modalError}
-                            data-cy="enter-app-name-modal-text-warning"
-                        >
+                        <Typography.Text className={classes.modalError}>
                             App name must contain only letters, numbers, underscore, or dash without
                             any spaces.
                         </Typography.Text>
@@ -114,7 +110,6 @@ const AddAppFromTemplatedModal = ({
                             templates.map((temp) => (
                                 <Card
                                     key={temp.id}
-                                    data-cy="app-template-card"
                                     title={temp.image.title}
                                     extra={<Radio checked={getTemplateKey(temp) === templateKey} />}
                                     className={classes.card}
@@ -133,7 +128,6 @@ const AddAppFromTemplatedModal = ({
                     <Button
                         type="primary"
                         disabled={!newApp || isError || !templateKey}
-                        data-cy="create-app-from-template-button"
                         onClick={handleCreateApp}
                     >
                         Create New Prompt

@@ -203,7 +203,9 @@ class ObservabilityRouter:
                 request.state.project_id,
                 str(e),
             )
-            err_status = ProtoStatus(message="Invalid request body: not a valid OTLP stream.")
+            err_status = ProtoStatus(
+                message="Invalid request body: not a valid OTLP stream."
+            )
             return Response(
                 content=err_status.SerializeToString(),
                 media_type="application/x-protobuf",
@@ -269,7 +271,9 @@ class ObservabilityRouter:
             )
 
             if not check:
-                err_status = ProtoStatus(message="You have reached your quota limit. Please upgrade your plan to continue.")
+                err_status = ProtoStatus(
+                    message="You have reached your quota limit. Please upgrade your plan to continue."
+                )
                 return Response(
                     content=err_status.SerializeToString(),
                     media_type="application/x-protobuf",

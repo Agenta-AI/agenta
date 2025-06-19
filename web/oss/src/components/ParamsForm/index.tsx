@@ -107,7 +107,6 @@ const ParamsForm: React.FC<Props> = ({
 
                                     {type === "number" && (
                                         <InputNumber
-                                            data-cy={`testview-input-parameters-${index}`}
                                             key={index}
                                             className={
                                                 !isPlaygroundComponent
@@ -131,7 +130,6 @@ const ParamsForm: React.FC<Props> = ({
 
                                     {type === "string" && (
                                         <Input.TextArea
-                                            data-cy={`testview-input-parameters-${index}`}
                                             key={index}
                                             className={
                                                 !isPlaygroundComponent
@@ -210,7 +208,6 @@ const ParamsForm: React.FC<Props> = ({
 
                                 {type === "number" && (
                                     <InputNumber
-                                        data-cy={`testview-input-parameters-${index}`}
                                         key={index}
                                         className={
                                             !isPlaygroundComponent
@@ -234,7 +231,6 @@ const ParamsForm: React.FC<Props> = ({
 
                                 {type === "string" && (
                                     <Input.TextArea
-                                        data-cy={`testview-input-parameters-${index}`}
                                         key={index}
                                         className={
                                             !isPlaygroundComponent

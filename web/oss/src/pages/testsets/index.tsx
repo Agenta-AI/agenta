@@ -198,7 +198,6 @@ const Testset = () => {
                         type="primary"
                         icon={<PlusOutlined className="mt-[1px]" />}
                         onClick={() => setIsCreateTestsetModalOpen(true)}
-                        data-cy="create-testset-modal-button"
                     >
                         Create new test set
                     </Button>
@@ -235,7 +234,6 @@ const Testset = () => {
                             setSelectedRowKeys(selectedRows)
                         },
                     }}
-                    data-cy="app-testset-list"
                     className={`ph-no-capture ${classes.table}`}
                     columns={columns}
                     dataSource={filteredTestset}

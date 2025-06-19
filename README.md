@@ -50,7 +50,7 @@
 </p>
 
 <p align="center">
-    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ">
+    <a href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw">
         <img src="https://img.shields.io/badge/JOIN US ON SLACK-4A154B?style=for-the-badge&logo=slack&logoColor=white" />
     </a>
     <a href="https://www.linkedin.com/company/agenta-ai/">
@@ -155,7 +155,7 @@ Find help, explore resources, or get involved:
 
 - **📚 [Documentation](https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Full guides and API reference  
 - **📋 [Changelog](https://docs.agenta.ai/changelog/main?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Track recent updates  
-- **💬 [Slack Community](https://join.slack.com/t/agenta-hq/shared_invite/zt-2yewk6o2b-DmhyA4h_lkKwecDtIsj1AQ)** – Ask questions and get support  
+- **💬 [Slack Community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)** – Ask questions and get support  
 
 ### 🤝 Contribute
 

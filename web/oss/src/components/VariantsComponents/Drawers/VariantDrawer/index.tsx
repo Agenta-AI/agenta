@@ -96,26 +96,6 @@ const VariantDrawer = ({variants, type, revert, ...props}: VariantDrawerProps) =
         setDisplayedVariants?.(routerRevisions)
     }, [routerRevisions, isLoading, selected])
 
-    // Effect to close drawer when outside click
-    useEffect(() => {
-        if (!queryVariant) return
-
-        function handleClickOutside(event: MouseEvent) {
-            // Check if the click is inside the table row
-            if ((event.target as HTMLElement).closest(".variant-table-row")) {
-                return
-            } else if ((event.target as HTMLElement).closest(".ant-layout")) {
-                // Close drawer if outside click
-                setQueryVariant("")
-            }
-        }
-
-        document.addEventListener("click", handleClickOutside)
-        return () => {
-            document.removeEventListener("click", handleClickOutside)
-        }
-    }, [queryVariant])
-
     return (
         <>
             <EnhancedDrawer

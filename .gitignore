@@ -36,13 +36,10 @@ examples/**/docker.tar.gz
 examples/**/Dockerfile
 
 # web/
-web/cypress/videos/
 web/src/ee/**
 web/src/pages/apps/index.tsx
 web/src/pages/auth/[[...path]].tsx
 web/src/pages/auth/[[...path]].tsx
-web/cypress/screenshots/
-web/cypress/videos/
 .nextjs_cache/
 
 # sdk/

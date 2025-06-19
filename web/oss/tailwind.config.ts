@@ -141,9 +141,16 @@ export const createConfig = (content: string[] = []): Config => {
                 preferredStrategy: "pseudoelements",
             }),
             require("@headlessui/tailwindcss"),
-            require("@tailwindcss/forms"),
+            // Use class strategy so Ant Design styles remain unaffected
+            require("@tailwindcss/forms")({
+                strategy: "class",
+            }),
             require("@tailwindcss/container-queries"),
         ],
+        // When it’s enabled, those styles override Ant Design’s default input styling.
+        corePlugins: {
+            preflight: false,
+        },
     }
 }
 

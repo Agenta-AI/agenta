@@ -91,7 +91,6 @@ const ApplicationManagementSection = ({
                         </Title>
                         <Button
                             type="primary"
-                            data-cy="create-new-app-button"
                             icon={<PlusOutlined />}
                             onClick={() => {
                                 setIsAddAppFromTemplatedModal(true)
