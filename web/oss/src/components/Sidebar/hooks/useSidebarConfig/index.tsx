@@ -30,7 +30,7 @@ export const useSidebarConfig = () => {
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
-    const {toggle, isVisible} = useCrispChat()
+    const {toggle, isVisible, isCrispEnabled} = useCrispChat()
 
     const sidebarConfig: SidebarConfig[] = [
         {
@@ -125,7 +125,7 @@ export const useSidebarConfig = () => {
             title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
             icon: <ChatCircle size={16} />,
             isBottom: true,
-            isHidden: !isDemo(),
+            isHidden: !isDemo() || !isCrispEnabled,
             onClick: (e) => {
                 e.preventDefault()
                 toggle()
