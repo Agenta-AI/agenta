@@ -8,7 +8,9 @@ from google.protobuf.json_format import MessageToDict
 
 # Use official OpenTelemetry proto definitions
 from opentelemetry.proto.trace.v1 import trace_pb2 as Trace_Proto
-from opentelemetry.proto.collector.trace.v1 import trace_service_pb2 as TraceService_Proto
+from opentelemetry.proto.collector.trace.v1 import (
+    trace_service_pb2 as TraceService_Proto,
+)
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.observability.dtos import (

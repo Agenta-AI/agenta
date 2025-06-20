@@ -12,6 +12,7 @@ import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 
 import {useAppsData} from "@/oss/contexts/app.context"
 import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
 import {DEFAULT_UUID, getCurrentProject, useProjectData} from "@/oss/contexts/project.context"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
@@ -19,6 +20,7 @@ import {useVariants} from "@/oss/lib/hooks/useVariants"
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
 import useCustomWorkflowConfig from "../pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
+import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
 
 import {BreadcrumbContainer} from "./assets/Breadcrumbs"
 import {useStyles, type StyleProps} from "./assets/styles"
@@ -199,6 +201,7 @@ const AppWithVariants = memo(
 )
 
 const App: React.FC<LayoutProps> = ({children}) => {
+    const {user, loading: loadingProfile} = useProfileData()
     const {appTheme} = useAppTheme()
     const {currentApp, isLoading, error} = useAppsData()
     const ref = useRef<HTMLElement | null>(null)
@@ -216,6 +219,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
 
     const posthog = usePostHogAg()
     const [hasCapturedTheme, setHasCapturedTheme] = useLocalStorage("hasCapturedTheme", false)
+
+    const userProfile = useMemo(() => !loadingProfile && !!user, [loadingProfile, user])
 
     useEffect(() => {
         if (!hasCapturedTheme) {
@@ -253,9 +258,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [router.pathname, router.query])
 
     // wait until we have the app id, if its an app route
-    if (isAppRoute && (!appId || !project)) return null
+    if (userProfile && isAppRoute && (!appId || !project)) return null
 
-    if (appId && !currentApp && !isLoading && !error) {
+    if (userProfile && appId && !currentApp && !isLoading && !error) {
         return (
             <div className={classes.notFoundContainer}>
                 <Typography.Text>404 - Page Not Found</Typography.Text>
@@ -280,17 +285,19 @@ const App: React.FC<LayoutProps> = ({children}) => {
                             </ErrorBoundary>
                         </Layout>
                     ) : (
-                        <AppWithVariants
-                            isAppRoute={isAppRoute}
-                            classes={classes}
-                            appTheme={appTheme}
-                            isPlayground={isPlayground}
-                        >
-                            <div>
-                                {children}
-                                {contextHolder}
-                            </div>
-                        </AppWithVariants>
+                        <ProtectedRoute>
+                            <AppWithVariants
+                                isAppRoute={isAppRoute}
+                                classes={classes}
+                                appTheme={appTheme}
+                                isPlayground={isPlayground}
+                            >
+                                <div>
+                                    {children}
+                                    {contextHolder}
+                                </div>
+                            </AppWithVariants>
+                        </ProtectedRoute>
                     )}
                 </ThemeProvider>
             )}

@@ -32,11 +32,12 @@ def parse_url(url: str) -> str:
     if internal_url:
         return internal_url
 
-    docker_network_mode = os.getenv("DOCKER_NETWORK_MODE", "bridge").lower()
-    if docker_network_mode == "bridge":
+    docker_network_mode = os.getenv("DOCKER_NETWORK_MODE")
+
+    if docker_network_mode and docker_network_mode.lower() == "bridge":
         return url.replace("localhost", "host.docker.internal")
 
-    if not docker_network_mode or docker_network_mode == "host":
+    if not docker_network_mode or docker_network_mode.lower() == "host":
         return url
 
     # For any other network mode, return the URL unchanged

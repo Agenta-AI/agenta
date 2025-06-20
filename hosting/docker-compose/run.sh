@@ -129,14 +129,20 @@ else
     COMPOSE_CMD+=" --profile with-traefik"
 fi
 
-# Handle build options
-BUILD_CMD="up -d"
-if $BUILD; then
-    BUILD_CMD+=" --build"
-fi
-
-if $NO_CACHE; then
-    BUILD_CMD+=" --no-cache"
+if [[ "$STAGE" == "dev" ]]; then
+    if $NO_CACHE; then
+        echo "Building containers with no cache (dev)..."
+        $COMPOSE_CMD build --no-cache || error_exit "Build failed"
+    elif $BUILD; then
+        echo "Building containers (dev)..."
+        $COMPOSE_CMD build || error_exit "Build failed"
+    fi
+else
+    if $NO_CACHE; then
+        echo "Pulling latest images (non-dev with --no-cache)..."
+        $COMPOSE_CMD pull || error_exit "Pull failed"
+    fi
+    # else: do nothing
 fi
 
 # Restart Docker Compose safely
@@ -147,7 +153,7 @@ SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile wit
 $SHUTDOWN_CMD || error_exit "Failed to stop existing containers."
 
 echo "Starting Docker containers with domain: $AGENTA_WEB_URL ..."
-AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD $BUILD_CMD || error_exit "Failed to start Docker containers."
+AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d || error_exit "Failed to start Docker containers."
 
 echo "✅ Setup complete!"
 

@@ -54,7 +54,6 @@ async def create_api_key(request: Request):
         project_id=request.state.project_id,
     )
 
-
     return api_key
 
 

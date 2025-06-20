@@ -277,3 +277,11 @@ def rag_workflow(query:str, user_id:str):
           "pii": ...
      }
 ```
+
+## Troubleshooting
+
+### Payload Too Large
+
+If your collector receives a **413** response when posting to `/otlp/v1/traces`, the batch size is too large. Agenta accepts batches up to **5 MB** by default.
+
+Reduce the batch size or enable compression in your collector configuration to keep requests under this limit.

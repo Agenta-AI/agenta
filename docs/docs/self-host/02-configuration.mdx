@@ -55,6 +55,7 @@ Optional Agenta-specific configurations:
 | `AGENTA_SEND_EMAIL_FROM_ADDRESS` | From address for system emails | `mail@example.com` |
 | `AGENTA_API_INTERNAL_URL` | Internal API URL for services | _(empty)_ |
 | `AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED` | Enable middleware caching in the chat and completion services | `true` |
+| `AGENTA_OTLP_MAX_BATCH_BYTES` | Max OTLP batch size before requests are rejected with 413 | `5242880` (5MB) |
 
 ### Third-party (Required)
 

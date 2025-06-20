@@ -56,6 +56,16 @@ from oss.src.utils.validators import (
     is_input_email,
 )
 
+
+def _is_blocked(email: str) -> bool:
+    email = email.lower()
+    if email in env.AGENTA_BLOCKED_EMAILS:
+        return True
+    if "@" in email and email.split("@")[-1] in env.AGENTA_BLOCKED_DOMAINS:
+        return True
+    return False
+
+
 if is_ee():
     from ee.src.services.commoners import create_accounts
 else:
@@ -91,6 +101,10 @@ def override_passwordless_apis(
 
         # Post sign up response, we check if it was successful
         if isinstance(response, ConsumeCodeOkResult):
+            if is_ee() and _is_blocked(response.user.emails[0]):
+                return SuperTokensNotAllowedException(
+                    message="This email is not allowed."
+                )
             payload = {
                 "uid": response.user.id,
                 "email": response.user.emails[0],
@@ -134,6 +148,10 @@ def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
         )
 
         if isinstance(response, SignInUpPostOkResult):
+            if is_ee() and _is_blocked(response.user.emails[0]):
+                return SuperTokensNotAllowedException(
+                    message="This email is not allowed."
+                )
             payload = {
                 "uid": response.user.id,
                 "email": response.user.emails[0],
@@ -165,6 +183,10 @@ def override_password_apis(original: EmailPasswordAPIInterface):
         user_context: Dict[str, Any],
     ):
         if form_fields[0].id == "email" and is_input_email(form_fields[0].value):
+            if is_ee() and _is_blocked(form_fields[0].value):
+                return SuperTokensNotAllowedException(
+                    message="This email is not allowed."
+                )
             user_id = await get_user_with_email(form_fields[0].value)
             if user_id is not None:
                 supertokens_user = await get_user_from_supertokens(user_id)
@@ -200,6 +222,8 @@ def override_password_apis(original: EmailPasswordAPIInterface):
     ):
         # FLOW 1: Sign in
         email = form_fields[0].value
+        if is_ee() and _is_blocked(email):
+            return SuperTokensNotAllowedException(message="This email is not allowed.")
         user_info_from_st = await list_users_by_account_info(
             tenant_id="public", account_info=AccountInfo(email=email)
         )

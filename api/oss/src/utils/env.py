@@ -77,6 +77,17 @@ class EnvironSettings(BaseModel):
     PERPLEXITYAI_API_KEY: str = os.getenv("PERPLEXITYAI_API_KEY", "")
     TOGETHERAI_API_KEY: str = os.getenv("TOGETHERAI_API_KEY", "")
 
+    AGENTA_BLOCKED_EMAILS: set = {
+        e.strip().lower()
+        for e in os.getenv("AGENTA_BLOCKED_EMAILS", "").split(",")
+        if e.strip()
+    }
+    AGENTA_BLOCKED_DOMAINS: set = {
+        e.strip().lower()
+        for e in os.getenv("AGENTA_BLOCKED_DOMAINS", "").split(",")
+        if e.strip()
+    }
+
     # AGENTA-SPECIFIC (INTERNAL INFRA)
     DOCKER_NETWORK_MODE: str = os.getenv("DOCKER_NETWORK_MODE", "bridge")
 
@@ -96,6 +107,11 @@ class EnvironSettings(BaseModel):
     )
     AGENTA_LOG_FILE_LEVEL: str = os.getenv("AGENTA_LOG_FILE_LEVEL", "WARNING").upper()
     AGENTA_LOG_FILE_BASE: str = os.getenv("AGENTA_LOG_FILE_PATH", "error")
+
+    # AGENTA-SPECIFIC (OTLP)
+    AGENTA_OTLP_MAX_BATCH_BYTES: int = int(
+        os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES", str(5 * 1024 * 1024))
+    )
 
 
 env = EnvironSettings()

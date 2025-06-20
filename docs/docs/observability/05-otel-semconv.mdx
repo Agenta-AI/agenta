@@ -9,6 +9,10 @@ This document describes how Agenta applies domain-specific OpenTelemetry convent
 ## How It Works
 Agenta accepts any span that follows the OpenTelemetry specification. To unlock LLM-specific features—such as nicely formatted chat messages, per-request cost and latency, and links to prompt configurations or evaluators—we add attributes under the `ag.` namespace.
 
+:::info
+The OTLP endpoint accepts batches up to **5&nbsp;MB** by default (after decompression). Larger requests return an HTTP `413` status code.
+:::
+
 We support two primary instrumentation approaches:
 
 - **Agenta SDK:** When using our SDK with decorators like `@ag.instrument`, we automatically handle the semantic conventions
