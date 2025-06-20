@@ -11,7 +11,7 @@ from sqlalchemy import func, or_, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 from supertokens_python.types import AccountInfo
 from sqlalchemy.orm import joinedload, load_only, selectinload
-from sqlalchemy.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.exc import NoResultFound, MultipleResultsFound, SQLAlchemyError
 from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
 
@@ -688,12 +688,25 @@ async def get_deployment_by_id(deployment_id: str) -> DeploymentDB:
         DeploymentDB: instance of deployment object
     """
 
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(DeploymentDB).filter_by(id=uuid.UUID(deployment_id))
-        )
-        deployment = result.scalars().first()
-        return deployment
+    try:
+        deployment_uuid = uuid.UUID(deployment_id)
+    except ValueError as e:
+        log.error(f"Invalid deployment_id '{deployment_id}': {e}")
+        return None
+
+    try:
+        async with engine.core_session() as session:
+            result = await session.execute(
+                select(DeploymentDB).filter_by(id=deployment_uuid)
+            )
+            deployment = result.scalars().first()
+            return deployment
+    except SQLAlchemyError as e:
+        log.error(f"Database error while fetching deployment {deployment_id}: {e}")
+        return None
+    except Exception as e:
+        log.error(f"Unexpected error in get_deployment_by_id: {e}")
+        return None
 
 
 async def get_deployment_by_appid(app_id: str) -> DeploymentDB:

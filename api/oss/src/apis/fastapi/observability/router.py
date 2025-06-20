@@ -63,6 +63,11 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 # Protobuf Status for error responses
 from google.rpc.status_pb2 import Status as ProtoStatus
 
+from oss.src.utils.env import env
+
+MAX_OTLP_BATCH_SIZE = env.AGENTA_OTLP_MAX_BATCH_BYTES
+MAX_OTLP_BATCH_SIZE_MB = MAX_OTLP_BATCH_SIZE // (1024 * 1024)
+
 log = get_module_logger(__name__)
 
 
@@ -210,6 +215,21 @@ class ObservabilityRouter:
                 content=err_status.SerializeToString(),
                 media_type="application/x-protobuf",
                 status_code=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(otlp_stream) > MAX_OTLP_BATCH_SIZE:
+            log.error(
+                "OTLP batch too large (%s bytes) from project %s",
+                len(otlp_stream),
+                request.state.project_id,
+            )
+            err_status = ProtoStatus(
+                message=f"OTLP batch size exceeds {MAX_OTLP_BATCH_SIZE_MB}MB limit."
+            )
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             )
 
         otel_spans = None

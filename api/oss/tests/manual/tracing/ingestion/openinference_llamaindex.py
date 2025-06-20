@@ -15,6 +15,7 @@ ag.init()
 
 LlamaIndexInstrumentor().instrument()
 
+
 @ag.instrument()
 def llama_index_app(query: str):
     documents = SimpleDirectoryReader("data").load_data()

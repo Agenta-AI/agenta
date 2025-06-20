@@ -93,8 +93,8 @@ async def _scan_keys(pattern: str) -> list[str]:
     try:
         while True:
             cursor, batch = await r.scan(
-                cursor=cursor, 
-                match=pattern, 
+                cursor=cursor,
+                match=pattern,
                 count=SCAN_BATCH_SIZE,
             )
             keys.extend(batch)

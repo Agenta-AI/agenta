@@ -5,6 +5,7 @@ import asyncio
 
 from pydantic import ValidationError
 from fastapi import Request, HTTPException, Response
+from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from supertokens_python.recipe.session.asyncio import get_session
 from jwt import encode, decode, DecodeError, ExpiredSignatureError
@@ -23,6 +24,7 @@ from oss.src.services.exceptions import (
     UnauthorizedException,
     TooManyRequestsException,
     InternalServerErrorException,
+    SuperTokensNotAllowedException,
     GatewayTimeoutException,
     code_to_phrase,
 )
@@ -111,6 +113,10 @@ async def authentication_middleware(request: Request, call_next):
         log.error("Bad Request: %s", exc)
 
         return Response(status_code=400, content=exc.errors())
+
+    except SuperTokensNotAllowedException as exc:
+        log.error("Sign up not allowed: %s", exc.message)
+        return JSONResponse(exc.to_json(), status_code=403)
 
     except HTTPException as exc:
         log.error("%s: %s", exc.status_code, exc.detail)

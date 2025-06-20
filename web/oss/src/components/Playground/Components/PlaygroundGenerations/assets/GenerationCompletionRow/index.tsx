@@ -69,9 +69,11 @@ const GenerationCompletionRow = ({
         })
 
     useLazyEffect(() => {
+        if (!isChat) return
+
         const timer = autoScrollToBottom()
         return timer
-    }, [resultHash])
+    }, [resultHash, isChat])
 
     const result = useMemo(() => {
         return getResponseLazy(resultHash)
