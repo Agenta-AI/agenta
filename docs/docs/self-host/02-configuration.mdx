@@ -13,7 +13,7 @@ The default environment variables are specified in `hosting/docker-compose/oss/.
 You can specify your own environment file using the `--env-file` flag when running `docker compose`:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file .my-env-file --profile with-web up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file .my-env-file --profile with-web --profile with-traefik up -d
 ```
 
 ## Variable Categories

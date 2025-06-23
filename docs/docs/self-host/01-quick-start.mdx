@@ -21,7 +21,7 @@ git clone https://github.com/Agenta-AI/agenta && cd agenta
 
 3. Start Agenta services:
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
 4. Access Agenta at `http://localhost`.
@@ -44,7 +44,7 @@ Updating your local Agenta installation to the latest version, requires pulling 
 
 1. Pull the latest version:
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh  --profile with-web up -d --pull always
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh  --profile with-web --profile with-traefik up -d --pull always
 ```
 
 2. Run migrations if needed:

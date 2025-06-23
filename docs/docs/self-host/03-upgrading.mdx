@@ -28,7 +28,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml pull
 Restart all services with the updated images:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
 :::info

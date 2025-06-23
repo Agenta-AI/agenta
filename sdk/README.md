@@ -140,7 +140,7 @@ git clone https://github.com/Agenta-AI/agenta && cd agenta
 
 2. Start Agenta services:
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
 3. Access Agenta at `http://localhost`.
