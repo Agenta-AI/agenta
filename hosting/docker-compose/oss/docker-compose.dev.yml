@@ -258,7 +258,7 @@ services:
         
         command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${TRAEFIK_PORT:-80}
         ports:
-            - "${TRAEFIK_PORT:-80}:80"
+            - "${TRAEFIK_PORT:-80}:${TRAEFIK_PORT:-80}"
             - "${TRAEFIK_UI_PORT:-8080}:8080"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock

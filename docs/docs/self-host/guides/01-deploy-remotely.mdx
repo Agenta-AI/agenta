@@ -87,7 +87,7 @@ For more advanced settings like SSL, authentication, or custom ports, see our [c
 ### Option 1: Deploy with Traefik (Recommended)
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
 **What this command does:**
@@ -101,7 +101,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=ho
 If you prefer Nginx or need to integrate with existing Nginx configurations:
 
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile nginx up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-nginx up -d
 ```
 
 ## Step 4: Verify Your Deployment

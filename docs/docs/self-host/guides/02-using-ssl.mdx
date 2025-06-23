@@ -96,7 +96,7 @@ web:
 
 ### Start the SSL-enabled services:
 ```bash
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.ssl.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.ssl.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
 ### Monitor certificate generation:
@@ -156,7 +156,7 @@ docker-compose -f docker-compose.gh.ssl.yml down
 rm /home/$(whoami)/ssl_certificates/acme.json
 touch /home/$(whoami)/ssl_certificates/acme.json
 chmod 600 /home/$(whoami)/ssl_certificates/acme.json
-docker compose -f hosting/docker-compose/oss/docker-compose.gh.ssl.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web up -d
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.ssl.yml --env-file=hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```
 
 ### Cloudflare-Specific Issues:

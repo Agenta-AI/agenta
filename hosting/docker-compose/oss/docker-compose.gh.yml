@@ -248,7 +248,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
 
         ports:
-            - "${TRAEFIK_PORT:-80}:80"
+            - "${TRAEFIK_PORT:-80}:${TRAEFIK_PORT:-80}"
             - "${TRAEFIK_UI_PORT:-8080}:8080"
 
         restart: always
