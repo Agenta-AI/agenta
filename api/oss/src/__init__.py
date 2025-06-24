@@ -44,7 +44,7 @@ from supertokens_python.recipe.emailpassword.interfaces import (
 
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
-from oss.src.services.exceptions import SuperTokensNotAllowedException
+from oss.src.services.exceptions import UnauthorizedException
 from oss.src.services.db_manager import (
     get_user_with_email,
     check_if_user_invitation_exists,
@@ -102,9 +102,7 @@ def override_passwordless_apis(
         # Post sign up response, we check if it was successful
         if isinstance(response, ConsumeCodeOkResult):
             if is_ee() and _is_blocked(response.user.emails[0]):
-                return SuperTokensNotAllowedException(
-                    message="This email is not allowed."
-                )
+                raise UnauthorizedException(detail="This email is not allowed.")
             payload = {
                 "uid": response.user.id,
                 "email": response.user.emails[0],
@@ -149,9 +147,7 @@ def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
 
         if isinstance(response, SignInUpPostOkResult):
             if is_ee() and _is_blocked(response.user.emails[0]):
-                return SuperTokensNotAllowedException(
-                    message="This email is not allowed."
-                )
+                raise UnauthorizedException(detail="This email is not allowed.")
             payload = {
                 "uid": response.user.id,
                 "email": response.user.emails[0],
@@ -184,9 +180,7 @@ def override_password_apis(original: EmailPasswordAPIInterface):
     ):
         if form_fields[0].id == "email" and is_input_email(form_fields[0].value):
             if is_ee() and _is_blocked(form_fields[0].value):
-                return SuperTokensNotAllowedException(
-                    message="This email is not allowed."
-                )
+                raise UnauthorizedException(detail="This email is not allowed.")
             user_id = await get_user_with_email(form_fields[0].value)
             if user_id is not None:
                 supertokens_user = await get_user_from_supertokens(user_id)
@@ -223,7 +217,7 @@ def override_password_apis(original: EmailPasswordAPIInterface):
         # FLOW 1: Sign in
         email = form_fields[0].value
         if is_ee() and _is_blocked(email):
-            return SuperTokensNotAllowedException(message="This email is not allowed.")
+            raise UnauthorizedException(detail="This email is not allowed.")
         user_info_from_st = await list_users_by_account_info(
             tenant_id="public", account_info=AccountInfo(email=email)
         )
@@ -248,8 +242,8 @@ def override_password_apis(original: EmailPasswordAPIInterface):
             organization_id=str(organization_db.id),
         )
         if not user_invitation_exists:
-            return SuperTokensNotAllowedException(
-                message="You need to be invited by the organization owner to gain access."
+            raise UnauthorizedException(
+                detail="You need to be invited by the organization owner to gain access."
             )
 
         response = await og_sign_up_post(
