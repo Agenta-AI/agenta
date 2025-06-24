@@ -34,16 +34,12 @@ class TraceProcessor(SpanProcessor):
         self.references = references or dict()
         self.inline = inline is True
 
-        # --- INLINE
-        if self.inline:
-            self._registry = dict()
-            self._exporter = span_exporter
-            self._spans: Dict[int, List[ReadableSpan]] = dict()
-        # --- INLINE
+        self._registry = dict()
+        self._exporter = span_exporter
+        self._spans: Dict[int, List[ReadableSpan]] = dict()
 
         # --- DISTRIBUTED
-        else:
-            # Use composition instead of inheritance to avoid relying on BatchSpanProcessor internals
+        if not self.inline:
             self._delegate = BatchSpanProcessor(
                 span_exporter,
                 max_queue_size or _DEFAULT_MAX_QUEUE_SIZE,
@@ -69,48 +65,39 @@ class TraceProcessor(SpanProcessor):
                 if _key in [_.value for _ in Reference.__members__.values()]:
                     span.set_attribute(key, baggage[key])
 
-        # --- INLINE
-        if self.inline:
-            if span.context.trace_id not in self._registry:
-                self._registry[span.context.trace_id] = dict()
+        trace_id = span.context.trace_id
+        span_id = span.context.span_id
 
-            self._registry[span.context.trace_id][span.context.span_id] = True
-        # --- INLINE
+        self._registry.setdefault(trace_id, {})
+        self._registry[trace_id][span_id] = True
 
     def on_end(
         self,
         span: ReadableSpan,
     ):
-        # --- INLINE
-        if self.inline:
-            if span.context.trace_id not in self._spans:
-                self._spans[span.context.trace_id] = list()
+        trace_id = span.context.trace_id
+        span_id = span.context.span_id
 
-            self._spans[span.context.trace_id].append(span)
+        self._spans.setdefault(trace_id, []).append(span)
+        self._registry.setdefault(trace_id, {})
+        self._registry[trace_id].pop(span_id, None)
 
-            del self._registry[span.context.trace_id][span.context.span_id]
+        if not self._registry[trace_id]:
+            spans = self._spans.pop(trace_id, [])
+            self._registry.pop(trace_id, None)
 
-            if len(self._registry[span.context.trace_id]) == 0:
-                self.export(span.context.trace_id)
-        # --- INLINE
+            # --- INLINE
+            if self.inline:
+                self._exporter.export(spans)
+            # --- INLINE
 
-        # --- DISTRIBUTED
-        else:
-            self._delegate.on_end(span)
-        # --- DISTRIBUTED
+            # --- DISTRIBUTED
+            else:
+                for span in spans:
+                    self._delegate.on_end(span)
 
-    def export(
-        self,
-        trace_id: int,
-    ):
-        # --- INLINE
-        if self.inline:
-            spans = self._spans[trace_id]
-
-            self._exporter.export(spans)
-
-            del self._spans[trace_id]
-        # --- INLINE
+                self._delegate.force_flush()
+            # --- DISTRIBUTED
 
     def force_flush(
         self,

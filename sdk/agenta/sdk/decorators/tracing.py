@@ -5,14 +5,12 @@ from itertools import chain
 from inspect import iscoroutinefunction, getfullargspec
 
 from opentelemetry import baggage
-from opentelemetry.trace import NonRecordingSpan
 from opentelemetry.context import attach, detach, get_current
 from opentelemetry.baggage import set_baggage, get_all
 
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.context.tracing import tracing_context
 from agenta.sdk.tracing.conventions import parse_span_kind
-
 
 from agenta.sdk.utils.logging import get_module_logger
 
@@ -62,7 +60,7 @@ class instrument:  # pylint: disable=invalid-name
                     name=func.__name__,
                     kind=self.kind,
                     context=ctx,
-                ) as span:
+                ):
                     self._set_link()
 
                     self._pre_instrument(func, *args, **kwargs)
@@ -90,7 +88,7 @@ class instrument:  # pylint: disable=invalid-name
                     name=func.__name__,
                     kind=self.kind,
                     context=ctx,
-                ) as span:
+                ):
                     self._set_link()
 
                     self._pre_instrument(func, *args, **kwargs)

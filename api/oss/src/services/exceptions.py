@@ -93,13 +93,3 @@ class GatewayTimeoutException(HTTPException):
         self.detail = detail
 
         super().__init__(self.code, self.detail)
-
-
-class SuperTokensNotAllowedException(APIResponse):
-    status: str = "SIGN_UP_NOT_ALLOWED"
-
-    def __init__(self, message: str):
-        self.message = message
-
-    def to_json(self):
-        return {"status": self.status, "detail": self.message}
