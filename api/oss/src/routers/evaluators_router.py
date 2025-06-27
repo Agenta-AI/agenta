@@ -11,7 +11,7 @@ from oss.src.services import (
 )
 
 from oss.src.models.api.evaluation_model import (
-    Evaluator,
+    LegacyEvaluator,
     EvaluatorConfig,
     NewEvaluatorConfig,
     UpdateEvaluatorConfig,
@@ -31,7 +31,7 @@ router = APIRouter()
 log = get_module_logger(__name__)
 
 
-@router.get("/", response_model=List[Evaluator])
+@router.get("/", response_model=List[LegacyEvaluator])
 async def get_evaluators_endpoint():
     """
     Endpoint to fetch a list of evaluators.

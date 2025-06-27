@@ -800,9 +800,9 @@
     "/evaluations/evaluation_scenarios/comparison-results": {
       "get": {
         "tags": ["Evaluations"],
-        "summary": "Fetch Evaluation Scenarios",
+        "summary": "Fetch Evaluation Scenarios Comparison Results",
         "description": "Fetches evaluation scenarios for a given evaluation ID.\n\nArguments:\n    evaluation_id (str): The ID of the evaluation for which to fetch scenarios.\n\nRaises:\n    HTTPException: If the evaluation is not found or access is denied.\n\nReturns:\n    List[EvaluationScenario]: A list of evaluation scenarios.",
-        "operationId": "fetch_evaluation_scenarios_evaluations_evaluation_scenarios_comparison_results_get",
+        "operationId": "fetch_evaluation_scenarios_comparison_results",
         "parameters": [
           {
             "name": "evaluations_ids",

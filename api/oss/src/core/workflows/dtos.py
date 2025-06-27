@@ -27,11 +27,11 @@ class WorkflowData(BaseModel):
         errors = []
 
         if self.service and self.service.get("agenta") and self.service.get("format"):
-            format = self.service.get("format")  # pylint: disable=redefined-builtin
+            _format = self.service.get("format")  # pylint: disable=redefined-builtin
 
             try:
-                validator_class = self._get_validator_class_from_schema(format)
-                validator_class.check_schema(format)
+                validator_class = self._get_validator_class_from_schema(_format)  # type: ignore
+                validator_class.check_schema(_format)  # type: ignore
             except SchemaError as e:
                 errors.append(
                     {
@@ -39,7 +39,7 @@ class WorkflowData(BaseModel):
                         "msg": f"Invalid JSON Schema: {e.message}",
                         "type": "value_error",
                         "ctx": {"error": str(e)},
-                        "input": format,
+                        "input": _format,
                     }
                 )
 

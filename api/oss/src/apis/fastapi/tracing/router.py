@@ -3,8 +3,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, Depends, status, HTTPException
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.apis.fastapi.shared.utils import handle_exceptions
+from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+
 from oss.src.apis.fastapi.tracing.utils import (
     merge_queries,
     parse_query_request,
@@ -15,8 +18,6 @@ from oss.src.apis.fastapi.tracing.utils import (
 )
 from oss.src.apis.fastapi.tracing.models import (
     OTelLinksResponse,
-    OTelTracingRequest,
-    OTelTracingResponse,
     OTelTracingRequest,
     OTelTracingResponse,
 )
@@ -178,7 +179,7 @@ class TracingRouter:
 
     ### CRUD ON TRACES
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def add_trace(  # CREATE
         self,
         request: Request,
@@ -250,7 +251,8 @@ class TracingRouter:
 
         return link_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=OTelTracingResponse())
     async def fetch_trace(  # READ
         self,
         request: Request,
@@ -287,7 +289,7 @@ class TracingRouter:
 
         return trace_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def edit_trace(  # UPDATE
         self,
         request: Request,
@@ -359,7 +361,7 @@ class TracingRouter:
 
         return link_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def remove_trace(  # DELETE
         self,
         request: Request,
@@ -387,7 +389,7 @@ class TracingRouter:
 
     ### RPC ON SPANS
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def ingest_spans(  # MUTATION
         self,
         request: Request,
@@ -409,7 +411,8 @@ class TracingRouter:
 
         return link_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=OTelTracingResponse())
     async def query_spans(  # QUERY
         self,
         request: Request,

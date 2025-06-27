@@ -1,15 +1,16 @@
 from typing import Union, Optional, List
 from uuid import uuid4, UUID
 
-from fastapi import Request, status, HTTPException
+from fastapi import APIRouter, Request, status, HTTPException
 
-from oss.src.utils.common import APIRouter, is_ee
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import WorkflowFlags
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.apis.fastapi.shared.utils import handle_exceptions
 
 from oss.src.core.workflows.dtos import (
     WorkflowArtifact,
@@ -121,7 +122,7 @@ class EvaluatorsRouter:
             response_model_exclude_none=True,
         )
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def create_evaluator(
         self,
         *,
@@ -262,7 +263,8 @@ class EvaluatorsRouter:
 
         return evaluator_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluatorResponse())
     async def fetch_evaluator(
         self,
         *,
@@ -356,7 +358,7 @@ class EvaluatorsRouter:
 
         return evaluator_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def edit_evaluator(
         self,
         *,
@@ -526,7 +528,7 @@ class EvaluatorsRouter:
 
         return evaluator_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def archive_evaluator(
         self,
         *,
@@ -597,7 +599,7 @@ class EvaluatorsRouter:
 
         return evaluator_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def unarchive_evaluator(
         self,
         *,
@@ -668,7 +670,8 @@ class EvaluatorsRouter:
 
         return evaluator_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=EvaluatorsResponse())
     async def query_evaluators(
         self,
         *,

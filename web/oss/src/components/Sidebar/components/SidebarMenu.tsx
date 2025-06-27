@@ -48,15 +48,19 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         ),
                     }
                 } else {
-                    const node = (
+                    const node = item.link ? (
                         <Link
                             className="w-full"
-                            href={item.link || "#"}
+                            href={item.link}
                             onClick={item.onClick}
                             target={item.link?.startsWith("http") ? "_blank" : undefined}
                         >
                             {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
                         </Link>
+                    ) : (
+                        <span className="w-full" onClick={item.onClick}>
+                            {item.title} {item.tag && <Tag color="lime">{item.tag}</Tag>}
+                        </span>
                     )
 
                     return [

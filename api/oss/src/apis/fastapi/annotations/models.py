@@ -91,9 +91,7 @@ class AnnotationResponse(BaseModel):
 
 
 class AnnotationsResponse(BaseModel):
-    count: int
-    oldest: Optional[datetime] = None
-    limit: Optional[int] = None
+    count: int = 0
     annotations: List[Annotation] = []
 
 

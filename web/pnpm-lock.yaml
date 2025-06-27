@@ -400,9 +400,6 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
-      crisp-sdk-web:
-        specifier: ^1.0.25
-        version: 1.0.25
       dayjs:
         specifier: ^1.11.10
         version: 1.11.13

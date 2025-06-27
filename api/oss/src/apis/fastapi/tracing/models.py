@@ -19,12 +19,12 @@ class OTelTracingRequest(BaseModel):
 
 
 class OTelLinksResponse(VersionedModel):
-    count: int
+    count: int = 0
     links: Optional[OTelLinks] = None
 
 
 class OTelTracingResponse(VersionedModel):
-    count: int
+    count: int = 0
     oldest: Optional[datetime] = None
     newest: Optional[datetime] = None
     spans: Optional[OTelFlatSpans] = None

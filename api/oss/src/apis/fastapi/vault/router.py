@@ -4,12 +4,12 @@ from typing import List
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
-from oss.src.utils.common import is_ee
 from oss.src.core.secrets.services import VaultService
-from oss.src.apis.fastapi.shared.utils import handle_exceptions
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     UpdateSecretDTO,
@@ -70,7 +70,7 @@ class VaultRouter:
             operation_id="delete_secret",
         )
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
         if is_ee():
             has_permission = await check_action_access(
@@ -96,7 +96,7 @@ class VaultRouter:
         )
         return vault_secret
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def list_secrets(self, request: Request):
         cache_key = {}
 
@@ -141,7 +141,7 @@ class VaultRouter:
 
         return secrets_dtos
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def read_secret(self, request: Request, secret_id: str):
         if is_ee():
             has_permission = await check_action_access(
@@ -167,7 +167,7 @@ class VaultRouter:
             )
         return secrets_dto
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def update_secret(
         self, request: Request, secret_id: str, body: UpdateSecretDTO
     ):
@@ -200,7 +200,7 @@ class VaultRouter:
         )
         return secrets_dto
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def delete_secret(self, request: Request, secret_id: str):
         if is_ee():
             has_permission = await check_action_access(

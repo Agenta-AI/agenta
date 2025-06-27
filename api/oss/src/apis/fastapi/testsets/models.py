@@ -26,15 +26,15 @@ class MetaRequest(BaseModel):
 
 
 class TestsetResponse(BaseModel):
-    count: int
+    count: int = 0
     testset: Optional[Testset] = None
 
 
 class TestsetsResponse(BaseModel):
-    count: int
+    count: int = 0
     testsets: List[Testset] = []
 
 
 class TestcaseResponse(BaseModel):
-    count: int
+    count: int = 0
     testcase: Optional[Testcase] = None

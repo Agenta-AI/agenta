@@ -481,6 +481,26 @@ class PromptTemplate(BaseModel):
                 f"Error formatting template '{content}': {str(e)}", original_error=e
             )
 
+    def _substitute_variables(self, obj: Any, kwargs: Dict[str, Any]) -> Any:
+        """Recursively substitute variables within strings of a JSON-like object.
+
+        This now processes placeholders in both keys and values so that
+        structures like ``{"my_{{var}}": "{{val}}"}`` are fully substituted.
+        """
+        if isinstance(obj, str):
+            return self._format_with_template(obj, kwargs)
+        if isinstance(obj, list):
+            return [self._substitute_variables(item, kwargs) for item in obj]
+        if isinstance(obj, dict):
+            new_dict = {}
+            for k, v in obj.items():
+                new_key = (
+                    self._format_with_template(k, kwargs) if isinstance(k, str) else k
+                )
+                new_dict[new_key] = self._substitute_variables(v, kwargs)
+            return new_dict
+        return obj
+
     def format(self, **kwargs) -> "PromptTemplate":
         """
         Format the template with provided inputs.
@@ -533,10 +553,17 @@ class PromptTemplate(BaseModel):
                 )
             )
 
+        new_llm_config = self.llm_config.copy(deep=True)
+        if new_llm_config.response_format is not None:
+            rf_dict = new_llm_config.response_format.model_dump(by_alias=True)
+            substituted = self._substitute_variables(rf_dict, kwargs)
+            rf_type = type(new_llm_config.response_format)
+            new_llm_config.response_format = rf_type(**substituted)
+
         return PromptTemplate(
             messages=new_messages,
             template_format=self.template_format,
-            llm_config=self.llm_config,
+            llm_config=new_llm_config,
             input_keys=self.input_keys,
         )
 

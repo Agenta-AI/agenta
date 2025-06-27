@@ -96,6 +96,15 @@ const AppWithVariants = memo(
         appTheme: string
         isPlayground?: boolean
     }) => {
+        const router = useRouter()
+        const lastNonSettingsRef = useRef<string | null>(null)
+
+        useEffect(() => {
+            if (!router.pathname.startsWith("/settings")) {
+                lastNonSettingsRef.current = router.asPath
+            }
+        }, [router.asPath])
+
         const {currentApp} = useAppsData()
         const {project, projects} = useProjectData()
         const {changeSelectedOrg} = useOrgData()
@@ -119,7 +128,11 @@ const AppWithVariants = memo(
                     </div>
                 )}
                 <Layout hasSider className={classes.layout}>
-                    <Sidebar />
+                    <Sidebar
+                        showSettingsView={router.pathname.startsWith("/settings")}
+                        lastPath={lastNonSettingsRef.current || "/apps"}
+                    />
+
                     <Layout className={classes.layout}>
                         <div className="mb-3">
                             <BreadcrumbContainer

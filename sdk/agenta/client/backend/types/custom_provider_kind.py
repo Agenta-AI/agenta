@@ -4,6 +4,11 @@ import typing
 
 CustomProviderKind = typing.Union[
     typing.Literal[
+        "custom",
+        "azure",
+        "bedrock",
+        "sagemaker",
+        "vertex",
         "openai",
         "cohere",
         "anyscale",
@@ -16,11 +21,6 @@ CustomProviderKind = typing.Union[
         "togetherai",
         "openrouter",
         "gemini",
-        "custom",
-        "azure",
-        "bedrock",
-        "sagemaker",
-        "vertex",
     ],
     typing.Any,
 ]
