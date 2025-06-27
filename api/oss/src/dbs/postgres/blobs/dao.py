@@ -6,7 +6,7 @@ from hashlib import blake2b
 from sqlalchemy import select, or_
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.dbs.postgres.shared.utils import suppress_exceptions
+from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.core.blobs.interfaces import BlobDAOInterface
 from oss.src.core.blobs.dtos import Blob

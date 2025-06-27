@@ -1,4 +1,5 @@
-from typing import Optional, List
+from itertools import chain
+from typing import Optional, List, Any, Dict
 
 from pydantic import BaseModel
 
@@ -27,6 +28,14 @@ class Evaluator(Identifier, Slug, Lifecycle, Header):
     meta: Optional[Meta] = None
     data: Optional[WorkflowData] = None
 
+    class Config(Identifier.Config, Lifecycle.Config):
+        json_encoders: Dict[Any, Any] = dict(
+            chain(
+                Identifier.Config.json_encoders.items(),
+                Lifecycle.Config.json_encoders.items(),
+            )
+        )
+
 
 class EvaluatorRequest(BaseModel):
     evaluator: Evaluator
@@ -42,10 +51,10 @@ class EvaluatorQueryRequest(BaseModel):
 
 
 class EvaluatorResponse(BaseModel):
-    count: int
+    count: int = 0
     evaluator: Optional[Evaluator] = None
 
 
 class EvaluatorsResponse(BaseModel):
-    count: int
+    count: int = 0
     evaluator: List[Evaluator] = []

@@ -1,104 +1,282 @@
-Client code to communicate with the backend.
+# Common Fern Issues with Pydantic Models
 
-Currently the models are manually copied from the backend code. This needs to change.
+When using Fern to generate SDKs from FastAPI applications with Pydantic models, you may encounter several issues related to model naming conflicts, schema generation, and recursive type definitions. This document outlines the most common problems and their solutions.
 
-# Generate Backend
+## Issue 1: Model Name Conflicts
 
-To generate the client code using Fern, follow the steps below. 
+### Problem Description
 
-1. Open a Terminal and navigate to the folder where this Readme.md file is. For example;
-```bash
-cd agenta/sdk/agenta/client
-```
+When you have multiple Pydantic models with the same name across different modules/folders and are used by different endpoints, Fern merges them into a single schema, causing field conflicts and unexpected behaviour.
 
-2. Next ensure you have installed Fern by executing the command;
-```bash
-npm install -g fern-api
-```
-
-3. Execute this command to initialize Fern to import and use the OpenAPI spec;
-
-> To use an OpenAPI spec, you can pass in the filepath or URL.
-> We'll need to log in to use fern.
-> We'll be using a url to the openapi.json for [Agenta Cloud](https://cloud.agenta.ai).
-> Alternatively, for `cloud-dev` we could use [Cloud Local](http://localhost).
-
-```bash
-fern init --openapi https://cloud.agenta.ai/api/openapi.json
-# fern init --openapi http://localhost/api/openapi.json
-```    
-   
-4. Add the Fern Python SDK;
-```bash
-fern add fern-python-sdk
-```
-
-5. Go to the generators.yml, which would look like this;
-```yaml
-default-group: local
-groups:
-  local:
-    generators:
-      - name: fernapi/fern-typescript-node-sdk
-        version: 0.9.5
-        output:
-          location: local-file-system
-          path: ../sdks/typescript
-      - name: fernapi/fern-python-sdk
-        version: 0.6.0
-```
-
-6. Remove `fernapi/fern-typescript-node-sdk`;
-```yaml
-default-group: local
-groups:
-  local:
-    generators:
-      - name: fernapi/fern-python-sdk
-        version: 3.10.6
-```
-
-7. Update `fernapi/fern-python-sdk`, which would look like this;
-```yaml
-default-group: local
-groups:
-  local:
-    generators:
-      - name: fernapi/fern-python-sdk
-        version: 3.10.6
-        output:
-          location: local-file-system
-          path: ./
-```
-<img width="1001" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/f537691d-8dbb-4363-b7c0-ecef9f464053">
-
-
-8. Go to the fern.config.json file and change the value of "organization" to `agenta`
-<img width="593" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/0f44255e-50b5-4d78-863b-d33a3ec2eea0">
-
-   
-9. Generate the client code
-```bash
-    fern generate
-```
-
-10. Go to `./containers/client.py`, search for the `build_image` function in the AgentaApi class and update `timeout_in_seconds` to `600` in `request_options'. It should now look like this;
+**Example:**
 ```python
-_response = self._client_wrapper.httpx_client.request(
-    "containers/build_image",
-    method="POST",
-    params={
-        "app_id": app_id,
-        "base_name": base_name,
-    },
-    data={},
-    files={
-        "tar_file": tar_file,
-    },
-    request_options={**request_options, "timeout_in_seconds": 600},
-    omit=OMIT,
+# users/models.py
+class User(BaseModel):
+    id: int
+    username: str
+    email: str
+
+# admin_users/models.py  
+class User(BaseModel):
+    id: int
+    username: str
+    permissions: List[str]
+    is_admin: bool
+```
+
+Fern will merge these into one `User` schema, and when you run the `fern generate` command, it results in an error that involves conflicting field definitions.
+
+### Solutions
+
+#### Solution 1: Use Unique Model Names
+
+Rename your models to be more specific and avoid conflicts:
+
+```python
+# users/models.py
+class RegularUser(BaseModel):
+    id: int
+    username: str
+    email: str
+
+# admin_users/models.py
+class AdminUser(BaseModel):
+    id: int
+    username: str
+    permissions: List[str]
+    is_admin: bool
+```
+
+#### Solution 2: Use Pydantic's `model_config` with Custom Titles
+
+Override the schema title to make models unique:
+
+```python
+# users/models.py
+class User(BaseModel):
+    model_config = ConfigDict(title="RegularUser")
+    
+    id: int
+    username: str
+    email: str
+
+# admin_users/models.py
+class User(BaseModel):
+    model_config = ConfigDict(title="AdminUser")
+    
+    id: int
+    username: str
+    permissions: List[str]
+    is_admin: bool
+```
+
+#### Solution 3: Use Module-Prefixed Aliases
+
+Create type aliases that include module context:
+
+```python
+# users/models.py
+class User(BaseModel):
+    id: int
+    username: str
+    email: str
+
+# Create an alias for external use
+UserModel = User
+
+# admin_users/models.py
+class User(BaseModel):
+    id: int
+    username: str
+    permissions: List[str]
+    is_admin: bool
+
+# Create an alias for external use
+AdminUserModel = User
+```
+
+Then use the aliases in your endpoints:
+
+```python
+from users.models import UserModel
+from admin_users.models import AdminUserModel
+
+@app.get("/users/{user_id}", response_model=UserModel)
+async def get_user(user_id: int):
+    # ...
+
+@app.get("/admin/users/{user_id}", response_model=AdminUserModel)
+async def get_admin_user(user_id: int):
+    # ...
+```
+
+## Issue 2: Enum Schema Generation
+
+### Problem Description
+
+When multiple Pydantic models reference the same Enum, Fern doesn't create a shared enum schema and instead inlines the enum values in each model, leading to code duplication and inconsistency.
+
+**Example:**
+```python
+class Status(Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    PENDING = "pending"
+
+class User(BaseModel):
+    id: int
+    status: Status
+
+class Order(BaseModel):
+    id: int
+    status: Status  # Same enum, but Fern will not reuse the schema
+```
+
+### Solutions
+
+#### Solution 1: Explicit Schema Registration
+
+Force Pydantic to generate a proper schema reference by using the enum in a standalone model first:
+
+```python
+from enum import Enum
+from typing import Union
+from pydantic import BaseModel
+
+class Status(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    PENDING = "pending"
+
+# Create a dedicated schema model
+class StatusSchema(BaseModel):
+    status: Status
+
+class User(BaseModel):
+    id: int
+    status: Status
+
+class Order(BaseModel):
+    id: int
+    status: Status
+```
+
+#### Solution 2: Use Field with Schema Customization
+
+Customize the field schema to ensure proper enum handling:
+
+```python
+from pydantic import BaseModel, Field
+from enum import Enum
+
+class Status(str, Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive" 
+    PENDING = "pending"
+
+class User(BaseModel):
+    id: int
+    status: Status = Field(
+        ...,
+        json_schema_extra={
+            "$ref": "#/components/schemas/Status"
+        }
+    )
+
+class Order(BaseModel):
+    id: int
+    status: Status = Field(
+        ..., 
+        json_schema_extra={
+            "$ref": "#/components/schemas/Status"
+        }
+    )
+```
+
+## Issue 3: Recursive Type Definitions
+
+### Problem Description
+
+When using recursive type definitions with Pydantic v2 and Fern-generated SDKs, you may encounter infinite recursion during schema generation. This happens particularly with self-referential or mutually recursive types, such as JSON structures that can contain nested versions of themselves.
+
+**Example of problematic recursive type definitions:**
+
+```python
+from typing_extensions import TypeAliasType
+from typing import Union, Dict, List
+
+# This approach causes infinite recursion during schema generation
+OTelJson: TypeAliasType = TypeAliasType(
+    "OTelJson",
+    Union[str, int, float, bool, None, Dict[str, "OTelJson"], List["OTelJson"]],
+)
+
+OTelNumericJson: TypeAliasType = TypeAliasType(
+    "OTelNumericJson",
+    Union[int, float, Dict[str, "OTelNumericJson"], List["OTelNumericJson"]],
 )
 ```
-<img width="995" alt="image" src="https://github.com/Agenta-AI/agenta/assets/56418363/8fab19e3-5226-405b-8a6f-4dcb6df588c9">
 
-11. Delete the `./fern` folder.
+Despite `TypeAliasType` being recommended in Pydantic v2 documentation for recursive types, it doesn't work well with Fern-generated models because:
+
+1. Fern's model generation may not properly handle these recursive references
+2. During schema generation, Pydantic attempts to expand these types infinitely
+3. Runtime errors occur during initialization or when creating JSON schemas
+
+### Solutions
+
+#### Solution: Break Recursion with `Any` Type
+
+Replace recursive self-references with `Any` for dictionary values and list items:
+
+```python
+from typing import Any, Union, Dict, List
+
+# Safe non-recursive version that prevents schema generation issues
+OTelJson = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
+
+# Using Any to break recursion cycle during schema generation
+OTelNumericJson = Union[int, float, Dict[str, Any], List[Any]]
+```
+
+#### Why This Works
+
+1. **Breaks the recursion cycle**: Using `Any` eliminates the self-reference that causes infinite recursion
+2. **Maintains functionality**: The types still functionally represent nested JSON structures
+3. **No schema generation issues**: Pydantic can generate schemas without infinite expansion
+4. **Simple implementation**: Requires no complex patches or runtime modifications
+
+#### What to Avoid
+
+1. **Don't use complex monkey patching**: Patching Pydantic internals to handle recursion is fragile
+2. **Avoid disabling schema generation globally**: This impacts all models and API documentation
+3. **Don't use custom serialization for every model**: Introduces unnecessary complexity
+
+When Fern generates your SDK, always check for recursive type definitions and convert them to use `Any` at appropriate recursion points to prevent these issues.
+
+
+## Troubleshooting
+
+### Debug Schema Generation
+
+Add debugging to see what schemas are being generated:
+
+```python
+import json
+from your_app import app
+
+# Generate and inspect OpenAPI schema
+schema = app.openapi()
+with open("debug_openapi.json", "w") as f:
+    json.dump(schema, f, indent=2)
+
+# Check for duplicate schemas
+schemas = schema.get("components", {}).get("schemas", {})
+print("Generated schemas:", list(schemas.keys()))
+```
+
+### Common Error Patterns
+
+1. **"Schema conflict"** - Usually indicates duplicate model names
+2. **"Enum already exists"** - Enum not properly registered in other components/schemas
+3. **"Field type mismatch"** - Different models with same name have conflicting fields

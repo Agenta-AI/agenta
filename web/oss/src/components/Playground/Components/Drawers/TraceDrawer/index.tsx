@@ -51,7 +51,7 @@ const TraceDrawerButton = ({
     const activeTrace = useMemo(
         () =>
             traces
-                ? traces[0] ?? null
+                ? (traces[0] ?? null)
                 : result?.error
                   ? ({
                         exception: result?.metadata?.rawError,

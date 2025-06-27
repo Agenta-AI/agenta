@@ -2,18 +2,13 @@ from typing import Optional, List
 from uuid import uuid4, UUID
 
 from genson import SchemaBuilder
-from jsonschema import (
-    Draft202012Validator,
-    Draft7Validator,
-    Draft4Validator,
-    Draft6Validator,
-    Draft201909Validator,
-)
 
-from fastapi import Request, status, HTTPException, Response
+from fastapi import APIRouter, Request, status, HTTPException, Response
 
-from oss.src.utils.common import APIRouter, is_ee
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import Reference, Meta
 from oss.src.core.tracing.dtos import Link, Focus, Format, Query, Formatting, Filtering
@@ -21,7 +16,6 @@ from oss.src.core.workflows.dtos import WorkflowFlags, WorkflowData
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
-from oss.src.apis.fastapi.shared.utils import handle_exceptions
 
 from oss.src.apis.fastapi.tracing.models import (
     OTelFlatSpan,
@@ -39,6 +33,7 @@ from oss.src.apis.fastapi.evaluators.models import Evaluator
 from oss.src.apis.fastapi.annotations.models import Annotation
 
 from oss.src.apis.fastapi.annotations.utils import (
+    validate_data_against_schema,
     parse_into_attributes,
     parse_from_attributes,
 )
@@ -71,74 +66,6 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
-
-
-def get_jsonschema_validator(format: dict):
-    schema_uri = format.get("$schema", "https://json-schema.org/draft/2020-12/schema")
-
-    if "2020-12" in schema_uri:
-        return Draft202012Validator
-    elif "2019-09" in schema_uri:
-        return Draft201909Validator
-    elif "draft-07" in schema_uri:
-        return Draft7Validator
-    elif "draft-06" in schema_uri:
-        return Draft6Validator
-    elif "draft-04" in schema_uri:
-        return Draft4Validator
-    return Draft202012Validator  # fallback
-
-
-def validate_data_against_schema(
-    data: dict,
-    schema: dict,  # pylint: disable=redefined-builtin
-):
-    validator_class = get_jsonschema_validator(schema)
-    validator = validator_class(schema)
-
-    errors = list(validator.iter_errors(data))
-
-    if errors:
-        details = []
-        for e in errors:
-            loc = list(e.absolute_path)
-            msg = e.message
-            details.append(
-                {
-                    "loc": ["body", "annotation", "data"] + loc,
-                    "msg": msg,
-                    "type": "value_error.json_schema",
-                }
-            )
-
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=details
-        )
-
-
-def format_validation_error(e, request_body=None):
-    formatted_errors = []
-
-    for error in e.errors():
-        loc = error.get("loc", [])
-
-        if not loc or loc[0] != "body":
-            loc = ["body"] + list(loc)
-
-        error_detail = {
-            "type": error.get("type", "value_error"),
-            "loc": loc,
-            "msg": error.get("msg", "Validation error"),
-        }
-
-        if "input" in error:
-            error_detail["input"] = error.get("input")
-        elif request_body is not None:
-            error_detail["input"] = request_body
-
-        formatted_errors.append(error_detail)
-
-    return formatted_errors
 
 
 class AnnotationsRouter:
@@ -225,7 +152,7 @@ class AnnotationsRouter:
             response_model_exclude_none=True,
         )
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def create_annotation(
         self,
         *,
@@ -242,11 +169,6 @@ class AnnotationsRouter:
 
         project_id = UUID(request.state.project_id)
         user_id = UUID(request.state.user_id)
-
-        cache_key = {
-            "project_id": project_id,
-            "evaluator_slug": annotation_request.annotation.references.evaluator.slug,
-        }
 
         evaluator_flags = WorkflowFlags(
             is_evaluator=True,
@@ -332,7 +254,8 @@ class AnnotationsRouter:
 
         return annotation_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=AnnotationResponse())
     async def fetch_annotation(
         self,
         *,
@@ -367,7 +290,7 @@ class AnnotationsRouter:
 
         return annotation_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def edit_annotation(
         self,
         *,
@@ -443,7 +366,7 @@ class AnnotationsRouter:
 
         return annotation_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def delete_annotation(
         self,
         *,
@@ -478,7 +401,8 @@ class AnnotationsRouter:
 
         return annotation_link_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=AnnotationsResponse())
     async def query_annotations(
         self,
         *,
@@ -528,7 +452,7 @@ class AnnotationsRouter:
 
     # - EVALUATORS -------------------------------------------------------------
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def _create_evaluator(
         self,
         *,
@@ -546,16 +470,16 @@ class AnnotationsRouter:
             )
         )
 
-        workflow_artifact: Optional[
-            WorkflowArtifact
-        ] = await self.workflows_service.create_artifact(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            artifact_slug=evaluator_slug,
-            #
-            artifact_flags=evaluator_flags,
-            artifact_meta=evaluator_meta,
+        workflow_artifact: Optional[WorkflowArtifact] = (
+            await self.workflows_service.create_artifact(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                artifact_slug=evaluator_slug,
+                #
+                artifact_flags=evaluator_flags,
+                artifact_meta=evaluator_meta,
+            )
         )
 
         if workflow_artifact is None:
@@ -563,18 +487,18 @@ class AnnotationsRouter:
 
         workflow_variant_slug = uuid4().hex
 
-        workflow_variant: Optional[
-            WorkflowVariant
-        ] = await self.workflows_service.create_variant(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            artifact_id=workflow_artifact.id,
-            #
-            variant_slug=workflow_variant_slug,
-            #
-            variant_flags=evaluator_flags,
-            variant_meta=evaluator_meta,
+        workflow_variant: Optional[WorkflowVariant] = (
+            await self.workflows_service.create_variant(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                artifact_id=workflow_artifact.id,
+                #
+                variant_slug=workflow_variant_slug,
+                #
+                variant_flags=evaluator_flags,
+                variant_meta=evaluator_meta,
+            )
         )
 
         if workflow_variant is None:
@@ -582,19 +506,19 @@ class AnnotationsRouter:
 
         workflow_revision_slug = uuid4().hex
 
-        workflow_revision: Optional[
-            WorkflowRevision
-        ] = await self.workflows_service.create_revision(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            artifact_id=workflow_artifact.id,
-            variant_id=workflow_variant.id,
-            #
-            revision_slug=workflow_revision_slug,
-            #
-            revision_flags=evaluator_flags,
-            revision_meta=evaluator_meta,
+        workflow_revision: Optional[WorkflowRevision] = (
+            await self.workflows_service.create_revision(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                artifact_id=workflow_artifact.id,
+                variant_id=workflow_variant.id,
+                #
+                revision_slug=workflow_revision_slug,
+                #
+                revision_flags=evaluator_flags,
+                revision_meta=evaluator_meta,
+            )
         )
 
         if workflow_revision is None:
@@ -602,19 +526,19 @@ class AnnotationsRouter:
 
         workflow_revision_slug = uuid4().hex
 
-        workflow_revision: Optional[
-            WorkflowRevision
-        ] = await self.workflows_service.commit_revision(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            variant_id=workflow_variant.id,
-            #
-            revision_slug=workflow_revision_slug,
-            #
-            revision_flags=evaluator_flags,
-            revision_meta=evaluator_meta,
-            revision_data=workflow_revision_data,
+        workflow_revision: Optional[WorkflowRevision] = (
+            await self.workflows_service.commit_revision(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                variant_id=workflow_variant.id,
+                #
+                revision_slug=workflow_revision_slug,
+                #
+                revision_flags=evaluator_flags,
+                revision_meta=evaluator_meta,
+                revision_data=workflow_revision_data,
+            )
         )
 
         if workflow_revision is None:
@@ -643,7 +567,7 @@ class AnnotationsRouter:
 
         return evaluator
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def _fetch_evaluator(
         self,
         *,
@@ -654,12 +578,12 @@ class AnnotationsRouter:
             slug=evaluator_slug,
         )
 
-        workflow_artifact: Optional[
-            WorkflowArtifact
-        ] = await self.workflows_service.fetch_artifact(
-            project_id=project_id,
-            #
-            artifact_ref=workflow_artifact_ref,
+        workflow_artifact: Optional[WorkflowArtifact] = (
+            await self.workflows_service.fetch_artifact(
+                project_id=project_id,
+                #
+                artifact_ref=workflow_artifact_ref,
+            )
         )
 
         if workflow_artifact is None:
@@ -669,12 +593,12 @@ class AnnotationsRouter:
             id=workflow_artifact.id,
         )
 
-        workflow_variant: Optional[
-            WorkflowVariant
-        ] = await self.workflows_service.fetch_variant(
-            project_id=project_id,
-            #
-            artifact_ref=workflow_artifact_ref,
+        workflow_variant: Optional[WorkflowVariant] = (
+            await self.workflows_service.fetch_variant(
+                project_id=project_id,
+                #
+                artifact_ref=workflow_artifact_ref,
+            )
         )
 
         if workflow_variant is None:
@@ -684,12 +608,12 @@ class AnnotationsRouter:
             id=workflow_variant.id,
         )
 
-        workflow_revision: Optional[
-            WorkflowRevision
-        ] = await self.workflows_service.fetch_revision(
-            project_id=project_id,
-            #
-            variant_ref=workflow_variant_ref,
+        workflow_revision: Optional[WorkflowRevision] = (
+            await self.workflows_service.fetch_revision(
+                project_id=project_id,
+                #
+                variant_ref=workflow_variant_ref,
+            )
         )
 
         if workflow_revision is None:
@@ -716,7 +640,7 @@ class AnnotationsRouter:
 
     # - ANNOTATIONS ------------------------------------------------------------
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def _create_annotation(
         self,
         *,
@@ -777,7 +701,7 @@ class AnnotationsRouter:
 
         return _links_response.links[0] if _links_response.links else None
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def _fetch_annotation(
         self,
         *,
@@ -868,7 +792,7 @@ class AnnotationsRouter:
 
         return annotation
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def _edit_annotation(
         self,
         *,
@@ -935,7 +859,7 @@ class AnnotationsRouter:
 
         return _links_response.links[0] if _links_response.links else None
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def _delete_annotation(
         self,
         *,
@@ -962,7 +886,7 @@ class AnnotationsRouter:
 
         return annotation
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def _query_annotation(
         self,
         *,
@@ -982,7 +906,14 @@ class AnnotationsRouter:
 
         filtering = Filtering()
 
-        conditions = []
+        conditions = [
+            # {
+            #     "field": "attributes",
+            #     "key": "ag.type.trace",
+            #     "value": "ANNOTATION",
+            #     "operator": "is",
+            # }
+        ]
 
         if trace_id:
             conditions.append(

@@ -266,8 +266,8 @@ export function RealTimeValidationPlugin({debug, schema}: {debug?: boolean; sche
 
                                     // Add JSON validation for strings not properly quoted
                                     let expectedMessage = shouldHaveError
-                                        ? errorList.find((e) => e.message?.includes(text))
-                                              ?.message ?? "Invalid"
+                                        ? (errorList.find((e) => e.message?.includes(text))
+                                              ?.message ?? "Invalid")
                                         : null
 
                                     // Custom JSON validation for string literals

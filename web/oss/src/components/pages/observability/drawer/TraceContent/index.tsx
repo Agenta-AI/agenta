@@ -2,6 +2,7 @@ import {useMemo, useState} from "react"
 
 import {Database} from "@phosphor-icons/react"
 import {Button, Divider, Space, Tabs, TabsProps, Tag, Typography, Tooltip} from "antd"
+import clsx from "clsx"
 import dynamic from "next/dynamic"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
@@ -14,7 +15,6 @@ import AnnotateDrawerButton from "../AnnotateDrawer/assets/AnnotateDrawerButton"
 import {useStyles} from "./assets/styles"
 import AnnotationTabItem from "./components/AnnotationTabItem"
 import OverviewTabItem from "./components/OverviewTabItem"
-import clsx from "clsx"
 
 const TestsetDrawer = dynamic(() => import("../TestsetDrawer/TestsetDrawer"), {ssr: false})
 

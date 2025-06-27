@@ -1,7 +1,7 @@
 import {useEffect, useMemo, useState, type FC} from "react"
 
-import {GearSix, Plus} from "@phosphor-icons/react"
-import {Button, Input, Space, Spin, Table, Tag, Typography} from "antd"
+import {GearSix, PencilSimple, Plus} from "@phosphor-icons/react"
+import {Button, Input, Space, Spin, Table, Tag, Typography, message} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -13,7 +13,8 @@ import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
-import {fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"
+import {fetchAllWorkspaceRoles, updateWorkspace} from "@/oss/services/workspace/api"
+import {updateOrganization} from "@/oss/services/organization/api"
 
 import AvatarWithLabel from "./assets/AvatarWithLabel"
 import {Actions, Roles} from "./cellRenderers"
@@ -23,7 +24,7 @@ const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr
 
 const WorkspaceManage: FC = () => {
     const {user: signedInUser} = useProfileData()
-    const {selectedOrg, loading, refetch} = useOrgData()
+    const {selectedOrg, setSelectedOrg, loading, refetch} = useOrgData()
     const [searchTerm, setSearchTerm] = useState("")
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInvitedUserLinkModalOpen, setIsInvitedUserLinkModalOpen] = useState(false)
@@ -37,6 +38,13 @@ const WorkspaceManage: FC = () => {
     const orgId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
     const workspace = selectedOrg?.default_workspace
+
+    const [isEditingName, setIsEditingName] = useState(false)
+    const [workspaceNameInput, setWorkspaceNameInput] = useState(workspace?.name || "")
+
+    useEffect(() => {
+        setWorkspaceNameInput(workspace?.name || "")
+    }, [workspace?.name])
 
     const members = workspace?.members || []
 
@@ -155,8 +163,73 @@ const WorkspaceManage: FC = () => {
         [selectedOrg?.id],
     )
 
+    const handleSaveWorkspaceName = async () => {
+        if (!workspaceId || !orgId) return
+        try {
+            await Promise.all([
+                updateWorkspace({orgId, workspaceId, name: workspaceNameInput}),
+                updateOrganization(orgId, workspaceNameInput),
+            ])
+            setSelectedOrg((prev) =>
+                prev
+                    ? {
+                          ...prev,
+                          name: workspaceNameInput,
+                          default_workspace: {
+                              ...prev.default_workspace,
+                              name: workspaceNameInput,
+                          },
+                      }
+                    : prev,
+            )
+            refetch()
+            message.success("Workspace renamed")
+            setIsEditingName(false)
+        } catch (error) {
+            console.error(error)
+            message.error("Failed to rename workspace")
+        }
+    }
+
     return (
         <section className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 group">
+                {!isEditingName ? (
+                    <>
+                        <Typography.Text className="font-medium" data-cy="workspace-name">
+                            {workspace?.name}
+                        </Typography.Text>
+                        <Button
+                            type="text"
+                            size="small"
+                            className="opacity-0 group-hover:opacity-100"
+                            icon={<PencilSimple size={14} />}
+                            onClick={() => setIsEditingName(true)}
+                        />
+                    </>
+                ) : (
+                    <>
+                        <Input
+                            value={workspaceNameInput}
+                            onChange={(e) => setWorkspaceNameInput(e.target.value)}
+                            className="w-[250px]"
+                            autoFocus
+                        />
+                        <Button type="primary" size="small" onClick={handleSaveWorkspaceName}>
+                            Save
+                        </Button>
+                        <Button
+                            size="small"
+                            onClick={() => {
+                                setIsEditingName(false)
+                                setWorkspaceNameInput(workspace?.name || "")
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                    </>
+                )}
+            </div>
             <div className="flex items-center justify-between gap-2">
                 <Input.Search
                     placeholder="Search"

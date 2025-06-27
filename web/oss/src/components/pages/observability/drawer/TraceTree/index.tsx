@@ -2,6 +2,7 @@ import {useMemo, useState} from "react"
 
 import {Coins, MagnifyingGlass, PlusCircle, SlidersHorizontal, Timer} from "@phosphor-icons/react"
 import {Button, Divider, Input, Popover, Space, Tooltip, Typography} from "antd"
+import clsx from "clsx"
 import {useLocalStorage} from "usehooks-ts"
 
 import CustomTreeComponent from "@/oss/components/ui/CustomTreeComponent"
@@ -14,7 +15,6 @@ import TraceTreeSettings from "../TraceTreeSettings"
 
 import {useStyles} from "./assets/styles"
 import {TraceTreeProps} from "./assets/types"
-import clsx from "clsx"
 
 export const TreeContent = ({value, settings}: {value: _AgentaRootsResponse; settings: any}) => {
     const {node, metrics, status} = value || {}

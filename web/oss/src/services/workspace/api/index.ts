@@ -137,3 +137,17 @@ export const removeFromWorkspace = async (
     )
     return response.data
 }
+
+export const updateWorkspace = async (
+    {orgId, workspaceId, name}: {orgId: string; workspaceId: string; name: string},
+    ignoreAxiosError = false,
+) => {
+    const {projectId} = getCurrentProject()
+
+    const response = await axios.put(
+        `${getAgentaApiUrl()}/organizations/${orgId}/workspaces/${workspaceId}/?project_id=${projectId}`,
+        {name},
+        {_ignoreError: ignoreAxiosError} as any,
+    )
+    return response.data
+}

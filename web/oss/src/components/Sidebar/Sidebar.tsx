@@ -20,12 +20,16 @@ import {useStyles} from "./assets/styles"
 import SidebarMenu from "./components/SidebarMenu"
 import {useDropdownItems} from "./hooks/useDropdownItems"
 import {useSidebarConfig} from "./hooks/useSidebarConfig"
+import SettingsSidebar from "./SettingsSidebar"
 import {SidebarConfig} from "./types"
 
 const {Sider} = Layout
 const {Text} = Typography
 
-const Sidebar: React.FC = () => {
+const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
+    showSettingsView,
+    lastPath,
+}) => {
     const {appTheme} = useAppTheme()
     const router = useRouter()
     const classes = useStyles()
@@ -117,78 +121,90 @@ const Sidebar: React.FC = () => {
                         collapsed ? (isHovered ? "w-[236px]" : "w-[80px]") : "w-[236px]",
                     ])}
                 >
-                    <div
-                        className={` overflow-hidden h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
-                            isSidebarExpanded ? "w-[49px] relative left-[7px]" : "w-full"
-                        }`}
-                    >
+                    {showSettingsView ? null : (
                         <div
-                            className={clsx([
-                                "flex items-center gap-2",
-                                "transition-width duration-[inherit] ease-in-out",
-                                "w-full",
-                            ])}
+                            className={` overflow-hidden h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
+                                isSidebarExpanded ? "w-[49px] relative left-[7px]" : "w-full"
+                            }`}
                         >
-                            <div className="transition-width duration-[inherit] ease-in-out w-full">
-                                {selectedOrg?.id && user?.id && (
-                                    <Dropdown
-                                        trigger={["hover"]}
-                                        menu={{
-                                            // @ts-ignore
-                                            items: dropdownItems,
-                                            selectedKeys: [selectedOrg.id],
-                                            onClick: ({key}) => {
-                                                if (["settings", "logout"].includes(key)) return
-                                                changeSelectedOrg(key)
-                                            },
-                                        }}
-                                    >
-                                        <Button
-                                            className={`${classes.avatarMainContainer} ${isSidebarExpanded ? "border-transparent" : ""}`}
+                            <div
+                                className={clsx([
+                                    "flex items-center gap-2",
+                                    "transition-width duration-[inherit] ease-in-out",
+                                    "w-full",
+                                ])}
+                            >
+                                <div className="transition-width duration-[inherit] ease-in-out w-full">
+                                    {selectedOrg?.id && user?.id && (
+                                        <Dropdown
+                                            trigger={["hover"]}
+                                            menu={{
+                                                // @ts-ignore
+                                                items: dropdownItems,
+                                                selectedKeys: [selectedOrg.id],
+                                                onClick: ({key}) => {
+                                                    if (["settings", "logout"].includes(key)) return
+                                                    changeSelectedOrg(key)
+                                                },
+                                            }}
                                         >
-                                            <div className={classes.avatarContainer}>
-                                                <Avatar
-                                                    className="text-lg"
-                                                    name={selectedOrg.name}
-                                                />
+                                            <Button
+                                                className={`${classes.avatarMainContainer} ${isSidebarExpanded ? "border-transparent" : ""}`}
+                                            >
+                                                <div className={classes.avatarContainer}>
+                                                    <Avatar
+                                                        className="text-lg"
+                                                        name={
+                                                            selectedOrg.default_workspace?.name ||
+                                                            selectedOrg.name
+                                                        }
+                                                    />
 
-                                                <div className="max-w-[95px] text-ellipsis overflow-hidden">
-                                                    <Text>{selectedOrg.name}</Text>
-                                                    <Text>{selectedOrg.type}</Text>
+                                                    <div className="max-w-[95px] text-ellipsis overflow-hidden">
+                                                        <Text>
+                                                            {selectedOrg.default_workspace?.name ||
+                                                                selectedOrg.name}
+                                                        </Text>
+                                                        <Text>{selectedOrg.type}</Text>
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            <CaretDown size={14} />
-                                        </Button>
-                                    </Dropdown>
-                                )}
+                                                <CaretDown size={14} />
+                                            </Button>
+                                        </Dropdown>
+                                    )}
+                                </div>
+
+                                <Button
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        setCollapsed(!collapsed)
+                                    }}
+                                    icon={<SidebarSimple size={14} className="mt-0.5" />}
+                                    className="shrink-0 flex items-center justify-center"
+                                    type={collapsed && isHovered ? "primary" : undefined}
+                                />
                             </div>
-
-                            <Button
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    setCollapsed(!collapsed)
-                                }}
-                                icon={<SidebarSimple size={14} className="mt-0.5" />}
-                                className="shrink-0 flex items-center justify-center"
-                                type={collapsed && isHovered ? "primary" : undefined}
-                            />
                         </div>
-                    </div>
+                    )}
 
-                    <Divider className="my-4" />
+                    {showSettingsView ? null : <Divider className="my-4" />}
                     <ErrorBoundary fallback={<div />}>
-                        <div>
-                            <SidebarMenu
-                                menuProps={{
-                                    className: classes.menuContainer,
-                                    selectedKeys,
-                                    openKeys: openKey ? [openKey] : [],
-                                    onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
-                                }}
-                                items={topItems}
-                                collapsed={isSidebarExpanded}
-                            />
+                        <div className="flex flex-col h-full">
+                            {showSettingsView ? (
+                                <SettingsSidebar lastPath={lastPath} />
+                            ) : (
+                                <SidebarMenu
+                                    menuProps={{
+                                        className: classes.menuContainer,
+                                        selectedKeys,
+                                        openKeys: openKey ? [openKey] : [],
+                                        onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
+                                    }}
+                                    items={topItems}
+                                    collapsed={isSidebarExpanded}
+                                />
+                            )}
                             <div>
                                 <SidePanelSubscriptionInfo
                                     collapsed={collapsed}

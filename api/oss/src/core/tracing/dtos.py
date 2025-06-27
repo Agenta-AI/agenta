@@ -4,23 +4,10 @@ from enum import Enum
 from uuid import UUID
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Union, Optional
-from typing_extensions import TypeAliasType
 
 from pydantic import BaseModel, model_validator
 
 from oss.src.core.shared.dtos import Tags, Metrics, Json, Lifecycle
-
-# --- Recursive Named TypeAliases using TypeAliasType ---
-
-OTelJson: TypeAliasType = TypeAliasType(
-    "OTelJson",
-    Union[str, int, float, bool, None, Dict[str, "OTelJson"], List["OTelJson"]],
-)
-
-OTelNumericJson: TypeAliasType = TypeAliasType(
-    "OTelNumericJson",
-    Union[int, float, Dict[str, "OTelNumericJson"], List["OTelNumericJson"]],
-)
 
 
 ## --- SUB-ENTITIES --- ##

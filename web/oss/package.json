@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.48.9",
+    "version": "0.48.10",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -74,7 +74,6 @@
         "axios": "^1.7.7",
         "classnames": "^2.3.2",
         "clsx": "^2.1.1",
-        "crisp-sdk-web": "^1.0.25",
         "dayjs": "^1.11.10",
         "diff": "^5.2.0",
         "dotenv": "^16.3.1",

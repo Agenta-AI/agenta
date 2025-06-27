@@ -2,6 +2,7 @@ from typing import Any, Callable, Optional
 
 from .sdk.utils.preinit import PreInitObject
 
+from agenta.client import AgentaApi, AsyncAgentaApi
 import agenta.client.backend.types as client_types  # pylint: disable=wrong-import-order
 
 from .sdk.types import (
@@ -42,8 +43,8 @@ DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
 
 types = client_types
 
-api = None
-async_api = None
+api = AgentaApi
+async_api = AsyncAgentaApi
 
 tracing = DEFAULT_AGENTA_SINGLETON_INSTANCE.tracing  # type: ignore
 tracer = get_tracer(tracing)

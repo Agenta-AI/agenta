@@ -14,12 +14,12 @@ class WorkflowRequest(BaseModel):
 
 
 class WorkflowResponse(BaseModel):
-    count: int
+    count: int = 0
     workflow: Optional[Workflow] = None
 
 
 class WorkflowsResponse(BaseModel):
-    count: int
+    count: int = 0
     workflows: List[Workflow] = []
 
 
@@ -28,12 +28,12 @@ class WorkflowVariantRequest(BaseModel):
 
 
 class WorkflowVariantResponse(BaseModel):
-    count: int
+    count: int = 0
     variant: Optional[WorkflowVariant] = None
 
 
 class WorkflowVariantsResponse(BaseModel):
-    count: int
+    count: int = 0
     variants: List[WorkflowVariant] = []
 
 
@@ -42,10 +42,10 @@ class WorkflowRevisionRequest(BaseModel):
 
 
 class WorkflowRevisionResponse(BaseModel):
-    count: int
+    count: int = 0
     revision: Optional[WorkflowRevision] = None
 
 
 class WorkflowRevisionsResponse(BaseModel):
-    count: int
+    count: int = 0
     revisions: List[WorkflowRevision] = []

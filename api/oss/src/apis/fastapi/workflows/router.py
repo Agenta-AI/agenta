@@ -1,13 +1,16 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import Request, status, HTTPException, Depends
+from fastapi import APIRouter, Request, status, HTTPException, Depends
+
+from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
+from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import Reference
-from oss.src.utils.common import APIRouter, is_ee
 from oss.src.core.workflows.dtos import WorkflowQuery
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.apis.fastapi.shared.utils import handle_exceptions
 from oss.src.apis.fastapi.workflows.models import (
     WorkflowRequest,
     WorkflowResponse,
@@ -323,13 +326,13 @@ class WorkflowsRouter:
 
     # — artifacts ——————————————————————————————————————————————————————————————
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def create_workflow(
         self,
         request: Request,
         *,
         workflow_request: WorkflowRequest,
-    ):
+    ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -357,13 +360,14 @@ class WorkflowsRouter:
 
         return artifact_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowResponse())
     async def fetch_workflow(
         self,
         request: Request,
         *,
         artifact_id: UUID,
-    ):
+    ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -385,14 +389,14 @@ class WorkflowsRouter:
 
         return artifact_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def edit_workflow(
         self,
         request: Request,
         *,
         workflow_id: UUID,
         workflow_request: WorkflowRequest,
-    ):
+    ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -426,13 +430,13 @@ class WorkflowsRouter:
 
         return artifact_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def archive_workflow(
         self,
         request: Request,
         *,
         artifact_id: UUID,
-    ):
+    ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -455,13 +459,13 @@ class WorkflowsRouter:
 
         return artifact_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def unarchive_workflow(
         self,
         request: Request,
         *,
         artifact_id: UUID,
-    ):
+    ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -484,13 +488,14 @@ class WorkflowsRouter:
 
         return artifact_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowsResponse())
     async def query_workflows(
         self,
         request: Request,
         *,
         query: Optional[WorkflowQuery] = Depends(parse_workflow_query_request),
-    ):
+    ) -> WorkflowsResponse:
         body_json = None
         query_from_body = None
 
@@ -545,13 +550,13 @@ class WorkflowsRouter:
 
     # — variants ———————————————————————————————————————————————————————————————
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def create_workflow_variant(
         self,
         request: Request,
         *,
         variant_request: WorkflowVariantRequest,
-    ):
+    ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -581,13 +586,14 @@ class WorkflowsRouter:
 
         return variant_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowVariantResponse())
     async def fetch_workflow_variant(
         self,
         request: Request,
         *,
         variant_id: UUID,
-    ):
+    ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -609,14 +615,14 @@ class WorkflowsRouter:
 
         return variant_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def edit_workflow_variant(
         self,
         request: Request,
         *,
         variant_id: UUID,
         variant_request: WorkflowVariantRequest,
-    ):
+    ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -650,13 +656,13 @@ class WorkflowsRouter:
 
         return variant_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def archive_workflow_variant(
         self,
         request: Request,
         *,
         variant_id: UUID,
-    ):
+    ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -679,13 +685,13 @@ class WorkflowsRouter:
 
         return variant_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def unarchive_workflow_variant(
         self,
         request: Request,
         *,
         variant_id: UUID,
-    ):
+    ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -708,13 +714,14 @@ class WorkflowsRouter:
 
         return variant_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowVariantsResponse())
     async def query_workflow_variants(
         self,
         request: Request,
         *,
         query: Optional[WorkflowQuery] = Depends(parse_variant_query_request),
-    ):
+    ) -> WorkflowVariantsResponse:
         body_json = None
         query_from_body = None
 
@@ -768,7 +775,7 @@ class WorkflowsRouter:
 
     # --------------------------------------------------------------------------
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def fork_workflow_variant(
         self,
         request: Request,
@@ -776,7 +783,7 @@ class WorkflowsRouter:
         revision_request: WorkflowRevisionRequest,
         variant_id: Optional[UUID] = None,
         revision_id: Optional[UUID] = None,
-    ):
+    ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -849,13 +856,13 @@ class WorkflowsRouter:
 
     # — revisions ——————————————————————————————————————————————————————————————
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def create_workflow_revision(
         self,
         request: Request,
         *,
         revision_request: WorkflowRevisionRequest,
-    ):
+    ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -886,14 +893,15 @@ class WorkflowsRouter:
 
         return revision_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowRevisionResponse())
     async def fetch_workflow_revision(
         self,
         request: Request,
         *,
         variant_ref: Optional[Reference] = None,
         revision_ref: Optional[Reference] = None,
-    ):
+    ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -916,14 +924,14 @@ class WorkflowsRouter:
 
         return revision_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def edit_workflow_revision(
         self,
         request: Request,
         *,
         revision_id: UUID,
         revision_request: WorkflowRevisionRequest,
-    ):
+    ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -957,13 +965,13 @@ class WorkflowsRouter:
 
         return revision_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def archive_workflow_revision(
         self,
         request: Request,
         *,
         revision_id: UUID,
-    ):
+    ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -986,13 +994,13 @@ class WorkflowsRouter:
 
         return revision_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def unarchive_workflow_revision(
         self,
         request: Request,
         *,
         revision_id: UUID,
-    ):
+    ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -1015,12 +1023,13 @@ class WorkflowsRouter:
 
         return revision_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowRevisionsResponse())
     async def query_workflow_revisions(
         self,
         request: Request,
         query: Optional[WorkflowQuery] = Depends(parse_revision_query_request),
-    ):
+    ) -> WorkflowRevisionsResponse:
         body_json = None
         query_from_body = None
 
@@ -1074,14 +1083,14 @@ class WorkflowsRouter:
 
     # --------------------------------------------------------------------------
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def commit_workflow_revision(
         self,
         request: Request,
         *,
         revision_request: WorkflowRevisionRequest,
         variant_id: Optional[UUID] = None,
-    ):
+    ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -1118,7 +1127,8 @@ class WorkflowsRouter:
 
         return revision_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowRevisionsResponse())
     async def log_workflow_revisions(
         self,
         request: Request,
@@ -1126,7 +1136,7 @@ class WorkflowsRouter:
         variant_ref: Optional[Reference] = None,
         revision_ref: Optional[Reference] = None,
         depth: Optional[int] = None,
-    ):
+    ) -> WorkflowRevisionsResponse:
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,

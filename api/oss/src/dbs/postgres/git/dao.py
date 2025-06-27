@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select, func, update
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.dbs.postgres.shared.utils import suppress_exceptions
+from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference

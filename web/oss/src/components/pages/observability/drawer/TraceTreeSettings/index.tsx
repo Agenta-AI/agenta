@@ -1,10 +1,10 @@
 import React from "react"
 
 import {Flex, Switch, Typography} from "antd"
+import clsx from "clsx"
 
 import {useStyles} from "./assets/styles"
 import {TraceTreeSettingsProps} from "./assets/types"
-import clsx from "clsx"
 
 const TraceTreeSettings = ({settings, setSettings}: TraceTreeSettingsProps) => {
     const classes = useStyles()

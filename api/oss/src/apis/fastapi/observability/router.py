@@ -1,10 +1,14 @@
 from typing import Dict, List, Union, Literal
 from uuid import UUID
 
-from fastapi import Request, Depends, Query, status, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
+from fastapi.responses import Response
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+
 from oss.src.core.observability.service import ObservabilityService
 from oss.src.core.observability.dtos import (
     QueryDTO,
@@ -19,7 +23,6 @@ from oss.src.core.observability.dtos import (
 
 from oss.src.core.observability.utils import FilteringException
 
-from oss.src.apis.fastapi.shared.utils import handle_exceptions
 from oss.src.apis.fastapi.observability.opentelemetry.otlp import (
     parse_otlp_stream,
 )
@@ -44,8 +47,6 @@ from oss.src.apis.fastapi.observability.models import (
     LegacyAnalyticsResponse,
     AnalyticsResponse,
 )
-
-from oss.src.utils.common import APIRouter, is_ee
 
 if is_ee():
     from ee.src.utils.entitlements import (
@@ -180,7 +181,7 @@ class ObservabilityRouter:
 
     ### OTLP
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def otlp_status(self):
         """
         Status of OTLP endpoint.
@@ -188,7 +189,7 @@ class ObservabilityRouter:
 
         return CollectStatusResponse(version=self.VERSION, status="ready")
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def otlp_receiver(
         self,
         request: Request,
@@ -344,7 +345,8 @@ class ObservabilityRouter:
 
     ### QUERIES
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=AgentaNodesResponse())
     async def query_traces(
         self,
         request: Request,
@@ -464,7 +466,7 @@ class ObservabilityRouter:
                 nodes=[AgentaNodeDTO(**span.model_dump()) for span in spans],
             )
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def query_analytics(
         self,
         request: Request,
@@ -504,7 +506,7 @@ class ObservabilityRouter:
                 detail=str(e),
             ) from e
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def fetch_trace_by_id(
         self,
         request: Request,
@@ -563,7 +565,7 @@ class ObservabilityRouter:
 
     ### MUTATIONS
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def delete_traces(
         self,
         request: Request,

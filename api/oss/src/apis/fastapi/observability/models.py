@@ -1,7 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from oss.src.apis.fastapi.shared.models import VersionedModel
 
@@ -21,6 +21,8 @@ class CollectStatusResponse(VersionedModel):
 class OTelTracingResponse(VersionedModel):
     count: Optional[int] = None
     spans: List[OTelSpanDTO]
+
+    model_config = ConfigDict(title="OTelTracingDataResponse")
 
 
 class AgentaNodeDTO(SpanDTO):

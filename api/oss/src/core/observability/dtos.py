@@ -183,18 +183,19 @@ class SpanDTO(BaseModel):
 
     nodes: Optional[Dict[str, Union["SpanDTO", List["SpanDTO"]]]] = None
 
-    class Config:
-        json_encoders = {
-            UUID: lambda v: str(v),  # pylint: disable=unnecessary-lambda
+    model_config = {
+        "json_encoders": {
+            UUID: lambda v: str(v),
             datetime: lambda dt: dt.isoformat(),
-        }
+        },
+    }
 
     def encode(self, data: Any) -> Any:
         if isinstance(data, dict):
             return {k: self.encode(v) for k, v in data.items()}
         elif isinstance(data, list):
             return [self.encode(item) for item in data]
-        for type_, encoder in self.Config.json_encoders.items():
+        for type_, encoder in self.model_config["json_encoders"].items():  # type: ignore
             if isinstance(data, type_):
                 return encoder(data)
         return data
@@ -306,8 +307,9 @@ class FilteringDTO(BaseModel):
 
     conditions: List[Union[ConditionDTO, "FilteringDTO"]]
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {
+        "arbitrary_types_allowed": True,
+    }
 
 
 class Focus(Enum):

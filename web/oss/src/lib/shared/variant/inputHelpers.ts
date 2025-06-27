@@ -45,6 +45,22 @@ export function extractVariables(input: string): string[] {
     return variables
 }
 
+export function extractVariablesFromJson(obj: any): string[] {
+    let variables: string[] = []
+    if (typeof obj === "string") {
+        return extractVariables(obj)
+    }
+    if (Array.isArray(obj)) {
+        variables = obj.flatMap((item) => extractVariablesFromJson(item))
+    } else if (obj && typeof obj === "object") {
+        variables = Object.entries(obj).flatMap(([k, v]) => {
+            const keyVars = typeof k === "string" ? extractVariables(k) : []
+            return [...keyVars, ...extractVariablesFromJson(v)]
+        })
+    }
+    return Array.from(new Set(variables))
+}
+
 /**
  * Schema Management
  * ----------------
@@ -133,7 +149,12 @@ export function updatePromptInputKeys(prompt: EnhancedVariant["prompts"][number]
     // @ts-ignore
     const messagesContent = prompt.messages.value.map((message) => message.content.value || "")
     // @ts-ignore
-    const variables = messagesContent.map((message) => extractVariables(message)).flat()
+    const messageVars = messagesContent.map((message) => extractVariables(message)).flat()
+
+    // @ts-ignore
+    const responseFormat = prompt.llmConfig?.responseFormat?.value
+    const responseVars = responseFormat ? extractVariablesFromJson(responseFormat) : []
+    const variables = Array.from(new Set([...messageVars, ...responseVars]))
 
     if (prompt.inputKeys) {
         // @ts-ignore

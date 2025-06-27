@@ -22,3 +22,10 @@ export const fetchSingleOrg = async ({orgId}: {orgId: string}, ignoreAxiosError 
     } as any)
     return response.data as OrgDetails
 }
+
+export const updateOrganization = async (orgId: string, name: string, ignoreAxiosError = false) => {
+    const response = await axios.put(`${getAgentaApiUrl()}/organizations/${orgId}/`, {name}, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+    return response.data
+}

@@ -1,14 +1,17 @@
 from typing import Any, Optional, Union, List
 from uuid import UUID
 
+from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, Request, Body, status
 
+from oss.src.utils.common import APIRouter
+
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.models import converters
-from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import app_manager, db_manager
 
 if is_ee():
@@ -76,9 +79,7 @@ async def add_variant_from_base_and_config(
     new_variant_name = (
         payload.new_variant_name
         if payload.new_variant_name
-        else payload.new_config_name
-        if payload.new_config_name
-        else base_db.base_name
+        else payload.new_config_name if payload.new_config_name else base_db.base_name
     )
     db_app_variant = await db_manager.add_variant_from_base_and_config(
         base_db=base_db,
@@ -470,7 +471,6 @@ async def remove_variant_revision(
 
 ### --- CONFIGS --- ###
 
-from oss.src.utils.exceptions import handle_exceptions
 from oss.src.services.variants_manager import (
     BaseModel,
     ReferenceDTO,
@@ -515,7 +515,7 @@ class ConfigResponseModel(ConfigDTO):
     operation_id="configs_add",
     response_model=ConfigResponseModel,
 )
-@handle_exceptions()
+@intercept_exceptions()
 async def configs_add(
     request: Request,
     variant_ref: ReferenceRequestModel,
@@ -559,7 +559,7 @@ async def configs_add(
     operation_id="configs_fetch",
     response_model=ConfigResponseModel,
 )
-@handle_exceptions()
+@intercept_exceptions()
 async def configs_fetch(
     request: Request,
     variant_ref: Optional[ReferenceRequestModel] = None,
@@ -650,7 +650,7 @@ async def configs_fetch(
     operation_id="configs_fork",
     response_model=ConfigResponseModel,
 )
-@handle_exceptions()
+@intercept_exceptions()
 async def configs_fork(
     request: Request,
     variant_ref: Optional[ReferenceRequestModel] = None,
@@ -693,7 +693,7 @@ async def configs_fork(
     operation_id="configs_commit",
     response_model=ConfigResponseModel,
 )
-@handle_exceptions()
+@intercept_exceptions()
 async def configs_commit(
     request: Request,
     config: ConfigRequest,
@@ -723,7 +723,7 @@ async def configs_commit(
     operation_id="configs_deploy",
     response_model=ConfigResponseModel,
 )
-@handle_exceptions()
+@intercept_exceptions()
 async def configs_deploy(
     request: Request,
     variant_ref: ReferenceRequestModel,
@@ -757,7 +757,7 @@ async def configs_deploy(
     operation_id="configs_delete",
     response_model=int,
 )
-@handle_exceptions()
+@intercept_exceptions()
 async def configs_delete(
     request: Request,
     variant_ref: ReferenceRequestModel,
@@ -783,7 +783,7 @@ async def configs_delete(
     operation_id="configs_list",
     response_model=List[ConfigResponseModel],
 )
-@handle_exceptions()
+@intercept_exceptions()
 async def configs_list(
     request: Request,
     application_ref: ReferenceRequest,
@@ -802,7 +802,7 @@ async def configs_list(
     operation_id="configs_history",
     response_model=List[ConfigResponseModel],
 )
-@handle_exceptions()
+@intercept_exceptions()
 async def configs_history(
     request: Request,
     variant_ref: ReferenceRequestModel,

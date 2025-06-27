@@ -8,7 +8,7 @@ from oss.src.utils import traces
 from oss.src.models.api.api_models import Result
 
 
-class Evaluator(BaseModel):
+class LegacyEvaluator(BaseModel):
     name: str
     key: str
     direct_use: bool

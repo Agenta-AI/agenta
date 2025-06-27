@@ -5,16 +5,26 @@ from os import path as os_path
 
 from pydantic import ValidationError
 
-from fastapi import Request, status, HTTPException, UploadFile, File, Form, Query
+from fastapi import (
+    APIRouter,
+    Request,
+    status,
+    HTTPException,
+    UploadFile,
+    File,
+    Form,
+    Query,
+)
 from fastapi.responses import FileResponse
 
-from oss.src.utils.common import APIRouter, is_ee
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.testsets.dtos import TestsetFlags, TestsetData
 from oss.src.core.testsets.service import TestsetsService
-from oss.src.apis.fastapi.shared.utils import handle_exceptions
 
 from oss.src.core.testsets.dtos import (
     TestsetArtifact,
@@ -197,7 +207,7 @@ class TestsetsRouter:
             response_model_exclude_none=True,
         )
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def create_testset(
         self,
         *,
@@ -347,7 +357,8 @@ class TestsetsRouter:
 
         return testset_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=TestsetResponse())
     async def fetch_testset(
         self,
         *,
@@ -436,7 +447,7 @@ class TestsetsRouter:
 
         return testset_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def edit_testset(
         self,
         *,
@@ -615,7 +626,7 @@ class TestsetsRouter:
 
         return testset_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def archive_testset(
         self,
         *,
@@ -686,7 +697,7 @@ class TestsetsRouter:
 
         return testset_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def unarchive_testset(
         self,
         *,
@@ -757,7 +768,8 @@ class TestsetsRouter:
 
         return testset_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=TestsetsResponse())
     async def query_testsets(
         self,
         *,
@@ -848,7 +860,7 @@ class TestsetsRouter:
 
         return testsets_response
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def create_testset_from_file(
         self,
         *,
@@ -921,7 +933,7 @@ class TestsetsRouter:
             testset_request=testset_request,
         )
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def update_testset_from_file(
         self,
         *,
@@ -1003,7 +1015,7 @@ class TestsetsRouter:
             testset_request=testset_request,
         )
 
-    @handle_exceptions()
+    @intercept_exceptions()
     async def fetch_testset_to_file(
         self,
         *,
@@ -1102,7 +1114,8 @@ class TestsetsRouter:
             else:
                 raise HTTPException(status_code=400, detail="Invalid file type.")
 
-    @handle_exceptions()
+    @intercept_exceptions()
+    @suppress_exceptions(default=TestcaseResponse())
     async def fetch_testcase(
         self,
         *,

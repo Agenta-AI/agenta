@@ -6,19 +6,19 @@ from oss.src.services import db_manager
 from oss.src.models.db_models import EvaluatorConfigDB
 from oss.src.models.converters import evaluator_config_db_to_pydantic
 from oss.src.resources.evaluators.evaluators import get_all_evaluators
-from oss.src.models.api.evaluation_model import Evaluator, EvaluatorConfig
+from oss.src.models.api.evaluation_model import LegacyEvaluator, EvaluatorConfig
 
 
-def get_evaluators() -> List[Evaluator]:
+def get_evaluators() -> List[LegacyEvaluator]:
     """
     Fetches a list of evaluators from a JSON file.
 
     Returns:
-        List[Evaluator]: A list of evaluator objects.
+        List[LegacyEvaluator]: A list of evaluator objects.
     """
 
     evaluators_as_dict = get_all_evaluators()
-    return [Evaluator(**evaluator_dict) for evaluator_dict in evaluators_as_dict]
+    return [LegacyEvaluator(**evaluator_dict) for evaluator_dict in evaluators_as_dict]
 
 
 async def get_evaluators_configs(project_id: str) -> List[EvaluatorConfig]:
