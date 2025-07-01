@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Any, Tuple, List
+from typing import Dict, Any, Tuple, List
 import re
 
 from oss.src.apis.fastapi.observability.extractors.base_adapter import BaseAdapter
@@ -12,7 +12,7 @@ from oss.src.apis.fastapi.observability.utils.serialization import (
 )
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 # Semantic Convention Mappings for OpenInference
 OPENINFERENCE_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
@@ -168,13 +168,13 @@ class OpenInferenceAdapter(BaseAdapter):
                             )
                             if new_suffix != suffix:
                                 suffix = new_suffix
-                                log.debug(
+                                log.warn(
                                     f"OpenInferenceAdapter: Stripped '.message.' from suffix for {key}, new suffix: {suffix}"
                                 )
                             else:
                                 # Log if pattern didn't match for a key that might be expected to have it.
                                 # This could happen for new, unexpected sub-structures under messages.
-                                log.debug(
+                                log.warn(
                                     f"OpenInferenceAdapter: Suffix '{suffix}' for prefix '{otel_prefix}' did not match '.message.' stripping pattern for key '{key}'. Using original suffix."
                                 )
 
@@ -197,7 +197,7 @@ class OpenInferenceAdapter(BaseAdapter):
             if has_input_messages and "ag.data.inputs" in transformed_attributes:
                 # If we have structured messages, remove the generic 'input.value' mapping
                 del transformed_attributes["ag.data.inputs"]
-                log.debug(
+                log.warn(
                     f"OpenInferenceAdapter: For node type '{current_node_type}', removed generic 'ag.data.inputs' (from input.value) in favor of message-based inputs."
                 )
 
@@ -209,7 +209,7 @@ class OpenInferenceAdapter(BaseAdapter):
             if has_output_messages and "ag.data.outputs" in transformed_attributes:
                 # If we have structured messages, remove the generic 'output.value' mapping
                 del transformed_attributes["ag.data.outputs"]
-                log.debug(
+                log.warn(
                     f"OpenInferenceAdapter: For node type '{current_node_type}', removed generic 'ag.data.outputs' (from output.value) in favor of message-based outputs."
                 )
 

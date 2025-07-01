@@ -235,7 +235,7 @@ async def create_app(
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-        if db_manager.get_app_type(payload.template_key) == AppType.CUSTOM:
+        if await db_manager.get_app_type(payload.template_key) == AppType.CUSTOM:
             check, _, _ = await check_entitlements(
                 organization_id=request.state.organization_id,
                 key=Flag.HOOKS,

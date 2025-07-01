@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 from copy import copy
 from datetime import datetime, timezone
 
@@ -13,7 +13,7 @@ from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
 )
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 class Normalizer:

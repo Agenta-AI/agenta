@@ -1,21 +1,23 @@
 from typing import Optional, List, TypeVar, Type
-from uuid import UUID, uuid4
+from uuid import UUID
 from json import dumps
+from datetime import datetime, timezone
 from hashlib import blake2b
 
-from sqlalchemy import select, or_
+from sqlalchemy import select
 
 from oss.src.utils.logging import get_module_logger
+
+from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.core.shared.dtos import Windowing
+from oss.src.core.blobs.dtos import Blob, BlobCreate, BlobEdit, BlobQuery
+from oss.src.core.blobs.interfaces import BlobsDAOInterface
+
+from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
 from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.dbs.postgres.shared.engine import engine
-from oss.src.core.blobs.interfaces import BlobDAOInterface
-from oss.src.core.blobs.dtos import Blob
-from oss.src.core.shared.dtos import Reference
+from oss.src.dbs.postgres.blobs.mappings import map_dbe_to_dto, map_dto_to_dbe
 
-from oss.src.dbs.postgres.blobs.mappings import (
-    map_dbe_to_dto,
-    map_dto_to_dbe,
-)
 
 log = get_module_logger(__name__)
 
@@ -23,7 +25,7 @@ log = get_module_logger(__name__)
 T = TypeVar("T")
 
 
-class BlobDAO(BlobDAOInterface):
+class BlobsDAO(BlobsDAOInterface):
     def __init__(
         self,
         *,
@@ -33,57 +35,64 @@ class BlobDAO(BlobDAOInterface):
 
     # ─ blobs ──────────────────────────────────────────────────────────────────
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[EntityCreationConflict])
     async def add_blob(
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
-        blob: Blob,
+        blob_create: BlobCreate,
     ) -> Optional[Blob]:
-        blob.id = self._blob_id(
-            blob_data=blob.data,
-            set_id=blob.set_id,
+        blob = Blob(
+            id=self._blob_id(
+                blob_data=blob_create.data,
+                set_id=blob_create.set_id,
+            ),
+            #
+            created_at=datetime.now(timezone.utc),
+            created_by_id=user_id,
+            #
+            flags=blob_create.flags,
+            tags=blob_create.tags,
+            meta=blob_create.meta,
+            #
+            data=blob_create.data,
+            #
+            set_id=blob_create.set_id,
         )
-        blob.slug = blob.slug or uuid4().hex
 
-        async with engine.core_session() as session:
-            stmt = select(self.BlobDBE).filter(
-                self.BlobDBE.project_id == project_id,
-                self.BlobDBE.id == blob.id,
-            )
-            result = await session.execute(stmt)
-
-            existing_dbe = result.scalar_one_or_none()
-
-            if not existing_dbe:
-                blob_dbe = map_dto_to_dbe(
-                    DBE=self.BlobDBE,  # type: ignore
-                    project_id=project_id,
-                    dto=blob,
+        try:
+            async with engine.core_session() as session:
+                stmt = select(self.BlobDBE).filter(
+                    self.BlobDBE.project_id == project_id,  # type: ignore
+                    self.BlobDBE.id == blob.id,  # type: ignore
                 )
-                session.add(blob_dbe)
 
-                await session.commit()
+                result = await session.execute(stmt)
 
-            stmt = select(self.BlobDBE).filter(
-                self.BlobDBE.project_id == project_id,
-                self.BlobDBE.id == blob.id,
-            )
+                existing_dbe = result.scalar_one_or_none()
 
-            result = await session.execute(stmt)
+                if not existing_dbe:
+                    blob_dbe = map_dto_to_dbe(
+                        DBE=self.BlobDBE,  # type: ignore
+                        project_id=project_id,
+                        dto=blob,
+                    )
+                    session.add(blob_dbe)
 
-            blob_dbe = result.scalar_one_or_none()
+                    await session.commit()
 
-            if not blob_dbe:
-                return None
+                return await self.fetch_blob(
+                    project_id=project_id,
+                    #
+                    blob_id=blob.id,
+                )
 
-            blob = map_dbe_to_dto(
-                DTO=Blob,  # type: ignore
-                dbe=blob_dbe,
-            )
+        except Exception as e:
+            check_entity_creation_conflict(e)
 
-            return blob
+            raise
 
     @suppress_exceptions()
     async def fetch_blob(
@@ -91,18 +100,14 @@ class BlobDAO(BlobDAOInterface):
         *,
         project_id: UUID,
         #
-        blob_ref: Optional[Reference] = None,
+        blob_id: UUID,
     ) -> Optional[Blob]:
         async with engine.core_session() as session:
             query = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )
 
-            if blob_ref:
-                if blob_ref.id:
-                    query = query.filter(self.BlobDBE.id == blob_ref.id)
-                elif blob_ref.slug:
-                    query = query.filter(self.BlobDBE.slug == blob_ref.slug)  # type: ignore
+            query = query.filter(self.BlobDBE.id == blob_id)  # type: ignore
 
             query = query.limit(1)
 
@@ -112,6 +117,48 @@ class BlobDAO(BlobDAOInterface):
 
             if not blob_dbe:
                 return None
+
+            blob = map_dbe_to_dto(
+                DTO=Blob,
+                dbe=blob_dbe,  # type: ignore
+            )
+
+            return blob
+
+    @suppress_exceptions()
+    async def edit_blob(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        blob_edit: BlobEdit,
+    ) -> Optional[Blob]:
+        async with engine.core_session() as session:
+            query = select(self.BlobDBE).filter(
+                self.BlobDBE.project_id == project_id,  # type: ignore
+            )
+
+            query = query.filter(self.BlobDBE.id == blob_edit.id)  # type: ignore
+
+            query = query.limit(1)
+
+            result = await session.execute(query)
+
+            blob_dbe = result.scalar_one_or_none()
+
+            if not blob_dbe:
+                return None
+
+            for key, value in blob_edit.model_dump(exclude_unset=True).items():
+                setattr(blob_dbe, key, value)
+
+            blob_dbe.updated_at = datetime.now(timezone.utc)
+            blob_dbe.updated_by_id = user_id
+
+            await session.commit()
+
+            await session.refresh(blob_dbe)
 
             blob = map_dbe_to_dto(
                 DTO=Blob,
@@ -155,68 +202,76 @@ class BlobDAO(BlobDAOInterface):
 
             return blob
 
-    @suppress_exceptions()
+    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
     async def add_blobs(
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
-        blobs: List[Blob],
+        blob_creates: List[BlobCreate],
     ) -> List[Blob]:
-        for blob in blobs:
-            blob.id = self._blob_id(
-                blob_data=blob.data,
-                set_id=blob.set_id,
+        blobs: List[Blob] = [
+            Blob(
+                id=self._blob_id(
+                    blob_data=blob_create.data,
+                    set_id=blob_create.set_id,
+                ),
+                #
+                created_at=datetime.now(timezone.utc),
+                created_by_id=user_id,
+                #
+                flags=blob_create.flags,
+                tags=blob_create.tags,
+                meta=blob_create.meta,
+                #
+                data=blob_create.data,
+                #
+                set_id=blob_create.set_id,
             )
-            blob.slug = blob.slug or uuid4().hex
+            for blob_create in blob_creates
+        ]
 
         blob_ids = [blob.id for blob in blobs]
 
-        async with engine.core_session() as session:
-            stmt = select(self.BlobDBE).filter(
-                self.BlobDBE.project_id == project_id,
-                self.BlobDBE.id.in_(blob_ids),
-            )
+        try:
+            async with engine.core_session() as session:
+                stmt = select(self.BlobDBE).filter(
+                    self.BlobDBE.project_id == project_id,
+                    self.BlobDBE.id.in_(blob_ids),
+                )
 
-            existing = await session.execute(stmt)
+                existing = await session.execute(stmt)
 
-            existing_dbes = existing.scalars().all()
+                existing_dbes = existing.scalars().all()
 
-            existing_ids = {b.id for b in existing_dbes}
+                existing_ids = {b.id for b in existing_dbes}
 
-            new_blobs = [blob for blob in blobs if blob.id not in existing_ids]
+                new_blobs = [blob for blob in blobs if blob.id not in existing_ids]
 
-            blob_dbes = [
-                map_dto_to_dbe(
-                    DBE=self.BlobDBE,  # type: ignore
+                blob_dbes = [
+                    map_dto_to_dbe(
+                        DBE=self.BlobDBE,  # type: ignore
+                        project_id=project_id,
+                        dto=blob,
+                    )
+                    for blob in new_blobs
+                ]
+
+                session.add_all(blob_dbes)
+
+                await session.commit()
+
+                return await self.fetch_blobs(
                     project_id=project_id,
-                    dto=blob,
+                    #
+                    blob_ids=blob_ids,
                 )
-                for blob in new_blobs
-            ]
 
-            session.add_all(blob_dbes)
+        except Exception as e:
+            check_entity_creation_conflict(e)
 
-            await session.commit()
-
-            stmt = select(self.BlobDBE).filter(
-                self.BlobDBE.project_id == project_id,
-                self.BlobDBE.id.in_(blob_ids),
-            )
-
-            result = await session.execute(stmt)
-
-            blob_dbes = result.scalars().all()
-
-            blobs = [
-                map_dbe_to_dto(
-                    DTO=Blob,  # type: ignore
-                    dbe=dbe,
-                )
-                for dbe in blob_dbes
-            ]
-
-            return blobs
+            raise
 
     @suppress_exceptions()
     async def fetch_blobs(
@@ -224,36 +279,14 @@ class BlobDAO(BlobDAOInterface):
         *,
         project_id: UUID,
         #
-        set_id: Optional[UUID] = None,
-        #
-        blob_refs: Optional[List[Reference]] = None,
-        #
-        limit: Optional[int] = None,
+        blob_ids: List[UUID],
     ) -> List[Blob]:
         async with engine.core_session() as session:
             query = select(self.BlobDBE).filter(
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )
 
-            if set_id:
-                query = query.filter(self.BlobDBE.set_id == set_id)
-
-            if blob_refs:
-                blob_ids = [blob_ref.id for blob_ref in blob_refs if blob_ref.id]
-                blob_slugs = [blob_ref.slug for blob_ref in blob_refs if blob_ref.slug]
-
-                if blob_ids or blob_slugs:
-                    filters = []
-
-                    if blob_ids:
-                        filters.append(self.BlobDBE.id.in_(blob_ids))
-                    if blob_slugs:
-                        filters.append(self.BlobDBE.slug.in_(blob_slugs))
-
-                    query = query.filter(or_(*filters))
-
-            if limit:
-                query = query.limit(limit)
+            query = query.filter(self.BlobDBE.id.in_(blob_ids))  # type: ignore
 
             result = await session.execute(query)
 
@@ -261,6 +294,57 @@ class BlobDAO(BlobDAOInterface):
 
             if not blob_dbes:
                 return []
+
+            blobs = [
+                map_dbe_to_dto(
+                    DTO=Blob,
+                    dbe=blob_dbe,  # type: ignore
+                )
+                for blob_dbe in blob_dbes
+            ]
+
+            return blobs
+
+    @suppress_exceptions()
+    async def edit_blobs(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        blob_edits: List[BlobEdit],
+    ) -> List[Blob]:
+        async with engine.core_session() as session:
+            query = select(self.BlobDBE).filter(
+                self.BlobDBE.project_id == project_id,  # type: ignore
+            )
+
+            blob_ids = [blob_edit.id for blob_edit in blob_edits]
+
+            query = query.filter(self.BlobDBE.id.in_(blob_ids))
+
+            query = query.limit(len(blob_edits))
+
+            result = await session.execute(query)
+
+            blob_dbes = result.scalars().all()
+
+            if not blob_dbes:
+                return []
+
+            for blob_dbe in blob_dbes:
+                for blob_edit in blob_edits:
+                    if blob_dbe.id == blob_edit.id:
+                        for key, value in blob_edit.model_dump().items():
+                            setattr(blob_dbe, key, value)
+
+                        blob_dbe.updated_at = datetime.now(timezone.utc)
+                        blob_dbe.updated_by_id = user_id
+
+            await session.commit()
+
+            for blob_dbe in blob_dbes:
+                await session.refresh(blob_dbe)
 
             blobs = [
                 map_dbe_to_dto(
@@ -285,7 +369,7 @@ class BlobDAO(BlobDAOInterface):
                 self.BlobDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.BlobDBE.id.in_(blob_ids))
+            query = query.filter(self.BlobDBE.id.in_(blob_ids))  # type: ignore
 
             query = query.limit(len(blob_ids))
 
@@ -311,6 +395,79 @@ class BlobDAO(BlobDAOInterface):
 
             return blobs
 
+    @suppress_exceptions()
+    async def query_blobs(
+        self,
+        *,
+        project_id: UUID,
+        #
+        blob_query: BlobQuery,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Blob]:
+        async with engine.core_session() as session:
+            query = select(self.BlobDBE).filter(
+                self.BlobDBE.project_id == project_id,  # type: ignore
+            )
+
+            if blob_query.set_ids:
+                query = query.filter(self.BlobDBE.set_id.in_(blob_query.set_ids))  # type: ignore
+
+            if blob_query.blob_ids:
+                query = query.filter(self.BlobDBE.id.in_(blob_query.blob_ids))  # type: ignore
+
+            if blob_query.flags:
+                query = query.filter(
+                    self.BlobDBE.flags.contains(blob_query.flags),  # type: ignore
+                )
+
+            if blob_query.tags:
+                query = query.filter(
+                    self.BlobDBE.tags.contains(blob_query.tags),  # type: ignore
+                )
+
+            if blob_query.meta:
+                query = query.filter(
+                    self.BlobDBE.meta.contains(blob_query.meta),  # type: ignore
+                )
+
+            query.order_by(self.BlobDBE.created_at.desc())  # type: ignore
+
+            if windowing:
+                if windowing.next is not None:
+                    query = query.filter(
+                        self.BlobDBE.id > windowing.next,  # type: ignore
+                    )
+                if windowing.start:
+                    query = query.filter(
+                        self.BlobDBE.created_at > windowing.start,  # type: ignore
+                    )
+
+                if windowing.stop:
+                    query = query.filter(
+                        self.BlobDBE.created_at <= windowing.stop,  # type: ignore
+                    )
+
+                if windowing.limit:
+                    query = query.limit(windowing.limit)
+
+            result = await session.execute(query)
+
+            blob_dbes = result.scalars().all()
+
+            if not blob_dbes:
+                return []
+
+            blobs = [
+                map_dbe_to_dto(
+                    DTO=Blob,
+                    dbe=blob_dbe,  # type: ignore
+                )
+                for blob_dbe in blob_dbes
+            ]
+
+            return blobs
+
     # ──────────────────────────────────────────────────────────────────────────
 
     # ─ helpers ────────────────────────────────────────────────────────────────
@@ -325,7 +482,7 @@ class BlobDAO(BlobDAOInterface):
         json_blob_data = dumps(blob_data, sort_keys=True, separators=(",", ":"))
 
         # Combine with set_id
-        unhashed = f"{set_id}{json_blob_data}".encode("utf-8")
+        unhashed = f"{str(set_id)}{json_blob_data}".encode("utf-8")
 
         # Blake2b with 16-byte digest
         hashed = bytearray(blake2b(unhashed, digest_size=16).digest())

@@ -1,5 +1,4 @@
-from typing import Optional
-from datetime import datetime
+from typing import Optional, List
 
 from pydantic import BaseModel
 
@@ -10,6 +9,7 @@ from oss.src.core.tracing.dtos import (
     OTelFlatSpan,  # needed for annotations at the moment
     OTelFlatSpans,
     OTelTraceTree,
+    Bucket,
 )
 
 
@@ -25,7 +25,10 @@ class OTelLinksResponse(VersionedModel):
 
 class OTelTracingResponse(VersionedModel):
     count: int = 0
-    oldest: Optional[datetime] = None
-    newest: Optional[datetime] = None
     spans: Optional[OTelFlatSpans] = None
     traces: Optional[OTelTraceTree] = None
+
+
+class AnalyticsResponse(VersionedModel):
+    count: Optional[int] = None
+    buckets: List[Bucket] = []

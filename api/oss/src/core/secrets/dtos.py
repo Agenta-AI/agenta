@@ -10,7 +10,7 @@ from oss.src.core.secrets.enums import (
 from oss.src.core.shared.dtos import (
     Identifier,
     Header,
-    LifecycleDTO,
+    LegacyLifecycleDTO,
 )
 
 
@@ -132,7 +132,7 @@ class UpdateSecretDTO(BaseModel):
 
 class SecretResponseDTO(Identifier, SecretDTO):
     header: Header
-    lifecycle: Optional[LifecycleDTO] = None
+    lifecycle: Optional[LegacyLifecycleDTO] = None
 
     @model_validator(mode="before")
     def build_up_model_keys(cls, values: Dict[str, Any]) -> Dict[str, Any]:

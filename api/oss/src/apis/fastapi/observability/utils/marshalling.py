@@ -1,7 +1,8 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, Union
+
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 def marshall(
@@ -71,7 +72,7 @@ def unmarshall(
     return items
 
 
-def unmarshal_attributes(
+def unmarshall_attributes(
     marshalled: Dict[str, Any],
 ) -> Dict[str, Any]:
     """

@@ -45,6 +45,10 @@ class DBEngine:
 
         self.tracing_engine: AsyncEngine = create_async_engine(
             url=self.postgres_uri_tracing,
+            pool_pre_ping=True,
+            pool_recycle=1800,
+            pool_size=25,
+            max_overflow=50,
         )  # type: ignore
         self.async_tracing_session_maker = async_sessionmaker(
             bind=self.tracing_engine,

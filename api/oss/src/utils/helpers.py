@@ -51,20 +51,21 @@ def warn_deprecated_env_vars():
 
     for old_var, new_var in deprecated_env_map.items():
         if getattr(env, old_var, None) is not None:
-            messages.append(
-                f"Environment variable '{old_var}' is deprecated and will be removed in the next release. "
-                f"Please use '{new_var}' instead."
-                if new_var
-                else ""
-            )
-
-        if old_var is not None and new_var is None:
-            messages.extend(
-                [
+            if new_var is not None:
+                messages.append(
                     f"Environment variable '{old_var}' is deprecated and will be removed in the next release. "
-                    f"Please consider removing it."
-                ]
-            )
+                    f"Please use '{new_var}' instead."
+                    if new_var
+                    else ""
+                )
+
+            else:
+                messages.extend(
+                    [
+                        f"Environment variable '{old_var}' is deprecated and will be removed in the next release. "
+                        f"Please consider removing it."
+                    ]
+                )
 
     if messages:
         click.echo(

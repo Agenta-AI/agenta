@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Union, Optional
 
 from pydantic import BaseModel
 
-from oss.src.core.shared.dtos import LifecycleDTO
+from oss.src.core.shared.dtos import LegacyLifecycleDTO
 
 
 ## --- SUB-ENTITIES --- ##
@@ -159,7 +159,7 @@ class SpanDTO(BaseModel):
     trace_id: str
     span_id: str
 
-    lifecycle: Optional[LifecycleDTO] = None
+    lifecycle: Optional[LegacyLifecycleDTO] = None
 
     root: RootDTO
     tree: TreeDTO

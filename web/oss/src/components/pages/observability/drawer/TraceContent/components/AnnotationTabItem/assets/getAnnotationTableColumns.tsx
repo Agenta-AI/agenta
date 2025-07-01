@@ -85,14 +85,25 @@ export const getAnnotationTableColumns = (
             })),
         },
         {
-            title: "Source",
-            key: "source",
+            title: "Kind",
+            key: "kind",
             width: 144,
             onHeaderCell: () => ({
                 style: {minWidth: 144},
             }),
             render: (_, record) => {
-                return <div>{record.source}</div>
+                return <div>{record.kind}</div>
+            },
+        },
+        {
+            title: "Channel",
+            key: "channel",
+            width: 144,
+            onHeaderCell: () => ({
+                style: {minWidth: 144},
+            }),
+            render: (_, record) => {
+                return <div>{record.channel}</div>
             },
         },
         {

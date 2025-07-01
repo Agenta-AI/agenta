@@ -10,6 +10,7 @@ from supertokens_python.framework.fastapi import (
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.routers import (
+    admin_router,
     app_router,
     environment_router,
     evaluators_router,
@@ -46,7 +47,7 @@ from oss.src.apis.fastapi.observability.router import ObservabilityRouter
 
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
-from oss.src.dbs.postgres.blobs.dao import BlobDAO
+from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.core.workflows.service import WorkflowsService
@@ -58,7 +59,7 @@ from oss.src.dbs.postgres.workflows.dbes import (
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
-from oss.src.apis.fastapi.evaluators.router import EvaluatorsRouter
+from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 
 
 from oss.src.apis.fastapi.tracing.router import TracingRouter
@@ -67,14 +68,20 @@ from oss.src.core.tracing.service import TracingService
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 
 
-from oss.src.apis.fastapi.testsets.router import TestsetsRouter
+from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
 from oss.src.core.testsets.service import TestsetsService
+from oss.src.core.testcases.service import TestcasesService
 from oss.src.dbs.postgres.testcases.dbes import TestcaseBlobDBE
 from oss.src.dbs.postgres.testsets.dbes import (
     TestsetArtifactDBE,
     TestsetVariantDBE,
     TestsetRevisionDBE,
 )
+
+
+from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
+from oss.src.core.evaluations.service import EvaluationsService
+from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 
 
 origins = [
@@ -133,7 +140,7 @@ app.add_middleware(
     allow_headers=allow_headers,
 )
 
-app.include_router(user_profile.admin_router, prefix="/admin/accounts")
+app.include_router(admin_router.router, prefix="/admin", tags=["Admin"])
 app.include_router(health_router.router, prefix="/health")
 app.include_router(
     permissions_router.router, prefix="/permissions", tags=["Access Control"]
@@ -167,10 +174,13 @@ vault_router = VaultRouter(
 observability = ObservabilityRouter(
     observability_service=ObservabilityService(
         observability_dao=ObservabilityDAO(),
-    )
+    ),
+    tracing_service=TracingService(
+        tracing_dao=TracingDAO(),
+    ),
 )
 
-evaluators = EvaluatorsRouter(
+simple_evaluators = SimpleEvaluatorsRouter(
     workflows_service=WorkflowsService(
         workflows_dao=GitDAO(
             ArtifactDBE=WorkflowArtifactDBE,
@@ -209,16 +219,24 @@ workflows = WorkflowsRouter(
     ),
 )
 
-testsets = TestsetsRouter(
+simple_testsets = SimpleTestsetsRouter(
     testsets_service=TestsetsService(
-        git_dao=GitDAO(
+        testsets_dao=GitDAO(
             ArtifactDBE=TestsetArtifactDBE,
             VariantDBE=TestsetVariantDBE,
             RevisionDBE=TestsetRevisionDBE,
         ),
-        blobs_dao=BlobDAO(
-            BlobDBE=TestcaseBlobDBE,
+        testcases_service=TestcasesService(
+            blobs_dao=BlobsDAO(
+                BlobDBE=TestcaseBlobDBE,
+            )
         ),
+    )
+)
+
+evaluations = EvaluationsRouter(
+    evaluations_service=EvaluationsService(
+        evaluations_dao=EvaluationsDAO(),
     )
 )
 
@@ -230,14 +248,8 @@ app.include_router(
 )
 
 app.include_router(
-    router=evaluators.router,
-    prefix="/preview/evaluators",
-    tags=["Evals"],
-)
-
-app.include_router(
-    router=annotations.router,
-    prefix="/preview/annotations",
+    router=simple_evaluators.router,
+    prefix="/preview/simple/evaluators",
     tags=["Evals"],
 )
 
@@ -249,14 +261,20 @@ app.include_router(
 
 app.include_router(
     router=workflows.router,
-    prefix="/preview/base/workflows",
+    prefix="/preview/workflows",
     tags=["Workflows"],
 )
 
 app.include_router(
-    router=testsets.router,
-    prefix="/preview/testsets",
+    router=simple_testsets.router,
+    prefix="/preview/simple/testsets",
     tags=["Testsets"],
+)
+
+app.include_router(
+    router=evaluations.router,
+    prefix="/preview/evaluations",
+    tags=["Evaluations"],
 )
 
 app.include_router(

@@ -139,6 +139,15 @@ class VersionedDBA:
     )
 
 
+class FlagsDBA:
+    __abstract__ = True
+
+    flags = Column(
+        JSONB(none_as_null=True),
+        nullable=True,
+    )
+
+
 class TagsDBA:
     __abstract__ = True
 
@@ -164,19 +173,6 @@ class DataDBA:
         JSONB(none_as_null=True),
         nullable=True,
     )
-
-
-class FlagsDBA:
-    __abstract__ = True
-
-    flags = Column(
-        JSONB(none_as_null=True),
-        nullable=True,
-    )
-
-
-class BodyDBA(TagsDBA, DataDBA):
-    pass
 
 
 class CommitDBA:

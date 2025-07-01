@@ -8,6 +8,9 @@ from sqlalchemy import and_, or_, not_, distinct, Column, func, cast, text
 from sqlalchemy import TIMESTAMP, Enum, UUID as SQLUUID, Integer, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.future import select
+from sqlalchemy.dialects import postgresql
+
+from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.observability.dbes import NodesDBE
@@ -44,6 +47,8 @@ from oss.src.core.observability.utils import (
     _is_string_key,
 )
 
+log = get_module_logger(__name__)
+
 _DEFAULT_TIME_DELTA = timedelta(days=30)
 _DEFAULT_WINDOW = 1440  # 1 day
 _DEFAULT_WINDOW_TEXT = "1 day"
@@ -58,6 +63,10 @@ _SUGGESTED_BUCKETS_LIST = [
     (1440, "1 day"),
 ]
 
+DEBUG_ARGS = {
+    "dialect": postgresql.dialect(),
+    "compile_kwargs": {"literal_binds": True},
+}
 STATEMENT_TIMEOUT = 60_000  # milliseconds
 COLUMNS_TO_EXCLUDE = ["content"]
 COLUMNS_TO_INCLUDE = [
@@ -183,15 +192,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # --------
 
                 # DEBUGGING
-                # TODO: HIDE THIS BEFORE RELEASING
-                # print(
-                #     str(
-                #         query.compile(
-                #             dialect=postgresql.dialect(),
-                #             compile_kwargs={"literal_binds": True},
-                #         )
-                #     )
-                # )
+                # log.trace(str(query.compile(**DEBUG_ARGS)).replace("\n", " "))
                 # ---------
 
                 # QUERY EXECUTION

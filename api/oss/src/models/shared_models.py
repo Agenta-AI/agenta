@@ -23,6 +23,8 @@ class InvokationResult(BaseModel):
     result: Result
     cost: Optional[float] = None
     latency: Optional[float] = None
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
 
 
 class EvaluationScenarioResult(BaseModel):

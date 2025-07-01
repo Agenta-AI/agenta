@@ -5,9 +5,90 @@ from uuid import UUID
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Union, Optional
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, model_validator, Field
 
-from oss.src.core.shared.dtos import Tags, Metrics, Json, Lifecycle
+from oss.src.core.shared.dtos import (
+    Identifier,
+    Lifecycle,
+    Metrics,
+    Json,
+    Flags,
+    Tags,
+    Meta,
+    Data,
+    Reference,
+    Hashes,
+)
+
+
+# 'ag.' attributes -------------------------------------------------------------
+
+
+class TraceType(Enum):
+    INVOCATION = "invocation"
+    ANNOTATION = "annotation"
+    UNDEFINED = "undefined"
+
+
+class SpanType(Enum):
+    AGENT = "agent"
+    CHAIN = "chain"
+    WORKFLOW = "workflow"
+    TASK = "task"
+    TOOL = "tool"
+    EMBEDDING = "embedding"
+    QUERY = "query"
+    LLM = "llm"
+    COMPLETION = "completion"
+    CHAT = "chat"
+    RERANK = "rerank"
+    UNDEFINED = "undefined"
+
+
+class AgMetricEntryAttributes(BaseModel):
+    # cumulative: 'cum' can't be used though
+    cumulative: Optional[Metrics] = None
+    # incremental 'inc' could be used, since 'unit' may be confusing
+    incremental: Optional[Metrics] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AgMetricsAttributes(BaseModel):
+    duration: Optional[AgMetricEntryAttributes] = None
+    errors: Optional[AgMetricEntryAttributes] = None
+    tokens: Optional[AgMetricEntryAttributes] = None
+    costs: Optional[AgMetricEntryAttributes] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AgTypeAttributes(BaseModel):
+    trace: Optional[TraceType] = TraceType.INVOCATION
+    span: Optional[SpanType] = SpanType.TASK
+
+
+class AgDataAttributes(BaseModel):
+    inputs: Optional[Dict[str, Any]] = None
+    outputs: Optional[Any] = None
+    internals: Optional[Dict[str, Any]] = None
+
+    model_config = {"ser_json_exclude_none": True}
+
+
+class AgAttributes(BaseModel):
+    type: AgTypeAttributes = Field(default_factory=AgTypeAttributes)
+    data: AgDataAttributes = Field(default_factory=AgDataAttributes)
+
+    metrics: Optional[AgMetricsAttributes] = None
+    flags: Optional[Flags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+    exception: Optional[Data] = None
+    references: Optional[Dict[str, "OTelReference"]] = None
+    unsupported: Optional[Data] = None
+
+    model_config = {"ser_json_exclude_none": True}
 
 
 ## --- SUB-ENTITIES --- ##
@@ -41,28 +122,6 @@ class OTelEvent(BaseModel):
 
     attributes: Optional[OTelAttributes] = None
 
-    class Config:
-        json_encoders = {datetime: lambda dt: dt.isoformat()}
-
-    def encode(self, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: self.encode(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self.encode(item) for item in data]
-        for type_, encoder in self.Config.json_encoders.items():
-            if isinstance(data, type_):
-                return encoder(data)
-        return data
-
-    def model_dump(self, *args, **kwargs) -> dict:
-        return self.encode(
-            super().model_dump(
-                *args,
-                **kwargs,
-                exclude_none=True,
-            )
-        )
-
 
 OTelEvents = List[OTelEvent]
 
@@ -75,39 +134,26 @@ class SpanID(BaseModel):
     span_id: str
 
 
-class OTelLink(TraceID, SpanID):
+class OTelHash(Identifier):
     attributes: Optional[OTelAttributes] = None
 
-    model_config = {
-        "json_encoders": {
-            UUID: lambda u: str(u),
-        }
-    }
 
-    def encode(self, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: self.encode(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self.encode(item) for item in data]
-        for type_, encoder in self.model_config["json_encoders"].items():
-            if isinstance(data, type_):
-                return encoder(data)
-        return data
+OTelHashes = List[OTelHash]
 
-    def model_dump(self, *args, **kwargs) -> dict:
-        return self.encode(
-            super().model_dump(
-                *args,
-                **kwargs,
-                exclude_none=True,
-            )
-        )
+
+class OTelLink(TraceID, SpanID):
+    attributes: Optional[OTelAttributes] = None
 
 
 OTelLinks = List[OTelLink]
 
-Link = OTelLink
-Links = OTelLinks
+
+class OTelReference(Reference):
+    attributes: Optional[OTelAttributes] = None
+
+
+OTelReferences = List[OTelReference]
+
 
 ## --- ENTITIES --- ##
 
@@ -124,6 +170,9 @@ class OTelFlatSpan(Lifecycle):
     span_id: str
     parent_id: Optional[str] = None
 
+    trace_type: Optional[TraceType] = None
+    span_type: Optional[SpanType] = None
+
     span_kind: Optional[OTelSpanKind] = None
     span_name: Optional[str] = None
 
@@ -134,37 +183,20 @@ class OTelFlatSpan(Lifecycle):
     status_message: Optional[str] = None
 
     attributes: Optional[OTelAttributes] = None
-    events: Optional[OTelEvents] = None
+    references: Optional[OTelReferences] = None
     links: Optional[OTelLinks] = None
+    hashes: Optional[OTelHashes] = None
 
-    class Config:
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat(),
-            Enum: lambda e: e.value,
-            UUID: lambda u: str(u),
-        }
+    exception: Optional[Data] = None
 
-    def encode(self, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: self.encode(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self.encode(item) for item in data]
-        for type_, encoder in self.Config.json_encoders.items():
-            if isinstance(data, type_):
-                return encoder(data)
-        return data
-
-    def model_dump(self, *args, **kwargs) -> dict:
-        return self.encode(
-            super().model_dump(
-                *args,
-                **kwargs,
-                exclude_none=True,
-            )
-        )
+    events: Optional[OTelEvents] = None
 
     @model_validator(mode="after")
     def set_defaults(self):
+        if self.trace_type is None:
+            self.trace_type = TraceType.INVOCATION
+        if self.span_type is None:
+            self.span_type = SpanType.TASK
         if self.span_kind is None:
             self.span_kind = OTelSpanKind.SPAN_KIND_UNSPECIFIED
         if self.status_code is None:
@@ -217,6 +249,7 @@ class Fields(str, Enum):
     CREATED_BY_ID = "created_by_id"
     UPDATED_BY_ID = "updated_by_id"
     DELETED_BY_ID = "deleted_by_id"
+    CONTENT = "content"
 
 
 class LogicalOperator(str, Enum):
@@ -310,6 +343,7 @@ class Windowing(BaseModel):
     oldest: Optional[datetime] = None
     newest: Optional[datetime] = None
     limit: Optional[int] = None
+    window: Optional[int] = None
 
 
 class Formatting(BaseModel):
@@ -333,3 +367,25 @@ _E_OPS = list(ExistenceOperator)
 
 class FilteringException(Exception):
     pass
+
+
+class Analytics(BaseModel):
+    count: Optional[int] = 0
+    duration: Optional[float] = 0.0
+    costs: Optional[float] = 0.0
+    tokens: Optional[float] = 0.0
+
+    def plus(self, other: "Analytics") -> "Analytics":
+        self.count += other.count
+        self.duration += other.duration
+        self.costs += other.costs
+        self.tokens += other.tokens
+
+        return self
+
+
+class Bucket(BaseModel):
+    timestamp: datetime
+    window: int
+    total: Analytics
+    errors: Analytics

@@ -1,12 +1,11 @@
 from typing import Any, Optional, List, Dict, Union
-from datetime import datetime
-from hashlib import blake2b
 from json import dumps
+from datetime import datetime, timedelta, time, timezone
 
-from sqlalchemy import and_, or_, not_, cast, Column, text, bindparam, Text
-from sqlalchemy import TIMESTAMP, Enum, Integer, String, Boolean, Float
+from sqlalchemy import and_, or_, not_, cast, Column, bindparam, Text, text
+from sqlalchemy import Integer, String, Float
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.sql import false, func, ClauseElement, ColumnElement
+from sqlalchemy.sql import func, ClauseElement, ColumnElement
 
 
 from oss.src.utils.logging import get_module_logger
@@ -27,7 +26,6 @@ from oss.src.core.tracing.dtos import (
     ExistenceOperator,
 )
 from oss.src.core.tracing.dtos import (
-    Link,
     FilteringException,
     Fields,
     Filtering,
@@ -37,8 +35,8 @@ from oss.src.core.tracing.dtos import (
     StringOperator,
     ListOperator,
     ExistenceOperator,
+    Windowing,
 )
-from oss.src.core.shared.dtos import Reference
 
 log = get_module_logger(__name__)
 
@@ -627,6 +625,24 @@ def _handle_uuid_field(
     return clauses
 
 
+def _handle_fts_field(
+    condition: Condition,
+) -> List[ClauseElement]:
+    # ------------------------- #
+    # field = condition.field
+    # key = condition.key
+    value = condition.value
+    # options = condition.options
+    # operator = condition.operator
+    attribute: Column = getattr(SpanDBE, "attributes")
+    # ------------------------- #
+
+    ts_vector = func.to_tsvector(text("'simple'"), attribute)
+    ts_query = func.websearch_to_tsquery(text("'simple'"), text(f"'{value}'"))
+
+    return [ts_vector.op("@@")(ts_query)]
+
+
 # COMBINE / FILTER
 
 
@@ -708,9 +724,107 @@ def filter(  # pylint:disable=redefined-builtin
                 clauses.extend(_handle_uuid_field(condition))
             elif field == Fields.DELETED_BY_ID:
                 clauses.extend(_handle_uuid_field(condition))
+            elif field == Fields.CONTENT:
+                clauses.extend(_handle_fts_field(condition))
             else:
                 raise FilteringException(
                     f"Unsupported condition field: {field}",
                 )
 
     return clauses
+
+
+# ANALYTICS
+
+_DEFAULT_TIME_DELTA = timedelta(days=30)
+_DEFAULT_WINDOW_MINUTES = 1440  # 1 day
+_DEFAULT_WINDOW_TEXT = "1 day"
+_MAX_ALLOWED_BUCKETS = 1024
+_SUGGESTED_BUCKETS_LIST = [
+    (1, "1 minute"),
+    (5, "5 minutes"),
+    (15, "15 minutes"),
+    (30, "30 minutes"),
+    (60, "1 hour"),
+    (720, "12 hours"),
+    (1440, "1 day"),
+]
+
+
+def _stride_to_window(
+    window_text: str,
+) -> int:
+    qty, unit = window_text.split()
+    qty = int(qty)
+    return {
+        "minute": qty,
+        "minutes": qty,
+        "hour": qty * 60,
+        "hours": qty * 60,
+        "day": qty * 1440,
+        "days": qty * 1440,
+        "week": qty * 10080,
+        "weeks": qty * 10080,
+    }[unit]
+
+
+def _window_to_timestamps(
+    oldest: datetime,
+    newest: datetime,
+    window: int,
+) -> List[datetime]:
+    current = oldest
+    buckets = []
+    while current < newest:
+        buckets.append(current)
+        current += timedelta(minutes=window)
+    return buckets
+
+
+def parse_windowing(
+    windowing: Windowing,
+) -> int:
+    now = datetime.now(timezone.utc)
+    start_of_next_day = datetime.combine(
+        now + timedelta(days=1), time.min, tzinfo=timezone.utc
+    )
+
+    if windowing.newest and windowing.newest.tzinfo is None:
+        windowing.newest = windowing.newest.replace(tzinfo=timezone.utc)
+
+    if windowing.oldest and windowing.oldest.tzinfo is None:
+        windowing.oldest = windowing.oldest.replace(tzinfo=timezone.utc)
+
+    newest = windowing.newest if windowing and windowing.newest else start_of_next_day
+
+    oldest = (
+        windowing.oldest
+        if windowing and windowing.oldest and windowing.oldest < newest
+        else newest - _DEFAULT_TIME_DELTA
+    )
+
+    desired_window = (
+        windowing.window if windowing and windowing.window else _DEFAULT_WINDOW_MINUTES
+    )
+
+    period_minutes = (newest - oldest).total_seconds() / 60
+    desired_buckets = period_minutes // desired_window
+    if desired_buckets > _MAX_ALLOWED_BUCKETS:
+        stride = None
+        for suggested_minutes, suggested_text in _SUGGESTED_BUCKETS_LIST:
+            suggested_buckets = period_minutes // suggested_minutes
+            if suggested_buckets <= _MAX_ALLOWED_BUCKETS:
+                desired_window = suggested_minutes
+                stride = suggested_text
+                break
+        if not stride:
+            # fallback to last in list
+            desired_window = _SUGGESTED_BUCKETS_LIST[-1][0]
+            stride = _SUGGESTED_BUCKETS_LIST[-1][1]
+    else:
+        stride = f"{desired_window} minute{'s' if desired_window > 1 else ''}"
+
+    window = _stride_to_window(stride)
+    timestamps = _window_to_timestamps(oldest, newest, window)
+
+    return oldest, newest, stride, window, timestamps

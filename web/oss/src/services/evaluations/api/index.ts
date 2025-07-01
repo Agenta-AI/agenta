@@ -170,6 +170,10 @@ export interface CreateEvaluationData {
 export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
     const {projectId} = getCurrentProject()
 
+    // axios.post(`/api/evaluations/preview/start?project_id=${projectId}`, {
+    //     ...evaluation,
+    //     app_id: appId,
+    // })
     return axios.post(`/api/evaluations?project_id=${projectId}`, {...evaluation, app_id: appId})
 }
 

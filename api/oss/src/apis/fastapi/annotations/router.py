@@ -1,5 +1,5 @@
 from typing import Optional, List
-from uuid import uuid4, UUID
+from uuid import uuid4
 
 from genson import SchemaBuilder
 
@@ -10,12 +10,13 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
-from oss.src.core.shared.dtos import Reference, Meta
-from oss.src.core.tracing.dtos import Link, Focus, Format, Query, Formatting, Filtering
-from oss.src.core.workflows.dtos import WorkflowFlags, WorkflowData
+from oss.src.core.shared.dtos import Flags, Tags, Meta, Data, Reference, Link, Windowing
+from oss.src.core.tracing.dtos import OTelLink, OTelReference
+from oss.src.core.tracing.dtos import Focus, Format, Query, Formatting, Filtering
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
 
 from oss.src.apis.fastapi.tracing.models import (
     OTelFlatSpan,
@@ -23,13 +24,12 @@ from oss.src.apis.fastapi.tracing.models import (
     OTelTracingResponse,
 )
 
-from oss.src.core.workflows.dtos import (
-    WorkflowArtifact,
-    WorkflowVariant,
-    WorkflowRevision,
+from oss.src.apis.fastapi.evaluators.models import (
+    SimpleEvaluatorFlags,
+    SimpleEvaluatorCreate,
+    SimpleEvaluatorCreateRequest,
+    SimpleEvaluatorQueryRequest,
 )
-
-from oss.src.apis.fastapi.evaluators.models import Evaluator
 from oss.src.apis.fastapi.annotations.models import Annotation
 
 from oss.src.apis.fastapi.annotations.utils import (
@@ -46,13 +46,10 @@ from oss.src.apis.fastapi.annotations.models import (
     AnnotationQueryRequest,
     AnnotationLinkResponse,
     Annotation,
+    AnnotationOrigin,
     AnnotationKind,
-    AnnotationSource,
-    AnnotationData,
-    AnnotationMeta,
-    AnnotationReference,
+    AnnotationChannel,
     AnnotationReferences,
-    AnnotationLink,
     AnnotationLinks,
 )
 
@@ -69,7 +66,7 @@ log = get_module_logger(__name__)
 
 
 class AnnotationsRouter:
-    VERSION = "1.0.0"
+    VERSION = "v1"
 
     def __init__(
         self,
@@ -83,6 +80,10 @@ class AnnotationsRouter:
         # Needed until we clean up the router/service     # FIX ME / REMOVE ME #
         self.tracing_router = TracingRouter(
             tracing_service=self.tracing_service,
+        )
+
+        self.evaluators_router = SimpleEvaluatorsRouter(
+            workflows_service=self.workflows_service
         )
 
         self.router = APIRouter()
@@ -135,7 +136,7 @@ class AnnotationsRouter:
             "/",
             self.query_annotations,
             methods=["GET"],
-            operation_id="query_annotations",
+            operation_id="list_annotations",
             status_code=status.HTTP_200_OK,
             response_model=AnnotationResponse,
             response_model_exclude_none=True,
@@ -157,7 +158,7 @@ class AnnotationsRouter:
         self,
         *,
         request: Request,
-        annotation_request: AnnotationCreateRequest,
+        annotation_create_request: AnnotationCreateRequest,
     ) -> AnnotationResponse:
         if is_ee():
             if not await check_action_access(
@@ -167,36 +168,76 @@ class AnnotationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        project_id = UUID(request.state.project_id)
-        user_id = UUID(request.state.user_id)
+        annotation_origin = annotation_create_request.annotation.origin
 
-        evaluator_flags = WorkflowFlags(
+        evaluator_flags = SimpleEvaluatorFlags(
             is_evaluator=True,
-            is_custom=annotation_request.annotation.kind == AnnotationKind.CUSTOM,
-            is_human=annotation_request.annotation.kind == AnnotationKind.HUMAN,
+            is_custom=annotation_origin == AnnotationOrigin.CUSTOM,
+            is_human=annotation_origin == AnnotationOrigin.HUMAN,
         )
 
-        evaluator: Optional[Evaluator] = await self._fetch_evaluator(
-            project_id=project_id,
-            #
-            evaluator_slug=annotation_request.annotation.references.evaluator.slug,
-        )
+        evaluator = None
+
+        if annotation_create_request.annotation.references.evaluator.slug:
+            simple_evaluator_query_request = SimpleEvaluatorQueryRequest(
+                evaluator_refs=[
+                    Reference(
+                        slug=annotation_create_request.annotation.references.evaluator.slug
+                    )
+                ]
+            )
+
+            simple_evaluator_response = (
+                await self.evaluators_router.query_simple_evaluators(
+                    request=request,
+                    simple_evaluator_query_request=simple_evaluator_query_request,
+                )
+            )
+
+            if simple_evaluator_response.count > 0:
+                evaluator = simple_evaluator_response.evaluators[0]
 
         if evaluator is None:
             builder = SchemaBuilder()
-            builder.add_object(annotation_request.annotation.data)
+            builder.add_object(annotation_create_request.annotation.data)
             evaluator_format = builder.to_schema()  # pylint: disable=redefined-builtin
 
-            evaluator: Optional[Evaluator] = await self._create_evaluator(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                evaluator_slug=annotation_request.annotation.references.evaluator.slug,
-                #
-                evaluator_flags=evaluator_flags,
-                evaluator_meta=annotation_request.annotation.meta,
-                evaluator_format=evaluator_format,
+            evaluator_slug = (
+                annotation_create_request.annotation.references.evaluator.slug
+                or uuid4().hex
             )
+
+            evaluator_data = dict(
+                service=dict(
+                    agenta="v0.1.0",
+                    format=evaluator_format,
+                )
+            )
+
+            simple_evaluator_create_request = SimpleEvaluatorCreateRequest(
+                evaluator=SimpleEvaluatorCreate(
+                    slug=evaluator_slug,
+                    #
+                    name=evaluator_slug,  # yes
+                    # description =
+                    #
+                    flags=evaluator_flags,
+                    tags=annotation_create_request.annotation.tags,
+                    meta=annotation_create_request.annotation.meta,
+                    #
+                    data=evaluator_data,
+                )
+            )
+
+            simple_evaluator_create_response = (
+                await self.evaluators_router.create_simple_evaluator(
+                    request=request,
+                    simple_evaluator_create_request=simple_evaluator_create_request,
+                )
+            )
+
+            if simple_evaluator_create_response.count > 0:
+                evaluator = simple_evaluator_create_response.evaluator
 
         if evaluator is None:
             raise HTTPException(
@@ -205,30 +246,38 @@ class AnnotationsRouter:
             )
 
         validate_data_against_schema(
-            annotation_request.annotation.data,
+            annotation_create_request.annotation.data,
             evaluator.data.service.get("format", {}),
         )
 
-        annotation_request.annotation.references.evaluator = Reference(
+        annotation_create_request.annotation.references.evaluator = Reference(
             id=evaluator.id,
             slug=evaluator.slug,
         )
+
+        kind = annotation_create_request.annotation.kind
+        channel = annotation_create_request.annotation.channel
 
         annotation_flags = AnnotationFlags(
             is_evaluator=True,
             is_custom=evaluator_flags.is_custom,
             is_human=evaluator_flags.is_human,
-            is_sdk=annotation_request.annotation.source == AnnotationSource.SDK,
-            is_web=annotation_request.annotation.source == AnnotationSource.WEB,
+            is_sdk=channel == AnnotationChannel.SDK,
+            is_web=channel == AnnotationChannel.WEB,
+            is_evaluation=kind == AnnotationKind.EVAL,
         )
 
         annotation_link: Optional[Link] = await self._create_annotation(
             request=request,
-            annotation_data=annotation_request.annotation.data,
-            annotation_meta=annotation_request.annotation.meta,
-            annotation_references=annotation_request.annotation.references,
-            annotation_links=annotation_request.annotation.links,
-            annotation_flags=annotation_flags,
+            #
+            flags=annotation_flags,
+            tags=annotation_create_request.annotation.tags,
+            meta=annotation_create_request.annotation.meta,
+            #
+            data=annotation_create_request.annotation.data,
+            #
+            references=annotation_create_request.annotation.references,
+            links=annotation_create_request.annotation.links,
         )
 
         if annotation_link is None:
@@ -249,6 +298,7 @@ class AnnotationsRouter:
             )
 
         annotation_response = AnnotationResponse(
+            count=1,
             annotation=annotation,
         )
 
@@ -271,7 +321,7 @@ class AnnotationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        annotation_link = AnnotationLink(
+        annotation_link = Link(
             trace_id=trace_id,
             span_id=span_id,
         )
@@ -285,6 +335,7 @@ class AnnotationsRouter:
             return Response(status_code=status.HTTP_404_NOT_FOUND)
 
         annotation_response = AnnotationResponse(
+            count=1,
             annotation=annotation,
         )
 
@@ -307,7 +358,7 @@ class AnnotationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        annotation_link = AnnotationLink(
+        annotation_link = Link(
             trace_id=trace_id,
             span_id=span_id,
         )
@@ -318,29 +369,33 @@ class AnnotationsRouter:
         )
 
         if annotation is None:
-            return Response(status_code=status.HTTP_404_NOT_FOUND)
-
-        annotation_link = AnnotationLink(
-            trace_id=annotation.trace_id,
-            span_id=annotation.span_id,
-        )
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Failed to fetch annotation. Please try again or contact support.",
+            )
 
         annotation_flags = AnnotationFlags(
             is_evaluator=True,
-            is_custom=annotation.kind == AnnotationKind.CUSTOM,
-            is_human=annotation.kind == AnnotationKind.HUMAN,
-            is_sdk=annotation.source == AnnotationSource.SDK,
-            is_web=annotation.source == AnnotationSource.WEB,
+            is_custom=annotation.origin == AnnotationOrigin.CUSTOM,
+            is_human=annotation.origin == AnnotationOrigin.HUMAN,
+            is_sdk=annotation.channel == AnnotationChannel.SDK,
+            is_web=annotation.channel == AnnotationChannel.WEB,
+            is_evaluation=annotation.kind == AnnotationKind.EVAL,
         )
 
         annotation_link: Optional[Link] = await self._edit_annotation(
             request=request,
-            annotation_link=annotation_link,
-            annotation_data=annotation_request.annotation.data,
-            annotation_meta=annotation_request.annotation.meta,
-            annotation_references=annotation.references,
-            annotation_links=annotation.links,
-            annotation_flags=annotation_flags,
+            #
+            annotation=annotation,
+            #
+            flags=annotation_flags,
+            tags=annotation_request.annotation.tags,
+            meta=annotation_request.annotation.meta,
+            #
+            data=annotation_request.annotation.data,
+            #
+            references=annotation.references,
+            links=annotation.links,
         )
 
         if annotation_link is None:
@@ -361,6 +416,7 @@ class AnnotationsRouter:
             )
 
         annotation_response = AnnotationResponse(
+            count=1,
             annotation=annotation,
         )
 
@@ -378,25 +434,23 @@ class AnnotationsRouter:
             if not await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,
-                permission=Permission.DELETE_ANNOTATIONS,
+                permission=Permission.EDIT_ANNOTATIONS,
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        annotation_link = AnnotationLink(
+        annotation_link = Link(
             trace_id=trace_id,
             span_id=span_id,
         )
 
-        annotation: Optional[Annotation] = await self._delete_annotation(
+        annotation_link: Optional[Link] = await self._delete_annotation(
             request=request,
             annotation_link=annotation_link,
         )
 
-        if annotation is None:
-            return Response(status_code=status.HTTP_204_NO_CONTENT)
-
         annotation_link_response = AnnotationLinkResponse(
-            annotation=annotation_link,
+            count=1 if annotation_link else 0,
+            annotation_link=annotation_link,
         )
 
         return annotation_link_response
@@ -417,31 +471,37 @@ class AnnotationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        annotations = []
+        annotation = query_request.annotation if query_request else None
+        annotation_flags = AnnotationFlags(is_evaluator=True)
 
-        if query_request is None or query_request.annotation is None:
-            annotations = await self._query_annotation(
-                request=request,
-            )
+        if annotation:
+            if annotation.origin:
+                annotation_flags.is_custom = (
+                    annotation.origin == AnnotationOrigin.CUSTOM
+                )
+                annotation_flags.is_human = annotation.origin == AnnotationOrigin.HUMAN
 
-        else:
-            annotation_flags = AnnotationFlags(
-                is_evaluator=True,
-                is_custom=query_request.annotation.kind == AnnotationKind.CUSTOM,
-                is_human=query_request.annotation.kind == AnnotationKind.HUMAN,
-                is_sdk=query_request.annotation.source == AnnotationSource.SDK,
-                is_web=query_request.annotation.source == AnnotationSource.WEB,
-            )
+            if annotation.channel:
+                annotation_flags.is_sdk = annotation.channel == AnnotationChannel.SDK
+                annotation_flags.is_web = annotation.channel == AnnotationChannel.WEB
 
-            annotations = await self._query_annotation(
-                request=request,
-                trace_id=query_request.annotation.trace_id,
-                span_id=query_request.annotation.span_id,
-                flags=annotation_flags,
-                meta=query_request.annotation.meta,
-                references=query_request.annotation.references,
-                links=query_request.annotation.links,
-            )
+            if annotation.kind:
+                annotation_flags.is_evaluation = annotation.kind == AnnotationKind.EVAL
+
+        annotations = await self._query_annotation(
+            request=request,
+            #
+            flags=annotation_flags,
+            tags=annotation.tags if annotation else None,
+            meta=annotation.meta if annotation else None,
+            #
+            references=annotation.references if annotation else None,
+            links=annotation.links if annotation else None,
+            #
+            annotation_links=query_request.annotation_links if query_request else None,
+            #
+            windowing=query_request.windowing if query_request else None,
+        )
 
         annotations_response = AnnotationsResponse(
             count=len(annotations),
@@ -450,194 +510,6 @@ class AnnotationsRouter:
 
         return annotations_response
 
-    # - EVALUATORS -------------------------------------------------------------
-
-    @intercept_exceptions()
-    async def _create_evaluator(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        evaluator_slug: str,
-        evaluator_format: dict,
-        evaluator_flags: Optional[WorkflowFlags] = None,
-        evaluator_meta: Optional[Meta] = None,
-    ) -> Optional[Evaluator]:
-        workflow_revision_data = WorkflowData(
-            service=dict(
-                agenta="v0.1.0",
-                format=evaluator_format,
-            )
-        )
-
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.create_artifact(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                artifact_slug=evaluator_slug,
-                #
-                artifact_flags=evaluator_flags,
-                artifact_meta=evaluator_meta,
-            )
-        )
-
-        if workflow_artifact is None:
-            return None
-
-        workflow_variant_slug = uuid4().hex
-
-        workflow_variant: Optional[WorkflowVariant] = (
-            await self.workflows_service.create_variant(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                artifact_id=workflow_artifact.id,
-                #
-                variant_slug=workflow_variant_slug,
-                #
-                variant_flags=evaluator_flags,
-                variant_meta=evaluator_meta,
-            )
-        )
-
-        if workflow_variant is None:
-            return None
-
-        workflow_revision_slug = uuid4().hex
-
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.create_revision(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                artifact_id=workflow_artifact.id,
-                variant_id=workflow_variant.id,
-                #
-                revision_slug=workflow_revision_slug,
-                #
-                revision_flags=evaluator_flags,
-                revision_meta=evaluator_meta,
-            )
-        )
-
-        if workflow_revision is None:
-            return None
-
-        workflow_revision_slug = uuid4().hex
-
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.commit_revision(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                variant_id=workflow_variant.id,
-                #
-                revision_slug=workflow_revision_slug,
-                #
-                revision_flags=evaluator_flags,
-                revision_meta=evaluator_meta,
-                revision_data=workflow_revision_data,
-            )
-        )
-
-        if workflow_revision is None:
-            # do something
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to create evaluator. Please try again or contact support.",
-            )
-
-        evaluator = Evaluator(
-            id=workflow_artifact.id,
-            slug=workflow_artifact.slug,
-            #
-            created_at=workflow_artifact.created_at,
-            updated_at=workflow_artifact.updated_at,
-            deleted_at=workflow_artifact.deleted_at,
-            created_by_id=workflow_artifact.created_by_id,
-            updated_by_id=workflow_artifact.updated_by_id,
-            deleted_by_id=workflow_artifact.deleted_by_id,
-            #
-            meta=workflow_artifact.meta,
-            name=workflow_artifact.name,
-            description=workflow_artifact.description,
-            data=workflow_revision.data,
-        )
-
-        return evaluator
-
-    @intercept_exceptions()
-    async def _fetch_evaluator(
-        self,
-        *,
-        project_id: UUID,
-        evaluator_slug: str,  # Added evaluator_slug parameter
-    ) -> Optional[Evaluator]:
-        workflow_artifact_ref = Reference(
-            slug=evaluator_slug,
-        )
-
-        workflow_artifact: Optional[WorkflowArtifact] = (
-            await self.workflows_service.fetch_artifact(
-                project_id=project_id,
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
-        )
-
-        if workflow_artifact is None:
-            return None
-
-        workflow_artifact_ref = Reference(
-            id=workflow_artifact.id,
-        )
-
-        workflow_variant: Optional[WorkflowVariant] = (
-            await self.workflows_service.fetch_variant(
-                project_id=project_id,
-                #
-                artifact_ref=workflow_artifact_ref,
-            )
-        )
-
-        if workflow_variant is None:
-            return None
-
-        workflow_variant_ref = Reference(
-            id=workflow_variant.id,
-        )
-
-        workflow_revision: Optional[WorkflowRevision] = (
-            await self.workflows_service.fetch_revision(
-                project_id=project_id,
-                #
-                variant_ref=workflow_variant_ref,
-            )
-        )
-
-        if workflow_revision is None:
-            return None
-
-        evaluator = Evaluator(
-            id=workflow_artifact.id,
-            slug=workflow_artifact.slug,
-            #
-            created_at=workflow_artifact.created_at,
-            updated_at=workflow_artifact.updated_at,
-            deleted_at=workflow_artifact.deleted_at,
-            created_by_id=workflow_artifact.created_by_id,
-            updated_by_id=workflow_artifact.updated_by_id,
-            deleted_by_id=workflow_artifact.deleted_by_id,
-            #
-            meta=workflow_artifact.meta,
-            name=workflow_artifact.name,
-            description=workflow_artifact.description,
-            data=workflow_revision.data,
-        )
-
-        return evaluator
-
     # - ANNOTATIONS ------------------------------------------------------------
 
     @intercept_exceptions()
@@ -645,42 +517,44 @@ class AnnotationsRouter:
         self,
         *,
         request: Request,
-        annotation_data: AnnotationData,
-        annotation_meta: Optional[AnnotationMeta] = None,
-        annotation_references: AnnotationReferences,
-        annotation_links: AnnotationLinks,
-        annotation_flags: AnnotationFlags,
+        #
+        flags: AnnotationFlags,
+        tags: Optional[Tags] = None,
+        meta: Optional[Meta] = None,
+        #
+        data: Data,
+        #
+        references: AnnotationReferences,
+        links: AnnotationLinks,
     ) -> Optional[Link]:
         trace_id = uuid4().hex
         span_id = uuid4().hex[16:]
 
-        _references = [
-            Reference(
-                id=reference.get("id"),
-                slug=reference.get("slug"),
-                version=reference.get("version"),
-                attributes={key: True, "key": key},
-            ).model_dump()
-            for key, reference in annotation_references.model_dump().items()
-            if reference
-        ]
+        _references = references.model_dump(mode="json", exclude_none=True)
 
         _links = [
-            Link(
+            OTelLink(
                 trace_id=link.trace_id,
                 span_id=link.span_id,
-                attributes={key: True, "key": key},
-            ).model_dump()
-            for key, link in annotation_links.items()
+                attributes={"key": key},
+            ).model_dump(mode="json")
+            for key, link in links.items()
         ]
 
-        _flags = annotation_flags.model_dump(exclude_none=True)
+        _flags = flags.model_dump(mode="json", exclude_none=True)
+
+        _type = {
+            "trace": "annotation",
+            "span": "task",
+        }
 
         _attributes = parse_into_attributes(
-            data=annotation_data,
-            meta=annotation_meta,
-            references=_references,
+            type=_type,
             flags=_flags,
+            tags=tags,
+            meta=meta,
+            data=data,
+            references=_references,
         )
 
         trace_request = OTelTracingRequest(
@@ -694,7 +568,7 @@ class AnnotationsRouter:
             ]
         )
 
-        _links_response = await self.tracing_router.add_trace(
+        _links_response = await self.tracing_router.create_trace(
             request=request,
             trace_request=trace_request,
         )
@@ -723,30 +597,19 @@ class AnnotationsRouter:
         root_span = spans[0] if spans else None
 
         (
-            data,
-            meta,
-            references,
+            type,
             flags,
+            tags,
+            meta,
+            data,
+            references,
         ) = parse_from_attributes(root_span.attributes)
 
-        _references = (
-            {
-                reference.get("attributes").get("key"): AnnotationReference(
-                    id=reference.get("id"),
-                    slug=reference.get("slug"),
-                    version=reference.get("version"),
-                )
-                for reference in references
-                if reference.get("attributes")
-                and reference.get("attributes").get("key")
-            }
-            if references and isinstance(references, list)
-            else None
-        )
+        _references = AnnotationReferences(**references)
 
         _links = (
             {
-                link.attributes.get("key"): AnnotationLink(
+                link.attributes.get("key"): Link(
                     trace_id=link.trace_id,
                     span_id=link.span_id,
                 )
@@ -757,35 +620,47 @@ class AnnotationsRouter:
             else None
         )
 
-        _kind = (
+        _origin = (
             flags.get("is_custom")
-            and AnnotationKind.CUSTOM
+            and AnnotationOrigin.CUSTOM
             or flags.get("is_human")
-            and AnnotationKind.HUMAN
-            or AnnotationKind.AUTO
+            and AnnotationOrigin.HUMAN
+            or AnnotationOrigin.AUTO
         )
 
-        _source = (
+        _kind = (
+            flags.get("is_evaluation") and AnnotationKind.EVAL or AnnotationKind.ADHOC
+        )
+
+        _channel = (
             flags.get("is_sdk")
-            and AnnotationSource.SDK
+            and AnnotationChannel.SDK
             or flags.get("is_web")
-            and AnnotationSource.WEB
-            or AnnotationSource.API
+            and AnnotationChannel.WEB
+            or AnnotationChannel.API
         )
 
         annotation = Annotation(
             trace_id=root_span.trace_id,
             span_id=root_span.span_id,
+            #
             created_at=root_span.created_at,
             updated_at=root_span.updated_at,
             deleted_at=root_span.deleted_at,
             created_by_id=root_span.created_by_id,
             updated_by_id=root_span.updated_by_id,
             deleted_by_id=root_span.deleted_by_id,
+            #
+            origin=_origin,
             kind=_kind,
-            source=_source,
-            data=data,
+            channel=_channel,
+            #
+            flags=flags,
+            tags=tags,
             meta=meta,
+            #
+            data=data,
+            #
             references=_references,
             links=_links,
         )
@@ -797,55 +672,50 @@ class AnnotationsRouter:
         self,
         *,
         request: Request,
-        annotation_link: Link,
-        annotation_data: AnnotationData,
-        annotation_meta: Optional[AnnotationMeta] = None,
-        annotation_references: AnnotationReferences,
-        annotation_links: AnnotationLinks,
-        annotation_flags: AnnotationFlags,
+        #
+        annotation: Annotation,
+        #
+        flags: AnnotationFlags,
+        tags: Optional[Tags] = None,
+        meta: Optional[Meta] = None,
+        #
+        data: Data,
+        #
+        references: AnnotationReferences,
+        links: AnnotationLinks,
     ) -> Optional[Annotation]:
-        annotation: Optional[Annotation] = await self._fetch_annotation(
-            request=request,
-            annotation_link=annotation_link,
-        )
-
-        if annotation is None:
-            return None
-
-        _references = [
-            Reference(
-                id=reference.get("id"),
-                slug=reference.get("slug"),
-                version=reference.get("version"),
-                attributes={key: True, "key": key},
-            ).model_dump()
-            for key, reference in annotation_references.model_dump().items()
-            if reference
-        ]
+        _references = references.model_dump(mode="json", exclude_none=True)
 
         _links = [
-            Link(
+            OTelLink(
                 trace_id=link.trace_id,
                 span_id=link.span_id,
-                attributes={key: True, "key": key},
-            ).model_dump()
-            for key, link in annotation_links.items()
+                attributes={"key": key},
+            ).model_dump(mode="json")
+            for key, link in links.items()
         ]
 
-        _flags = annotation_flags.model_dump(exclude_none=True)
+        _flags = flags.model_dump(mode="json", exclude_none=True)
+
+        _type = {
+            "trace": "annotation",
+            "span": "task",
+        }
 
         _attributes = parse_into_attributes(
-            data=annotation_data,
-            meta=annotation_meta,
-            references=_references,
+            type=_type,
             flags=_flags,
+            tags=tags,
+            meta=meta,
+            data=data,
+            references=_references,
         )
 
         trace_request = OTelTracingRequest(
             spans=[
                 OTelFlatSpan(
-                    trace_id=annotation_link.trace_id,
-                    span_id=annotation_link.span_id,
+                    trace_id=annotation.trace_id,
+                    span_id=annotation.span_id,
                     attributes=_attributes,
                     links=_links,
                 )
@@ -854,6 +724,7 @@ class AnnotationsRouter:
 
         _links_response = await self.tracing_router.edit_trace(
             request=request,
+            trace_id=annotation.trace_id,
             trace_request=trace_request,
         )
 
@@ -865,39 +736,40 @@ class AnnotationsRouter:
         *,
         request: Request,
         annotation_link: Link,
-    ) -> Optional[Annotation]:
-        annotation: Optional[Annotation] = await self._fetch_annotation(
-            request=request,
-            annotation_link=annotation_link,
-        )
-
-        if annotation is None:
-            return None
-
-        link_response = await self.tracing_router.remove_trace(
+    ) -> Optional[Link]:
+        link_response = await self.tracing_router.delete_trace(
             request=request,
             trace_id=annotation_link.trace_id,
         )
 
-        annotation_link = link_response.links[0] if link_response.links else None
-
-        if annotation_link is None:
+        if link_response.count == 0:
             return None
 
-        return annotation
+        link = link_response.links[0] if link_response.links else None
+
+        annotation_link = Link(
+            trace_id=link.trace_id,
+            span_id=link.span_id,
+        )
+
+        return annotation_link
 
     @intercept_exceptions()
     async def _query_annotation(
         self,
         *,
         request: Request,
-        trace_id: Optional[str] = None,
-        span_id: Optional[str] = None,
+        #
         flags: Optional[AnnotationFlags] = None,
-        meta: Optional[AnnotationMeta] = None,
+        tags: Optional[Tags] = None,
+        meta: Optional[Meta] = None,
+        #
         references: Optional[AnnotationReferences] = None,
         links: Optional[AnnotationLinks] = None,
-        # flags: Optional[WorkflowFlags] = None,
+        #
+        annotation_links: Optional[List[Link]] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> List[Annotation]:
         formatting = Formatting(
             focus=Focus.TRACE,
@@ -907,38 +779,61 @@ class AnnotationsRouter:
         filtering = Filtering()
 
         conditions = [
-            # {
-            #     "field": "attributes",
-            #     "key": "ag.type.trace",
-            #     "value": "ANNOTATION",
-            #     "operator": "is",
-            # }
+            {
+                "field": "attributes",
+                "key": "ag.type.trace",
+                "value": "annotation",
+                "operator": "is",
+            }
         ]
 
-        if trace_id:
+        trace_ids = (
+            [annotation_link.trace_id for annotation_link in annotation_links]
+            if annotation_links
+            else None
+        )
+
+        span_ids = (
+            [annotation_link.span_id for annotation_link in annotation_links]
+            if annotation_links
+            else None
+        )
+
+        if trace_ids:
             conditions.append(
                 {
                     "field": "trace_id",
-                    "value": trace_id,
-                    "operator": "is",
+                    "value": trace_ids,
+                    "operator": "in",
                 }
             )
 
-        if span_id:
+        if span_ids:
             conditions.append(
                 {
                     "field": "span_id",
-                    "value": span_id,
-                    "operator": "is",
+                    "value": span_ids,
+                    "operator": "in",
                 }
             )
 
         if flags:
-            for key, value in flags.model_dump(exclude_none=True).items():
+            for key, value in flags.model_dump(mode="json", exclude_none=True).items():
                 conditions.append(
                     {
                         "field": "attributes",
-                        "key": f"agenta.flags.{key}",
+                        "key": f"ag.flags.{key}",
+                        "value": value,
+                        "operator": "is",
+                    }
+                )
+
+        if tags:
+            for key, value in tags.items():
+                conditions.append(
+                    {
+                        "field": "attributes",
+                        "key": f"ag.tags.{key}",
                         "value": value,
                         "operator": "is",
                     }
@@ -949,52 +844,67 @@ class AnnotationsRouter:
                 conditions.append(
                     {
                         "field": "attributes",
-                        "key": f"agenta.meta.{key}",
+                        "key": f"ag.meta.{key}",
                         "value": value,
                         "operator": "is",
                     }
                 )
 
         if references:
-            for _, reference in references.model_dump().items():
+            for _, reference in references.model_dump(mode="json").items():
                 if reference:
                     ref_id = str(reference.get("id")) if reference.get("id") else None
                     ref_slug = (
                         str(reference.get("slug")) if reference.get("slug") else None
                     )
-                    ref_version = (
-                        str(reference.get("version"))
-                        if reference.get("version")
-                        else None
-                    )
-
                     conditions.append(
                         {
                             "field": "references",
                             "value": [
-                                {
-                                    "id": ref_id,
-                                    "slug": ref_slug,
-                                    "version": ref_version,
-                                }
+                                {"id": ref_id, "slug": ref_slug},
                             ],
                             "operator": "in",
                         }
                     )
 
         if links:
-            for _, link in links.items():
-                if link:
+            if isinstance(links, dict):
+                for _, link in links.items():
+                    if link:
+                        conditions.append(
+                            {
+                                "field": "links",
+                                "value": [
+                                    {
+                                        "trace_id": link.trace_id,
+                                        "span_id": link.span_id,
+                                    },
+                                ],
+                                "operator": "in",
+                            }
+                        )
+            elif isinstance(links, list):
+                _conditions = []
+                for link in links:
+                    link: Link
+                    if link:
+                        _conditions.append(
+                            {
+                                "field": "links",
+                                "value": [
+                                    {
+                                        "trace_id": link.trace_id,
+                                        "span_id": link.span_id,
+                                    },
+                                ],
+                                "operator": "in",
+                            }
+                        )
+                if _conditions:
                     conditions.append(
                         {
-                            "field": "links",
-                            "value": [
-                                {
-                                    "trace_id": link.trace_id,
-                                    "span_id": link.span_id,
-                                }
-                            ],
-                            "operator": "in",
+                            "operator": "or",
+                            "conditions": _conditions,
                         }
                     )
 
@@ -1007,6 +917,7 @@ class AnnotationsRouter:
         query = Query(
             formatting=formatting,
             filtering=filtering,
+            windowing=windowing,
         )
 
         spans_response: OTelTracingResponse = await self.tracing_router.query_spans(
@@ -1024,30 +935,19 @@ class AnnotationsRouter:
             root_span = spans[0] if spans else None
 
             (
-                data,
-                meta,
-                references,
+                type,
                 flags,
+                tags,
+                meta,
+                data,
+                references,
             ) = parse_from_attributes(root_span.attributes)
 
-            _references = (
-                {
-                    reference.get("attributes").get("key"): AnnotationReference(
-                        id=reference.get("id"),
-                        slug=reference.get("slug"),
-                        version=reference.get("version"),
-                    )
-                    for reference in references
-                    if reference.get("attributes")
-                    and reference.get("attributes").get("key")
-                }
-                if references and isinstance(references, list)
-                else None
-            )
+            _references = AnnotationReferences(**references)
 
             _links = (
                 {
-                    link.attributes.get("key"): AnnotationLink(
+                    link.attributes.get("key"): Link(
                         trace_id=link.trace_id,
                         span_id=link.span_id,
                     )
@@ -1058,35 +958,48 @@ class AnnotationsRouter:
                 else None
             )
 
-            _kind = (
+            _origin = (
                 flags.get("is_custom")
-                and AnnotationKind.CUSTOM
+                and AnnotationOrigin.CUSTOM
                 or flags.get("is_human")
-                and AnnotationKind.HUMAN
-                or AnnotationKind.AUTO
+                and AnnotationOrigin.HUMAN
+                or AnnotationOrigin.AUTO
             )
 
-            _source = (
+            _kind = (
+                flags.get("is_evaluation")
+                and AnnotationKind.EVAL
+                or AnnotationKind.ADHOC
+            )
+
+            _channel = (
                 flags.get("is_sdk")
-                and AnnotationSource.SDK
+                and AnnotationChannel.SDK
                 or flags.get("is_web")
-                and AnnotationSource.WEB
-                or AnnotationSource.API
+                and AnnotationChannel.WEB
+                or AnnotationChannel.API
             )
 
             annotation = Annotation(
                 trace_id=root_span.trace_id,
                 span_id=root_span.span_id,
+                #
                 created_at=root_span.created_at,
                 updated_at=root_span.updated_at,
                 deleted_at=root_span.deleted_at,
                 created_by_id=root_span.created_by_id,
                 updated_by_id=root_span.updated_by_id,
                 deleted_by_id=root_span.deleted_by_id,
+                #
+                origin=_origin,
                 kind=_kind,
-                source=_source,
-                data=data,
+                channel=_channel,
+                #
+                flags=flags,
+                tags=tags,
                 meta=meta,
+                data=data,
+                #
                 references=_references,
                 links=_links,
             )

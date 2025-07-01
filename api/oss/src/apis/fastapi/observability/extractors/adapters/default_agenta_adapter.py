@@ -1,5 +1,3 @@
-from typing import Any, Dict, Tuple
-
 from oss.src.apis.fastapi.observability.extractors.base_adapter import BaseAdapter
 from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
     CanonicalAttributes,
@@ -12,7 +10,7 @@ from oss.src.apis.fastapi.observability.utils.serialization import (
 )
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 class DefaultAgentaAdapter(BaseAdapter):

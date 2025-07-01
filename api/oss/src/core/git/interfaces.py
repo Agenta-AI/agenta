@@ -1,16 +1,32 @@
 from typing import Optional, List, TypeVar, Type
 from uuid import UUID
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 
-from oss.src.core.shared.dtos import Reference, Meta, Flags, Data
-from oss.src.core.git.dtos import Commit, Artifact, Variant, Revision
+from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.git.dtos import (
+    Artifact,
+    ArtifactCreate,
+    ArtifactEdit,
+    ArtifactQuery,
+    ArtifactLog,
+    ArtifactFork,
+    Variant,
+    VariantCreate,
+    VariantEdit,
+    VariantQuery,
+    Revision,
+    RevisionCreate,
+    RevisionEdit,
+    RevisionQuery,
+    RevisionCommit,
+)
 
 
 T = TypeVar("T")
 
 
-class GitDAOInterface:
+class GitDAOInterface(ABC):
     def __init__(
         self,
         *,
@@ -31,12 +47,9 @@ class GitDAOInterface:
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_slug: str,
+        artifact_create: ArtifactCreate,
         #
-        artifact_flags: Optional[Flags] = None,
-        artifact_meta: Optional[Meta] = None,
-        artifact_name: Optional[str] = None,
-        artifact_description: Optional[str] = None,
+        artifact_id: Optional[UUID] = None,
     ) -> Optional[Artifact]:
         raise NotImplementedError
 
@@ -46,7 +59,7 @@ class GitDAOInterface:
         *,
         project_id: UUID,
         #
-        artifact_ref: Optional[Reference] = None,
+        artifact_ref: Reference,
     ) -> Optional[Artifact]:
         raise NotImplementedError
 
@@ -57,12 +70,7 @@ class GitDAOInterface:
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-        #
-        artifact_flags: Optional[Flags] = None,
-        artifact_meta: Optional[Meta] = None,
-        artifact_name: Optional[str] = None,
-        artifact_description: Optional[str] = None,
+        artifact_edit: ArtifactEdit,
     ) -> Optional[Artifact]:
         raise NotImplementedError
 
@@ -94,10 +102,13 @@ class GitDAOInterface:
         *,
         project_id: UUID,
         #
-        artifact_flags: Optional[Flags] = None,
-        artifact_meta: Optional[Meta] = None,
+        artifact_query: ArtifactQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> List[Artifact]:
         raise NotImplementedError
 
@@ -112,14 +123,7 @@ class GitDAOInterface:
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-        #
-        variant_slug: str,
-        #
-        variant_flags: Optional[Flags] = None,
-        variant_meta: Optional[Meta] = None,
-        variant_name: Optional[str] = None,
-        variant_description: Optional[str] = None,
+        variant_create: VariantCreate,
     ) -> Optional[Variant]:
         raise NotImplementedError
 
@@ -141,12 +145,7 @@ class GitDAOInterface:
         project_id: UUID,
         user_id: UUID,
         #
-        variant_id: UUID,
-        #
-        variant_flags: Optional[Flags] = None,
-        variant_meta: Optional[Meta] = None,
-        variant_name: Optional[str] = None,
-        variant_description: Optional[str] = None,
+        variant_edit: VariantEdit,
     ) -> Optional[Variant]:
         raise NotImplementedError
 
@@ -178,10 +177,14 @@ class GitDAOInterface:
         *,
         project_id: UUID,
         #
-        variant_flags: Optional[Flags] = None,
-        variant_meta: Optional[Meta] = None,
+        variant_query: VariantQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        variant_refs: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> List[Variant]:
         raise NotImplementedError
 
@@ -194,23 +197,7 @@ class GitDAOInterface:
         project_id: UUID,
         user_id: UUID,
         #
-        variant_slug: str,
-        revision_slug: str,
-        #
-        variant_id: Optional[UUID] = None,
-        revision_id: Optional[UUID] = None,
-        depth: Optional[int] = None,
-        #
-        variant_flags: Optional[Flags] = None,
-        variant_meta: Optional[Meta] = None,
-        variant_name: Optional[str] = None,
-        variant_description: Optional[str] = None,
-        #
-        revision_flags: Optional[Flags] = None,
-        revision_meta: Optional[Meta] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
-        revision_message: Optional[str] = None,
+        artifact_fork: ArtifactFork,
     ) -> Optional[Variant]:
         raise NotImplementedError
 
@@ -225,15 +212,7 @@ class GitDAOInterface:
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-        variant_id: UUID,
-        #
-        revision_slug: str,
-        #
-        revision_flags: Optional[Flags] = None,
-        revision_meta: Optional[Meta] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
+        revision_create: RevisionCreate,
     ) -> Optional[Revision]:
         raise NotImplementedError
 
@@ -255,12 +234,7 @@ class GitDAOInterface:
         project_id: UUID,
         user_id: UUID,
         #
-        revision_id: UUID,
-        #
-        revision_flags: Optional[Flags] = None,
-        revision_meta: Optional[Meta] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
+        revision_edit: RevisionEdit,
     ) -> Optional[Revision]:
         raise NotImplementedError
 
@@ -292,10 +266,15 @@ class GitDAOInterface:
         *,
         project_id: UUID,
         #
-        revision_flags: Optional[Flags] = None,
-        revision_meta: Optional[Meta] = None,
+        revision_query: RevisionQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        variant_refs: Optional[List[Reference]] = None,
+        revision_refs: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
         raise NotImplementedError
 
@@ -308,17 +287,7 @@ class GitDAOInterface:
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-        variant_id: UUID,
-        #
-        revision_slug: str,
-        #
-        revision_flags: Optional[Flags] = None,
-        revision_meta: Optional[Meta] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
-        revision_message: Optional[str] = None,
-        revision_data: Optional[Data] = None,
+        revision_commit: RevisionCommit,
     ) -> Optional[Revision]:
         raise NotImplementedError
 
@@ -328,9 +297,7 @@ class GitDAOInterface:
         *,
         project_id: UUID,
         #
-        variant_ref: Optional[Reference] = None,
-        revision_ref: Optional[Reference] = None,
-        depth: Optional[int] = None,
+        artifact_log: ArtifactLog,
     ) -> List[Revision]:
         raise NotImplementedError
 

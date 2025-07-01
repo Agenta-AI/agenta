@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 from oss.src.core.observability.dtos import (
@@ -9,12 +10,7 @@ from oss.src.core.observability.dtos import (
 
 
 class SpanFeatures(BaseModel):
-    data: Dict[str, Any] = Field(
-        default_factory=dict
-    )  # unmarshalled data to be used with tracing
-    mdata: Dict[str, Any] = Field(
-        default_factory=dict
-    )  # marshalled data to be used with nodes
+    data: Dict[str, Any] = Field(default_factory=dict)  # marshalled data
     metrics: Dict[str, Any] = Field(default_factory=dict)
     meta: Dict[str, Any] = Field(default_factory=dict)
     refs: Dict[str, Any] = Field(default_factory=dict)
@@ -24,6 +20,7 @@ class SpanFeatures(BaseModel):
     links: List[Any] = Field(default_factory=list)
     exception: Dict[str, Any] = Field(default_factory=dict)
     type: Dict[str, Any] = Field(default_factory=dict)
+    flags: Dict[str, Any] = Field(default_factory=dict)
     tags: Dict[str, Any] = Field(default_factory=dict)
 
 

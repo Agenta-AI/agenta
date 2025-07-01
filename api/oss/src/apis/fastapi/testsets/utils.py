@@ -1,15 +1,19 @@
 from typing import Optional, List, Dict, Any
 from json import loads, dumps
 from uuid import UUID, uuid4
+from io import BytesIO
+
 
 import orjson
-import dask
+import pandas
 
 from fastapi import Query, HTTPException
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.core.shared.dtos import Reference, Tags
-from oss.src.core.testsets.dtos import TestsetFlags, TestsetQuery
+from oss.src.core.shared.dtos import Reference, Meta
+from oss.src.core.testsets.dtos import TestsetFlags
+
+from oss.src.apis.fastapi.testsets.models import SimpleTestsetQuery as TestsetQuery
 
 
 log = get_module_logger(__name__)
@@ -128,7 +132,7 @@ def parse_testset_body_request(
     testset_ref: Optional[Reference] = None,
     #
     testset_flags: Optional[TestsetFlags] = None,
-    testset_meta: Optional[Tags] = None,
+    testset_meta: Optional[Meta] = None,
     #
     include_archived: Optional[bool] = None,
 ) -> TestsetQuery:
@@ -216,7 +220,7 @@ def parse_variant_body_request(
     variant_ref: Optional[Reference] = None,
     #
     variant_flags: Optional[TestsetFlags] = None,
-    variant_meta: Optional[Tags] = None,
+    variant_meta: Optional[Meta] = None,
     #
     include_archived: Optional[bool] = None,
 ) -> TestsetQuery:
@@ -305,7 +309,7 @@ def parse_revision_body_request(
     revision_ref: Optional[Reference] = None,
     #
     revision_flags: Optional[TestsetFlags] = None,
-    revision_meta: Optional[Tags] = None,
+    revision_meta: Optional[Meta] = None,
     #
     include_archived: Optional[bool] = None,
 ) -> TestsetQuery:
@@ -359,16 +363,16 @@ def to_uuid(value):
         return str(uuid4())  # Generate a new UUID
 
 
-def json_file_to_json_array(
+async def json_file_to_json_array(
     json_file,
 ):
-    """Reads a JSON file and returns the parsed data."""
+    """Reads a JSON file from path or UploadFile and returns the parsed data."""
     try:
-        if isinstance(json_file, str):
-            with open(json_file, "rb") as f:
-                return orjson.loads(f.read())  # Efficiently load JSON
+        if hasattr(json_file, "read"):  # Covers UploadFile or similar
+            content = await json_file.read()  # Read async
+            return orjson.loads(content)
         else:
-            return orjson.loads(json_file)
+            raise TypeError("Unsupported file type")
     except orjson.JSONDecodeError as e:
         print(f"Error: Invalid JSON format - {e}")
         raise e
@@ -454,7 +458,7 @@ def json_object_to_json_array(
     ]
 
 
-def csv_file_to_json_array(
+async def csv_file_to_json_array(
     csv_file,
     column_types=None,
 ):
@@ -470,10 +474,14 @@ def csv_file_to_json_array(
         list: A list of dictionaries representing the CSV rows.
     """
     try:
-        df = dask.dataframe.read_csv(
-            csv_file,
-            dtype=str,
-        ).compute()  # Read as string for flexibility
+        try:
+            # Must await the read
+            data = await csv_file.read()
+            df = pandas.read_csv(BytesIO(data), dtype=str)
+            return df.to_dict(orient="records")
+        except Exception as e:
+            print(f"Error: Could not read CSV file - {e}")
+            raise e
 
         if column_types:
             for col, dtype in column_types.items():
@@ -507,11 +515,7 @@ def json_array_to_csv_file(
         return None
 
     try:
-        # Convert JSON array to Dask Bag
-        bag = dask.bag.from_sequence(json_array)
-
-        # Convert to DataFrame
-        df = bag.to_dataframe()
+        df = pandas.DataFrame(json_array)
 
         # Apply type conversion if specified
         if column_types:
@@ -519,8 +523,8 @@ def json_array_to_csv_file(
                 if col in df.columns:
                     df[col] = df[col].astype(dtype)
 
-        # Write directly to CSV using Dask
-        df.to_csv(output_csv_file, index=False, single_file=True)
+        # Write directly to CSV using Pandas
+        df.to_csv(output_csv_file, index=False)
 
     except Exception as e:
         print(f"Error: Could not convert JSON array to CSV file - {e}")

@@ -159,7 +159,7 @@ const CreateEvaluator = ({setSteps, setSelectedEvaluators}: CreateEvaluatorProps
 
             <div className="w-full flex flex-col gap-2">
                 <Typography.Text className="font-medium">
-                    Evaluator Description <span className="text-gray-500">(optional)</span>
+                    Evaluator description <span className="text-gray-500">(optional)</span>
                 </Typography.Text>
                 <Form.Item name="evaluatorDescription" rules={[{required: false}]} className="mb-0">
                     <Input.TextArea placeholder="Enter a description" rows={2} />

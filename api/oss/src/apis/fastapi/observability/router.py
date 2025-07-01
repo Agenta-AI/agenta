@@ -1,8 +1,10 @@
-from typing import Dict, List, Union, Literal
+from typing import Dict, List, Union, Literal, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
 from fastapi.responses import Response
+
+from posthog import feature_enabled
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -21,6 +23,9 @@ from oss.src.core.observability.dtos import (
     Focus,
 )
 
+from oss.src.core.tracing.dtos import OTelFlatSpan
+
+from oss.src.core.tracing.service import TracingService
 from oss.src.core.observability.utils import FilteringException
 
 from oss.src.apis.fastapi.observability.opentelemetry.otlp import (
@@ -49,12 +54,7 @@ from oss.src.apis.fastapi.observability.models import (
 )
 
 if is_ee():
-    from ee.src.utils.entitlements import (
-        check_entitlements,
-        Tracker,
-        Counter,
-        NOT_ENTITLED_RESPONSE,
-    )
+    from ee.src.utils.entitlements import check_entitlements, Counter
 
 # OTLP Protobuf response message for full success
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
@@ -78,8 +78,10 @@ class ObservabilityRouter:
     def __init__(
         self,
         observability_service: ObservabilityService,
+        tracing_service: Optional[TracingService] = None,
     ):
         self.service = observability_service
+        self.tracing = tracing_service
 
         self.router = APIRouter()
 
@@ -255,12 +257,52 @@ class ObservabilityRouter:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+        # -------------------------------------------------------------------- #
+        feature_flag = "create-spans-from-nodes"
+
+        cache_key = {
+            "feature_flag": feature_flag,
+        }
+
+        flag_create_spans_from_nodes = await get_cache(
+            project_id="system",
+            user_id="system",
+            namespace="posthog:flags",
+            key=cache_key,
+        )
+
+        if flag_create_spans_from_nodes is None:
+            flag_create_spans_from_nodes = feature_enabled(
+                feature_flag,
+                "user distinct id",
+            )
+
+            await set_cache(
+                project_id="system",
+                user_id="system",
+                namespace="posthog:flags",
+                key=cache_key,
+                value=flag_create_spans_from_nodes,
+                ttl=60,
+            )
+
+        # log.debug("Creating new spans from nodes: %s", flag_create_spans_from_nodes)
+        # -------------------------------------------------------------------- #
+
         span_dtos = None
         try:
             # ---------------------------------------------------------------- #
-            span_dtos = [
-                parse_from_otel_span_dto(otel_span) for otel_span in otel_spans
+            parsed_spans = [
+                parse_from_otel_span_dto(
+                    otel_span,
+                    flag_create_spans_from_nodes,
+                )
+                for otel_span in otel_spans
             ]
+
+            span_dtos = [parsed_span.get("nodes") for parsed_span in parsed_spans]
+            tracing_spans = [parsed_span.get("spans") for parsed_span in parsed_spans]
+
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
@@ -327,6 +369,29 @@ class ObservabilityRouter:
                 media_type="application/x-protobuf",
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+        try:
+            # ---------------------------------------------------------------- #
+            if flag_create_spans_from_nodes:
+                await self.tracing.create(
+                    project_id=UUID(request.state.project_id),
+                    user_id=UUID(request.state.user_id),
+                    span_dtos=tracing_spans,
+                )
+            # ---------------------------------------------------------------- #
+        except Exception as e:
+            log.warn(
+                "Failed to create spans from project %s with error %s",
+                request.state.project_id,
+                str(e),
+            )
+            for span in tracing_spans:
+                span: OTelFlatSpan
+                log.warn(
+                    "Span: [%s] %s",
+                    span.trace_id,
+                    span,
+                )
 
         # ------------------------------------------------------------------ #
         # According to the OTLP/HTTP spec a full-success response must be an

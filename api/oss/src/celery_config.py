@@ -3,18 +3,24 @@ from kombu import Exchange, Queue
 from oss.src.utils.env import env
 
 
-BROKER_URL = env.CELERY_BROKER_URL
-CELERY_RESULT_BACKEND = env.CELERY_RESULT_BACKEND
-CELERY_TASK_SERIALIZER = "json"
-CELERY_ACCEPT_CONTENT = ["json"]
-CELERY_RESULT_SERIALIZER = "json"
-CELERY_TIMEZONE = "UTC"
-CELERY_TASK_TRACK_STARTED = True
+broker_url = env.CELERY_BROKER_URL
+result_backend = env.CELERY_RESULT_BACKEND
+task_serializer = "json"
+accept_content = ["json"]
+result_serializer = "json"
+timezone = "UTC"
+worker_hijack_root_logger = False
+# CELERY_TASK_TRACK_STARTED = True
 
-CELERY_QUEUES = (
+task_queues = (
     Queue(
         "src.tasks.evaluations.evaluate",
         Exchange("src.tasks.evaluations.evaluate"),
         routing_key="src.tasks.evaluations.evaluate",
+    ),
+    Queue(
+        "src.tasks.evaluations.annotate",
+        Exchange("src.tasks.evaluations.annotate"),
+        routing_key="src.tasks.evaluations.annotate",
     ),
 )

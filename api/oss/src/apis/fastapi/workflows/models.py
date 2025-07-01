@@ -2,11 +2,42 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
+from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.workflows.dtos import (
-    WorkflowArtifact as Workflow,
+    #
+    Workflow,
+    WorkflowCreate,
+    WorkflowEdit,
+    WorkflowQuery,
+    WorkflowFork,
+    WorkflowLog,
+    #
     WorkflowVariant,
+    WorkflowVariantCreate,
+    WorkflowVariantEdit,
+    WorkflowVariantQuery,
+    #
     WorkflowRevision,
+    WorkflowRevisionCreate,
+    WorkflowRevisionEdit,
+    WorkflowRevisionQuery,
+    WorkflowRevisionCommit,
 )
+
+
+class WorkflowCreateRequest(BaseModel):
+    workflow: WorkflowCreate
+
+
+class WorkflowEditRequest(BaseModel):
+    workflow: WorkflowEdit
+
+
+class WorkflowQueryRequest(BaseModel):
+    workflow: Optional[WorkflowQuery] = None
+    workflow_refs: Optional[List[Reference]] = None
+    include_archived: Optional[bool] = None
+    windowing: Optional[Windowing] = None
 
 
 class WorkflowRequest(BaseModel):
@@ -23,29 +54,71 @@ class WorkflowsResponse(BaseModel):
     workflows: List[Workflow] = []
 
 
-class WorkflowVariantRequest(BaseModel):
-    variant: WorkflowVariant
+class WorkflowVariantCreateRequest(BaseModel):
+    workflow_variant: WorkflowVariantCreate
+
+
+class WorkflowVariantEditRequest(BaseModel):
+    workflow_variant: WorkflowVariantEdit
+
+
+class WorkflowVariantQueryRequest(BaseModel):
+    workflow_variant: Optional[WorkflowVariantQuery] = None
+    workflow_refs: Optional[List[Reference]] = None
+    workflow_variant_refs: Optional[List[Reference]] = None
+    include_archived: Optional[bool] = None
+    windowing: Optional[Windowing] = None
 
 
 class WorkflowVariantResponse(BaseModel):
     count: int = 0
-    variant: Optional[WorkflowVariant] = None
+    workflow_variant: Optional[WorkflowVariant] = None
 
 
 class WorkflowVariantsResponse(BaseModel):
     count: int = 0
-    variants: List[WorkflowVariant] = []
+    workflow_variants: List[WorkflowVariant] = []
 
 
-class WorkflowRevisionRequest(BaseModel):
-    revision: WorkflowRevision
+class WorkflowRevisionCreateRequest(BaseModel):
+    workflow_revision: WorkflowRevisionCreate
+
+
+class WorkflowRevisionEditRequest(BaseModel):
+    workflow_revision: WorkflowRevisionEdit
+
+
+class WorkflowRevisionQueryRequest(BaseModel):
+    workflow_revision: Optional[WorkflowRevisionQuery] = None
+    workflow_refs: Optional[List[Reference]] = None
+    workflow_variant_refs: Optional[List[Reference]] = None
+    workflow_revision_refs: Optional[List[Reference]] = None
+    include_archived: Optional[bool] = None
+    windowing: Optional[Windowing] = None
+
+
+class WorkflowRevisionCommitRequest(BaseModel):
+    workflow_revision: WorkflowRevisionCommit
 
 
 class WorkflowRevisionResponse(BaseModel):
     count: int = 0
-    revision: Optional[WorkflowRevision] = None
+    workflow_revision: Optional[WorkflowRevision] = None
 
 
 class WorkflowRevisionsResponse(BaseModel):
     count: int = 0
-    revisions: List[WorkflowRevision] = []
+    workflow_revisions: List[WorkflowRevision] = []
+
+
+class WorkflowForkRequest(BaseModel):
+    workflow: WorkflowFork
+
+
+class WorkflowLogRequest(BaseModel):
+    workflow: WorkflowLog
+
+
+class WorkflowRevisionRetrieveRequest(BaseModel):
+    workflow_variant_ref: Optional[Reference] = None
+    workflow_revision_ref: Optional[Reference] = None

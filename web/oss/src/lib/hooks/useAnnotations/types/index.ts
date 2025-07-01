@@ -23,9 +23,13 @@ interface AnnotationMetadata {
     tags: string[]
 }
 
-type AnnotationKind = "custom" | "human" | "auto"
-
-type AnnotationSource = "web" | "sdk" | "api"
+// OLD STUFF
+type LegacyAnnotationKind = "custom" | "human" | "auto"
+type LegacyAnnotationSource = "web" | "sdk" | "api"
+// NEW STUFF
+type AnnotationKind = "adhoc" | "eval"
+type AnnotationChannel = "web" | "sdk" | "api"
+type AnnotationOrigin = "custom" | "human" | "auto"
 
 type AnnotationLinks = Record<string, AnnotationLink>
 type FullJson = string | number | boolean | null | {[key: string]: FullJson} | FullJson[]
@@ -39,8 +43,9 @@ interface BaseAnnotationDto {
     }
     references?: AnnotationReferences
     links?: AnnotationLinks
-    source?: AnnotationSource
+    channel?: AnnotationChannel
     kind?: AnnotationKind
+    origin?: AnnotationOrigin
     meta?: AnnotationMetadata
 }
 
