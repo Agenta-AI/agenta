@@ -6,6 +6,7 @@ from oss.src.dbs.postgres.shared.dbas import (
     VersionDBA,
     LifecycleDBA,
     FlagsDBA,
+    TagsDBA,
     MetaDBA,
     HeaderDBA,
     CommitDBA,
@@ -18,6 +19,7 @@ class ArtifactDBA(
     SlugDBA,
     LifecycleDBA,
     FlagsDBA,
+    TagsDBA,
     MetaDBA,
     HeaderDBA,
 ):
@@ -29,6 +31,7 @@ class VariantDBA(
     SlugDBA,
     LifecycleDBA,
     FlagsDBA,
+    TagsDBA,
     MetaDBA,
     HeaderDBA,
 ):
@@ -46,6 +49,7 @@ class RevisionDBA(
     VersionDBA,
     LifecycleDBA,
     FlagsDBA,
+    TagsDBA,
     MetaDBA,
     HeaderDBA,
     CommitDBA,

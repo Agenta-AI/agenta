@@ -12,29 +12,49 @@ from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import WorkflowQuery
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.apis.fastapi.workflows.models import (
-    WorkflowRequest,
+    WorkflowCreateRequest,
+    WorkflowEditRequest,
+    WorkflowQueryRequest,
+    WorkflowForkRequest,
+    WorkflowLogRequest,
     WorkflowResponse,
     WorkflowsResponse,
-    WorkflowVariantRequest,
+    #
+    WorkflowVariantCreateRequest,
+    WorkflowVariantEditRequest,
+    WorkflowVariantQueryRequest,
     WorkflowVariantResponse,
     WorkflowVariantsResponse,
-    WorkflowRevisionRequest,
+    #
+    WorkflowRevisionCreateRequest,
+    WorkflowRevisionEditRequest,
+    WorkflowRevisionQueryRequest,
+    WorkflowRevisionCommitRequest,
     WorkflowRevisionResponse,
     WorkflowRevisionsResponse,
+    #
+    WorkflowRevisionRetrieveRequest,
 )
 from oss.src.apis.fastapi.workflows.utils import (
-    parse_workflow_query_request,
-    parse_workflow_body_request,
-    parse_variant_query_request,
-    parse_variant_body_request,
-    parse_revision_query_request,
-    parse_revision_body_request,
-    merge_requests,
+    parse_workflow_query_request_from_params,
+    parse_workflow_query_request_from_body,
+    merge_workflow_query_requests,
+    parse_workflow_variant_query_request_from_params,
+    parse_workflow_variant_query_request_from_body,
+    merge_workflow_variant_query_requests,
+    parse_workflow_revision_query_request_from_params,
+    parse_workflow_revision_query_request_from_body,
+    merge_workflow_revision_query_requests,
+    parse_workflow_revision_retrieve_request_from_params,
+    parse_workflow_revision_retrieve_request_from_body,
 )
 
 if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access, FORBIDDEN_EXCEPTION
+
+
+log = get_module_logger(__name__)
 
 
 class WorkflowsRouter:
@@ -135,7 +155,7 @@ class WorkflowsRouter:
         )
 
         self.router.add_api_route(
-            "/variants/{variant_id}",
+            "/variants/{workflow_variant_id}",
             self.fetch_workflow_variant,
             methods=["GET"],
             operation_id="fetch_workflow_variant",
@@ -145,7 +165,7 @@ class WorkflowsRouter:
         )
 
         self.router.add_api_route(
-            "/variants/{variant_id}",
+            "/variants/{workflow_variant_id}",
             self.edit_workflow_variant,
             methods=["PUT"],
             operation_id="edit_workflow_variant",
@@ -155,7 +175,7 @@ class WorkflowsRouter:
         )
 
         self.router.add_api_route(
-            "/variants/{variant_id}/archive",
+            "/variants/{workflow_variant_id}/archive",
             self.archive_workflow_variant,
             methods=["POST"],
             operation_id="archive_workflow_variant",
@@ -165,7 +185,7 @@ class WorkflowsRouter:
         )
 
         self.router.add_api_route(
-            "/variants/{variant_id}/unarchive",
+            "/variants/{workflow_variant_id}/unarchive",
             self.unarchive_workflow_variant,
             methods=["POST"],
             operation_id="unarchive_workflow_variant",
@@ -197,17 +217,7 @@ class WorkflowsRouter:
         # ----------------------------------------------------------------------
 
         self.router.add_api_route(
-            "/variants/{variant_id}/commit",
-            self.commit_workflow_revision,
-            methods=["POST"],
-            operation_id="commit_workflow_revision_by_variant_id",
-            status_code=status.HTTP_200_OK,
-            response_model=WorkflowRevisionResponse,
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
-            "/variants/{variant_id}/fork",
+            "/variants/fork",
             self.fork_workflow_variant,
             methods=["POST"],
             operation_id="fork_workflow_variant",
@@ -221,6 +231,16 @@ class WorkflowsRouter:
         # — revisions ——————————————————————————————————————————————————————————
 
         self.router.add_api_route(
+            "/revisions/retrieve",
+            self.retrieve_workflow_revision,
+            methods=["GET"],
+            operation_id="retrieve_workflow_revision",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowRevisionResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
             "/revisions/",
             self.create_workflow_revision,
             methods=["POST"],
@@ -231,7 +251,7 @@ class WorkflowsRouter:
         )
 
         self.router.add_api_route(
-            "/revisions/{revision_id}",
+            "/revisions/{workflow_revision_id}",
             self.fetch_workflow_revision,
             methods=["GET"],
             operation_id="fetch_workflow_revision",
@@ -241,7 +261,7 @@ class WorkflowsRouter:
         )
 
         self.router.add_api_route(
-            "/revisions/{revision_id}",
+            "/revisions/{workflow_revision_id}",
             self.edit_workflow_revision,
             methods=["PUT"],
             operation_id="edit_workflow_revision",
@@ -251,7 +271,7 @@ class WorkflowsRouter:
         )
 
         self.router.add_api_route(
-            "/revisions/{revision_id}/archive",
+            "/revisions/{workflow_revision_id}/archive",
             self.archive_workflow_revision,
             methods=["POST"],
             operation_id="archive_workflow_revision_rpc",
@@ -261,7 +281,7 @@ class WorkflowsRouter:
         )
 
         self.router.add_api_route(
-            "/revisions/{revision_id}/unarchive",
+            "/revisions/{workflow_revision_id}/unarchive",
             self.unarchive_workflow_revision,
             methods=["POST"],
             operation_id="unarchive_workflow_revision_rpc",
@@ -293,16 +313,6 @@ class WorkflowsRouter:
         # ----------------------------------------------------------------------
 
         self.router.add_api_route(
-            "/revisions/{revision_id}/fork",
-            self.fork_workflow_variant,
-            methods=["POST"],
-            operation_id="fork_workflow_variant_by_revision_id",
-            status_code=status.HTTP_200_OK,
-            response_model=WorkflowVariantResponse,
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
             "/revisions/commit",
             self.commit_workflow_revision,
             methods=["POST"],
@@ -331,7 +341,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        workflow_request: WorkflowRequest,
+        workflow_create_request: WorkflowCreateRequest,
     ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
@@ -341,24 +351,19 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        artifact = await self.workflows_service.create_artifact(
+        workflow = await self.workflows_service.create_workflow(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            artifact_slug=workflow_request.workflow.slug,
-            #
-            artifact_flags=workflow_request.workflow.flags,
-            artifact_meta=workflow_request.workflow.meta,
-            artifact_name=workflow_request.workflow.name,
-            artifact_description=workflow_request.workflow.description,
+            workflow_create=workflow_create_request.workflow,
         )
 
-        artifact_response = WorkflowResponse(
-            count=1 if artifact is not None else 0,
-            artifact=artifact,
+        workflow_response = WorkflowResponse(
+            count=1 if workflow is not None else 0,
+            workflow=workflow,
         )
 
-        return artifact_response
+        return workflow_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowResponse())
@@ -366,7 +371,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        artifact_id: UUID,
+        workflow_id: UUID,
     ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
@@ -376,18 +381,18 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        artifact = await self.workflows_service.fetch_artifact(
+        workflow = await self.workflows_service.fetch_workflow(
             project_id=UUID(request.state.project_id),
             #
-            artifact_ref=Reference(id=artifact_id),
+            workflow_ref=Reference(id=workflow_id),
         )
 
-        artifact_response = WorkflowResponse(
-            count=1 if artifact is not None else 0,
-            artifact=artifact,
+        workflow_response = WorkflowResponse(
+            count=1 if workflow is not None else 0,
+            workflow=workflow,
         )
 
-        return artifact_response
+        return workflow_response
 
     @intercept_exceptions()
     async def edit_workflow(
@@ -395,7 +400,7 @@ class WorkflowsRouter:
         request: Request,
         *,
         workflow_id: UUID,
-        workflow_request: WorkflowRequest,
+        workflow_edit_request: WorkflowEditRequest,
     ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
@@ -405,37 +410,32 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        if str(workflow_id) != str(workflow_request.workflow.id):
+        if str(workflow_id) != str(workflow_edit_request.workflow.id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"ID mismatch between path params and body params: {workflow_id} != {workflow_request.workflow.id}",
+                detail=f"ID mismatch between path params and body params: {workflow_id} != {workflow_edit_request.workflow.id}",
             )
 
-        artifact = await self.workflows_service.edit_artifact(
+        workflow = await self.workflows_service.edit_workflow(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            artifact_id=workflow_request.workflow.id,
-            #
-            artifact_flags=workflow_request.workflow.flags,
-            artifact_meta=workflow_request.workflow.meta,
-            artifact_name=workflow_request.workflow.name,
-            artifact_description=workflow_request.workflow.description,
+            workflow_edit=workflow_edit_request.workflow,
         )
 
-        artifact_response = WorkflowResponse(
-            count=1 if artifact is not None else 0,
-            artifact=artifact,
+        workflow_response = WorkflowResponse(
+            count=1 if workflow is not None else 0,
+            workflow=workflow,
         )
 
-        return artifact_response
+        return workflow_response
 
     @intercept_exceptions()
     async def archive_workflow(
         self,
         request: Request,
         *,
-        artifact_id: UUID,
+        workflow_id: UUID,
     ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
@@ -445,26 +445,26 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        artifact = await self.workflows_service.archive_artifact(
+        workflow = await self.workflows_service.archive_workflow(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            artifact_id=artifact_id,
+            workflow_id=workflow_id,
         )
 
-        artifact_response = WorkflowResponse(
-            count=1 if artifact is not None else 0,
-            artifact=artifact,
+        workflow_response = WorkflowResponse(
+            count=1 if workflow is not None else 0,
+            workflow=workflow,
         )
 
-        return artifact_response
+        return workflow_response
 
     @intercept_exceptions()
     async def unarchive_workflow(
         self,
         request: Request,
         *,
-        artifact_id: UUID,
+        workflow_id: UUID,
     ) -> WorkflowResponse:
         if is_ee():
             if not await check_action_access(
@@ -474,19 +474,19 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        artifact = await self.workflows_service.unarchive_artifact(
+        workflow = await self.workflows_service.unarchive_workflow(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            artifact_id=artifact_id,
+            workflow_id=workflow_id,
         )
 
-        artifact_response = WorkflowResponse(
-            count=1 if artifact is not None else 0,
-            artifact=artifact,
+        workflow_response = WorkflowResponse(
+            count=1 if workflow is not None else 0,
+            workflow=workflow,
         )
 
-        return artifact_response
+        return workflow_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowsResponse())
@@ -494,21 +494,26 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        query: Optional[WorkflowQuery] = Depends(parse_workflow_query_request),
+        query_request_params: Optional[WorkflowQueryRequest] = Depends(
+            parse_workflow_query_request_from_params
+        ),
     ) -> WorkflowsResponse:
         body_json = None
-        query_from_body = None
+        query_request_body = None
 
         try:
             body_json = await request.json()
 
             if body_json:
-                query_from_body = parse_workflow_body_request(**body_json)
+                query_request_body = parse_workflow_query_request_from_body(**body_json)
 
         except:  # pylint: disable=bare-except
             pass
 
-        _query = merge_requests(query, query_from_body)
+        workflow_query_request = merge_workflow_query_requests(
+            query_request_params,
+            query_request_body,
+        )
 
         if is_ee():
             if not await check_action_access(
@@ -518,33 +523,24 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        artifacts = []
-
-        if _query.artifact_ref:
-            artifact = await self.workflows_service.fetch_artifact(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=_query.artifact_ref,
-            )
-
-            artifacts = [artifact]
-
-        else:
-            artifacts = await self.workflows_service.query_artifacts(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_flags=_query.flags,
-                artifact_meta=_query.meta,
-                #
-                include_archived=_query.include_archived,
-            )
-
-        artifacts_response = WorkflowsResponse(
-            count=len(artifacts),
-            artifacts=artifacts,
+        workflows = await self.workflows_service.query_workflows(
+            project_id=UUID(request.state.project_id),
+            #
+            workflow_query=workflow_query_request.workflow,
+            #
+            workflow_refs=workflow_query_request.workflow_refs,
+            #
+            include_archived=workflow_query_request.include_archived,
+            #
+            windowing=workflow_query_request.windowing,
         )
 
-        return artifacts_response
+        workflows_response = WorkflowsResponse(
+            count=len(workflows),
+            workflows=workflows,
+        )
+
+        return workflows_response
 
     # ——————————————————————————————————————————————————————————————————————————
 
@@ -555,7 +551,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        variant_request: WorkflowVariantRequest,
+        workflow_variant_create_request: WorkflowVariantCreateRequest,
     ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
@@ -565,26 +561,19 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        variant = await self.workflows_service.create_variant(
+        workflow_variant = await self.workflows_service.create_workflow_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            artifact_id=variant_request.variant.artifact_id,
-            #
-            variant_slug=variant_request.variant.slug,
-            #
-            variant_flags=variant_request.variant.flags,
-            variant_meta=variant_request.variant.meta,
-            variant_name=variant_request.variant.name,
-            variant_description=variant_request.variant.description,
+            workflow_variant_create=workflow_variant_create_request.workflow_variant,
         )
 
-        variant_response = WorkflowVariantResponse(
-            count=1 if variant is not None else 0,
-            variant=variant,
+        workflow_variant_response = WorkflowVariantResponse(
+            count=1 if workflow_variant is not None else 0,
+            workflow_variant=workflow_variant,
         )
 
-        return variant_response
+        return workflow_variant_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowVariantResponse())
@@ -592,7 +581,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        variant_id: UUID,
+        workflow_variant_id: UUID,
     ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
@@ -602,26 +591,26 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        variant = await self.workflows_service.fetch_variant(
+        workflow_variant = await self.workflows_service.fetch_workflow_variant(
             project_id=UUID(request.state.project_id),
             #
-            variant_ref=Reference(id=variant_id),
+            workflow_variant_ref=Reference(id=workflow_variant_id),
         )
 
-        variant_response = WorkflowVariantResponse(
-            count=1 if variant is not None else 0,
-            variant=variant,
+        workflow_variant_response = WorkflowVariantResponse(
+            count=1 if workflow_variant is not None else 0,
+            workflow_variant=workflow_variant,
         )
 
-        return variant_response
+        return workflow_variant_response
 
     @intercept_exceptions()
     async def edit_workflow_variant(
         self,
         request: Request,
         *,
-        variant_id: UUID,
-        variant_request: WorkflowVariantRequest,
+        workflow_variant_id: UUID,
+        workflow_variant_edit_request: WorkflowVariantEditRequest,
     ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
@@ -631,37 +620,34 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        if str(variant_id) != str(variant_request.variant.id):
+        if str(workflow_variant_id) != str(
+            workflow_variant_edit_request.workflow_variant.id
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"ID mismatch between path params and body params: {variant_id} != {variant_request.variant.id}",
+                detail=f"ID mismatch between path params and body params: {workflow_variant_id} != {workflow_variant_edit_request.variant.id}",
             )
 
-        variant = await self.workflows_service.edit_variant(
+        workflow_variant = await self.workflows_service.edit_workflow_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            variant_id=variant_request.variant.id,
-            #
-            variant_flags=variant_request.variant.flags,
-            variant_meta=variant_request.variant.meta,
-            variant_name=variant_request.variant.name,
-            variant_description=variant_request.variant.description,
+            workflow_variant_edit=workflow_variant_edit_request.workflow_variant,
         )
 
-        variant_response = WorkflowVariantResponse(
-            count=1 if variant is not None else 0,
-            variant=variant,
+        workflow_variant_response = WorkflowVariantResponse(
+            count=1 if workflow_variant is not None else 0,
+            variant=workflow_variant,
         )
 
-        return variant_response
+        return workflow_variant_response
 
     @intercept_exceptions()
     async def archive_workflow_variant(
         self,
         request: Request,
         *,
-        variant_id: UUID,
+        workflow_variant_id: UUID,
     ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
@@ -671,26 +657,26 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        variant = await self.workflows_service.archive_variant(
+        workflow_variant = await self.workflows_service.archive_workflow_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            variant_id=variant_id,
+            workflow_variant_id=workflow_variant_id,
         )
 
-        variant_response = WorkflowVariantResponse(
-            count=1 if variant is not None else 0,
-            variant=variant,
+        workflow_variant_response = WorkflowVariantResponse(
+            count=1 if workflow_variant is not None else 0,
+            workflow_variant=workflow_variant,
         )
 
-        return variant_response
+        return workflow_variant_response
 
     @intercept_exceptions()
     async def unarchive_workflow_variant(
         self,
         request: Request,
         *,
-        variant_id: UUID,
+        workflow_variant_id: UUID,
     ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
@@ -700,19 +686,19 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        variant = await self.workflows_service.unarchive_variant(
+        workflow_variant = await self.workflows_service.unarchive_workflow_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            variant_id=variant_id,
+            workflow_variant_id=workflow_variant_id,
         )
 
-        variant_response = WorkflowVariantResponse(
-            count=1 if variant is not None else 0,
-            variant=variant,
+        workflow_variant_response = WorkflowVariantResponse(
+            count=1 if workflow_variant is not None else 0,
+            workflow_variant=workflow_variant,
         )
 
-        return variant_response
+        return workflow_variant_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowVariantsResponse())
@@ -720,21 +706,28 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        query: Optional[WorkflowQuery] = Depends(parse_variant_query_request),
+        query_request_params: Optional[WorkflowVariantQueryRequest] = Depends(
+            parse_workflow_variant_query_request_from_params
+        ),
     ) -> WorkflowVariantsResponse:
         body_json = None
-        query_from_body = None
+        query_request_body = None
 
         try:
             body_json = await request.json()
 
             if body_json:
-                query_from_body = parse_variant_body_request(**body_json)
+                query_request_body = parse_workflow_variant_query_request_from_body(
+                    **body_json
+                )
 
         except:  # pylint: disable=bare-except
             pass
 
-        _query = merge_requests(query, query_from_body)
+        workflow_variant_query_request = merge_workflow_variant_query_requests(
+            query_request_params,
+            query_request_body,
+        )
 
         if is_ee():
             if not await check_action_access(
@@ -744,34 +737,25 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        variants = []
-
-        if _query.artifact_ref or _query.variant_ref:
-            variant = await self.workflows_service.fetch_variant(
-                project_id=UUID(request.state.project_id),
-                #
-                artifact_ref=_query.artifact_ref,
-                variant_ref=_query.variant_ref,
-            )
-
-            variants = [variant]
-
-        else:
-            variants = await self.workflows_service.query_variants(
-                project_id=UUID(request.state.project_id),
-                #
-                variant_flags=_query.flags,
-                variant_meta=_query.meta,
-                #
-                include_archived=_query.include_archived,
-            )
-
-        variants_response = WorkflowVariantsResponse(
-            count=len(variants),
-            variants=variants,
+        workflow_variants = await self.workflows_service.query_workflow_variants(
+            project_id=UUID(request.state.project_id),
+            #
+            workflow_variant_query=workflow_variant_query_request.workflow_variant,
+            #
+            workflow_refs=workflow_variant_query_request.workflow_refs,
+            workflow_variant_refs=workflow_variant_query_request.workflow_variant_refs,
+            #
+            include_archived=workflow_variant_query_request.include_archived,
+            #
+            windowing=workflow_variant_query_request.windowing,
         )
 
-        return variants_response
+        workflow_variants_response = WorkflowVariantsResponse(
+            count=len(workflow_variants),
+            workflow_variants=workflow_variants,
+        )
+
+        return workflow_variants_response
 
     # --------------------------------------------------------------------------
 
@@ -780,9 +764,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        revision_request: WorkflowRevisionRequest,
-        variant_id: Optional[UUID] = None,
-        revision_id: Optional[UUID] = None,
+        workflow_fork_request: WorkflowForkRequest,
     ) -> WorkflowVariantResponse:
         if is_ee():
             if not await check_action_access(
@@ -792,65 +774,19 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        if variant_id:
-            if str(variant_id) != str(revision_request.revision.variant_id):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"ID mismatch between path params and body params: {variant_id} != {revision_request.revision.variant_id}",
-                )
-
-            if revision_request.revision.variant:
-                if (
-                    revision_request.revision.variant_id
-                    != revision_request.revision.variant.id
-                ):
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"ID mismatch between revision and variant: {revision_request.revision.variant_id} != {revision_request.revision.variant.id}",
-                    )
-
-        if revision_id:
-            if str(revision_id) != str(revision_request.revision.id):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"ID mismatch between path params and body params: {revision_id} != {revision_request.revision.id}",
-                )
-
-        if not revision_request.revision.variant:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Missing variant in revision request",
-            )
-
-        variant = await self.workflows_service.fork_variant(
+        workflow_variant = await self.workflows_service.fork_workflow_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            variant_slug=revision_request.revision.variant.slug,
-            revision_slug=revision_request.revision.slug,
-            #
-            variant_id=revision_request.revision.variant_id,
-            revision_id=revision_request.revision.id,
-            # depth=depth,
-            #
-            variant_flags=revision_request.revision.variant.flags,
-            variant_meta=revision_request.revision.variant.meta,
-            variant_name=revision_request.revision.variant.name,
-            variant_description=revision_request.revision.variant.description,
-            #
-            revision_flags=revision_request.revision.flags,
-            revision_meta=revision_request.revision.meta,
-            revision_name=revision_request.revision.name,
-            revision_description=revision_request.revision.description,
-            revision_message=revision_request.revision.message,
+            workflow_fork=workflow_fork_request.workflow,
         )
 
-        variant_response = WorkflowVariantResponse(
-            count=1 if variant is not None else 0,
-            variant=variant,
+        workflow_variant_response = WorkflowVariantResponse(
+            count=1 if workflow_variant is not None else 0,
+            workflow_variant=workflow_variant,
         )
 
-        return variant_response
+        return workflow_variant_response
 
     # ——————————————————————————————————————————————————————————————————————————
 
@@ -861,7 +797,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        revision_request: WorkflowRevisionRequest,
+        workflow_revision_create_request: WorkflowRevisionCreateRequest,
     ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
@@ -871,27 +807,19 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        revision = await self.workflows_service.create_revision(
+        workflow_revision = await self.workflows_service.create_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            artifact_id=revision_request.revision.artifact_id,
-            variant_id=revision_request.revision.variant_id,
-            #
-            revision_slug=revision_request.revision.slug,
-            #
-            revision_flags=revision_request.revision.flags,
-            revision_meta=revision_request.revision.meta,
-            revision_name=revision_request.revision.name,
-            revision_description=revision_request.revision.description,
+            workflow_revision_create=workflow_revision_create_request.workflow_revision,
         )
 
-        revision_response = WorkflowRevisionResponse(
-            count=1 if revision is not None else 0,
-            revision=revision,
+        workflow_revision_response = WorkflowRevisionResponse(
+            count=1 if workflow_revision is not None else 0,
+            workflow_revision=workflow_revision,
         )
 
-        return revision_response
+        return workflow_revision_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionResponse())
@@ -899,9 +827,9 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        variant_ref: Optional[Reference] = None,
-        revision_ref: Optional[Reference] = None,
+        workflow_revision_id: UUID,
     ) -> WorkflowRevisionResponse:
+        log.debug("fetch_workflow_revision")
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,
@@ -910,27 +838,26 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        revision = await self.workflows_service.fetch_revision(
+        workflow_revision = await self.workflows_service.fetch_workflow_revision(
             project_id=UUID(request.state.project_id),
             #
-            variant_ref=variant_ref,
-            revision_ref=revision_ref,
+            workflow_revision_ref=Reference(id=workflow_revision_id),
         )
 
-        revision_response = WorkflowRevisionResponse(
-            count=1 if revision is not None else 0,
-            revision=revision,
+        workflow_revision_response = WorkflowRevisionResponse(
+            count=1 if workflow_revision is not None else 0,
+            workflow_revision=workflow_revision,
         )
 
-        return revision_response
+        return workflow_revision_response
 
     @intercept_exceptions()
     async def edit_workflow_revision(
         self,
         request: Request,
         *,
-        revision_id: UUID,
-        revision_request: WorkflowRevisionRequest,
+        workflow_revision_id: UUID,
+        workflow_revision_request: WorkflowRevisionEditRequest,
     ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
@@ -940,37 +867,34 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        if str(revision_id) != str(revision_request.revision.id):
+        if str(workflow_revision_id) != str(
+            workflow_revision_request.workflow_revision.id
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"ID mismatch between path params and body params: {revision_id} != {revision_request.revision.id}",
+                detail=f"ID mismatch between path params and body params: {workflow_revision_id} != {workflow_revision_request.workflow_revision.id}",
             )
 
-        revision = await self.workflows_service.edit_revision(
+        workflow_revision = await self.workflows_service.edit_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            revision_id=revision_request.revision.id,
-            #
-            revision_flags=revision_request.revision.flags,
-            revision_meta=revision_request.revision.meta,
-            revision_name=revision_request.revision.name,
-            revision_description=revision_request.revision.description,
+            workflow_revision_edit=workflow_revision_request.workflow_revision,
         )
 
-        revision_response = WorkflowRevisionResponse(
-            count=1 if revision is not None else 0,
-            revision=revision,
+        workflow_revision_response = WorkflowRevisionResponse(
+            count=1 if workflow_revision is not None else 0,
+            workflow_revision=workflow_revision,
         )
 
-        return revision_response
+        return workflow_revision_response
 
     @intercept_exceptions()
     async def archive_workflow_revision(
         self,
         request: Request,
         *,
-        revision_id: UUID,
+        workflow_revision_id: UUID,
     ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
@@ -980,26 +904,26 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        revision = await self.workflows_service.archive_revision(
+        workflow_revision = await self.workflows_service.archive_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            revision_id=revision_id,
+            workflow_revision_id=workflow_revision_id,
         )
 
-        revision_response = WorkflowRevisionResponse(
-            count=1 if revision is not None else 0,
-            revision=revision,
+        workflow_revision_response = WorkflowRevisionResponse(
+            count=1 if workflow_revision is not None else 0,
+            workflow_revision=workflow_revision,
         )
 
-        return revision_response
+        return workflow_revision_response
 
     @intercept_exceptions()
     async def unarchive_workflow_revision(
         self,
         request: Request,
         *,
-        revision_id: UUID,
+        workflow_revision_id: UUID,
     ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
@@ -1009,40 +933,46 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        revision = await self.workflows_service.unarchive_revision(
+        workflow_revision = await self.workflows_service.unarchive_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            revision_id=revision_id,
+            workflow_revision_id=workflow_revision_id,
         )
 
-        revision_response = WorkflowRevisionResponse(
-            count=1 if revision is not None else 0,
-            revision=revision,
+        workflow_revision_response = WorkflowRevisionResponse(
+            count=1 if workflow_revision is not None else 0,
+            workflow_revision=workflow_revision,
         )
 
-        return revision_response
+        return workflow_revision_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionsResponse())
     async def query_workflow_revisions(
         self,
         request: Request,
-        query: Optional[WorkflowQuery] = Depends(parse_revision_query_request),
+        query_request_params: Optional[WorkflowRevisionQueryRequest] = Depends(
+            parse_workflow_revision_query_request_from_params
+        ),
     ) -> WorkflowRevisionsResponse:
         body_json = None
-        query_from_body = None
+        query_request_body = None
 
         try:
             body_json = await request.json()
 
             if body_json:
-                query_from_body = parse_revision_body_request(**body_json)
+                query_request_body = parse_workflow_revision_query_request_from_body(
+                    **body_json
+                )
 
         except:  # pylint: disable=bare-except
             pass
 
-        _query = merge_requests(query, query_from_body)
+        workflow_revision_query_request = merge_workflow_revision_query_requests(
+            query_request_params, query_request_body
+        )
 
         if is_ee():
             if not await check_action_access(
@@ -1052,34 +982,26 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        revisions = []
-
-        if _query.variant_ref or _query.revision_ref:
-            revision = await self.workflows_service.fetch_revision(
-                project_id=UUID(request.state.project_id),
-                #
-                variant_ref=_query.variant_ref,
-                revision_ref=_query.revision_ref,
-            )
-
-            revisions = [revision]
-
-        else:
-            revisions = await self.workflows_service.query_revisions(
-                project_id=UUID(request.state.project_id),
-                #
-                revision_flags=_query.flags,
-                revision_meta=_query.meta,
-                #
-                include_archived=_query.include_archived,
-            )
-
-        revisions_response = WorkflowRevisionsResponse(
-            count=len(revisions),
-            revisions=revisions,
+        workflow_revisions = await self.workflows_service.query_workflow_revisions(
+            project_id=UUID(request.state.project_id),
+            #
+            workflow_revision_query=workflow_revision_query_request.workflow_revision,
+            #
+            workflow_refs=workflow_revision_query_request.workflow_refs,
+            workflow_variant_refs=workflow_revision_query_request.workflow_variant_refs,
+            workflow_revision_refs=workflow_revision_query_request.workflow_revision_refs,
+            #
+            include_archived=workflow_revision_query_request.include_archived,
+            #
+            windowing=workflow_revision_query_request.windowing,
         )
 
-        return revisions_response
+        workflow_revisions_response = WorkflowRevisionsResponse(
+            count=len(workflow_revisions),
+            workflow_revisions=workflow_revisions,
+        )
+
+        return workflow_revisions_response
 
     # --------------------------------------------------------------------------
 
@@ -1088,8 +1010,8 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        revision_request: WorkflowRevisionRequest,
-        variant_id: Optional[UUID] = None,
+        workflow_revision_commit_request: WorkflowRevisionCommitRequest,
+        workflow_variant_id: Optional[UUID] = None,
     ) -> WorkflowRevisionResponse:
         if is_ee():
             if not await check_action_access(
@@ -1099,33 +1021,28 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        if variant_id:
-            if str(variant_id) != str(revision_request.revision.variant_id):
+        if workflow_variant_id:
+            if str(workflow_variant_id) != str(
+                workflow_revision_commit_request.workflow_revision.workflow_variant_id
+            ):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"ID mismatch between path params and body params: {variant_id} != {revision_request.revision.variant_id}",
+                    detail=f"ID mismatch between path params and body params: {workflow_variant_id} != {workflow_revision_commit_request.workflow_revision.workflow_variant_id}",
                 )
 
-        revision = await self.workflows_service.commit_revision(
+        workflow_revision = await self.workflows_service.commit_workflow_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            variant_id=revision_request.revision.variant_id,
-            #
-            revision_flags=revision_request.revision.flags,
-            revision_meta=revision_request.revision.meta,
-            revision_name=revision_request.revision.name,
-            revision_description=revision_request.revision.description,
-            revision_message=revision_request.revision.message,
-            revision_data=revision_request.revision.data,
+            workflow_revision_commit=workflow_revision_commit_request.workflow_revision,
         )
 
-        revision_response = WorkflowRevisionResponse(
-            count=1 if revision is not None else 0,
-            revision=revision,
+        workflow_revision_response = WorkflowRevisionResponse(
+            count=1 if workflow_revision is not None else 0,
+            workflow_revision=workflow_revision,
         )
 
-        return revision_response
+        return workflow_revision_response
 
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionsResponse())
@@ -1133,9 +1050,7 @@ class WorkflowsRouter:
         self,
         request: Request,
         *,
-        variant_ref: Optional[Reference] = None,
-        revision_ref: Optional[Reference] = None,
-        depth: Optional[int] = None,
+        workflow_log_request: WorkflowLogRequest,
     ) -> WorkflowRevisionsResponse:
         if is_ee():
             if not await check_action_access(
@@ -1145,12 +1060,10 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
-        revisions = await self.workflows_service.log_revisions(
+        revisions = await self.workflows_service.log_workflow_revisions(
             project_id=UUID(request.state.project_id),
             #
-            variant_ref=variant_ref,
-            revision_ref=revision_ref,
-            depth=depth,
+            workflow_log=workflow_log_request.workflow,
         )
 
         revisions_response = WorkflowRevisionsResponse(
@@ -1161,3 +1074,51 @@ class WorkflowsRouter:
         return revisions_response
 
     # ——————————————————————————————————————————————————————————————————————————
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowRevisionResponse())
+    async def retrieve_workflow_revision(
+        self,
+        request: Request,
+        *,
+        retrieve_request_params: Optional[WorkflowRevisionRetrieveRequest] = Depends(
+            parse_workflow_revision_retrieve_request_from_params
+        ),
+    ) -> WorkflowRevisionResponse:
+        body_json = None
+        retrieve_request_body = None
+
+        try:
+            body_json = await request.json()
+
+            if body_json:
+                retrieve_request_body = (
+                    parse_workflow_revision_retrieve_request_from_body(**body_json)
+                )
+
+        except:  # pylint: disable=bare-except
+            pass
+
+        workflow_revision_retrieve_request = (
+            retrieve_request_params or retrieve_request_body
+        )
+
+        if not workflow_revision_retrieve_request:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not retrieve workflow revision. Please provide a valid request.",
+            )
+
+        workflow_revision = await self.workflows_service.fetch_workflow_revision(
+            project_id=UUID(request.state.project_id),
+            #
+            workflow_variant_ref=workflow_revision_retrieve_request.workflow_variant_ref,
+            workflow_revision_ref=workflow_revision_retrieve_request.workflow_revision_ref,
+        )
+
+        workflow_revision_response = WorkflowRevisionResponse(
+            count=1 if workflow_revision is not None else 0,
+            workflow_revision=workflow_revision,
+        )
+
+        return workflow_revision_response

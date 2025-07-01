@@ -1,10 +1,8 @@
 from typing import Any, Optional, Union, List
 from uuid import UUID
 
-from fastapi import HTTPException, Request, status
 from fastapi.responses import JSONResponse
-
-from oss.src.utils.common import APIRouter
+from fastapi import HTTPException, Request, status
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -12,6 +10,7 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.models import converters
+from oss.src.utils.common import APIRouter
 from oss.src.services import app_manager, db_manager
 
 if is_ee():
@@ -79,7 +78,9 @@ async def add_variant_from_base_and_config(
     new_variant_name = (
         payload.new_variant_name
         if payload.new_variant_name
-        else payload.new_config_name if payload.new_config_name else base_db.base_name
+        else payload.new_config_name
+        if payload.new_config_name
+        else base_db.base_name
     )
     db_app_variant = await db_manager.add_variant_from_base_and_config(
         base_db=base_db,

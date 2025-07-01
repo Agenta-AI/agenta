@@ -3,15 +3,39 @@ from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.blobs.interfaces import BlobDAOInterface
-from oss.src.core.shared.dtos import Reference, Tags, Data
-from oss.src.core.blobs.dtos import Blob
+from oss.src.core.testcases.service import TestcasesService
+from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.git.dtos import (
+    ArtifactCreate,
+    ArtifactEdit,
+    ArtifactQuery,
+    #
+    VariantCreate,
+    VariantEdit,
+    VariantQuery,
+    VariantFork,
+    #
+    RevisionCreate,
+    RevisionEdit,
+    RevisionQuery,
+    RevisionCommit,
+)
 from oss.src.core.testsets.dtos import (
-    TestsetData,
-    TestsetFlags,
-    TestsetArtifact,
+    Testset,
+    TestsetCreate,
+    TestsetEdit,
+    TestsetQuery,
+    #
     TestsetVariant,
+    TestsetVariantCreate,
+    TestsetVariantEdit,
+    TestsetVariantQuery,
+    #
     TestsetRevision,
+    TestsetRevisionCreate,
+    TestsetRevisionEdit,
+    TestsetRevisionQuery,
+    TestsetRevisionCommit,
 )
 
 log = get_module_logger(__name__)
@@ -21,745 +45,628 @@ class TestsetsService:
     def __init__(
         self,
         *,
-        git_dao: GitDAOInterface,
-        blobs_dao: BlobDAOInterface,
+        testsets_dao: GitDAOInterface,
+        testcases_service: TestcasesService,
     ):
-        self.git_dao = git_dao
-        self.blobs_dao = blobs_dao
+        self.testsets_dao = testsets_dao
+        self.testcases_service = testcases_service
 
-    ## -- artifacts ------------------------------------------------------------
+    ## -- testset --------------------------------------------------------------
 
-    async def create_artifact(
+    async def create_testset(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_slug: str,
+        testset_create: TestsetCreate,
         #
-        artifact_flags: Optional[TestsetFlags] = None,
-        artifact_meta: Optional[Tags] = None,
-        artifact_name: Optional[str] = None,
-        artifact_description: Optional[str] = None,
-    ) -> Optional[TestsetArtifact]:
-        artifact = await self.git_dao.create_artifact(
+        testset_id: Optional[UUID] = None,
+    ) -> Optional[Testset]:
+        _artifact_create = ArtifactCreate(
+            **testset_create.model_dump(mode="json"),
+        )
+
+        artifact = await self.testsets_dao.create_artifact(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_slug=artifact_slug,
+            artifact_create=_artifact_create,
             #
-            artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_meta=artifact_meta,
-            artifact_name=artifact_name,
-            artifact_description=artifact_description,
+            artifact_id=testset_id,
         )
 
         if not artifact:
             return None
 
-        artifact = TestsetArtifact(**artifact.model_dump())
+        _testset = Testset(
+            **artifact.model_dump(mode="json"),
+        )
 
-        return artifact
+        return _testset
 
-    async def fetch_artifact(
+    async def fetch_testset(
         self,
         *,
         project_id: UUID,
         #
-        artifact_ref: Reference,
-    ) -> Optional[TestsetArtifact]:
-        artifact = await self.git_dao.fetch_artifact(
+        testset_ref: Reference,
+    ) -> Optional[Testset]:
+        artifact = await self.testsets_dao.fetch_artifact(
             project_id=project_id,
             #
-            artifact_ref=artifact_ref,
+            artifact_ref=testset_ref,
         )
 
         if not artifact:
             return None
 
-        artifact = TestsetArtifact(**artifact.model_dump())
+        _testset = Testset(
+            **artifact.model_dump(mode="json"),
+        )
 
-        return artifact
+        return _testset
 
-    async def edit_artifact(
+    async def edit_testset(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-        #
-        artifact_flags: Optional[TestsetFlags] = None,
-        artifact_meta: Optional[Tags] = None,
-        artifact_name: Optional[str] = None,
-        artifact_description: Optional[str] = None,
-    ) -> Optional[TestsetArtifact]:
-        artifact = await self.git_dao.edit_artifact(
+        testset_edit: TestsetEdit,
+    ) -> Optional[Testset]:
+        _artifact_edit = ArtifactEdit(
+            **testset_edit.model_dump(mode="json"),
+        )
+
+        artifact = await self.testsets_dao.edit_artifact(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=artifact_id,
-            #
-            artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_meta=artifact_meta,
-            artifact_name=artifact_name,
-            artifact_description=artifact_description,
+            artifact_edit=_artifact_edit,
         )
 
         if not artifact:
             return None
 
-        artifact = TestsetArtifact(**artifact.model_dump())
+        _testset = Testset(
+            **artifact.model_dump(mode="json"),
+        )
 
-        return artifact
+        return _testset
 
-    async def archive_artifact(
+    async def archive_testset(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-    ) -> Optional[TestsetArtifact]:
-        artifact = await self.git_dao.archive_artifact(
+        testset_id: UUID,
+    ) -> Optional[Testset]:
+        artifact = await self.testsets_dao.archive_artifact(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=artifact_id,
+            artifact_id=testset_id,
         )
 
         if not artifact:
             return None
 
-        artifact = TestsetArtifact(**artifact.model_dump())
+        _testset = Testset(
+            **artifact.model_dump(mode="json"),
+        )
 
-        return artifact
+        return _testset
 
-    async def unarchive_artifact(
+    async def unarchive_testset(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-    ) -> Optional[TestsetArtifact]:
-        artifact = await self.git_dao.unarchive_artifact(
+        testset_id: UUID,
+    ) -> Optional[Testset]:
+        artifact = await self.testsets_dao.unarchive_artifact(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=artifact_id,
+            artifact_id=testset_id,
         )
 
         if not artifact:
             return None
 
-        artifact = TestsetArtifact(**artifact.model_dump())
+        _testset = Testset(
+            **artifact.model_dump(mode="json"),
+        )
 
-        return artifact
+        return _testset
 
-    async def query_artifacts(
+    async def query_testsets(
         self,
         *,
         project_id: UUID,
         #
-        artifact_flags: Optional[TestsetFlags] = None,
-        artifact_meta: Optional[Tags] = None,
+        testset_query: TestsetQuery,
+        #
+        testset_refs: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
-    ) -> List[TestsetArtifact]:
-        artifacts = await self.git_dao.query_artifacts(
-            project_id=project_id,
-            #
-            artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_meta=artifact_meta,
-            #
-            include_archived=include_archived,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Testset]:
+        _artifact_query = (
+            ArtifactQuery(
+                **testset_query.model_dump(mode="json"),
+            )
+            if testset_query
+            else ArtifactQuery()
         )
 
-        artifacts = [TestsetArtifact(**artifact.model_dump()) for artifact in artifacts]
+        artifacts = await self.testsets_dao.query_artifacts(
+            project_id=project_id,
+            #
+            artifact_query=_artifact_query,
+            #
+            artifact_refs=testset_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
 
-        return artifacts
+        _testsets = [
+            Testset(
+                **artifact.model_dump(mode="json"),
+            )
+            for artifact in artifacts
+        ]
+
+        return _testsets
 
     ## -------------------------------------------------------------------------
 
     ## -- variants -------------------------------------------------------------
 
-    async def create_variant(
+    async def create_testset_variant(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-        #
-        variant_slug: str,
-        #
-        variant_flags: Optional[TestsetFlags] = None,
-        variant_meta: Optional[Tags] = None,
-        variant_name: Optional[str] = None,
-        variant_description: Optional[str] = None,
+        testset_variant_create: TestsetVariantCreate,
     ) -> Optional[TestsetVariant]:
-        variant = await self.git_dao.create_variant(
+        _variant_create = VariantCreate(
+            **testset_variant_create.model_dump(mode="json"),
+        )
+
+        variant = await self.testsets_dao.create_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=artifact_id,
-            #
-            variant_slug=variant_slug,
-            #
-            variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_meta=variant_meta,
-            variant_name=variant_name,
-            variant_description=variant_description,
+            variant_create=_variant_create,
         )
 
         if not variant:
             return None
 
-        variant = TestsetVariant(**variant.model_dump())
+        _testset_variant = TestsetVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _testset_variant
 
-    async def fetch_variant(
+    async def fetch_testset_variant(
         self,
         *,
         project_id: UUID,
         #
-        artifact_ref: Optional[Reference] = None,
-        variant_ref: Optional[Reference] = None,
+        testset_ref: Optional[Reference] = None,
+        testset_variant_ref: Optional[Reference] = None,
     ) -> Optional[TestsetVariant]:
-        variant = await self.git_dao.fetch_variant(
+        variant = await self.testsets_dao.fetch_variant(
             project_id=project_id,
             #
-            artifact_ref=artifact_ref,
-            variant_ref=variant_ref,
+            artifact_ref=testset_ref,
+            variant_ref=testset_variant_ref,
         )
 
         if not variant:
             return None
 
-        variant = TestsetVariant(**variant.model_dump())
+        _testset_variant = TestsetVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _testset_variant
 
-    async def edit_variant(
+    async def edit_testset_variant(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        variant_id: UUID,
-        #
-        variant_flags: Optional[TestsetFlags] = None,
-        variant_meta: Optional[Tags] = None,
-        variant_name: Optional[str] = None,
-        variant_description: Optional[str] = None,
+        testset_variant_edit: TestsetVariantEdit,
     ) -> Optional[TestsetVariant]:
-        variant = await self.git_dao.edit_variant(
+        _variant_edit = VariantEdit(
+            **testset_variant_edit.model_dump(mode="json"),
+        )
+
+        variant = await self.testsets_dao.edit_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            variant_id=variant_id,
-            #
-            variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_meta=variant_meta,
-            variant_name=variant_name,
-            variant_description=variant_description,
+            variant_edit=_variant_edit,
         )
 
         if not variant:
             return None
 
-        variant = TestsetVariant(**variant.model_dump())
+        _testset_variant = TestsetVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _testset_variant
 
-    async def archive_variant(
+    async def archive_testset_variant(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        variant_id: UUID,
+        testset_variant_id: UUID,
     ) -> Optional[TestsetVariant]:
-        variant = await self.git_dao.archive_variant(
+        variant = await self.testsets_dao.archive_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            variant_id=variant_id,
+            variant_id=testset_variant_id,
         )
 
         if not variant:
             return None
 
-        variant = TestsetVariant(**variant.model_dump())
+        _testset_variant = TestsetVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _testset_variant
 
-    async def unarchive_variant(
+    async def unarchive_testset_variant(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        variant_id: UUID,
+        testset_variant_id: UUID,
     ) -> Optional[TestsetVariant]:
-        variant = await self.git_dao.unarchive_variant(
+        variant = await self.testsets_dao.unarchive_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            variant_id=variant_id,
+            variant_id=testset_variant_id,
         )
 
         if not variant:
             return None
 
-        variant = TestsetVariant(**variant.model_dump())
+        _testset_variant = TestsetVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _testset_variant
 
     async def query_variants(
         self,
         *,
         project_id: UUID,
         #
-        variant_flags: Optional[TestsetFlags] = None,
-        variant_meta: Optional[Tags] = None,
+        testset_variant_query: TestsetVariantQuery,
         #
         include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> List[TestsetVariant]:
-        variants = await self.git_dao.query_variants(
+        _testset_variant_query = VariantQuery(
+            **testset_variant_query.model_dump(mode="json"),
+        )
+
+        variants = await self.testsets_dao.query_variants(
             project_id=project_id,
             #
-            variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_meta=variant_meta,
+            variant_query=_testset_variant_query,
             #
             include_archived=include_archived,
+            #
+            windowing=windowing,
         )
 
-        variants = [TestsetVariant(**variant.model_dump()) for variant in variants]
+        _testset_variants = [
+            TestsetVariant(
+                **variant.model_dump(mode="json"),
+            )
+            for variant in variants
+        ]
 
-        return variants
-
-    ## .........................................................................
-
-    async def fork_variant(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        variant_slug: str,
-        revision_slug: str,
-        #
-        variant_id: Optional[UUID] = None,
-        revision_id: Optional[UUID] = None,
-        depth: Optional[int] = None,
-        #
-        variant_flags: Optional[TestsetFlags] = None,
-        variant_meta: Optional[Tags] = None,
-        variant_name: Optional[str] = None,
-        variant_description: Optional[str] = None,
-        #
-        revision_flags: Optional[TestsetFlags] = None,
-        revision_meta: Optional[Tags] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
-        revision_message: Optional[str] = None,
-    ) -> Optional[TestsetVariant]:
-        variant = await self.git_dao.fork_variant(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            variant_slug=variant_slug,
-            revision_slug=revision_slug,
-            #
-            variant_id=variant_id,
-            revision_id=revision_id,
-            depth=depth,
-            #
-            variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_meta=variant_meta,
-            variant_name=variant_name,
-            variant_description=variant_description,
-            #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
-            revision_name=revision_name,
-            revision_description=revision_description,
-            revision_message=revision_message,
-        )
-
-        if not variant:
-            return None
-
-        variant = TestsetVariant(**variant.model_dump())
-
-        return variant
+        return _testset_variants
 
     ## -------------------------------------------------------------------------
 
     ## -- revisions ------------------------------------------------------------
 
-    async def create_revision(
+    async def create_testset_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        variant_id: UUID,
-        #
-        revision_slug: str,
-        #
-        revision_flags: Optional[TestsetFlags] = None,
-        revision_meta: Optional[Tags] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
+        testset_revision_create: TestsetRevisionCreate,
     ) -> Optional[TestsetRevision]:
-        revision = await self.git_dao.create_revision(
+        _revision_create = RevisionCreate(
+            **testset_revision_create.model_dump(mode="json"),
+        )
+
+        revision = await self.testsets_dao.create_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            variant_id=variant_id,
-            #
-            revision_slug=revision_slug,
-            #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
-            revision_name=revision_name if revision_name else revision_slug,
-            revision_description=revision_description,
+            revision_create=_revision_create,
         )
 
         if not revision:
             return None
 
-        revision = TestsetRevision(**revision.model_dump())
-
-        return revision
-
-    async def fetch_revision(
-        self,
-        *,
-        project_id: UUID,
-        #
-        variant_ref: Optional[Reference] = None,
-        revision_ref: Optional[Reference] = None,
-    ) -> Optional[TestsetRevision]:
-        revision = await self.git_dao.fetch_revision(
-            project_id=project_id,
-            #
-            variant_ref=variant_ref,
-            revision_ref=revision_ref,
+        _testset_revision = TestsetRevision(
+            **revision.model_dump(mode="json"),
         )
 
-        if not revision:
-            return None
-
-        if revision.data:
-            testcase_ids = revision.data.get("testcase_ids")
-
-            testcases = await self.load_testcases(
+        if _testset_revision.data and _testset_revision.data.testcase_ids:
+            _testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
                 project_id=project_id,
                 #
-                testcase_ids=testcase_ids,
+                testcase_ids=_testset_revision.data.testcase_ids,
             )
 
-            revision.data = TestsetData(
-                testcases=testcases,
+        return _testset_revision
+
+    async def fetch_testset_revision(
+        self,
+        *,
+        project_id: UUID,
+        #
+        testset_variant_ref: Optional[Reference] = None,
+        testset_revision_ref: Optional[Reference] = None,
+    ) -> Optional[TestsetRevision]:
+        revision = await self.testsets_dao.fetch_revision(
+            project_id=project_id,
+            #
+            variant_ref=testset_variant_ref,
+            revision_ref=testset_revision_ref,
+        )
+
+        if not revision:
+            return None
+
+        _testset_revision = TestsetRevision(
+            **revision.model_dump(mode="json"),
+        )
+
+        if _testset_revision.data and _testset_revision.data.testcase_ids:
+            _testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
+                project_id=project_id,
+                #
+                testcase_ids=_testset_revision.data.testcase_ids,
             )
 
-        revision = TestsetRevision(**revision.model_dump())
+        return _testset_revision
 
-        return revision
-
-    async def edit_revision(
+    async def edit_testset_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        revision_id: UUID,
-        #
-        revision_flags: Optional[TestsetFlags] = None,
-        revision_meta: Optional[Tags] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
+        testset_revision_edit: TestsetRevisionEdit,
     ) -> Optional[TestsetRevision]:
-        revision = await self.git_dao.edit_revision(
+        _revision_edit = TestsetRevisionEdit(
+            **testset_revision_edit.model_dump(mode="json"),
+        )
+
+        revision = await self.testsets_dao.edit_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            revision_id=revision_id,
-            #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
-            revision_name=revision_name,
-            revision_description=revision_description,
+            revision_edit=_revision_edit,
         )
 
         if not revision:
             return None
 
-        revision = TestsetRevision(**revision.model_dump())
+        _testset_revision = TestsetRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-        return revision
+        if _testset_revision.data and _testset_revision.data.testcase_ids:
+            _testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
+                project_id=project_id,
+                #
+                testcase_ids=_testset_revision.data.testcase_ids,
+            )
 
-    async def archive_revision(
+        return _testset_revision
+
+    async def archive_testset_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        revision_id: UUID,
+        testset_revision_id: UUID,
     ) -> Optional[TestsetRevision]:
-        revision = await self.git_dao.archive_revision(
+        revision = await self.testsets_dao.archive_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            revision_id=revision_id,
+            revision_id=testset_revision_id,
         )
 
         if not revision:
             return None
 
-        revision = TestsetRevision(**revision.model_dump())
+        _testset_revision = TestsetRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-        return revision
+        return _testset_revision
 
-    async def unarchive_revision(
+    async def unarchive_testset_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        revision_id: UUID,
+        testset_revision_id: UUID,
     ) -> Optional[TestsetRevision]:
-        revision = await self.git_dao.unarchive_revision(
+        revision = await self.testsets_dao.unarchive_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            revision_id=revision_id,
+            revision_id=testset_revision_id,
         )
 
         if not revision:
             return None
 
-        revision = TestsetRevision(**revision.model_dump())
+        _testset_revision = TestsetRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-        return revision
+        return _testset_revision
 
-    async def query_revisions(
+    async def query_testset_revisions(
         self,
         *,
         project_id: UUID,
         #
-        revision_flags: Optional[TestsetFlags] = None,
-        revision_meta: Optional[Tags] = None,
-        #
-        include_archived: Optional[bool] = None,
+        testset_revision_query: TestsetRevisionQuery,
     ) -> List[TestsetRevision]:
-        revisions = await self.git_dao.query_revisions(
-            project_id=project_id,
-            #
-            #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
-            #
-            include_archived=include_archived,
+        _revision_query = RevisionQuery(
+            **testset_revision_query.model_dump(mode="json"),
         )
 
-        revisions = [TestsetRevision(**revision.model_dump()) for revision in revisions]
+        revisions = await self.testsets_dao.query_revisions(
+            project_id=project_id,
+            #
+            revision_query=_revision_query,
+        )
+
+        if not revisions:
+            return []
+
+        _testset_revisions = []
 
         for revision in revisions:
-            if revision.data:
-                testcase_ids = revision.data.get("testcase_ids")
+            _testset_revision = TestsetRevision(
+                **revision.model_dump(mode="json"),
+            )
 
-                testcases = await self.load_testcases(
+            if _testset_revision.data and _testset_revision.data.testcase_ids:
+                _testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
                     project_id=project_id,
                     #
-                    testcase_ids=testcase_ids,
-                )
-                revision.data = TestsetData(
-                    testcases=testcases,
+                    testcase_ids=_testset_revision.data.testcase_ids,
                 )
 
-        return revisions
+            _testset_revisions.append(_testset_revision)
+
+        return _testset_revisions
 
     ## .........................................................................
 
-    async def commit_revision(
+    async def commit_testset_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        # artifact_id: UUID,
-        variant_id: UUID,
-        #
-        revision_slug: str,
-        #
-        revision_flags: Optional[TestsetFlags] = None,
-        revision_meta: Optional[Tags] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
-        revision_message: Optional[str] = None,
-        revision_data: Optional[TestsetData] = None,
+        testset_revision_commit: TestsetRevisionCommit,
     ) -> Optional[TestsetRevision]:
-        variant = await self.git_dao.fetch_variant(
-            project_id=project_id,
-            #
-            variant_ref=Reference(id=variant_id),
+        if testset_revision_commit.data and testset_revision_commit.data.testcases:
+            testset_revision_commit.data.testcase_ids = await self.testcases_service.add_testcases(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                testset_id=testset_revision_commit.artifact_id,
+                #
+                testcases=testset_revision_commit.data.testcases,
+            )
+
+            testset_revision_commit.data.testcases = None
+
+        _revision_commit = RevisionCommit(
+            **testset_revision_commit.model_dump(mode="json", exclude_none=True),
         )
 
-        if not variant:
-            return None
-
-        testset_data = None
-
-        if revision_data and revision_data.testcases:
-            testcases = revision_data.testcases
-
-            testcase_ids = await self.save_testcases(
-                project_id=project_id,
-                #
-                testset_id=variant.artifact_id,
-                #
-                testcases=testcases,
-            )
-
-            testset_data = TestsetData(
-                testcase_ids=testcase_ids,
-            )
-
-        revision = await self.git_dao.commit_revision(
+        revision = await self.testsets_dao.commit_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=variant.artifact_id,
-            variant_id=variant_id,
-            #
-            revision_slug=revision_slug,
-            #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
-            revision_name=revision_name,
-            revision_description=revision_description,
-            revision_message=revision_message,
-            revision_data=testset_data.model_dump() if testset_data else None,
+            revision_commit=_revision_commit,
         )
 
         if not revision:
             return None
 
-        if revision.data:
-            testcase_ids = revision.data.get("testcase_ids")
+        _testset_revision = TestsetRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-            testcases = await self.load_testcases(
+        if _testset_revision.data and _testset_revision.data.testcase_ids:
+            _testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
                 project_id=project_id,
                 #
-                testcase_ids=testcase_ids,
+                testcase_ids=_testset_revision.data.testcase_ids,
             )
 
-            revision.data = TestsetData(
-                testcases=testcases,
-            )
+        return _testset_revision
 
-        revision = TestsetRevision(**revision.model_dump())
-
-        return revision
-
-    async def log_revisions(
+    async def log_testset_revisions(
         self,
         *,
         project_id: UUID,
         #
-        variant_ref: Optional[Reference] = None,
-        revision_ref: Optional[Reference] = None,
+        testset_variant_ref: Optional[Reference] = None,
+        testset_revision_ref: Optional[Reference] = None,
         depth: Optional[int] = None,
     ) -> List[TestsetRevision]:
-        revisions = await self.git_dao.log_revisions(
+        revisions = await self.testsets_dao.log_revisions(
             project_id=project_id,
             #
-            variant_ref=variant_ref,
-            revision_ref=revision_ref,
+            variant_ref=testset_variant_ref,
+            revision_ref=testset_revision_ref,
             depth=depth,
         )
 
-        revisions = [TestsetRevision(**revision.model_dump()) for revision in revisions]
+        if not revisions:
+            return []
+
+        _testset_revisions = []
 
         for revision in revisions:
-            if revision.data:
-                testcase_ids = revision.data.get("testcase_ids")
+            _testset_revision = TestsetRevision(
+                **revision.model_dump(mode="json"),
+            )
 
-                testcases = await self.load_testcases(
+            if _testset_revision.data and _testset_revision.data.testcase_ids:
+                _testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
                     project_id=project_id,
                     #
-                    testcase_ids=testcase_ids,
-                )
-                revision.data = TestsetData(
-                    testcases=testcases,
+                    testcase_ids=_testset_revision.data.testcase_ids,
                 )
 
-        return revisions
+            _testset_revisions.append(_testset_revision)
 
-    ## -------------------------------------------------------------------------
-
-    ## -- testcases ------------------------------------------------------------
-
-    async def save_testcases(
-        self,
-        *,
-        project_id: UUID,
-        #
-        testset_id: UUID,
-        #
-        testcases: List[Data],
-    ) -> List[UUID]:
-        blobs = [
-            Blob(
-                data=testcase,
-                set_id=testset_id,
-            )
-            for testcase in testcases
-        ]
-
-        testcase_blobs = await self.blobs_dao.add_blobs(
-            project_id=project_id,
-            #
-            blobs=blobs,
-        )
-
-        if not testcase_blobs:
-            return []
-
-        testcase_ids = [testcase_blob.id for testcase_blob in testcase_blobs]
-
-        return testcase_ids
-
-    async def load_testcases(
-        self,
-        *,
-        project_id: UUID,
-        #
-        testcase_ids: List[UUID],
-    ) -> List[Data]:
-        testcase_blobs = await self.blobs_dao.fetch_blobs(
-            project_id=project_id,
-            #
-            blob_ids=testcase_ids,
-        )
-
-        if not testcase_blobs:
-            return []
-
-        testcases = [
-            {
-                "testcase_id": str(testcase_blob.id),
-                **testcase_blob.data,
-            }
-            for testcase_blob in testcase_blobs
-        ]
-
-        return testcases
+        return _testset_revisions
 
     ## -------------------------------------------------------------------------

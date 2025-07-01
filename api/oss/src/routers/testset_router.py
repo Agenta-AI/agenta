@@ -60,6 +60,7 @@ TESTSETS_COUNT_EXCEPTION = HTTPException(
 
 def _validate_testset_limits(rows: List[dict]) -> tuple[int, int]:
     total_size = 2
+    i = -1
     for i, row in enumerate(rows):
         row_str = json.dumps(row)
         total_size += len(row_str.encode("utf-8"))
@@ -118,7 +119,7 @@ async def upload_file(
         "csvdata": [],
     }
 
-    if upload_type == "JSON":
+    if upload_type.upper() == "JSON":
         # Read and parse the JSON file
         json_data = await file.read()
         json_text = json_data.decode("utf-8")
@@ -128,7 +129,7 @@ async def upload_file(
         for i, row in enumerate(json_object):
             document["csvdata"].append(row)
 
-    else:
+    elif upload_type.upper() == "CSV" or upload_type is None:
         # Read and parse the CSV file
         csv_data = await file.read()
         csv_text = csv_data.decode("utf-8")
@@ -140,6 +141,10 @@ async def upload_file(
         # Populate the document with rows from the CSV reader
         for i, row in enumerate(csv_reader):
             document["csvdata"].append(row)
+
+    else:
+        log.error(f"Unsupported upload type: {upload_type}")
+        raise HTTPException(status_code=400, detail="Unsupported upload type")
 
     _validate_testset_limits(document["csvdata"])
 

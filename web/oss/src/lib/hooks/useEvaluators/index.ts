@@ -5,7 +5,7 @@ import {getCurrentProject} from "@/oss/contexts/project.context"
 
 import {transformApiData} from "../useAnnotations/assets/transformer"
 
-import {EvaluatorDto, EvaluatorResponseDto} from "./types"
+import {EvaluatorDto, EvaluatorsResponseDto} from "./types"
 
 const useEvaluators = () => {
     const {selectedOrg} = useOrgData()
@@ -13,8 +13,8 @@ const useEvaluators = () => {
     const workspace = selectedOrg?.default_workspace
     const members = workspace?.members || []
 
-    const {data, ...rest} = useSWR<EvaluatorResponseDto>(
-        `/api/preview/evaluators/?project_id=${projectId}`,
+    const {data, ...rest} = useSWR<EvaluatorsResponseDto>(
+        `/preview/simple/evaluators/?project_id=${projectId}`,
         {
             revalidateOnFocus: false,
             shouldRetryOnError: false,
@@ -23,7 +23,7 @@ const useEvaluators = () => {
 
     return {
         data:
-            data?.evaluator.map((evaluator) =>
+            data?.evaluators?.map((evaluator) =>
                 transformApiData<EvaluatorDto>({data: evaluator, members}),
             ) || [],
         ...rest,

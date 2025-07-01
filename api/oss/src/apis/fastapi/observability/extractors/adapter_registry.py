@@ -1,7 +1,8 @@
-from typing import Dict, List, Optional, Type, Any
+from typing import List
+
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 from oss.src.apis.fastapi.observability.extractors.base_adapter import BaseAdapter
 from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (

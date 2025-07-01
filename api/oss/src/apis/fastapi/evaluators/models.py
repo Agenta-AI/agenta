@@ -7,54 +7,90 @@ from oss.src.core.shared.dtos import (
     Identifier,
     Slug,
     Lifecycle,
-    Meta,
     Header,
+    Tags,
+    Meta,
+    Windowing,
+    Reference,
 )
 
 from oss.src.core.workflows.dtos import (
-    WorkflowData,
+    WorkflowRevisionData,
     WorkflowFlags,
 )
 
 
-class EvaluatorFlags(WorkflowFlags):
+class SimpleEvaluatorFlags(WorkflowFlags):
     def __init__(self, **data):
         data["is_evaluator"] = True
+
         super().__init__(**data)
 
 
-class Evaluator(Identifier, Slug, Lifecycle, Header):
-    flags: Optional[EvaluatorFlags] = None
-    meta: Optional[Meta] = None
-    data: Optional[WorkflowData] = None
-
-    class Config(Identifier.Config, Lifecycle.Config):
-        json_encoders: Dict[Any, Any] = dict(
-            chain(
-                Identifier.Config.json_encoders.items(),
-                Lifecycle.Config.json_encoders.items(),
-            )
-        )
-
-
-class EvaluatorRequest(BaseModel):
-    evaluator: Evaluator
-
-
-class EvaluatorQuery(BaseModel):
-    flags: Optional[EvaluatorFlags] = None
+class SimpleEvaluator(
+    Identifier,
+    Slug,
+    Lifecycle,
+    Header,
+):
+    flags: Optional[SimpleEvaluatorFlags] = None
+    tags: Optional[Tags] = None
     meta: Optional[Meta] = None
 
-
-class EvaluatorQueryRequest(BaseModel):
-    evaluator: EvaluatorQuery
+    data: Optional[WorkflowRevisionData] = None
 
 
-class EvaluatorResponse(BaseModel):
+class SimpleEvaluatorCreate(
+    Slug,
+    Header,
+):
+    flags: Optional[SimpleEvaluatorFlags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    data: Optional[WorkflowRevisionData] = None
+
+
+class SimpleEvaluatorEdit(
+    Identifier,
+    Header,
+):
+    flags: Optional[SimpleEvaluatorFlags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    data: Optional[WorkflowRevisionData] = None
+
+
+class SimpleEvaluatorQuery(BaseModel):
+    flags: Optional[SimpleEvaluatorFlags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+
+class SimpleEvaluatorCreateRequest(BaseModel):
+    evaluator: SimpleEvaluatorCreate
+
+
+class SimpleEvaluatorEditRequest(BaseModel):
+    evaluator: SimpleEvaluatorEdit
+
+
+class SimpleEvaluatorQueryRequest(BaseModel):
+    evaluator: Optional[SimpleEvaluatorQuery] = None
+    #
+    evaluator_refs: Optional[List[Reference]] = None
+    #
+    include_archived: Optional[bool] = False
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleEvaluatorResponse(BaseModel):
     count: int = 0
-    evaluator: Optional[Evaluator] = None
+    evaluator: Optional[SimpleEvaluator] = None
 
 
-class EvaluatorsResponse(BaseModel):
+class SimpleEvaluatorsResponse(BaseModel):
     count: int = 0
-    evaluator: List[Evaluator] = []
+    evaluators: List[SimpleEvaluator] = []

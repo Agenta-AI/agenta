@@ -5,7 +5,7 @@ from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.dtos import (
     Header,
     SecretKind,
-    LifecycleDTO,
+    LegacyLifecycleDTO,
     CreateSecretDTO,
     UpdateSecretDTO,
     SecretResponseDTO,
@@ -51,9 +51,9 @@ def map_secrets_dbe_to_dto(*, secrets_dbe: SecretsDBE) -> SecretResponseDTO:
         kind=SecretKind(secrets_dbe.kind).value,
         data=json.loads(secrets_dbe.data),  # type: ignore
         header=Header(name=secrets_dbe.name, description=secrets_dbe.description),
-        lifecycle=LifecycleDTO(
-            created_at=secrets_dbe.created_at,
-            updated_at=secrets_dbe.updated_at,  # type: ignore
+        lifecycle=LegacyLifecycleDTO(
+            created_at=str(secrets_dbe.created_at),
+            updated_at=str(secrets_dbe.updated_at),
         ),
     )
 

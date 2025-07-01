@@ -1,16 +1,48 @@
 from typing import Optional, List
 from uuid import UUID
 
+from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.shared.dtos import Reference, Meta
-from oss.src.core.workflows.dtos import (
-    WorkflowData,
-    WorkflowFlags,
-    WorkflowArtifact,
-    WorkflowVariant,
-    WorkflowRevision,
+from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.git.dtos import (
+    ArtifactCreate,
+    ArtifactEdit,
+    ArtifactQuery,
+    ArtifactFork,
+    ArtifactLog,
+    #
+    VariantCreate,
+    VariantEdit,
+    VariantQuery,
+    #
+    RevisionCreate,
+    RevisionEdit,
+    RevisionQuery,
+    RevisionCommit,
 )
+from oss.src.core.workflows.dtos import (
+    Workflow,
+    WorkflowCreate,
+    WorkflowEdit,
+    WorkflowQuery,
+    WorkflowFork,
+    WorkflowLog,
+    #
+    WorkflowVariant,
+    WorkflowVariantCreate,
+    WorkflowVariantEdit,
+    WorkflowVariantQuery,
+    #
+    WorkflowRevision,
+    WorkflowRevisionCreate,
+    WorkflowRevisionEdit,
+    WorkflowRevisionQuery,
+    WorkflowRevisionCommit,
+)
+
+
+log = get_module_logger(__name__)
 
 
 class WorkflowsService:
@@ -23,618 +55,617 @@ class WorkflowsService:
 
     ## -- artifacts ------------------------------------------------------------
 
-    async def create_artifact(
+    async def create_workflow(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_slug: str,
-        #
-        artifact_flags: Optional[WorkflowFlags] = None,
-        artifact_meta: Optional[Meta] = None,
-        artifact_name: Optional[str] = None,
-        artifact_description: Optional[str] = None,
-    ) -> Optional[WorkflowArtifact]:
+        workflow_create: WorkflowCreate,
+    ) -> Optional[Workflow]:
+        _artifact_create = ArtifactCreate(
+            **workflow_create.model_dump(mode="json"),
+        )
+
         artifact = await self.workflows_dao.create_artifact(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_slug=artifact_slug,
-            #
-            artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_meta=artifact_meta,
-            artifact_name=artifact_name or artifact_slug,
-            artifact_description=artifact_description,
+            artifact_create=_artifact_create,
         )
 
         if not artifact:
             return None
 
-        artifact = WorkflowArtifact(**artifact.model_dump())
+        _workflow = Workflow(**artifact.model_dump(mode="json"))
 
-        return artifact
+        return _workflow
 
-    async def fetch_artifact(
+    async def fetch_workflow(
         self,
         *,
         project_id: UUID,
         #
-        artifact_ref: Reference,
-    ) -> Optional[WorkflowArtifact]:
+        workflow_ref: Reference,
+    ) -> Optional[Workflow]:
         artifact = await self.workflows_dao.fetch_artifact(
             project_id=project_id,
             #
-            artifact_ref=artifact_ref,
+            artifact_ref=workflow_ref,
         )
 
         if not artifact:
             return None
 
-        artifact = WorkflowArtifact(**artifact.model_dump())
+        _workflow = Workflow(**artifact.model_dump(mode="json"))
 
-        return artifact
+        return _workflow
 
-    async def edit_artifact(
+    async def edit_workflow(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-        #
-        artifact_flags: Optional[WorkflowFlags] = None,
-        artifact_meta: Optional[Meta] = None,
-        artifact_name: Optional[str] = None,
-        artifact_description: Optional[str] = None,
-    ) -> Optional[WorkflowArtifact]:
+        workflow_edit: WorkflowEdit,
+    ) -> Optional[Workflow]:
+        _artifact_edit = ArtifactEdit(
+            **workflow_edit.model_dump(mode="json"),
+        )
+
         artifact = await self.workflows_dao.edit_artifact(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=artifact_id,
-            #
-            artifact_flags=(artifact_flags.model_dump() if artifact_flags else None),
-            artifact_meta=artifact_meta,
-            artifact_name=artifact_name,
-            artifact_description=artifact_description,
+            artifact_edit=_artifact_edit,
         )
 
         if not artifact:
             return None
 
-        artifact = WorkflowArtifact(**artifact.model_dump())
+        _workflow = Workflow(**artifact.model_dump(mode="json"))
 
-        return artifact
+        return _workflow
 
-    async def archive_artifact(
+    async def archive_workflow(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-    ) -> Optional[WorkflowArtifact]:
+        workflow_id: UUID,
+    ) -> Optional[Workflow]:
         artifact = await self.workflows_dao.archive_artifact(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=artifact_id,
+            artifact_id=workflow_id,
         )
 
         if not artifact:
             return None
 
-        artifact = WorkflowArtifact(**artifact.model_dump())
+        _workflow = Workflow(**artifact.model_dump(mode="json"))
 
-        return artifact
+        return _workflow
 
-    async def unarchive_artifact(
+    async def unarchive_workflow(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-    ) -> Optional[WorkflowArtifact]:
+        workflow_id: UUID,
+    ) -> Optional[Workflow]:
         artifact = await self.workflows_dao.unarchive_artifact(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=artifact_id,
+            artifact_id=workflow_id,
         )
 
         if not artifact:
             return None
 
-        artifact = WorkflowArtifact(**artifact.model_dump())
+        _workflow = Workflow(**artifact.model_dump(mode="json"))
 
-        return artifact
+        return _workflow
 
-    async def query_artifacts(
+    async def query_workflows(
         self,
         *,
         project_id: UUID,
         #
-        artifact_flags: Optional[WorkflowFlags] = None,
-        artifact_meta: Optional[Meta] = None,
+        workflow_query: Optional[WorkflowQuery] = None,
+        #
+        workflow_refs: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
-    ) -> List[WorkflowArtifact]:
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Workflow]:
+        _artifact_query = (
+            ArtifactQuery(
+                **workflow_query.model_dump(mode="json", exclude_none=True),
+            )
+            if workflow_query
+            else ArtifactQuery()
+        )
+
         artifacts = await self.workflows_dao.query_artifacts(
             project_id=project_id,
             #
-            artifact_flags=(
-                artifact_flags.model_dump(exclude_none=True) if artifact_flags else None
-            ),
-            artifact_meta=artifact_meta,
+            artifact_query=_artifact_query,
+            #
+            artifact_refs=workflow_refs,
             #
             include_archived=include_archived,
+            #
+            windowing=windowing,
         )
 
-        artifacts = [
-            WorkflowArtifact(**artifact.model_dump()) for artifact in artifacts
+        _workflows = [
+            Workflow(
+                **artifact.model_dump(mode="json"),
+            )
+            for artifact in artifacts
         ]
 
-        return artifacts
+        return _workflows
 
     ## -------------------------------------------------------------------------
 
     ## -- variants -------------------------------------------------------------
 
-    async def create_variant(
+    async def create_workflow_variant(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-        #
-        variant_slug: str,
-        #
-        variant_flags: Optional[WorkflowFlags] = None,
-        variant_meta: Optional[Meta] = None,
-        variant_name: Optional[str] = None,
-        variant_description: Optional[str] = None,
+        workflow_variant_create: WorkflowVariantCreate,
     ) -> Optional[WorkflowVariant]:
+        _variant_create = VariantCreate(
+            **workflow_variant_create.model_dump(mode="json"),
+        )
+
         variant = await self.workflows_dao.create_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=artifact_id,
-            #
-            variant_slug=variant_slug,
-            #
-            variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_meta=variant_meta,
-            variant_name=variant_name or variant_slug,
-            variant_description=variant_description,
+            variant_create=_variant_create,
         )
 
         if not variant:
             return None
 
-        variant = WorkflowVariant(**variant.model_dump())
+        _workflow_variant = WorkflowVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _workflow_variant
 
-    async def fetch_variant(
+    async def fetch_workflow_variant(
         self,
         *,
         project_id: UUID,
         #
-        artifact_ref: Optional[Reference] = None,
-        variant_ref: Optional[Reference] = None,
+        workflow_ref: Optional[Reference] = None,
+        workflow_variant_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowVariant]:
         variant = await self.workflows_dao.fetch_variant(
             project_id=project_id,
             #
-            artifact_ref=artifact_ref,
-            variant_ref=variant_ref,
+            artifact_ref=workflow_ref,
+            variant_ref=workflow_variant_ref,
         )
 
         if not variant:
             return None
 
-        variant = WorkflowVariant(**variant.model_dump())
+        _workflow_variant = WorkflowVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _workflow_variant
 
-    async def edit_variant(
+    async def edit_workflow_variant(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        variant_id: UUID,
-        #
-        variant_flags: Optional[WorkflowFlags] = None,
-        variant_meta: Optional[Meta] = None,
-        variant_name: Optional[str] = None,
-        variant_description: Optional[str] = None,
+        workflow_variant_edit: WorkflowVariantEdit,
     ) -> Optional[WorkflowVariant]:
+        _variant_edit = VariantEdit(
+            **workflow_variant_edit.model_dump(mode="json"),
+        )
+
         variant = await self.workflows_dao.edit_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            variant_id=variant_id,
-            #
-            variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_meta=variant_meta,
-            variant_name=variant_name,
-            variant_description=variant_description,
+            variant_edit=_variant_edit,
         )
 
         if not variant:
             return None
 
-        variant = WorkflowVariant(**variant.model_dump())
+        _workflow_variant = WorkflowVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _workflow_variant
 
-    async def archive_variant(
+    async def archive_workflow_variant(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        variant_id: UUID,
+        workflow_variant_id: UUID,
     ) -> Optional[WorkflowVariant]:
         variant = await self.workflows_dao.archive_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            variant_id=variant_id,
+            variant_id=workflow_variant_id,
         )
 
         if not variant:
             return None
 
-        variant = WorkflowVariant(**variant.model_dump())
+        _workflow_variant = WorkflowVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _workflow_variant
 
-    async def unarchive_variant(
+    async def unarchive_workflow_variant(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        variant_id: UUID,
+        workflow_variant_id: UUID,
     ) -> Optional[WorkflowVariant]:
         variant = await self.workflows_dao.unarchive_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            variant_id=variant_id,
+            variant_id=workflow_variant_id,
         )
 
         if not variant:
             return None
 
-        variant = WorkflowVariant(**variant.model_dump())
+        _workdlow_variant = WorkflowVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _workdlow_variant
 
-    async def query_variants(
+    async def query_workflow_variants(
         self,
         *,
         project_id: UUID,
         #
-        variant_flags: Optional[WorkflowFlags] = None,
-        variant_meta: Optional[Meta] = None,
+        workflow_variant_query: Optional[WorkflowVariantQuery] = None,
+        #
+        workflow_refs: Optional[List[Reference]] = None,
+        workflow_variant_refs: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> List[WorkflowVariant]:
+        _variant_query = (
+            VariantQuery(
+                **workflow_variant_query.model_dump(mode="json", exclude_none=True),
+            )
+            if workflow_variant_query
+            else VariantQuery()
+        )
+
         variants = await self.workflows_dao.query_variants(
             project_id=project_id,
             #
-            variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_meta=variant_meta,
+            variant_query=_variant_query,
+            #
+            artifact_refs=workflow_refs,
+            variant_refs=workflow_variant_refs,
             #
             include_archived=include_archived,
+            #
+            windowing=windowing,
         )
 
-        variants = [WorkflowVariant(**variant.model_dump()) for variant in variants]
+        _workflow_variants = [
+            WorkflowVariant(
+                **variant.model_dump(mode="json"),
+            )
+            for variant in variants
+        ]
 
-        return variants
+        return _workflow_variants
 
     ## .........................................................................
 
-    async def fork_variant(
+    async def fork_workflow_variant(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        variant_slug: str,
-        revision_slug: str,
-        #
-        variant_id: Optional[UUID] = None,
-        revision_id: Optional[UUID] = None,
-        depth: Optional[int] = None,
-        #
-        variant_flags: Optional[WorkflowFlags] = None,
-        variant_meta: Optional[Meta] = None,
-        variant_name: Optional[str] = None,
-        variant_description: Optional[str] = None,
-        #
-        revision_flags: Optional[WorkflowFlags] = None,
-        revision_meta: Optional[Meta] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
-        revision_message: Optional[str] = None,
+        workflow_fork: WorkflowFork,
     ) -> Optional[WorkflowVariant]:
+        _artifact_fork = ArtifactFork(
+            **workflow_fork.model_dump(mode="json"),
+        )
+
         variant = await self.workflows_dao.fork_variant(
             project_id=project_id,
             user_id=user_id,
             #
-            variant_slug=variant_slug,
-            revision_slug=revision_slug,
-            #
-            variant_id=variant_id,
-            revision_id=revision_id,
-            depth=depth,
-            #
-            variant_flags=(variant_flags.model_dump() if variant_flags else None),
-            variant_meta=variant_meta,
-            variant_name=variant_name or variant_slug,
-            variant_description=variant_description,
-            #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
-            revision_name=revision_name or revision_slug,
-            revision_description=revision_description,
-            revision_message=revision_message,
+            artifact_fork=_artifact_fork,
         )
 
         if not variant:
             return None
 
-        variant = WorkflowVariant(**variant.model_dump())
+        _workflow_variant = WorkflowVariant(
+            **variant.model_dump(mode="json"),
+        )
 
-        return variant
+        return _workflow_variant
 
     ## -------------------------------------------------------------------------
 
     ## -- revisions ------------------------------------------------------------
 
-    async def create_revision(
+    async def create_workflow_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        artifact_id: UUID,
-        variant_id: UUID,
-        #
-        revision_slug: str,
-        #
-        revision_flags: Optional[WorkflowFlags] = None,
-        revision_meta: Optional[Meta] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
+        workflow_revision_create: WorkflowRevisionCreate,
     ) -> Optional[WorkflowRevision]:
+        _revision_create = RevisionCreate(
+            **workflow_revision_create.model_dump(mode="json"),
+        )
+
         revision = await self.workflows_dao.create_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=artifact_id,
-            variant_id=variant_id,
-            #
-            revision_slug=revision_slug,
-            #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
-            revision_name=revision_name or revision_slug,
-            revision_description=revision_description,
+            revision_create=_revision_create,
         )
 
         if not revision:
             return None
 
-        revision = WorkflowRevision(**revision.model_dump())
+        _workflow_revision = WorkflowRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-        return revision
+        return _workflow_revision
 
-    async def fetch_revision(
+    async def fetch_workflow_revision(
         self,
         *,
         project_id: UUID,
         #
-        variant_ref: Optional[Reference] = None,
-        revision_ref: Optional[Reference] = None,
+        workflow_variant_ref: Optional[Reference] = None,
+        workflow_revision_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowRevision]:
         revision = await self.workflows_dao.fetch_revision(
             project_id=project_id,
             #
-            variant_ref=variant_ref,
-            revision_ref=revision_ref,
+            variant_ref=workflow_variant_ref,
+            revision_ref=workflow_revision_ref,
         )
 
         if not revision:
             return None
 
-        revision = WorkflowRevision(**revision.model_dump())
+        _workflow_revision = WorkflowRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-        return revision
+        return _workflow_revision
 
-    async def edit_revision(
+    async def edit_workflow_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        revision_id: UUID,
-        #
-        revision_flags: Optional[WorkflowFlags] = None,
-        revision_meta: Optional[Meta] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
+        workflow_revision_edit: WorkflowRevisionEdit,
     ) -> Optional[WorkflowRevision]:
+        _workflow_revision_edit = RevisionEdit(
+            **workflow_revision_edit.model_dump(mode="json"),
+        )
+
         revision = await self.workflows_dao.edit_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            revision_id=revision_id,
-            #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
-            revision_name=revision_name,
-            revision_description=revision_description,
+            revision_edit=_workflow_revision_edit,
         )
 
         if not revision:
             return None
 
-        revision = WorkflowRevision(**revision.model_dump())
+        _workflow_revision = WorkflowRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-        return revision
+        return _workflow_revision
 
-    async def archive_revision(
+    async def archive_workflow_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        revision_id: UUID,
+        workflow_revision_id: UUID,
     ) -> Optional[WorkflowRevision]:
         revision = await self.workflows_dao.archive_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            revision_id=revision_id,
+            revision_id=workflow_revision_id,
         )
 
         if not revision:
             return None
 
-        revision = WorkflowRevision(**revision.model_dump())
+        _workflow_revision = WorkflowRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-        return revision
+        return _workflow_revision
 
-    async def unarchive_revision(
+    async def unarchive_workflow_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        revision_id: UUID,
+        workflow_revision_id: UUID,
     ) -> Optional[WorkflowRevision]:
         revision = await self.workflows_dao.unarchive_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            revision_id=revision_id,
+            revision_id=workflow_revision_id,
         )
 
         if not revision:
             return None
 
-        revision = WorkflowRevision(**revision.model_dump())
+        _workflow_revision = WorkflowRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-        return revision
+        return _workflow_revision
 
-    async def query_revisions(
+    async def query_workflow_revisions(
         self,
         *,
         project_id: UUID,
         #
-        revision_flags: Optional[WorkflowFlags] = None,
-        revision_meta: Optional[Meta] = None,
+        workflow_revision_query: Optional[WorkflowRevisionQuery] = None,
+        #
+        workflow_refs: Optional[List[Reference]] = None,
+        workflow_variant_refs: Optional[List[Reference]] = None,
+        workflow_revision_refs: Optional[List[Reference]] = None,
         #
         include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> List[WorkflowRevision]:
+        _revision_query = (
+            RevisionQuery(
+                **workflow_revision_query.model_dump(mode="json", exclude_none=True),
+            )
+            if workflow_revision_query
+            else RevisionQuery()
+        )
+
         revisions = await self.workflows_dao.query_revisions(
             project_id=project_id,
             #
+            revision_query=_revision_query,
             #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
+            artifact_refs=workflow_refs,
+            variant_refs=workflow_variant_refs,
+            revision_refs=workflow_revision_refs,
             #
             include_archived=include_archived,
+            #
+            windowing=windowing,
         )
 
-        revisions = [
-            WorkflowRevision(**revision.model_dump()) for revision in revisions
+        _workflow_revisions = [
+            WorkflowRevision(
+                **revision.model_dump(mode="json"),
+            )
+            for revision in revisions
         ]
 
-        return revisions
+        return _workflow_revisions
 
     ## .........................................................................
 
-    async def commit_revision(
+    async def commit_workflow_revision(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        # artifact_id: UUID,
-        variant_id: UUID,
-        #
-        revision_slug: str,
-        #
-        revision_flags: Optional[WorkflowFlags] = None,
-        revision_meta: Optional[Meta] = None,
-        revision_name: Optional[str] = None,
-        revision_description: Optional[str] = None,
-        revision_message: Optional[str] = None,
-        revision_data: Optional[WorkflowData] = None,
+        workflow_revision_commit: WorkflowRevisionCommit,
     ) -> Optional[WorkflowRevision]:
-        variant = await self.workflows_dao.fetch_variant(
-            project_id=project_id,
-            #
-            variant_ref=Reference(id=variant_id),
+        _revision_commit = RevisionCommit(
+            **workflow_revision_commit.model_dump(mode="json"),
         )
 
-        if not variant:
-            return None
+        if not _revision_commit.artifact_id:
+            if not _revision_commit.variant_id:
+                return None
+
+            variant = await self.workflows_dao.fetch_variant(
+                project_id=project_id,
+                #
+                variant_ref=Reference(id=_revision_commit.variant_id),
+            )
+
+            if not variant:
+                return None
+
+            _revision_commit.artifact_id = variant.artifact_id
 
         revision = await self.workflows_dao.commit_revision(
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_id=variant.artifact_id,
-            variant_id=variant_id,
-            #
-            revision_slug=revision_slug,
-            #
-            revision_flags=(revision_flags.model_dump() if revision_flags else None),
-            revision_meta=revision_meta,
-            revision_name=revision_name or revision_slug,
-            revision_description=revision_description,
-            revision_message=revision_message,
-            revision_data=(revision_data.model_dump() if revision_data else None),
+            revision_commit=_revision_commit,
         )
 
         if not revision:
             return None
 
-        revision = WorkflowRevision(**revision.model_dump())
+        _workflow_revision = WorkflowRevision(
+            **revision.model_dump(mode="json"),
+        )
 
-        return revision
+        return _workflow_revision
 
-    async def log_revisions(
+    async def log_workflow_revisions(
         self,
         *,
         project_id: UUID,
         #
-        variant_ref: Optional[Reference] = None,
-        revision_ref: Optional[Reference] = None,
-        depth: Optional[int] = None,
+        workflow_log: WorkflowLog,
     ) -> List[WorkflowRevision]:
+        _artifact_log = ArtifactLog(
+            **workflow_log.model_dump(mode="json"),
+        )
+
         revisions = await self.workflows_dao.log_revisions(
             project_id=project_id,
             #
-            variant_ref=variant_ref,
-            revision_ref=revision_ref,
-            depth=depth,
+            artifact_log=_artifact_log,
         )
 
-        revisions = [
-            WorkflowRevision(**revision.model_dump()) for revision in revisions
+        _workflow_revisions = [
+            WorkflowRevision(
+                **revision.model_dump(mode="json"),
+            )
+            for revision in revisions
         ]
 
-        return revisions
+        return _workflow_revisions
 
     ## -------------------------------------------------------------------------

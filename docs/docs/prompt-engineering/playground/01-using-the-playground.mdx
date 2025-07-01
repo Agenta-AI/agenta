@@ -37,6 +37,10 @@ Write a blog post about {{subject}} that focuses on {{key_aspect}}
 
 Agenta uses curly brackets `{{variable}}` for template variables, automatically creating corresponding input fields in the playground interface.
 
+### Dynamic JSON Schema Variables
+
+When using the **JSON Schema** response format, you can reference variables directly inside the schema definition. Placeholders using `{{variable}}` work in both keys and values, and any variables you add will appear as inputs in the playground. These dynamic schemas are stored in the registry when you commit a variant. The editor does not yet highlight variables inside the schema, but they will still be replaced when executing your prompt.
+
 ### Adjusting Model Parameters
 
 To modify model-specific parameters:

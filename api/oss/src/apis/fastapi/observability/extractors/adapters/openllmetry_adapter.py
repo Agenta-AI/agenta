@@ -1,5 +1,5 @@
-from json import loads
 from typing import Dict, Optional, Any, Callable, Tuple, List
+from json import loads
 
 from oss.src.apis.fastapi.observability.extractors.base_adapter import BaseAdapter
 from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
@@ -12,7 +12,7 @@ from oss.src.apis.fastapi.observability.utils.serialization import (
 )
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 OPENLLMETRY_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     ("llm.headers", "ag.meta.request.headers"),
@@ -103,7 +103,7 @@ class OpenLLMmetryAdapter(BaseAdapter):
                             transformed_attributes[ag_key] = transformed_value
                             has_openllmetry_data = True
                     except Exception as e:
-                        log.debug(
+                        log.warn(
                             f"OpenLLMmetryAdapter: Error in dynamic transform for {key}: {e}"
                         )
 

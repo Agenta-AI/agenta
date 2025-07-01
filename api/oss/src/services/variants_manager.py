@@ -69,7 +69,7 @@ class ReferenceDTO(BaseModel):
         return self.encode(super().model_dump(*args, **kwargs))
 
 
-class LifecycleDTO(BaseModel):
+class LegacyLifecycleDTO(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     updated_by_id: Optional[str] = None
@@ -88,10 +88,10 @@ class ConfigDTO(BaseModel):
     variant_ref: Optional[ReferenceDTO] = None
     environment_ref: Optional[ReferenceDTO] = None
     # ----
-    application_lifecycle: Optional[LifecycleDTO] = None
-    service_lifecycle: Optional[LifecycleDTO] = None
-    variant_lifecycle: Optional[LifecycleDTO] = None
-    environment_lifecycle: Optional[LifecycleDTO] = None
+    application_lifecycle: Optional[LegacyLifecycleDTO] = None
+    service_lifecycle: Optional[LegacyLifecycleDTO] = None
+    variant_lifecycle: Optional[LegacyLifecycleDTO] = None
+    environment_lifecycle: Optional[LegacyLifecycleDTO] = None
 
 
 # - HERLPERS
@@ -459,8 +459,6 @@ async def add_config(
     application_ref: ReferenceDTO,
     user_id: str,
 ) -> Optional[ConfigDTO]:
-    log.warn("[ADD]     Fetching: app")
-
     app = await _fetch_app(
         project_id=project_id,
         app_id=application_ref.id,
@@ -468,14 +466,9 @@ async def add_config(
     )
 
     if not app:
-        log.warn("[ADD]  App not found.")
-
         return None
 
     # --> FETCHING: bases
-    log.warn(f"[ADD]     Found app: {str(app.id)}")
-    log.warn("[ADD]     Fetching: bases")
-
     bases = None
 
     with suppress():
@@ -488,8 +481,6 @@ async def add_config(
         return None
 
     base_id = bases[0].id  # needs to be changed to use the 'default base'
-
-    log.warn("[ADD]     Creating: variant")
 
     if not variant_ref.slug:
         return None
@@ -572,7 +563,7 @@ async def fetch_configs_by_application_ref(
             ),
             environment_ref=None,
             #
-            variant_lifecycle=LifecycleDTO(
+            variant_lifecycle=LegacyLifecycleDTO(
                 created_at=variant_latest_version.created_at.isoformat(),
                 updated_at=variant_latest_version.updated_at.isoformat(),
                 updated_by_id=str(variant_latest_version.modified_by.id),
@@ -620,7 +611,7 @@ async def fetch_configs_by_variant_ref(
             ),
             environment_ref=None,
             #
-            variant_lifecycle=LifecycleDTO(
+            variant_lifecycle=LegacyLifecycleDTO(
                 created_at=variant_version.created_at.isoformat(),
                 updated_at=variant_version.updated_at.isoformat(),
                 updated_by_id=str(variant_version.modified_by.id),
@@ -690,7 +681,7 @@ async def fetch_config_by_variant_ref(
         ),
         environment_ref=None,
         #
-        variant_lifecycle=LifecycleDTO(
+        variant_lifecycle=LegacyLifecycleDTO(
             created_at=app_variant_revision.created_at.isoformat(),
             updated_at=app_variant.updated_at.isoformat(),
             updated_by_id=_user_id,
@@ -749,7 +740,7 @@ async def fetch_config_by_environment_ref(
             _user_id = str(user.id)
             _user_email = user.email
 
-    config.environment_lifecycle = LifecycleDTO(
+    config.environment_lifecycle = LegacyLifecycleDTO(
         created_at=app_environment_revision.created_at.isoformat(),
         updated_at=app_environment_revision.created_at.isoformat(),
         updated_by_id=_user_id,

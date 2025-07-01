@@ -1,14 +1,17 @@
-from typing import Optional, Dict, List, Union, Any
+from typing import Optional, Dict, List, Union
 from uuid import UUID
 from datetime import datetime
+from re import match
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from typing_extensions import TypeAliasType
 
 
-# --- Recursive Named TypeAliases using TypeAliasType ---
-
+BoolJson: TypeAliasType = TypeAliasType(
+    "BoolJson",
+    Union[bool, Dict[str, "BoolJson"]],
+)
 
 StringJson: TypeAliasType = TypeAliasType(
     "StringJson",
@@ -22,7 +25,12 @@ FullJson: TypeAliasType = TypeAliasType(
 
 NumericJson: TypeAliasType = TypeAliasType(
     "NumericJson",
-    Union[int, float, List[int], List[float], Dict[str, "NumericJson"]],
+    Union[int, float, Dict[str, "NumericJson"]],
+)
+
+NoListJson: TypeAliasType = TypeAliasType(
+    "NoListJson",
+    Union[str, int, float, bool, None, Dict[str, "NoListJson"]],
 )
 
 Json = Dict[str, FullJson]
@@ -31,39 +39,24 @@ Data = Dict[str, FullJson]
 
 Meta = Dict[str, FullJson]
 
-Tags = Dict[str, StringJson]
-
-Metrics = Dict[str, NumericJson]
+Tags = Dict[str, NoListJson]
 
 Flags = Dict[str, bool]
 
+Hashes = Dict[str, StringJson]
 
-class LifecycleDTO(BaseModel):
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
 
-    updated_by_id: Optional[UUID] = None
+class Metadata(BaseModel):
+    flags: Optional[Flags] = None
+    meta: Optional[Meta] = None
+    tags: Optional[Tags] = None
 
-    class Config:
-        json_encoders = {
-            UUID: str,
-            datetime: lambda v: v.isoformat() if v else None,
-        }
 
-    def encode(self, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: self.encode(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self.encode(item) for item in data]
-        for type_, encoder in self.Config.json_encoders.items():
-            if isinstance(data, type_):
-                return encoder(data)
-        return data
-
-    def model_dump(self, *args, **kwargs) -> dict:
-        kwargs.setdefault("exclude_none", True)
-
-        return self.encode(super().model_dump(*args, **kwargs))
+class Windowing(BaseModel):
+    next: Optional[UUID] = None
+    start: Optional[datetime] = None
+    stop: Optional[datetime] = None
+    limit: Optional[int] = None
 
 
 class Lifecycle(BaseModel):
@@ -75,52 +68,28 @@ class Lifecycle(BaseModel):
     updated_by_id: Optional[UUID] = None
     deleted_by_id: Optional[UUID] = None
 
-    class Config:
-        json_encoders = {
-            UUID: str,
-            datetime: lambda v: v.isoformat() if v else None,
-        }
 
-    def encode(self, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: self.encode(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self.encode(item) for item in data]
-        for type_, encoder in self.Config.json_encoders.items():
-            if isinstance(data, type_):
-                return encoder(data)
-        return data
+class TraceID(BaseModel):
+    trace_id: Optional[str] = None
 
-    def model_dump(self, *args, **kwargs) -> dict:
-        kwargs.setdefault("exclude_none", True)
 
-        return self.encode(super().model_dump(*args, **kwargs))
+class SpanID(BaseModel):
+    span_id: Optional[str] = None
 
 
 class Identifier(BaseModel):
     id: Optional[UUID] = None
 
-    class Config:
-        json_encoders = {UUID: str}
-
-    def encode(self, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: self.encode(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self.encode(item) for item in data]
-        for type_, encoder in self.Config.json_encoders.items():
-            if isinstance(data, type_):
-                return encoder(data)
-        return data
-
-    def model_dump(self, *args, **kwargs) -> dict:
-        kwargs.setdefault("exclude_none", True)
-
-        return self.encode(super().model_dump(*args, **kwargs))
-
 
 class Slug(BaseModel):
     slug: Optional[str] = None
+
+    @field_validator("slug")
+    def check_url_safety(cls, v):  # pylint: disable=no-self-argument
+        if v is not None:
+            if not match(r"^[a-zA-Z0-9_-]+$", v):
+                raise ValueError("slug must be URL-safe.")
+        return v
 
 
 class Version(BaseModel):
@@ -132,29 +101,39 @@ class Header(BaseModel):
     description: Optional[str] = None
 
 
-class Reference(BaseModel):
-    id: Optional[UUID] = None
-    slug: Optional[str] = None
-    version: Optional[str] = None
-    attributes: Optional[Json] = None
-
-    class Config:
-        json_encoders = {UUID: str}
-
-    def encode(self, data: Any) -> Any:
-        if isinstance(data, dict):
-            return {k: self.encode(v) for k, v in data.items()}
-        elif isinstance(data, list):
-            return [self.encode(item) for item in data]
-        for type_, encoder in self.Config.json_encoders.items():
-            if isinstance(data, type_):
-                return encoder(data)
-        return data
-
-    def model_dump(self, *args, **kwargs) -> dict:
-        kwargs.setdefault("exclude_none", True)
-
-        return self.encode(super().model_dump(*args, **kwargs))
+class Reference(Identifier, Slug, Version):
+    pass
 
 
-References = List[Reference]
+class Link(TraceID, SpanID):
+    pass
+
+
+def sync_alias(primary: str, alias: str, instance: BaseModel) -> None:
+    primary_val = getattr(instance, primary)
+    alias_val = getattr(instance, alias)
+    if primary_val and alias_val is None:
+        object.__setattr__(instance, alias, primary_val)
+    elif alias_val and primary_val is None:
+        object.__setattr__(instance, primary, alias_val)
+
+
+class AliasConfig(BaseModel):
+    model_config = {
+        "populate_by_name": True,
+        "from_attributes": True,
+    }
+
+
+# LEGACY -----------------------------------------------------------------------
+
+
+Metrics = Dict[str, NumericJson]
+
+
+class LegacyLifecycleDTO(BaseModel):
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    updated_by_id: Optional[str] = None
+    # DEPRECATING
+    updated_by: Optional[str] = None  # email

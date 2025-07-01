@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, List
 from uuid import uuid4
 from functools import wraps
 from traceback import format_exc
@@ -7,6 +7,7 @@ from contextlib import AbstractContextManager
 from fastapi import Request, HTTPException
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.core.shared.exceptions import EntityCreationConflict
 
 
 log = get_module_logger(__name__)
@@ -17,9 +18,11 @@ class suppress(AbstractContextManager):  # pylint: disable=invalid-name
         self,
         message: Optional[str] = "",
         verbose: Optional[bool] = True,
+        exclude: Optional[List[type]] = None,
     ):
         self.verbose = verbose
         self.message = message
+        self.exclude = exclude or []
 
     def __enter__(self):
         pass
@@ -29,6 +32,9 @@ class suppress(AbstractContextManager):  # pylint: disable=invalid-name
             support_id = str(uuid4())
 
             if self.verbose is True:
+                if any(isinstance(exc_value, excl) for excl in self.exclude):
+                    raise exc_value
+
                 log.warn(
                     f"[SUPPRESSED] {self.message}\n{format_exc()}",
                     support_id=support_id,
@@ -38,9 +44,10 @@ class suppress(AbstractContextManager):  # pylint: disable=invalid-name
 
 
 def suppress_exceptions(
-    message: Optional[str] = "",
     default: Optional[Any] = None,
+    message: Optional[str] = "",
     verbose: Optional[bool] = True,
+    exclude: Optional[List[type]] = None,
 ):
     def decorator(func):
         @wraps(func)
@@ -48,7 +55,10 @@ def suppress_exceptions(
             try:
                 return await func(*args, **kwargs)
 
-            except Exception:  # pylint: disable=broad-exception-caught
+            except Exception as exc:  # pylint: disable=broad-exception-caught
+                if any(isinstance(exc, excl) for excl in exclude or []):
+                    raise
+
                 support_id = str(uuid4())
                 operation_id = func.__name__ if hasattr(func, "__name__") else None
 
@@ -79,6 +89,14 @@ def intercept_exceptions(
                 raise e
 
             except Exception as e:
+                if isinstance(e, EntityCreationConflict):
+                    e: EntityCreationConflict
+
+                    raise ConflictException(
+                        message=e.message,
+                        conflict=e.conflict,
+                    ) from e
+
                 support_id = str(uuid4())
                 operation_id = func.__name__ if hasattr(func, "__name__") else None
 
@@ -94,21 +112,17 @@ def intercept_exceptions(
                 # request_headers = request.headers if request else None
                 # request_body = kwargs if "secrets" not in request_path else None
 
-                log.debug(kwargs)
-
                 message = (
                     "An unexpected error occurred. "
                     + "Please try again later or contact support."
                 )
 
-                _detail = {
+                status_code = 500
+                detail = {
                     "message": message,
                     "support_id": support_id,
                     "operation_id": operation_id,
                 }
-
-                status_code = e.status_code if hasattr(e, "status_code") else 500
-                detail = e.detail if hasattr(e, "detail") else _detail
 
                 if verbose is True:
                     log.error(
@@ -130,3 +144,72 @@ def intercept_exceptions(
         return wrapper
 
     return decorator
+
+
+class BaseHTTPException(HTTPException):
+    default_code: int = 500
+    default_message: str = "Internal Server Error"
+
+    def __init__(
+        self,
+        code: int = None,
+        message: Any = None,
+        **kwargs: Any,
+    ):
+        self.code = code or self.default_code
+        self.message = message or self.default_message
+        self.kwargs = kwargs
+
+        self.detail = {"message": self.message, **self.kwargs}
+
+        super().__init__(status_code=self.code, detail=self.detail)
+
+
+class BadRequestException(BaseHTTPException):
+    default_code = 400
+    default_message = "Bad Request"
+
+
+class UnauthorizedException(BaseHTTPException):
+    default_code = 401
+    default_message = "Unauthorized"
+
+
+class ForbiddenException(BaseHTTPException):
+    default_code = 403
+    default_message = "Forbidden"
+
+
+class NotFoundException(BaseHTTPException):
+    default_code = 404
+    default_message = "Not Found"
+
+
+class ConflictException(BaseHTTPException):
+    default_code = 409
+    default_message = "Conflict"
+
+
+class UnprocessableContentException(BaseHTTPException):
+    default_code = 422
+    default_message = "Unprocessable Content"
+
+
+class TooManyRequestsException(BaseHTTPException):
+    default_code = 429
+    default_message = "Too Many Requests"
+
+
+class InternalServerErrorException(BaseHTTPException):
+    default_code = 500
+    default_message = "Internal Server Error"
+
+
+class ServiceUnavailableException(BaseHTTPException):
+    default_code = 503
+    default_message = "Service Unavailable"
+
+
+class GatewayTimeoutException(BaseHTTPException):
+    default_code = 504
+    default_message = "Gateway Timeout"

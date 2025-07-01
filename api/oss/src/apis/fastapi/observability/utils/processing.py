@@ -1,7 +1,6 @@
-from typing import Optional, Tuple, Any, List, Dict
-from uuid import UUID
+from typing import Optional, Tuple, List
 from collections import OrderedDict
-from json import loads, JSONDecodeError, dumps
+from json import loads, JSONDecodeError
 from copy import copy
 from datetime import datetime, timedelta, time
 
@@ -10,14 +9,16 @@ from fastapi import Query, HTTPException
 from oss.src.apis.fastapi.observability.opentelemetry.semconv import CODEX
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 from oss.src.apis.fastapi.observability.utils.serialization import (
     decode_key,
     decode_value,
     encode_key,
 )
-from oss.src.apis.fastapi.observability.utils.marshalling import unmarshal_attributes
+from oss.src.apis.fastapi.observability.utils.marshalling import unmarshall_attributes
+
+from oss.src.core.tracing.dtos import OTelFlatSpan
 
 from oss.src.apis.fastapi.observability.models import (
     LegacyDataPoint,
@@ -54,10 +55,20 @@ from oss.src.core.observability.dtos import (
     ConditionDTO,
 )
 from oss.src.apis.fastapi.observability.extractors.span_processor import SpanProcessor
-from oss.src.apis.fastapi.observability.extractors.span_data_builders import NodeBuilder
+from oss.src.apis.fastapi.observability.extractors.span_data_builders import (
+    NodeBuilder,
+    OTelFlatSpanBuilder,
+)
+
 
 node_builder_instance = NodeBuilder()
-span_processor = SpanProcessor(builders=[node_builder_instance])
+otel_flat_span_builder_instance = OTelFlatSpanBuilder()
+span_processor = SpanProcessor(
+    builders=[
+        node_builder_instance,
+        otel_flat_span_builder_instance,
+    ]
+)
 
 
 # --- PARSE QUERY / ANALYTICS DTO ---
@@ -191,183 +202,9 @@ def parse_analytics_dto(
 # --- PARSE SPAN DTO ---
 
 
-def _get_attributes(
-    attributes: Attributes,
-    namespace: str,
-):
-    return {
-        decode_key(namespace, key): decode_value(value)
-        for key, value in attributes.items()
-        if key != decode_key(namespace, key)
-    }
-
-
-def _parse_from_types(
-    otel_span_dto: OTelSpanDTO,
-) -> dict:
-    types = _get_attributes(otel_span_dto.attributes, "type")
-
-    if types.get("tree"):
-        del otel_span_dto.attributes[encode_key("type", "tree")]
-
-    if types.get("node"):
-        del otel_span_dto.attributes[encode_key("type", "node")]
-
-    return types
-
-
-def _parse_from_semconv(
-    attributes: Attributes,
-) -> None:
-    _attributes = copy(attributes)
-
-    for old_key, value in _attributes.items():
-        if old_key in CODEX["keys"]["attributes"]["exact"]["from"]:
-            new_key = CODEX["maps"]["attributes"]["exact"]["from"][old_key]
-
-            attributes[new_key] = value
-
-            del attributes[old_key]
-
-        else:
-            for prefix_key in CODEX["keys"]["attributes"]["prefix"]["from"]:
-                if old_key.startswith(prefix_key):
-                    prefix = CODEX["maps"]["attributes"]["prefix"]["from"][prefix_key]
-
-                    new_key = old_key.replace(prefix_key, prefix)
-
-                    attributes[new_key] = value
-
-                    del attributes[old_key]
-
-            for dynamic_key in CODEX["keys"]["attributes"]["dynamic"]["from"]:
-                if old_key == dynamic_key:
-                    try:
-                        new_key, new_value = CODEX["maps"]["attributes"]["dynamic"][
-                            "from"
-                        ][dynamic_key](value)
-
-                        attributes[new_key] = new_value
-
-                    except:  # pylint: disable=bare-except
-                        pass
-
-
-def _parse_from_links(
-    otel_span_dto: OTelSpanDTO,
-) -> dict:
-    # LINKS
-    links = None
-    otel_links = None
-
-    if otel_span_dto.links:
-        links = list()
-        otel_links = list()
-
-        for link in otel_span_dto.links:
-            _links = _get_attributes(link.attributes, "type")
-
-            if _links:
-                link_type = _links.get("link")
-                link_tree_id = str(UUID(link.context.trace_id[2:]))
-                link_node_id = str(
-                    UUID(link.context.trace_id[2 + 16 :] + link.context.span_id[2:])
-                )
-
-                links.append(
-                    LinkDTO(
-                        type=link_type,
-                        tree_id=link_tree_id,
-                        id=link_node_id,
-                    )
-                )
-            else:
-                otel_links.append(link)
-
-        links = links if links else None
-        otel_links = otel_links if otel_links else None
-
-    otel_span_dto.links = otel_links
-
-    return links
-
-
-def _parse_from_attributes(
-    otel_span_dto: OTelSpanDTO,
-) -> Tuple[dict, dict, dict, dict, dict]:
-    # DATA
-    _data = _get_attributes(otel_span_dto.attributes, "data")
-
-    for key in _data.keys():
-        del otel_span_dto.attributes[encode_key("data", key)]
-
-    # _data = unmarshal_attributes(_data)
-    _data = _data if _data else None
-
-    # METRICS
-    _metrics = _get_attributes(otel_span_dto.attributes, "metrics")
-
-    for key in _metrics.keys():
-        del otel_span_dto.attributes[encode_key("metrics", key)]
-
-    # _metrics = unmarshal_attributes(_metrics)
-    _metrics = _metrics if _metrics else None
-
-    # META
-    _meta = _get_attributes(otel_span_dto.attributes, "meta")
-
-    for key in _meta.keys():
-        del otel_span_dto.attributes[encode_key("meta", key)]
-
-    # _meta = unmarshal_attributes(_meta)
-    _meta = _meta if _meta else None
-
-    # REFS
-    _refs = _get_attributes(otel_span_dto.attributes, "refs")
-
-    for key in _refs.keys():
-        del otel_span_dto.attributes[encode_key("refs", key)]
-
-    _refs = _refs if _refs else None
-
-    if len(otel_span_dto.attributes.keys()) < 1:
-        otel_span_dto.attributes = None
-
-    return _data, _metrics, _meta, _refs
-
-
-def _parse_from_events(
-    otel_span_dto: OTelSpanDTO,
-) -> Optional[ExceptionDTO]:
-    exception = None
-
-    _other_events = list()
-
-    if otel_span_dto.events:
-        for event in otel_span_dto.events:
-            if event.name == "exception":
-                exception = ExceptionDTO(
-                    timestamp=event.timestamp,
-                    type=event.attributes.get("exception.type"),
-                    message=event.attributes.get("exception.message"),
-                    stacktrace=event.attributes.get("exception.stacktrace"),
-                    attributes=event.attributes,
-                )
-
-                del event.attributes["exception.type"]
-                del event.attributes["exception.message"]
-                del event.attributes["exception.stacktrace"]
-
-            else:
-                _other_events.append(event)
-
-    otel_span_dto.events = _other_events if _other_events else None
-
-    return exception
-
-
 def parse_from_otel_span_dto(
     otel_span_dto: OTelSpanDTO,
+    flag_create_spans_from_nodes: Optional[bool] = False,
 ) -> SpanDTO:
     """
     Process an OpenTelemetry span into a SpanDTO using the new architecture.
@@ -376,8 +213,12 @@ def parse_from_otel_span_dto(
     SpanProcessor internally (with NodeBuilder) for better handling of different data formats.
     The result from the processor is a dictionary, from which the 'node_builder' output is extracted.
     """
-    processed_results = span_processor.process(otel_span_dto)
+    processed_results = span_processor.process(
+        otel_span_dto,
+        flag_create_spans_from_nodes,
+    )
     span_dto = processed_results.get("node_builder")
+    otel_flat_span = processed_results.get("otel_flat_span_builder")
 
     if not isinstance(span_dto, SpanDTO):
         log.error(
@@ -385,7 +226,19 @@ def parse_from_otel_span_dto(
             f"span_id {otel_span_dto.context.span_id}. Processor results: {processed_results}"
         )
 
-    return span_dto
+    if flag_create_spans_from_nodes:
+        if not isinstance(otel_flat_span, OTelFlatSpan):
+            log.error(
+                f"OTelFlatSpanBuilder did not produce a valid OTelFlatSpan for trace_id {otel_span_dto.context.trace_id}, "
+                f"span_id {otel_span_dto.context.span_id}. Processor results: {processed_results}"
+            )
+
+    parsed_spans = {
+        "nodes": span_dto,
+        "spans": otel_flat_span,
+    }
+
+    return parsed_spans
 
 
 def _parse_to_attributes(
@@ -554,7 +407,7 @@ def parse_to_agenta_span_dto(
 ) -> SpanDTO:
     # DATA
     if span_dto.data:
-        span_dto.data = unmarshal_attributes(span_dto.data)
+        span_dto.data = unmarshall_attributes(span_dto.data)
 
         if "outputs" in span_dto.data:
             if (
@@ -565,19 +418,19 @@ def parse_to_agenta_span_dto(
 
     # METRICS
     if span_dto.metrics:
-        span_dto.metrics = unmarshal_attributes(span_dto.metrics)
+        span_dto.metrics = unmarshall_attributes(span_dto.metrics)
 
     # META
     if span_dto.meta:
-        span_dto.meta = unmarshal_attributes(span_dto.meta)
+        span_dto.meta = unmarshall_attributes(span_dto.meta)
 
     # REFS
     if span_dto.refs:
-        span_dto.refs = unmarshal_attributes(span_dto.refs)
+        span_dto.refs = unmarshall_attributes(span_dto.refs)
 
     # EXCEPTION
     if span_dto.exception:
-        span_dto.exception.attributes = unmarshal_attributes(
+        span_dto.exception.attributes = unmarshall_attributes(
             span_dto.exception.attributes
         )
 

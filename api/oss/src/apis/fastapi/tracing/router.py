@@ -20,6 +20,7 @@ from oss.src.apis.fastapi.tracing.models import (
     OTelLinksResponse,
     OTelTracingRequest,
     OTelTracingResponse,
+    AnalyticsResponse,
 )
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.utils import FilteringException
@@ -52,9 +53,9 @@ class TracingRouter:
 
         self.router.add_api_route(
             "/traces/",
-            self.add_trace,
+            self.create_trace,
             methods=["POST"],
-            operation_id="add_trace",
+            operation_id="create_trace",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=OTelLinksResponse,
             response_model_exclude_none=True,
@@ -71,7 +72,7 @@ class TracingRouter:
         )
 
         self.router.add_api_route(
-            "/traces/",
+            "/traces/{trace_id}",
             self.edit_trace,
             methods=["PUT"],
             operation_id="edit_trace",
@@ -82,9 +83,9 @@ class TracingRouter:
 
         self.router.add_api_route(
             "/traces/{trace_id}",
-            self.remove_trace,
+            self.delete_trace,
             methods=["DELETE"],
-            operation_id="remove_trace",
+            operation_id="delete_trace",
             status_code=status.HTTP_202_ACCEPTED,
             response_model=OTelLinksResponse,
             response_model_exclude_none=True,
@@ -129,6 +130,16 @@ class TracingRouter:
             operation_id="query_spans_rpc",
             status_code=status.HTTP_200_OK,
             response_model=OTelTracingResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/spans/analytics",
+            self.fetch_analytics,
+            methods=["POST"],
+            operation_id="fetch_analytics",
+            status_code=status.HTTP_200_OK,
+            response_model=AnalyticsResponse,
             response_model_exclude_none=True,
         )
 
@@ -180,7 +191,7 @@ class TracingRouter:
     ### CRUD ON TRACES
 
     @intercept_exceptions()
-    async def add_trace(  # CREATE
+    async def create_trace(  # CREATE
         self,
         request: Request,
         trace_request: OTelTracingRequest,
@@ -293,6 +304,7 @@ class TracingRouter:
     async def edit_trace(  # UPDATE
         self,
         request: Request,
+        trace_id: Union[str, int],
         trace_request: OTelTracingRequest,
     ) -> OTelLinksResponse:
         spans = None
@@ -362,7 +374,7 @@ class TracingRouter:
         return link_response
 
     @intercept_exceptions()
-    async def remove_trace(  # DELETE
+    async def delete_trace(  # DELETE
         self,
         request: Request,
         trace_id: Union[str, int],
@@ -376,7 +388,6 @@ class TracingRouter:
         links = await self.service.delete(
             project_id=UUID(request.state.project_id),
             trace_id=trace_id,
-            user_id=UUID(request.state.user_id),
         )
 
         link_response = OTelLinksResponse(
@@ -480,8 +491,38 @@ class TracingRouter:
             spans=spans,
             traces=traces,
             count=count,
-            oldest=oldest,
-            newest=newest,
         )
 
         return spans_response
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=AnalyticsResponse())
+    async def fetch_analytics(
+        self,
+        request: Request,
+        query: Optional[Query] = Depends(parse_query_request),
+    ) -> AnalyticsResponse:
+        body_json = None
+        query_from_body = None
+
+        try:
+            body_json = await request.json()
+
+            if body_json:
+                query_from_body = parse_body_request(**body_json)
+
+        except:  # pylint: disable=bare-except
+            pass
+
+        merged_query = merge_queries(query, query_from_body)
+
+        buckets = await self.service.analytics(
+            project_id=UUID(request.state.project_id),
+            query=merged_query,
+        )
+
+        return AnalyticsResponse(
+            version=self.VERSION,
+            count=len(buckets),
+            buckets=buckets,
+        )

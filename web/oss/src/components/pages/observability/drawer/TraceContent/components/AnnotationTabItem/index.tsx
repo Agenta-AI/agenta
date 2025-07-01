@@ -93,8 +93,8 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
     const groupedByReference = mergedAnnWithEvaluator.reduce(
         (acc, item) => {
             const slug = item.references?.evaluator?.slug || "unknown-slug"
-            const kind = item.kind || "unknown-type"
-            const key = `${slug}::${kind}`
+            const origin = item.origin || "unknown-type"
+            const key = `${slug}::${origin}`
 
             if (!acc[key]) {
                 acc[key] = []

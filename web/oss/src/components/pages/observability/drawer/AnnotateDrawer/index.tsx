@@ -66,14 +66,23 @@ const AnnotateDrawer = ({data, traceSpanIds, ...props}: AnnotateDrawerProps) => 
         })
 
         const filteredAnn = sortAnnotationsByEval?.filter(
-            (ann) => ann.createdById === user?.id && ann.source === "web" && ann.kind === "human",
+            (ann) =>
+                ann.createdById === user?.id &&
+                ann.channel === "web" &&
+                ann.origin === "human" &&
+                ann.kind === "adhoc",
         )
         setAnnotations(filteredAnn || [])
 
         // 4. Get annotations NOT matching the user/web/human condition
         const filteredAnnForEval = sortAnnotationsByEval.filter(
             (ann) =>
-                !(ann.createdById === user?.id && ann.source === "web" && ann.kind === "human"),
+                !(
+                    ann.createdById === user?.id &&
+                    ann.channel === "web" &&
+                    ann.origin === "human" &&
+                    ann.kind === "adhoc"
+                ),
         )
 
         // 5. Get unique slugs and update tempSelectedEvaluators

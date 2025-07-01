@@ -355,7 +355,7 @@ Authorization: {{authorization}}
       "data": {
         "score": 0.95,
         "confidence": 0.9,
-        "latency": 0.92,
+        "duration": 0.92,
         "errors": 0.93,
         "cost": 0.91
       }
@@ -376,7 +376,7 @@ Authorization: {{authorization}}
       "data": {
         "score": 0.95,
         "confidence": 0.9,
-        "latency": 0.92,
+        "duration": 0.92,
         "errors": 0.93,
         "cost": 0.91
       }
@@ -387,7 +387,7 @@ Authorization: {{authorization}}
       "data": {
         "score": 0.95,
         "confidence": 0.9,
-        "latency": 0.92,
+        "duration": 0.92,
         "errors": 0.93,
         "cost": 0.91
       }

@@ -2,11 +2,12 @@ from typing import Any, Optional, Dict, Tuple
 from json import loads, JSONDecodeError
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 NAMESPACE_PREFIX_FEATURE_MAPPING = {
-    "ag.data.": "mdata",
+    "ag.data.": "data",
     "ag.metrics.": "metrics",
+    "ag.flags.": "flags",
     "ag.meta.": "meta",
     "ag.refs.": "refs",
     "ag.type.": "type",

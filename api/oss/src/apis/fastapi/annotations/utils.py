@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict
 
 from jsonschema import (
     Draft202012Validator,
@@ -13,7 +13,7 @@ from fastapi import status, HTTPException
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.shared.dtos import References, Flags, Data, Meta
+from oss.src.core.shared.dtos import Flags, Tags, Meta, Data, Reference
 from oss.src.core.tracing.dtos import Attributes
 from oss.src.core.workflows.dtos import WorkflowFlags
 
@@ -70,22 +70,25 @@ def validate_data_against_schema(
 
 
 def parse_into_attributes(
+    *,
+    type: Optional[Dict[str, str]] = None,
+    flags: Optional[Flags] = None,
+    tags: Optional[Tags] = None,
     data: Optional[Data] = None,
     meta: Optional[Meta] = None,
-    references: Optional[References] = None,
-    flags: Optional[Flags] = None,
+    references: Optional[List[Reference]] = None,
 ) -> Attributes:
-    # TODO - add error handling
-
     attributes: Attributes = dict(
-        agenta=(
+        ag=(
             dict(
-                data=data,
-                meta=meta,
-                references=references,
+                type=type,
                 flags=flags,
+                tags=tags,
+                meta=meta,
+                data=data,
+                references=references,
             )
-            if (data or meta or references or flags)
+            if type or flags or tags or meta or data or references
             else None
         )
     )
@@ -96,26 +99,33 @@ def parse_into_attributes(
 def parse_from_attributes(
     attributes: Attributes,
 ) -> Tuple[
+    Optional[Dict[str, str]],  # type
+    Optional[Flags],  # flags
+    Optional[Tags],  # tags
     Optional[Data],  # data
     Optional[Meta],  # meta
-    Optional[References],  # references
-    Optional[Flags],  # flags
+    Optional[List[Reference]],  # references
 ]:
     # TODO - add error handling
-    agenta: dict = attributes.get("agenta", {})
-    data: dict = agenta.get("data")
-    meta: dict = agenta.get("meta")
-    references = agenta.get("references")
-    flags: dict = agenta.get("flags")
+    ag: dict = attributes.get("ag", {})
+    type: dict = ag.get("type", {})
+    flags: dict = ag.get("flags")
+    tags: dict = ag.get("tags")
+    meta: dict = ag.get("meta")
+    data: dict = ag.get("data")
+    references = ag.get("references")
 
     return (
-        data,
-        meta,
-        references,
+        type,
         flags,
+        tags,
+        meta,
+        data,
+        references,
     )
 
 
 class AnnotationFlags(WorkflowFlags):
-    is_sdk: Optional[bool] = False
-    is_web: Optional[bool] = False
+    is_sdk: Optional[bool] = None
+    is_web: Optional[bool] = None
+    is_evaluation: Optional[bool] = None

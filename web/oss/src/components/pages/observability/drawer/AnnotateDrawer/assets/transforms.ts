@@ -428,8 +428,9 @@ export const generateNewAnnotationPayloadData = ({
                         slug: evaluator.slug,
                     },
                 },
-                source: "web",
-                kind: "human",
+                origin: "human",
+                kind: "adhoc",
+                channel: "web",
                 meta: {
                     name: evaluator.name || "",
                     description: evaluator.description || "",

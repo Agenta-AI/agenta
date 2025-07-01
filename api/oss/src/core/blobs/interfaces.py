@@ -1,16 +1,16 @@
 from typing import Optional, List, TypeVar, Type
 from uuid import UUID
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 
-from oss.src.core.shared.dtos import Reference
-from oss.src.core.blobs.dtos import Blob
+from oss.src.core.shared.dtos import Windowing
+from oss.src.core.blobs.dtos import Blob, BlobCreate, BlobEdit, BlobQuery
 
 
 T = TypeVar("T")
 
 
-class BlobDAOInterface:
+class BlobsDAOInterface(ABC):
     def __init__(
         self,
         *,
@@ -25,8 +25,9 @@ class BlobDAOInterface:
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
-        blob: Blob,
+        blob_create: BlobCreate,
     ) -> Optional[Blob]:
         raise NotImplementedError
 
@@ -36,7 +37,18 @@ class BlobDAOInterface:
         *,
         project_id: UUID,
         #
-        blob_ref: Optional[Reference] = None,
+        blob_id: UUID,
+    ) -> Optional[Blob]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def edit_blob(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        blob_edit: BlobEdit,
     ) -> Optional[Blob]:
         raise NotImplementedError
 
@@ -55,8 +67,9 @@ class BlobDAOInterface:
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
-        blobs: List[Blob],
+        blob_creates: List[BlobCreate],
     ) -> List[Blob]:
         raise NotImplementedError
 
@@ -66,11 +79,7 @@ class BlobDAOInterface:
         *,
         project_id: UUID,
         #
-        set_id: Optional[UUID] = None,
-        #
-        blob_refs: Optional[List[Reference]] = None,
-        #
-        limit: Optional[int] = None,
+        blob_ids: List[UUID],
     ) -> List[Blob]:
         raise NotImplementedError
 
@@ -81,6 +90,18 @@ class BlobDAOInterface:
         project_id: UUID,
         #
         blob_ids: List[UUID],
+    ) -> List[Blob]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def query_blobs(
+        self,
+        *,
+        project_id: UUID,
+        #
+        blob_query: BlobQuery,
+        #
+        windowing: Optional[Windowing] = None,
     ) -> List[Blob]:
         raise NotImplementedError
 

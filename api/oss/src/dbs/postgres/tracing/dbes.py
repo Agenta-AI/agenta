@@ -1,23 +1,18 @@
 from sqlalchemy import (
     PrimaryKeyConstraint,
-    # ForeignKeyConstraint,
     Index,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
-from oss.src.dbs.postgres.tracing.dbas import (
-    SpanDBA,
-    ProjectScopeDBA,
-    LifecycleDBA,
-    # FullTextSearchDBA,
-)
+from oss.src.dbs.postgres.tracing.dbas import SpanDBA
+from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
 
 
 class SpanDBE(
     Base,
     ProjectScopeDBA,
-    SpanDBA,
     LifecycleDBA,
+    SpanDBA,
     # FullTextSearchDBA,
 ):
     __tablename__ = "spans"
@@ -28,11 +23,10 @@ class SpanDBE(
             "trace_id",
             "span_id",
         ),  # for uniqueness
-        # ForeignKeyConstraint(
-        #     ["project_id"],
-        #     ["projects.id"],
-        #     ondelete="CASCADE",
-        # ),  # for project scope
+        Index(
+            "ix_project_id",
+            "project_id",
+        ),  # for filtering
         Index(
             "ix_project_id_trace_id",
             "project_id",
@@ -49,8 +43,14 @@ class SpanDBE(
             "start_time",
         ),  # for sorting and scrolling
         Index(
-            "ix_project_id",
+            "ix_spans_project_id_trace_type",
             "project_id",
+            "trace_type",
+        ),  # for filtering
+        Index(
+            "ix_spans_project_id_span_type",
+            "project_id",
+            "span_type",
         ),  # for filtering
         Index(
             "ix_attributes_gin",
@@ -58,9 +58,10 @@ class SpanDBE(
             postgresql_using="gin",
         ),  # for filtering
         Index(
-            "ix_events_gin",
-            "events",
+            "ix_references_gin",
+            "references",
             postgresql_using="gin",
+            postgresql_ops={"references": "jsonb_path_ops"},
         ),  # for filtering
         Index(
             "ix_links_gin",
@@ -69,9 +70,14 @@ class SpanDBE(
             postgresql_ops={"links": "jsonb_path_ops"},
         ),  # for filtering
         Index(
-            "ix_references_gin",
-            "references",
+            "ix_hashes_gin",
+            "hashes",
             postgresql_using="gin",
-            postgresql_ops={"references": "jsonb_path_ops"},
+            postgresql_ops={"hashes": "jsonb_path_ops"},
+        ),  # for filtering
+        Index(
+            "ix_events_gin",
+            "events",
+            postgresql_using="gin",
         ),  # for filtering
     )

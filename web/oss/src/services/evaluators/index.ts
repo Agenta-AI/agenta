@@ -10,7 +10,7 @@ export const createEvaluator = async (evaluatorPayload: EvaluatorResponseDto<"pa
     const {projectId} = getCurrentProject()
 
     return await axios.post(
-        `${getAgentaApiUrl()}/preview/evaluators/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/preview/simple/evaluators/?project_id=${projectId}`,
         evaluatorPayload,
     )
 }

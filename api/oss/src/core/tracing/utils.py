@@ -5,7 +5,7 @@ from collections import OrderedDict
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.shared.dtos import Reference
+from oss.src.core.shared.dtos import Reference, Link
 
 from oss.src.core.tracing.dtos import (
     OTelSpanKind,
@@ -13,7 +13,6 @@ from oss.src.core.tracing.dtos import (
     OTelSpan,
     OTelLink,
     OTelFlatSpans,
-    Link,
     Query,
     FilteringException,
     Filtering,
@@ -41,7 +40,7 @@ log = get_module_logger(__name__)
 # ATTRIBUTES
 
 
-def unmarshal_attributes(
+def unmarshall_attributes(
     marshalled: OTelAttributes,
 ) -> OTelAttributes:
     """
@@ -703,6 +702,23 @@ def _parse_uuid_field_condition(condition: Condition) -> None:
         condition.value = parse_trace_id_to_uuid(condition.value)
 
 
+def _parse_fts_field_condition(condition: Condition) -> None:
+    if condition.operator != StringOperator.CONTAINS:
+        raise FilteringException(
+            f"'{condition.field}' only supports full-text search operator: 'contains'.",
+        )
+
+    if condition.value is None:
+        raise FilteringException(
+            f"'{condition.field}' value is required and thus never null for full-text search.",
+        )
+
+    if not isinstance(condition.value, str):
+        raise FilteringException(
+            f"'{condition.field}' value must be a string for full-text search.",
+        )
+
+
 # FILTERING / CONDITION
 
 
@@ -757,6 +773,8 @@ def parse_condition(condition: Condition) -> None:
         _parse_uuid_field_condition(condition)
     elif condition.field == Fields.DELETED_BY_ID:
         _parse_uuid_field_condition(condition)
+    elif condition.field == Fields.CONTENT:
+        _parse_fts_field_condition(condition)
     else:
         raise FilteringException(
             f"Unsupported condition field '{condition.field}'.",

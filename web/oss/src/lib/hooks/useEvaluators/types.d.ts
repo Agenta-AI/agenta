@@ -27,5 +27,10 @@ export type EvaluatorDto<T extends "payload" | "response" = "response"> = {
 
 export type EvaluatorResponseDto<T extends "payload" | "response" = "response"> =
     T extends "response"
-        ? {count: number; evaluator: EvaluatorDto<T>[]}
+        ? {count: number; evaluator: EvaluatorDto<T>}
         : {evaluator: EvaluatorDto<T>}
+
+export type EvaluatorsResponseDto<T extends "payload" | "response" = "response"> =
+    T extends "response"
+        ? {count: number; evaluators: EvaluatorDto<T>[]}
+        : {evaluators: EvaluatorDto<T>[]}

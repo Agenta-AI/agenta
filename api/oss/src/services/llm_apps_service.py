@@ -1,9 +1,10 @@
+from typing import Any, Dict, List, Optional
+from datetime import datetime
 import json
 import asyncio
 import traceback
+
 import aiohttp
-from datetime import datetime
-from typing import Any, Dict, List, Optional
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils import common
@@ -11,6 +12,8 @@ from oss.src.services import helpers
 from oss.src.services.auth_helper import sign_secret_token
 from oss.src.models.shared_models import InvokationResult, Result, Error
 from oss.src.services.db_manager import get_project_by_id
+
+from oss.src.apis.fastapi.tracing.utils import make_hash_id
 
 log = get_module_logger(__name__)
 
@@ -241,7 +244,7 @@ async def invoke_app(
         app_response = {}
 
         try:
-            log.info("Invoking workflow...", url=url)
+            # log.info("Invoking workflow...", url=url)
             response = await client.post(
                 url,
                 json=payload,
@@ -253,6 +256,9 @@ async def invoke_app(
 
             value, kind, cost, latency = extract_result_from_response(app_response)
 
+            trace_id = app_response.get("trace_id", None)
+            span_id = app_response.get("span_id", None)
+
             return InvokationResult(
                 result=Result(
                     type=kind,
@@ -261,6 +267,8 @@ async def invoke_app(
                 ),
                 latency=latency,
                 cost=cost,
+                trace_id=trace_id,
+                span_id=span_id,
             )
 
         except aiohttp.ClientResponseError as e:
@@ -327,6 +335,15 @@ async def run_with_retry(
         InvokationResult: The invokation result.
 
     """
+
+    if "references" in kwargs and "testcase_id" in input_data:
+        kwargs["references"]["testcase"] = {"id": input_data["testcase_id"]}
+
+    references = kwargs.get("references", None)
+    links = kwargs.get("links", None)
+
+    hash_id = make_hash_id(references=references, links=links)
+    # log.debug("generating invocation with hash_id", hash_id=hash_id)
 
     retries = 0
     last_exception = None

@@ -1,5 +1,7 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
+
 from oss.src.utils.logging import get_module_logger
+
 from oss.src.core.observability.dtos import OTelSpanDTO
 from oss.src.apis.fastapi.observability.extractors.normalizer import Normalizer
 from oss.src.apis.fastapi.observability.extractors.adapter_registry import (
@@ -8,7 +10,7 @@ from oss.src.apis.fastapi.observability.extractors.adapter_registry import (
 from .span_data_builders import SpanDataBuilder
 
 
-log = get_module_logger(__file__)
+log = get_module_logger(__name__)
 
 
 class SpanProcessor:
@@ -36,7 +38,11 @@ class SpanProcessor:
             )
         self.builders = builders
 
-    def process(self, otel_span_dto: OTelSpanDTO) -> Dict[str, Any]:
+    def process(
+        self,
+        otel_span_dto: OTelSpanDTO,
+        flag_create_spans_from_nodes: Optional[bool] = False,
+    ) -> Dict[str, Any]:
         """Process an OpenTelemetry span using all configured builders.
 
         Args:
@@ -51,6 +57,11 @@ class SpanProcessor:
 
         results: Dict[str, Any] = {}
         for builder in self.builders:
+            if (
+                not flag_create_spans_from_nodes
+                and builder.name == "otel_flat_span_builder"
+            ):
+                continue
             try:
                 processed_data = builder.build(otel_span_dto, features)
                 results[builder.name] = processed_data

@@ -425,7 +425,7 @@ class TestSetDB(Base):
 
 # KEEP in oss/
 class EvaluatorConfigDB(Base):
-    __tablename__ = "evaluators_configs"
+    __tablename__ = "auto_evaluator_configs"
 
     id = Column(
         UUID(as_uuid=True),

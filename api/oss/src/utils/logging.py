@@ -203,14 +203,18 @@ if AGENTA_LOG_CONSOLE_ENABLED:
     h = logging.StreamHandler(sys.stdout)
     h.setLevel(getattr(logging, AGENTA_LOG_CONSOLE_LEVEL, TRACE_LEVEL))
     h.setFormatter(logging.Formatter("%(message)s"))
-    logging.getLogger("console").addHandler(h)
+    logger = logging.getLogger("console")
+    logger.addHandler(h)
+    logger.propagate = False  # 👈 PREVENT propagation to root (avoids Celery duplicate)
     loggers.append(create_struct_logger([colored_console_renderer()], "console"))
 
 # if AGENTA_LOG_FILE_ENABLED:
 #     h = RotatingFileHandler(AGENTA_LOG_FILE_PATH, maxBytes=10 * 1024 * 1024, backupCount=5)
 #     h.setLevel(getattr(logging, AGENTA_LOG_FILE_LEVEL, logging.WARNING))
 #     h.setFormatter(logging.Formatter("%(message)s"))
-#     logging.getLogger("file").addHandler(h)
+#     logger = logging.getLogger("file")
+#     logger.addHandler(h)
+#     logger.propagate = False  # 👈 PREVENT propagation to root (avoids Celery duplicate)
 #     loggers.append(create_struct_logger([plain_renderer()], "file"))
 
 # if AGENTA_LOG_OTLP_ENABLED:
@@ -222,7 +226,9 @@ if AGENTA_LOG_CONSOLE_ENABLED:
 #         level=getattr(logging, AGENTA_LOG_OTLP_LEVEL, logging.INFO), logger_provider=provider
 #     )
 #     h.setFormatter(logging.Formatter("%(message)s"))
-#     logging.getLogger("otel").addHandler(h)
+#     logger = logging.getLogger("otel")
+#     logger.addHandler(h)
+#     logger.propagate = False  # 👈 PREVENT propagation to root (avo
 #     loggers.append(create_struct_logger([json_renderer()], "otel"))
 
 
