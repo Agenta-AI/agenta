@@ -222,8 +222,9 @@ class ObservabilityRouter:
 
         if len(otlp_stream) > MAX_OTLP_BATCH_SIZE:
             log.error(
-                "OTLP batch too large (%s bytes) from project %s",
+                "OTLP batch too large (%s bytes > %s bytes) from project %s",
                 len(otlp_stream),
+                MAX_OTLP_BATCH_SIZE,
                 request.state.project_id,
             )
             err_status = ProtoStatus(
@@ -278,8 +279,6 @@ class ObservabilityRouter:
             )
 
             await set_cache(
-                project_id="system",
-                user_id="system",
                 namespace="posthog:flags",
                 key=cache_key,
                 value=flag_create_spans_from_nodes,

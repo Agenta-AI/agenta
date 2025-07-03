@@ -120,7 +120,7 @@ async def list_app_variants(
         namespace="list_app_variants",
         key=cache_key,
         value=app_variants,
-        ttl=60,  # seconds
+        ttl=5 * 60,  # seconds
     )
 
     return app_variants
@@ -591,7 +591,7 @@ async def list_environments(
         namespace="list_environments",
         key=cache_key,
         value=environments,
-        ttl=60,  # seconds
+        ttl=5 * 60,  # seconds
     )
 
     return environments

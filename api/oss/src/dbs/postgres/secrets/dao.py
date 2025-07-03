@@ -3,7 +3,10 @@ from uuid import UUID
 
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
-from oss.src.models.db.postgres_engine import db_engine as engine
+
+
+from oss.src.dbs.postgres.shared.engine import engine
+
 from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
 from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dto_to_dbe,
@@ -27,7 +30,7 @@ class SecretsDAO(SecretsDAOInterface):
             project_id=project_id,
             secret_dto=create_secret_dto,
         )
-        async with engine.get_core_session() as session:
+        async with engine.core_session() as session:
             session.add(secrets_dbe)
             await session.commit()
 
@@ -39,7 +42,7 @@ class SecretsDAO(SecretsDAOInterface):
         project_id: UUID,
         secret_id: UUID,
     ):
-        async with engine.get_core_session() as session:
+        async with engine.core_session() as session:
             query = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
@@ -54,7 +57,7 @@ class SecretsDAO(SecretsDAOInterface):
             return secrets_dto
 
     async def list(self, project_id: UUID):
-        async with engine.get_core_session() as session:
+        async with engine.core_session() as session:
             query = select(SecretsDBE).filter_by(project_id=project_id)
 
             results = await session.execute(query)  # type: ignore
@@ -71,7 +74,7 @@ class SecretsDAO(SecretsDAOInterface):
         secret_id: UUID,
         update_secret_dto: UpdateSecretDTO,
     ):
-        async with engine.get_core_session() as session:
+        async with engine.core_session() as session:
             query = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
@@ -97,7 +100,7 @@ class SecretsDAO(SecretsDAOInterface):
         project_id: UUID,
         secret_id: UUID,
     ):
-        async with engine.get_core_session() as session:
+        async with engine.core_session() as session:
             query = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,

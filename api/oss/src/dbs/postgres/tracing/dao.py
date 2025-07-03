@@ -543,70 +543,70 @@ class TracingDAO(TracingDAOInterface):
                 query: Select = select(SpanDBE)
                 # ----------------
 
-            # GROUPING
-            if focus == Focus.TRACE:
-                distinct_ids = distinct(SpanDBE.trace_id).label("grouping_key")
+                # GROUPING
+                if focus == Focus.TRACE:
+                    distinct_ids = distinct(SpanDBE.trace_id).label("grouping_key")
 
-                query = select(distinct_ids, SpanDBE.start_time)
-            # --------
+                    query = select(distinct_ids, SpanDBE.start_time)
+                # --------
 
-            # SCOPING
-            query = query.filter(SpanDBE.project_id == project_id)
-            # -------
+                # SCOPING
+                query = query.filter(SpanDBE.project_id == project_id)
+                # -------
 
-            # WINDOWING
-            if oldest:
-                query = query.filter(SpanDBE.start_time >= oldest)
+                # WINDOWING
+                if oldest:
+                    query = query.filter(SpanDBE.start_time >= oldest)
 
-            if newest:
-                query = query.filter(SpanDBE.start_time < newest)
-            # ---------
+                if newest:
+                    query = query.filter(SpanDBE.start_time < newest)
+                # ---------
 
-            # DEBUGGING
-            # log.trace(_query)
-            # ---------
+                # DEBUGGING
+                # log.trace(_query)
+                # ---------
 
-            # FILTERING
-            if filtering:
-                query = query.filter(combine(operator, filter(conditions)))
-            # ---------
-
-            # SORTING
-            query = query.order_by(SpanDBE.start_time.desc())
-            # -------
-
-            # WINDOWING
-            if limit:
-                query = query.limit(limit)
-            # --------
-
-            # GROUPING
-            if focus == Focus.TRACE:
-                subquery = select(query.subquery().c["grouping_key"])
-
-                query = select(SpanDBE)
-
-                query = query.filter(SpanDBE.trace_id.in_(subquery))
+                # FILTERING
+                if filtering:
+                    query = query.filter(combine(operator, filter(conditions)))
+                # ---------
 
                 # SORTING
-                query = query.order_by(SpanDBE.start_time.asc())
+                query = query.order_by(SpanDBE.start_time.desc())
                 # -------
-            # --------
 
-            # DEBUGGING
-            # log.trace(str(query.compile(**DEBUG_ARGS)).replace("\n", " "))
-            # ---------
+                # WINDOWING
+                if limit:
+                    query = query.limit(limit)
+                # --------
 
-            # QUERY EXECUTION
-            dbes = (await session.execute(query)).scalars().all()
-            # ---------------
+                # GROUPING
+                if focus == Focus.TRACE:
+                    subquery = select(query.subquery().c["grouping_key"])
 
-            if not dbes:
-                return []
+                    query = select(SpanDBE)
 
-            span_dtos = [map_span_dbe_to_span_dto(span_dbe=dbe) for dbe in dbes]
+                    query = query.filter(SpanDBE.trace_id.in_(subquery))
 
-            return span_dtos
+                    # SORTING
+                    query = query.order_by(SpanDBE.start_time.asc())
+                    # -------
+                # --------
+
+                # DEBUGGING
+                # log.trace(str(query.compile(**DEBUG_ARGS)).replace("\n", " "))
+                # ---------
+
+                # QUERY EXECUTION
+                dbes = (await session.execute(query)).scalars().all()
+                # ---------------
+
+                if not dbes:
+                    return []
+
+                span_dtos = [map_span_dbe_to_span_dto(span_dbe=dbe) for dbe in dbes]
+
+                return span_dtos
 
         except DBAPIError as e:
             log.error(f"{type(e).__name__}: {e}")

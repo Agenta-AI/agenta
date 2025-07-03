@@ -32,17 +32,29 @@ r = Redis(
 
 
 def _pack(
-    project_id: str,
-    user_id: str,
     namespace: str,
-    key: Union[str, dict],
+    key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> str:
+    if project_id:
+        project_id = project_id[-12:] if len(project_id) > 12 else project_id
+    else:
+        project_id = ""
+    if user_id:
+        user_id = user_id[-12:] if len(user_id) > 12 else user_id
+    else:
+        user_id = ""
+
+    prefix = f"p:{project_id}:u:{user_id}:{namespace}"
+
+    key = key or ""
+
     if isinstance(key, str):
-        return f"{project_id}:{user_id}:{namespace}:{key}"
+        return f"{prefix}:{key}"
+
     elif isinstance(key, dict):
-        return f"{project_id}:{user_id}:{namespace}:" + ":".join(
-            f"{k}:{v}" for k, v in sorted(key.items())
-        )
+        return f"{prefix}:" + ":".join(f"{k}:{v}" for k, v in sorted(key.items()))
 
     raise TypeError("Cache key must be str or dict")
 
@@ -112,20 +124,26 @@ async def _scan_keys(pattern: str) -> list[str]:
 
 
 async def set_cache(
-    project_id: str,
-    user_id: str,
     namespace: str,
-    key: Union[str, dict],
-    value: Any,
-    ttl: int = AGENTA_CACHE_TTL,
+    key: Optional[Union[str, dict]] = None,
+    value: Optional[Any] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    ttl: Optional[int] = AGENTA_CACHE_TTL,
 ) -> Optional[bool]:
     try:
-        cache_name = _pack(project_id, user_id, namespace, key)
+        cache_name = _pack(namespace, key, project_id, user_id)
         cache_value = _serialize(value)
         cache_px = int(ttl * 1000)
 
         await r.set(cache_name, cache_value, px=cache_px)
 
+        # log.debug(
+        #     "[cache] SAVE",
+        #     name=cache_name,
+        #     value=cache_value,
+        #     px=cache_px,
+        # )
         return True
 
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -143,22 +161,30 @@ async def set_cache(
 
 
 async def get_cache(
-    project_id: str,
-    user_id: str,
     namespace: str,
-    key: Union[str, dict],
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
+    key: Optional[Union[str, dict]] = None,
     model: Optional[Type[BaseModel]] = None,
     is_list: bool = False,
 ) -> Optional[Any]:
     try:
-        cache_name = _pack(project_id, user_id, namespace, key)
+        cache_name = _pack(namespace, key, project_id, user_id)
 
         raw = await r.get(cache_name)
 
         if not raw:
-            # log.debug(f"Cache miss for {namespace} {key}")
+            # log.debug(
+            #     "[cache] MISS",
+            #     name=cache_name,
+            # )
             return None
 
+        # log.debug(
+        #     "[cache] HIT",
+        #     name=cache_name,
+        #     value=raw,
+        # )
         return _deserialize(raw, model=model, is_list=is_list)
 
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -176,10 +202,10 @@ async def get_cache(
 
 
 async def invalidate_cache(
-    project_id: str,
-    user_id: str,
     namespace: Optional[str] = None,
     key: Optional[Union[str, dict]] = None,
+    project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> Optional[bool]:
     """Invalidate cached values.
 
@@ -190,7 +216,7 @@ async def invalidate_cache(
     """
     try:
         if key is not None and namespace is not None:
-            cache_name = _pack(project_id, user_id, namespace, key)
+            cache_name = _pack(namespace, key, project_id, user_id)
             await r.delete(cache_name)
         else:
             pattern = (
@@ -201,6 +227,15 @@ async def invalidate_cache(
             keys = await _scan_keys(pattern)
             for i in range(0, len(keys), DELETE_BATCH_SIZE):
                 await r.delete(*keys[i : i + DELETE_BATCH_SIZE])
+
+        # log.debug(
+        #     "[cache] INVALIDATE",
+        #     namespace=namespace,
+        #     key=key,
+        #     project_id=project_id,
+        #     user_id=user_id,
+        # )
+
         return True
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.warn(

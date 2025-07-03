@@ -136,7 +136,7 @@ class VaultRouter:
             namespace="list_secrets",
             key=cache_key,
             value=secrets_dtos,
-            ttl=60,  # seconds
+            ttl=5 * 60,  # seconds
         )
 
         return secrets_dtos

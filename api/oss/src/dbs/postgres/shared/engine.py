@@ -1,6 +1,7 @@
 from asyncio import current_task
 from typing import AsyncGenerator
 from contextlib import asynccontextmanager
+from math import floor
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -16,6 +17,18 @@ from oss.src.dbs.postgres.shared.config import (
 )
 
 
+DATABASE_MEMORY = 16 * 1024 * 1024 * 1024  # 8 GB
+DATABASE_FACTOR = 8 * 1024 * 1024 * 1.15  # 8 MB + 15% overhead
+DATABASE_MAX_CONNECTIONS = 5000  # 5000 connections
+MAX_CONNECTIONS = min(DATABASE_MEMORY / DATABASE_FACTOR, DATABASE_MAX_CONNECTIONS)
+APP_CONNECTIONS = MAX_CONNECTIONS * 0.9  # reserve 10% for non-app connections
+NOF_CONSUMERS = 2 * 4  # 2 engines x 4 containers
+NOF_CONNECTIONS = floor(APP_CONNECTIONS / NOF_CONSUMERS)
+POOL_SIZE = floor(NOF_CONNECTIONS * 0.25)
+MAX_OVERFLOW = NOF_CONNECTIONS - POOL_SIZE
+POOL_RECYCLE = 30 * 60  # 30 minutes
+
+
 class Engine:
     def __init__(self) -> None:
         self.postgres_uri_core = POSTGRES_URI_CORE
@@ -23,9 +36,9 @@ class Engine:
         self.async_core_engine: AsyncEngine = create_async_engine(
             url=self.postgres_uri_core,
             pool_pre_ping=True,
-            pool_recycle=1800,
-            pool_size=25,
-            max_overflow=50,
+            pool_recycle=POOL_RECYCLE,
+            pool_size=POOL_SIZE * CORE_MULTIPLIER,
+            max_overflow=MAX_OVERFLOW * CORE_MULTIPLIER,
         )
         self.async_core_session_maker = async_sessionmaker(
             autocommit=False,
@@ -44,9 +57,9 @@ class Engine:
         self.async_tracing_engine: AsyncEngine = create_async_engine(
             url=self.postgres_uri_tracing,
             pool_pre_ping=True,
-            pool_recycle=1800,
-            pool_size=25,
-            max_overflow=50,
+            pool_recycle=POOL_RECYCLE,
+            pool_size=POOL_SIZE * TRACING_MULTIPLIER,
+            max_overflow=MAX_OVERFLOW * TRACING_MULTIPLIER,
         )
         self.async_tracing_session_maker = async_sessionmaker(
             autocommit=False,

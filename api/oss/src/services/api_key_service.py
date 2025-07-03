@@ -10,10 +10,11 @@ from datetime import datetime, timezone
 
 from sqlalchemy.future import select
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import joinedload
 
 from oss.src.utils.env import env
-from oss.src.models.db_models import APIKeyDB
 from oss.src.utils.logging import get_module_logger
+from oss.src.models.db_models import APIKeyDB, UserDB
 from oss.src.dbs.postgres.shared.engine import engine
 
 # from oss.src.utils.redis_utils import redis_connection
@@ -118,7 +119,11 @@ async def is_valid_api_key(key: str):
 
     async with engine.core_session() as session:
         # Check if the API key is valid (not blacklisted and not expired)
-        result = await session.execute(select(APIKeyDB).filter_by(hashed_key=key))
+        result = await session.execute(
+            select(APIKeyDB)
+            .options(joinedload(APIKeyDB.user).load_only(UserDB.id, UserDB.email))
+            .filter_by(hashed_key=key)
+        )
 
         api_key = result.scalars().first()
         if not api_key:

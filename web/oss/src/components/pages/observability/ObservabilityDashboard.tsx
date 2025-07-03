@@ -10,8 +10,6 @@ import ObservabilityContextProvider, {
 } from "@/oss/contexts/observability.context"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
-import useAnnotations from "@/oss/lib/hooks/useAnnotations"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {_AgentaRootsResponse, TracesWithAnnotations} from "@/oss/services/observability/types"
 
 import ResizableTitle from "../../ResizableTitle"
@@ -28,12 +26,12 @@ const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), 
 const TestsetDrawer = dynamic(() => import("./drawer/TestsetDrawer/TestsetDrawer"), {ssr: false})
 
 const ObservabilityDashboard = () => {
-    const {traces, isLoading, traceTabs, fetchTraces} = useObservabilityData()
+    const {traces, isLoading, traceTabs, fetchTraces, annotations, fetchAnnotations} =
+        useObservabilityData()
     const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
     const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage", "tag"])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [testsetDrawerData, setTestsetDrawerData] = useState<TestsetTraceData[]>([])
-    const {data: annotations} = useAnnotations()
 
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useState(true)
 
@@ -83,22 +81,8 @@ const ObservabilityDashboard = () => {
         if (!traces?.length || !selected) return null
 
         const item = getNodeById(traces, selected)
-        if (!item || !item.invocationIds) return null
-
-        const {trace_id, span_id} = item.invocationIds
-
-        const matchingAnnotations =
-            annotations?.filter(
-                (annotation: AnnotationDto) =>
-                    annotation.links?.invocation?.trace_id === trace_id &&
-                    annotation.links?.invocation?.span_id === span_id,
-            ) || []
-
-        return {
-            ...item,
-            annotations: matchingAnnotations,
-        }
-    }, [selected, traces, annotations])
+        return item || null
+    }, [selected, traces])
 
     const handleResize =
         (key: string) =>

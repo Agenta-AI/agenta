@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 
-from oss.src.models.db.postgres_engine import db_engine
+from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services import db_manager
 
 from oss.src.models.db_models import UserDB
@@ -158,7 +158,7 @@ async def legacy_create_organization(
     return_org_wrk: bool = False,
     return_org_wrk_prj: bool = False,
 ) -> Union[OrganizationDB, WorkspaceDB]:
-    async with db_engine.get_core_session() as session:
+    async with engine.core_session() as session:
         create_org_data = payload.model_dump(exclude_unset=True)
         if "owner" not in create_org_data:
             create_org_data["owner"] = str(user.id)
@@ -248,7 +248,7 @@ async def user_exists(user_email: str) -> bool:
 async def check_user(
     request: UserRequest,
 ) -> Optional[UserRequest]:
-    async with db_engine.get_core_session() as session:
+    async with engine.core_session() as session:
         result = await session.execute(
             select(UserDB).filter_by(
                 email=request.email,
@@ -265,7 +265,7 @@ async def check_user(
 async def create_user(
     request: UserRequest,
 ) -> Reference:
-    async with db_engine.get_core_session() as session:
+    async with engine.core_session() as session:
         user_db = UserDB(
             # id=uuid7()  # use default
             #
@@ -291,7 +291,7 @@ async def create_user(
 async def create_organization(
     request: OrganizationRequest,
 ) -> Reference:
-    async with db_engine.get_core_session() as session:
+    async with engine.core_session() as session:
         organization_db = OrganizationDB(
             # id=uuid7()  # use default
             #
@@ -322,7 +322,7 @@ async def create_organization(
 async def create_workspace(
     request: WorkspaceRequest,
 ) -> Reference:
-    async with db_engine.get_core_session() as session:
+    async with engine.core_session() as session:
         workspace_db = WorkspaceDB(
             # id=uuid7()  # use default
             #
@@ -351,7 +351,7 @@ async def create_workspace(
 async def create_project(
     request: ProjectRequest,
 ) -> Reference:
-    async with db_engine.get_core_session() as session:
+    async with engine.core_session() as session:
         project_db = ProjectDB(
             # id=uuid7()  # use default
             #
