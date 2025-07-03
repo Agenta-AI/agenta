@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {createContext, PropsWithChildren, useContext, useMemo, useState} from "react"
+import {createContext, PropsWithChildren, useContext, useMemo, useState, useEffect} from "react"
 
 import {useRouter} from "next/router"
 
@@ -9,13 +9,16 @@ import {useTraces} from "@/oss/services/observability/hooks/useTraces"
 
 import useAnnotations from "../lib/hooks/useAnnotations"
 import {attachAnnotationsToTraces} from "../lib/hooks/useAnnotations/assets/helpers"
+import {AnnotationDto} from "../lib/hooks/useAnnotations/types"
 import {TracesWithAnnotations} from "../services/observability/types"
 
 interface ObservabilityContextType {
     traces: TracesWithAnnotations[]
+    annotations: AnnotationDto[]
     count: number
     isLoading: boolean
     fetchTraces: () => void
+    fetchAnnotations: () => void
     clearQueryStates: () => void
     searchQuery: string
     setSearchQuery: React.Dispatch<React.SetStateAction<string>>
@@ -34,9 +37,11 @@ type TraceTabTypes = "tree" | "node" | "chat"
 
 const initialValues: ObservabilityContextType = {
     traces: [],
+    annotations: [],
     count: 0,
     isLoading: false,
     fetchTraces: () => {},
+    fetchAnnotations: () => {},
     clearQueryStates: () => {},
     searchQuery: "",
     setSearchQuery: () => {},
@@ -61,7 +66,6 @@ export const getObservabilityValues = () => observabilityContextValues
 
 const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const router = useRouter()
-    const {data: annotations} = useAnnotations()
     const appId = router.query.app_id as string
     // query states
     const [searchQuery, setSearchQuery] = useState("")
@@ -93,6 +97,16 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     }
     const {traces, traceCount} = data || {}
 
+    const annotationLinks = useMemo(
+        () => (traces || []).map((t) => t.invocationIds || {}).filter(Boolean),
+        [traces],
+    )
+
+    const {data: annotations, mutate: fetchAnnotations} = useAnnotations({
+        queries: annotationLinks.length ? {annotation: {links: annotationLinks}} : undefined,
+        waitUntil: annotationLinks.length === 0,
+    })
+
     const tracesWithAnnotations: TracesWithAnnotations[] = useMemo(() => {
         return attachAnnotationsToTraces(traces || [], annotations || [])
     }, [traces, annotations])
@@ -106,8 +120,10 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
     }
 
     observabilityContextValues.traces = tracesWithAnnotations
+    observabilityContextValues.annotations = annotations
     observabilityContextValues.isLoading = isLoading
     observabilityContextValues.fetchTraces = fetchTraces
+    observabilityContextValues.fetchAnnotations = fetchAnnotations
     observabilityContextValues.count = traceCount
     observabilityContextValues.navigateToPage = navigateToPage
 
@@ -115,8 +131,10 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
         <ObservabilityContext.Provider
             value={{
                 traces: tracesWithAnnotations,
+                annotations,
                 isLoading,
                 fetchTraces,
+                fetchAnnotations,
                 count: traceCount || 0,
                 clearQueryStates,
                 searchQuery,

@@ -14,14 +14,14 @@ import {
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const queryAllAnnotations = async (queries?: {
-    annotation: Record<string, any>
-}): Promise<AnnotationsResponse> => {
+export const queryAllAnnotations = async (
+    queries?: Record<string, any>,
+): Promise<AnnotationsResponse> => {
     const {projectId} = getCurrentProject()
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/preview/annotations/query?project_id=${projectId}`,
-        Object.keys(queries?.annotation || {}).length > 0 ? queries : {},
+        queries && Object.keys(queries).length > 0 ? queries : {},
     )
 
     return response.data

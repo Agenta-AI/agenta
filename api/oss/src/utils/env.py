@@ -110,7 +110,7 @@ class EnvironSettings(BaseModel):
 
     # AGENTA-SPECIFIC (OTLP)
     AGENTA_OTLP_MAX_BATCH_BYTES: int = int(
-        os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES", str(5 * 1024 * 1024))
+        os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES", str(10 * 1024 * 1024))
     )
 
 

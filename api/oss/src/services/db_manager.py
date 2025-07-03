@@ -1521,11 +1521,12 @@ async def get_project_by_id(project_id: str) -> ProjectDB:
 
     async with engine.core_session() as session:
         project_query = await session.execute(
-            select(ProjectDB).where(ProjectDB.id == uuid.UUID(project_id))
+            select(ProjectDB)
+            .options(joinedload(ProjectDB.organization).load_only(OrganizationDB.name))
+            .where(ProjectDB.id == uuid.UUID(project_id))
         )
         project = project_query.scalar()
-        if project is None:
-            raise NoResultFound(f"No project with ID {project_id} found")
+
         return project
 
 

@@ -50,9 +50,8 @@ const ObservabilityHeader = ({
         pagination,
         setPagination,
         fetchTraces,
+        fetchAnnotations,
     } = useObservabilityData()
-
-    const {mutate: fetchAnnotations} = useAnnotations()
 
     useEffect(() => {
         const handleScroll = () => {
