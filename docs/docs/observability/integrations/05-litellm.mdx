@@ -18,7 +18,7 @@ This guide shows you how to instrument LiteLLM applications using Agenta's obser
 Install the required packages:
 
 ```bash
-pip install -U agenta litellm
+pip install -U agenta litellm openinference-instrumentation-litellm
 ```
 
 ## Configure Environment Variables
@@ -52,16 +52,19 @@ os.environ["AGENTA_HOST"] = "http://localhost"
 import agenta as ag
 import litellm
 import asyncio
+# highlight-next-line
+from openinference.instrumentation.litellm import LiteLLMInstrumentor
+
 
 # highlight-next-line
 ag.init()
+# highlight-next-line
+LiteLLMInstrumentor().instrument()
+
 
 # highlight-next-line
 @ag.instrument()
 async def agenerate_completion():
-    # highlight-next-line
-    litellm.callbacks = [ag.callbacks.litellm_handler()]
-
     # Define the messages for the chat completion
     messages = [
         {"role": "system", "content": "You are a helpful assistant."},
@@ -87,4 +90,4 @@ asyncio.run(agenerate_completion())
 
 - **Initialize Agenta**: `ag.init()` sets up the Agenta SDK.
 - **Instrument the Function**: The `@ag.instrument()` decorator wraps the `agenerate_completion` function, creating a parent span in Agenta.
-- **Set Up Callback**: `litellm.callbacks = [ag.callbacks.litellm_handler()]` sets the Agenta callback handler for LiteLLM. This enables LiteLLM to send trace data to Agenta.
+- **Instrument LiteLLM**: `LiteLLMInstrumentor().instrument()` instruments LiteLLM to send trace data to Agenta.
