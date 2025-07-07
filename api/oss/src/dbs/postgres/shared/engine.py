@@ -37,8 +37,8 @@ class Engine:
             url=self.postgres_uri_core,
             pool_pre_ping=True,
             pool_recycle=POOL_RECYCLE,
-            pool_size=POOL_SIZE * CORE_MULTIPLIER,
-            max_overflow=MAX_OVERFLOW * CORE_MULTIPLIER,
+            pool_size=POOL_SIZE,
+            max_overflow=MAX_OVERFLOW,
         )
         self.async_core_session_maker = async_sessionmaker(
             autocommit=False,
@@ -58,8 +58,8 @@ class Engine:
             url=self.postgres_uri_tracing,
             pool_pre_ping=True,
             pool_recycle=POOL_RECYCLE,
-            pool_size=POOL_SIZE * TRACING_MULTIPLIER,
-            max_overflow=MAX_OVERFLOW * TRACING_MULTIPLIER,
+            pool_size=POOL_SIZE,
+            max_overflow=MAX_OVERFLOW,
         )
         self.async_tracing_session_maker = async_sessionmaker(
             autocommit=False,

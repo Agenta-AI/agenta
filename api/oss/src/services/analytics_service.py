@@ -32,6 +32,7 @@ _SECRET_TOKEN_PREFIX = "Secret "
 LIMITED_EVENTS_PER_AUTH = {
     "app_revision_fetched": 3,
     "spans_created": 3,
+    "spans_fetched": 3,
 }
 
 
