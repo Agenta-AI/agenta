@@ -99,7 +99,7 @@ const OverviewPage = () => {
         <>
             <div className={classes.container}>
                 <Space className="justify-between">
-                    <Title>{currentApp?.app_name || ""}</Title>
+                    <Title className="!m-0">{currentApp?.app_name || ""}</Title>
 
                     <Dropdown
                         trigger={["click"]}

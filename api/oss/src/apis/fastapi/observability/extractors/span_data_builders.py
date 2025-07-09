@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 
-from oss.src.core.tracing.dtos import OTelSpan, OTelFlatSpan
+from oss.src.core.tracing.dtos import OTelSpan, OTelFlatSpan, OTelEvent, OTelLink
 from oss.src.core.tracing.utils import (
     parse_trace_id_to_uuid,
     parse_span_id_to_uuid,
@@ -310,11 +310,43 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
         # ----------------------------------------------------------------------
 
         # LINKS ----------------------------------------------------------------
-        links = features.links
+        links = []
+
+        if features.links:
+            for link in features.links:
+                try:
+                    links.append(
+                        OTelLink(
+                            trace_id=link.context.trace_id,
+                            span_id=link.context.span_id,
+                            attributes=link.attributes,
+                        )
+                    )
+                except Exception as e:
+                    log.warn(
+                        f"OTelFlatSpanBuilder: Error creating OTelLink from link: {link}. Error: {e}."
+                    )
+
         # ----------------------------------------------------------------------
 
         # EVENTS ---------------------------------------------------------------
-        events = otel_span_dto.events
+        events = []
+
+        if otel_span_dto.events:
+            for event in otel_span_dto.events:
+                try:
+                    events.append(
+                        OTelEvent(
+                            name=event.name,
+                            timestamp=parse_timestamp_to_datetime(event.timestamp),
+                            attributes=event.attributes,
+                        )
+                    )
+                except Exception as e:
+                    log.warn(
+                        f"OTelFlatSpanBuilder: Error creating OTelEvent from event: {event}. Error: {e}."
+                    )
+
         # ----------------------------------------------------------------------
 
         try:

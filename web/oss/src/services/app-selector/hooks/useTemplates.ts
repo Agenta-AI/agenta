@@ -4,10 +4,13 @@ import isEqual from "lodash/isEqual"
 import useSWR, {SWRConfiguration} from "swr"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getCurrentProject} from "@/oss/contexts/project.context"
 
 const useTemplates = (config?: SWRConfiguration) => {
     const [noTemplateMessage, setNoTemplateMessage] = useState("")
-    const swr = useSWR(`${getAgentaApiUrl()}/containers/templates`, {
+    const {projectId} = getCurrentProject()
+
+    const swr = useSWR(`${getAgentaApiUrl()}/containers/templates?project_id=${projectId}`, {
         ...config,
         compare(a, b) {
             if (!!a && !!b && a.length === b.length) {

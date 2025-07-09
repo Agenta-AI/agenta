@@ -411,7 +411,7 @@ export enum SecretDTOProvider {
     MISTRALAI = "mistralai",
     ANTHROPIC = "anthropic",
     PERPLEXITYAI = "perplexityai",
-    TOGETHERAI = "togetherai",
+    TOGETHERAI = "together_ai",
     OPENROUTER = "openrouter",
     GEMINI = "gemini",
 }

@@ -99,7 +99,7 @@ services:
         restart: always
 
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1
 
     alembic:
         build: 

@@ -117,6 +117,7 @@ export const getColumns = ({
         onHeaderCell: () => ({
             style: {minWidth: 560},
         }),
+        className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[560px]",
         render: (_, record) => {
             return record.commitMessage ? (
                 <div onClick={(e) => e.stopPropagation()}>

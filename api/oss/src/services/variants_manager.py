@@ -346,7 +346,7 @@ async def _fetch_environment(
             # as opposed to the latest version of a variant which is indicated by a version number
             # coming from the app_variant revision.
 
-            with suppress():
+            with suppress(verbose=False):
                 (
                     app_environment_revision,
                     version,

@@ -48,7 +48,7 @@ const Settings: React.FC = () => {
 
     return (
         <main className="flex flex-col gap-4">
-            <Typography.Title level={4} className="!font-medium">
+            <Typography.Title level={4} className="!font-medium !m-0">
                 {title}
             </Typography.Title>
             {content}

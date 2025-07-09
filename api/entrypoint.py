@@ -27,6 +27,7 @@ from oss.src.routers import (
     workspace_router,
     container_router,
 )
+from oss.src.apis.fastapi.middleware.request import request_id_middleware
 from oss.src.utils.common import is_ee
 from oss.src.open_api import open_api_tags_metadata
 from oss.databases.postgres.migrations.core.utils import (
@@ -118,10 +119,15 @@ async def lifespan(application: FastAPI, cache=True):
     yield
 
 
-app = FastAPI(lifespan=lifespan, openapi_tags=open_api_tags_metadata)
+app = FastAPI(
+    lifespan=lifespan,
+    openapi_tags=open_api_tags_metadata,
+    root_path="/api",
+)
 
 app.middleware("http")(authentication_middleware)
 app.middleware("http")(analytics_middleware)
+app.middleware("http")(request_id_middleware)
 
 if is_ee():
     import ee.src.main as ee

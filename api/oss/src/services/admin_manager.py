@@ -18,11 +18,18 @@ from oss.src.models.db_models import UserDB
 from oss.src.services.api_key_service import create_api_key
 
 
-from oss.src.models.db_models import (
-    WorkspaceDB,
-    ProjectDB,
-    OrganizationDB,
-)
+if is_ee():
+    from ee.src.models.db_models import (
+        OrganizationDB,
+        WorkspaceDB,
+        ProjectDB,
+    )
+else:
+    from oss.src.models.db_models import (
+        OrganizationDB,
+        WorkspaceDB,
+        ProjectDB,
+    )
 
 
 log = get_module_logger(__name__)

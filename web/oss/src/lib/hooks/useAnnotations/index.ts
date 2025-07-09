@@ -7,7 +7,6 @@ import {queryAllAnnotations} from "@/oss/services/annotations/api"
 import {transformApiData} from "./assets/transformer"
 import {AnnotationDto} from "./types"
 
-
 const useAnnotations = ({
     queries,
     waitUntil = false,
@@ -15,7 +14,6 @@ const useAnnotations = ({
     queries?: Record<string, any>
     waitUntil?: boolean
 } = {}) => {
-
     const {selectedOrg} = useOrgData()
     const {projectId} = getCurrentProject()
     const workspace = selectedOrg?.default_workspace

@@ -65,5 +65,4 @@ async def deploy_to_environment(
 
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )

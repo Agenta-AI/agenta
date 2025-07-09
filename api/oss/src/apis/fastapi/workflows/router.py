@@ -829,7 +829,6 @@ class WorkflowsRouter:
         *,
         workflow_revision_id: UUID,
     ) -> WorkflowRevisionResponse:
-        log.debug("fetch_workflow_revision")
         if is_ee():
             if not await check_action_access(
                 user_uid=request.state.user_id,

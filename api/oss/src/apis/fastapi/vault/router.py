@@ -92,7 +92,6 @@ class VaultRouter:
         )
         await invalidate_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
         )
         return vault_secret
 
@@ -102,7 +101,6 @@ class VaultRouter:
 
         secrets_dtos = await get_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
             namespace="list_secrets",
             key=cache_key,
             model=SecretResponseDTO,
@@ -132,11 +130,9 @@ class VaultRouter:
 
         await set_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
             namespace="list_secrets",
             key=cache_key,
             value=secrets_dtos,
-            ttl=5 * 60,  # seconds
         )
 
         return secrets_dtos
@@ -196,7 +192,6 @@ class VaultRouter:
             )
         await invalidate_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
         )
         return secrets_dto
 
@@ -222,6 +217,5 @@ class VaultRouter:
         )
         await invalidate_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
         )
         return status.HTTP_204_NO_CONTENT

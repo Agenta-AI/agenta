@@ -2,7 +2,7 @@ import {FC, useMemo} from "react"
 
 import {ApartmentOutlined, KeyOutlined} from "@ant-design/icons"
 import {ArrowLeft, Sparkle, Receipt} from "@phosphor-icons/react"
-import {Button} from "antd"
+import {Button, Divider} from "antd"
 import {useRouter} from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
@@ -51,17 +51,22 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
 
     return (
         <div className="flex-1">
-            <Button
-                type="link"
-                className={"p-0 !text-left font-medium flex items-center justify-start"}
-                icon={<ArrowLeft size={14} className="mt-0.5" />}
-                onClick={() => {
-                    if (lastPath) router.push(lastPath)
-                    else router.back()
-                }}
-            >
-                Back
-            </Button>
+            <div className="mx-2 mb-3 mt-1">
+                <Button
+                    className={
+                        "gap-2 !text-left font-medium !px-3 flex items-center justify-center"
+                    }
+                    onClick={() => {
+                        if (lastPath) router.push(lastPath)
+                        else router.back()
+                    }}
+                >
+                    <ArrowLeft size={14} />
+                    Back
+                </Button>
+            </div>
+
+            <Divider className={"mb-3 mt-0 relative left-[-11px] w-[237px]"} />
             <SidebarMenu
                 items={items}
                 collapsed={false}

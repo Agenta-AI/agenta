@@ -104,7 +104,6 @@ async def add_variant_from_base_and_config(
     )
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )
 
     return await converters.app_variant_db_to_output(app_variant_db)
@@ -151,7 +150,6 @@ async def remove_variant(
         await db_manager.mark_app_variant_as_hidden(app_variant_id=variant_id)
         await invalidate_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
         )
     except Exception as e:
         detail = f"Error while trying to remove the app variant: {str(e)}"
@@ -211,7 +209,6 @@ async def update_variant_parameters(
         )
         await invalidate_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
         )
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
@@ -270,7 +267,6 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
         )
         await invalidate_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
         )
 
     except ValueError as e:
@@ -330,7 +326,6 @@ async def get_variant_revisions(
 
     app_variant_revisions = await get_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
         namespace="get_variant_revisions",
         key=cache_key,
         model=AppVariantRevision,
@@ -364,11 +359,9 @@ async def get_variant_revisions(
 
     await set_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
         namespace="get_variant_revisions",
         key=cache_key,
         value=app_variant_revisions,
-        ttl=5 * 60,  # seconds
     )
 
     return app_variant_revisions
@@ -463,7 +456,6 @@ async def remove_variant_revision(
         )
         await invalidate_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
         )
     except Exception as e:
         detail = f"Error while trying to remove the app variant: {str(e)}"
@@ -549,7 +541,6 @@ async def configs_add(
 
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )
 
     return config
@@ -592,7 +583,6 @@ async def configs_fetch(
 
     config = await get_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
         namespace="configs_fetch",
         key=cache_key,
         model=ConfigDTO,
@@ -630,11 +620,9 @@ async def configs_fetch(
 
     await set_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
         namespace="configs_fetch",
         key=cache_key,
         value=config,
-        ttl=5 * 60,  # seconds
     )
 
     if not config:
@@ -683,7 +671,6 @@ async def configs_fork(
 
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )
 
     return config
@@ -713,7 +700,6 @@ async def configs_commit(
 
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )
 
     return config
@@ -747,7 +733,6 @@ async def configs_deploy(
 
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )
 
     return config
@@ -773,7 +758,6 @@ async def configs_delete(
 
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )
 
     return status.HTTP_204_NO_CONTENT

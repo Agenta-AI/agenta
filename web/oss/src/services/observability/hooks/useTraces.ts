@@ -14,12 +14,14 @@ export const useTraces = (
         filters,
         traceTabs,
         autoPrefetch,
+        waitUntil,
     }: {
         pagination: {size: number; page: number}
         sort: {type: string; sorted: string; customRange?: {startTime: string; endTime: string}}
         filters: any[]
         traceTabs: string
         autoPrefetch?: boolean
+        waitUntil?: boolean
     },
     appId: string,
 ) => {
@@ -92,16 +94,47 @@ export const useTraces = (
             page: pageNumber,
         }
         const key = ["traces", appId, JSON.stringify(nextParams)]
-        await preload(key, () => fetcher())
+        await preload(key, async () => {
+            const data = await fetchAllTraces(nextParams, appId)
+
+            const transformedTraces: _AgentaRootsResponse[] = []
+
+            if (data?.roots) {
+                transformedTraces.push(
+                    ...data.roots.flatMap((item: AgentaRootsDTO) =>
+                        observabilityTransformer(item.trees[0]),
+                    ),
+                )
+            }
+
+            if (data?.trees) {
+                transformedTraces.push(
+                    ...data.trees.flatMap((item: AgentaTreeDTO) => observabilityTransformer(item)),
+                )
+            }
+
+            if (data?.nodes) {
+                transformedTraces.push(
+                    ...data.nodes
+                        .flatMap((node: AgentaNodeDTO) => buildNodeTree(node))
+                        .flatMap((item: AgentaTreeDTO) => observabilityTransformer(item)),
+                )
+            }
+
+            return {
+                traces: transformedTraces,
+                traceCount: data?.count,
+            }
+        })
     }
 
     useEffect(() => {
-        if (autoPrefetch) {
+        if (autoPrefetch && !waitUntil) {
             prefetchPage(pagination.page + 1)
         }
-    }, [autoPrefetch, pagination.page, JSON.stringify(queryParams), appId])
+    }, [autoPrefetch, pagination.page, JSON.stringify(queryParams), appId, waitUntil])
 
-    const swrKey = ["traces", appId, JSON.stringify(queryParams)]
+    const swrKey = waitUntil ? null : ["traces", appId, JSON.stringify(queryParams)]
     const swr = useSWR(swrKey, fetcher, {
         revalidateOnFocus: false,
         revalidateOnReconnect: false,

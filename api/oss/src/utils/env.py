@@ -48,9 +48,7 @@ class EnvironSettings(BaseModel):
     )
 
     # Optional integrations
-    POSTHOG_API_KEY: str = os.getenv(
-        "POSTHOG_API_KEY", "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
-    )
+    POSTHOG_API_KEY: str = os.getenv("POSTHOG_API_KEY")
     POSTHOG_HOST: str = os.getenv("POSTHOG_HOST", "https://app.posthog.com")
     GOOGLE_OAUTH_CLIENT_ID: str = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
     GOOGLE_OAUTH_CLIENT_SECRET: str = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
