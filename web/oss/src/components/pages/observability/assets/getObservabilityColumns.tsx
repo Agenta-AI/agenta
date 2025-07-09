@@ -80,6 +80,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             title: "Inputs",
             key: "inputs",
             width: 400,
+            className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
                 return (
                     <TruncatedTooltipTag
@@ -93,6 +94,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             title: "Outputs",
             key: "outputs",
             width: 400,
+            className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
                 return (
                     <TruncatedTooltipTag

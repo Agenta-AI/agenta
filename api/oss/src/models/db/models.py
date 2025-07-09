@@ -3,6 +3,7 @@ from oss.src.utils.common import is_ee
 if is_ee():
     from ee.src.models.db_models import (
         APIKeyDB,
+        ProjectDB,
         WorkspaceDB,
         OrganizationDB,
         InvitationDB,

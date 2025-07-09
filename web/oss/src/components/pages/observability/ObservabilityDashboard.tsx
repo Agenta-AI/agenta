@@ -126,9 +126,7 @@ const ObservabilityDashboard = () => {
 
     return (
         <div className="flex flex-col gap-6">
-            <Typography.Text className="text-[16px] font-medium mt-5">
-                Observability
-            </Typography.Text>
+            <Typography.Text className="text-[16px] font-medium">Observability</Typography.Text>
 
             <ObservabilityHeader
                 setEditColumns={setEditColumns}

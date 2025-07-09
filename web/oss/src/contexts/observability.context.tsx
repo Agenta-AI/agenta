@@ -1,5 +1,6 @@
 // @ts-nocheck
 import {createContext, PropsWithChildren, useContext, useMemo, useState, useEffect} from "react"
+import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 
 import {useRouter} from "next/router"
 
@@ -49,7 +50,7 @@ const initialValues: ObservabilityContextType = {
     setTraceTabs: () => {},
     filters: [],
     setFilters: () => {},
-    sort: {type: "standard", sorted: ""},
+    sort: {},
     setSort: () => {},
     pagination: {page: 1, size: 10},
     setPagination: () => {},
@@ -66,17 +67,41 @@ export const getObservabilityValues = () => observabilityContextValues
 
 const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) => {
     const router = useRouter()
-    const appId = router.query.app_id as string
+    const appId = router.isReady ? (router.query.app_id as string | undefined) : undefined
     // query states
     const [searchQuery, setSearchQuery] = useState("")
     const [traceTabs, setTraceTabs] = useState<TraceTabTypes>("tree")
-    const [filters, setFilters] = useState<Filter[]>(
-        appId
-            ? [{key: "refs.application.id", operator: "is", value: appId, isPermanent: true}]
-            : [],
-    )
-    const [sort, setSort] = useState<SortResult>({} as SortResult)
+    const [filters, setFilters] = useState<Filter[]>([])
+    const [sort, setSort] = useState<SortResult>({})
     const [pagination, setPagination] = useState({page: 1, size: 50})
+
+    // Update filters when router becomes ready or appId changes
+    useEffect(() => {
+        if (!router.isReady) return
+
+        if (appId) {
+            setFilters((prev) => {
+                const other = prev.filter((f) => f.key !== "refs.application.id")
+                return [
+                    ...other,
+                    {
+                        key: "refs.application.id",
+                        operator: "is",
+                        value: appId,
+                        isPermanent: true,
+                    },
+                ]
+            })
+        }
+
+        // set default sort if not set
+        if (!sort.sorted) {
+            setSort({
+                type: "standard",
+                sorted: dayjs().utc().subtract(24, "hours").toISOString().split(".")[0],
+            })
+        }
+    }, [router.isReady, appId])
 
     const {
         data,
@@ -88,7 +113,8 @@ const ObservabilityContextProvider: React.FC<PropsWithChildren> = ({children}) =
             sort,
             filters,
             traceTabs,
-            autoPrefetch: true,
+            autoPrefetch: !router.isReady || !sort.type,
+            waitUntil: !router.isReady || !sort.type,
         },
         appId,
     )

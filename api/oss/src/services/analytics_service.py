@@ -117,6 +117,7 @@ async def analytics_middleware(request: Request, call_next: Callable):
                     user_id=request.state.user_id,
                     namespace="posthog:analytics",
                     key=cache_key,
+                    retry=False,
                 )
 
                 if current_count is None:
@@ -138,11 +139,18 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 )
                 # --------------------------------------------------------------
 
-            posthog.capture(
-                distinct_id=request.state.user_email,
-                event=event_name,
-                properties=properties or {},
-            )
+            # log.debug(
+            #     distinct_id=request.state.user_email,
+            #     event=event_name,
+            #     properties=properties,
+            # )
+
+            if env.POSTHOG_API_KEY:
+                posthog.capture(
+                    distinct_id=request.state.user_email,
+                    event=event_name,
+                    properties=properties or {},
+                )
         except Exception as e:
             log.error(f"❌ Error capturing event in PostHog: {e}")
 

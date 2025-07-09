@@ -14,7 +14,6 @@ import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
-import useAnnotations from "@/oss/lib/hooks/useAnnotations"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 
 import {TestsetTraceData} from "../../drawer/TestsetDrawer/assets/types"

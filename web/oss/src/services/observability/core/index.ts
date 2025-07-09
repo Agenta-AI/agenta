@@ -9,13 +9,17 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchAllTraces = async (params = {}, appId: string) => {
+export const fetchAllTraces = async (params = {}, appId?: string) => {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/observability/v1/traces?project_id=${projectId}&application_id=${appId}`,
-        {params},
-    )
+    const url = new URL(`${getAgentaApiUrl()}/observability/v1/traces`)
+    url.searchParams.set("project_id", projectId)
+
+    if (appId) {
+        url.searchParams.set("application_id", appId)
+    }
+
+    const response = await axios.get(url.toString(), {params})
     return response.data
 }
 

@@ -18,6 +18,7 @@ from oss.src.models.deprecated_models import (
     DeprecatedEvaluationScenarioDB as EvaluationScenarioDB,
     DeprecatedHumanEvaluationScenarioDB as HumanEvaluationScenarioDB,
     DeprecatedHumanEvaluationDB as HumanEvaluationDB,
+    DeprecatedEvaluatorConfigDBwProject as EvaluatorConfigDB,
     DeprecatedEvaluationDB as EvaluationDB,
     DeprecatedAppVariantRevisionsDB as AppVariantRevisionsDB,
     DeprecatedAppEnvironmentRevisionDB as AppEnvironmentRevisionDB,
@@ -26,7 +27,6 @@ from oss.src.models.db_models import (
     VariantBaseDB,
     DeploymentDB,
     AppEnvironmentDB,
-    EvaluatorConfigDB,
     TestSetDB,
 )
 

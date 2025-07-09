@@ -58,7 +58,6 @@ async def user_profile(request: Request):
         namespace="user_profile",
         key=cache_key,
         value=user,
-        ttl=5 * 60,  # seconds
     )
 
     return user

@@ -4,7 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
 from fastapi.responses import Response
 
-from posthog import feature_enabled
+import posthog
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -69,7 +69,20 @@ from oss.src.utils.env import env
 MAX_OTLP_BATCH_SIZE = env.AGENTA_OTLP_MAX_BATCH_BYTES
 MAX_OTLP_BATCH_SIZE_MB = MAX_OTLP_BATCH_SIZE // (1024 * 1024)
 
+
 log = get_module_logger(__name__)
+
+
+POSTHOG_API_KEY = env.POSTHOG_API_KEY
+POSTHOG_HOST = env.POSTHOG_HOST
+
+
+if POSTHOG_API_KEY:
+    posthog.api_key = POSTHOG_API_KEY
+    posthog.host = POSTHOG_HOST
+    log.info("PostHog initialized with host %s", POSTHOG_HOST)
+else:
+    log.warn("PostHog API key not found in environment variables")
 
 
 class ObservabilityRouter:
@@ -266,24 +279,23 @@ class ObservabilityRouter:
         }
 
         flag_create_spans_from_nodes = await get_cache(
-            project_id="system",
-            user_id="system",
             namespace="posthog:flags",
             key=cache_key,
+            retry=False,
         )
 
         if flag_create_spans_from_nodes is None:
-            flag_create_spans_from_nodes = feature_enabled(
-                feature_flag,
-                "user distinct id",
-            )
+            if env.POSTHOG_API_KEY:
+                flag_create_spans_from_nodes = posthog.feature_enabled(
+                    feature_flag,
+                    "user distinct id",
+                )
 
-            await set_cache(
-                namespace="posthog:flags",
-                key=cache_key,
-                value=flag_create_spans_from_nodes,
-                ttl=60,
-            )
+                await set_cache(
+                    namespace="posthog:flags",
+                    key=cache_key,
+                    value=flag_create_spans_from_nodes,
+                )
 
         # log.debug("Creating new spans from nodes: %s", flag_create_spans_from_nodes)
         # -------------------------------------------------------------------- #

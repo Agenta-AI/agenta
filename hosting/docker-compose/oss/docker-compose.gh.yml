@@ -72,7 +72,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
 
         command: >
-            celery -A entrypoint.celery_app worker --concurrency=1
+            celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1
 
         depends_on:
             - postgres

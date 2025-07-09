@@ -259,26 +259,25 @@ async def verify_bearer_token(
 
         session_user_id = session.get_user_id()  # type: ignore
 
-        cache_key = {
-            "id": session_user_id,
-        }
+        cache_key = {}
 
         if not session_user_id:
             raise UnauthorizedException()
 
-        user_id = await get_cache(
+        user: dict = await get_cache(
             project_id=query_project_id,
-            user_id=user_id,
+            user_id=session_user_id,
             namespace="get_supertokens_user_by_id",
             key=cache_key,
         )
+        # user = None
 
-        if user_id is not None and user_email is not None:
-            if user_id.get("deny"):
+        user_id = user.get("user_id") if user else None
+        user_email = user.get("user_email") if user else None
+
+        if user is not None:
+            if user.get("deny"):
                 raise UnauthorizedException()
-
-            user_id = user_id.get("user_id")
-            user_email = user_email.get("user_email")
 
         else:
             try:
@@ -296,11 +295,10 @@ async def verify_bearer_token(
             if not user_info:
                 await set_cache(
                     project_id=query_project_id,
-                    user_id=user_id,
+                    user_id=session_user_id,
                     namespace="get_supertokens_user_by_id",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -310,11 +308,10 @@ async def verify_bearer_token(
             if not user_email:
                 await set_cache(
                     project_id=query_project_id,
-                    user_id=user_id,
+                    user_id=session_user_id,
                     namespace="get_supertokens_user_by_id",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -326,11 +323,10 @@ async def verify_bearer_token(
             if not user:
                 await set_cache(
                     project_id=query_project_id,
-                    user_id=user_id,
+                    user_id=session_user_id,
                     namespace="get_supertokens_user_by_id",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -339,14 +335,13 @@ async def verify_bearer_token(
 
             await set_cache(
                 project_id=query_project_id,
-                user_id=user_id,
+                user_id=session_user_id,
                 namespace="get_supertokens_user_by_id",
                 key=cache_key,
                 value={
                     "user_id": user_id,
                     "user_email": user_email,
                 },
-                ttl=5 * 60,  # seconds
             )
 
         project_id = None
@@ -388,11 +383,10 @@ async def verify_bearer_token(
             if not project:
                 await set_cache(
                     project_id=query_project_id,
-                    user_id=user_id,
+                    user_id=session_user_id,
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -408,7 +402,6 @@ async def verify_bearer_token(
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -420,7 +413,6 @@ async def verify_bearer_token(
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -441,7 +433,6 @@ async def verify_bearer_token(
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -462,7 +453,6 @@ async def verify_bearer_token(
                     namespace="verify_bearer_token",
                     key=cache_key,
                     value={"deny": True},
-                    ttl=5 * 60,  # seconds
                 )
 
                 raise UnauthorizedException()
@@ -507,7 +497,6 @@ async def verify_bearer_token(
                 namespace="verify_bearer_token",
                 key=cache_key,
                 value={"deny": True},
-                ttl=5 * 60,  # seconds
             )
 
             raise UnauthorizedException()
@@ -518,7 +507,6 @@ async def verify_bearer_token(
 
             organization_name = await get_cache(
                 project_id=project_id,
-                user_id=user_id,
                 namespace="get_organization_name",
                 key=_cache_key,
             )
@@ -535,11 +523,9 @@ async def verify_bearer_token(
 
                 await set_cache(
                     project_id=project_id,
-                    user_id=user_id,
                     namespace="get_organization_name",
                     key=_cache_key,
                     value=organization_name,
-                    ttl=5 * 60,  # seconds
                 )
         except Exception as exc:  # pylint: disable=bare-except
             log.error("Failed to get organization name: %s", exc)
@@ -570,7 +556,6 @@ async def verify_bearer_token(
             namespace="verify_bearer_token",
             key=cache_key,
             value=state,
-            ttl=5 * 60,  # seconds
         )
 
         request.state.user_id = state.get("user_id")
@@ -591,7 +576,6 @@ async def verify_bearer_token(
             namespace="verify_bearer_token",
             key=cache_key,
             value={"deny": True},
-            ttl=5 * 60,  # seconds
         )
 
         raise exc
@@ -603,7 +587,6 @@ async def verify_bearer_token(
             namespace="verify_bearer_token",
             key=cache_key,
             value={"deny": True},
-            ttl=5 * 60,  # seconds
         )
 
         raise UnauthorizedException() from exc
@@ -619,8 +602,6 @@ async def verify_apikey_token(
         }
 
         state = await get_cache(
-            project_id=None,
-            user_id=None,
             namespace="verify_apikey_token",
             key=cache_key,
         )
@@ -648,7 +629,6 @@ async def verify_apikey_token(
                 namespace="verify_apikey_token",
                 key=cache_key,
                 value={"deny": True},
-                ttl=5 * 60,  # seconds
             )
 
             raise UnauthorizedException()
@@ -662,7 +642,9 @@ async def verify_apikey_token(
         project_id = str(api_key_obj.project_id)
         workspace_id = str(apikey_project_db.workspace_id)
         organization_id = str(apikey_project_db.organization_id)
-        organization_name = apikey_project_db.organization.name
+        organization_name = None
+        if is_ee():
+            organization_name = apikey_project_db.organization.name
 
         state = {
             "user_id": user_id,
@@ -678,7 +660,6 @@ async def verify_apikey_token(
             namespace="verify_apikey_token",
             key=cache_key,
             value=state,
-            ttl=5 * 60,  # seconds
         )
 
         request.state.user_id = state.get("user_id")

@@ -84,7 +84,6 @@ async def list_app_variants(
 
     app_variants = await get_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
         namespace="list_app_variants",
         key=cache_key,
         model=AppVariantResponse,
@@ -116,11 +115,9 @@ async def list_app_variants(
 
     await set_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
         namespace="list_app_variants",
         key=cache_key,
         value=app_variants,
-        ttl=5 * 60,  # seconds
     )
 
     return app_variants
@@ -267,7 +264,6 @@ async def create_app(
 
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )
 
     return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
@@ -316,7 +312,6 @@ async def update_app(
 
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )
 
     return UpdateAppOutput(app_id=app_id, app_name=payload.app_name)
@@ -421,7 +416,6 @@ async def add_variant_from_url(
 
         await invalidate_cache(
             project_id=request.state.project_id,
-            user_id=request.state.user_id,
         )
 
         return app_variant_dto
@@ -521,7 +515,6 @@ async def remove_app(
 
     await invalidate_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
     )
 
 
@@ -550,7 +543,6 @@ async def list_environments(
 
     environments = await get_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
         namespace="list_environments",
         key=cache_key,
         model=EnvironmentOutput,
@@ -587,11 +579,9 @@ async def list_environments(
 
     await set_cache(
         project_id=request.state.project_id,
-        user_id=request.state.user_id,
         namespace="list_environments",
         key=cache_key,
         value=environments,
-        ttl=5 * 60,  # seconds
     )
 
     return environments

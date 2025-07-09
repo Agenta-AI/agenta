@@ -7,6 +7,7 @@ from oss.src.dbs.postgres.shared.base import Base
 if is_ee():
     from ee.src.models.db_models import (
         APIKeyDB,
+        ProjectDB,
         WorkspaceDB,
         OrganizationDB,
         InvitationDB,

@@ -6,16 +6,16 @@ import litellm
 
 import agenta as ag
 
-from agenta.sdk.types import PromptTemplate, Message
 from agenta.sdk.litellm import mockllm
+from agenta.sdk.types import PromptTemplate, Message
+from openinference.instrumentation.litellm import LiteLLMInstrumentor
 
 
 litellm.drop_params = True
-litellm.callbacks = [ag.callbacks.litellm_handler()]
-
 mockllm.litellm = litellm
 
 ag.init()
+LiteLLMInstrumentor().instrument()
 
 
 class MyConfig(BaseModel):

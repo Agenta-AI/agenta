@@ -22,7 +22,10 @@ import {AppTemplate} from "@/oss/lib/Types"
 //  - delete: DELETE data from server
 
 export const fetchAllTemplates = async () => {
-    const response = await axios.get(`${getAgentaApiUrl()}/containers/templates`)
+    const {projectId} = getCurrentProject()
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/containers/templates?project_id=${projectId}`,
+    )
     return response.data
 }
 
@@ -96,9 +99,11 @@ export const createVariant = async ({
         throw new Error("Either serviceUrl or templateKey should be provided")
     }
 
+    const {projectId} = getCurrentProject()
+
     const endpoint = `${getAgentaApiUrl()}/apps/${appId}/variant/${
         serviceUrl ? "from-service" : "from-template"
-    }`
+    }?project_id=${projectId}`
 
     const body: CreateVariantRequestBody = {
         variant_name: variantName,
@@ -112,7 +117,7 @@ export const createVariant = async ({
         body.config_name = "url"
         body.url = serviceUrl
     } else if (templateKey) {
-        body.config_name = "key"
+        body.config_name = variantName
         body.key = templateKey
     }
 
@@ -124,8 +129,9 @@ export const updateVariant = async (
     {serviceUrl, variantId}: {serviceUrl: string; variantId: string},
     ignoreAxiosError = false,
 ) => {
+    const {projectId} = getCurrentProject()
     const response = await axios.put(
-        `${getAgentaApiUrl()}/variants/${variantId}/service`,
+        `${getAgentaApiUrl()}/variants/${variantId}/service?project_id=${projectId}`,
         {
             url: serviceUrl,
             variant_id: variantId,

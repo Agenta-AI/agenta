@@ -8,6 +8,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Integer
 
 
 DeprecatedBase = declarative_base()
+AltDeprecatedBase = declarative_base()
 
 
 class ProjectScopedAppDB(DeprecatedBase):
@@ -147,7 +148,7 @@ class DeprecatedAppEnvironmentRevisionDB(DeprecatedBase):
     )
 
 
-class DeprecatedEvaluatorConfigDB(DeprecatedBase):
+class DeprecatedEvaluatorConfigDBwApp(AltDeprecatedBase):
     __tablename__ = "evaluators_configs"
     __table_args__ = {"extend_existing": True}
 
@@ -168,6 +169,33 @@ class DeprecatedEvaluatorConfigDB(DeprecatedBase):
     )
     updated_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class DeprecatedEvaluatorConfigDBwProject(DeprecatedBase):
+    __tablename__ = "evaluators_configs"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+
+    name = Column(String)
+    evaluator_key = Column(String)
+    settings_values = Column(mutable_json_type(dbtype=JSONB, nested=True), default=dict)  # type: ignore
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
     )
 
 

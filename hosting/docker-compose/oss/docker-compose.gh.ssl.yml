@@ -91,7 +91,9 @@ services:
                 "-A",
                 "entrypoint.celery_app",
                 "worker",
-                "--concurrency=2"
+                "--concurrency=1",
+                "--max-tasks-per-child=1",
+                "--prefetch-multiplier=1"
             ]
         depends_on:
             postgres:

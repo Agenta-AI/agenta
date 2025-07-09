@@ -153,9 +153,7 @@ export const fetchEvaluation = async (evaluationId: string) => {
 export const fetchEvaluationStatus = async (evaluationId: string) => {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(
-        `/evaluations/${evaluationId}/status?project_id=${projectId}`,
-    )
+    const response = await axios.get(`/evaluations/${evaluationId}/status?project_id=${projectId}`)
     return response.data as {status: _Evaluation["status"]}
 }
 
