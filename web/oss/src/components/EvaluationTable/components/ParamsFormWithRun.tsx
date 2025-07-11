@@ -39,24 +39,26 @@ const ParamsFormWithRun = ({
 
     return isLoading ? null : (
         <div>
-            {evaluation.testset.testsetChatColumn ? (
-                evaluation.testset.csvdata[rowIndex][evaluation.testset.testsetChatColumn] || " - "
-            ) : inputParams ? (
-                <ParamsForm
-                    isChatVariant={false}
-                    onParamChange={onParamChange}
-                    inputParams={
-                        inputParams.map((item) => ({
-                            ...item,
-                            value: record.inputs.find((ip) => ip.input_name === item.name)
-                                ?.input_value,
-                        })) || []
-                    }
-                    onFinish={onRun}
-                    form={form}
-                />
-            ) : null}
-
+            <div className="max-w-[300px] overflow-y-auto max-h-[300px]">
+                {evaluation.testset.testsetChatColumn ? (
+                    evaluation.testset.csvdata[rowIndex][evaluation.testset.testsetChatColumn] ||
+                    " - "
+                ) : inputParams ? (
+                    <ParamsForm
+                        isChatVariant={false}
+                        onParamChange={onParamChange}
+                        inputParams={
+                            inputParams.map((item) => ({
+                                ...item,
+                                value: record.inputs.find((ip) => ip.input_name === item.name)
+                                    ?.input_value,
+                            })) || []
+                        }
+                        onFinish={onRun}
+                        form={form}
+                    />
+                ) : null}
+            </div>
             <div className={classes.inputTestBtn}>
                 <Button
                     onClick={evaluation.testset.testsetChatColumn ? onRun : form.submit}

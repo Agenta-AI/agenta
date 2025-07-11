@@ -275,9 +275,27 @@ class ToolCall(BaseModel):
     function: Dict[str, str]
 
 
+class ImageURL(BaseModel):
+    url: str
+    detail: Optional[Literal["auto", "low", "high"]] = None
+
+
+class ContentPartText(BaseModel):
+    type: Literal["text"] = "text"
+    text: str
+
+
+class ContentPartImage(BaseModel):
+    type: Literal["image_url"] = "image_url"
+    image_url: ImageURL
+
+
+ContentPart = Union[ContentPartText, ContentPartImage]
+
+
 class Message(BaseModel):
     role: Literal["system", "user", "assistant", "tool", "function"]
-    content: Optional[str] = None
+    content: Optional[Union[str, List[ContentPart]]] = None
     name: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None

@@ -12,7 +12,10 @@ export interface PromptMessageContentOptionsProps {
         rerunMessage?: (messageId: string) => void
         onClickTestsetDrawer?: (messageId?: string) => void
         minimize?: (messageId?: string) => void
+        handleAddUploadSlot?: () => void
     }
     resultHashes?: (TestResult | string | null | undefined)[]
     children?: React.ReactNode
+    allowFileUpload?: boolean
+    uploadCount?: number
 }

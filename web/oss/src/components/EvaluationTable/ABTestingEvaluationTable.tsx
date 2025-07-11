@@ -249,6 +249,20 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 evalVariants.map(async (variant: Variant, idx: number) => {
                     setRowValue(rowIndex, variant.variantId, "loading...")
 
+                    const rawMessages = variantData[idx].isChatVariant
+                        ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
+                        : []
+
+                    const sanitizedMessages = rawMessages.map((msg) => {
+                        if (!Array.isArray(msg.content)) return msg
+                        return {
+                            ...msg,
+                            content: msg.content.filter((part) => {
+                                return part.type !== "image_url" || part.image_url.url.trim() !== ""
+                            }),
+                        }
+                    })
+
                     try {
                         const result = await callVariant(
                             inputParamsDict,
@@ -261,12 +275,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                 : variantData[idx].promptOptParams!,
                             appId || "",
                             variantData[idx].baseId || "",
-                            variantData[idx].isChatVariant
-                                ? testsetRowToChatMessages(
-                                      evaluation.testset.csvdata[rowIndex],
-                                      false,
-                                  )
-                                : [],
+                            sanitizedMessages,
                             undefined,
                             true,
                             !!variantData[idx].parameters, // isNewVariant
@@ -375,12 +384,22 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     key: columnKey,
                     width: "20%",
                     render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
-                        if (text) return text
+                        let outputText = text
+                        if (text)
+                            return (
+                                <div className="max-w-[350px] max-h-[350px] overflow-y-auto">
+                                    {text}
+                                </div>
+                            )
                         if (record.outputs && record.outputs.length > 0) {
                             const outputValue = record.outputs.find(
                                 (output: any) => output.variant_id === columnKey,
                             )?.variant_output
-                            return <div>{outputValue}</div>
+                            return (
+                                <div className="max-w-[350px] max-h-[350px] overflow-y-auto">
+                                    {outputValue}
+                                </div>
+                            )
                         }
                         return ""
                     },

@@ -30,7 +30,7 @@ export const Actions: React.FC<{
     const isMember = user.status === "member"
 
     const [resendLoading, setResendLoading] = useState(false)
-    const {selectedOrg, setSelectedOrg} = useOrgData()
+    const {refetch} = useOrgData()
 
     if (hidden) return null
 
@@ -45,6 +45,7 @@ export const Actions: React.FC<{
                     message.success("Invitation sent!")
                 }
             })
+            .then(() => refetch())
             .catch(console.error)
             .finally(() => setResendLoading(false))
     }
@@ -55,18 +56,7 @@ export const Actions: React.FC<{
             title: "Remove member",
             message: `Are you sure you want to remove ${user.username} from this workspace?`,
             onOk: () =>
-                removeFromWorkspace({orgId, workspaceId, email: user.email}, true).then(() => {
-                    if (selectedOrg)
-                        setSelectedOrg({
-                            ...selectedOrg,
-                            default_workspace: {
-                                ...selectedOrg.default_workspace,
-                                members: selectedOrg.default_workspace?.members.filter(
-                                    (item) => item.user.email !== user.email,
-                                ),
-                            },
-                        })
-                }),
+                removeFromWorkspace({orgId, workspaceId, email: user.email}, true).then(() => refetch()),
             okText: "Remove",
         })
     }

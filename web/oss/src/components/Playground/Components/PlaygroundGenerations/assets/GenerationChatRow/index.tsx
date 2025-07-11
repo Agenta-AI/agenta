@@ -110,6 +110,8 @@ export const GenerationChatRowOutput = ({
                     ) : null
                 }
                 state={messageResult?.error ? "readOnly" : "filled"}
+                allowFileUpload
+                message={message}
             />
         </div>
     )
@@ -284,6 +286,9 @@ const GenerationChatRow = ({
             const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
             const emptyMessage = createMessageFromSchema(itemMetadata, {
                 role: "user",
+                content: {
+                    value: "",
+                },
             })
 
             if (emptyMessage) {

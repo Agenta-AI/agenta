@@ -28,7 +28,7 @@ export function processProperties(
 ): Record<string, ConfigMetadata> {
     return Object.entries(properties).reduce(
         (acc, [key, prop]) => {
-            const {schema, isNullable} = extractSchema(prop)
+            const {schema, isNullable} = extractSchema(prop, key)
             acc[toCamelCase(key)] = {
                 ...createMetadata(schema),
                 nullable: isNullable,
@@ -215,8 +215,8 @@ export function createMetadata(schema: SchemaProperty, key?: string): ConfigMeta
             key,
         }
     } else {
-        console.debug("Unsupported schema type", schema)
-        throw new Error(`Unsupported schema: ${JSON.stringify(schema)}`)
+        // console.debug("Unsupported schema type", schema, key)
+        // throw new Error(`Unsupported schema: ${JSON.stringify(schema)} ${key}`)
     }
 }
 

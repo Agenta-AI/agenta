@@ -24,7 +24,14 @@ export interface PromptMessageConfigProps extends BaseContainerProps, SharedEdit
     initialValue?: string
     editorType?: "border" | "borderless"
 
+    isFunction?: boolean | undefined
+    isJSON?: boolean | undefined
+    isTool?: boolean | undefined
+
     deleteMessage?: (messageId: string) => void
     rerunMessage?: (messageId: string) => void
     handleChange?: (value: string) => void
+    message?: any
+
+    allowFileUpload?: boolean
 }

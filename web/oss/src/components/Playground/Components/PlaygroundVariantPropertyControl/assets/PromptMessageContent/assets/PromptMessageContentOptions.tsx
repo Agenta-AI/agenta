@@ -1,6 +1,14 @@
 import {useCallback, memo, useState} from "react"
 
-import {MinusCircle, Copy, Check, ArrowClockwise, CaretDown, CaretUp} from "@phosphor-icons/react"
+import {
+    MinusCircle,
+    Copy,
+    Check,
+    ArrowClockwise,
+    CaretDown,
+    CaretUp,
+    Image,
+} from "@phosphor-icons/react"
 import clsx from "clsx"
 
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
@@ -9,6 +17,15 @@ import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 import TestsetDrawerButton from "../../../../Drawers/TestsetDrawer"
 
 import type {PromptMessageContentOptionsProps} from "./types"
+
+export const getTextContent = (content: any) => {
+    if (typeof content === "string") return content
+    if (Array.isArray(content)) {
+        const value = content.filter((part: any) => part.type.value === "text")
+        return value[0].text.value
+    }
+    return ""
+}
 
 const PromptMessageContentOptions = ({
     messageId,
@@ -20,14 +37,21 @@ const PromptMessageContentOptions = ({
     minimized,
     children,
     resultHashes,
+    allowFileUpload,
+    uploadCount,
 }: PromptMessageContentOptionsProps) => {
-    const {propertyGetter} = usePlayground()
-    const {deleteMessage, rerunMessage, minimize, onClickTestsetDrawer} = actions || {}
+    const {propertyGetter, isChat} = usePlayground({
+        stateSelector: (state) => ({
+            isChat: state.variants.some((v) => v.isChat),
+        }),
+    })
+    const {deleteMessage, rerunMessage, minimize, onClickTestsetDrawer, handleAddUploadSlot} =
+        actions || {}
 
     const [isCopied, setIsCopied] = useState(false)
 
     const onCopyText = useCallback(() => {
-        const text = propertyGetter?.(propertyId)?.value
+        const text = getTextContent(propertyGetter?.(propertyId)?.value || "")
 
         if (text) {
             setIsCopied(true)
@@ -36,7 +60,7 @@ const PromptMessageContentOptions = ({
                 setIsCopied(false)
             }, 1000)
         }
-    }, [propertyId])
+    }, [propertyId, propertyGetter])
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
@@ -56,6 +80,16 @@ const PromptMessageContentOptions = ({
                     resultHashes={resultHashes}
                     onClickTestsetDrawer={onClickTestsetDrawer}
                     messageId={messageId}
+                />
+            ) : null}
+
+            {isChat && allowFileUpload ? (
+                <EnhancedButton
+                    icon={<Image size={14} />}
+                    type="text"
+                    onClick={() => handleAddUploadSlot?.()}
+                    tooltipProps={{title: "Upload Image"}}
+                    disabled={uploadCount !== undefined && uploadCount >= 5}
                 />
             ) : null}
 

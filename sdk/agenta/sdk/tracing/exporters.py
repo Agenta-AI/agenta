@@ -113,13 +113,13 @@ class OTLPExporter(OTLPSpanExporter):
         else:
             return SpanExportResult.FAILURE
 
-    def _export(self, serialized_data: bytes):
+    def _export(self, serialized_data: bytes, timeout_sec: float):
         credentials = exporting_context.get().credentials
 
         if credentials:
             self._session.headers.update({"Authorization": credentials})
 
-        return super()._export(serialized_data)
+        return super()._export(serialized_data, timeout_sec)
 
 
 ConsoleExporter = ConsoleSpanExporter

@@ -45,6 +45,11 @@ class OrganizationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+    project = relationship(
+        "oss.src.models.db_models.ProjectDB",
+        back_populates="organization",
+        overlaps="organization",
+    )
     workspaces_relation = relationship(
         "oss.src.models.db_models.WorkspaceDB", back_populates="organization"
     )
@@ -138,6 +143,9 @@ class ProjectDB(Base):
 
     workspace = relationship(
         "oss.src.models.db_models.WorkspaceDB", back_populates="projects"
+    )
+    organization = relationship(
+        "oss.src.models.db_models.OrganizationDB", back_populates="project"
     )
     app = relationship("AppDB", cascade=CASCADE_ALL_DELETE, backref="project")
     evaluator_config = relationship(

@@ -1667,7 +1667,7 @@ async def delete_invitation(invitation_id: str) -> bool:
                 },
             )
 
-        project = await fetch_project_by_id(project_id=invitation.project_id)
+        project = await fetch_project_by_id(project_id=str(invitation.project_id))
 
         if not project:
             raise NoResultFound(f"Project with ID {invitation.project_id} not found")
