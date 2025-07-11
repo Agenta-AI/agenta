@@ -525,6 +525,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                         messageRow,
                                         messageId,
                                         variantId,
+                                        includeLastMessage: true,
                                     })
 
                                     const runId = generateId()
@@ -582,7 +583,7 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                             messageRow,
                                             messageId,
                                             variantId,
-                                            includeLastMessage: false,
+                                            includeLastMessage: true,
                                         })
 
                                         const runId = generateId()
@@ -657,6 +658,9 @@ const playgroundVariantsMiddleware: PlaygroundMiddleware = <
                                         const metadata = getMetadataLazy(lastMessage.__metadata)
                                         const emptyMessage = createMessageFromSchema(metadata, {
                                             role: "user",
+                                            content: {
+                                                value: "",
+                                            },
                                         })
                                         emptyMessage.__hidden = true
                                         messageRow.history.value.push(emptyMessage)

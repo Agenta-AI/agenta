@@ -928,9 +928,26 @@ export enum ChatRole {
     Function = "function",
 }
 
+export interface ChatImageURL {
+    url: string
+    detail?: "auto" | "low" | "high"
+}
+
+export interface ChatMessageContentText {
+    type: "text"
+    text: string
+}
+
+export interface ChatMessageContentImage {
+    type: "image_url"
+    image_url: ChatImageURL
+}
+
+export type ChatMessageContent = string | (ChatMessageContentText | ChatMessageContentImage)[]
+
 export interface ChatMessage {
     role: ChatRole
-    content: string
+    content: ChatMessageContent
     id?: string
 }
 

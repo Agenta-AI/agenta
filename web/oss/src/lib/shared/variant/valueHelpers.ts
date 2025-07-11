@@ -156,6 +156,13 @@ export function extractValueByMetadata(
                 ? obj
                 : undefined
         }
+        case "compound": {
+            const option = metadata.options.find(
+                (o) => o.value === (enhanced.selected || metadata.options[0].value),
+            )
+            if (!option) return undefined
+            return extractValueByMetadata(enhanced.value, allMetadata)
+        }
         default:
             return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
     }

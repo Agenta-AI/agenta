@@ -54,5 +54,15 @@ export const isSchema = {
     },
 }
 
-export const extractNonNullSchema = (schemas: SchemaProperty[]): SchemaProperty | undefined =>
-    schemas.find((schema) => hasType(schema) && schema.type !== "null")
+export const extractNonNullSchema = (schemas: SchemaProperty[]): SchemaProperty | undefined => {
+    const nonNull = schemas.filter((s) => !(hasType(s) && s.type === "null"))
+    if (nonNull.length === 0) return undefined
+
+    // Prefer array -> object -> primitive to retain richer structure
+    return (
+        nonNull.find(isSchema.array) ||
+        nonNull.find(isSchema.object) ||
+        nonNull.find(isSchema.primitive) ||
+        nonNull[0]
+    )
+}

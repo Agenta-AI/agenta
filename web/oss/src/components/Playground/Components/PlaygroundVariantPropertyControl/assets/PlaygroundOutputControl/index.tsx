@@ -62,7 +62,7 @@ const PlaygroundOutputControl = ({
 
             setStructuredOutputState(JSON.stringify(obj, null, 2))
         }
-    }, [selectedOption?.config.json_schema])
+    }, [selectedOption?.config?.json_schema])
 
     useEffect(() => {
         setStructuredOutputState(value?.json_schema)
@@ -164,7 +164,7 @@ const PlaygroundOutputControl = ({
                             editorProps={{
                                 codeOnly: true,
                                 noProvider: true,
-                                validationSchema: selectedOption?.config.json_schema,
+                                validationSchema: selectedOption?.config?.json_schema,
                             }}
                             editorType="borderless"
                             className="mt-2"

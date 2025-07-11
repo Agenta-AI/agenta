@@ -237,6 +237,9 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                             ) {
                                 const emptyMessage = createMessageFromSchema(metadata, {
                                     role: "user",
+                                    content: {
+                                        value: "",
+                                    },
                                 })
                                 if (emptyMessage) {
                                     targetRow.history.value.push(emptyMessage)

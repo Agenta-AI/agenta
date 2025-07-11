@@ -1,4 +1,5 @@
 import {getUniqueInputKeys} from "@/oss/lib/hooks/useStatelessVariants/assets/comparisonHelpers"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {MessageWithRuns} from "@/oss/lib/hooks/useStatelessVariants/state/types"
 import {createInputRow, createInputSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
@@ -19,7 +20,7 @@ import {hashMetadata} from "../../../assets/hash"
 import type {PlaygroundStateData} from "../types"
 
 // import {createInputRow, createInputSchema} from "./inputHelpers"
-import {createMessageRow} from "./messageHelpers"
+import {createMessageFromSchema, createMessageRow} from "./messageHelpers"
 
 export const initializeGenerationInputs = (
     variants: EnhancedVariant[],
@@ -58,7 +59,9 @@ export const getUniqueMessages = (variants: EnhancedVariant[]) => {
     const uniqueMessages = new Map<string, (typeof allMessages)[0]>()
 
     allMessages.forEach((message) => {
-        const key = `${message.role.value}:${message.content.value}`
+        const content = message.content.value
+        const contentKey = Array.isArray(content) ? JSON.stringify(content) : content
+        const key = `${message.role.value}:${contentKey}`
         if (!uniqueMessages.has(key)) {
             uniqueMessages.set(key, message)
         }
@@ -127,16 +130,17 @@ export const initializeGenerationMessages = (variants: EnhancedVariant[]) => {
         }
 
         emptyMessage.role.value = "user" // initial chat message is from user
+        const metadata = getMetadataLazy(emptyMessage.__metadata)
+        const msg = createMessageFromSchema(metadata, emptyMessage)
 
         const messagesMetadata = variants[0]?.prompts[0]?.messages.__metadata
         initialMessageRows.push(
             createMessageRow(
-                emptyMessage,
+                msg,
                 uniqueSystemMessages[0].__metadata as ObjectMetadata,
                 messagesMetadata,
             ),
         )
-
         return {
             __id: generateId(),
             __metadata: {},

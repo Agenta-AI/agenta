@@ -237,6 +237,21 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
         await Promise.all(
             variants.map(async (variant: Variant, idx: number) => {
                 setRowValue(rowIndex, variant.variantId, "loading...")
+
+                const rawMessages = variantData[idx].isChatVariant
+                    ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
+                    : []
+
+                const sanitizedMessages = rawMessages.map((msg) => {
+                    if (!Array.isArray(msg.content)) return msg
+                    return {
+                        ...msg,
+                        content: msg.content.filter((part) => {
+                            return part.type !== "image_url" || part.image_url.url.trim() !== ""
+                        }),
+                    }
+                })
+
                 try {
                     const result = await callVariant(
                         inputParamsDict,
@@ -249,9 +264,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                             : variantData[idx].promptOptParams!,
                         appId || "",
                         variantData[idx].baseId || "",
-                        variantData[idx].isChatVariant
-                            ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
-                            : [],
+                        sanitizedMessages,
                         undefined,
                         true,
                         !!variantData[idx]._parentVariant, // isNewVariant
@@ -341,14 +354,17 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                 key: columnKey,
                 width: "25%",
                 render: (text: any, record: SingleModelEvaluationRow, rowIndex: number) => {
-                    if (text) return text
-                    if (record.outputs && record.outputs.length > 0) {
-                        const outputValue = record.outputs.find(
+                    let outputValue = text
+                    if (!outputValue && record.outputs && record.outputs.length > 0) {
+                        outputValue = record.outputs.find(
                             (output: any) => output.variant_id === columnKey,
                         )?.variant_output
-                        return <div>{outputValue}</div>
                     }
-                    return ""
+                    return (
+                        <div className="max-w-[350px] max-h-[350px] overflow-y-auto">
+                            {outputValue}
+                        </div>
+                    )
                 },
             }
         },

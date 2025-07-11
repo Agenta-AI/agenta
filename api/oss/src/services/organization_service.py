@@ -36,14 +36,14 @@ async def check_existing_invitation(project_id: str, email: str):
         and str(invitation.project_id) == project_id
     ):
         if invitation.expiration_date > datetime.now(timezone.utc):
-            return invitation
+            return invitation, None
 
         else:
-            # Existing invitation is expired, delete it
+            role = invitation.role
             await db_manager.delete_invitation(str(invitation.id))
-            return None
+            return None, role
 
-    return None
+    return None, None
 
 
 async def check_valid_invitation(project_id: str, email: str, token: str):
@@ -172,10 +172,10 @@ async def invite_user_to_organization(
         )
 
     # Check if the user is already a member of the workspace
-    existing_invitation = await check_existing_invitation(
+    existing_invitation, existing_role = await check_existing_invitation(
         project_id=project_id, email=payload.email
     )
-    if existing_invitation is not None:
+    if existing_invitation or existing_role:
         raise HTTPException(
             status_code=400,
             detail="User is already a member of the workspace",
@@ -227,10 +227,12 @@ async def resend_user_organization_invite(
     user_performing_action = await db_manager.get_user_with_id(user_id=user_id)
 
     # Check if the email address already has a valid, unused invitation for the workspace
-    existing_invitation = await check_existing_invitation(project_id, payload.email)
-    if existing_invitation is not None:
+    existing_invitation, existing_role = await check_existing_invitation(
+        project_id, payload.email
+    )
+    if existing_invitation:
         invitation = existing_invitation
-    else:
+    elif existing_role:
         # Create a new invitation
         invitation = await create_invitation("editor", project_id, payload.email)
 

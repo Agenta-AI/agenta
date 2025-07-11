@@ -203,10 +203,21 @@ if AGENTA_LOG_CONSOLE_ENABLED:
     h = logging.StreamHandler(sys.stdout)
     h.setLevel(getattr(logging, AGENTA_LOG_CONSOLE_LEVEL, TRACE_LEVEL))
     h.setFormatter(logging.Formatter("%(message)s"))
+
+    # Console logger (your app logs)
     logger = logging.getLogger("console")
+    logger.handlers.clear()
     logger.addHandler(h)
-    logger.propagate = False  # 👈 PREVENT propagation to root (avoids Celery duplicate)
+    logger.propagate = False
     loggers.append(create_struct_logger([colored_console_renderer()], "console"))
+
+    # Gunicorn/Uvicorn loggers
+    for name in ("uvicorn.access", "uvicorn.error", "gunicorn.error"):
+        gunicorn_logger = logging.getLogger(name)
+        gunicorn_logger.handlers.clear()  # ✅ fix here
+        gunicorn_logger.setLevel(logging.INFO)
+        gunicorn_logger.addHandler(h)
+        gunicorn_logger.propagate = False
 
 # if AGENTA_LOG_FILE_ENABLED:
 #     h = RotatingFileHandler(AGENTA_LOG_FILE_PATH, maxBytes=10 * 1024 * 1024, backupCount=5)

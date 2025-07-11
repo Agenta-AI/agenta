@@ -1,5 +1,9 @@
 import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {MessageWithRuns} from "@/oss/lib/hooks/useStatelessVariants/state/types"
+import {
+    createObjectFromMetadata,
+    extractObjectSchemaFromMetadata,
+} from "@/oss/lib/shared/variant/genericTransformer/helpers/arrays"
 import {generateId, toSnakeCase} from "@/oss/lib/shared/variant/stringUtils"
 import {checkValidity, extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
 
@@ -11,7 +15,7 @@ import type {
 } from "../../../../../lib/shared/variant/genericTransformer/types"
 import {Message} from "../../../../../lib/shared/variant/transformer/types"
 import {hashMetadata} from "../../../assets/hash"
-import {PlaygroundStateData} from "../types"
+import {ChatContentPart, PlaygroundStateData} from "../types"
 
 export const createMessageFromSchema = (
     metadata: ConfigMetadata,
@@ -28,9 +32,117 @@ export const createMessageFromSchema = (
             let defaultValue: any = null
             if (key === "role") {
                 defaultValue = ""
-                // "user" // Default role
+                if (typeof value === "string") {
+                    value = {value}
+                }
             } else if (key === "content") {
-                defaultValue = "" // Empty content
+                let newValue
+                if (value) {
+                    if (typeof value === "string") {
+                        const contentMetadata = getMetadataLazy(propMetadata.__metadata)
+                        const objectTypeMetadata = extractObjectSchemaFromMetadata(
+                            contentMetadata || propMetadata,
+                        )
+
+                        if (
+                            objectTypeMetadata?.type === "array" &&
+                            objectTypeMetadata.itemMetadata
+                        ) {
+                            const itemMetadata = objectTypeMetadata.itemMetadata
+
+                            const textOptionMetadata = itemMetadata.options?.find(
+                                (opt) => "text" in opt.properties,
+                            )
+
+                            const textObject = createObjectFromMetadata(textOptionMetadata)
+
+                            textObject.type.value = "text"
+                            textObject.text.value = value
+
+                            value = {
+                                __id: generateId(),
+                                __metadata: hashMetadata(objectTypeMetadata),
+                                value: [textObject],
+                            }
+                        }
+                    } else if (Array.isArray(value)) {
+                        const contentMetadata = getMetadataLazy(value?.__metadata)
+                        const objectTypeMetadata = extractObjectSchemaFromMetadata(
+                            contentMetadata || propMetadata,
+                        )
+
+                        if (
+                            objectTypeMetadata?.type === "array" &&
+                            objectTypeMetadata.itemMetadata
+                        ) {
+                            const itemMetadata = objectTypeMetadata.itemMetadata
+
+                            newValue = {
+                                __id: generateId(),
+                                __metadata: hashMetadata(objectTypeMetadata),
+                                value: value.map((item: ChatContentPart) => {
+                                    const base = createObjectFromMetadata(itemMetadata)
+
+                                    const generatedItem = structuredClone(base)
+
+                                    Object.keys(generatedItem).forEach((key) => {
+                                        if (!["__id", "__metadata", "type"].includes(key)) {
+                                            delete generatedItem[key]
+                                        }
+                                    })
+
+                                    generatedItem.type = {
+                                        value: item.type,
+                                        __id: generateId(),
+                                        __metadata: hashMetadata(itemMetadata),
+                                    }
+
+                                    if (item.type === "text") {
+                                        generatedItem.text = {
+                                            __id: generateId(),
+                                            value: item.text,
+                                            __metadata: hashMetadata(itemMetadata),
+                                        }
+                                    } else if (item.type === "image_url") {
+                                        const imageOptionMetadata = itemMetadata.options?.find(
+                                            (opt) => "imageUrl" in opt.properties,
+                                        )
+
+                                        const imageBase =
+                                            createObjectFromMetadata(imageOptionMetadata)
+
+                                        generatedItem.imageUrl = {
+                                            ...imageBase.imageUrl,
+                                            url: {
+                                                ...imageBase.imageUrl?.url,
+                                                value: item.image_url?.url || "",
+                                            },
+                                            detail: {
+                                                ...imageBase.imageUrl?.detail,
+                                                value: item.image_url?.detail || "auto",
+                                            },
+                                        }
+
+                                        generatedItem.__metadata = imageBase.__metadata
+                                        generatedItem.__id = imageBase.__id
+                                    }
+
+                                    return generatedItem
+                                }),
+                            }
+
+                            value = newValue
+                        }
+                    } else if (!value?.value) {
+                        const contentMetadata = getMetadataLazy(value?.__metadata)
+                        const objectTypeMetadata = extractObjectSchemaFromMetadata(
+                            contentMetadata || propMetadata,
+                        )
+                        newValue = createObjectFromMetadata(objectTypeMetadata)
+                        newValue.value[0].type.value = "text"
+                        value = newValue
+                    }
+                }
             } else if (key === "toolCalls") {
                 defaultValue = undefined
                 if (Array.isArray(value)) {
@@ -43,26 +155,50 @@ export const createMessageFromSchema = (
                         }
                     })
                     value = test
-                } else {
-                    console.log("ayo! create message 1")
                 }
             }
 
             value = value || defaultValue
+            if (key === "content") {
+                if (!value || !value.value) {
+                    const contentMetadata = getMetadataLazy(propMetadata.__metadata)
+                    const objectTypeMetadata = extractObjectSchemaFromMetadata(
+                        contentMetadata || propMetadata,
+                    )
 
+                    if (objectTypeMetadata?.type === "array" && objectTypeMetadata.itemMetadata) {
+                        const itemMetadata = objectTypeMetadata.itemMetadata
+                        const textOptionMetadata = itemMetadata.options?.find(
+                            (opt) => "text" in opt.properties,
+                        )
+
+                        const textObject = createObjectFromMetadata(textOptionMetadata)
+                        textObject.type.value = "text"
+                        textObject.text.value = ""
+
+                        value = {
+                            __id: generateId(),
+                            __metadata: hashMetadata(objectTypeMetadata),
+                            value: [textObject],
+                        }
+                    }
+                }
+            }
             properties[key] = {
                 __id: generateId(),
                 __metadata: metadataHash,
-                value,
+                ...value,
             }
         })
         const metadataHash = hashMetadata(metadata)
 
-        return {
+        const generated = {
             __id: generateId(),
             __metadata: metadataHash,
             ...properties,
         } as Enhanced<MessageWithRuns>
+
+        return generated
     } else {
         return undefined
     }

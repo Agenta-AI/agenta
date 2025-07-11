@@ -43,12 +43,12 @@ function transformObjectValue<T extends Record<string, any>>(
 
 function metadataToSchema(metadata: ConfigMetadata): SchemaProperty {
     const baseSchema = {
-        type: metadata.type,
-        title: metadata.title,
-        description: metadata.description,
+        type: metadata?.type,
+        title: metadata?.title,
+        description: metadata?.description,
     }
 
-    switch (metadata.type) {
+    switch (metadata?.type) {
         case "array":
             return {
                 ...baseSchema,
@@ -135,6 +135,11 @@ function transformArray<T>(value: T[], metadata: ConfigMetadata & {type: "array"
 
             const itemMetadataHash = hashMetadata(metadata.itemMetadata)
 
+            if (metadata.itemMetadata.type === "compound") {
+                const subSchema = metadataToSchema(metadata.itemMetadata)
+                return transformValue(item, subSchema, metadata.itemMetadata) as Enhanced<T>
+            }
+
             if (metadata.itemMetadata.type === "object" && typeof item === "object") {
                 const schema = metadataToSchema(metadata.itemMetadata)
                 const properties = isSchema.object(schema) ? schema.properties || {} : {}
@@ -178,8 +183,49 @@ function transformValue<T>(
     // Use parent property metadata if available, otherwise create new
     const metadata = parentPropertyMetadata || createMetadata(schema, key)
     // Handle arrays
+    if (!metadata) {
+        console.log(
+            "transformValue edge case",
+            metadata,
+            schema,
+            value,
+            parentPropertyMetadata,
+            key,
+        )
+        return value
+    }
     if (metadata.type === "array" && Array.isArray(value)) {
         return transformArray(value, metadata) as Enhanced<T>
+    }
+
+    if (metadata.type === "compound") {
+        const selectedOption =
+            (Array.isArray(value)
+                ? metadata.options.find((o) => (o.config as any).type === "array")
+                : typeof value === "string"
+                  ? metadata.options.find((o) => (o.config as any).type === "string")
+                  : undefined) || metadata.options[0]
+
+        const subMetadata = selectedOption?.config as ConfigMetadata
+        const subSchema = metadataToSchema(subMetadata)
+        const transformedValue = transformValue(value, subSchema, subMetadata)
+        const transformed = {
+            __id: generateId(),
+            __metadata: hashMetadata(metadata),
+            selected: selectedOption?.value,
+            value: transformedValue?.value || transformedValue,
+        } as Enhanced<T>
+
+        // console.log("TRANSFORMING COMPOUND", {
+        //     value,
+        //     metadata,
+        //     transformed,
+        //     transformedMetadata: getMetadataLazy(transformed.value.__metadata),
+        //     subMetadata,
+        //     subSchema,
+        // })
+
+        return transformed
     }
 
     // Handle objects
@@ -216,6 +262,7 @@ export const createEnhancedConfig = <T>(
     schema: SchemaProperty,
     key?: string,
 ): Enhanced<T> => {
+    console.log("createEnhancedConfig key", key, value, schema)
     return transformValue(value, schema, undefined, key)
 }
 

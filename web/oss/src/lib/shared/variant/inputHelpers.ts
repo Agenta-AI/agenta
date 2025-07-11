@@ -147,7 +147,13 @@ export function createInputRow(inputKeys: string[], metadata: ObjectMetadata): G
  */
 export function updatePromptInputKeys(prompt: EnhancedVariant["prompts"][number]) {
     // @ts-ignore
-    const messagesContent = prompt.messages.value.map((message) => message.content.value || "")
+    const messagesContent = prompt.messages.value.map((message) => {
+        const content = message.content.value
+        if (Array.isArray(content)) {
+            return content.map((part) => (part as any).text || "").join(" ")
+        }
+        return content || ""
+    })
     // @ts-ignore
     const messageVars = messagesContent.map((message) => extractVariables(message)).flat()
 
