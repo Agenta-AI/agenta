@@ -237,14 +237,15 @@ def override_password_apis(original: EmailPasswordAPIInterface):
         )
 
         # FLOW 3: Sign up (as a regular user after accepting invitation)
-        user_invitation_exists = await check_if_user_invitation_exists(
-            email=email,
-            organization_id=str(organization_db.id),
-        )
-        if not user_invitation_exists:
-            raise UnauthorizedException(
-                detail="You need to be invited by the organization owner to gain access."
-            )
+        # DISABLED: Allow signup without invitation
+        # user_invitation_exists = await check_if_user_invitation_exists(
+        #     email=email,
+        #     organization_id=str(organization_db.id),
+        # )
+        # if not user_invitation_exists:
+        #     raise UnauthorizedException(
+        #         detail="You need to be invited by the organization owner to gain access."
+        #     )
 
         response = await og_sign_up_post(
             form_fields,
