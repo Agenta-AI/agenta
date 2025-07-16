@@ -539,7 +539,7 @@ const PromptMessageConfig = ({
                                         handleAddUploadSlot,
                                     }}
                                     allowFileUpload={allowFileUpload}
-                                    uploadCount={uploadedFileItems?.length}
+                                    uploadCount={imageProperties?.length || 0}
                                 >
                                     {/* <Select
                                         variant="borderless"
