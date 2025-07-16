@@ -215,16 +215,20 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 incomingMessage.toolCalls?.value?.length
                             ) {
                                 hasToolCall = true
-                                const toolMessage = createMessageFromSchema(metadata, {
-                                    role: "tool",
-                                    name: incomingMessage.toolCalls.value[0]?.function.name,
-                                    toolCallId: incomingMessage.toolCalls.value[0]?.id,
-                                    content: "",
-                                })
+                                const toolMessages = incomingMessage.toolCalls.value
+                                    .map((toolCall) =>
+                                        createMessageFromSchema(metadata, {
+                                            role: "tool",
+                                            name: toolCall?.function?.name,
+                                            toolCallId: toolCall?.id,
+                                            content: "",
+                                        }),
+                                    )
+                                    .filter(Boolean)
                                 targetMessage.__runs[variantId] = {
                                     __result: responseHash,
                                     message: incomingMessage,
-                                    messages: [incomingMessage, toolMessage],
+                                    messages: [incomingMessage, ...(toolMessages as any[])],
                                     __isRunning: "",
                                     __id: generateId(),
                                 }

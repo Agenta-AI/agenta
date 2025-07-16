@@ -146,15 +146,11 @@ export const createMessageFromSchema = (
             } else if (key === "toolCalls") {
                 defaultValue = undefined
                 if (Array.isArray(value)) {
-                    const test = value.map((item) => {
-                        const x = structuredClone(item)
-                        return {
-                            __id: generateId(),
-                            __metadata: hashMetadata(propMetadata),
-                            ...x,
-                        }
-                    })
-                    value = test
+                    value = value.map((item) => ({
+                        __id: generateId(),
+                        __metadata: hashMetadata(propMetadata),
+                        ...structuredClone(item),
+                    }))
                 }
             }
 
@@ -183,11 +179,30 @@ export const createMessageFromSchema = (
                         }
                     }
                 }
+            } else if (key === "toolCalls") {
+                if (!value || (Array.isArray(value) && value.length === 0)) {
+                    return
+                } else {
+                    value = {
+                        value,
+                    }
+                }
             }
+
+            if (
+                (typeof value === "string" ||
+                    typeof value === "number" ||
+                    typeof value === "boolean") &&
+                propMetadata?.type === typeof value &&
+                (!value?.__id || !value?.__metadata)
+            ) {
+                value = {value}
+            }
+
             properties[key] = {
                 __id: generateId(),
                 __metadata: metadataHash,
-                ...value,
+                ...(value || {}),
             }
         })
         const metadataHash = hashMetadata(metadata)

@@ -33,6 +33,12 @@ export function extractValueByMetadata(
     }
 
     if (!metadata) {
+        if (Array.isArray(enhanced)) {
+            return enhanced
+                .map((item) => extractValueByMetadata(item, allMetadata))
+                .filter(shouldIncludeValue)
+        }
+
         // If no metadata, return object without __ properties and null values
         const obj = Object.entries(enhanced)
             .filter(([key]) => !key.startsWith("__"))
@@ -40,7 +46,7 @@ export function extractValueByMetadata(
                 (acc, [key, val]) => {
                     const extracted = extractValueByMetadata(val, allMetadata)
                     if (shouldIncludeValue(extracted)) {
-                        acc[toSnakeCase(key)] = extracted
+                        acc[key] = extracted
                     }
                     return acc
                 },
