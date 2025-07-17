@@ -7,15 +7,19 @@ import type {EvaluationFlow, EvaluationType} from "./enums"
 import {VariantParameters} from "./shared/variant/transformer/types"
 
 // Type utility to convert snake_case object properties to camelCase
-type SnakeToCamelCaseKeys<T> = T extends object
-    ? {
-          [K in keyof T as SnakeToCamelCase<K & string>]: T[K] extends object
-              ? SnakeToCamelCaseKeys<T[K]>
-              : T[K]
-      }
-    : T
+export type SnakeToCamelCaseKeys<T> = T extends readonly any[]
+    ? T extends [infer First, ...infer Rest]
+        ? [SnakeToCamelCaseKeys<First>, ...SnakeToCamelCaseKeys<Rest>]
+        : T extends (infer U)[]
+          ? SnakeToCamelCaseKeys<U>[]
+          : T
+    : T extends object
+      ? {
+            [K in keyof T as SnakeToCamelCase<K & string>]: SnakeToCamelCaseKeys<T[K]>
+        }
+      : T
 
-type SnakeToCamelCase<S extends string> = S extends `${infer T}_${infer U}`
+export type SnakeToCamelCase<S extends string> = S extends `${infer T}_${infer U}`
     ? `${T}${Capitalize<SnakeToCamelCase<U>>}`
     : S
 
@@ -63,6 +67,24 @@ export interface TestSet {
     created_at: string
     updated_at: string
     csvdata: KeyValuePair[]
+}
+
+export interface PreviewTestSet {
+    id: string
+    name: string
+    created_at: string
+    created_by_id: string
+    slug: string
+    data: {
+        testcase_ids: string[]
+        testcases: {
+            testcase_id: string
+            __flags__?: any
+            __tags__?: any
+            __meta__?: any
+            [key: string]: any
+        }[]
+    }
 }
 
 export type TestsetCreationMode = "create" | "clone" | "rename"
@@ -587,6 +609,7 @@ export interface APIKey {
 }
 
 export interface SingleModelEvaluationListTableDataType {
+    id: string
     key: string
     variants: Variant[]
     testset: {
@@ -797,6 +820,12 @@ export enum EvaluationStatus {
     FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
     ERROR = "EVALUATION_FAILED",
     AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED",
+    RUNNING = "running",
+    SUCCESS = "success",
+    FAILURE = "failure",
+    CANCELLED = "cancelled",
+    PENDING = "pending",
+    INCOMPLETE = "incomplete",
 }
 
 export enum EvaluationStatusType {

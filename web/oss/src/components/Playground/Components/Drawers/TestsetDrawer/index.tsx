@@ -44,8 +44,12 @@ const TestsetDrawerButton = ({
         const extractedData = traces
             ?.map((result, idx) => {
                 return {
-                    data: result?.response?.tree?.nodes?.[0]?.data as Record<string, any>,
-                    key: result?.response?.tree?.nodes?.[0]?.node?.id as string,
+                    data:
+                        (result?.response?.tree?.nodes?.[0]?.data as Record<string, any>) ||
+                        result?.response?.data,
+                    key:
+                        (result?.response?.tree?.nodes?.[0]?.node?.id as string) ||
+                        result?.response?.span_id,
                     id: idx + 1,
                 }
             })

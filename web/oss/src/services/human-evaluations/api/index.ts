@@ -83,12 +83,16 @@ export const fetchAbTestingEvaluationResult = async (appId: string) => {
 
 export const fetchLoadEvaluation = async (evaluationId: string) => {
     const {projectId} = getCurrentProject()
-
-    return await axios
-        .get(`${getAgentaApiUrl()}/human-evaluations/${evaluationId}?project_id=${projectId}`)
-        .then((responseData) => {
-            return fromEvaluationResponseToEvaluation(responseData.data)
-        })
+    try {
+        return await axios
+            .get(`${getAgentaApiUrl()}/human-evaluations/${evaluationId}?project_id=${projectId}`)
+            .then((responseData) => {
+                return fromEvaluationResponseToEvaluation(responseData.data)
+            })
+    } catch (error) {
+        console.error(`Error fetching evaluation ${evaluationId}:`, error)
+        return null
+    }
 }
 
 export const deleteEvaluations = async (ids: string[]) => {
@@ -227,7 +231,7 @@ export const fetchEvaluationResults = async (evaluationId: string, ignoreAxiosEr
             _ignoreError: ignoreAxiosError,
         } as any,
     )
-    return response.data
+    return response.data as EvaluationResponseType
 }
 
 export const fetchEvaluationScenarioResults = async (evaluation_scenario_id: string) => {

@@ -474,3 +474,7 @@ export const removeEmptyFromObjects = (obj: any): any => {
     }
     return obj
 }
+
+export const convertToStringOrJson = (value: any) => {
+    return typeof value === "string" ? value : JSON.stringify(value)
+}

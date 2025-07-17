@@ -1,8 +1,10 @@
 import useSWR from "swr"
+import type {SWRResponse} from "swr"
 
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {PreviewTestSet, TestSet, testset} from "@/oss/lib/Types"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -11,13 +13,42 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const useLoadTestsetsList = () => {
+// Overloads for accurate type inference
+export function useTestset<T extends boolean = false>(
+    testsetId?: string,
+    preview?: T,
+): SWRResponse<T extends true ? PreviewTestSet : TestSet, any>
+export function useTestset<T extends boolean = false>(testsetId?: string, preview?: T) {
+    const {projectId} = getCurrentProject()
+    return useSWR<T extends true ? PreviewTestSet : TestSet>(
+        !testsetId
+            ? null
+            : `/api/${preview ? "preview/simple/" : ""}testsets/${testsetId}?project_id=${projectId}`,
+        () => fetchTestset(testsetId!, preview),
+        {
+            revalidateOnFocus: false,
+            shouldRetryOnError: false,
+        },
+    )
+}
+
+export const useTestsets = (preview?: boolean, skip?: boolean) => {
     const {projectId} = getCurrentProject()
 
-    const {data, error, mutate, isLoading} = useSWR(`/api/testsets?project_id=${projectId}`, {
-        revalidateOnFocus: false,
-        shouldRetryOnError: false,
-    })
+    return useSWR<testset[]>(
+        skip
+            ? null
+            : preview
+              ? `${getAgentaApiUrl()}/preview/simple/testsets/?project_id=${projectId}`
+              : `${getAgentaApiUrl()}/testsets?project_id=${projectId}`,
+        {
+            revalidateOnFocus: false,
+            shouldRetryOnError: false,
+        },
+    )
+}
+export const useLoadTestsetsList = () => {
+    const {data, error, mutate, isLoading} = useTestsets()
 
     return {
         testsets: data || [],
@@ -59,22 +90,24 @@ export async function updateTestset(testsetId: string, testsetName: string, test
     return response
 }
 
-export const fetchTestset = async (testsetId: string | null) => {
+export async function fetchTestset<T extends boolean = false>(
+    testsetId: string,
+    preview?: T,
+): Promise<T extends true ? PreviewTestSet : TestSet> {
     if (!testsetId) {
-        return {
-            id: undefined,
-            name: "No Test Set Associated",
-            created_at: "",
-            updated_at: "",
-            csvdata: [],
-        }
+        return null as any
     }
     const {projectId} = getCurrentProject()
+    const url = preview
+        ? `${getAgentaApiUrl()}/preview/simple/testsets/${testsetId}?project_id=${projectId}`
+        : `${getAgentaApiUrl()}/testsets/${testsetId}?project_id=${projectId}`
+    const response = await axios.get(url)
 
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/testsets/${testsetId}?project_id=${projectId}`,
-    )
-    return response.data
+    if (!preview) {
+        return response?.data as T extends true ? PreviewTestSet : TestSet
+    } else {
+        return response?.data?.testset as T extends true ? PreviewTestSet : TestSet
+    }
 }
 
 export const uploadTestsets = async (formData: FormData) => {

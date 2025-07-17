@@ -6,10 +6,11 @@ import {useStyles} from "./styles"
 
 const ResizableTitle: React.FC<GenericObject> = (props) => {
     const classes = useStyles()
-    const {onResize, width, ...restProps} = props
+    const {onResize, width, children: _children, ...restProps} = props
+    const children = Array.isArray(_children) ? _children.filter(Boolean) : _children
 
     if (!width) {
-        return <th {...restProps} />
+        return <th {...restProps}>{children}</th>
     }
 
     return (
@@ -27,7 +28,7 @@ const ResizableTitle: React.FC<GenericObject> = (props) => {
             onResize={onResize}
             draggableOpts={{enableUserSelectHack: false}}
         >
-            <th {...restProps} />
+            <th {...restProps}>{children}</th>
         </Resizable>
     )
 }

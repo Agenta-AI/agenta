@@ -1,5 +1,20 @@
 @layer tailwind-base, antd;
 
+/* === Custom styles for Ant Design Segmented Control === */
+.evaluation-filters .ant-segmented-item-selected {
+  background: #1677ff !important; 
+  color: #fff !important;
+  font-weight: 600;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(22, 119, 255, 0.08);
+}
+
+.evaluation-filters .ant-segmented-item {
+  background: white;
+  color: #2a2a2a;
+  font-weight: 400;
+}
+
 @layer tailwind-base {
   @tailwind base;
 }
@@ -26,8 +41,10 @@ body {
     }
 }
 
-.evalautionContainer {
-    margin-bottom: 200px;
+.evaluationContainer {
+    &:not(.human-eval) {
+        margin-bottom: 200px;
+    }
 }
 
 .mdxSlider img {
@@ -559,5 +576,58 @@ body {
     /* Show tooltip on hover */
     .has-tooltip[data-tooltip]:hover::after {
         opacity: 1;
+    }
+}
+
+/* Human eval specific styles */
+body {
+    :has(.human-eval) {
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    .not-available-table-cell {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: #ffffff;
+        opacity: 1;
+        background: repeating-linear-gradient(
+            -45deg,
+            #eaeff5,
+            #eaeff5 2px,
+            #ffffff 2px,
+            #ffffff 12px
+        );
+    }
+    .scenario-row {
+        .cell-expand-container {
+            interpolate-size: allow-keywords;
+        }
+        .cell-expander {
+            position: relative; 
+            width: 100%;
+            height: 120%;
+            
+            /* background-color: white;
+            mask-image:linear-gradient(
+                to bottom,
+                transparent,
+                rgba(255,255,255,0.6) 40%,
+                #ffffff 100%
+              );
+              backdrop-filter: blur(10px); */
+              mask: linear-gradient(to bottom, transparent, black);
+                backdrop-filter: blur(18px);
+        }
+        /* &:hover {
+            .cell-expander {
+                background-color: inherit
+            }
+        } */
     }
 }

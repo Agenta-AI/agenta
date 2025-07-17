@@ -105,7 +105,7 @@ const DeploymentDrawer = ({
             <Drawer
                 width={720}
                 {...props}
-                destroyOnClose
+                destroyOnHidden
                 closeIcon={null}
                 title={
                     <Space className={classes.drawerTitleContainer}>

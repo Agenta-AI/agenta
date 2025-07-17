@@ -8,7 +8,6 @@ export interface SharedEditorProps extends BaseContainerProps {
     editorType?: "border" | "borderless"
     state?: "default" | "filled" | "disabled" | "readOnly" | "focus" | "typing"
     placeholder?: string
-    handleChange: (value: string) => void
     initialValue: any
     editorClassName?: string
     description?: string
@@ -17,4 +16,9 @@ export interface SharedEditorProps extends BaseContainerProps {
     editorProps?: EditorProps
     useAntdInput?: boolean
     error?: boolean
+
+    noProvider?: boolean
+    debug?: boolean
+    isTool?: boolean
+    handleChange?: (value: string) => void
 }

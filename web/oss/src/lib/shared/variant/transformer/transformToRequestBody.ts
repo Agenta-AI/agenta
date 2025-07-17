@@ -1,4 +1,4 @@
-import {getSpecLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getAllMetadata, getSpecLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
 import {PlaygroundStateData} from "../../../hooks/useStatelessVariants/types"
 import {ConfigMetadata, EnhancedObjectConfig, OpenAPISpec} from "../genericTransformer/types"
@@ -14,7 +14,7 @@ export function transformToRequestBody({
     variant,
     inputRow,
     messageRow,
-    allMetadata = {},
+    allMetadata = getAllMetadata(),
     chatHistory,
     spec: _spec,
     routePath = "",
@@ -23,15 +23,12 @@ export function transformToRequestBody({
     variant: EnhancedVariant
     inputRow?: PlaygroundStateData["generationData"]["inputs"]["value"][number]
     messageRow?: PlaygroundStateData["generationData"]["messages"]["value"][number]
-    allMetadata: Record<string, ConfigMetadata>
+    allMetadata?: Record<string, ConfigMetadata>
     chatHistory?: Message[]
     spec?: OpenAPISpec
     routePath?: string
     commitType?: "prompt" | "parameters"
-}): Record<string, any> &
-    VariantParameters & {
-        ag_config: Record<string, any>
-    } {
+}): Record<string, any> & VariantParameters {
     const data = {} as Record<string, any>
     const spec = _spec || getSpecLazy()
     const promptConfigs = (variant.prompts || []).reduce(
@@ -60,11 +57,7 @@ export function transformToRequestBody({
         (Object.keys(ag_config).length === 0 && variant.parameters) ||
         commitType === "parameters"
     ) {
-        ag_config =
-            variant.parameters?.ag_config ||
-            variant.parameters?.agConfig ||
-            variant.parameters ||
-            {}
+        ag_config = variant.parameters?.ag_config || variant.parameters || {}
     }
 
     data.ag_config = ag_config
@@ -96,17 +89,21 @@ export function transformToRequestBody({
                 ...messageHistory
                     .flatMap((historyMessage) => {
                         const messages = [extractValueByMetadata(historyMessage, allMetadata)]
-
                         if (historyMessage.__runs) {
                             const runMessages =
-                                historyMessage.__runs[variant.id]?.messages &&
-                                historyMessage.__runs[variant.id]?.messages.length
-                                    ? historyMessage.__runs[variant.id]?.messages
+                                historyMessage.__runs[variant.id]?.message &&
+                                Array.isArray(historyMessage.__runs[variant.id]?.message)
+                                    ? historyMessage.__runs[variant.id]?.message
                                     : [historyMessage.__runs[variant.id]?.message]
 
-                            for (const runMessage of runMessages) {
-                                const extracted = extractValueByMetadata(runMessage, allMetadata)
-                                messages.push(extracted)
+                            if (runMessages && Array.isArray(runMessages)) {
+                                for (const runMessage of runMessages) {
+                                    const extracted = extractValueByMetadata(
+                                        runMessage,
+                                        allMetadata,
+                                    )
+                                    messages.push(extracted)
+                                }
                             }
                         }
 
@@ -117,6 +114,5 @@ export function transformToRequestBody({
         }
     }
 
-    // @ts-ignore
-    return data
+    return data as Record<string, any> & VariantParameters
 }

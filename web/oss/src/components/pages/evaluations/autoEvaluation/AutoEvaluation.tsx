@@ -18,27 +18,25 @@ import {ColumnsType} from "antd/es/table"
 import dayjs from "dayjs"
 import {useAtom} from "jotai"
 import uniqBy from "lodash/uniqBy"
+import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
-import {createUseStyles} from "react-jss"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
-import NewEvaluationModal from "@/oss/components/pages/evaluations/NewEvaluation/NewEvaluationModal"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {getAppValues} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
+import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {formatDate24, formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {calcEvalDuration, getTypedValue} from "@/oss/lib/helpers/evaluate"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {shortPoll} from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
+// import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {_Evaluation, EvaluationStatus, GenericObject} from "@/oss/lib/Types"
 import {
     deleteEvaluations,
     fetchAllEvaluations,
-    fetchAllEvaluatorConfigs,
-    fetchAllEvaluators,
     fetchEvaluationStatus,
 } from "@/oss/services/evaluations/api"
 
@@ -46,16 +44,14 @@ import {runningStatuses, statusMapper} from "../../evaluations/cellRenderers/cel
 import StatusRenderer from "../cellRenderers/StatusRenderer"
 import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopover"
 
+import {useStyles} from "./assets/styles"
 import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
 import EditColumns, {generateEditItems} from "./Filters/EditColumns"
 import {getFilterParams} from "./Filters/SearchFilter"
 
-const useStyles = createUseStyles(() => ({
-    button: {
-        display: "flex",
-        alignItems: "center",
-    },
-}))
+const NewEvaluationModal = dynamic(() => import("../NewEvaluation"), {
+    ssr: false,
+})
 
 const AutoEvaluation = () => {
     const classes = useStyles()
@@ -67,8 +63,7 @@ const AutoEvaluation = () => {
     const [evaluationList, setEvaluationList] = useState<_Evaluation[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
     const [isEvalLoading, setIsEvalLoading] = useState(false)
-    const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
-    const setEvaluatorConfigs = useAtom(evaluatorConfigsAtom)[1]
+    const [evaluators] = useAtom(evaluatorsAtom)
     const [selectedEvalRecord, setSelectedEvalRecord] = useState<_Evaluation>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [isDeleteEvalMultipleModalOpen, setIsDeleteEvalMultipleModalOpen] = useState(false)
@@ -140,18 +135,12 @@ const AutoEvaluation = () => {
     const fetchEvaluations = async () => {
         try {
             setIsEvalLoading(true)
-            const [allEvaluations, allEvaluators, allEvaluatorConfigs] = await Promise.all([
-                fetchAllEvaluations(appId),
-                fetchAllEvaluators(),
-                fetchAllEvaluatorConfigs(appId),
-            ])
+            const [allEvaluations] = await Promise.all([fetchAllEvaluations(appId)])
             const result = allEvaluations.sort(
                 (a, b) =>
                     new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
             )
             setEvaluationList(result)
-            setEvaluators(allEvaluators)
-            setEvaluatorConfigs(allEvaluatorConfigs)
         } catch (error) {
             console.error(error)
         } finally {
@@ -644,6 +633,7 @@ const AutoEvaluation = () => {
                     setNewEvalModalOpen(false)
                     fetchEvaluations()
                 }}
+                evaluationType="auto"
             />
 
             {isConfigEvaluatorModalOpen === "open" && (

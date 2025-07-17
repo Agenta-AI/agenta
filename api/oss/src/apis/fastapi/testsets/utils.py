@@ -37,22 +37,19 @@ TESTSETS_COUNT_EXCEPTION = HTTPException(
 
 
 def validate_testset_limits(rows: List[dict]) -> tuple[int, int]:
+    i = -1
     total_size = 2
     for i, row in enumerate(rows):
         row_str = dumps(row)
         total_size += len(row_str.encode("utf-8"))
-
         if i > 0:
             total_size += 1
-
         if i + 1 > TESTSETS_COUNT_LIMIT:
             log.error(TESTSETS_COUNT_WARNING)
             raise TESTSETS_COUNT_EXCEPTION
-
         if total_size > TESTSETS_SIZE_LIMIT:
             log.error(TESTSETS_SIZE_WARNING)
             raise TESTSETS_SIZE_EXCEPTION
-
     return i + 1, total_size
 
 
@@ -402,6 +399,7 @@ def json_array_to_json_file(
 def json_array_to_json_object(
     data,
     testcase_id_key="testcase_id",
+    testcase_dedup_id_key="testcase_dedup_id",
 ):
     """
     Transforms a list of JSON objects into a dictionary using `testcase_id` as key.
@@ -425,9 +423,14 @@ def json_array_to_json_object(
         if not isinstance(obj, dict):
             continue  # Ignore non-dict entries
 
-        testcase_id = to_uuid(
-            obj.pop(testcase_id_key, None)
-        )  # Remove `testcase_id` after extracting it
+        # Remove `testcase_id` after extracting it
+        testcase_id = to_uuid(obj.pop(testcase_id_key, None))
+
+        if testcase_dedup_id_key is not None:
+            # Set `testcase_dedup_id` to a new UUID if not present
+            testcase_dedup_id = obj.pop(testcase_dedup_id_key, uuid4().hex[-12:])
+            obj[testcase_dedup_id_key] = testcase_dedup_id
+
         transformed_data[testcase_id] = obj  # Store object without `testcase_id`
 
     return transformed_data
@@ -475,7 +478,6 @@ async def csv_file_to_json_array(
     """
     try:
         try:
-            # Must await the read
             data = await csv_file.read()
             df = pandas.read_csv(BytesIO(data), dtype=str)
             return df.to_dict(orient="records")
@@ -483,14 +485,6 @@ async def csv_file_to_json_array(
             print(f"Error: Could not read CSV file - {e}")
             raise e
 
-        if column_types:
-            for col, dtype in column_types.items():
-                if col in df.columns:
-                    df[col] = df[col].astype(dtype)  # Convert column to specified type
-
-        return df.to_dict(
-            orient="records"
-        )  # Convert to list of dictionaries (JSON array)
     except Exception as e:
         print(f"Error: Could not read CSV file - {e}")
         raise e

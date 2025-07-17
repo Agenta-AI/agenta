@@ -184,14 +184,6 @@ function transformValue<T>(
     const metadata = parentPropertyMetadata || createMetadata(schema, key)
     // Handle arrays
     if (!metadata) {
-        console.log(
-            "transformValue edge case",
-            metadata,
-            schema,
-            value,
-            parentPropertyMetadata,
-            key,
-        )
         return value
     }
     if (metadata.type === "array" && Array.isArray(value)) {
@@ -262,7 +254,6 @@ export const createEnhancedConfig = <T>(
     schema: SchemaProperty,
     key?: string,
 ): Enhanced<T> => {
-    console.log("createEnhancedConfig key", key, value, schema)
     return transformValue(value, schema, undefined, key)
 }
 

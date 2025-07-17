@@ -8,9 +8,11 @@ const useFocusInput = ({isOpen}: {isOpen: boolean}) => {
     // auto focus on input component
     useEffect(() => {
         if (isOpen && inputRef.current?.input) {
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 inputRef.current?.input?.focus()
             }, 0)
+
+            return () => clearTimeout(timer)
         }
     }, [isOpen])
 

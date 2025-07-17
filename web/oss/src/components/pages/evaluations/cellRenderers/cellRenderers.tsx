@@ -156,6 +156,14 @@ export const ResultRenderer = memo(
 export const runningStatuses = [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED]
 export const statusMapper = (token: GlobalToken) => (status: EvaluationStatus) => {
     const statusMap = {
+        [EvaluationStatus.PENDING]: {
+            label: "Pending",
+            color: token.colorTextSecondary,
+        },
+        [EvaluationStatus.INCOMPLETE]: {
+            label: "Incomplete",
+            color: token.colorTextSecondary,
+        },
         [EvaluationStatus.INITIALIZED]: {
             label: "Queued",
             color: token.colorTextSecondary,
@@ -168,7 +176,15 @@ export const statusMapper = (token: GlobalToken) => (status: EvaluationStatus) =
             label: "Completed",
             color: token.colorSuccess,
         },
+        [EvaluationStatus.SUCCESS]: {
+            label: "Completed",
+            color: token.colorSuccess,
+        },
         [EvaluationStatus.ERROR]: {
+            label: "Failed",
+            color: token.colorError,
+        },
+        [EvaluationStatus.FAILURE]: {
             label: "Failed",
             color: token.colorError,
         },

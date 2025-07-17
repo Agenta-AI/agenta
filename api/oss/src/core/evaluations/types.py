@@ -72,6 +72,7 @@ class EvaluationRunFlags(BaseModel):
 class EvaluationRunData(BaseModel):
     steps: Optional[List[Data]] = None  # ?
     mappings: Optional[List[Data]] = None  # ?
+    data: Optional[Data] = None
 
 
 class EvaluationRun(Identifier, Header, Lifecycle):
@@ -102,10 +103,16 @@ class EvaluationRunEdit(Identifier, Header):
     data: Optional[EvaluationRunData] = None
 
 
+from typing import Any, Dict, List, Optional, Union
+
+
 class EvaluationRunQuery(BaseModel):
     flags: Optional[EvaluationRunFlags] = None
     tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
+    # meta can be a dict (AND filter) or a list of dicts (OR filter)
+    meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
+
+    data: Optional[EvaluationRunData] = None
 
     status: Optional[EvaluationStatus] = None
     statuses: Optional[List[EvaluationStatus]] = None

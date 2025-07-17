@@ -59,8 +59,8 @@ TESTSETS_COUNT_EXCEPTION = HTTPException(
 
 
 def _validate_testset_limits(rows: List[dict]) -> tuple[int, int]:
-    total_size = 2
     i = -1
+    total_size = 2
     for i, row in enumerate(rows):
         row_str = json.dumps(row)
         total_size += len(row_str.encode("utf-8"))

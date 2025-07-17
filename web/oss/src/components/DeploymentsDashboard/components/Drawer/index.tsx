@@ -58,7 +58,7 @@ const DeploymentsDrawer = ({
     return (
         <EnhancedDrawer
             closeIcon={null}
-            destroyOnClose
+            destroyOnHidden
             width={drawerWidth}
             className={classes.drawerContainer}
             title={

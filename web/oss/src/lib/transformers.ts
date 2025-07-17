@@ -36,7 +36,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
 
     return {
         id: item.id,
-        createdAt: formatDay({date: item.created_at}),
+        createdAt: formatDay({date: item.created_at, outputFormat: "DD MMM YYYY | h:mm a"}),
         user: {
             id: item.user_id,
             username: item.user_username,

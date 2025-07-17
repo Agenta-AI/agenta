@@ -24,7 +24,9 @@ const CreateEvaluator = ({setSteps, setSelectedEvaluators}: CreateEvaluatorProps
     const [form] = Form.useForm()
     const name = Form.useWatch("evaluatorName", form)
     const [debouncedName] = useDebounceValue(name, 500)
-    const {mutate} = useEvaluators()
+    const {mutate} = useEvaluators({
+        preview: true,
+    })
 
     useEffect(() => {
         if (!slugTouched) {
@@ -60,8 +62,8 @@ const CreateEvaluator = ({setSteps, setSelectedEvaluators}: CreateEvaluatorProps
                 if (!payloadData.evaluator) return
 
                 await createEvaluator(payloadData)
+                await mutate()
 
-                mutate()
                 message.success("Evaluator created successfully")
                 setSteps?.(AnnotateDrawerSteps.SELECT_EVALUATORS)
                 setSelectedEvaluators?.((prev) => [

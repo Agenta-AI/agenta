@@ -14,7 +14,7 @@ const GenericDrawer = ({...props}: GenericDrawerProps) => {
     return (
         <EnhancedDrawer
             closeIcon={null}
-            destroyOnClose
+            destroyOnHidden
             width={drawerWidth}
             title={
                 <Flex gap={12} justify="space-between" align="center">
