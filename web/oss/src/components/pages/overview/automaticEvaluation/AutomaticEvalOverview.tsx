@@ -11,23 +11,22 @@ import {createUseStyles} from "react-jss"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
+import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {calcEvalDuration, getTypedValue} from "@/oss/lib/helpers/evaluate"
 import {shortPoll} from "@/oss/lib/helpers/utils"
+import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {_Evaluation, EvaluationStatus, EvaluatorConfig, JSSTheme} from "@/oss/lib/Types"
 import {
     deleteEvaluations,
     fetchAllEvaluations,
-    fetchAllEvaluatorConfigs,
-    fetchAllEvaluators,
     fetchEvaluationStatus,
 } from "@/oss/services/evaluations/api"
 
 import {runningStatuses} from "../../evaluations/cellRenderers/cellRenderers"
 import StatusRenderer from "../../evaluations/cellRenderers/StatusRenderer"
 import EvaluationErrorPopover from "../../evaluations/EvaluationErrorProps/EvaluationErrorPopover"
-import NewEvaluationModal from "../../evaluations/NewEvaluation/NewEvaluationModal"
+import NewEvaluationModal from "../../evaluations/NewEvaluation"
 
 const {Title} = Typography
 
@@ -66,16 +65,17 @@ const AutomaticEvalOverview = () => {
     const router = useRouter()
     const appId = router.query.app_id as string
     const [evaluationList, setEvaluationList] = useState<_Evaluation[]>([])
-    const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
+    const [evaluators] = useAtom(evaluatorsAtom)
     const [isEvalLoading, setIsEvalLoading] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
-    const setEvaluatorConfigs = useAtom(evaluatorConfigsAtom)[1]
     const [_selectedConfigEdit, _setSelectedConfigEdit] = useState<EvaluatorConfig>()
     const [_isEditEvalConfigOpen, _setIsEditEvalConfigOpen] = useState(false)
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [selectedEvalRecord, setSelectedEvalRecord] = useState<_Evaluation>()
     const stoppers = useRef<Function>()
+
+    const {refetchAll} = useFetchEvaluatorsData()
 
     const runningEvaluationIds = useMemo(
         () =>
@@ -141,11 +141,7 @@ const AutomaticEvalOverview = () => {
     const fetchEvaluations = async () => {
         try {
             setIsEvalLoading(true)
-            const [allEvaluations, allEvaluators, allEvaluatorConfigs] = await Promise.all([
-                fetchAllEvaluations(appId),
-                fetchAllEvaluators(),
-                fetchAllEvaluatorConfigs(appId),
-            ])
+            const [allEvaluations] = await Promise.all([fetchAllEvaluations(appId), refetchAll])
             const result = allEvaluations
                 .sort(
                     (a, b) =>
@@ -154,8 +150,6 @@ const AutomaticEvalOverview = () => {
                 )
                 .slice(0, 5)
             setEvaluationList(result)
-            setEvaluators(allEvaluators)
-            setEvaluatorConfigs(allEvaluatorConfigs)
         } catch (error) {
             console.error(error)
         } finally {

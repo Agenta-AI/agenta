@@ -8,7 +8,8 @@ import {AnnotationDto} from "../types"
  * @param uuid - The UUID string to convert (e.g., '442d8202-a01b-fe43-f024-5be0780eae9f').
  * @returns The hexadecimal string representation of the UUID without dashes, or undefined if parsing fails.
  */
-export const uuidToTraceId = (uuid: string) => {
+export const uuidToTraceId = (uuid?: string) => {
+    if (!uuid) return undefined
     const parsed = UUID.parse(uuid)
     return parsed?.hexNoDelim
 }
@@ -19,7 +20,8 @@ export const uuidToTraceId = (uuid: string) => {
  * @param uuid - The UUID string to convert.
  * @returns The concatenated hexadecimal string of clock sequence and node fields, or undefined if parsing fails.
  */
-export const uuidToSpanId = (uuid: string) => {
+export const uuidToSpanId = (uuid?: string) => {
+    if (!uuid) return undefined
     const parsed = UUID.parse(uuid)
     return `${parsed?.hexFields.clockSeqHiAndReserved}${parsed?.hexFields.clockSeqLow}${parsed?.hexFields.node}`
 }

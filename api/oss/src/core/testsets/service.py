@@ -593,14 +593,20 @@ class TestsetsService:
         testset_revision_commit: TestsetRevisionCommit,
     ) -> Optional[TestsetRevision]:
         if testset_revision_commit.data and testset_revision_commit.data.testcases:
-            testset_revision_commit.data.testcase_ids = await self.testcases_service.add_testcases(
+            if testset_revision_commit.data.testcases:
+                for testcase in testset_revision_commit.data.testcases:
+                    testcase.set_id = testset_revision_commit.testset_id
+
+            testcases = await self.testcases_service.add_testcases(
                 project_id=project_id,
                 user_id=user_id,
                 #
-                testset_id=testset_revision_commit.artifact_id,
-                #
                 testcases=testset_revision_commit.data.testcases,
             )
+
+            testset_revision_commit.data.testcase_ids = [
+                testcase.id for testcase in testcases
+            ]
 
             testset_revision_commit.data.testcases = None
 

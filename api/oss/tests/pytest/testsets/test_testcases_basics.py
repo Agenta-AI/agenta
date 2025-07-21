@@ -14,10 +14,13 @@ def mock_data(authed_api):
     tags = {"tag1": "value1", "tag2": "value2"}
     meta = {"meta1": "value1", "meta2": "value2"}
 
-    testcases = [
+    testcases_data = [
         {"column1": "data1", "column2": "data2", "column3": "data3"},
         {"column1": "data6", "column2": "data5", "column3": "data4"},
+        {"column1": "data6", "column2": "data5", "column3": "data4"},
     ]
+
+    testcases = [{"data": testcase_data} for testcase_data in testcases_data]
 
     testset = {
         "slug": slug,
@@ -91,7 +94,7 @@ class TestTestcasesBasics:
         # ACT ------------------------------------------------------------------
         testset = mock_data["testsets"][0]
         testcases = testset["data"]["testcases"]
-        testcase_id = testcases[0]["testcase_id"]
+        testcase_id = testcases[0]["id"]
 
         response = authed_api(
             "GET",
@@ -102,6 +105,7 @@ class TestTestcasesBasics:
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
+        print(response)
         assert response["testcase"] == testcases[0]
         # ----------------------------------------------------------------------
 
@@ -116,14 +120,14 @@ class TestTestcasesBasics:
         # ASSERT ---------------------------------------------------------------
         assert response.status_code == 200
         response = response.json()
-        assert response["count"] == 4
+        assert response["count"] == 6
         # ----------------------------------------------------------------------
 
     def test_query_testcases_by_testcase_ids(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         testset = mock_data["testsets"][0]
         testcases = testset["data"]["testcases"]
-        testcase_ids = [testcase["testcase_id"] for testcase in testcases]
+        testcase_ids = [testcase["id"] for testcase in testcases]
 
         response = authed_api(
             "POST",

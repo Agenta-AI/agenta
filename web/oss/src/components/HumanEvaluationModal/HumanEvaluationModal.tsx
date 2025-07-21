@@ -403,7 +403,7 @@ const HumanEvaluationModal = ({
             <ShareEvaluationModal
                 open={shareModalOpen}
                 onCancel={() => setShareModalOpen(false)}
-                destroyOnClose
+                destroyOnHidden
                 variantIds={selectedVariants.map((v) => v.variantId)}
                 testsetId={selectedTestset._id}
                 evaluationType={EvaluationType.human_a_b_testing}

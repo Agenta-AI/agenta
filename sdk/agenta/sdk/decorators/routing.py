@@ -352,7 +352,7 @@ class entrypoint:
                     return await self.handle_success(result, inline)
 
                 except Exception as error:  # pylint: disable=broad-except
-                    self.handle_failure(error)
+                    await self.handle_failure(error, inline)
 
     async def handle_success(
         self,
@@ -360,8 +360,9 @@ class entrypoint:
         inline: bool,
     ):
         data = None
-        tree = None
         content_type = "text/plain"
+
+        tree = None
         tree_id = None
         trace_id = None
         span_id = None
@@ -369,6 +370,7 @@ class entrypoint:
         with suppress():
             if isinstance(result, (dict, list)):
                 content_type = "application/json"
+
             data = self.patch_result(result)
 
             (
@@ -381,8 +383,8 @@ class entrypoint:
         try:
             return BaseResponse(
                 data=data,
-                tree=tree,
                 content_type=content_type,
+                tree=tree,
                 tree_id=tree_id,
                 trace_id=trace_id,
                 span_id=span_id,
@@ -402,9 +404,10 @@ class entrypoint:
                     content_type=content_type,
                 )
 
-    def handle_failure(
+    async def handle_failure(
         self,
         error: Exception,
+        inline: bool,
     ):
         display_exception("Application Exception")
 
@@ -416,9 +419,29 @@ class entrypoint:
 
         stacktrace = format_exception(error, value=error, tb=error.__traceback__)  # type: ignore
 
+        tree = None
+        tree_id = None
+        trace_id = None
+        span_id = None
+
+        with suppress():
+            (
+                tree,
+                tree_id,
+                trace_id,
+                span_id,
+            ) = await self.fetch_inline_trace(inline)
+
         raise HTTPException(
             status_code=status_code,
-            detail={"message": str(error), "stacktrace": stacktrace},
+            detail=dict(
+                message=str(error),
+                stacktrace=stacktrace,
+                tree=tree,
+                tree_id=tree_id,
+                trace_id=trace_id,
+                span_id=span_id,
+            ),
         )
 
     def patch_result(

@@ -1,1 +1,1 @@
-export {expect} from "@playwright/test"
+export {expect, type Locator} from "@playwright/test"

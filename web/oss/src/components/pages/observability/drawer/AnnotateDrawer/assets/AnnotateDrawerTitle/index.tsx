@@ -6,6 +6,7 @@ import deepEqual from "fast-deep-equal"
 
 import useAnnotations from "@/oss/lib/hooks/useAnnotations"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 
 import {AnnotateDrawerSteps} from "../enum"
@@ -15,21 +16,39 @@ import {
     getInitialMetricsFromAnnotations,
     getInitialSelectedEvalMetrics,
 } from "../transforms"
-import {AnnotateDrawerStepsType, AnnotateDrawerTitleProps} from "../types"
+import {AnnotateDrawerIdsType, AnnotateDrawerStepsType, AnnotateDrawerTitleProps} from "../types"
+import {useRouter} from "next/router"
+import {getObservabilityValues} from "@/oss/contexts/observability.context"
 
 const AnnotateDrawerTitle = ({
     steps,
     setSteps,
     onClose,
-    updatedMetrics,
-    annotations,
-    selectedEvaluators,
+    updatedMetrics = {},
+    annotations = [],
+    selectedEvaluators = [],
     traceSpanIds,
     onCaptureError,
+    showOnly,
 }: AnnotateDrawerTitleProps) => {
+    const router = useRouter()
     const [isSaving, setIsSaving] = useState(false)
-    const {mutate} = useAnnotations()
-    const {data: evaluators} = useEvaluators()
+    const {mutate} = useAnnotations({
+        queries: {
+            annotation: {
+                links: [
+                    {
+                        trace_id: traceSpanIds?.traceId,
+                        span_id: traceSpanIds?.spanId,
+                    },
+                ],
+            },
+        },
+        waitUntil: !traceSpanIds,
+    })
+    const {data: evaluators} = useEvaluators({
+        preview: true,
+    })
 
     const onClickPrev = useCallback(
         (step: AnnotateDrawerStepsType) => {
@@ -100,8 +119,8 @@ const AnnotateDrawerTitle = ({
                 const {payload, requiredMetrics} = generateNewAnnotationPayloadData({
                     updatedMetrics,
                     selectedEvaluators,
-                    evaluators,
-                    traceSpanIds,
+                    evaluators: evaluators as EvaluatorDto[],
+                    traceSpanIds: traceSpanIds as AnnotateDrawerIdsType,
                 })
 
                 if (Object.keys(requiredMetrics || {}).length > 0) {
@@ -113,9 +132,14 @@ const AnnotateDrawerTitle = ({
                     await Promise.all(payload.map((evaluator) => createAnnotation(evaluator)))
                 }
             }
-
             message.success("Annotations updated successfully")
-            await mutate()
+
+            // need to mutate the from observability context only if it's used there
+            if (router.asPath.includes("/observability") || router.asPath.includes("/traces")) {
+                getObservabilityValues().fetchAnnotations()
+            } else {
+                await mutate()
+            }
             onClose()
         } catch (error: any) {
             console.error("Error saving changes", error)
@@ -171,20 +195,22 @@ const AnnotateDrawerTitle = ({
                     icon={<CaretLeft size={14} />}
                     onClick={() => onClickPrev(steps)}
                 />
-                {steps === AnnotateDrawerSteps.ANNOTATE ? (
+                {steps === AnnotateDrawerSteps.ANNOTATE || showOnly?.annotateUi ? (
                     <Typography.Text className="text-sm font-medium">Annotate</Typography.Text>
-                ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS ? (
+                ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS ||
+                  showOnly?.selectEvaluatorsUi ? (
                     <Typography.Text className="text-sm font-medium">
                         Select Evaluators
                     </Typography.Text>
-                ) : steps === AnnotateDrawerSteps.CREATE_EVALUATOR ? (
+                ) : steps === AnnotateDrawerSteps.CREATE_EVALUATOR ||
+                  showOnly?.createEvaluatorUi ? (
                     <Typography.Text className="text-sm font-medium">
                         Create new evaluator
                     </Typography.Text>
                 ) : null}
             </div>
 
-            {steps === AnnotateDrawerSteps.ANNOTATE ? (
+            {steps === AnnotateDrawerSteps.ANNOTATE || showOnly?.annotateUi ? (
                 <div className="flex items-center gap-2">
                     <Button
                         icon={<Plus size={14} />}
@@ -201,7 +227,7 @@ const AnnotateDrawerTitle = ({
                         Save
                     </Button>
                 </div>
-            ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS ? (
+            ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS || showOnly?.selectEvaluatorsUi ? (
                 <div className="flex items-center gap-2">
                     <Button
                         onClick={() => onClickNext(AnnotateDrawerSteps.ANNOTATE)}

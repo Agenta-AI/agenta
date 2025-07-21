@@ -29,7 +29,7 @@ const EnhancedModal = ({children, ...props}: EnhancedModalProps) => {
             afterClose={handleAfterClose}
             style={{maxHeight: "95dvh", overflowY: "auto", borderRadius: 16, ...props.style}}
             centered
-            destroyOnClose
+            destroyOnHidden
             {...props}
         >
             {children}

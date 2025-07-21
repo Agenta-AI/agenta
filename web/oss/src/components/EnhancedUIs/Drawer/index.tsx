@@ -44,7 +44,7 @@ const EnhancedDrawer = ({children, ...props}: EnhancedDrawerProps) => {
     if (!shouldRender) return null
 
     return (
-        <Drawer open={isVisible} afterOpenChange={handleAfterClose} destroyOnClose {...props}>
+        <Drawer open={isVisible} afterOpenChange={handleAfterClose} destroyOnHidden {...props}>
             {children}
         </Drawer>
     )

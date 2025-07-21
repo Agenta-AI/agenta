@@ -37,6 +37,7 @@ async def parse_run_query_request(
     start: Optional[datetime] = Query(None),
     stop: Optional[datetime] = Query(None),
     limit: Optional[int] = Query(None),
+    order: Optional[str] = Query(None),
 ) -> EvaluationRunQueryRequest:
     try:
         flags = loads(flags) if flags else None
@@ -68,6 +69,7 @@ async def parse_run_query_request(
             start=start,
             stop=stop,
             limit=limit,
+            order=order,
         ),
     )
 
@@ -88,6 +90,7 @@ async def parse_scenario_query_request(
     start: Optional[datetime] = Query(None),
     stop: Optional[datetime] = Query(None),
     limit: Optional[int] = Query(None),
+    order: Optional[str] = Query(None),
 ) -> EvaluationScenarioQueryRequest:
     try:
         tags = loads(tags) if tags else None
@@ -115,6 +118,7 @@ async def parse_scenario_query_request(
             start=start,
             stop=stop,
             limit=limit,
+            order=order,
         ),
     )
 
@@ -144,6 +148,7 @@ async def parse_step_query_request(
     start: Optional[datetime] = Query(None),
     stop: Optional[datetime] = Query(None),
     limit: Optional[int] = Query(None),
+    order: Optional[str] = Query(None),
 ) -> EvaluationStepQueryRequest:
     try:
         tags = loads(tags) if tags else None
@@ -181,6 +186,7 @@ async def parse_step_query_request(
             start=start,
             stop=stop,
             limit=limit,
+            order=order,
         ),
     )
 
@@ -203,6 +209,7 @@ async def parse_metric_query_request(
     start: Optional[datetime] = Query(None),
     stop: Optional[datetime] = Query(None),
     limit: Optional[int] = Query(None),
+    order: Optional[str] = Query(None),
 ) -> EvaluationMetricQueryRequest:
     try:
         meta = loads(meta) if meta else None
@@ -227,6 +234,7 @@ async def parse_metric_query_request(
             start=start,
             stop=stop,
             limit=limit,
+            order=order,
         ),
     )
 

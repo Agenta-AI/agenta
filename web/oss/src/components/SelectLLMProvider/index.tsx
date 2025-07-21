@@ -106,7 +106,7 @@ const SelectLLMProvider = ({
                 showSearch={false}
                 open={open}
                 value={props.value || null}
-                onDropdownVisibleChange={(visible) => setOpen(visible)}
+                onOpenChange={(visible) => setOpen(visible)}
                 placeholder="Select a provider"
                 style={{width: "100%"}}
                 className={clsx([

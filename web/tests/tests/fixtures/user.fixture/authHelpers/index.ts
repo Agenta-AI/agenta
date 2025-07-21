@@ -76,7 +76,7 @@ export const authHelpers = () => {
                     const digits = otp.split("")
                     for (let i = 0; i < digits.length; i++) {
                         await uiHelpers.typeWithDelay(
-                            `.ant-input:nth-child(${i + 1})`,
+                            `[aria-label='OTP Input ${i + 1}']`,
                             digits[i],
                             delay,
                         )

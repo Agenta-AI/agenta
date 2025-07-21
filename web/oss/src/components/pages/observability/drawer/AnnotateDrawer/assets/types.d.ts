@@ -6,6 +6,11 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {AnnotateDrawerSteps} from "./enum"
 
 export type AnnotateDrawerStepsType = AnnotateDrawerSteps
+export type ShowOnlyType = {
+    annotateUi?: boolean
+    selectEvaluatorsUi?: boolean
+    createEvaluatorUi?: boolean
+}
 export interface UpdatedMetricType {
     value: any
     type: string
@@ -19,35 +24,41 @@ export interface AnnotateDrawerIdsType {
 }
 export interface AnnotateDrawerProps extends DrawerProps {
     data?: AnnotationDto[]
-    traceSpanIds: AnnotateDrawerIdsType
+    traceSpanIds?: AnnotateDrawerIdsType
+    showOnly?: ShowOnlyType
+    evalSlugs?: string[]
 }
 
 export interface AnnotateDrawerTitleProps {
-    updatedMetrics: UpdatedMetricsType
-    selectedEvaluators: string[]
-    annotations: AnnotationDto[]
+    updatedMetrics?: UpdatedMetricsType
+    selectedEvaluators?: string[]
+    annotations?: AnnotationDto[]
     steps: AnnotateDrawerStepsType
+    traceSpanIds?: AnnotateDrawerIdsType
     setSteps: React.Dispatch<React.SetStateAction<AnnotateDrawerStepsType>>
     onClose: () => void
-    traceSpanIds: AnnotateDrawerIdsType
     onCaptureError?: (error: string[], addPrevVal?: boolean) => void
+    showOnly?: ShowOnlyType
 }
 
 export interface AnnotateDrawerButtonProps extends TooltipButtonProps {
     children?: React.ReactNode
     label?: React.ReactNode
     data?: AnnotationDto[]
-    traceSpanIds: AnnotateDrawerIdsType
+    traceSpanIds?: AnnotateDrawerIdsType
+    showOnly?: ShowOnlyType
+    evalSlugs?: string[]
 }
 
 export interface AnnotateProps {
     annotations: AnnotationDto[]
     updatedMetrics: UpdatedMetricsType
-    setUpdatedMetrics: React.Dispatch<React.SetStateAction<UpdatedMetricsType>>
     selectedEvaluators: string[]
-    tempSelectedEvaluators: string[]
+    tempSelectedEvaluators?: string[]
     errorMessage?: string[]
+    disabled?: boolean
     onCaptureError?: (error: string[], addPrevVal?: boolean) => void
+    setUpdatedMetrics: React.Dispatch<React.SetStateAction<UpdatedMetricsType>>
 }
 
 export interface SelectEvaluatorsProps {

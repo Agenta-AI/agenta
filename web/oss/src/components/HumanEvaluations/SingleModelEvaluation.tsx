@@ -1,383 +1,222 @@
-import {useEffect, useState, type Key} from "react"
+import {memo, useMemo, useCallback, useState, type Key, useRef, RefObject} from "react"
 
-import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
-import {Database, Export, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
+import {Table} from "antd"
 import {ColumnsType} from "antd/es/table"
+import clsx from "clsx"
 import {useRouter} from "next/router"
-import {createUseStyles} from "react-jss"
+import {Resizable} from "react-resizable"
+import {useResizeObserver} from "usehooks-ts"
 
-import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
-import HumanEvaluationModal from "@/oss/components/HumanEvaluationModal/HumanEvaluationModal"
-import {getAppValues} from "@/oss/contexts/app.context"
 import {EvaluationType} from "@/oss/lib/enums"
-import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
-import {calculateAvgScore} from "@/oss/lib/helpers/evaluate"
-import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
-import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
-import {
-    fromEvaluationResponseToEvaluation,
-    singleModelTestEvaluationTransformer,
-} from "@/oss/lib/transformers"
-import {Evaluation, JSSTheme, SingleModelEvaluationListTableDataType} from "@/oss/lib/Types"
-import {
-    deleteEvaluations,
-    fetchAllLoadEvaluations,
-    fetchEvaluationResults,
-} from "@/oss/services/human-evaluations/api"
+import useEvaluationRunMetrics from "@/oss/lib/hooks/useEvaluationRunMetrics"
+import useEvaluations from "@/oss/lib/hooks/useEvaluations"
+import useRunMetricsMap from "@/oss/lib/hooks/useRunMetricsMap"
 
-import VariantDetailsWithStatus from "../VariantDetailsWithStatus"
+import SingleModelEvaluationHeader from "./assets/SingleModelEvaluationHeader"
+import {useStyles} from "./assets/styles"
+import {getColumns} from "./assets/utils"
+import {EvaluationRow} from "./types"
 
-const {Title} = Typography
+import "react-resizable/css/styles.css"
+import "@/oss/assets/custom-resize-handle.css"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: {
-        display: "flex",
-        flexDirection: "column",
-        gap: theme.paddingXS,
-        "& > div h1.ant-typography": {
-            fontSize: theme.fontSize,
-        },
-    },
-    stat: {
-        lineHeight: theme.lineHeight,
-        "& .ant-statistic-content-value": {
-            fontSize: theme.fontSize,
-            color: theme.colorPrimary,
-        },
-        "& .ant-statistic-content-suffix": {
-            fontSize: theme.fontSize,
-            color: theme.colorPrimary,
-        },
-    },
-    button: {
-        display: "flex",
-        alignItems: "center",
-    },
-}))
+export const ResizableTitle = (props: any) => {
+    const {onResize, width, ...restProps} = props
+    if (!width) {
+        return <th {...restProps} />
+    }
+    // Debug: log when ResizableTitle renders and what props it gets
+    return (
+        <Resizable
+            width={width}
+            height={0}
+            handle={
+                <span
+                    className="react-resizable-handle custom-resize-handle"
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        console.log("[ResizableTitle] Handle clicked", {width, ...restProps})
+                    }}
+                />
+            }
+            onResize={(...args) => {
+                console.log("[ResizableTitle] onResize triggered", ...args)
+                if (onResize) onResize(...args)
+            }}
+            draggableOpts={{enableUserSelectHack: false}}
+        >
+            <th
+                {...restProps}
+                style={{
+                    ...restProps.style,
+                    paddingRight: 8,
+                    minWidth: 80,
+                    width: width || 160,
+                    // whiteSpace intentionally omitted so header text can wrap
+                }}
+            >
+                <div style={{position: "relative", width: "100%", height: "100%"}}>
+                    {restProps.children}
+                    {/* The handle will be absolutely positioned by CSS */}
+                </div>
+            </th>
+        </Resizable>
+    )
+}
 
 const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) => {
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
 
-    const [evaluationsList, setEvaluationsList] = useState<
-        SingleModelEvaluationListTableDataType[]
-    >([])
-    const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
-    const [isEvalModalOpen, setIsEvalModalOpen] = useState(false)
-    const [selectedEvalRecord, setSelectedEvalRecord] =
-        useState<SingleModelEvaluationListTableDataType>()
+    const [selectedEvalRecord, setSelectedEvalRecord] = useState<EvaluationRow>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
-    const [isDeleteEvalMultipleModalOpen, setIsDeleteEvalMultipleModalOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
 
-    useEffect(() => {
-        if (!appId) return
+    const {mergedEvaluations, isLoadingPreview, isLoadingLegacy} = useEvaluations({
+        withPreview: true,
+        types: [EvaluationType.single_model_test],
+    })
 
-        const fetchEvaluations = async () => {
-            try {
-                setFetchingEvaluations(true)
-                const evals: Evaluation[] = (await fetchAllLoadEvaluations(appId)).map(
-                    fromEvaluationResponseToEvaluation,
-                )
-                const results = await Promise.all(evals.map((e) => fetchEvaluationResults(e.id)))
-                const newEvals = results.map((result, ix) => {
-                    const item = evals[ix]
-                    if ([EvaluationType.single_model_test].includes(item.evaluationType)) {
-                        return singleModelTestEvaluationTransformer({item, result})
+    const runIds = useMemo(
+        () => mergedEvaluations.map((e) => ("id" in e ? e.id : e.key)),
+        [mergedEvaluations],
+    )
+    const {data: runMetricsMap} = useRunMetricsMap(runIds)
+    const {swrData} = useEvaluationRunMetrics(runIds)
+
+    const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+    const toggleGroup = useCallback((key: string) => {
+        setCollapsedGroups((prev) => ({...prev, [key]: !prev[key]}))
+    }, [])
+
+    const rowSelection = useMemo(() => {
+        return {
+            onChange: (selectedRowKeys: Key[]) => {
+                setSelectedRowKeys(selectedRowKeys)
+            },
+        }
+    }, [])
+
+    const handleNavigation = useCallback(
+        (revisionId: string) => {
+            router.push({
+                pathname: `/apps/${appId}/playground`,
+                query: {
+                    revisions: JSON.stringify([revisionId]),
+                },
+            })
+        },
+        [router, appId],
+    )
+
+    // --- Robust resizable grouped columns: width map by key ---
+    const [columnWidths, setColumnWidths] = useState<Record<string, number>>({})
+
+    // New handleResize: update width by column key
+    const handleResize = useCallback(
+        (colKey: string) =>
+            (e: any, {size}: any) => {
+                setColumnWidths((widths) => ({
+                    ...widths,
+                    [colKey]: size.width,
+                }))
+            },
+        [],
+    )
+
+    // Utility to recursively make columns resizable using width map and column keys
+    const makeColumnsResizable = useCallback(
+        (cols: any, widths: any, handleResize: any) => {
+            return cols.map((col: any) => {
+                // Ensure every column has a unique key
+                const colKey =
+                    col.key || col.dataIndex || col.title || Math.random().toString(36).slice(2)
+                if (col.children && col.children.length > 0) {
+                    // Group column: recurse, but do not add onResize
+                    return {
+                        ...col,
+                        key: colKey,
+                        width: widths[colKey] || col.width || 240,
+                        minWidth: col.minWidth || 120,
+                        onHeaderCell: () => ({
+                            width: widths[colKey] || col.width || 240,
+                            minWidth: col.minWidth || 120,
+                            style: {textAlign: "center"},
+                        }),
+                        children: makeColumnsResizable(col.children, widths, handleResize),
                     }
-                })
-
-                const newEvalResults = newEvals
-                    .filter((evaluation) => evaluation !== undefined)
-                    .filter(
-                        (item: any) =>
-                            item.resultsData !== undefined ||
-                            !(Object.keys(item.scoresData || {}).length === 0) ||
-                            item.avgScore !== undefined,
-                    )
-                    .sort(
-                        (a, b) =>
-                            new Date(b?.createdAt ?? 0).getTime() -
-                            new Date(a?.createdAt ?? 0).getTime(),
-                    )
-
-                setEvaluationsList(
-                    viewType === "overview" ? newEvalResults.slice(0, 5) : (newEvalResults as any),
-                )
-            } catch (error) {
-                console.error(error)
-            } finally {
-                setFetchingEvaluations(false)
-            }
-        }
-
-        fetchEvaluations()
-    }, [appId])
-
-    const rowSelection = {
-        onChange: (selectedRowKeys: Key[]) => {
-            setSelectedRowKeys(selectedRowKeys)
+                } else {
+                    // Leaf column: make resizable
+                    return {
+                        ...col,
+                        key: colKey,
+                        width: widths[colKey] || Math.max(col.width || 160, 80),
+                        onHeaderCell: () => ({
+                            width: widths[colKey] || Math.max(col.width ?? 160, 80),
+                            minWidth: 80,
+                            onResize: handleResize(colKey),
+                        }),
+                    }
+                }
+            })
         },
-    }
+        [columnWidths, handleResize],
+    )
 
-    const handleDeleteMultipleEvaluations = async () => {
-        const evaluationsIds = selectedRowKeys.map((key) => key.toString())
-        try {
-            setFetchingEvaluations(true)
-            await deleteEvaluations(evaluationsIds)
-            setEvaluationsList((prevEvaluationsList) =>
-                prevEvaluationsList.filter(
-                    (evaluation) => !evaluationsIds.includes(evaluation.key),
-                ),
-            )
-            setSelectedRowKeys([])
-            message.success("Evaluations Deleted")
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setFetchingEvaluations(false)
-        }
-    }
-
-    const handleNavigation = (variantRevisionId: string) => {
-        router.push({
-            pathname: `/apps/${appId}/playground`,
-            query: {
-                revisions: JSON.stringify([variantRevisionId]),
-            },
-        })
-    }
-
-    const handleDeleteEvaluation = async (record: SingleModelEvaluationListTableDataType) => {
-        try {
-            setFetchingEvaluations(true)
-            await deleteEvaluations([record.key])
-            setEvaluationsList((prevEvaluationsList) =>
-                prevEvaluationsList.filter((evaluation) => ![record.key].includes(evaluation.key)),
-            )
-            message.success("Evaluation Deleted")
-        } catch (error) {
-            console.error(error)
-        } finally {
-            setFetchingEvaluations(false)
-        }
-    }
-
-    const columns: ColumnsType<SingleModelEvaluationListTableDataType> = [
-        {
-            title: "Variant",
-            dataIndex: "variants",
-            key: "variants",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (value, record: SingleModelEvaluationListTableDataType) => {
-                return (
-                    <VariantDetailsWithStatus
-                        variantName={value[0].variantName}
-                        revision={record.revisions[0]}
-                    />
-                )
-            },
-        },
-        {
-            title: "Test set",
-            dataIndex: "testsetName",
-            key: "testsetName",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record) => {
-                return <span>{record.testset.name}</span>
-            },
-        },
-        {
-            title: "Average score",
-            dataIndex: "averageScore",
-            key: "averageScore",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-            render: (_, record) => {
-                const score = calculateAvgScore(record)
-                return (
-                    <span>
-                        <Statistic
-                            className={classes.stat}
-                            value={score}
-                            precision={score <= 99 ? 2 : 1}
-                            suffix="%"
-                        />
-                    </span>
-                )
-            },
-        },
-        {
-            title: "Created on",
-            dataIndex: "createdAt",
-            key: "createdAt",
-            onHeaderCell: () => ({
-                style: {minWidth: 160},
-            }),
-        },
-        {
-            title: <GearSix size={16} />,
-            key: "key",
-            width: 56,
-            fixed: "right",
-            align: "center",
-            render: (_, record) => {
-                return (
-                    <Dropdown
-                        trigger={["click"]}
-                        overlayStyle={{width: 180}}
-                        menu={{
-                            items: [
-                                {
-                                    key: "details",
-                                    label: "Open details",
-                                    icon: <Note size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        router.push(
-                                            `/apps/${appId}/evaluations/single_model_test/${record.key}`,
-                                        )
-                                    },
-                                },
-                                {
-                                    key: "variant",
-                                    label: "View variant",
-                                    icon: <Rocket size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        handleNavigation(record.variant_revision_ids[0])
-                                    },
-                                },
-                                {
-                                    key: "view_testset",
-                                    label: "View test set",
-                                    icon: <Database size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        router.push(`/testsets/${record.testset._id}`)
-                                    },
-                                },
-                                {type: "divider"},
-                                {
-                                    key: "delete_eval",
-                                    label: "Delete",
-                                    icon: <Trash size={16} />,
-                                    danger: true,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        setSelectedEvalRecord(record)
-                                        setIsDeleteEvalModalOpen(true)
-                                    },
-                                },
-                            ],
-                        }}
-                    >
-                        <Button
-                            onClick={(e) => e.stopPropagation()}
-                            type="text"
-                            icon={<MoreOutlined />}
-                        />
-                    </Dropdown>
-                )
-            },
-        },
-    ]
-
-    const onExport = () => {
-        const exportEvals = evaluationsList.filter((e) =>
-            selectedRowKeys.some((selected) => selected === e.key),
+    const columns: ColumnsType<EvaluationRow> = useMemo(() => {
+        const baseCols = getColumns(
+            mergedEvaluations,
+            router,
+            handleNavigation,
+            setSelectedEvalRecord,
+            setIsDeleteEvalModalOpen,
+            runMetricsMap,
+            collapsedGroups,
+            toggleGroup,
+            classes,
         )
+        // Always create resizable columns from widths map
+        return makeColumnsResizable(baseCols, columnWidths, handleResize)
+    }, [
+        mergedEvaluations,
+        router,
+        handleNavigation,
+        setSelectedEvalRecord,
+        setIsDeleteEvalModalOpen,
+        runMetricsMap,
+        collapsedGroups,
+        toggleGroup,
+        columnWidths,
+    ])
 
-        try {
-            if (exportEvals.length) {
-                const {currentApp} = getAppValues()
-                const filename = `${currentApp?.app_name}_human_annotation.csv`
+    const containerRef = useRef<HTMLDivElement | null>(null)
+    const {height} = useResizeObserver({
+        ref: containerRef as RefObject<HTMLElement>,
+    })
 
-                const csvData = convertToCsv(
-                    exportEvals.map((item) => {
-                        return {
-                            Variant: variantNameWithRev({
-                                variant_name: item.variants[0].variantName ?? "",
-                                revision: item.revisions[0],
-                            }),
-                            "Test set": item.testset.name,
-                            "Average score": `${calculateAvgScore(item) || 0}%`,
-                            "Created on": formatDate24(item.createdAt),
-                        }
-                    }),
-                    columns
-                        .filter((col) => typeof col.title === "string")
-                        .map((col) => col.title as string),
-                )
-                downloadCsv(csvData, filename)
-                setSelectedRowKeys([])
-            }
-        } catch (error) {
-            message.error("Failed to export results. Plese try again later")
-        }
-    }
+    const dataSource = useMemo(() => {
+        return viewType === "overview" ? mergedEvaluations.slice(0, 5) : mergedEvaluations
+    }, [viewType, mergedEvaluations])
 
     return (
-        <div className={classes.container}>
-            {viewType === "overview" ? (
-                <div className="flex items-center justify-between">
-                    <Space>
-                        <Title>Human Annotation</Title>
+        <div
+            className={clsx(classes.container, "grow flex flex-col min-h-0 overflow-hidden", {
+                "human-eval": viewType !== "overview",
+            })}
+        >
+            <SingleModelEvaluationHeader
+                viewType={viewType}
+                selectedRowKeys={selectedRowKeys}
+                mergedEvaluations={mergedEvaluations}
+                runMetricsMap={runMetricsMap}
+                setSelectedRowKeys={setSelectedRowKeys}
+                isDeleteEvalModalOpen={isDeleteEvalModalOpen}
+                setIsDeleteEvalModalOpen={setIsDeleteEvalModalOpen}
+                selectedEvalRecord={selectedEvalRecord}
+            />
 
-                        <Button
-                            href={`/apps/${appId}/evaluations?selectedEvaluation=single_model_evaluation`}
-                        >
-                            View all
-                        </Button>
-                    </Space>
-
-                    <Button icon={<PlusOutlined />} onClick={() => setIsEvalModalOpen(true)}>
-                        Create new
-                    </Button>
-                </div>
-            ) : (
-                <div className="flex items-center justify-between">
-                    <Button
-                        type="primary"
-                        icon={<Plus size={14} />}
-                        className={classes.button}
-                        onClick={() => setIsEvalModalOpen(true)}
-                    >
-                        Start new evaluation
-                    </Button>
-
-                    <Space>
-                        <Button
-                            danger
-                            type="text"
-                            icon={<Trash size={14} />}
-                            className={classes.button}
-                            onClick={() => setIsDeleteEvalMultipleModalOpen(true)}
-                            disabled={selectedRowKeys.length == 0}
-                        >
-                            Delete
-                        </Button>
-                        <Button
-                            type="text"
-                            onClick={onExport}
-                            icon={<Export size={14} className="mt-0.5" />}
-                            className={classes.button}
-                            disabled={selectedRowKeys.length == 0}
-                        >
-                            Export as CSV
-                        </Button>
-                    </Space>
-                </div>
-            )}
-
-            <Spin spinning={fetchingEvaluations}>
+            <div className="relative w-full h-full overflow-auto">
                 <Table
                     rowSelection={
                         viewType === "evaluation"
@@ -389,52 +228,35 @@ const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}
                               }
                             : undefined
                     }
-                    className="ph-no-capture"
+                    components={{
+                        header: {
+                            cell: ResizableTitle,
+                        },
+                    }}
+                    rowKey={(record) => {
+                        return record.id || record.key
+                    }}
+                    className={clsx("ph-no-capture", "grow min-h-0", "eval-runs-table")}
                     columns={columns}
-                    dataSource={evaluationsList}
-                    scroll={{x: true}}
+                    dataSource={dataSource}
+                    scroll={{x: "max-content", y: height}}
+                    sticky
+                    tableLayout="fixed"
                     bordered
                     pagination={false}
+                    loading={isLoadingPreview || isLoadingLegacy}
                     onRow={(record) => ({
                         style: {cursor: "pointer"},
                         onClick: () =>
                             router.push(
-                                `/apps/${appId}/evaluations/single_model_test/${record.key}`,
+                                `/apps/${appId}/evaluations/single_model_test/${"id" in record ? record.id : record.key}`,
                             ),
                     })}
                 />
-            </Spin>
-
-            <HumanEvaluationModal
-                evaluationType={"single_model_test"}
-                isEvalModalOpen={isEvalModalOpen}
-                setIsEvalModalOpen={setIsEvalModalOpen}
-            />
-
-            {selectedEvalRecord && (
-                <DeleteEvaluationModal
-                    open={isDeleteEvalModalOpen}
-                    onCancel={() => setIsDeleteEvalModalOpen(false)}
-                    onOk={async () => {
-                        await handleDeleteEvaluation(selectedEvalRecord)
-                        setIsDeleteEvalModalOpen(false)
-                    }}
-                    evaluationType={"single model evaluation"}
-                />
-            )}
-            {isDeleteEvalMultipleModalOpen && (
-                <DeleteEvaluationModal
-                    open={isDeleteEvalMultipleModalOpen}
-                    onCancel={() => setIsDeleteEvalMultipleModalOpen(false)}
-                    onOk={async () => {
-                        await handleDeleteMultipleEvaluations()
-                        setIsDeleteEvalMultipleModalOpen(false)
-                    }}
-                    evaluationType={"single model evaluation"}
-                />
-            )}
+            </div>
+            <div className="h-6 w-full" />
         </div>
     )
 }
 
-export default SingleModelEvaluation
+export default memo(SingleModelEvaluation)

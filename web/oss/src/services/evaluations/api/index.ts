@@ -8,6 +8,7 @@ import {calcEvalDuration} from "@/oss/lib/helpers/evaluate"
 import {isDemo, stringToNumberInRange} from "@/oss/lib/helpers/utils"
 import {
     ComparisonResultRow,
+    EvaluationStatus,
     Evaluator,
     EvaluatorConfig,
     KeyValuePair,
@@ -157,17 +158,27 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
     return response.data as {status: _Evaluation["status"]}
 }
 
-export interface CreateEvaluationData {
-    testset_id: string
-    variant_ids: string[]
-    evaluators_configs: string[]
-    rate_limit: LLMRunRateLimit
-    lm_providers_keys: KeyValuePair
-    correct_answer_column: string
-}
+export type CreateEvaluationData =
+    | {
+          testset_id: string
+          variant_ids?: string[]
+          evaluators_configs: string[]
+          rate_limit: LLMRunRateLimit
+          lm_providers_keys?: KeyValuePair
+          correct_answer_column: string
+      }
+    | {
+          testset_id: string
+          revisions_ids?: string[]
+          evaluators_configs: string[]
+          rate_limit: LLMRunRateLimit
+          lm_providers_keys?: KeyValuePair
+          correct_answer_column: string
+      }
 export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
     const {projectId} = getCurrentProject()
 
+    // TODO: new AUTO-EVAL trigger
     // axios.post(`/api/evaluations/preview/start?project_id=${projectId}`, {
     //     ...evaluation,
     //     app_id: appId,
@@ -199,6 +210,16 @@ export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
         )
     })
     return evaluationScenarios as _EvaluationScenario[]
+}
+
+export const updateScenarioStatus = async (
+    scenario: _EvaluationScenario,
+    status: EvaluationStatus,
+) => {
+    const {projectId} = getCurrentProject()
+    return axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
+        scenarios: [{...scenario, status}],
+    })
 }
 
 // Comparison

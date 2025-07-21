@@ -125,23 +125,26 @@ const Evaluators = ({
                     </Space>
                 </div>
                 <div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-4">
                         <Radio.Group
                             defaultValue={selectedEvaluatorCategory}
                             className={classes.radioBtnContainer}
                             onChange={(e) => setSelectedEvaluatorCategory(e.target.value)}
                         >
-                            <Radio.Button value={"view_all"}>View all</Radio.Button>
-                            <Divider type="vertical" className="h-7" />
+                            <Radio.Button value={"view_all"} className="text-nowrap">
+                                View all
+                            </Radio.Button>
+                            <Divider type="vertical" className="h-7 !mx-1" />
                             {evaluatorTags.map((val, idx) => (
-                                <Radio.Button key={idx} value={val.value}>
+                                <Radio.Button key={idx} value={val.value} className="text-nowrap">
                                     {val.label}
                                 </Radio.Button>
                             ))}
                         </Radio.Group>
+
                         <Flex gap={8}>
                             <Input.Search
-                                style={{width: 400}}
+                                className="xl:w-[400px] lg:w-[350px] lg:block hidden shrink-0"
                                 placeholder="Search"
                                 allowClear
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -149,6 +152,7 @@ const Evaluators = ({
                             <Radio.Group
                                 defaultValue={evaluatorsDisplay}
                                 onChange={(e) => setEvaluatorsDisplay(e.target.value)}
+                                className="shrink-0"
                             >
                                 <Radio.Button value="list">
                                     <Table size={16} className="h-full" />

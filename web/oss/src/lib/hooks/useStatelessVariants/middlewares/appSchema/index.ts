@@ -101,7 +101,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
                         // Use the consolidated function that handles the entire fetch & process flow
                         // We're now using the batched parallel processing approach
-                        console.log("Starting parallel batched processing of revisions")
+                        // console.log("Starting parallel batched processing of revisions")
 
                         // Import the transformVariants function
                         const {transformVariants} = await import(
@@ -148,9 +148,9 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             },
                             isLastBatch = false,
                         ) => {
-                            console.log(
-                                `updateStateWithBatch - Incrementally updating state with ${batchResults.length} variants${isLastBatch ? " (FINAL BATCH)" : ""}`,
-                            )
+                            // console.log(
+                            //     `updateStateWithBatch - Incrementally updating state with ${batchResults.length} variants${isLastBatch ? " (FINAL BATCH)" : ""}`,
+                            // )
 
                             try {
                                 batchResults = batchResults.map((variant) => ({
@@ -181,10 +181,6 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                     window.__revalidationBatches &&
                                     window.__revalidationBatches[revalidationKey]
                                 ) {
-                                    console.log(
-                                        "Storing transformed variants in batch",
-                                        transformedBatchResults,
-                                    )
                                     window.__revalidationBatches[revalidationKey].push({
                                         batch: transformedBatchResults, // Store transformed variants
                                         isLastBatch,
@@ -448,9 +444,9 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                                 currentState?.variants?.length > 0 &&
                                                 !isLastBatch
                                             ) {
-                                                console.log(
-                                                    "Collecting batch for later update (not the last batch)",
-                                                )
+                                                // console.log(
+                                                //     "Collecting batch for later update (not the last batch)",
+                                                // )
                                                 // Return current state unchanged until we get the last batch
                                                 return currentState
                                             }
@@ -463,11 +459,11 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                                 window?.__revalidationBatches?.[revalidationKey]
                                                     ?.length > 0
                                             ) {
-                                                console.log(
-                                                    "Processing all collected batches",
-                                                    window.__revalidationBatches?.[revalidationKey]
-                                                        ?.length,
-                                                )
+                                                // console.log(
+                                                //     "Processing all collected batches",
+                                                //     window.__revalidationBatches?.[revalidationKey]
+                                                //         ?.length,
+                                                // )
 
                                                 // Use the already correct newVariantsMap data to populate our allBatchVariants
                                                 // This ensures we're using the properly transformed variants
@@ -485,9 +481,9 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                                     isLastBatch &&
                                                     window.__revalidationBatches?.[revalidationKey]
                                                 ) {
-                                                    console.log(
-                                                        "Clearing processed batches to prevent reprocessing",
-                                                    )
+                                                    // console.log(
+                                                    //     "Clearing processed batches to prevent reprocessing",
+                                                    // )
                                                     // Store the number of batches before clearing for logging
                                                     const batchesCleared =
                                                         window.__revalidationBatches[
@@ -496,18 +492,18 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                                     // Clear the batches
                                                     window.__revalidationBatches[revalidationKey] =
                                                         []
-                                                    console.log(
-                                                        `Cleared ${batchesCleared} processed batches`,
-                                                    )
+                                                    // console.log(
+                                                    //     `Cleared ${batchesCleared} processed batches`,
+                                                    // )
                                                 }
 
                                                 // Log information about our allBatchVariantsMap
-                                                console.log(
-                                                    "allBatchVariantsMap size:",
-                                                    allBatchVariantsMap.size,
-                                                    "keys:",
-                                                    Array.from(allBatchVariantsMap.keys()),
-                                                )
+                                                // console.log(
+                                                //     "allBatchVariantsMap size:",
+                                                //     allBatchVariantsMap.size,
+                                                //     "keys:",
+                                                //     Array.from(allBatchVariantsMap.keys()),
+                                                // )
 
                                                 // Now compare with existing variants
                                                 const existingVariantsMap = new Map()
@@ -609,14 +605,14 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
                                                 if (hasChanges) {
                                                     if (changedVariantId) {
-                                                        console.log(
-                                                            `Detected changes in variants. Changed variant ID: ${changedVariantId}`,
-                                                        )
+                                                        // console.log(
+                                                        //     `Detected changes in variants. Changed variant ID: ${changedVariantId}`,
+                                                        // )
                                                     }
                                                     if (changedKeys.length > 0) {
-                                                        console.log(
-                                                            `Detected changes in variants. Changed keys: ${changedKeys.join(", ")}`,
-                                                        )
+                                                        // console.log(
+                                                        //     `Detected changes in variants. Changed keys: ${changedKeys.join(", ")}`,
+                                                        // )
                                                     }
 
                                                     // Create a merged set of variants, ensuring no duplicates
@@ -657,27 +653,27 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
 
                                                     clonedState.variants = mergedVariants
                                                 } else {
-                                                    console.log(
-                                                        "No changes detected in variants, keeping existing state",
-                                                    )
+                                                    // console.log(
+                                                    //     "No changes detected in variants, keeping existing state",
+                                                    // )
                                                     // Keep existing variants to preserve any additional data they might have
                                                 }
                                             } else if (hasChanges) {
                                                 if (changedVariantId) {
-                                                    console.log(
-                                                        `Detected changes in variants. Changed variant ID: ${changedVariantId}`,
-                                                    )
+                                                    // console.log(
+                                                    //     `Detected changes in variants. Changed variant ID: ${changedVariantId}`,
+                                                    // )
                                                 }
                                                 if (changedKeys.length > 0) {
-                                                    console.log(
-                                                        `Detected changes in variants. Changed keys: ${changedKeys.join(", ")}`,
-                                                    )
+                                                    // console.log(
+                                                    //     `Detected changes in variants. Changed keys: ${changedKeys.join(", ")}`,
+                                                    // )
                                                 }
                                                 clonedState.variants = sortedRevisions
                                             } else {
-                                                console.log(
-                                                    "No changes detected in variants, keeping existing state",
-                                                )
+                                                // console.log(
+                                                // "No changes detected in variants, keeping existing state",
+                                                // )
                                                 // Keep existing variants to preserve any additional data they might have
                                             }
                                         } else {
@@ -722,16 +718,15 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             appType: config.appType,
                             // TODO: Revisit this implementation @ardaerzin
                             // initialVariants: config.initialVariants,
-                            logger: console.log,
                             // Enable parallel batched processing
                             batchSize: 20, // Process 10 revisions at a time
                             parallelProcessing: true,
                             // This callback is called before any batches are processed to set the total
                             onBeforeBatchProcessing: (totalBatches) => {
                                 batchTracker.totalBatches = totalBatches
-                                console.log(
-                                    `Starting batch processing with ${totalBatches} total batches`,
-                                )
+                                // console.log(
+                                //     `Starting batch processing with ${totalBatches} total batches`,
+                                // )
                             },
                             // Provide the callback for incremental state updates
                             onBatchProcessed: (batchResults, spec, uri) => {
@@ -739,12 +734,12 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                 const uniqueResults = batchResults.filter((variant) => {
                                     // Skip variants without IDs or those we've already processed
                                     if (!variant.id) {
-                                        console.log("Skipping variant without ID")
+                                        // console.log("Skipping variant without ID")
                                         return false
                                     }
 
                                     if (batchTracker.processedVariantIds.has(variant.id)) {
-                                        console.log(`Skipping duplicate variant: ${variant.id}`)
+                                        // console.log(`Skipping duplicate variant: ${variant.id}`)
                                         return false
                                     }
 
@@ -759,9 +754,9 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                 // Increment the processed batches counter
                                 batchTracker.processedBatches++
 
-                                console.log(
-                                    `onBatchProcessed: ${batchTracker.processedBatches}/${batchTracker.totalBatches}`,
-                                )
+                                // console.log(
+                                //     `onBatchProcessed: ${batchTracker.processedBatches}/${batchTracker.totalBatches}`,
+                                // )
 
                                 // Check if this is the last batch based on the counter
                                 const isLastBatch =
@@ -770,9 +765,9 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                 // If this is the last batch, mark the batch tracker as complete
                                 if (isLastBatch) {
                                     batchTracker.isComplete = true
-                                    console.log(
-                                        `Batch processing complete. Processed ${batchTracker.processedVariantIds.size} unique variants.`,
-                                    )
+                                    // console.log(
+                                    //     `Batch processing complete. Processed ${batchTracker.processedVariantIds.size} unique variants.`,
+                                    // )
                                 }
 
                                 // Call the original updateStateWithBatch with the isLastBatch flag
@@ -788,10 +783,10 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         })
                             .then(({revisions, spec, uri}) => {
                                 // This will run after all batches are processed
-                                console.log(
-                                    `All batches processed, total revisions: ${revisions.length}`,
-                                    revisions,
-                                )
+                                // console.log(
+                                //     `All batches processed, total revisions: ${revisions.length}`,
+                                //     revisions,
+                                // )
 
                                 // Mark the batch processing as complete
                                 batchTracker.isComplete = true
@@ -839,7 +834,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                 if (error.name !== "AbortError") {
                                     console.error("Error in fetch promise:", error)
                                 } else {
-                                    console.log("Fetch operation was aborted")
+                                    // console.log("Fetch operation was aborted")
                                 }
 
                                 // End the fetch on error
@@ -862,9 +857,9 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                         // The batch updates will handle updating the state incrementally
                         // and the .then() handler will end the fetch when everything is done
 
-                        console.log(
-                            "Returning initial state while batch updates happen in background",
-                        )
+                        // console.log(
+                        //     "Returning initial state while batch updates happen in background",
+                        // )
 
                         return state
                     } catch (error: unknown) {
@@ -874,7 +869,7 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                             (error instanceof Error && error.name === "AbortError") ||
                             (error instanceof Error && error.message === "Operation was aborted")
                         ) {
-                            console.log("Fetch operation was aborted")
+                            // console.log("Fetch operation was aborted")
                         } else {
                             console.error("Error in openApiSchemaFetcher:", error)
                             state.error = error instanceof Error ? error : new Error(String(error))

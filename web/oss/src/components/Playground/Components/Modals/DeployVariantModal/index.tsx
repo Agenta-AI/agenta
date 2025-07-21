@@ -73,7 +73,7 @@ const DeployVariantModal = ({
     return (
         <EnhancedModal
             centered
-            destroyOnClose
+            destroyOnHidden
             okText="Deploy"
             onCancel={onClose}
             confirmLoading={isLoading}

@@ -4,9 +4,7 @@ from uuid import UUID
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.blobs.interfaces import BlobsDAOInterface
-from oss.src.core.shared.dtos import Data
 from oss.src.core.blobs.dtos import BlobCreate, BlobQuery
-
 from oss.src.core.testcases.dtos import Testcase
 
 log = get_module_logger(__name__)
@@ -26,14 +24,11 @@ class TestcasesService:
         project_id: UUID,
         user_id: UUID,
         #
-        testset_id: UUID,
-        #
-        testcases: List[Data],
-    ) -> List[UUID]:
+        testcases: List[Testcase],
+    ) -> List[Testcase]:
         blob_creates = [
             BlobCreate(
-                data=testcase,
-                set_id=testset_id,
+                **testcase.model_dump(mode="json", exclude_none=True),
             )
             for testcase in testcases
         ]
@@ -55,9 +50,7 @@ class TestcasesService:
             for blob in blobs
         ]
 
-        testcase_ids = [_testcase.id for _testcase in _testcases]
-
-        return testcase_ids
+        return _testcases
 
     async def fetch_testcases(
         self,
@@ -69,7 +62,7 @@ class TestcasesService:
         testset_id: Optional[UUID] = None,
         #
         windowing: Optional[bool] = False,
-    ) -> List[Data]:
+    ) -> List[Testcase]:
         _blob_query = (
             BlobQuery(
                 set_ids=[testset_id] if testset_id else None,
@@ -90,12 +83,11 @@ class TestcasesService:
         if not blobs:
             return []
 
-        testcases = [
-            {
-                "testcase_id": str(blob.id),
-                **blob.data,
-            }
+        _testcases = [
+            Testcase(
+                **blob.model_dump(mode="json"),
+            )
             for blob in blobs
         ]
 
-        return testcases
+        return _testcases

@@ -186,19 +186,34 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                 return clonedState
 
                             const metadata = getMetadataLazy(targetMessage.__metadata)
+
                             if (!metadata) return clonedState
 
-                            const incomingMessage = createMessageFromSchema(
-                                metadata,
-                                message?.payload?.result?.error
-                                    ? {
-                                          role: "Error",
-                                          content: message.payload.result?.error,
-                                      }
-                                    : message.payload.result.response?.data,
-                            )
+                            let incomingMessage
+                            let responseHash
+                            if (message?.payload?.result?.error) {
+                                const tree =
+                                    message.payload?.result?.metadata?.rawError?.detail?.tree
+                                const trace = tree?.nodes?.[0]
+                                incomingMessage = createMessageFromSchema(metadata, {
+                                    content: trace?.status?.message,
+                                    role: "Error",
+                                })
+                                responseHash = hashResponse({
+                                    response: {
+                                        data: trace?.status?.message,
+                                        tree: tree,
+                                    },
+                                    error: trace?.status?.message,
+                                })
+                            } else {
+                                incomingMessage = createMessageFromSchema(
+                                    metadata,
+                                    message.payload.result.response?.data,
+                                )
+                                responseHash = hashResponse(message.payload.result)
+                            }
 
-                            const responseHash = hashResponse(message.payload.result)
                             if (!targetMessage.__runs) targetMessage.__runs = {}
 
                             targetMessage.__runs[variantId] = {
@@ -290,6 +305,7 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                     const parsed = JSON5.parse(
                                         message.payload.result?.response?.data,
                                     )
+
                                     if (parsed && Array.isArray(parsed)) {
                                         const toolCalls = parsed
                                             .filter((item) => {
@@ -326,11 +342,28 @@ const playgroundVariantMiddleware: PlaygroundMiddleware = <
                                         }
                                     }
                                 } catch (err) {
-                                    const responseHash = hashResponse(message.payload.result)
+                                    const tree =
+                                        message.payload?.result?.metadata?.rawError?.detail?.tree
+                                    if (tree) {
+                                        const trace = tree?.nodes?.[0]
+                                        const responseHash = hashResponse({
+                                            response: {
+                                                data: trace?.status?.message,
+                                                tree: tree,
+                                            },
+                                            error: trace?.status?.message,
+                                        })
 
-                                    inputTestRow.__runs[variantId] = {
-                                        __result: responseHash,
-                                        __isRunning: "",
+                                        inputTestRow.__runs[variantId] = {
+                                            __result: responseHash,
+                                            __isRunning: "",
+                                        }
+                                    } else {
+                                        const responseHash = hashResponse(message.payload.result)
+                                        inputTestRow.__runs[variantId] = {
+                                            __result: responseHash,
+                                            __isRunning: "",
+                                        }
                                     }
                                 }
 

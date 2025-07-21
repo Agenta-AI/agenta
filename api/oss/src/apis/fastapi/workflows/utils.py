@@ -91,6 +91,7 @@ def parse_workflow_query_request_from_body(
     start: Optional[datetime] = None,
     stop: Optional[datetime] = None,
     limit: Optional[int] = None,
+    order: Optional[str] = None,
 ) -> WorkflowQueryRequest:
     workflow_query_request = None
 
@@ -116,6 +117,7 @@ def parse_workflow_query_request_from_body(
                     start=start,
                     stop=stop,
                     limit=limit,
+                    order=order,
                 )
                 if next or start or stop or limit
                 else None
@@ -217,6 +219,7 @@ def parse_workflow_variant_query_request_from_body(
     start: Optional[datetime] = None,
     stop: Optional[datetime] = None,
     limit: Optional[int] = None,
+    order: Optional[str] = None,
 ) -> WorkflowVariantQueryRequest:
     workflow_variant_query_request = None
 
@@ -242,6 +245,7 @@ def parse_workflow_variant_query_request_from_body(
                     start=start,
                     stop=stop,
                     limit=limit,
+                    order=order,
                 )
                 if next or start or stop or limit
                 else None
@@ -347,6 +351,7 @@ def parse_workflow_revision_query_request_from_body(
     start: Optional[datetime] = None,
     stop: Optional[datetime] = None,
     limit: Optional[int] = None,
+    order: Optional[str] = None,
 ) -> WorkflowRevisionQueryRequest:
     workflow_revision_query_request = None
 
@@ -378,6 +383,7 @@ def parse_workflow_revision_query_request_from_body(
                     start=start,
                     stop=stop,
                     limit=limit,
+                    order=order,
                 )
                 if next or start or stop or limit
                 else None

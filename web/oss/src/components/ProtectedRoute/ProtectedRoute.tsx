@@ -1,4 +1,4 @@
-import {PropsWithChildren, useEffect, useRef, useState} from "react"
+import {type PropsWithChildren, type FC, useEffect, useRef, useState} from "react"
 
 import {useRouter} from "next/router"
 
@@ -6,7 +6,7 @@ import {useProfileData} from "@/oss/contexts/profile.context"
 import {useProjectData} from "@/oss/contexts/project.context"
 import {useSession} from "@/oss/hooks/useSession"
 
-const ProtectedRoute: React.FC<PropsWithChildren> = ({children}) => {
+const ProtectedRoute: FC<PropsWithChildren> = ({children}) => {
     const router = useRouter()
     const {loading, doesSessionExist: isSignedIn, logout} = useSession()
     const {pathname, query} = router
@@ -58,7 +58,7 @@ const ProtectedRoute: React.FC<PropsWithChildren> = ({children}) => {
         }
     }, [pathname, isSignedIn, loading, isProjectId, isLoading, router, user])
 
-    return <>{shouldRender ? children : null}</>
+    return shouldRender ? children : null
 }
 
 export default ProtectedRoute

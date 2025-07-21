@@ -1,4 +1,4 @@
-import {ChangeEvent, useCallback} from "react"
+import {ChangeEvent, memo, useCallback} from "react"
 
 import {Input} from "antd"
 
@@ -77,4 +77,4 @@ const SimpleInput = ({
     )
 }
 
-export default SimpleInput
+export default memo(SimpleInput)

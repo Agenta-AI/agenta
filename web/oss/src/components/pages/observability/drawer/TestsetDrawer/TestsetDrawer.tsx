@@ -55,6 +55,8 @@ const TestsetDrawer = ({
         setIsDrawerExtended(rect.width > 640)
     })
 
+    console.log("TestsetDrawer", data)
+
     const [isDrawerExtended, setIsDrawerExtended] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [traceData, setTraceData] = useState<TestsetTraceData[]>(data)
@@ -558,7 +560,7 @@ const TestsetDrawer = ({
         <>
             <GenericDrawer
                 {...props}
-                destroyOnClose={false}
+                destroyOnHidden={false}
                 onClose={() => {
                     onClose()
                     setUpdatedTraceData("")

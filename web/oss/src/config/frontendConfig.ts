@@ -8,7 +8,6 @@ import ThirdPartyReact from "supertokens-auth-react/recipe/thirdparty"
 import {appInfo} from "./appInfo"
 
 export const frontendConfig = (): SuperTokensConfig => {
-    console.log("appInfo", appInfo)
     return {
         appInfo,
         // enableDebugLogs: true,

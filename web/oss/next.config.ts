@@ -72,10 +72,8 @@ const COMMON_CONFIG: NextConfig = {
               },
           }
         : {
-              experimental: {
-                  turbo: {
-                      root: path.resolve(__dirname, ".."),
-                  },
+              turbopack: {
+                  root: path.resolve(__dirname, ".."),
               },
           }),
 }
