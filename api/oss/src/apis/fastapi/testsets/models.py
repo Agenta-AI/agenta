@@ -12,13 +12,14 @@ from oss.src.core.shared.dtos import (
     Meta,
     Windowing,
     Reference,
-    Data,
 )
 
 from oss.src.core.testsets.dtos import (
     TestsetRevisionData,
     TestsetFlags,
 )
+
+from oss.src.core.testcases.dtos import Testcase
 
 
 class SimpleTestset(
@@ -100,9 +101,9 @@ class TestcasesQueryRequest(BaseModel):
 
 class TestcaseResponse(BaseModel):
     count: int = 0
-    testcase: Optional[Data] = None
+    testcase: Optional[Testcase] = None
 
 
 class TestcasesResponse(BaseModel):
     count: int = 0
-    testcases: List[Data] = []
+    testcases: List[Testcase] = []

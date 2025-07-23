@@ -15,6 +15,7 @@ import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {DEFAULT_UUID, getCurrentProject, useProjectData} from "@/oss/contexts/project.context"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+// import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
@@ -87,11 +88,13 @@ const AppWithVariants = memo(
         isAppRoute,
         classes,
         isPlayground,
+        isHumanEval,
         appTheme,
         ...props
     }: {
         children: ReactNode
         isAppRoute: boolean
+        isHumanEval: boolean
         classes: StyleClasses
         appTheme: string
         isPlayground?: boolean
@@ -117,7 +120,7 @@ const AppWithVariants = memo(
         }
 
         return (
-            <div>
+            <div className={clsx([{"flex flex-col grow min-h-0": isHumanEval}])}>
                 {project?.is_demo && (
                     <div className={classes.banner}>
                         You are in <span>a view-only</span> demo workspace. To go back to your
@@ -134,7 +137,7 @@ const AppWithVariants = memo(
                     />
 
                     <Layout className={classes.layout}>
-                        <div className="mb-3">
+                        <div className={clsx([{"grow flex flex-col min-h-0": isHumanEval}])}>
                             <BreadcrumbContainer
                                 appTheme={appTheme}
                                 appName={currentApp?.app_name || ""}
@@ -149,6 +152,7 @@ const AppWithVariants = memo(
                                 >
                                     <Content
                                         className={clsx(classes.content, {
+                                            "flex flex-col min-h-0 grow": isHumanEval,
                                             "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                                 isPlayground,
                                         })}
@@ -229,7 +233,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const isDarkTheme = appTheme === "dark"
     const {token} = theme.useToken()
     const [, contextHolder] = Modal.useModal()
-
+    // useFetchEvaluatorsData()
     const posthog = usePostHogAg()
     const [hasCapturedTheme, setHasCapturedTheme] = useLocalStorage("hasCapturedTheme", false)
 
@@ -259,7 +263,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [appTheme])
 
-    const {isPlayground, isAppRoute, isAuthRoute} = useMemo(() => {
+    const {isHumanEval, isPlayground, isAppRoute, isAuthRoute} = useMemo(() => {
         return {
             isAuthRoute:
                 router.pathname.includes("/auth") ||
@@ -267,6 +271,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 router.pathname.includes("/workspaces"),
             isAppRoute: router.pathname.startsWith("/apps/[app_id]"),
             isPlayground: router.pathname.includes("/playground"),
+            isHumanEval:
+                router.pathname.includes("/evaluations/single_model_test") ||
+                router.query.selectedEvaluation === "human_annotation",
         }
     }, [router.pathname, router.query])
 
@@ -304,11 +311,10 @@ const App: React.FC<LayoutProps> = ({children}) => {
                                 classes={classes}
                                 appTheme={appTheme}
                                 isPlayground={isPlayground}
+                                isHumanEval={isHumanEval}
                             >
-                                <div>
-                                    {children}
-                                    {contextHolder}
-                                </div>
+                                {children}
+                                {contextHolder}
                             </AppWithVariants>
                         </ProtectedRoute>
                     )}

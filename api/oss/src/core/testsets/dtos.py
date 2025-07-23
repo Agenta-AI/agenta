@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from oss.src.core.shared.dtos import Data, Link, Flags, Tags, Meta
+# from oss.src.core.shared.dtos import Link
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
 from oss.src.core.git.dtos import (
     Artifact,
@@ -22,6 +22,8 @@ from oss.src.core.git.dtos import (
     RevisionQuery,
     RevisionCommit,
 )
+
+from oss.src.core.testcases.dtos import Testcase
 
 
 class TestsetIdAlias(AliasConfig):
@@ -102,11 +104,11 @@ class TestsetVariantQuery(VariantQuery):
 
 class TestsetRevisionData(BaseModel):
     testcase_ids: Optional[List[UUID]] = None
-    testcases: Optional[List[Data]] = None
+    testcases: Optional[List[Testcase]] = None
 
-    trace_ids: Optional[List[str]] = None
-    traces: Optional[List[Link]] = None
-    mappings: Optional[Dict[str, str]] = None
+    # trace_ids: Optional[List[str]] = None
+    # traces: Optional[List[Link]] = None
+    # mappings: Optional[Dict[str, str]] = None
 
 
 class TestsetRevision(

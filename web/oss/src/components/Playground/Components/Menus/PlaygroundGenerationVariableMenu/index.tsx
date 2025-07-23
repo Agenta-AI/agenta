@@ -13,6 +13,11 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
     resultHash,
     ...props
 }) => {
+    const isResults = useMemo(
+        () => (Array.isArray(resultHash) ? resultHash : [resultHash])?.filter(Boolean)?.length,
+        [resultHash],
+    )
+
     const items: MenuProps["items"] = useMemo(
         () => [
             {
@@ -34,6 +39,7 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
                     </TestsetDrawerButton>
                 ),
                 icon: <Database size={14} />,
+                disabled: !isResults,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                 },

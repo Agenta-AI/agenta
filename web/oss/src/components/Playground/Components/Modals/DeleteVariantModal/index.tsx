@@ -48,7 +48,7 @@ const DeleteVariantModal: React.FC<DeleteVariantModalProps> = ({variantId, ...pr
     return (
         <Modal
             centered
-            destroyOnClose
+            destroyOnHidden
             title="Are you sure you want to delete?"
             onCancel={onClose}
             okText="Delete"

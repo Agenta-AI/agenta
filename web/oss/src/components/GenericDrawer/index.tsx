@@ -14,7 +14,7 @@ const GenericDrawer = ({...props}: GenericDrawerProps) => {
     return (
         <EnhancedDrawer
             closeIcon={null}
-            destroyOnClose
+            destroyOnHidden
             width={drawerWidth}
             title={
                 <Flex gap={12} justify="space-between" align="center">
@@ -51,13 +51,13 @@ const GenericDrawer = ({...props}: GenericDrawerProps) => {
         >
             <Splitter className="h-full" key={props.externalKey}>
                 {props.sideContent && (
-                    <Splitter.Panel defaultSize={320} collapsible>
+                    <Splitter.Panel min={200} defaultSize={320} collapsible>
                         {props.sideContent}
                     </Splitter.Panel>
                 )}
-                <Splitter.Panel>{props.mainContent}</Splitter.Panel>
+                <Splitter.Panel min={400}>{props.mainContent}</Splitter.Panel>
                 {props.extraContent && (
-                    <Splitter.Panel defaultSize={320} collapsible>
+                    <Splitter.Panel min={200} defaultSize={320} collapsible>
                         {props.extraContent}
                     </Splitter.Panel>
                 )}

@@ -379,10 +379,10 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
 
         except Exception as e:
             log.error(
-                "OTelFlatSpanBuilder: Failed to create OTelFlatSpan from span: %s. SpanFeatures: %s. Error: %s",
-                otel_span_dto,
-                features,
+                "OTelFlatSpanBuilder: Failed to create OTelFlatSpan from span. Error: %s. SpanFeatures: %s. Span: %s.",
                 str(e),
+                features,
+                otel_span_dto,
             )
             raise e
 

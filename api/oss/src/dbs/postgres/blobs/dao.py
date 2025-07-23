@@ -12,6 +12,7 @@ from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.blobs.dtos import Blob, BlobCreate, BlobEdit, BlobQuery
 from oss.src.core.blobs.interfaces import BlobsDAOInterface
+from oss.src.core.blobs.utils import compute_blob_id
 
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
 from oss.src.utils.exceptions import suppress_exceptions
@@ -45,7 +46,7 @@ class BlobsDAO(BlobsDAOInterface):
         blob_create: BlobCreate,
     ) -> Optional[Blob]:
         blob = Blob(
-            id=self._blob_id(
+            id=compute_blob_id(
                 blob_data=blob_create.data,
                 set_id=blob_create.set_id,
             ),
@@ -90,6 +91,7 @@ class BlobsDAO(BlobsDAOInterface):
                 )
 
         except Exception as e:
+            log.warn(f"Failed to add blob: {e}")
             check_entity_creation_conflict(e)
 
             raise
@@ -213,7 +215,7 @@ class BlobsDAO(BlobsDAOInterface):
     ) -> List[Blob]:
         blobs: List[Blob] = [
             Blob(
-                id=self._blob_id(
+                id=compute_blob_id(
                     blob_data=blob_create.data,
                     set_id=blob_create.set_id,
                 ),
@@ -262,13 +264,16 @@ class BlobsDAO(BlobsDAOInterface):
 
                 await session.commit()
 
-                return await self.fetch_blobs(
+                all_blobs = await self.fetch_blobs(
                     project_id=project_id,
                     #
                     blob_ids=blob_ids,
                 )
 
+                return all_blobs
+
         except Exception as e:
+            log.warn(f"Failed to add blobs: {e}")
             check_entity_creation_conflict(e)
 
             raise
@@ -295,13 +300,15 @@ class BlobsDAO(BlobsDAOInterface):
             if not blob_dbes:
                 return []
 
-            blobs = [
-                map_dbe_to_dto(
+            _blobs = {
+                blob_dbe.id: map_dbe_to_dto(
                     DTO=Blob,
                     dbe=blob_dbe,  # type: ignore
                 )
                 for blob_dbe in blob_dbes
-            ]
+            }
+
+            blobs = [_blobs.get(blob_id) for blob_id in blob_ids]
 
             return blobs
 
@@ -431,8 +438,6 @@ class BlobsDAO(BlobsDAOInterface):
                     self.BlobDBE.meta.contains(blob_query.meta),  # type: ignore
                 )
 
-            query.order_by(self.BlobDBE.created_at.desc())  # type: ignore
-
             if windowing:
                 if windowing.next is not None:
                     query = query.filter(
@@ -448,6 +453,20 @@ class BlobsDAO(BlobsDAOInterface):
                         self.BlobDBE.created_at <= windowing.stop,  # type: ignore
                     )
 
+            if windowing:
+                if windowing.order:
+                    if windowing.order.lower() == "descending":
+                        query = query.order_by(self.BlobDBE.created_at.desc())
+                    elif windowing.order.lower() == "ascending":
+                        query = query.order_by(self.BlobDBE.created_at.asc())
+                    else:
+                        query = query.order_by(self.BlobDBE.created_at.asc())
+                else:
+                    query = query.order_by(self.BlobDBE.created_at.asc())
+            else:
+                query = query.order_by(self.BlobDBE.created_at.asc())
+
+            if windowing:
                 if windowing.limit:
                     query = query.limit(windowing.limit)
 
@@ -467,32 +486,5 @@ class BlobsDAO(BlobsDAOInterface):
             ]
 
             return blobs
-
-    # ──────────────────────────────────────────────────────────────────────────
-
-    # ─ helpers ────────────────────────────────────────────────────────────────
-
-    def _blob_id(
-        self,
-        *,
-        blob_data: dict,
-        set_id: UUID,
-    ) -> UUID:
-        # Deterministically serialize the blob data
-        json_blob_data = dumps(blob_data, sort_keys=True, separators=(",", ":"))
-
-        # Combine with set_id
-        unhashed = f"{str(set_id)}{json_blob_data}".encode("utf-8")
-
-        # Blake2b with 16-byte digest
-        hashed = bytearray(blake2b(unhashed, digest_size=16).digest())
-
-        # Force version 5 (set the version bits: 0101)
-        hashed[6] = (hashed[6] & 0x0F) | 0x50
-
-        # Force variant RFC 4122 (bits 10xx)
-        hashed[8] = (hashed[8] & 0x3F) | 0x80
-
-        return UUID(bytes=bytes(hashed))
 
     # ──────────────────────────────────────────────────────────────────────────

@@ -9,6 +9,8 @@ export interface EnhancedVariant<
     T extends Enhanced<AgentaConfigPrompt> = Enhanced<AgentaConfigPrompt>,
 > extends BaseVariant {
     isChat: boolean
+    isChatVariant: boolean
+    inputParams?: Record<string, any>[]
     appStatus?: boolean
     isCustom: boolean
     prompts: T[]

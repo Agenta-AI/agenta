@@ -238,6 +238,8 @@ export function initializeVariantInputs(variant: EnhancedVariant, spec: OpenAPIS
         }
     })
 
+    variant.requestSchema.inputKeys = inputStrings
+
     return variant
 }
 

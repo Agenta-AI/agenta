@@ -185,7 +185,7 @@ async def make_payload(
         payload["messages"] = messages
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.warn(f"Error making payload: {e}")
-        log.debug(f"Exception details: {traceback.format_exc()}")
+        # log.debug(f"Exception details: {traceback.format_exc()}")
 
     payload["inputs"] = inputs
 

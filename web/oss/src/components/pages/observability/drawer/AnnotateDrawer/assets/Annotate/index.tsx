@@ -5,6 +5,7 @@ import clsx from "clsx"
 import dynamic from "next/dynamic"
 
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 
 import {
     getInitialMetricsFromAnnotations,
@@ -18,27 +19,31 @@ import AnnotateCollapseContent from "./assets/AnnotateCollapseContent"
 const Alert = dynamic(() => import("antd").then((mod) => mod.Alert), {ssr: false})
 
 const Annotate = ({
-    annotations,
-    updatedMetrics,
+    annotations = [],
+    updatedMetrics = {},
+    selectedEvaluators = [],
+    tempSelectedEvaluators = [],
+    errorMessage = [],
+    disabled = false,
     setUpdatedMetrics,
-    selectedEvaluators,
-    tempSelectedEvaluators,
-    errorMessage,
     onCaptureError,
 }: AnnotateProps) => {
-    const [activeCollapse, setActiveCollapse] = useState<string[]>([])
-    const {data: evaluators} = useEvaluators()
+    const {data: evaluators} = useEvaluators({
+        preview: true,
+    })
 
     // converting selected evaluator into useable metrics
     useEffect(() => {
         try {
-            if (!selectedEvaluators.length || !evaluators.length) return
+            if (!selectedEvaluators.length || !evaluators?.length) return
 
-            const metrics = getInitialSelectedEvalMetrics({evaluators, selectedEvaluators})
+            const metrics = getInitialSelectedEvalMetrics({
+                evaluators: evaluators as EvaluatorDto[],
+                selectedEvaluators,
+            })
 
             setUpdatedMetrics((prev) => ({...prev, ...metrics}))
         } catch (error) {
-            console.log("ANNOTATE, useEffect: selectedEvaluators", error)
             onCaptureError?.(["Invalid evaluator schema"])
         }
     }, [selectedEvaluators])
@@ -46,16 +51,19 @@ const Annotate = ({
     // get metrics data from the selected annotation
     useEffect(() => {
         try {
-            if (!annotations.length || !evaluators.length) return
+            const _evaluators = evaluators?.filter(Boolean)
+            if (!annotations.length || !_evaluators?.length) return
 
-            const initialMetrics = getInitialMetricsFromAnnotations({annotations, evaluators})
+            const initialMetrics = getInitialMetricsFromAnnotations({
+                annotations,
+                evaluators: _evaluators as EvaluatorDto[],
+            })
 
             setUpdatedMetrics((prev) => ({
                 ...prev,
                 ...initialMetrics,
             }))
         } catch (error) {
-            console.log("ANNOTATE, useEffect: annotations", error)
             onCaptureError?.(["Invalid evaluator schema"])
         }
     }, [annotations])
@@ -71,21 +79,26 @@ const Annotate = ({
     }, [annotations, selectedEvaluators])
 
     const handleCollapseChange = useCallback((keys: string[]) => {
+        // Check if any dropdown is open by looking for the dropdown menu with the 'open' class
+        // This is for improving micro interactions
+        const openDropdowns = document.querySelectorAll(
+            ".ant-select-dropdown:not(.ant-select-dropdown-hidden)",
+        )
+        if (openDropdowns.length > 0) {
+            return
+        }
         setActiveCollapse(keys)
     }, [])
 
-    const handleMetricChange = useCallback(
-        (annSlug: string, metricKey: string, newValue: any) => {
-            setUpdatedMetrics((prev) => ({
-                ...prev,
-                [annSlug]: {
-                    ...prev[annSlug],
-                    [metricKey]: {...prev[annSlug][metricKey], value: newValue},
-                },
-            }))
-        },
-        [setUpdatedMetrics],
-    )
+    const handleMetricChange = useCallback((annSlug: string, metricKey: string, newValue: any) => {
+        setUpdatedMetrics((prev) => ({
+            ...prev,
+            [annSlug]: {
+                ...prev[annSlug],
+                [metricKey]: {...prev[annSlug][metricKey], value: newValue},
+            },
+        }))
+    }, [])
 
     const items: CollapseProps["items"] = useMemo(() => {
         const annotationItems = annotations.map((ann) => {
@@ -112,21 +125,27 @@ const Annotate = ({
                 ),
                 children: (
                     <div className="flex flex-col gap-4">
-                        {metadata.map((meta) => (
-                            <AnnotateCollapseContent
-                                metadata={meta}
-                                key={meta.title}
-                                annSlug={ann.references?.evaluator?.slug || ""}
-                                onChange={handleMetricChange}
-                            />
-                        ))}
+                        {metadata.map((_meta) => {
+                            const meta: Record<string, any> = {
+                                ..._meta,
+                                disabled,
+                            }
+                            return (
+                                <AnnotateCollapseContent
+                                    metadata={meta}
+                                    key={meta.title}
+                                    annSlug={ann.references?.evaluator?.slug || ""}
+                                    onChange={handleMetricChange}
+                                />
+                            )
+                        })}
                     </div>
                 ),
             }
         })
 
         // Add evaluator-based items
-        const evaluatorItems = (evaluators || [])
+        const evaluatorItems = ((evaluators || []) as EvaluatorDto[])
             .filter((evaluator) => selectedEvaluators.includes(evaluator.slug))
             .map((eva) => {
                 const metrics = updatedMetrics[eva.slug || ""] || {}
@@ -152,14 +171,20 @@ const Annotate = ({
                     ),
                     children: (
                         <div className="flex flex-col gap-4">
-                            {metadata.map((meta) => (
-                                <AnnotateCollapseContent
-                                    metadata={meta}
-                                    key={meta.title}
-                                    annSlug={eva.slug}
-                                    onChange={handleMetricChange}
-                                />
-                            ))}
+                            {metadata.map((_meta) => {
+                                const meta = {
+                                    ..._meta,
+                                    disabled,
+                                } as Record<string, any>
+                                return (
+                                    <AnnotateCollapseContent
+                                        metadata={meta}
+                                        key={meta.title}
+                                        annSlug={eva.slug}
+                                        onChange={handleMetricChange}
+                                    />
+                                )
+                            })}
                         </div>
                     ),
                 }
@@ -168,7 +193,7 @@ const Annotate = ({
         // Combine and sort by evaluator order
         const allItems = [...evaluatorItems, ...annotationItems]
         const evaluatorOrder: Record<string, number> = {}
-        evaluators.forEach((ev: any, idx: number) => {
+        evaluators?.forEach((ev: any, idx: number) => {
             evaluatorOrder[ev.slug] = idx
         })
         return allItems.slice().sort((a, b) => {
@@ -176,7 +201,11 @@ const Annotate = ({
             const bKey = b.key || ""
             return (evaluatorOrder[aKey] ?? 0) - (evaluatorOrder[bKey] ?? 0)
         })
-    }, [annotations, updatedMetrics, evaluators, selectedEvaluators])
+    }, [annotations, updatedMetrics, evaluators, selectedEvaluators, disabled])
+
+    const [activeCollapse, setActiveCollapse] = useState<string[]>(
+        items.map((item) => item.key).filter(Boolean) as string[],
+    )
 
     if (!annotations.length && !selectedEvaluators.length) {
         return (
@@ -222,6 +251,7 @@ const Annotate = ({
                 activeKey={activeCollapse}
                 onChange={handleCollapseChange}
                 items={items}
+                defaultActiveKey={items.map((item) => item.key as string)}
                 className={clsx(
                     "rounded-none",
                     "[&_.ant-collapse-content-box]:!p-0",

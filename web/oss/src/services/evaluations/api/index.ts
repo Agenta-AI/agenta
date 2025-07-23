@@ -3,145 +3,16 @@ import {v4 as uuidv4} from "uuid"
 
 import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getTagColors} from "@/oss/lib/helpers/colors"
-import {calcEvalDuration} from "@/oss/lib/helpers/evaluate"
-import {isDemo, stringToNumberInRange} from "@/oss/lib/helpers/utils"
 import {
     ComparisonResultRow,
-    Evaluator,
-    EvaluatorConfig,
+    EvaluationStatus,
     KeyValuePair,
     LLMRunRateLimit,
     TestSet,
     _Evaluation,
     _EvaluationScenario,
 } from "@/oss/lib/Types"
-import aiImg from "@/oss/media/artificial-intelligence.png"
-import bracketCurlyImg from "@/oss/media/bracket-curly.png"
-import codeImg from "@/oss/media/browser.png"
-import webhookImg from "@/oss/media/link.png"
-import regexImg from "@/oss/media/programming.png"
-import exactMatchImg from "@/oss/media/target.png"
-import similarityImg from "@/oss/media/transparency.png"
 import {fetchTestset} from "@/oss/services/testsets/api"
-
-//Prefix convention:
-//  - fetch: GET single entity from server
-//  - fetchAll: GET all entities from server
-//  - create: POST data to server
-//  - update: PUT data to server
-//  - delete: DELETE data from server
-
-const evaluatorIconsMap = {
-    auto_exact_match: exactMatchImg,
-    auto_similarity_match: similarityImg,
-    auto_regex_test: regexImg,
-    field_match_test: exactMatchImg,
-    auto_webhook_test: webhookImg,
-    auto_ai_critique: aiImg,
-    auto_custom_code_run: codeImg,
-    auto_json_diff: bracketCurlyImg,
-    auto_semantic_similarity: similarityImg,
-    auto_contains_json: bracketCurlyImg,
-    rag_faithfulness: codeImg,
-    rag_context_relevancy: codeImg,
-}
-
-//Evaluators
-export const fetchAllEvaluators = async () => {
-    const tagColors = getTagColors()
-    const {projectId} = getCurrentProject()
-
-    const response = await axios.get(`/evaluators?project_id=${projectId}`)
-    const evaluators = (response.data || [])
-        .filter((item: Evaluator) => !item.key.startsWith("human"))
-        .filter((item: Evaluator) => isDemo() || item.oss)
-        .map((item: Evaluator) => ({
-            ...item,
-            icon_url: evaluatorIconsMap[item.key as keyof typeof evaluatorIconsMap],
-            color: tagColors[stringToNumberInRange(item.key, 0, tagColors.length - 1)],
-        })) as Evaluator[]
-
-    return evaluators
-}
-
-// Evaluator Configs
-export const fetchAllEvaluatorConfigs = async (appId: string) => {
-    const tagColors = getTagColors()
-    const {projectId} = getCurrentProject()
-
-    const response = await axios.get(`/evaluators/configs?project_id=${projectId}`, {
-        params: {app_id: appId},
-    })
-    const evaluatorConfigs = (response.data || []).map((item: EvaluatorConfig) => ({
-        ...item,
-        icon_url: evaluatorIconsMap[item.evaluator_key as keyof typeof evaluatorIconsMap],
-        color: tagColors[stringToNumberInRange(item.evaluator_key, 0, tagColors.length - 1)],
-    })) as EvaluatorConfig[]
-    return evaluatorConfigs
-}
-
-export type CreateEvaluationConfigData = Omit<EvaluatorConfig, "id" | "created_at">
-export const createEvaluatorConfig = async (appId: string, config: CreateEvaluationConfigData) => {
-    const {projectId} = getCurrentProject()
-
-    return axios.post(`/evaluators/configs?project_id=${projectId}`, {
-        ...config,
-        app_id: appId,
-    })
-}
-
-export const updateEvaluatorConfig = async (
-    configId: string,
-    config: Partial<CreateEvaluationConfigData>,
-) => {
-    const {projectId} = getCurrentProject()
-
-    return axios.put(`/evaluators/configs/${configId}?project_id=${projectId}`, config)
-}
-
-export const deleteEvaluatorConfig = async (configId: string) => {
-    const {projectId} = getCurrentProject()
-
-    return axios.delete(`/evaluators/configs/${configId}?project_id=${projectId}`)
-}
-
-// Evaluations
-const evaluationTransformer = (item: any) => ({
-    id: item.id,
-    appId: item.app_id,
-    created_at: item.created_at,
-    updated_at: item.updated_at,
-    duration: calcEvalDuration(item),
-    status: item.status,
-    testset: {
-        id: item.testset_id,
-        name: item.testset_name,
-    },
-    user: {
-        id: item.user_id,
-        username: item.user_username,
-    },
-    variants: item.variant_ids.map((id: string, ix: number) => ({
-        variantId: id,
-        variantName: item.variant_names[ix],
-    })),
-    aggregated_results: item.aggregated_results || [],
-    revisions: item.revisions,
-    variant_revision_ids: item.variant_revision_ids,
-    variant_ids: item.variant_ids,
-    average_cost: item.average_cost,
-    total_cost: item.total_cost,
-    average_latency: item.average_latency,
-})
-export const fetchAllEvaluations = async (appId: string) => {
-    const {projectId} = getCurrentProject()
-
-    const response = await axios.get(`/evaluations?project_id=${projectId}`, {
-        params: {app_id: appId},
-    })
-    return response.data.map(evaluationTransformer) as _Evaluation[]
-}
 
 export const fetchEvaluation = async (evaluationId: string) => {
     const {projectId} = getCurrentProject()
@@ -157,17 +28,27 @@ export const fetchEvaluationStatus = async (evaluationId: string) => {
     return response.data as {status: _Evaluation["status"]}
 }
 
-export interface CreateEvaluationData {
-    testset_id: string
-    variant_ids: string[]
-    evaluators_configs: string[]
-    rate_limit: LLMRunRateLimit
-    lm_providers_keys: KeyValuePair
-    correct_answer_column: string
-}
+export type CreateEvaluationData =
+    | {
+          testset_id: string
+          variant_ids?: string[]
+          evaluators_configs: string[]
+          rate_limit: LLMRunRateLimit
+          lm_providers_keys?: KeyValuePair
+          correct_answer_column: string
+      }
+    | {
+          testset_id: string
+          revisions_ids?: string[]
+          evaluators_configs: string[]
+          rate_limit: LLMRunRateLimit
+          lm_providers_keys?: KeyValuePair
+          correct_answer_column: string
+      }
 export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
     const {projectId} = getCurrentProject()
 
+    // TODO: new AUTO-EVAL trigger
     // axios.post(`/api/evaluations/preview/start?project_id=${projectId}`, {
     //     ...evaluation,
     //     app_id: appId,
@@ -199,6 +80,16 @@ export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
         )
     })
     return evaluationScenarios as _EvaluationScenario[]
+}
+
+export const updateScenarioStatus = async (
+    scenario: _EvaluationScenario,
+    status: EvaluationStatus,
+) => {
+    const {projectId} = getCurrentProject()
+    return axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
+        scenarios: [{...scenario, status}],
+    })
 }
 
 // Comparison

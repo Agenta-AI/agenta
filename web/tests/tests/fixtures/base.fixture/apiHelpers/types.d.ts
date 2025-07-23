@@ -12,4 +12,5 @@ export interface ApiHelpers {
     getApp: (type?: APP_TYPE) => Promise<ListAppsItem>
     getTestsets: () => Promise<testset[]>
     getVariants: (appId: string) => Promise<(ApiVariant & {name: string})[]>
+    getEvaluationRuns: () => Promise<any[]>
 }

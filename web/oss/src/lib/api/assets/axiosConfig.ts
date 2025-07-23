@@ -97,6 +97,10 @@ axios.interceptors.response.use(
             throw error
         }
 
+        if (error.response?.status === 409) {
+            return Promise.reject(error)
+        }
+
         // if axios config has _ignoreError set to true, then don't handle error
         if (error.config?._ignoreError) throw error
 

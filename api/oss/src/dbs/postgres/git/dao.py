@@ -339,8 +339,6 @@ class GitDAO(GitDAOInterface):
                     self.ArtifactDBE.deleted_at.is_(None)  # type: ignore
                 )
 
-            query = query.order_by(self.ArtifactDBE.id.asc())  # type: ignore
-
             if windowing:
                 if windowing.next is not None:
                     query = query.filter(
@@ -356,7 +354,21 @@ class GitDAO(GitDAOInterface):
                         self.ArtifactDBE.created_at <= windowing.stop,  # type: ignore
                     )
 
-                if windowing.limit:
+            if windowing is not None:
+                if windowing.order:
+                    if windowing.order.lower() == "ascending":
+                        query = query.order_by(self.ArtifactDBE.created_at.asc())
+                    elif windowing.order.lower() == "descending":
+                        query = query.order_by(self.ArtifactDBE.created_at.desc())
+                    else:
+                        query = query.order_by(self.ArtifactDBE.created_at.desc())
+                else:
+                    query = query.order_by(self.ArtifactDBE.created_at.desc())
+            else:
+                query = query.order_by(self.ArtifactDBE.created_at.desc())
+
+            if windowing is not None:
+                if windowing.limit is not None:
                     query = query.limit(windowing.limit)
 
             result = await session.execute(query)
@@ -678,8 +690,6 @@ class GitDAO(GitDAOInterface):
             if include_archived is not True:
                 query = query.filter(self.VariantDBE.deleted_at.is_(None))  # type: ignore
 
-            query = query.order_by(self.VariantDBE.id.asc())  # type: ignore
-
             if windowing:
                 if windowing.next is not None:
                     query = query.filter(
@@ -695,7 +705,21 @@ class GitDAO(GitDAOInterface):
                         self.VariantDBE.created_at <= windowing.stop,  # type: ignore
                     )
 
-                if windowing.limit:
+            if windowing is not None:
+                if windowing.order:
+                    if windowing.order.lower() == "ascending":
+                        query = query.order_by(self.VariantDBE.created_at.asc())
+                    elif windowing.order.lower() == "descending":
+                        query = query.order_by(self.VariantDBE.created_at.desc())
+                    else:
+                        query = query.order_by(self.VariantDBE.created_at.desc())
+                else:
+                    query = query.order_by(self.VariantDBE.created_at.desc())
+            else:
+                query = query.order_by(self.VariantDBE.created_at.desc())
+
+            if windowing is not None:
+                if windowing.limit is not None:
                     query = query.limit(windowing.limit)
 
             result = await session.execute(query)
@@ -1177,8 +1201,6 @@ class GitDAO(GitDAOInterface):
                     self.RevisionDBE.deleted_at.is_(None),  # type: ignore
                 )
 
-            query = query.order_by(self.RevisionDBE.id.asc())  # type: ignore
-
             if windowing:
                 if windowing.next is not None:
                     query = query.filter(
@@ -1194,7 +1216,21 @@ class GitDAO(GitDAOInterface):
                         self.RevisionDBE.created_at <= windowing.stop,  # type: ignore
                     )
 
-                if windowing.limit:
+            if windowing is not None:
+                if windowing.order:
+                    if windowing.order.lower() == "ascending":
+                        query = query.order_by(self.RevisionDBE.created_at.asc())
+                    elif windowing.order.lower() == "descending":
+                        query = query.order_by(self.RevisionDBE.created_at.desc())
+                    else:
+                        query = query.order_by(self.RevisionDBE.created_at.desc())
+                else:
+                    query = query.order_by(self.RevisionDBE.created_at.desc())
+            else:
+                query = query.order_by(self.RevisionDBE.created_at.desc())
+
+            if windowing is not None:
+                if windowing.limit is not None:
                     query = query.limit(windowing.limit)
 
             result = await session.execute(query)
@@ -1367,6 +1403,9 @@ class GitDAO(GitDAOInterface):
                 )
                 for revision_dbe in revision_dbes
             ]
+
+            if order_by == self.RevisionDBE.created_at.asc():  # type: ignore
+                revisions.reverse()
 
             return revisions
 

@@ -34,7 +34,7 @@ const DeleteTraceModal = ({
     return (
         <Modal
             centered
-            destroyOnClose
+            destroyOnHidden
             width={380}
             title={"Are you sure you want to delete?"}
             okButtonProps={{icon: <DeleteOutlined />, danger: true, loading: isLoading}}

@@ -188,6 +188,7 @@ const Testset = () => {
         },
     ]
 
+    console.log("selectedRowKeys", selectedRowKeys)
     return (
         <>
             <section className="w-full flex flex-col gap-6 mb-2">
@@ -214,7 +215,7 @@ const Testset = () => {
                         type="text"
                         icon={<Trash size={14} className="mt-0.5" />}
                         className={classes.button}
-                        disabled={selectedRowKeys.length == 0}
+                        disabled={!selectedRowKeys.length}
                         onClick={() => {
                             setSelectedTestsetToDelete(selectedRowKeys)
                             setIsDeleteTestsetModalOpen(true)
@@ -259,6 +260,7 @@ const Testset = () => {
                     open={isDeleteTestsetModalOpen}
                     onCancel={() => {
                         setIsDeleteTestsetModalOpen(false)
+                        setSelectedRowKeys([])
                     }}
                 />
             )}

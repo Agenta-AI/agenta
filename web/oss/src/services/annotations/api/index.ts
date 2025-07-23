@@ -53,14 +53,31 @@ export const updateAnnotation = async ({
     )
 }
 
-export const fetchAnnotation = async ({traceId, spanId}: {traceId: string; spanId: string}) => {
+export const fetchAnnotation = async ({
+    traceId,
+    spanId,
+    signal,
+}: {
+    traceId?: string
+    spanId?: string
+    signal?: AbortSignal
+}): Promise<AnnotationsResponse | null> => {
     const {projectId} = getCurrentProject()
 
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}?project_id=${projectId}`,
-    )
-
-    return response.data
+    return new Promise((resolve) => {
+        if (!traceId || !spanId) {
+            resolve(null)
+        } else {
+            axios
+                .get(
+                    `${getAgentaApiUrl()}/preview/annotations/${traceId}/${spanId}?project_id=${projectId}`,
+                    {signal},
+                )
+                .then((response) => {
+                    resolve(response.data)
+                })
+        }
+    })
 }
 
 export const deleteAnnotation = async ({traceId, spanId}: {traceId: string; spanId: string}) => {

@@ -1,4 +1,4 @@
-import {Typography} from "antd"
+import {Button, Typography} from "antd"
 import Image from "next/image"
 import {createUseStyles} from "react-jss"
 
@@ -22,15 +22,32 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const NoResultsFound = ({className}: {className?: string}) => {
+const NoResultsFound = ({
+    className,
+    title,
+    description,
+    primaryActionLabel = "Create your first evaluator",
+    onPrimaryAction,
+}: {
+    className?: string
+    title?: string
+    description?: string
+    primaryActionLabel?: string
+    onPrimaryAction?: () => void
+}) => {
     const classes = useStyles()
     return (
         <div className={`${classes.notFound} ${className}`}>
             <Image src="/assets/not-found.png" alt="not-found" width={240} height={210} />
-            <Typography.Text>No Results found</Typography.Text>
+            <Typography.Text>{!title ? "No Results found" : title}</Typography.Text>
             <Typography.Paragraph type="secondary">
-                No results match the search criteria.
+                {!description ? "No results match the search criteria." : description}
             </Typography.Paragraph>
+            {onPrimaryAction ? (
+                <Button type="primary" onClick={onPrimaryAction}>
+                    {primaryActionLabel}
+                </Button>
+            ) : null}
         </div>
     )
 }

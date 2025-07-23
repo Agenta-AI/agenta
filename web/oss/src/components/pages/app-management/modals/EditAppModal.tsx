@@ -62,7 +62,7 @@ const EditAppModal = ({appDetails, ...props}: EditAppModalProps) => {
     return (
         <Modal
             centered
-            destroyOnClose
+            destroyOnHidden
             okButtonProps={{
                 icon: <CheckOutlined />,
                 disabled: appNameExist || appNameInput.length === 0,

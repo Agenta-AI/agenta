@@ -19,18 +19,18 @@ const InvitedUserLinkModal = ({invitedUserData, ...props}: InvitedUserLinkModalP
         }
     }, [invitedUserData])
 
-    const onCopyLink = () => {
+    const onCopyLink = async () => {
         setIsCopied(true)
 
-        navigator.clipboard.writeText(formattedURi)
+        await navigator.clipboard.writeText(formattedURi)
 
         setTimeout(() => {
             setIsCopied(false)
         }, 2000)
     }
 
-    const onCopyLinkAndClose = () => {
-        onCopyLink()
+    const onCopyLinkAndClose = async () => {
+        await onCopyLink()
         props.onCancel?.({} as any)
     }
 
@@ -41,7 +41,7 @@ const InvitedUserLinkModal = ({invitedUserData, ...props}: InvitedUserLinkModalP
             okButtonProps={{type: "default"}}
             cancelButtonProps={{className: "hidden"}}
             onOk={onCopyLinkAndClose}
-            destroyOnClose
+            destroyOnHidden
             centered
             {...props}
         >
@@ -63,7 +63,7 @@ const InvitedUserLinkModal = ({invitedUserData, ...props}: InvitedUserLinkModalP
                             type="link"
                             icon={isCopied ? <Check size={14} /> : <Copy size={14} />}
                             className="px-0"
-                            onClick={onCopyLink}
+                            onClick={onCopyLinkAndClose}
                         >
                             {isCopied ? "Copied" : "Copy"}
                         </Button>

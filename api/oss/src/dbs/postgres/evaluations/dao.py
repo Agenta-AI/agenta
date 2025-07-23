@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func
+import sqlalchemy
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
@@ -652,6 +654,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 EvaluationRunDBE.project_id == project_id,
             )
 
+            # data-based filtering: generic JSONB containment for any nested data filters
+            if run.data is not None:
+                data_dict = run.data.dict(exclude_none=True)
+                if data_dict:
+                    stmt = stmt.filter(EvaluationRunDBE.data.contains(data_dict))
+
             if run.flags is not None:
                 stmt = stmt.filter(
                     EvaluationRunDBE.flags.contains(
@@ -665,9 +673,19 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 )
 
             if run.meta is not None:
-                stmt = stmt.filter(
-                    EvaluationRunDBE.meta.contains(run.meta),
-                )
+                # If meta is a list, OR across .contains() for each dict
+                if isinstance(run.meta, list):
+                    or_filters = [
+                        EvaluationRunDBE.meta.contains(m)
+                        for m in run.meta
+                        if isinstance(m, dict) and m
+                    ]
+                    if or_filters:
+                        stmt = stmt.filter(sqlalchemy.or_(*or_filters))
+                # If meta is a dict, filter as before
+                elif isinstance(run.meta, dict):
+                    stmt = stmt.filter(EvaluationRunDBE.meta.contains(run.meta))
+                # Otherwise, ignore (invalid type)
 
             if run.status is not None:
                 stmt = stmt.filter(
@@ -683,8 +701,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 stmt = stmt.filter(
                     EvaluationRunDBE.deleted_at.is_(None),
                 )
-
-            stmt.order_by(EvaluationRunDBE.created_at.desc())
 
             if windowing is not None:
                 if windowing.next is not None:
@@ -702,6 +718,20 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationRunDBE.created_at <= windowing.stop,
                     )
 
+            if windowing is not None:
+                if windowing.order:
+                    if windowing.order.lower() == "ascending":
+                        stmt = stmt.order_by(EvaluationRunDBE.created_at.asc())
+                    elif windowing.order.lower() == "descending":
+                        stmt = stmt.order_by(EvaluationRunDBE.created_at.desc())
+                    else:
+                        stmt = stmt.order_by(EvaluationRunDBE.created_at.desc())
+                else:
+                    stmt = stmt.order_by(EvaluationRunDBE.created_at.desc())
+            else:
+                stmt = stmt.order_by(EvaluationRunDBE.created_at.desc())
+
+            if windowing is not None:
                 if windowing.limit is not None:
                     stmt = stmt.limit(windowing.limit)
 
@@ -1144,8 +1174,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     EvaluationScenarioDBE.status.in_(scenario.statuses),
                 )
 
-            stmt.order_by(EvaluationScenarioDBE.created_at.desc())
-
             if windowing is not None:
                 if windowing.next is not None:
                     stmt = stmt.filter(
@@ -1162,6 +1190,20 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationScenarioDBE.created_at <= windowing.stop,
                     )
 
+            if windowing is not None:
+                if windowing.order:
+                    if windowing.order.lower() == "ascending":
+                        stmt = stmt.order_by(EvaluationScenarioDBE.created_at.asc())
+                    elif windowing.order.lower() == "descending":
+                        stmt = stmt.order_by(EvaluationScenarioDBE.created_at.desc())
+                    else:
+                        stmt = stmt.order_by(EvaluationScenarioDBE.created_at.desc())
+                else:
+                    stmt = stmt.order_by(EvaluationScenarioDBE.created_at.desc())
+            else:
+                stmt = stmt.order_by(EvaluationScenarioDBE.created_at.desc())
+
+            if windowing is not None:
                 if windowing.limit is not None:
                     stmt = stmt.limit(windowing.limit)
 
@@ -1660,8 +1702,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     EvaluationStepDBE.timestamp > step.timestamp,
                 )
 
-            stmt.order_by(EvaluationStepDBE.created_at.desc())
-
             if windowing is not None:
                 if windowing.next is not None:
                     stmt = stmt.filter(
@@ -1678,6 +1718,20 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationStepDBE.created_at <= windowing.stop,
                     )
 
+            if windowing is not None:
+                if windowing.order:
+                    if windowing.order.lower() == "ascending":
+                        stmt = stmt.order_by(EvaluationStepDBE.created_at.asc())
+                    elif windowing.order.lower() == "descending":
+                        stmt = stmt.order_by(EvaluationStepDBE.created_at.desc())
+                    else:
+                        stmt = stmt.order_by(EvaluationStepDBE.created_at.desc())
+                else:
+                    stmt = stmt.order_by(EvaluationStepDBE.created_at.desc())
+            else:
+                stmt = stmt.order_by(EvaluationStepDBE.created_at.desc())
+
+            if windowing is not None:
                 if windowing.limit is not None:
                     stmt = stmt.limit(windowing.limit)
 
@@ -2135,8 +2189,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     EvaluationMetricDBE.status.in_(metric.statuses),
                 )
 
-            stmt.order_by(EvaluationMetricDBE.created_at.desc())
-
             if windowing is not None:
                 if windowing.next is not None:
                     stmt = stmt.filter(
@@ -2153,6 +2205,20 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationMetricDBE.created_at <= windowing.stop,
                     )
 
+            if windowing is not None:
+                if windowing.order:
+                    if windowing.order.lower() == "ascending":
+                        stmt = stmt.order_by(EvaluationMetricDBE.created_at.asc())
+                    elif windowing.order.lower() == "descending":
+                        stmt = stmt.order_by(EvaluationMetricDBE.created_at.desc())
+                    else:
+                        stmt = stmt.order_by(EvaluationMetricDBE.created_at.desc())
+                else:
+                    stmt = stmt.order_by(EvaluationMetricDBE.created_at.desc())
+            else:
+                stmt = stmt.order_by(EvaluationMetricDBE.created_at.desc())
+
+            if windowing is not None:
                 if windowing.limit is not None:
                     stmt = stmt.limit(windowing.limit)
 

@@ -3,8 +3,8 @@ import {useState} from "react"
 import isEqual from "lodash/isEqual"
 import useSWR, {SWRConfiguration} from "swr"
 
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 import {getCurrentProject} from "@/oss/contexts/project.context"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 
 const useTemplates = (config?: SWRConfiguration) => {
     const [noTemplateMessage, setNoTemplateMessage] = useState("")

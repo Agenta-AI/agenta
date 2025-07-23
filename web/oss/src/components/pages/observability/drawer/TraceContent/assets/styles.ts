@@ -24,6 +24,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     tabs: {
         "& .ant-tabs-nav": {
             marginBottom: 8,
+            flexWrap: "wrap-reverse",
             "& .ant-tabs-nav-wrap": {
                 padding: "0 16px",
             },
@@ -37,6 +38,14 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
                     height: "100%",
                 },
             },
+        },
+        "& .ant-tabs-nav-operations": {
+            display: "none !important",
+        },
+        "& .ant-tabs-extra-content": {
+            paddingTop: 10,
+            paddingBottom: 10,
+            paddingLeft: 16,
         },
     },
 }))
