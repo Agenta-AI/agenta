@@ -1,5 +1,6 @@
 import deepEqual from "fast-deep-equal"
 
+import {makeHashId} from "@/oss/lib/helpers/hashUtils"
 import {AnnotationDto, AnnotationEditPayloadDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 
@@ -32,67 +33,69 @@ export const transformMetadata = ({
     disabled?: boolean
 }) => {
     if (typeof data !== "object" || !Object.keys(data || {}).length) {
-        console.log("ANNOTATE, transformMetadata: No data found")
         return []
     }
 
     const entries = Object.entries(data || {})
 
-    const metadata = entries.map(([key, property]) => {
-        const type = getPropertyType(property.type)
-        const metadataItem: Record<string, any> = {
-            type,
-            disabled,
-            originalType: property.type,
-            title: key,
-            value: property.value,
-            placeholder: "Enter value",
-            allowClear: true,
-            disableClear:
-                property.value == null || property.value === undefined || property.value === "",
-        }
+    const metadata = entries
+        .map(([key, property]) => {
+            if (!property) return
+            const type = getPropertyType(property.type)
+            const metadataItem: Record<string, any> = {
+                type,
+                disabled,
+                originalType: property.type,
+                title: key,
+                value: property.value,
+                placeholder: "Enter value",
+                allowClear: true,
+                disableClear:
+                    property.value == null || property.value === undefined || property.value === "",
+            }
 
-        if (NUMERIC_METRIC_TYPES.includes(type)) {
-            metadataItem.min = property.minimum
-            metadataItem.max = property.maximum
-            metadataItem.isInteger = property.type === "integer"
-            metadataItem.placeholder = type
-        }
+            if (NUMERIC_METRIC_TYPES.includes(type)) {
+                metadataItem.min = property.minimum
+                metadataItem.max = property.maximum
+                metadataItem.isInteger = property.type === "integer"
+                metadataItem.placeholder = type
+            }
 
-        if (type === "string") {
-            metadataItem.as = "SimpleInputWithLabel"
-        }
+            if (type === "string") {
+                metadataItem.as = "SimpleInputWithLabel"
+            }
 
-        if (property.type === "boolean") {
-            metadataItem.as = "GroupTab"
-            metadataItem.options = [
-                {label: "True", value: true},
-                {label: "False", value: false},
-            ]
-        }
+            if (property.type === "boolean") {
+                metadataItem.as = "GroupTab"
+                metadataItem.options = [
+                    {label: "True", value: true},
+                    {label: "False", value: false},
+                ]
+            }
 
-        if (property.type === "array" && property.items?.enum) {
-            metadataItem.mode = "tags"
-            metadataItem.options = property.items.enum.map((item: string) => ({
-                label: item,
-                value: item,
-            }))
-        }
-        if (Array.isArray(property.type) && property.enum) {
-            metadataItem.options = property.enum.map((item: string) => ({
-                ...(item === null
-                    ? {
-                          className:
-                              "relative before:content-[''] before:block before:absolute before:-top-1.5 before:left-0 before:right-0 before:border-[0.5px] before:border-t before:border-solid before:border-gray-100 mt-3",
-                      }
-                    : {}),
-                label: item === null ? "non of the above" : String(item),
-                value: String(item),
-            }))
-        }
+            if (property.type === "array" && property.items?.enum) {
+                metadataItem.mode = "tags"
+                metadataItem.options = property.items.enum.map((item: string) => ({
+                    label: item,
+                    value: item,
+                }))
+            }
+            if (Array.isArray(property.type) && property.enum) {
+                metadataItem.options = property.enum.map((item: string) => ({
+                    ...(item === null
+                        ? {
+                              className:
+                                  "relative before:content-[''] before:block before:absolute before:-top-1.5 before:left-0 before:right-0 before:border-[0.5px] before:border-t before:border-solid before:border-gray-100 mt-3",
+                          }
+                        : {}),
+                    label: item === null ? "non of the above" : String(item),
+                    value: String(item),
+                }))
+            }
 
-        return metadataItem
-    })
+            return metadataItem
+        })
+        .filter(Boolean)
 
     return metadata.sort((a, b) => {
         const typePriority = (type: string) => {
@@ -113,16 +116,22 @@ export const getInitialMetricsFromAnnotations = ({
     evaluators: EvaluatorDto[]
 }): UpdatedMetricsType => {
     if (!annotations?.length || !evaluators.length) {
-        console.log(
-            "ANNOTATE, getInitialMetricsFromAnnotations: both annotations and evaluators are required",
-        )
         return {}
     }
 
     const metrics: UpdatedMetricsType = {}
 
     for (const ann of annotations) {
-        const annEvalSlug = ann.references?.evaluator?.slug
+        if (!ann) continue
+        const annEvaluatorRef = ann.references?.evaluator as
+            | {id?: string; slug?: string}
+            | undefined
+        if (!annEvaluatorRef) continue
+        const annEvalSlug =
+            annEvaluatorRef?.slug ??
+            (annEvaluatorRef?.id
+                ? evaluators.find((e) => e.id === annEvaluatorRef.id)?.slug
+                : undefined)
         if (!annEvalSlug) continue
 
         const evaluator = evaluators.find((e) => e.slug === annEvalSlug)
@@ -174,6 +183,36 @@ export const getInitialMetricsFromAnnotations = ({
     return metrics
 }
 
+export const getMetricsFromEvaluator = (evaluator: EvaluatorDto): Record<string, unknown> => {
+    const evalMetricsSchema = evaluator.data?.service?.format?.properties?.outputs?.properties ?? {}
+    const fields: Record<string, unknown> = {}
+
+    for (const [key, prop] of Object.entries(evalMetricsSchema)) {
+        if (prop.anyOf?.length > 0) {
+            const props = prop.anyOf[0]
+            fields[key] = {value: "", ...props}
+        } else if (prop.type === "array") {
+            const {value, items, ...restProps} = prop
+            fields[key] = {
+                value: "",
+                items: {
+                    type: items?.type === "string" ? items?.type : "string",
+                    enum: items?.enum || [],
+                },
+                ...restProps,
+            }
+        } else if (prop.type && USEABLE_METRIC_TYPES.includes(prop.type)) {
+            const {value, ...restProps} = prop
+            fields[key] = {
+                value: getDefaultValue({property: prop, ignoreObject: true}),
+                ...restProps,
+            }
+        }
+    }
+
+    return fields
+}
+
 export const getInitialSelectedEvalMetrics = ({
     evaluators,
     selectedEvaluators,
@@ -182,9 +221,6 @@ export const getInitialSelectedEvalMetrics = ({
     selectedEvaluators: string[]
 }) => {
     if (!selectedEvaluators?.length || !evaluators?.length) {
-        console.log(
-            "ANNOTATE, getInitialSelectedEvalMetrics: both evaluators and selectedEvaluators are required",
-        )
         return {}
     }
 
@@ -195,33 +231,7 @@ export const getInitialSelectedEvalMetrics = ({
     const metrics: Record<string, any> = {}
 
     _evaluators.forEach((evaluator) => {
-        const evalMetricsSchema =
-            evaluator.data?.service?.format?.properties?.outputs?.properties ?? {}
-        const fields: Record<string, any> = {}
-
-        for (const [key, prop] of Object.entries(evalMetricsSchema)) {
-            if (prop.anyOf?.length > 0) {
-                const props = prop.anyOf[0]
-                fields[key] = {value: "", ...props}
-            } else if (prop.type === "array") {
-                const {value, items, ...restProps} = prop
-                fields[key] = {
-                    value: "",
-                    items: {
-                        type: items?.type === "string" ? items?.type : "string",
-                        enum: items?.enum || [],
-                    },
-                    ...restProps,
-                }
-            } else if (prop.type && USEABLE_METRIC_TYPES.includes(prop.type)) {
-                const {value, ...restProps} = prop
-                fields[key] = {
-                    value: getDefaultValue({property: prop, ignoreObject: true}),
-                    ...restProps,
-                }
-            }
-        }
-
+        const fields = getMetricsFromEvaluator(evaluator)
         metrics[evaluator.slug] = fields
     })
 
@@ -232,18 +242,23 @@ export const generateAnnotationPayloadData = ({
     annotations,
     updatedMetrics,
     evaluators,
+    invocationStepKey,
+    testsetId,
+    testcaseId,
 }: {
     annotations: AnnotationDto[]
     updatedMetrics: Record<string, Record<string, any>>
     evaluators: EvaluatorDto[]
+    /** The `key` of the invocation step this annotation belongs to (e.g. `${scenarioId}.invoke`) */
+    invocationStepKey: string
+    /** Optional test-set / case references if available in the FE context */
+    testsetId?: string
+    testcaseId?: string
 }): {
     payload: AnnotationEditPayloadDto[]
     requiredMetrics: Record<string, {value: any; type: string}>
 } => {
     if (!annotations?.length || !Object.keys(updatedMetrics || {}).length) {
-        console.log(
-            "ANNOTATE, generateAnnotationPayload: both annotations and updatedMetrics are required",
-        )
         return {payload: [], requiredMetrics: {}}
     }
 
@@ -331,19 +346,24 @@ export const generateNewAnnotationPayloadData = ({
     selectedEvaluators,
     evaluators,
     traceSpanIds,
+    invocationStepKey,
+    testsetId,
+    testcaseId,
 }: {
     updatedMetrics: Record<string, Record<string, any>>
     selectedEvaluators: string[]
     evaluators: EvaluatorDto[]
     traceSpanIds: {traceId: string; spanId: string}
+    /** The `key` of the invocation step this annotation belongs to (e.g. `${scenarioId}.invoke`) */
+    invocationStepKey: string
+    /** Optional test-set / case references if available in the FE context */
+    testsetId?: string
+    testcaseId?: string
 }): {
     payload: any[]
     requiredMetrics: Record<string, {value: any; type: string}>
 } => {
     if (!evaluators?.length || !selectedEvaluators?.length || !updatedMetrics || !traceSpanIds) {
-        console.log(
-            "ANNOTATE, generateNewAnnotationPayloadData: both evaluators, selectedEvaluators and updatedMetrics are required",
-        )
         return {payload: [], requiredMetrics: {}}
     }
 
@@ -420,14 +440,51 @@ export const generateNewAnnotationPayloadData = ({
             }
         }
 
+        const references: Record<string, any> = {
+            evaluator: {
+                id: evaluator.id,
+                slug: evaluator.slug,
+            },
+        }
+        if (testsetId) references.testset = {id: testsetId}
+        if (testcaseId) references.testcase = {id: testcaseId}
+
+        let links: Record<string, any> | undefined = undefined
+        let hash_id: string | undefined = undefined
+        // Only add links and hash_id if all required info is present
+        if (
+            invocationStepKey &&
+            traceSpanIds &&
+            typeof traceSpanIds.traceId === "string" &&
+            typeof traceSpanIds.spanId === "string" &&
+            traceSpanIds.traceId &&
+            traceSpanIds.spanId
+        ) {
+            links = {
+                [invocationStepKey]: {
+                    trace_id: traceSpanIds.traceId,
+                    span_id: traceSpanIds.spanId,
+                },
+            }
+            // Compose backend-compatible references (id only for testset/testcase/evaluator)
+            // const hashReferences = {
+            //     evaluator: references.evaluator,
+            //     testset: references.testset,
+            //     testcase: references.testcase,
+            // }
+            // hash_id = makeHashId({references: hashReferences, links})
+        } else {
+            links = {
+                invocation: {
+                    trace_id: traceSpanIds.traceId,
+                    span_id: traceSpanIds.spanId,
+                },
+            }
+        }
         const payloadEntry = {
             annotation: {
                 data: {outputs: sanitizedMetric},
-                references: {
-                    evaluator: {
-                        slug: evaluator.slug,
-                    },
-                },
+                references,
                 origin: "human",
                 kind: "adhoc",
                 channel: "web",
@@ -436,15 +493,10 @@ export const generateNewAnnotationPayloadData = ({
                     description: evaluator.description || "",
                     tags: requiredKeys,
                 },
-                links: {
-                    invocation: {
-                        trace_id: traceSpanIds.traceId,
-                        span_id: traceSpanIds.spanId,
-                    },
-                },
+                ...(links ? {links} : {}),
+                ...(hash_id ? {hash_id} : {}),
             },
         }
-
         payload.push(payloadEntry)
     }
 
@@ -463,9 +515,6 @@ export const generateNewEvaluatorPayloadData = ({
     evaluatorDescription: string
 }) => {
     if (!metrics?.length || !evaluatorName || !evaluatorSlug) {
-        console.log(
-            "ANNOTATE, generateNewEvaluatorPayloadData: both metrics, evaluatorName and evaluatorSlug are required",
-        )
         return {}
     }
 
@@ -552,7 +601,6 @@ export function getDefaultValue({
     ignoreObject?: boolean
 }): any {
     if (typeof property !== "object" || !Object.keys(property || {}).length) {
-        console.log("ANNOTATE, getDefaultValue: property.type is required")
         return
     }
 
@@ -606,7 +654,6 @@ export const payloadSchemaSanitizer = ({
     data: Record<string, any>
 }) => {
     if (!Object.keys(schema || {}).length || !Object.keys(data || {}).length) {
-        console.log("ANNOTATE, payloadSchemaSanitizer: both schema and data are required")
         return {}
     }
 

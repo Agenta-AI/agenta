@@ -1,19 +1,20 @@
 import {useEffect, useRef, useState} from "react"
 
 import {LoadingOutlined, MinusCircleOutlined} from "@ant-design/icons"
-import {Image as ImageIcon, MagnifyingGlassPlus} from "@phosphor-icons/react"
-import {Button, Input, Modal, Progress, Spin, Tooltip, Typography, Upload} from "antd"
+import {Image as ImageIcon} from "@phosphor-icons/react"
+import {Button, Input, Progress, Spin, Typography, Upload} from "antd"
 import clsx from "clsx"
 
+import ImagePreview from "@/oss/components/Common/ImagePreview"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 
-import ImageWithFallback from "./assets/components/ImageWithFallback"
 import {useStyles} from "./assets/styles"
 import {PromptImageUploadProps} from "./types"
+import {isValidImageUrl} from "./assets/helpers"
 
 const {Dragger} = Upload
 
-const MAX_SIZE = 1024 * 1024
+const MAX_SIZE = 750 * 1024
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
 
 const PromptImageUpload = ({
@@ -28,8 +29,6 @@ const PromptImageUpload = ({
     const [urlInput, setUrlInput] = useState("")
     const [error, setError] = useState("")
     const [isValidPreview, setIsValidPreview] = useState(false)
-    const [isPreviewOpen, setIsPreviewOpen] = useState(false)
-
     const status = error ? "error" : imageFile?.status || ""
 
     const triggerUpload = (e: React.MouseEvent) => {
@@ -40,6 +39,12 @@ const PromptImageUpload = ({
     const validateUrlInput = (val: string) => {
         if (!val) {
             setError("")
+            setIsValidPreview(false)
+            return
+        }
+
+        if (!isValidImageUrl(val)) {
+            setError("Invalid URL format.")
             setIsValidPreview(false)
             return
         }
@@ -85,7 +90,7 @@ const PromptImageUpload = ({
         }
 
         if (file.size > MAX_SIZE) {
-            setError("Image size must be less than 1MB.")
+            setError("Image size must be less than 750KB.")
             return
         }
 
@@ -129,23 +134,12 @@ const PromptImageUpload = ({
                 {isUploading ? (
                     <Spin indicator={<LoadingOutlined style={{fontSize: 48}} spin />} />
                 ) : isValidPreview ? (
-                    <div
-                        className="relative group w-12 h-12 rounded overflow-hidden cursor-pointer"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            setIsPreviewOpen(true)
-                        }}
-                    >
-                        <ImageWithFallback
-                            src={urlInput}
-                            alt="Preview"
-                            className="w-full h-full object-cover group-hover:opacity-80 transition duration-200"
-                        />
-                        <div className="absolute inset-0 bg-black bg-opacity-10 group-hover:bg-opacity-20 transition duration-200" />
-                        <div className="absolute inset-0 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition duration-200">
-                            <MagnifyingGlassPlus size={16} weight="bold" />
-                        </div>
-                    </div>
+                    <ImagePreview
+                        src={urlInput}
+                        alt="Preview"
+                        size={48}
+                        isValidPreview={isValidPreview}
+                    />
                 ) : (
                     <ImageIcon
                         size={48}
@@ -227,21 +221,6 @@ const PromptImageUpload = ({
                     />
                 </div>
             </Dragger>
-            <Modal
-                footer={null}
-                open={isPreviewOpen}
-                onCancel={() => setIsPreviewOpen(false)}
-                centered
-                width="auto"
-                closeIcon={false}
-                className="[&_.ant-modal-content]:p-2 [&_.ant-modal-content]:pb-0"
-            >
-                <img
-                    src={urlInput}
-                    alt="Preview"
-                    className="max-w-full min-w-[300px] min-h-[300px]"
-                />
-            </Modal>
         </>
     )
 }

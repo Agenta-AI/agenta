@@ -9,7 +9,7 @@ import {
 } from "@agenta/web-tests/playwright/config/testTags"
 
 const playgroundTests = () => {
-    basePlaygroundTest(
+    ;(basePlaygroundTest(
         "Should run single view variant for completion",
         {
             tag: [
@@ -30,26 +30,26 @@ const playgroundTests = () => {
             await runCompletionSingleViewVariant(appId, COMPLETION_MESSAGES)
         },
     ),
-        basePlaygroundTest(
-            "Should run single view variant for chat",
-            {
-                tag: [
-                    createTagString("scope", TestScope.PLAYGROUND),
-                    createTagString("coverage", TestCoverage.SMOKE),
-                    createTagString("coverage", TestCoverage.LIGHT),
-                    createTagString("coverage", TestCoverage.FULL),
-                    createTagString("path", TestPath.HAPPY),
-                ],
-            },
-            async ({apiHelpers, navigateToPlayground, runChatSingleViewVariant}) => {
-                const app = await apiHelpers.getApp("chat")
-                const appId = app.app_id
+    basePlaygroundTest(
+        "Should run single view variant for chat",
+        {
+            tag: [
+                createTagString("scope", TestScope.PLAYGROUND),
+                createTagString("coverage", TestCoverage.SMOKE),
+                createTagString("coverage", TestCoverage.LIGHT),
+                createTagString("coverage", TestCoverage.FULL),
+                createTagString("path", TestPath.HAPPY),
+            ],
+        },
+        async ({apiHelpers, navigateToPlayground, runChatSingleViewVariant}) => {
+            const app = await apiHelpers.getApp("chat")
+            const appId = app.app_id
 
-                await navigateToPlayground(appId)
+            await navigateToPlayground(appId)
 
-                await runChatSingleViewVariant(appId, COMPLETION_MESSAGES)
-            },
-        ),
+            await runChatSingleViewVariant(appId, COMPLETION_MESSAGES)
+        },
+    )),
         basePlaygroundTest(
             "Should update the prompt and save the changes",
             {

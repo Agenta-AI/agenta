@@ -21,6 +21,7 @@ type VariantsTableProps = {
     handleDeleteVariant?: (record: EnhancedVariant) => void
     showActionsDropdown?: boolean
     enableColumnResize?: boolean
+    showRevisionsAsChildren?: boolean
 } & ComponentProps<typeof Table>
 
 const VariantsTable = ({
@@ -35,6 +36,7 @@ const VariantsTable = ({
     rowSelection,
     showActionsDropdown = true,
     enableColumnResize = false,
+    showRevisionsAsChildren = false,
     ...props
 }: VariantsTableProps) => {
     const initialColumns = useMemo(
@@ -74,6 +76,39 @@ const VariantsTable = ({
         }))
     }, [columns])
 
+    const _variants = useMemo(() => {
+        if (!showRevisionsAsChildren) return variants
+
+        // Group variants by their parent variant ID
+        const variantGroups = variants.reduce<Record<string, typeof variants>>((acc, variant) => {
+            const parentId = variant._parentVariant?.id
+            if (!parentId) return acc
+
+            if (!acc[parentId]) {
+                acc[parentId] = []
+            }
+            acc[parentId].push(variant)
+            return acc
+        }, {})
+
+        // Process each group
+        const result = []
+        for (const [parentId, group] of Object.entries(variantGroups)) {
+            const revision = group[0]
+            if (group.length > 1 && revision._parentVariant.revision > 1) {
+                const parentVariant = revision._parentVariant
+                result.push({
+                    ...parentVariant,
+                    children: group,
+                })
+            } else {
+                result.push(revision)
+            }
+        }
+
+        return result
+    }, [variants, showRevisionsAsChildren])
+
     return (
         <Spin spinning={isLoading}>
             <Table
@@ -86,7 +121,7 @@ const VariantsTable = ({
                 className="ph-no-capture"
                 rowKey={"id"}
                 columns={(enableColumnResize ? mergedColumns : initialColumns) as any}
-                dataSource={variants as EnhancedVariant[]}
+                dataSource={_variants as EnhancedVariant[]}
                 scroll={{x: "max-content"}}
                 bordered
                 components={{

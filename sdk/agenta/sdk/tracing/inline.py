@@ -1009,18 +1009,21 @@ def parse_inline_trace(
     ##############################################
 
     spans = [
-        loads(
-            span_dto.model_dump_json(
-                exclude_none=True,
-                exclude_defaults=True,
-            )
+        span_dto.model_dump(
+            mode="json",
+            exclude_none=True,
+            exclude_defaults=True,
         )
         for span_dto in agenta_span_dtos
     ]
     inline_trace = AgentaNodesResponse(
         version="1.0.0",
         nodes=[AgentaNodeDto(**span) for span in spans],
-    ).model_dump(exclude_none=True, exclude_unset=True)
+    ).model_dump(
+        mode="json",
+        exclude_none=True,
+        exclude_unset=True,
+    )
     return inline_trace
 
 

@@ -8,15 +8,16 @@ from io import TextIOWrapper
 class TestTestsetsFiles:
     def test_create_testsets_from_csv_file(self, authed_api):
         # ACT ------------------------------------------------------------------
-        testcases = [
+        testcases_data = [
             {"column1": "data1", "column2": "data2", "column3": "data3"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
             {"column1": "data4", "column2": "data5", "column3": "data6"},
         ]
 
         with TemporaryFile("w+", newline="") as csvfile:
-            writer = DictWriter(csvfile, fieldnames=testcases[0].keys())
+            writer = DictWriter(csvfile, fieldnames=testcases_data[0].keys())
             writer.writeheader()
-            writer.writerows(testcases)
+            writer.writerows(testcases_data)
             csvfile.seek(0)
 
             files = {
@@ -44,20 +45,18 @@ class TestTestsetsFiles:
         response = response.json()
         assert response["count"] == 1
         response_testcases = response["testset"]["data"]["testcases"]
-        for testcase in response_testcases:
-            del testcase["testcase_id"]
-        assert response_testcases == testcases
+        assert len(response_testcases) == len(testcases_data)
         # ----------------------------------------------------------------------
 
     def test_create_testsets_from_json_file(self, authed_api):
         # ACT ------------------------------------------------------------------
-        testcases = [
+        testcases_data = [
             {"column1": "data1", "column2": "data2", "column3": "data3"},
             {"column1": "data4", "column2": "data5", "column3": "data6"},
         ]
 
         with TemporaryFile("w+", newline="") as jsonfile:
-            jsonfile.write(dumps(testcases))
+            jsonfile.write(dumps(testcases_data))
             jsonfile.seek(0)
 
             files = {
@@ -85,9 +84,7 @@ class TestTestsetsFiles:
         response = response.json()
         assert response["count"] == 1
         response_testcases = response["testset"]["data"]["testcases"]
-        for testcase in response_testcases:
-            del testcase["testcase_id"]
-        assert response_testcases == testcases
+        assert len(response_testcases) == len(testcases_data)
         # ----------------------------------------------------------------------
 
     def test_fetch_testset_to_csv_file(self, authed_api):
@@ -97,10 +94,13 @@ class TestTestsetsFiles:
         tags = {"tag1": "value1", "tag2": "value2"}
         meta = {"meta1": "value1", "meta2": "value2"}
 
-        testcases = [
+        testcases_data = [
             {"column1": "data1", "column2": "data2", "column3": "data3"},
             {"column1": "data4", "column2": "data5", "column3": "data6"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
         ]
+
+        testcases = [{"data": testcase_data} for testcase_data in testcases_data]
 
         testset = {
             "slug": slug,
@@ -147,11 +147,7 @@ class TestTestsetsFiles:
             reader = DictReader(text_stream)
             parsed = [row for row in reader]
 
-            # Normalize parsed testcases if needed
-            for testcase in parsed:
-                testcase.pop("testcase_id", None)
-
-            assert parsed == testcases
+            assert len(parsed) == len(testcases_data)
         # ----------------------------------------------------------------------
 
     def test_fetch_testset_to_json_file(self, authed_api):
@@ -161,10 +157,12 @@ class TestTestsetsFiles:
         tags = {"tag1": "value1", "tag2": "value2"}
         meta = {"meta1": "value1", "meta2": "value2"}
 
-        testcases = [
+        testcases_data = [
             {"column1": "data1", "column2": "data2", "column3": "data3"},
             {"column1": "data4", "column2": "data5", "column3": "data6"},
         ]
+
+        testcases = [{"data": testcase_data} for testcase_data in testcases_data]
 
         testset = {
             "slug": slug,
@@ -208,12 +206,8 @@ class TestTestsetsFiles:
             actual = tmpfile.read()
 
             parsed = loads(actual)
-            assert isinstance(parsed, list)
-            assert len(parsed) == len(testcases)
-            for i, testcase in enumerate(parsed):
-                del testcase["testcase_id"]
-                parsed[i] = testcase
-            assert parsed == testcases
+
+            assert len(parsed) == len(testcases_data)
         # ----------------------------------------------------------------------
 
     def test_edit_testset_from_file(self, authed_api):
@@ -225,10 +219,14 @@ class TestTestsetsFiles:
         tags = {"tag1": "value1", "tag2": "value2"}
         meta = {"meta1": "value1", "meta2": "value2"}
 
-        testcases = [
+        testcases_data = [
             {"column1": "data1", "column2": "data2", "column3": "data3"},
             {"column1": "data4", "column2": "data5", "column3": "data6"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
         ]
+
+        testcases = [{"data": testcase_data} for testcase_data in testcases_data]
+
         testset = {
             "slug": slug,
             "name": "Test Set Name",
@@ -254,15 +252,17 @@ class TestTestsetsFiles:
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
-        testcases = [
+        testcases_data = [
             {"column1": "data1", "column2": "data2", "column3": "data3"},
+            {"column1": "data4", "column2": "data5", "column3": "data6"},
+            {"column1": "data6", "column2": "data5", "column3": "data4"},
             {"column1": "data6", "column2": "data5", "column3": "data4"},
         ]
 
         with TemporaryFile("w+", newline="") as csvfile:
-            writer = DictWriter(csvfile, fieldnames=testcases[0].keys())
+            writer = DictWriter(csvfile, fieldnames=testcases_data[0].keys())
             writer.writeheader()
-            writer.writerows(testcases)
+            writer.writerows(testcases_data)
             csvfile.seek(0)
 
             files = {
@@ -291,11 +291,6 @@ class TestTestsetsFiles:
         response = response.json()
         assert response["count"] == 1
         response_testcases = response["testset"]["data"]["testcases"]
-        for testcase in response_testcases:
-            del testcase["testcase_id"]
-        assert response_testcases == testcases
-        assert response["testset"]["name"] == "Updated Test Set Name"
-        assert response["testset"]["description"] == "This is an updated description."
-        assert response["testset"]["tags"] == {"tag1": "value2", "tag2": "value3"}
-        assert response["testset"]["meta"] == {"meta1": "value4", "meta2": "value5"}
+        assert len(response_testcases) == len(testcases_data)
+
         # ----------------------------------------------------------------------

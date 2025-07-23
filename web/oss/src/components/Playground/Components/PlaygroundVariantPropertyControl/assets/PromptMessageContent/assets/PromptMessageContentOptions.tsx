@@ -21,8 +21,10 @@ import type {PromptMessageContentOptionsProps} from "./types"
 export const getTextContent = (content: any) => {
     if (typeof content === "string") return content
     if (Array.isArray(content)) {
-        const value = content.filter((part: any) => part.type.value === "text")
-        return value[0].text.value
+        const value = content.filter(
+            (part: any) => part.type.value === "text" || part.type === "text",
+        )
+return value.length > 0 ? (typeof value[0].text === "string" ? value[0].text : value[0].text.value) : ""
     }
     return ""
 }

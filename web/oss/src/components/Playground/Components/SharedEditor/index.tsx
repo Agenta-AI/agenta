@@ -27,8 +27,6 @@ const SharedEditor = ({
     noProvider = false,
     debug = false,
     isTool,
-    baseProperty,
-    test = false,
     ...props
 }: SharedEditorProps) => {
     const [isEditorFocused, setIsEditorFocused] = useState(false)

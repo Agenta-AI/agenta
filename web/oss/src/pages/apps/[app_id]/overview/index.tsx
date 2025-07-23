@@ -11,7 +11,7 @@ import {createUseStyles} from "react-jss"
 import AbTestingEvaluation from "@/oss/components/HumanEvaluations/AbTestingEvaluation"
 import SingleModelEvaluation from "@/oss/components/HumanEvaluations/SingleModelEvaluation"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import AutomaticEvalOverview from "@/oss/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
+// import AutomaticEvalOverview from "@/oss/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
 import {useAppsData} from "@/oss/contexts/app.context"
@@ -163,7 +163,7 @@ const OverviewPage = () => {
 
                 {isDemo() && (
                     <>
-                        <AutomaticEvalOverview />
+                        {/* <AutomaticEvalOverview /> */}
 
                         <AbTestingEvaluation viewType="overview" />
 

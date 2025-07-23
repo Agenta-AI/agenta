@@ -40,7 +40,7 @@ const modelHubTests = () => {
             await uiHelpers.expectPath("/settings")
 
             // 2. Open Model Hub tab and assert table presence
-            await uiHelpers.clickTab("Model Hub")
+            await page.locator(".ant-menu-item", {hasText: "Model Hub"}).click()
 
             // Fetch provider secrets directly from the canonical endpoint
             const secretsPromise = await apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
@@ -98,17 +98,35 @@ const modelHubTests = () => {
             )
 
             const secretName = openapiSecretAfter?.header?.name as string
-            await expect(page.getByRole("row", {name: secretName})).toBeVisible()
 
-            // await uiHelpers.clickTableRowButton({
-            //     rowText: secretName,
-            //     buttonName: "Delete",
-            // })
+            await expect(page.locator(".ant-table-row", {hasText: secretName})).toBeVisible()
+
+            await uiHelpers.clickTableRowButton({
+                rowText: secretName,
+                buttonName: "Delete",
+            })
             // expect(mistralSecretAfter).toBeDefined()
-            // // Assert modal is visible after clicking delete
-            // await expect(page.locator(".ant-modal")).toBeVisible()
-            // // Confirm the modal using the correct button text ("Yes" is default for AlertPopup)
-            // await uiHelpers.confirmModal("Delete")
+            // Assert modal is visible after clicking delete
+            await expect(page.locator(".ant-modal")).toBeVisible()
+            // Confirm the modal using the correct button text ("Yes" is default for AlertPopup)
+            await uiHelpers.confirmModal("Delete")
+
+            await apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
+                route: "/api/vault/v1/secrets",
+                method: "DELETE",
+            })
+
+            // Fetch secrets again after delete
+            const secretsAfterDelete = await apiHelpers.waitForApiResponse<StandardSecretDTO[]>({
+                route: "/api/vault/v1/secrets",
+                method: "GET",
+            })
+
+            const openapiSecretAfterDelete = secretsAfterDelete.find((s) =>
+                s.header?.name?.toLowerCase().includes("openai"),
+            )
+
+            expect(openapiSecretAfterDelete).toBeUndefined()
         },
     )
 }

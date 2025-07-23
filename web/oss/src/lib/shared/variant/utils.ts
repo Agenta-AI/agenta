@@ -139,18 +139,14 @@ export const processBatchesSequentially = async <T, R>(
  * @param logger Optional logging function
  * @throws The original error or a wrapped error
  */
-export const handleVariantProcessingError = (
-    error: any,
-    fetchKey: string,
-    logger = console.log,
-) => {
+export const handleVariantProcessingError = (error: any, fetchKey: string, logger) => {
     if (error.name === "AbortError") {
-        logger("Fetch aborted by user")
+        logger?.("Fetch aborted by user")
         endFetch(fetchKey)
         throw new Error("AbortError")
     }
 
-    logger("Error in variant processing:", error)
+    logger?.("Error in variant processing:", error)
     endFetch(fetchKey)
     throw error
 }
@@ -354,7 +350,7 @@ export const processVariantsCore = async ({
     parallelProcessing = false,
     onBatchProcessed = null,
     onBeforeBatchProcessing = null,
-    logger = console.log,
+    logger,
     fetchKey,
     appType,
 }: {
@@ -383,7 +379,7 @@ export const processVariantsCore = async ({
             onBeforeBatchProcessing(batches.length)
         }
 
-        logger(`Processing ${targetRevisions.length} revisions in ${batches.length} batches`)
+        logger?.(`Processing ${targetRevisions.length} revisions in ${batches.length} batches`)
 
         // Process batches sequentially
         const processedRevisions = await processBatchesSequentially(
@@ -400,7 +396,7 @@ export const processVariantsCore = async ({
                 return transformedBatch
             },
             (results, batchIndex, totalBatches) => {
-                logger(
+                logger?.(
                     `Processed batch ${batchIndex + 1}/${totalBatches} with ${results.length} revisions`,
                 )
             },
@@ -426,7 +422,7 @@ export async function fetchAndProcessRevisions({
     keyParts,
     excludeRevisionIds = [],
     signal,
-    logger = console.log,
+    logger,
     priorityMode = false, // New flag to indicate if this is a priority fetch
     batchSize = 5, // Default batch size for parallel processing
     parallelProcessing = false, // Flag to enable parallel processing
@@ -459,7 +455,7 @@ export async function fetchAndProcessRevisions({
 
     // Check if we're already fetching data for this key
     if (getIsFetching(fetchKey)) {
-        logger(`Already fetching data for key: ${fetchKey}, skipping this request`)
+        logger?.(`Already fetching data for key: ${fetchKey}, skipping this request`)
         return {
             revisions: [],
         }
@@ -508,10 +504,10 @@ export async function fetchAndProcessRevisions({
         try {
             uri = rawVariants[0].uri ? await findCustomWorkflowPath(rawVariants[0].uri) : null
             if (!uri) {
-                logger("Warning: Failed to find URI path, some functionality may be limited")
+                logger?.("Warning: Failed to find URI path, some functionality may be limited")
             }
         } catch (error) {
-            logger("Warning: Error finding URI path, some functionality may be limited", error)
+            logger?.("Warning: Error finding URI path, some functionality may be limited", error)
         }
 
         // 3. Fetch OpenAPI schema (always fetch if forceRefresh is true)
@@ -530,18 +526,18 @@ export async function fetchAndProcessRevisions({
                     // If we successfully fetched the schema, set appStatus to true
                     appStatus = true
                 } else {
-                    logger(
+                    logger?.(
                         "Warning: Failed to fetch OpenAPI schema, some functionality may be limited",
                     )
                 }
             } catch (error) {
-                logger(
+                logger?.(
                     "Warning: Error fetching OpenAPI schema, some functionality may be limited",
                     error,
                 )
             }
         } else {
-            logger("Skipping OpenAPI schema fetch due to missing URI")
+            logger?.("Skipping OpenAPI schema fetch due to missing URI")
         }
 
         // Check for abort signal
@@ -554,7 +550,7 @@ export async function fetchAndProcessRevisions({
         // Log if we're in background mode
         const isBackgroundMode = excludeRevisionIds.length > 0
         if (isBackgroundMode) {
-            logger(
+            logger?.(
                 `Processing in background mode, excluding ${excludeRevisionIds.length} already loaded revisions`,
             )
         }
@@ -565,7 +561,7 @@ export async function fetchAndProcessRevisions({
         const variantsWithRevisions = []
 
         // Process variants in parallel batches
-        logger(
+        logger?.(
             `Starting parallel processing of ${rawVariants.length} variants in batches of ${actualBatchSize}`,
         )
 
@@ -574,7 +570,7 @@ export async function fetchAndProcessRevisions({
 
         // Call the onBeforeBatchProcessing callback if provided
         if (typeof onBeforeBatchProcessing === "function") {
-            logger(`Calling onBeforeBatchProcessing with totalBatches: ${totalBatches}`)
+            logger?.(`Calling onBeforeBatchProcessing with totalBatches: ${totalBatches}`)
             onBeforeBatchProcessing(totalBatches)
         }
 
@@ -586,7 +582,7 @@ export async function fetchAndProcessRevisions({
             }
 
             const variantBatch = rawVariants.slice(i, i + actualBatchSize)
-            logger(
+            logger?.(
                 `Processing batch ${Math.floor(i / actualBatchSize) + 1} with ${variantBatch.length} variants`,
             )
 
@@ -595,7 +591,7 @@ export async function fetchAndProcessRevisions({
                 variantBatch.map(async (variant) => {
                     // Fetch revisions and deployments for this variant
 
-                    logger(
+                    logger?.(
                         `[Batch ${Math.floor(i / actualBatchSize) + 1}] Fetching metadata for variant ${variant.variantId}`,
                     )
 
@@ -642,7 +638,7 @@ export async function fetchAndProcessRevisions({
 
                         return updated
                     } catch (error) {
-                        logger(
+                        logger?.(
                             `[Batch ${Math.floor(i / actualBatchSize) + 1}] Error fetching metadata for variant ${variant.variantId}: ${error.message}`,
                         )
                         // Return variant with empty revisions to avoid breaking the entire process
@@ -759,7 +755,7 @@ export async function fetchAndProcessRevisions({
                 revision.isLatestVariantRevision = false
             })
 
-            logger("Applied latest revision flag to a single revision across the app")
+            logger?.("Applied latest revision flag to a single revision across the app")
         }
 
         // 9. Use core processing utility for transformation
@@ -794,7 +790,7 @@ export async function fetchAndProcessRevisions({
                 appStatus,
             }
         } catch (error) {
-            logger("Error in core processing:", error)
+            logger?.("Error in core processing:", error)
 
             // Add appStatus to each variant even if transformation failed
             adaptedRevisions.forEach((revision) => {
@@ -820,13 +816,13 @@ export async function fetchAndProcessRevisions({
             error.name === "AbortError" ||
             error.message === "Operation was aborted"
         ) {
-            logger("Fetch operation was aborted")
+            logger?.("Fetch operation was aborted")
             // End the fetch on abort
             endFetch(fetchKey)
             throw new Error("AbortError")
         }
 
-        logger("Error in fetchAndProcessRevisions:", error)
+        logger?.("Error in fetchAndProcessRevisions:", error)
         // End the fetch on any other error
         endFetch(fetchKey)
         throw error
@@ -981,6 +977,8 @@ export const adaptRevisionToVariant = (
 
         // Deployment information - essential for showing environment badges
         deployedIn: revision.deployedIn || [],
+
+        requestSchema: revision.requestSchema,
 
         // Preserve full parent variant reference for component access
         _parentVariant: {

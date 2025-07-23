@@ -197,8 +197,6 @@ const appSchemaMiddleware: PlaygroundMiddleware = (useSWRNext: SWRHook) => {
                                             ...remainingRevisions,
                                         ]
 
-                                        console.log("allRevisions", allRevisions)
-
                                         // Recalculate isLatestRevision flag across all variants
                                         if (allRevisions.length > 0) {
                                             // Find the latest revision timestamp across all variants

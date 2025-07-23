@@ -9,6 +9,7 @@ import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import EnhancedButton from "../../../assets/EnhancedButton"
 
 import {TestsetDrawerButtonProps} from "./types"
+
 const TestsetDrawer = dynamic(
     () => import("@/oss/components/pages/observability/drawer/TestsetDrawer/TestsetDrawer"),
 )
@@ -44,8 +45,12 @@ const TestsetDrawerButton = ({
         const extractedData = traces
             ?.map((result, idx) => {
                 return {
-                    data: result?.response?.tree?.nodes?.[0]?.data as Record<string, any>,
-                    key: result?.response?.tree?.nodes?.[0]?.node?.id as string,
+                    data:
+                        (result?.response?.tree?.nodes?.[0]?.data as Record<string, any>) ||
+                        result?.response?.data,
+                    key:
+                        (result?.response?.tree?.nodes?.[0]?.node?.id as string) ||
+                        result?.response?.span_id,
                     id: idx + 1,
                 }
             })
@@ -53,6 +58,8 @@ const TestsetDrawerButton = ({
 
         return extractedData
     }, [resultHashes, results, isTestsetDrawerOpen])
+
+    const isResults = useMemo(() => resultHashes?.filter(Boolean)?.length, [resultHashes])
 
     return (
         <>
@@ -63,6 +70,7 @@ const TestsetDrawerButton = ({
                     }>,
                     {
                         onClick: () => {
+                            if (!isResults) return
                             onClickTestsetDrawer?.(messageId)
                             setIsTestsetDrawerOpen(true)
                         },
@@ -70,13 +78,17 @@ const TestsetDrawerButton = ({
                 )
             ) : (
                 <EnhancedButton
+                    {...props}
                     label={label}
                     icon={icon && <Database size={14} />}
+                    disabled={!isResults || props.disabled}
+                    tooltipProps={{
+                        title: !isResults ? "Run tests before adding to test set" : "",
+                    }}
                     onClick={() => {
                         onClickTestsetDrawer?.(messageId)
                         setIsTestsetDrawerOpen(true)
                     }}
-                    {...props}
                 />
             )}
 

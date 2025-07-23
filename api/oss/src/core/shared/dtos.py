@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List, Union, Literal
 from uuid import UUID
 from datetime import datetime
 from re import match
@@ -57,6 +57,7 @@ class Windowing(BaseModel):
     start: Optional[datetime] = None
     stop: Optional[datetime] = None
     limit: Optional[int] = None
+    order: Optional[Literal["ascending", "descending"]] = None
 
 
 class Lifecycle(BaseModel):

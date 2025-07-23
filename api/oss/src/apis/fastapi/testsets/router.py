@@ -1,8 +1,13 @@
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict
 from uuid import uuid4, UUID
 from json import loads, JSONDecodeError
 from io import BytesIO
-from copy import deepcopy
+
+###
+import orjson
+import pandas as pd
+
+###
 
 from pydantic import ValidationError
 from fastapi.responses import StreamingResponse
@@ -19,6 +24,7 @@ from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.testsets.dtos import TestsetFlags, TestsetRevisionData
 from oss.src.core.testsets.service import TestsetsService
+from oss.src.core.testcases.dtos import Testcase
 
 from oss.src.core.testsets.dtos import (
     Testset,
@@ -268,11 +274,18 @@ class SimpleTestsetsRouter:
                 raise FORBIDDEN_EXCEPTION
 
         try:
-            testcases = json_array_to_json_object(
-                data=simple_testset_create_request.testset.data.testcases,
-            ).values()
+            testcases = simple_testset_create_request.testset.data.testcases
 
-            validate_testset_limits(testcases)
+            testcases_data = [testcase.data for testcase in testcases]
+
+            testcases_data = json_array_to_json_object(data=testcases_data)
+
+            validate_testset_limits(testcases_data)
+
+            for i, testcase_data in enumerate(testcases_data.values()):
+                simple_testset_create_request.testset.data.testcases[
+                    i
+                ].data = testcase_data
 
         except Exception as e:
             raise HTTPException(
@@ -282,7 +295,7 @@ class SimpleTestsetsRouter:
 
         try:
             testset_revision_data = TestsetRevisionData(
-                testcases=testcases,
+                testcases=simple_testset_create_request.testset.data.testcases,
             )
 
         except ValidationError as e:
@@ -552,11 +565,18 @@ class SimpleTestsetsRouter:
                 raise FORBIDDEN_EXCEPTION
 
         try:
-            testcases = json_array_to_json_object(
-                data=simple_testset_edit_request.testset.data.testcases,
-            ).values()
+            testcases = simple_testset_edit_request.testset.data.testcases
 
-            validate_testset_limits(testcases)
+            testcases_data = [testcase.data for testcase in testcases]
+
+            testcases_data = json_array_to_json_object(data=testcases_data)
+
+            validate_testset_limits(testcases_data)
+
+            for i, testcase_data in enumerate(testcases_data.values()):
+                simple_testset_edit_request.testset.data.testcases[
+                    i
+                ].data = testcase_data
 
         except Exception as e:
             raise HTTPException(
@@ -698,13 +718,14 @@ class SimpleTestsetsRouter:
                 detail="Simple testset revisions not found. Please check the ID and try again.",
             )
 
-        old_testcases = deepcopy(testset_revision.data.testcases)
+        old_testcase_ids = [
+            testcase.data for testcase in testset_revision.data.testcases
+        ]
 
-        if old_testcases is not None:
-            for old_testcase in old_testcases:
-                del old_testcase["testcase_id"]
-
-        new_testcases = testset_revision_data.testcases
+        new_testcase_ids = [
+            testcase.data
+            for testcase in simple_testset_edit_request.testset.data.testcases
+        ]
 
         has_changes = (
             testset_revision.name != simple_testset_edit_request.testset.name
@@ -712,7 +733,7 @@ class SimpleTestsetsRouter:
             != simple_testset_edit_request.testset.description
             or testset_revision.tags != simple_testset_edit_request.testset.tags
             or testset_revision.meta != simple_testset_edit_request.testset.meta
-            or old_testcases != new_testcases
+            or old_testcase_ids != new_testcase_ids
         )
 
         if has_changes:
@@ -1108,6 +1129,7 @@ class SimpleTestsetsRouter:
                 raise FORBIDDEN_EXCEPTION
 
         if file_type is None or file_type not in ["csv", "json"]:
+            log.error(e)
             raise HTTPException(
                 status_code=400,
                 detail="Invalid file type. Supported types are 'csv' and 'json'.",
@@ -1121,16 +1143,18 @@ class SimpleTestsetsRouter:
             testset_tags = loads(testset_tags) if testset_tags else None
             testset_meta = loads(testset_meta) if testset_meta else None
         except JSONDecodeError as e:
+            log.error(e)
             raise HTTPException(
                 status_code=400,
                 detail=f"Failed to parse tags or meta as JSON: {e}",
             ) from e
 
         testcases = []
+        testcases_data: Dict[str, list] = {}
 
         if file_type.lower() == "json":
             try:
-                testcases = await json_file_to_json_array(file)
+                testcases_data = await json_file_to_json_array(file)
 
             except Exception as e:
                 raise HTTPException(
@@ -1140,7 +1164,7 @@ class SimpleTestsetsRouter:
 
         elif file_type.lower() == "csv":
             try:
-                testcases = await csv_file_to_json_array(file)
+                testcases_data = await csv_file_to_json_array(file)
 
             except Exception as e:
                 raise HTTPException(
@@ -1149,19 +1173,37 @@ class SimpleTestsetsRouter:
                 ) from e
 
         else:
+            log.error(e)
             raise HTTPException(
                 status_code=400,
                 detail="Invalid file type. Supported types are 'csv' and 'json'.",
             )
 
         try:
-            testcases = json_array_to_json_object(
-                data=testcases,
-            ).values()
+            testcases_data = json_array_to_json_object(
+                data=testcases_data,
+                testcase_id_key="__id__",
+                testcase_dedup_id_key="__dedup_id__",
+            )
+            validate_testset_limits(testcases_data)
 
-            validate_testset_limits(testcases)
+            for testcase_data in testcases_data.values():
+                testcase_flags = testcase_data.pop("__flags__", None)
+                testcase_tags = testcase_data.pop("__tags__", None)
+                testcase_meta = testcase_data.pop("__meta__", None)
+
+                testcases.append(
+                    Testcase(
+                        id=testcase_data.pop("__id__", None),
+                        data=testcase_data,
+                        flags=testcase_flags,
+                        tags=testcase_tags,
+                        meta=testcase_meta,
+                    )
+                )
 
         except Exception as e:
+            log.error(e)
             raise HTTPException(
                 status_code=400,
                 detail=f"Failed to parse testcases as JSON array: {e}",
@@ -1173,6 +1215,7 @@ class SimpleTestsetsRouter:
             )
 
         except ValidationError as e:
+            log.error(e)
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             ) from e
@@ -1238,10 +1281,11 @@ class SimpleTestsetsRouter:
             ) from e
 
         testcases = []
+        testcases_data: Dict[str, list] = {}
 
         if file_type.lower() == "json":
             try:
-                testcases = await json_file_to_json_array(file)
+                testcases_data = await json_file_to_json_array(file)
 
             except Exception as e:
                 raise HTTPException(
@@ -1251,7 +1295,7 @@ class SimpleTestsetsRouter:
 
         elif file_type.lower() == "csv":
             try:
-                testcases = await csv_file_to_json_array(file)
+                testcases_data = await csv_file_to_json_array(file)
 
             except Exception as e:
                 raise HTTPException(
@@ -1266,11 +1310,28 @@ class SimpleTestsetsRouter:
             )
 
         try:
-            testcases = json_array_to_json_object(
-                data=testcases,
-            ).values()
+            testcases_data = json_array_to_json_object(
+                data=testcases_data,
+                testcase_id_key="__id__",
+                testcase_dedup_id_key="__dedup_id__",
+            )
 
-            validate_testset_limits(testcases)
+            validate_testset_limits(testcases_data)
+
+            for testcase_data in testcases_data.values():
+                testcase_flags = testcase_data.pop("__flags__", None)
+                testcase_tags = testcase_data.pop("__tags__", None)
+                testcase_meta = testcase_data.pop("__meta__", None)
+
+                testcases.append(
+                    Testcase(
+                        id=testcase_data.pop("__id__", None),
+                        data=testcase_data,
+                        flags=testcase_flags,
+                        tags=testcase_tags,
+                        meta=testcase_meta,
+                    )
+                )
 
         except Exception as e:
             raise HTTPException(
@@ -1360,10 +1421,19 @@ class SimpleTestsetsRouter:
         filename = (file_name or f"testset_{testset_id}") + f".{file_type.lower()}"
         testcases = testset.data.testcases
 
-        if file_type.lower() == "json":
-            import orjson
+        testcases_data = [
+            {
+                **testcase.data,
+                "__id__": testcase.id,
+                "__flags__": testcase.flags,
+                "__tags__": testcase.tags,
+                "__meta__": testcase.meta,
+            }
+            for testcase in testcases
+        ]
 
-            buffer = BytesIO(orjson.dumps(testcases))
+        if file_type.lower() == "json":
+            buffer = BytesIO(orjson.dumps(testcases_data))
 
             return StreamingResponse(
                 buffer,
@@ -1372,10 +1442,8 @@ class SimpleTestsetsRouter:
             )
 
         elif file_type.lower() == "csv":
-            import pandas as pd
-
             buffer = BytesIO()
-            pd.DataFrame(testcases).to_csv(buffer, index=False)
+            pd.DataFrame(testcases_data).to_csv(buffer, index=False)
             buffer.seek(0)
 
             return StreamingResponse(
@@ -1474,6 +1542,10 @@ class SimpleTestsetsRouter:
         if old_testset is None:
             return None
 
+        testcases_data = old_testset.csvdata
+
+        testcases = [Testcase(data=testcase_data) for testcase_data in testcases_data]
+
         new_testset = await self.testsets_service.fetch_testset(
             project_id=UUID(request.state.project_id),
             testset_ref=Reference(id=testset_id),
@@ -1487,7 +1559,7 @@ class SimpleTestsetsRouter:
                     slug=slug,
                     name=old_testset.name,
                     data=TestsetRevisionData(
-                        testcases=old_testset.csvdata,
+                        testcases=testcases,
                     ),
                 )
             )
@@ -1504,7 +1576,7 @@ class SimpleTestsetsRouter:
                     id=testset_id,
                     name=old_testset.name,
                     data=TestsetRevisionData(
-                        testcases=old_testset.csvdata,
+                        testcases=testcases,
                     ),
                 )
             )

@@ -59,7 +59,7 @@ async function globalSetup(config: FullConfig) {
         console.log("[global-setup] Filling OTP digits")
         const digits = otp.split("")
         for (let i = 0; i < digits.length; i++) {
-            await typeWithDelay(page, `.ant-input:nth-child(${i + 1})`, digits[i], delay)
+            await typeWithDelay(page, `[aria-label='OTP Input ${i + 1}']`, digits[i], delay)
         }
     }
 
@@ -138,9 +138,7 @@ async function globalSetup(config: FullConfig) {
                     })
                     await clickButton(page, "Continue")
                     console.log("[global-setup] Post-signup flow completed")
-                    console.log(
-                        `[global-setup] Waiting for navigation to: ${baseURL}/apps`,
-                    )
+                    console.log(`[global-setup] Waiting for navigation to: ${baseURL}/apps`)
                     await waitForPath(page, `${baseURL}/apps`)
                 } else {
                     console.log(

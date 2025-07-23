@@ -1,12 +1,14 @@
 import "@ant-design/v5-patch-for-react-19"
 import "@/oss/styles/globals.css"
-
 import {App as AppComponent} from "antd"
+import {enableMapSet} from "immer"
+import {Provider} from "jotai"
 import type {AppProps} from "next/app"
 import dynamic from "next/dynamic"
 import {Inter} from "next/font/google"
 
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
+import {traceDrawerJotaiStore} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
 import AppContextProvider from "@/oss/contexts/app.context"
 import OrgContextProvider from "@/oss/contexts/org.context"
@@ -17,11 +19,17 @@ import AuthProvider from "@/oss/lib/helpers/auth/AuthProvider"
 
 import AppContextComponent from "../components/AppMessageContext"
 
+enableMapSet()
+
 const NoMobilePageWrapper = dynamic(
     () => import("@/oss/components/NoMobilePageWrapper/NoMobilePageWrapper"),
     {
         ssr: false,
     },
+)
+const TraceDrawer = dynamic(
+    () => import("@/oss/components/Playground/Components/Drawers/TraceDrawer/TraceDrawer"),
+    {ssr: false},
 )
 const CustomPosthogProvider = dynamic(() => import("@/oss/lib/helpers/analytics/AgPosthogProvider"))
 const Layout = dynamic(() => import("@/oss/components/Layout/Layout"), {
@@ -35,7 +43,7 @@ const inter = Inter({
 
 export default function App({Component, pageProps, ...rest}: AppProps) {
     return (
-        <>
+        <Provider store={traceDrawerJotaiStore}>
             <GlobalScripts />
 
             <main className={`${inter.variable} font-sans`}>
@@ -55,6 +63,7 @@ export default function App({Component, pageProps, ...rest}: AppProps) {
                                                     <Layout>
                                                         <AppContextComponent />
                                                         <Component {...pageProps} />
+                                                        <TraceDrawer />
                                                         <NoMobilePageWrapper />
                                                     </Layout>
                                                 </AppComponent>
@@ -67,6 +76,6 @@ export default function App({Component, pageProps, ...rest}: AppProps) {
                     </CustomPosthogProvider>
                 </AgSWRConfig>
             </main>
-        </>
+        </Provider>
     )
 }

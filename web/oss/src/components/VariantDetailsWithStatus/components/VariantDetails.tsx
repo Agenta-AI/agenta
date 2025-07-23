@@ -40,7 +40,7 @@ const VariantDetails = ({
                 variant &&
                 variant.isLatestRevision && (
                     <Tag className={`bg-[#E6F4FF] text-[#1677FF]`} bordered={false}>
-                        Latest
+                        Last modified
                     </Tag>
                 )
             )}

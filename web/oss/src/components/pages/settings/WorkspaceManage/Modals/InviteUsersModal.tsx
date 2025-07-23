@@ -196,7 +196,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
             okButtonProps={{loading}}
             width={450}
             onCancel={onCancel}
-            destroyOnClose
+            destroyOnHidden
         >
             <Typography.Paragraph type="secondary">
                 Invite members to your team by entering their emails.{" "}

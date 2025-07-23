@@ -24,7 +24,9 @@ const CreateEvaluator = ({setSteps, setSelectedEvaluators}: CreateEvaluatorProps
     const [form] = Form.useForm()
     const name = Form.useWatch("evaluatorName", form)
     const [debouncedName] = useDebounceValue(name, 500)
-    const {mutate} = useEvaluators()
+    const {mutate} = useEvaluators({
+        preview: true,
+    })
 
     useEffect(() => {
         if (!slugTouched) {
@@ -60,21 +62,26 @@ const CreateEvaluator = ({setSteps, setSelectedEvaluators}: CreateEvaluatorProps
                 if (!payloadData.evaluator) return
 
                 await createEvaluator(payloadData)
+                await mutate()
 
-                mutate()
                 message.success("Evaluator created successfully")
                 setSteps?.(AnnotateDrawerSteps.SELECT_EVALUATORS)
                 setSelectedEvaluators?.((prev) => [
                     ...new Set([...prev, payloadData.evaluator.slug]),
                 ])
             } catch (error: any) {
-                const errorMessages = Array.isArray(error.response?.data?.detail)
-                    ? error.response?.data?.detail?.map((item: any) => item?.msg).filter(Boolean)
-                    : [error.response?.data?.detail]
+                if (error.status === 409) {
+                    setErrorMessage(["Evaluator with this slug already exists"])
+                    message.error("Evaluator with this slug already exists")
+                    onScrollTo("top")
+                } else {
+                    const errorMessages = Array.isArray(error.response?.data?.detail)
+                        ? error.response?.data?.detail?.map((item: any) => item?.msg).filter(Boolean)
+                        : [error.response?.data?.detail]
 
-                onScrollTo("top")
-                setErrorMessage(errorMessages)
-                console.error("Error creating evaluator", error)
+                    onScrollTo("top")
+                    setErrorMessage(errorMessages)
+                }
             } finally {
                 setIsSubmitting(false)
             }

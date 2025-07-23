@@ -25,10 +25,9 @@ const testsetTests = () => {
             // 1. Navigate to testsets page
             await page.goto("/testsets")
             await uiHelpers.waitForPath("/testsets")
+            const testsets = await apiHelpers.getTestsets()
 
             await uiHelpers.expectText("Test Sets", {role: "heading"})
-
-            const testsets = await apiHelpers.getTestsets()
 
             // 3. Verify testset is visible in table
             const testsetId = testsets[0]._id

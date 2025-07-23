@@ -114,7 +114,7 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                     <TreeSelect
                         {...props}
                         open={isOpenCompareSelect}
-                        onDropdownVisibleChange={(isOpen) => setIsOpenCompareSelect(isOpen)}
+                        onOpenChange={(isOpen) => setIsOpenCompareSelect(isOpen)}
                         popupClassName={clsx([
                             "!w-[280px] pt-0",
                             "[&_.ant-select-tree-checkbox]:hidden",
@@ -159,7 +159,7 @@ const SelectVariant = ({showAsCompare = false, ...props}: SelectVariantProps) =>
                 <TreeSelect
                     {...props}
                     open={isOpenSelect}
-                    onDropdownVisibleChange={(isOpen) => setIsOpenSelect(isOpen)}
+                    onOpenChange={(isOpen) => setIsOpenSelect(isOpen)}
                     style={{width: 120}}
                     dropdownStyle={{maxHeight: 400, overflow: "auto"}}
                     size="small"

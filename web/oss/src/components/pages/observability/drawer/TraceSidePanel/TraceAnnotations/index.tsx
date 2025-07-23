@@ -89,12 +89,12 @@ const TraceAnnotations = ({annotations}: TraceAnnotationsProps) => {
                                 >
                                     <div
                                         className={clsx(
-                                            "flex items-center justify-between",
+                                            "flex items-center flex-wrap gap-2 justify-between",
                                             "py-1 px-3 cursor-pointer",
                                             "rounded-lg border border-[#BDC7D1] border-solid",
                                         )}
                                     >
-                                        <Typography.Text className="truncate overflow-hidden text-ellipsis w-[200px]">
+                                        <Typography.Text className="truncate overflow-hidden text-ellipsis flex-1">
                                             {key}
                                         </Typography.Text>
                                         <Typography.Text type="secondary">{`μ ${metric.average}`}</Typography.Text>

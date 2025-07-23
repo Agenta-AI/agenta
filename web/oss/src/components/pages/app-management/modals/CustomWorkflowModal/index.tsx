@@ -139,7 +139,7 @@ const CustomWorkflowModal = ({
             width={480}
             closeIcon={null}
             centered
-            destroyOnClose
+            destroyOnHidden
             footer={ModalFooter}
             {...props}
         >

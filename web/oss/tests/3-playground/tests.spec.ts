@@ -19,7 +19,7 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
         })
     },
 
-    runCompletionSingleViewVariant: async ({page, uiHelpers}, use) => {
+    runCompletionSingleViewVariant: async ({page, uiHelpers, apiHelpers}, use) => {
         await use(async (appId: string, messages: string[]) => {
             for (let i = 0; i < messages.length; i++) {
                 // 1. Load the message
@@ -38,11 +38,16 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
+
                 await runButtons.nth(i).click()
 
-                await uiHelpers.waitForLoadingState("Running...")
+                await apiHelpers.waitForApiResponse<Record<string, any>>({
+                    route: /\/test(\?|$)/,
+                    method: "POST",
+                })
 
-                // 4. TODO: assert response
+                await uiHelpers.expectNoText("Click run to generate output")
+                await expect(page.getByText("Error").first()).not.toBeVisible()
 
                 // 5. Add a new Test case
                 const testCaseButton = page.getByRole("button", {name: "Test case"})
@@ -76,11 +81,15 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
 
                 // 3. Target the corresponding Run button
                 const runButtons = page.getByRole("button", {name: "Run", exact: true})
+
                 await runButtons.click()
 
-                await uiHelpers.waitForLoadingState("Generating response...")
+                await apiHelpers.waitForApiResponse<Record<string, any>>({
+                    route: /\/test(\?|$)/,
+                    method: "POST",
+                })
 
-                // 4. TODO: assert response
+                await expect(page.getByText("Error").first()).not.toBeVisible()
 
                 // 5. Stop the execution if failure is present
                 const hasFailureText = await page.getByText("Error").first().isVisible()

@@ -30,7 +30,6 @@ export interface AgentaConfig extends Record<string, unknown> {
 
 /** Variant configuration structure */
 export interface VariantParameters {
-    agConfig: AgentaConfig
     ag_config?: AgentaConfig
 }
 
@@ -79,6 +78,7 @@ export interface RevisionObject {
     userProfile?: User | null
     commitMessage?: string | null
     isLatestRevision?: boolean
+    isChatVariant?: boolean
     isLatestVariantRevision?: boolean
     deployedIn?: CamelCaseEnvironment[]
 }

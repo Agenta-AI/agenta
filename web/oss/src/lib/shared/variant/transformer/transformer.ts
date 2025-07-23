@@ -58,9 +58,7 @@ export function transformToEnhancedVariant(
 ): EnhancedVariant {
     try {
         if (variant.parameters) {
-            console.log("variant.parameters", variant.parameters)
-            variant.parameters =
-                variant.parameters.ag_config || variant.parameters.agConfig || variant.parameters
+            variant.parameters = variant.parameters.ag_config || variant.parameters
         }
 
         const path = constructPlaygroundTestUrl(
@@ -161,6 +159,12 @@ export function transformToEnhancedVariant(
             inputs: {} as EnhancedVariant["inputs"],
             // @ts-ignore
             messages: {} as EnhancedVariant["messages"],
+            // NEW
+            requestSchema: {
+                required: requestSchema.required,
+                title: requestSchema.title,
+                type: requestSchema.type,
+            },
         }
     } catch (err) {
         console.error("Error transforming variant:", err)

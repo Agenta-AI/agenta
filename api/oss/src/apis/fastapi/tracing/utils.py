@@ -368,8 +368,27 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
 
     cleaned_ag["metrics"] = cleaned_metrics
 
+    # --- references ---
+    references_dict = ensure_nested_dict(ag, "references")
+    cleaned_references = {}
+
+    if isinstance(references_dict, dict):
+        for key in references_dict:
+            if key in REFERENCE_KEYS:
+                entry = {}
+                if references_dict[key].get("id") is not None:
+                    entry["id"] = str(references_dict[key]["id"])
+                if references_dict[key].get("slug") is not None:
+                    entry["slug"] = str(references_dict[key]["slug"])
+                if references_dict[key].get("version") is not None:
+                    entry["version"] = str(references_dict[key]["version"])
+
+                cleaned_references[key] = entry
+
+    cleaned_ag["references"] = cleaned_references or None
+
     # --- passthrough simple optional fields ---
-    for key in ["flags", "tags", "meta", "exception", "references", "hashes"]:
+    for key in ["flags", "tags", "meta", "exception", "hashes"]:
         cleaned_ag[key] = ag.get(key, None)
 
     # --- unsupported top-level ---
@@ -398,6 +417,9 @@ REFERENCE_KEYS = [
     "evaluator",
     "evaluator_variants",
     "evaluator_revisions",
+    "environment",
+    "environment_variants",
+    "environment_revisions",
 ]
 
 

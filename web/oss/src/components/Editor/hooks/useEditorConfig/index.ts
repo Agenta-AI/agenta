@@ -1,4 +1,4 @@
-import {useEffect, useState, useRef} from "react"
+import {useEffect, useState} from "react"
 import {ComponentProps} from "react"
 
 import {LexicalComposer, InitialConfigType} from "@lexical/react/LexicalComposer"
@@ -9,6 +9,14 @@ import {TokenInputNode} from "../../plugins/token/TokenInputNode"
 import {TokenNode} from "../../plugins/token/TokenNode"
 import type {EditorProps} from "../../types"
 type LexicalComposerProps = ComponentProps<typeof LexicalComposer>
+
+// Cache built configs keyed by variant so subsequent editors receive the
+// configuration synchronously without triggering the loading placeholder.
+const CONFIG_CACHE = new Map<string, InitialConfigType>()
+const CONFIG_PROMISE_CACHE = new Map<string, Promise<InitialConfigType>>()
+
+const buildCacheKey = (codeOnly: boolean, enableTokens: boolean): string =>
+    `${codeOnly ? "code" : "rich"}|${enableTokens ? "tok" : "plain"}`
 
 const useEditorConfig = ({
     id,
@@ -21,13 +29,17 @@ const useEditorConfig = ({
     EditorProps,
     "id" | "initialValue" | "disabled" | "codeOnly" | "enableTokens" | "initialEditorState"
 >): LexicalComposerProps["initialConfig"] | null => {
-    const [config, setConfig] = useState<InitialConfigType | null>(null)
-    const configRef = useRef<InitialConfigType | null>(null)
+    const cacheKey = buildCacheKey(codeOnly, enableTokens)
+
+    // Return cached config immediately if we already have it
+    const [config, setConfig] = useState<InitialConfigType | null>(
+        CONFIG_CACHE.get(cacheKey) ?? null,
+    )
 
     useEffect(() => {
-        const loadConfig = async () => {
-            if (configRef.current) return
+        if (CONFIG_CACHE.has(cacheKey)) return // already cached
 
+        const loadConfig = async (): Promise<InitialConfigType> => {
             const initialNodes: (KlassConstructor<typeof LexicalNode> | typeof LexicalNode)[] = []
 
             if (codeOnly) {
@@ -100,12 +112,21 @@ const useEditorConfig = ({
                 editable: !disabled,
             }
 
-            configRef.current = newConfig
+            // Store in caches so any concurrent/race hook calls resolve instantly
+            CONFIG_CACHE.set(cacheKey, newConfig)
+            CONFIG_PROMISE_CACHE.delete(cacheKey)
             setConfig(newConfig)
+            return newConfig
         }
 
-        loadConfig()
-    }, [codeOnly, disabled, enableTokens, id, initialEditorState, initialValue])
+        // If another hook call is already loading this variant, reuse its promise
+        if (CONFIG_PROMISE_CACHE.has(cacheKey)) {
+            CONFIG_PROMISE_CACHE.get(cacheKey)!.then((cfg) => setConfig(cfg))
+            return
+        }
+        const p = loadConfig()
+        CONFIG_PROMISE_CACHE.set(cacheKey, p)
+    }, [cacheKey, codeOnly, disabled, enableTokens, id, initialEditorState])
 
     return config
 }

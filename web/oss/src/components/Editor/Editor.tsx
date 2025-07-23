@@ -130,7 +130,9 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                     ({hydrateWithRemoteContent}) => {
                         if (editor.isEditable() && isInitRef.current) return false
                         isInitRef.current = true
-                        $convertFromMarkdownString(hydrateWithRemoteContent, TRANSFORMERS)
+                        if (hydrateWithRemoteContent) {
+                            $convertFromMarkdownString(hydrateWithRemoteContent, TRANSFORMERS)
+                        }
                         return false
                     },
                     COMMAND_PRIORITY_LOW,
@@ -244,7 +246,7 @@ export const EditorProvider = ({
         <div
             className={clsx([
                 "agenta-rich-text-editor",
-                "min-h-16",
+                "min-h-[70px]",
                 "w-full",
                 "text-[#1C2C3D] relative flex flex-col rounded-lg",
                 {

@@ -181,7 +181,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
 
     return (
         <Modal
-            destroyOnClose
+            destroyOnHidden
             onOk={onOk}
             okText={"Retry"}
             footer={closable ? undefined : null}

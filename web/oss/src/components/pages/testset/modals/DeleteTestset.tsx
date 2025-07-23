@@ -47,7 +47,7 @@ const DeleteTestset = ({
 
     return (
         <Modal
-            destroyOnClose
+            destroyOnHidden
             title="Are you sure?"
             okText="Delete"
             okButtonProps={{danger: true, icon: <DeleteOutlined />, loading: isLoading}}

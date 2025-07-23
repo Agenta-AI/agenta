@@ -1,6 +1,5 @@
 import {type PropsWithChildren, useState, useCallback} from "react"
 
-import {Transition} from "@headlessui/react"
 import {Typography, Button, theme} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
@@ -45,24 +44,14 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
         setDismissed(true)
     }
 
-    return (
-        // @ts-ignore
-        <Transition
-            show={!dismissed && shouldDisplay}
-            enter="transition-opacity duration-75"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="transition-opacity duration-150"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
-            as="div"
+    return shouldDisplay ? (
+        <div
             className={clsx([
                 "fixed top-0 left-0 right-0 bottom-0", // overlay the entire screen
                 "flex flex-col items-center justify-center gap-4", // flex config
                 "z-[9999]",
                 overlay, // TODO: better theme connected tailwind color classes
             ])}
-            unmount
         >
             <Typography.Text className="w-8/12 text-center leading-1 text-lg">
                 Agenta works better in larger laptop or desktop screens.
@@ -70,8 +59,8 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
             <Button type="primary" size="large" onClick={handleDismiss}>
                 View anyway
             </Button>
-        </Transition>
-    )
+        </div>
+    ) : null
 }
 
 export default NoMobilePageWrapper
