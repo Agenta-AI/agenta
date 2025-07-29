@@ -8,6 +8,8 @@ import {
     CaretDown,
     CaretUp,
     Image,
+    MarkdownLogoIcon,
+    TextAa,
 } from "@phosphor-icons/react"
 import clsx from "clsx"
 
@@ -17,6 +19,10 @@ import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 import TestsetDrawerButton from "../../../../Drawers/TestsetDrawer"
 
 import type {PromptMessageContentOptionsProps} from "./types"
+import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
+import {useAtom} from "jotai"
+import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
+import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 
 export const getTextContent = (content: any) => {
     if (typeof content === "string") return content
@@ -24,7 +30,11 @@ export const getTextContent = (content: any) => {
         const value = content.filter(
             (part: any) => part.type.value === "text" || part.type === "text",
         )
-return value.length > 0 ? (typeof value[0].text === "string" ? value[0].text : value[0].text.value) : ""
+        return value.length > 0
+            ? typeof value[0].text === "string"
+                ? value[0].text
+                : value[0].text.value
+            : ""
     }
     return ""
 }
@@ -41,7 +51,11 @@ const PromptMessageContentOptions = ({
     resultHashes,
     allowFileUpload,
     uploadCount,
+    hideMarkdownToggle,
 }: PromptMessageContentOptionsProps) => {
+    const [editor] = useLexicalComposerContext()
+    const [markdownView] = useAtom(markdownViewAtom)
+
     const {propertyGetter, isChat} = usePlayground({
         stateSelector: (state) => ({
             isChat: state.variants.some((v) => v.isChat),
@@ -101,6 +115,17 @@ const PromptMessageContentOptions = ({
                 onClick={onCopyText}
                 tooltipProps={{title: isCopied ? "Copied" : "Copy"}}
             />
+
+            {!hideMarkdownToggle && (
+                <EnhancedButton
+                    icon={!markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
+                    type="text"
+                    onClick={() => editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)}
+                    tooltipProps={{
+                        title: !markdownView ? "Preview text" : "Preview markdown",
+                    }}
+                />
+            )}
 
             <EnhancedButton
                 icon={<MinusCircle size={14} />}

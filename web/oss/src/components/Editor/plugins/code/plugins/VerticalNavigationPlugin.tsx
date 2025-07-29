@@ -14,7 +14,7 @@ import {
     $isRangeSelection,
     $createRangeSelection,
     $setSelection,
-    COMMAND_PRIORITY_CRITICAL,
+    COMMAND_PRIORITY_HIGH,
     KEY_ARROW_UP_COMMAND,
     KEY_ARROW_DOWN_COMMAND,
     KEY_DOWN_COMMAND,
@@ -26,9 +26,10 @@ import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeLineNode} from "../nodes/CodeLineNode"
 import {createLogger} from "../utils/createLogger"
 import {$fixCodeBlockIndentation} from "../utils/indentationUtils"
+import {getNodeAtOffset} from "../utils/navigation"
 
 const PLUGIN_NAME = "VerticalNavigationPlugin"
-const log = createLogger(PLUGIN_NAME, {disabled: false})
+const log = createLogger(PLUGIN_NAME, {disabled: true})
 
 /**
  * Handles line movement with Alt+Up/Down
@@ -246,22 +247,20 @@ export function VerticalNavigationPlugin() {
                 const currentLine = anchorNode.getParents().find($isCodeLineNode)
                 if (!currentLine) return false
 
-                const targetLine = isArrowUp
-                    ? currentLine.getPreviousSibling()
-                    : currentLine.getNextSibling()
+                const getUnfoldedLine = (line: any, direction: "up" | "down") => {
+                    if (!line) return null
+                    const target =
+                        direction === "up" ? line.getPreviousSibling() : line.getNextSibling()
 
-                if (!targetLine || !$isCodeLineNode(targetLine)) {
-                    // If at the top/bottom of code block, prevent selection from moving out
-                    if (
-                        (isArrowUp && !currentLine.getPreviousSibling()) ||
-                        (!isArrowUp && !currentLine.getNextSibling())
-                    ) {
-                        log("🎮 At edge of code block, preventing default")
-                        event.preventDefault()
-                        return true
-                    }
-                    return false
+                    if (target && !target.isHidden()) return target
+                    return getUnfoldedLine(target, direction)
                 }
+
+                const targetLine = isArrowUp
+                    ? getUnfoldedLine(currentLine, "up")
+                    : getUnfoldedLine(currentLine, "down")
+
+                if (!targetLine || !$isCodeLineNode(targetLine)) return false
 
                 // Handle Alt+Arrow for line movement
                 if (event.altKey) {
@@ -302,9 +301,16 @@ export function VerticalNavigationPlugin() {
                 })
 
                 // Get target line information
-                const targetLineContent = targetLine.getTextContent()
-                const targetLineLength = targetLineContent.length
-                const targetLineNodes = targetLine.getChildren()
+                // const isTargetLineFolded = targetLine?.isCollapsed()
+                // console.log("TARGET LINE!", targetLine)
+                // if (isTargetLineFolded) {
+                //     console.log("🎮 Target line is folded, skipping")
+                //     // editor.dispatchCommand(KEY_DOWN_COMMAND, event)
+                //     // return true
+                // }
+                const targetLineContent = targetLine?.getTextContent()
+                const targetLineLength = targetLineContent?.length
+                const targetLineNodes = targetLine?.getChildren()
 
                 log("🎮 Target line info:", {
                     targetLineLength,
@@ -316,21 +322,11 @@ export function VerticalNavigationPlugin() {
                 // If that's not possible, position at the end
                 const targetOffset = Math.min(currentPositionInLine, targetLineLength)
 
-                // Find the node and offset within that node for the target position
-                let accumulatedLength = 0
-                let targetNode = targetLineNodes[targetLineNodes.length - 1] // Default to last node
-                let offsetInTargetNode = targetNode ? targetNode.getTextContentSize() : 0
-
-                for (const node of targetLineNodes) {
-                    const nodeLength = node.getTextContentSize()
-                    if (accumulatedLength + nodeLength >= targetOffset) {
-                        // We found the node containing our target position
-                        targetNode = node
-                        offsetInTargetNode = targetOffset - accumulatedLength
-                        break
-                    }
-                    accumulatedLength += nodeLength
-                }
+                // Resolve node + inner offset via helper (O(children) worst-case but no manual loop here)
+                const {node: targetNode, innerOffset: offsetInTargetNode} = getNodeAtOffset(
+                    targetLine as any,
+                    targetOffset,
+                )
 
                 if (!targetNode) {
                     log("🎮 No target node found")
@@ -340,7 +336,7 @@ export function VerticalNavigationPlugin() {
                 log("🎮 Setting selection to:", {
                     targetNodeKey: targetNode.getKey(),
                     offsetInTargetNode,
-                    targetNodeType: targetNode.getType(),
+                    targetNodeType: targetNode!.getType(),
                 })
 
                 // Create and set the selection
@@ -350,7 +346,7 @@ export function VerticalNavigationPlugin() {
                     newSelection.anchor.set(anchor.getNode().getKey(), anchor.offset, "text")
                     newSelection.focus.set(targetNode.getKey(), offsetInTargetNode, "text")
                 } else {
-                    newSelection.anchor.set(targetNode.getKey(), offsetInTargetNode, "text")
+                    newSelection.anchor.set(targetNode!.getKey(), offsetInTargetNode, "text")
                     newSelection.focus.set(targetNode.getKey(), offsetInTargetNode, "text")
                 }
                 $setSelection(newSelection)
@@ -358,7 +354,7 @@ export function VerticalNavigationPlugin() {
 
                 return false
             },
-            COMMAND_PRIORITY_CRITICAL,
+            COMMAND_PRIORITY_HIGH,
         )
     }, [editor])
 

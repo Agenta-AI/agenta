@@ -112,6 +112,7 @@ export const GenerationChatRowOutput = ({
                 state={messageResult?.error ? "readOnly" : "filled"}
                 allowFileUpload
                 message={message}
+                editorProps={{enableTokens: false}}
             />
         </div>
     )

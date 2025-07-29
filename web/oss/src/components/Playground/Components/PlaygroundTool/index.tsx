@@ -211,6 +211,7 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                                         setMinimized((current) => !current)
                                     },
                                 }}
+                                hideMarkdownToggle={true}
                             />
                         </div>
                     }

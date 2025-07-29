@@ -2,13 +2,14 @@ import {useEffect, useCallback} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {useLexicalTextEntity} from "@lexical/react/useLexicalTextEntity"
-import {TextNode, $createTextNode, LexicalNode, $isRangeSelection} from "lexical"
+import {TextNode, $createTextNode, LexicalNode, $isRangeSelection, $getSelection} from "lexical"
 
 import {TokenInputNode, $createTokenInputNode, $isTokenInputNode} from "./TokenInputNode"
 import {TokenNode, $createTokenNode, $isTokenNode} from "./TokenNode"
+import {navigateCursor} from "./assets/selectionUtils"
 
-const FULL_TOKEN_REGEX = /\{\{[^{}]+\}\}/
-const TOKEN_INPUT_REGEX = /\{\{[^{}]*\}?$/
+const FULL_TOKEN_REGEX = /\{\{[^{}]*\}\}/
+const TOKEN_INPUT_REGEX = /\{\{[^{}]*$/
 
 export function TokenPlugin(): null {
     const [editor] = useLexicalComposerContext()
@@ -25,7 +26,7 @@ export function TokenPlugin(): null {
 
             if ($isTokenNode(textNode)) {
                 // Handle existing token nodes
-                if (!text?.match(/^\{\{[^{}]+\}\}$/)) {
+                if (!text?.match(/^\{\{[^{}]*\}\}$/)) {
                     const parent = textNode.getParent()
                     if (!parent) return
 
@@ -37,7 +38,7 @@ export function TokenPlugin(): null {
 
             if ($isTokenInputNode(textNode)) {
                 // Handle existing token input nodes
-                if (text?.match(/^\{\{[^{}]+\}\}$/)) {
+                if (text?.match(/^\{\{[^{}]*\}\}$/)) {
                     const tokenNode = $createTokenNode(text)
                     textNode.replace(tokenNode)
                     const spaceNode = $createTextNode(" ")
@@ -57,7 +58,6 @@ export function TokenPlugin(): null {
 
             // Handle potential new tokens
             const tokenMatch = text?.match(FULL_TOKEN_REGEX)
-            const tokenInputMatch = text?.match(TOKEN_INPUT_REGEX)
 
             if (tokenMatch) {
                 const [fullMatch] = tokenMatch
@@ -83,6 +83,25 @@ export function TokenPlugin(): null {
                 if (afterToken) {
                     const afterNode = $createTextNode(afterToken)
                     textNode.insertBefore(afterNode)
+                    if (fullMatch === "{{}}") {
+                        navigateCursor({nodeKey: tokenNode.getKey(), offset: 2})
+                    } else {
+                        // Get the current selection before any transformations
+                        const selection = $getSelection()
+                        const cursorOffset = $isRangeSelection(selection)
+                            ? selection.anchor.offset
+                            : 0
+                        // Calculate the new cursor position based on where it was before
+                        const tokenStart = text.indexOf(fullMatch)
+                        const tokenEnd = tokenStart + fullMatch.length
+
+                        navigateCursor({
+                            nodeKey: afterNode.getKey(),
+                            offset: Math.max(0, cursorOffset - tokenEnd),
+                        })
+                    }
+                } else if (fullMatch === "{{}}") {
+                    navigateCursor({nodeKey: tokenNode.getKey(), offset: 2})
                 } else {
                     const spaceNode = $createTextNode(" ")
                     tokenNode.insertAfter(spaceNode)
@@ -98,35 +117,6 @@ export function TokenPlugin(): null {
                 }
 
                 textNode.remove()
-            } else if (tokenInputMatch) {
-                const [fullMatch] = tokenInputMatch
-                const startOffset = tokenInputMatch.index!
-
-                // Split text into parts
-                const beforeToken = text.slice(0, startOffset)
-                const afterToken = text.slice(startOffset + fullMatch.length)
-
-                // Create nodes
-                const parent = textNode.getParent()
-                if (!parent) return
-
-                if (beforeToken) {
-                    const beforeNode = $createTextNode(beforeToken)
-                    textNode.insertBefore(beforeNode)
-                }
-
-                const tokenInputNode = $createTokenInputNode(fullMatch)
-                textNode.insertBefore(tokenInputNode)
-
-                if (afterToken) {
-                    const afterNode = $createTextNode(afterToken)
-                    tokenInputNode.insertAfter(afterNode)
-                }
-
-                textNode.remove()
-            } else if (text.match(/^\{\{[^{}]*\}?$/)) {
-                const tokenInputNode = $createTokenInputNode(text)
-                textNode.replace(tokenInputNode)
             }
         }
 

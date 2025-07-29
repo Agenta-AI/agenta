@@ -1,0 +1,396 @@
+.form-view {
+  :global(.ant-typography-edit-content) {
+    width: auto !important;
+    position: static !important;
+    display: inline-block !important;
+    vertical-align: baseline !important;
+    margin: 0px !important;
+  }
+
+  /* editable textarea styling */
+  :global(.ant-typography-edit-content input),
+  :global(.ant-typography-edit-content textarea) {
+    display: inline !important;
+    min-width: 0px !important;
+    width: fit-content !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    font-size: 12px !important;
+    min-height: 0px !important;
+    font-weight: 600;
+    line-height: 20px !important;
+    height: auto !important;
+    resize: none;
+    field-sizing: content;
+    display: none;
+  }
+}
+
+/* horizontal connector for each tree row */
+.tree-row {
+  position: relative;
+}
+
+.tree-row {
+    &::before {
+        content: '';
+        position: absolute;
+        left: -10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 8px;
+        border-top: 1px dotted #c4c4c4;
+    }
+
+    &:global(.array-item) {
+        border-left: none;
+    }
+    border-left: 1px dashed #e5e5e5;
+
+    :global(.object-node) {
+        /* > .tree-row {
+            border-left: none;
+        } */
+        > .tree-row:last-of-type {
+            /* &::before {
+                display: none;
+            } */
+             /* border-left: none; */
+        }
+    }
+
+    span:only-of-type {
+        margin-left: 4px !important;
+    }
+
+    &:global(.array-item) {
+        margin-left: 0px !important;
+        padding-left: 0px !important;
+
+        > span:first-of-type {
+            display: none;
+        }
+    }
+
+    span {
+        margin: 0px;
+    }
+        
+    &:global(.no-line) {
+        &::before {
+            display: none;
+        }
+        /* border-left: none; */
+    }
+
+  &:global(.primitive):before,
+  &:global(.object-key):before,
+  &:global(.array-key):before,
+  &:global(.array-item-wrapper):before {
+    left: 0px;
+    width: 8px;
+    border-top: 1px dotted red;
+  }
+  
+  .tree-row {
+      &::before {
+          content: '';
+          position: absolute;
+          left: -10px;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 8px;
+          border-top: 1px dotted #c4c4c4;
+      }
+  
+      &:global(.array-item) {
+          border-left: none;
+      }
+      border-left: 1px dashed #e5e5e5;
+  
+      :global(.object-node) {
+          /* > .tree-row {
+              border-left: none;
+          } */
+          > .tree-row:last-of-type {
+              /* &::before {
+                  display: none;
+              } */
+               /* border-left: none; */
+          }
+      }
+  
+      span:only-of-type {
+          margin-left: 4px !important;
+      }
+  
+      &:global(.array-item) {
+          margin-left: 0px !important;
+          padding-left: 0px !important;
+  
+          > span:first-of-type {
+              display: none;
+          }
+      }
+  
+      span {
+          margin: 0px;
+      }
+          
+      &:global(.no-line) {
+          &::before {
+              display: none;
+          }
+          /* border-left: none; */
+      }
+  
+    &:global(.primitive):before,
+    &:global(.object-key):before,
+    &:global(.array-key):before,
+    &:global(.array-item-wrapper):before {
+      left: 0px;
+      width: 8px;
+      border-top: 1px dotted red;
+    }
+    &:global(.object-node):before,
+    &:global(.object-item-wrapper):before,
+    &:global(.array-node):before,
+    &:global(.array-item):before {
+      display: none;
+    }
+  
+    .node-header,
+    &:global(.array-key) {
+      min-height: 34px;
+      
+      margin-left: 10px;
+  
+      span:nth-child(2),
+      input {
+          margin-left: 4px;
+      }
+    }
+  }
+  
+  
+  
+  .row-wrapper {
+    position: relative;
+  }
+   
+  .row-wrapper:hover .add-inline,
+  .between-hover:hover .add-between,
+  .on-hover:hover .add-between {
+    opacity: 1;
+  } 
+  
+  .add-inline {
+    position: relative;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: auto;
+  }
+  
+  /* New class for inline header buttons */
+  .add-inline-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    margin-left: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: auto;
+  }
+  
+  /* .row-wrapper:hover .add-inline-btn, */
+  .node-header:hover .add-inline-btn {
+    opacity: 1;
+  }
+  
+  /* existing class retains */
+  .add-inline {
+    position: relative;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: auto;
+  }
+  
+  .add-between {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  
+    width: 14px;
+    height: 14px;
+    left: -3px;
+    top: 0;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: auto; 
+  
+    span {
+      margin-left: 0 !important;
+      &:only-of-type {
+        margin-left: 0 !important;
+      }
+    }
+  }
+  
+  .on-hover {
+    pointer-events: none;
+    position: absolute;
+    top: 8px;
+    /* calc(50% - 8px); */
+    width: 14px;
+    height: 14px;
+    /* left: 0px; */
+  }
+  .between-hover {
+    pointer-events: none;
+    position: absolute;
+    top: -7px;
+    width: 14px;
+    height: 14px;
+    /* left: 0px; */
+  }
+  
+  /* editable textarea styling */
+  :global(.ant-typography-edit-content input),
+  :global(.ant-typography-edit-content textarea) {
+    display: inline !important;
+    min-width: 0px !important;
+    width: fit-content !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    font-size: 12px !important;
+    min-height: 0px !important;
+    font-weight: 600;
+    line-height: 20px !important;
+    height: auto !important;
+    resize: none;
+    field-sizing: content;
+    display: none;
+  }
+
+  .node-header,
+  &:global(.array-key) {
+    min-height: 34px;
+    
+    margin-left: 10px;
+
+    span:nth-child(2),
+    input {
+        margin-left: 4px;
+    }
+  }
+}
+
+
+.row-wrapper {
+  position: relative;
+}
+ 
+.row-wrapper:hover .add-inline,
+.between-hover:hover .add-between,
+.on-hover:hover .add-between {
+  opacity: 1;
+} 
+
+.add-inline {
+  position: relative;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: auto;
+}
+
+/* New class for inline header buttons */
+.add-inline-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: auto;
+}
+
+/* .row-wrapper:hover .add-inline-btn, */
+.node-header:hover .add-inline-btn {
+  opacity: 1;
+}
+
+/* existing class retains */
+.add-inline {
+  position: relative;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: auto;
+}
+
+.add-between {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 14px;
+  height: 14px;
+  left: -3px;
+  top: 0;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: auto; 
+
+  span {
+    margin-left: 0 !important;
+    &:only-of-type {
+      margin-left: 0 !important;
+    }
+  }
+}
+
+.on-hover {
+  pointer-events: none;
+  position: absolute;
+  top: 8px;
+  /* calc(50% - 8px); */
+  width: 14px;
+  height: 14px;
+  /* left: 0px; */
+}
+.between-hover {
+  pointer-events: none;
+  position: absolute;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  /* left: 0px; */
+}
+
+
+

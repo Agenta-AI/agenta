@@ -42,6 +42,41 @@ export function tryParsePartialJson(input: any): any | null {
         // Replace curly quotes with standard quotes
         .replace(/[\u201C\u201D]/g, '"')
 
+    // FIRST: Try standard JSON.parse to preserve original key ordering
+    try {
+        const parsed = JSON.parse(cleanedInput.trim())
+        log(
+            "[tryParsePartialJson] Successfully parsed with standard JSON.parse, preserving key order",
+        )
+        return parsed
+    } catch (e) {
+        log("[tryParsePartialJson] Standard JSON.parse failed, trying common fixes:", e.message)
+    }
+
+    // SECOND: Try fixing common JSON issues before falling back to manual parsing
+    const commonFixes = [
+        // Remove trailing commas (most common issue)
+        (str: string) => str.replace(/,\s*([}\]])/g, "$1"),
+        // Remove trailing comma at end of object/array
+        (str: string) => str.replace(/,\s*$/, ""),
+        // Fix missing quotes around keys (basic case)
+        (str: string) => str.replace(/(\w+)\s*:/g, '"$1":'),
+    ]
+
+    for (const fix of commonFixes) {
+        try {
+            const fixedInput = fix(cleanedInput.trim())
+            const parsed = JSON.parse(fixedInput)
+            log(
+                "[tryParsePartialJson] Successfully parsed after applying common fixes, preserving key order",
+            )
+            return parsed
+        } catch (e) {
+            // Continue to next fix
+            log("[tryParsePartialJson] Fix attempt failed:", e.message)
+        }
+    }
+
     // Remove outer braces if present for easier parsing, so we can focus on key-value pairs
     let body = cleanedInput.trim()
     if (body.startsWith("{") && body.endsWith("}")) {

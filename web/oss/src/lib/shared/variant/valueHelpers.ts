@@ -3,8 +3,20 @@ import {ConfigMetadata} from "./genericTransformer/types"
 import {toSnakeCase} from "./stringUtils"
 
 export function shouldIncludeValue(value: unknown): boolean {
-    if (!value) return false
+    // Handle null and undefined
+    if (value === null || value === undefined) return false
+
+    // Handle empty strings
+    if (value === "") return false
+
+    // Handle empty arrays
     if (Array.isArray(value) && value.length === 0) return false
+
+    // Preserve all other values including:
+    // - Boolean false (e.g., "strict": false)
+    // - Number 0 (e.g., "count": 0)
+    // - Empty objects (e.g., "properties": {})
+    // These all have semantic meaning and should be preserved
     return true
 }
 
@@ -54,7 +66,7 @@ export function extractValueByMetadata(
 ): unknown {
     const enhanced = structuredClone(_enhanced)
     // Handle null/undefined
-    if (!enhanced) return null
+    if (enhanced === null || enhanced === undefined) return null
 
     // Handle primitive values
     if (typeof enhanced !== "object" || enhanced === null) {
@@ -95,7 +107,9 @@ export function extractValueByMetadata(
                 {} as Record<string, unknown>,
             )
 
-        return Object.keys(obj).length > 0 ? obj : undefined
+        // Always return the object, even if empty - empty objects have semantic meaning
+        // in JSON schemas (e.g., "properties": {} vs no properties field)
+        return obj
     }
 
     switch (metadata.type) {

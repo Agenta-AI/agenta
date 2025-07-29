@@ -18,4 +18,5 @@ export interface PromptMessageContentOptionsProps {
     children?: React.ReactNode
     allowFileUpload?: boolean
     uploadCount?: number
+    hideMarkdownToggle?: boolean
 }

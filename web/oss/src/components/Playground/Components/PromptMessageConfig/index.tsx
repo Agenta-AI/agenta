@@ -28,6 +28,7 @@ import PromptImageUpload from "../PlaygroundVariantPropertyControl/assets/Prompt
 import SharedEditor from "../SharedEditor"
 
 import type {PromptMessageConfigProps} from "./types"
+import {getEnhancedProperties} from "@/oss/lib/shared/variant"
 
 const PromptMessageContentOptions = dynamic(
     () =>
@@ -199,6 +200,20 @@ const PromptMessageConfig = ({
                 }
             }
         },
+    })
+
+    const {variables} = usePlayground({
+        variantId,
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const variant = findVariantById(state, variantId)
+                const inputKeyValues = variant?.prompts.map((p) => p.inputKeys.value)
+                const variables = inputKeyValues?.flatMap((key) => key.map((k) => k.value))
+
+                return {variables}
+            },
+            [variantId],
+        ),
     })
 
     const getProperty = useCallback(
@@ -463,6 +478,7 @@ const PromptMessageConfig = ({
                                     }}
                                     allowFileUpload={allowFileUpload}
                                     uploadCount={imageProperties?.length}
+                                    hideMarkdownToggle={true}
                                 />
                             )}
                         </div>
@@ -540,6 +556,7 @@ const PromptMessageConfig = ({
                                     }}
                                     allowFileUpload={allowFileUpload}
                                     uploadCount={imageProperties?.length || 0}
+                                    hideMarkdownToggle={true}
                                 >
                                     {/* <Select
                                         variant="borderless"
@@ -625,11 +642,12 @@ const PromptMessageConfig = ({
                 className,
             ])}
             editorProps={{
-                ...(editorProps || {}),
                 codeOnly: isJSON || isTool,
                 noProvider: true,
                 enableTokens: !(isJSON || isTool),
+                tokens: variables,
                 showToolbar: false,
+                ...(editorProps || {}),
             }}
             {...props}
             footer={
@@ -675,7 +693,7 @@ const PromptMessageConfig = ({
 }
 
 const checkIsJSON = (_value: any) => {
-    if (!_value) return false
+    if (!_value || _value === "{}" || _value === "[]") return false // Special case for empty object
     if (typeof _value === "string") {
         try {
             const parsed = JSON5.parse(_value)

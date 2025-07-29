@@ -1,5 +1,7 @@
 import {EditorState, LexicalEditor} from "lexical"
 
+import {CustomRenderFn} from "./form/nodes/NodeTypes"
+
 export interface EditorContextType {
     editor: LexicalEditor | null
     config: any
@@ -8,8 +10,9 @@ export interface EditorContextType {
 export interface EditorProviderProps extends React.HTMLProps<HTMLDivElement> {
     children: React.ReactNode
     dimensions?: {
-        width: number
-        height: number
+        width: number | string
+        maxWidth?: number | string
+        height: number | string
     }
 }
 
@@ -23,19 +26,26 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     singleLine?: boolean
     autoFocus?: boolean
     codeOnly?: boolean
-    language?: string
+    language?: "json" | "yaml"
     showToolbar?: boolean
     enableTokens?: boolean
+    tokens?: string[]
+    noProvider?: boolean
+    /** Custom render function to override node rendering in Form view */
+    customRender?: CustomRenderFn
     enableResize?: boolean
     boundWidth?: boolean
     boundHeight?: boolean
     debug?: boolean
     dimensions?: {
-        width: number
-        height: number
+        width: number | string
+        maxWidth?: number | string
+        height: number | string
     }
     showBorder?: boolean
     validationSchema?: unknown
+    /** Additional plugins to include in code editor */
+    additionalCodePlugins?: React.ReactNode[]
 }
 
 export interface EditorPluginsProps {
@@ -45,8 +55,13 @@ export interface EditorPluginsProps {
     autoFocus?: boolean
     enableTokens: boolean
     debug: boolean
-    language?: string
+    language?: "json" | "yaml"
     placeholder?: string
+    /** Initial text value for the editor */
+    initialValue: string
     validationSchema?: unknown
+    tokens?: string[]
     handleUpdate: (editorState: EditorState, editor: LexicalEditor) => void
+    /** Additional plugins to include in code editor */
+    additionalCodePlugins?: React.ReactNode[]
 }

@@ -17,6 +17,7 @@ import {
     LexicalEditor,
 } from "lexical"
 
+import styles from "../components/assets/CodeBlockErrorIndicator.module.css"
 /**
  * Represents the serialized form of a CodeHighlightNode.
  * Extends SerializedTextNode with a highlightType property for syntax highlighting.
@@ -93,21 +94,19 @@ export class CodeHighlightNode extends TextNode {
         const dom = super.createDOM(config)
 
         // Apply token class based on highlight type
-        dom.className = `editor-code-highlight token token-${latest.__highlightType}`
+        dom.className = `${styles["editor-code-highlight"]} token token-${latest.__highlightType}`
 
         // Ensure empty nodes have a minimum width for caret visibility
         if (latest.getTextContent() === "") {
             dom.classList.add("token-empty")
-            // Set a minimum width to ensure caret visibility
-            dom.style.minWidth = "1px"
-            dom.style.display = "inline-block"
         }
 
         // Add validation error styling if needed
         if (latest.hasValidationError()) {
-            dom.classList.add("token-error", "has-tooltip")
+            dom.classList.add("validation-error", "has-tooltip")
             if (latest.__validationMessage) {
                 dom.setAttribute("data-tooltip", latest.__validationMessage)
+                dom.setAttribute("title", latest.__validationMessage)
             }
         }
 
@@ -177,6 +176,15 @@ export class CodeHighlightNode extends TextNode {
         )
     }
 
+    // Prevent formatting (bold, underline, etc)
+    setFormat(format: number): this {
+        return this
+    }
+
+    canHaveFormat(): boolean {
+        return false
+    }
+
     setHighlightType(type: string): void {
         this.getWritable().__highlightType = type
     }
@@ -202,7 +210,7 @@ export class CodeHighlightNode extends TextNode {
     }
 
     setValidationMessage(msg: string | null): void {
-        const writable = this.getWritable<CodeHighlightNode>()
+        const writable = this.getWritable()
         writable.__validationMessage = msg
     }
 }
@@ -214,10 +222,10 @@ export class CodeHighlightNode extends TextNode {
  * @returns A new CodeHighlightNode instance
  */
 export function $createCodeHighlightNode(
-    text: string,
-    highlightType: string,
-    hasValidationError: boolean,
-    validationMessage: string | null,
+    text = "",
+    highlightType = "plain",
+    hasValidationError = false,
+    validationMessage: string | null = null,
     key?: string,
 ): CodeHighlightNode {
     return new CodeHighlightNode(text, highlightType, hasValidationError, validationMessage, key)

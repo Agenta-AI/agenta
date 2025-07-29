@@ -1,10 +1,11 @@
 // Editor.tsx
-import {memo, useEffect} from "react"
+import {Fragment, type ComponentProps, type FC, memo, useEffect, useRef} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {mergeRegister} from "@lexical/utils"
 import isEqual from "fast-deep-equal"
 import {createStore, atom} from "jotai"
+import yaml from "js-yaml"
 import JSON5 from "json5"
 import {
     $getRoot,
@@ -14,45 +15,154 @@ import {
     BLUR_COMMAND,
     FOCUS_COMMAND,
     $setSelection,
+    $isTabNode,
+    LexicalNode,
 } from "lexical"
 
-const store = createStore()
+import {INITIAL_CONTENT_COMMAND, InitialContentPayload} from "../../commands/InitialContentCommand"
+
+export const store = createStore()
 
 import {$createCodeBlockNode, $isCodeBlockNode} from "./nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
-import {$createCodeLineNode, CodeLineNode} from "./nodes/CodeLineNode"
+import {$createCodeLineNode, CodeLineNode, $isCodeLineNode} from "./nodes/CodeLineNode"
 import {AutoCloseBracketsPlugin} from "./plugins/AutoCloseBracketsPlugin"
 import {AutoFormatAndValidateOnPastePlugin} from "./plugins/AutoFormatAndValidateOnPastePlugin"
-import {CodeBlockFoldingPlugin} from "./plugins/CodeBlockFoldingPlugin"
-import {EmptyNodeTransformPlugin} from "./plugins/EmptyNodeTransformPlugin"
-import {HorizontalNavigationPlugin} from "./plugins/HorizontalNavigationPlugin"
+import {ClosingBracketIndentationPlugin} from "./plugins/ClosingBracketIndentationPlugin"
+import {GlobalErrorIndicatorPlugin} from "./plugins/GlobalErrorIndicatorPlugin"
 import {IndentationPlugin} from "./plugins/IndentationPlugin"
-import {$getEditorCodeAsString, RealTimeValidationPlugin} from "./plugins/RealTimeValidationPlugin"
+import {$getEditorCodeAsString} from "./plugins/RealTimeValidationPlugin"
 import {SyntaxHighlightPlugin} from "./plugins/SyntaxHighlightPlugin"
-import {VerticalNavigationPlugin} from "./plugins/VerticalNavigationPlugin"
+import VerticalNavigationPlugin from "./plugins/VerticalNavigationPlugin"
 import {tryParsePartialJson} from "./tryParsePartialJson"
 import {createLogger} from "./utils/createLogger"
 import {tokenizeCodeLine} from "./utils/tokenizer"
+import {validateAll} from "./utils/validationUtils"
+
+export const TOGGLE_FORM_VIEW = createCommand<void>("TOGGLE_FORM_VIEW")
 
 export const ON_CHANGE_LANGUAGE = createCommand<{
     language: string
 }>("ON_CHANGE_LANGUAGE")
 
-const editorStateAtom = atom({
+export const editorStateAtom = atom({
     focused: false,
 })
 
 store.set(editorStateAtom, {focused: false})
 
-const log = createLogger("Code Editor")
+const log = createLogger("Code Editor", {
+    disabled: true,
+})
+
+/**
+ * Simple validation function for JSON tokens
+ */
+function getTokenValidation(
+    text: string,
+    tokenType: string,
+    language: string,
+): {shouldHaveError: boolean; expectedMessage: string | null} {
+    // JSON syntax validation for unquoted property names
+    if (language === "json" && tokenType === "plain") {
+        // Check if this looks like a property name (not a value)
+        if (
+            text !== "" &&
+            !Number(text) &&
+            text !== "true" &&
+            text !== "false" &&
+            text !== "null"
+        ) {
+            return {
+                shouldHaveError: true,
+                expectedMessage: "Property names must be wrapped in double quotes",
+            }
+        }
+    }
+    return {shouldHaveError: false, expectedMessage: null}
+}
+
+/**
+ * Applies validation errors to code line nodes during initial content creation.
+ *
+ * @param codeLineNodes The array of code line nodes to apply validation to.
+ * @param text The original text content.
+ * @param validationSchema The schema to validate against.
+ * @param editor The Lexical editor instance to store global errors.
+ */
+function applyValidationToNodes(
+    codeLineNodes: CodeLineNode[],
+    text: string,
+    validationSchema: any,
+    editor?: any,
+): void {
+    try {
+        // Run validation on the text content
+        const validationResult = validateAll(text, validationSchema)
+
+        // Create a map of errors by line number
+        const errorsByLine = new Map<number, any[]>()
+
+        // Add all types of errors to the map
+        ;[...validationResult.structuralErrors, ...validationResult.schemaErrors].forEach(
+            (error) => {
+                const lineNumber = error.line
+                if (lineNumber && !errorsByLine.has(lineNumber)) {
+                    errorsByLine.set(lineNumber, [])
+                }
+                if (lineNumber) {
+                    errorsByLine.get(lineNumber)!.push(error)
+                }
+            },
+        )
+
+        // Apply errors to the corresponding code line nodes
+        codeLineNodes.forEach((lineNode, index) => {
+            const lineNumber = index + 1 // Lines are 1-indexed
+            const lineErrors = errorsByLine.get(lineNumber) || []
+
+            if (lineErrors.length > 0) {
+                // Set validation errors on the line node
+                const writableLine = lineNode.getWritable()
+                writableLine.setValidationErrors(lineErrors)
+            }
+        })
+
+        // Store errors in editor state for GlobalErrorIndicatorPlugin
+        if (editor) {
+            ;(editor as any)._structuralErrors = validationResult.structuralErrors
+            ;(editor as any)._schemaErrors = validationResult.schemaErrors
+            ;(editor as any)._bracketErrors = validationResult.bracketErrors || []
+
+            console.log(`🎯 [applyValidationToNodes] Stored errors in editor state:`, {
+                structural: validationResult.structuralErrors.length,
+                schema: validationResult.schemaErrors.length,
+                bracket: (validationResult.bracketErrors || []).length,
+            })
+        }
+    } catch (error) {
+        // Silently ignore validation errors during initial content creation
+        console.warn(
+            "[createHighlightedNodes] Validation failed during initial content creation:",
+            error,
+        )
+    }
+}
+
 /**
  * Creates an array of highlighted code line nodes from a given text and language.
  *
  * @param text The input text to highlight.
  * @param language The language to use for highlighting.
+ * @param validationSchema Optional schema for validation during node creation.
  * @returns An array of highlighted code line nodes.
  */
-export function createHighlightedNodes(text: string, language: string): CodeLineNode[] {
+export function createHighlightedNodes(
+    text: string,
+    language: "json" | "yaml",
+    validationSchema?: any,
+    editor?: any,
+): CodeLineNode[] {
     // For JSON, avoid splitting on \n inside string values
     if (language === "json") {
         try {
@@ -78,12 +188,25 @@ export function createHighlightedNodes(text: string, language: string): CodeLine
                 }
                 const tokens = tokenizeCodeLine(content, language)
                 tokens.forEach((token) => {
-                    const highlightNode = $createCodeHighlightNode(token.content)
-                    highlightNode.setHighlightType(token.type)
+                    const {shouldHaveError, expectedMessage} = getTokenValidation(
+                        token.content.trim(),
+                        token.type,
+                        language,
+                    )
+                    const highlightNode = $createCodeHighlightNode(
+                        token.content,
+                        token.type,
+                        shouldHaveError,
+                        expectedMessage,
+                    )
                     codeLine.append(highlightNode)
                 })
                 codeLineNodes.push(codeLine)
             })
+            // Run validation if schema is provided
+            if (validationSchema && editor.isEditable()) {
+                applyValidationToNodes(codeLineNodes, text, validationSchema, editor)
+            }
             return codeLineNodes
         } catch (e) {
             // If invalid JSON, fallback to generic line splitting below
@@ -101,12 +224,27 @@ export function createHighlightedNodes(text: string, language: string): CodeLine
         }
         const tokens = tokenizeCodeLine(content, language)
         tokens.forEach((token) => {
-            const highlightNode = $createCodeHighlightNode(token.content)
-            highlightNode.setHighlightType(token.type)
+            const {shouldHaveError, expectedMessage} = getTokenValidation(
+                token.content.trim(),
+                token.type,
+                language,
+            )
+            const highlightNode = $createCodeHighlightNode(
+                token.content,
+                token.type,
+                shouldHaveError,
+                expectedMessage,
+            )
             codeLine.append(highlightNode)
         })
         codeLineNodes.push(codeLine)
     })
+
+    // Run validation if schema is provided
+    if (validationSchema && editor.isEditable()) {
+        applyValidationToNodes(codeLineNodes, text, validationSchema, editor)
+    }
+
     return codeLineNodes
 }
 /**
@@ -122,132 +260,254 @@ function InsertInitialCodeBlockPlugin({
     initialValue,
     language = "json",
     validationSchema,
+    additionalCodePlugins = [],
 }: {
     debug?: boolean
     initialValue: string
     language?: "json" | "yaml"
     validationSchema: any
+    additionalCodePlugins?: React.ReactNode[]
 }) {
     const [editor] = useLexicalComposerContext()
 
     // const isInitRef = useRef(false)
 
-    useEffect(() => {
-        log("INITIAL VALUE CHANGED", {initialValue})
-        editor.update(
-            () => {
-                const hasFocus = store.get(editorStateAtom)?.focused
-                const root = $getRoot()
-                let existingCodeBlock = root.getChildren().find($isCodeBlockNode)
-
-                if (!existingCodeBlock) {
-                    root.clear()
-                    existingCodeBlock = $createCodeBlockNode(language)
-                    const line = $createCodeLineNode()
-                    const highlightNode = $createCodeHighlightNode("\u200B", "plain", false, null)
-
-                    line.append(highlightNode)
-                    existingCodeBlock.append(line)
-
-                    root.append(existingCodeBlock)
-                } else if (hasFocus) {
-                    return
-                }
-
-                // isInitRef.current = true
-                const currentTextValue = $getEditorCodeAsString()
-                root.getTextContent()
-                if (currentTextValue) {
-                    try {
-                        const currentObjectValue = JSON5.parse(currentTextValue)
-                        const incomingObjectValue =
-                            typeof initialValue === "string"
-                                ? JSON5.parse(initialValue)
-                                : initialValue
-                        if (isEqual(currentObjectValue, incomingObjectValue)) {
-                            log("DO NOT CLEAR AND RECONSTRUCT 1", {initialValue, currentTextValue})
-                            return
-                        }
-                    } catch (e) {
-                        try {
-                            const currentObject = tryParsePartialJson(currentTextValue)
-                            const incomingObject =
-                                typeof initialValue === "string"
-                                    ? JSON5.parse(initialValue)
-                                    : initialValue
-
-                            if (isEqual(currentObject, incomingObject)) {
-                                log("DO NOT CLEAR AND RECONSTRUCT 2")
-                                return
-                            } else {
-                                const trimmedIncoming =
-                                    typeof initialValue === "string"
-                                        ? initialValue.trim()
-                                        : JSON5.stringify(initialValue).trim()
-
-                                if (currentTextValue.trim() === trimmedIncoming) {
-                                    log("DO NOT CLEAR AND RECONSTRUCT 3")
-                                    return
-                                }
-                            }
-                        } catch (e) {
-                            log("there was an error parsing to json", {
-                                e,
-                                initialValue,
-                                currentTextValue,
-                            })
-                        }
-                    }
-                }
-
-                if (currentTextValue) {
-                    editor.setEditable(false)
-                }
-                // TODO: Instead of clearing and re-adding, we should do a diff check and edit updated nodes only
-                try {
-                    const objectValue =
-                        typeof initialValue === "string" ? JSON5.parse(initialValue) : initialValue
-                    const value = JSON.stringify(objectValue, null, 2)
-                    existingCodeBlock.clear()
-                    log("CLEAR AND RECONSTRUCT", {initialValue, currentTextValue})
-                    const highlightedNodes = createHighlightedNodes(value, language)
-                    highlightedNodes.forEach((node) => {
-                        existingCodeBlock.append(node)
-                    })
-
-                    const hasFocus = store.get(editorStateAtom)?.focused
-
-                    if (!hasFocus) {
-                        editor.setEditable(true)
-                        $setSelection(null)
-                    }
-                } catch (err) {
-                    log("failed values", {
-                        existingCodeBlock,
-                        initialValue,
-                        type: typeof initialValue,
-                        err,
-                    })
-
-                    if (!editor.isEditable()) {
-                        editor.setEditable(true)
-                    }
-                }
-            },
-            {
-                skipTransforms: true,
-            },
-        )
-    }, [initialValue])
+    const prevInitialRef = useRef<string | undefined>(undefined)
 
     useEffect(() => {
         return mergeRegister(
             editor.registerCommand(
+                INITIAL_CONTENT_COMMAND,
+                (payload) => {
+                    // If another plugin handled the content, skip default processing
+                    if (payload.isDefaultPrevented()) {
+                        return false // Command not handled by this plugin
+                    }
+
+                    // Default JSON/YAML processing
+                    editor.update(() => {
+                        const hasFocus = store.get(editorStateAtom)?.focused
+                        const root = $getRoot()
+                        let existingCodeBlock = root.getChildren().find($isCodeBlockNode)
+
+                        if (!existingCodeBlock) {
+                            log("INITIAL VALUE CHANGED - CREATE NEW CODE BLOCK")
+                            root.clear()
+                            existingCodeBlock = $createCodeBlockNode(payload.language)
+                            const line = $createCodeLineNode()
+                            existingCodeBlock.append(line)
+
+                            root.append(existingCodeBlock)
+                            line.selectStart()
+                        } else if (hasFocus && editor.isEditable()) {
+                            // Don't update if editor has focus and is editable (user is typing)
+                            // But allow updates for read-only editors (like diff view)
+                            return
+                        }
+
+                        // Default processing for JSON/YAML content
+                        const currentTextValue = $getEditorCodeAsString()
+                        log("INITIAL VALUE CHANGED - CURRENT TEXT VALUE", {currentTextValue})
+                        if (currentTextValue) {
+                            try {
+                                const currentObjectValue = JSON5.parse(currentTextValue)
+                                const incomingObjectValue =
+                                    typeof payload.content === "string"
+                                        ? JSON5.parse(payload.content)
+                                        : payload.content
+                                if (isEqual(currentObjectValue, incomingObjectValue)) {
+                                    log("DO NOT CLEAR AND RECONSTRUCT 1", {
+                                        content: payload.content,
+                                        currentTextValue,
+                                    })
+                                    return
+                                }
+                            } catch (e) {
+                                try {
+                                    const currentObject = tryParsePartialJson(currentTextValue)
+                                    const incomingObject =
+                                        typeof payload.content === "string"
+                                            ? JSON5.parse(payload.content)
+                                            : payload.content
+
+                                    if (isEqual(currentObject, incomingObject)) {
+                                        log("DO NOT CLEAR AND RECONSTRUCT 2")
+                                        return
+                                    } else {
+                                        const trimmedIncoming =
+                                            typeof payload.content === "string"
+                                                ? payload.content.trim()
+                                                : JSON5.stringify(payload.content).trim()
+
+                                        if (currentTextValue.trim() === trimmedIncoming) {
+                                            log("DO NOT CLEAR AND RECONSTRUCT 3")
+                                            return
+                                        }
+                                    }
+                                } catch (e) {
+                                    log("there was an error parsing to json", {
+                                        e,
+                                        content: payload.content,
+                                        currentTextValue,
+                                    })
+                                }
+                            }
+                        }
+
+                        if (currentTextValue) {
+                            editor.setEditable(false)
+                        }
+                        log("INITIAL VALUE CHANGED - CHANGE CONTENT", {currentTextValue})
+                        // TODO: Instead of clearing and re-adding, we should do a diff check and edit updated nodes only
+                        try {
+                            // For JSON/YAML content, parse and format
+                            const objectValue =
+                                typeof payload.content === "string"
+                                    ? JSON5.parse(payload.content)
+                                    : payload.content
+                            let value: string
+                            if (payload.language === "json") {
+                                value = JSON.stringify(objectValue, null, 2)
+                            } else {
+                                value = yaml.dump(objectValue, {indent: 2})
+                            }
+                            log(" Reconstructing code block due to prop change", {
+                                language: payload.language,
+                                value,
+                            })
+
+                            existingCodeBlock.clear()
+                            log("CLEAR AND RECONSTRUCT", {
+                                content: payload.content,
+                                currentTextValue,
+                            })
+                            const highlightedNodes = createHighlightedNodes(
+                                value,
+                                payload.language,
+                                validationSchema,
+                                editor,
+                            )
+                            highlightedNodes.forEach((node) => {
+                                existingCodeBlock.append(node)
+                            })
+
+                            const hasFocus = store.get(editorStateAtom)?.focused
+
+                            if (!hasFocus) {
+                                editor.setEditable(true)
+                                $setSelection(null)
+                            }
+                        } catch (err) {
+                            log("failed values", {
+                                existingCodeBlock,
+                                content: payload.content,
+                                type: typeof payload.content,
+                                err,
+                            })
+
+                            if (!editor.isEditable()) {
+                                editor.setEditable(true)
+                            }
+                        }
+                    })
+
+                    return true // Command handled
+                },
+                COMMAND_PRIORITY_LOW,
+            ),
+            editor.registerCommand(
                 ON_CHANGE_LANGUAGE,
                 (payload) => {
+                    const hasFocus = store.get(editorStateAtom)?.focused
+                    // Temporarily disable editing if editor is not focused to avoid unwanted cursor jumps
+                    if (!hasFocus) {
+                        editor.setEditable(false)
+                    }
                     const root = $getRoot()
                     const existingCodeBlock = root.getChildren().filter($isCodeBlockNode)[0]
-                    existingCodeBlock.setLanguage(payload.language as "json" | "yaml")
+                    const oldLanguage = existingCodeBlock.getLanguage() as "json" | "yaml"
+                    const newLanguage = payload.language as "json" | "yaml"
+                    log(" ON_CHANGE_LANGUAGE triggered", {oldLanguage, newLanguage})
+                    if (oldLanguage === newLanguage) {
+                        existingCodeBlock.setLanguage(newLanguage)
+                        return true
+                    }
+
+                    // Extract current code string
+                    const lines = existingCodeBlock.getChildren().map((line: LexicalNode) => {
+                        if (!$isCodeLineNode(line)) return ""
+                        return line
+                            .getChildren()
+                            .map((child: LexicalNode) =>
+                                $isTabNode(child) ? "  " : child.getTextContent(),
+                            )
+                            .join("")
+                    })
+                    const currentCode = lines.join("\n").trim()
+
+                    if (currentCode === "") {
+                        log(" Empty code, skipping parsing and clearing code block")
+
+                        existingCodeBlock.clear()
+                        existingCodeBlock.setLanguage(newLanguage)
+
+                        const emptyLine = $createCodeLineNode()
+                        existingCodeBlock.append(emptyLine)
+
+                        if (!hasFocus) {
+                            editor.setEditable(true)
+                            $setSelection(null)
+                        }
+
+                        return true
+                    }
+                    log(" Extracted current code", {currentCode})
+
+                    let obj: any = null
+                    // Attempt to parse the existing code string
+                    log(" Attempting to parse existing code", {oldLanguage})
+                    try {
+                        if (oldLanguage === "json") {
+                            obj = JSON5.parse(currentCode)
+                        } else {
+                            obj = yaml.load(currentCode)
+                        }
+                    } catch (err) {
+                        console.error("Failed to parse old code during language switch", err)
+                        existingCodeBlock.setLanguage(newLanguage)
+                        return true
+                    }
+
+                    log(" Parsed object from current code", {obj})
+                    let newText = ""
+                    try {
+                        if (newLanguage === "json") {
+                            newText = JSON.stringify(obj, null, 2)
+                        } else {
+                            newText = yaml.dump(obj, {indent: 2})
+                            log(" Stringified object in new language", {newText})
+                        }
+                    } catch (err) {
+                        console.error("Failed to stringify new code during language switch", err)
+                        existingCodeBlock.setLanguage(newLanguage)
+                        return true
+                    }
+
+                    existingCodeBlock.clear()
+                    const newNodes = createHighlightedNodes(
+                        newText,
+                        newLanguage,
+                        validationSchema,
+                        editor,
+                    )
+                    newNodes.forEach((n) => existingCodeBlock.append(n))
+                    existingCodeBlock.setLanguage(newLanguage)
+
+                    // Re-enable editing and clear selection if the editor was not focused before the change
+                    if (!hasFocus) {
+                        editor.setEditable(true)
+                        $setSelection(null)
+                    }
                     return true
                 },
                 COMMAND_PRIORITY_LOW,
@@ -271,29 +531,57 @@ function InsertInitialCodeBlockPlugin({
         )
     }, [])
 
+    useEffect(() => {
+        // For JSON/YAML content, use semantic comparison
+        if (prevInitialRef.current !== undefined) {
+            try {
+                if (
+                    isEqual(
+                        JSON5.parse(prevInitialRef.current as string),
+                        JSON5.parse(initialValue),
+                    )
+                ) {
+                    return // no semantic change
+                }
+            } catch {}
+        }
+
+        prevInitialRef.current = initialValue
+
+        // Dispatch event to allow other plugins to handle the content
+        let defaultPrevented = false
+        const payload: InitialContentPayload = {
+            content: initialValue,
+            language,
+            preventDefault: () => {
+                defaultPrevented = true
+            },
+            isDefaultPrevented: () => defaultPrevented,
+        }
+
+        log("INITIAL VALUE CHANGED", {initialValue})
+        editor.dispatchCommand(INITIAL_CONTENT_COMMAND, payload)
+    }, [initialValue, language])
+
     return (
         <>
             <AutoFormatAndValidateOnPastePlugin />
             <IndentationPlugin />
+            <ClosingBracketIndentationPlugin />
             <AutoCloseBracketsPlugin />
-            <SyntaxHighlightPlugin />
-            <EmptyNodeTransformPlugin />
-            <HorizontalNavigationPlugin />
+            <SyntaxHighlightPlugin schema={validationSchema} debug={debug} />
+            <GlobalErrorIndicatorPlugin />
+            {additionalCodePlugins?.map((plugin, index) => (
+                <Fragment key={index}>{plugin}</Fragment>
+            ))}
             <VerticalNavigationPlugin />
-            {validationSchema ? (
-                <RealTimeValidationPlugin debug={debug} schema={validationSchema} />
-            ) : null}
-            <CodeBlockFoldingPlugin />
         </>
     )
 }
 
-const InsertInitialCodeBlockPluginWrapper = (props) => {
-    return (
-        <>
-            <InsertInitialCodeBlockPlugin {...props} />
-        </>
-    )
+type InsertInitialCodeBlockProps = ComponentProps<typeof InsertInitialCodeBlockPlugin>
+const InsertInitialCodeBlockPluginWrapper: FC<InsertInitialCodeBlockProps> = (props) => {
+    return <InsertInitialCodeBlockPlugin {...props} />
 }
 
 export default memo(InsertInitialCodeBlockPluginWrapper)

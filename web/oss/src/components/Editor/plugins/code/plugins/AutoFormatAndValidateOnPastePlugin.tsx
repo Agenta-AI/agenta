@@ -2,6 +2,7 @@
 import {useEffect} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
+import JSON5 from "json5"
 import {
     $getSelection,
     $isRangeSelection,
@@ -13,6 +14,7 @@ import {
 import {$createCodeBlockNode, $isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeLineNode} from "../nodes/CodeLineNode"
 import {createLogger} from "../utils/createLogger"
+import {calculateMultiLineIndentation, getIndentCount} from "../utils/indent"
 import {$insertLinesWithSelectionAndIndent} from "../utils/pasteUtils"
 
 const log = createLogger("AutoFormatAndValidateOnPastePlugin", {
@@ -29,18 +31,26 @@ export function AutoFormatAndValidateOnPastePlugin() {
                 const pastedText = event.clipboardData?.getData("text/plain")
                 if (!pastedText) return false
 
-                // Utility functions for validation
+                // Utility functions for validation using JSON5 for more flexible parsing
                 const isValidJson = (text: string) => {
                     try {
-                        JSON.parse(text)
+                        JSON5.parse(text)
                         return true
                     } catch {
                         return false
                     }
                 }
 
+                const parseJsonContent = (text: string) => {
+                    try {
+                        return JSON5.parse(text)
+                    } catch {
+                        return null
+                    }
+                }
+
                 log("Paste detected", pastedText.substring(0, 50))
-                console.log("[AutoFormatAndValidateOnPastePlugin] Raw Paste:", pastedText)
+                log("[AutoFormatAndValidateOnPastePlugin] Raw Paste:", pastedText)
                 const language: "json" | "yaml" = pastedText.trim().startsWith("{")
                     ? "json"
                     : "yaml"
@@ -48,14 +58,11 @@ export function AutoFormatAndValidateOnPastePlugin() {
                 // Unify valid and invalid content handling
                 event.preventDefault()
                 event.stopPropagation()
-                console.log(
+                log(
                     "[AutoFormatAndValidateOnPastePlugin] Prevented default paste, updating editor...",
                 )
                 const selection = $getSelection()
-                console.log(
-                    "[AutoFormatAndValidateOnPastePlugin] Selection before paste:",
-                    selection,
-                )
+                log("[AutoFormatAndValidateOnPastePlugin] Selection before paste:", selection)
                 if (!$isRangeSelection(selection)) {
                     log("Paste: Not a range selection", {selection})
                     return false
@@ -64,7 +71,7 @@ export function AutoFormatAndValidateOnPastePlugin() {
                 let currentLine = anchorNode.getParent()
                 if (!currentLine) {
                     log("Paste: No currentLine 0", {anchorNode})
-                    console.log(
+                    log(
                         "[AutoFormatAndValidateOnPastePlugin] No currentLine found for anchorNode:",
                         anchorNode,
                     )
@@ -136,10 +143,26 @@ export function AutoFormatAndValidateOnPastePlugin() {
                 // Determine if content is valid and pretty-print if needed
                 let lines: string[]
                 if (language === "json" && isValidJson(pastedText)) {
-                    // Pretty-print valid JSON
+                    // Pretty-print valid JSON with tab-based indentation using JSON5
                     try {
-                        const parsed = JSON.parse(pastedText)
-                        lines = JSON.stringify(parsed, null, 2).split("\n")
+                        const parsed = parseJsonContent(pastedText)
+                        if (parsed !== null) {
+                            // Use 2-space indentation first, then convert to tabs
+                            const spacedJson = JSON.stringify(parsed, null, 2)
+                            // Convert every 2 spaces at the beginning of lines to tabs
+                            const tabbedJson = spacedJson.replace(/^( {2})+/gm, (match) => {
+                                return "\t".repeat(match.length / 2)
+                            })
+                            lines = tabbedJson.split("\n")
+                            log("JSON5 formatting applied", {
+                                original: pastedText,
+                                formatted: tabbedJson,
+                                lineCount: lines.length,
+                                wasJSON5: true,
+                            })
+                        } else {
+                            lines = pastedText.split("\n")
+                        }
                     } catch {
                         lines = pastedText.split("\n")
                     }
@@ -148,14 +171,95 @@ export function AutoFormatAndValidateOnPastePlugin() {
                     lines = pastedText.split("\n")
                 }
 
-                log("Paste: Lines to insert", {lines, count: lines.length})
+                // Calculate proper indentation for each pasted line based on content and context
+                // This follows the same logic as the IndentationPlugin's Enter handler
+
+                // Analyze cursor position to determine if we're pasting inline or at line start
+                const currentLineText = currentLine.getTextContent()
+                const baseIndentLevel = getIndentCount(currentLineText)
+                const anchorOffset = selection.anchor.offset
+
+                // Check if there's content before the cursor (inline paste)
+                // We need to check the entire line content up to the cursor position, not just the anchor node
+                const allChildren = currentLine.getChildren()
+                let totalTextBeforeCursor = ""
+
+                for (const child of allChildren) {
+                    if (child.getKey() === anchorNode.getKey()) {
+                        // Add the portion of the anchor node before the cursor
+                        totalTextBeforeCursor += anchorNode.getTextContent().slice(0, anchorOffset)
+                        break
+                    } else {
+                        // Add the entire content of nodes before the anchor
+                        totalTextBeforeCursor += child.getTextContent()
+                    }
+                }
+
+                const hasContentBefore = !!currentLineText
+                // totalTextBeforeCursor.trim().length > 0
+
+                // Check if there's content after the cursor on the same line
+                const textAfterCursor = anchorNode.getTextContent().slice(anchorOffset)
+                const hasContentAfter = textAfterCursor.trim().length > 0
+
+                // Strip all leading whitespace from pasted lines first
+                const strippedLines = lines.map((line) => line.replace(/^\s+/, ""))
+
+                // Calculate proper indentation levels for each line
+                const indentLevels = calculateMultiLineIndentation(
+                    strippedLines,
+                    baseIndentLevel,
+                    language,
+                )
+
+                log("Paste: Cursor context analysis", {
+                    anchorOffset,
+                    totalTextBeforeCursor,
+                    textAfterCursor,
+                    hasContentBefore,
+                    hasContentAfter,
+                    currentLineText,
+                    indentLevels,
+                    baseIndentLevel,
+                    currentLine,
+                })
+
+                // Apply calculated indentation to each line, with special handling for inline paste
+                const properlyIndentedLines = strippedLines.map((line, index) => {
+                    let indentLevel = indentLevels[index]
+
+                    // Special case: if pasting inline (has content before cursor) and this is the first line,
+                    // don't add any indentation since it continues the current line
+
+                    // Check if there's content before the cursor on the same line [for the first line]
+                    // current `hasContentBefore`
+                    // const _hasContentBefore = index === 0 ? totalTextBeforeCursor : false
+                    if (index === 0 && !!totalTextBeforeCursor) {
+                        // For inline paste, the first line should have NO leading whitespace at all
+                        // This prevents $createNodeForLineWithTabs from creating tab nodes in the middle of content
+                        return line
+                    }
+
+                    const result = "\t".repeat(indentLevel) + line
+                    return result
+                })
+
+                log("Paste: Lines with calculated indentation", {
+                    originalLines: lines,
+                    strippedLines,
+                    indentLevels,
+                    properlyIndentedLines,
+                    baseIndentLevel,
+                    language,
+                })
 
                 $insertLinesWithSelectionAndIndent({
-                    lines,
+                    lines: properlyIndentedLines,
                     anchorNode,
                     anchorOffset: selection.anchor.offset,
                     currentLine,
                     parentBlock,
+                    skipNormalization: true,
                 })
 
                 return true
