@@ -1,7 +1,5 @@
 import {EditorThemeClasses} from "lexical"
 
-import "@/oss/styles/globals.css"
-
 export const theme: EditorThemeClasses = {
     code: "editor-code",
     quote: "editor-quote",
