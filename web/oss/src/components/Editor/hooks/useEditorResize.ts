@@ -8,18 +8,20 @@ export function useEditorResize({
     boundWidth,
     boundHeight,
     skipHandle,
-}: Pick<EditorProps, "singleLine" | "enableResize" | "boundWidth" | "boundHeight">) {
+}: Pick<EditorProps, "singleLine" | "enableResize" | "boundWidth" | "boundHeight"> & {
+    skipHandle?: boolean
+}) {
     const containerRef = useRef<HTMLDivElement>(null)
     const isResizing = useRef(false)
     const [dimensions, setDimensions] = useState({width: 0, height: 0})
-    const [containerElm, setContainerElm] = useState(null)
+    const [containerElm, setContainerElm] = useState<HTMLDivElement | null>(null)
     useEffect(() => {
         if ((!containerRef.current && !containerElm) || singleLine || !enableResize) {
             return
         }
 
         const container = containerRef.current || containerElm
-        const handle = container.querySelector(".resize-handle") as HTMLElement
+        const handle = container?.querySelector(".resize-handle") as HTMLElement
         if (!skipHandle && !handle) {
             return
         }
@@ -34,7 +36,7 @@ export function useEditorResize({
         }
 
         const resize = (e: MouseEvent) => {
-            if (!isResizing.current || !container.parentElement) return
+            if (!isResizing.current || !container?.parentElement) return
 
             const parentRect = container.parentElement.getBoundingClientRect()
             let width = e.clientX - parentRect.left

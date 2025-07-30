@@ -29,9 +29,11 @@ import {
     LexicalNode,
 } from "lexical"
 
+import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeHighlightNode, $createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$isCodeLineNode, $createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {createLogger} from "../utils/createLogger"
+import {getIndentCount} from "../utils/indent"
 
 const log = createLogger("IndentationPlugin", {
     disabled: true,
@@ -57,21 +59,26 @@ export function IndentationPlugin() {
         return editor.registerCommand(
             KEY_DOWN_COMMAND,
             (event: KeyboardEvent) => {
-                log("ENTER pressed", event.key)
                 if (event.key !== "Enter") return false
+                log("ENTER pressed", event.key)
 
                 const selection = $getSelection()
                 if (!$isRangeSelection(selection)) return false
 
                 event.preventDefault()
-                log("ENTER pressed")
 
                 const anchor = selection.anchor
                 const anchorOffset = anchor.offset
+
                 const anchorNode = anchor.getNode()
 
                 const lineNode = $findMatchingParent(anchorNode, $isCodeLineNode)
-                if (!lineNode) return
+                if (!lineNode) return false
+
+                // Determine language from parent code block (json, yaml, etc.)
+                const blockNode = lineNode.getParent()
+                const language = $isCodeBlockNode(blockNode) ? blockNode.getLanguage() : undefined
+                if (!lineNode) return false
 
                 const children = lineNode.getChildren()
                 const caretKey = anchorNode.getKey()
@@ -111,17 +118,21 @@ export function IndentationPlugin() {
                             beforeNodes.push(node)
                         } else {
                             // Cursor in middle: split node content
+                            // Preserve validation state from original node
+                            const hasValidationError = node.hasValidationError()
+                            const validationMessage = node.getValidationMessage()
+
                             const before = $createCodeHighlightNode(
                                 text.slice(0, anchorOffset),
                                 type,
-                                false,
-                                null,
+                                hasValidationError,
+                                validationMessage,
                             )
                             const after = $createCodeHighlightNode(
                                 text.slice(anchorOffset),
                                 type,
-                                false,
-                                null,
+                                hasValidationError,
+                                validationMessage,
                             )
                             beforeNodes.push(before)
                             afterNodes.push(after)
@@ -141,9 +152,9 @@ export function IndentationPlugin() {
                  * 3. Detect if we're inside a brace pair
                  */
                 // Get base indentation from the start of the line
-                const indentMatch = lineNode.getTextContent().match(/^\s*/)
-                const baseIndent = indentMatch ? indentMatch[0] : ""
-                const indentCount = (baseIndent.match(/\t/g) || []).length
+                const textLine = lineNode.getTextContent()
+                const indentCount = getIndentCount(textLine)
+                // const baseIndent = "\t".repeat(indentCount)
 
                 // Join node content for analysis
                 const beforeText = beforeNodes.map((n) => n.getTextContent()).join("")
@@ -154,7 +165,10 @@ export function IndentationPlugin() {
                     /[\[{(]\s*$/.test(beforeText.trim()) && /^[\]})]/.test(afterText.trim())
 
                 // Check if line ends with an opening brace
-                const endsWithOpeningBrace = /[\[{(]\s*$/.test(beforeText.trim())
+                const endsWithOpeningBrace =
+                    /[\[{(]\s*$/.test(beforeText.trim()) ||
+                    (language === "yaml" &&
+                        (/:\s*$/.test(beforeText.trim()) || /-\s*$/.test(beforeText.trim())))
 
                 log("🔎 Full highlight content", {
                     fullText: beforeText + afterText,
@@ -172,7 +186,10 @@ export function IndentationPlugin() {
 
                 // Update current line with beforeNodes
                 const writableLine = lineNode.getWritable()
-                writableLine.clear()
+                // Remove all non-toggle children, keep existing decorator (fold toggle)
+                writableLine.getChildren().forEach((child) => {
+                    child.remove()
+                })
                 beforeNodes.forEach((n) => writableLine.append(n))
 
                 // Array to store new lines that will be inserted after the current line
@@ -193,12 +210,12 @@ export function IndentationPlugin() {
                  */
                 const createIndentedLine = (extra: number) => {
                     const line = $createCodeLineNode()
+                    // add fold toggle decorator
                     for (let i = 0; i < indentCount + extra; i++) {
-                        line.append($createTabNode())
+                        const tabNode = $createTabNode()
+                        line.append(tabNode)
                     }
-                    // Add an empty CodeHighlightNode to ensure proper node type for text entry
-                    // This prevents plain text nodes from being created when typing
-                    line.append($createCodeHighlightNode("\u200b", "plain"))
+                    line.selectEnd()
                     return line
                 }
 
@@ -275,8 +292,6 @@ export function IndentationPlugin() {
                     log("📎 Inserted new line content", {
                         trailingContent: trailing.getTextContent(),
                     })
-                    // trailing.append($createTextNode("\u200b"))
-                    // trailing.append($createCodeHighlightNode("\u200b", "plain", false, null))
                 }
                 linesToInsert.push(trailing)
 

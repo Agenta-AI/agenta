@@ -1,7 +1,7 @@
 import {$createRangeSelection, $setSelection, $createTabNode} from "lexical"
 
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
-import {$createCodeLineNode} from "../nodes/CodeLineNode"
+import {$createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 
 import {normalizePastedLinesIndentation} from "./indentationUtils"
 import {tokenizeCodeLine} from "./tokenizer"
@@ -16,39 +16,28 @@ export function $insertLinesWithSelectionAndIndent({
     anchorOffset,
     currentLine,
     parentBlock,
+    skipNormalization = false,
 }: {
     lines: string[]
     anchorNode: any
     anchorOffset: number
     currentLine: any
     parentBlock: any
-    beforeNodes: any[]
-    afterNodes: any[]
-    beforeContent: string
-    afterContent: string
-    followingLines: any[]
-
-    insertIndex?: number | null
+    skipNormalization?: boolean
 }) {
     // 1. Find selection context and extract state
     if (!currentLine || !parentBlock) {
         console.error("[pasteUtils] Missing currentLine or parentBlock, aborting paste logic")
         return
     }
-    const allLines = parentBlock.getChildren()
-    console.log("[pasteUtils] parent block", {
-        parentBlock,
-        currentLine,
-        allLinesLength: allLines.length,
-        allLines,
-    })
+    const allLines = parentBlock.getChildren() as CodeLineNode[]
     const lineIdx = allLines.findIndex((n: any) => n.getKey && n.getKey() === currentLine.getKey())
     if (lineIdx === -1) {
         console.error("[pasteUtils] Could not find currentLine in parentBlock children")
         return
     }
     // Split lines
-    const linesBefore = allLines.slice(0, lineIdx)
+    const _ = allLines.slice(0, lineIdx)
     const linesAfter = allLines.slice(lineIdx + 1)
     // Split currentLine nodes
     const children = currentLine.getChildren()
@@ -68,7 +57,9 @@ export function $insertLinesWithSelectionAndIndent({
         baseIndentCount = tabCount + Math.floor(spaceCount / 2)
     }
     // --- Normalize pasted lines ---
-    lines = normalizePastedLinesIndentation(lines, baseIndentCount)
+    if (!skipNormalization) {
+        lines = normalizePastedLinesIndentation(lines, baseIndentCount)
+    }
 
     // Find anchorNode in currentLine children, split at anchorOffset
     for (const node of children) {
@@ -84,7 +75,12 @@ export function $insertLinesWithSelectionAndIndent({
                 const beforeText = text.slice(0, anchorOffset)
                 const afterText = text.slice(anchorOffset)
                 if (beforeText)
-                    beforeInLine[beforeInLine.length - 1] = $createCodeHighlightNode(beforeText)
+                    beforeInLine[beforeInLine.length - 1] = $createCodeHighlightNode(
+                        beforeText,
+                        "plain",
+                        false,
+                        null,
+                    )
                 if (afterText) {
                     if (node && typeof node.clone === "function") {
                         afterInLine.push(node.clone())
@@ -94,7 +90,12 @@ export function $insertLinesWithSelectionAndIndent({
                     } else {
                         console.warn("[pasteUtils] Skipping undefined/null node in afterInLine")
                     }
-                    afterInLine[afterInLine.length - 1] = $createCodeHighlightNode(afterText)
+                    afterInLine[afterInLine.length - 1] = $createCodeHighlightNode(
+                        afterText,
+                        "plain",
+                        false,
+                        null,
+                    )
                 }
             } else if (anchorOffset === 0) {
                 // All goes to afterInLine
@@ -130,17 +131,6 @@ export function $insertLinesWithSelectionAndIndent({
             }
         }
     }
-    // Log state
-    console.log("[pasteUtils] Function state", {
-        linesBefore: linesBefore.map((l) => l.getTextContent()),
-        nodesBeforeSelection: beforeInLine.map((n) => n.getTextContent()),
-        nodesAfterSelection: afterInLine.map((n) => n.getTextContent()),
-        trailingLines: linesAfter.map((l) => l.getTextContent()),
-        pastedLines: lines,
-        parentBlock,
-        currentLine,
-        // selection: selection.clone(),
-    })
 
     // Clone trailing lines before removal
     const clonedTrailingLines = linesAfter.map((l) => (l.clone && l.clone()) || l)
@@ -152,24 +142,10 @@ export function $insertLinesWithSelectionAndIndent({
     // First line: nodesBeforeSelection + first pasted line
     if (lines.length > 0) {
         const firstLine = $createNodeForLineWithTabs(lines[0], parentBlock.getLanguage())
-        console.log("[pasteUtils] First line", firstLine.getTextContent())
         // Prepend beforeInLine nodes
         for (let i = beforeInLine.length - 1; i >= 0; i--) {
-            console.log(
-                "[pasteUtils] Inserting beforeInLine node",
-                beforeInLine[i].getTextContent(),
-            )
             firstLine.getFirstChild()?.insertBefore(beforeInLine[i])
         }
-        console.log("[pasteUtils] INSERT FIRST LINE!", {
-            insertIdx,
-            parentBlock,
-            children: parentBlock.getChildren(),
-            text: firstLine
-                .getChildren()
-                .map((n) => n.getTextContent())
-                .join(""),
-        })
         const lineBefore = parentBlock.getChildAtIndex(insertIdx - 1)
         if (lineBefore) {
             lineBefore.insertAfter(firstLine)
@@ -179,22 +155,18 @@ export function $insertLinesWithSelectionAndIndent({
 
         insertIdx++
         let latestLine = firstLine
-        console.log("[pasteUtils] HERE", lines)
 
         if (lines.length === 1) {
             afterInLine.forEach((n) => {
-                console.log("[pasteUtils] Last pasted line", n.getTextContent())
                 firstLine.append(n)
             })
         } else {
             // Middle lines
             for (let i = 1; i < lines.length; i++) {
-                console.log("[pasteUtils] HERE 2")
                 const lineNode = $createNodeForLineWithTabs(lines[i], parentBlock.getLanguage())
                 // Last pasted line: append afterInLine nodes
                 if (i === lines.length - 1 && afterInLine.length > 0) {
                     afterInLine.forEach((n) => {
-                        console.log("[pasteUtils] Last pasted line", n.getTextContent())
                         lineNode.append(n)
                     })
                 }
@@ -230,20 +202,8 @@ export function $insertLinesWithSelectionAndIndent({
             newSelection.anchor.set(lastChild.getKey(), lastChild.getTextContentSize(), "text")
             newSelection.focus.set(lastChild.getKey(), lastChild.getTextContentSize(), "text")
             $setSelection(newSelection)
-            console.log("[pasteUtils] Restored selection at end of last inserted line", {
-                lastInserted,
-                lastChild,
-            })
         }
     }
-    // LOG: Final state
-    console.log("[pasteUtils] $insertLinesWithSelectionAndIndent: complete", {
-        parentBlock,
-        parentBlockChildren:
-            parentBlock &&
-            parentBlock.getChildren &&
-            parentBlock.getChildren().map((n: any) => n.getTextContent && n.getTextContent()),
-    })
 }
 
 export function $createNodeForLineWithTabs(line: string, language: "json" | "yaml") {
@@ -280,7 +240,7 @@ export function $createNodeForLineWithTabs(line: string, language: "json" | "yam
     // Tokenize the rest of the line
     const tokens = tokenizeCodeLine(rest, language)
     tokens.forEach((token) => {
-        codeLine.append($createCodeHighlightNode(token.content, token.type))
+        codeLine.append($createCodeHighlightNode(token.content, token.type, false, null))
     })
     return codeLine
 }

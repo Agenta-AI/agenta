@@ -1,5 +1,18 @@
-export const theme = {
+import {EditorThemeClasses} from "lexical"
+
+import "@/oss/styles/globals.css"
+
+export const theme: EditorThemeClasses = {
     code: "editor-code",
+    quote: "editor-quote",
+    heading: {
+        h1: "editor-heading1",
+        h2: "editor-heading2",
+        h3: "editor-heading3",
+        h4: "editor-heading4",
+        h5: "editor-heading5",
+        h6: "editor-heading6",
+    },
     codeHighlight: {
         atrule: "editor-tokenAttr",
         attr: "editor-tokenAttr",
@@ -31,5 +44,8 @@ export const theme = {
         tag: "editor-tokenProperty",
         url: "editor-tokenOperator",
         variable: "editor-tokenVariable",
+    },
+    text: {
+        code: "editor-textCode",
     },
 }

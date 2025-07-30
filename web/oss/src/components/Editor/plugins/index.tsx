@@ -10,7 +10,13 @@ import {Skeleton} from "antd"
 import clsx from "clsx"
 
 import type {EditorPluginsProps} from "../types"
+import MarkdownPlugin from "./markdown/markdownPlugin"
 
+const CodeFoldingPlugin = lazy(() =>
+    import("./code/plugins/CodeFoldingPlugin").then((module) => ({
+        default: module.CodeFoldingPlugin,
+    })),
+)
 const TabIndentationPlugin = lazy(() =>
     import("@lexical/react/LexicalTabIndentationPlugin").then((module) => ({
         default: module.TabIndentationPlugin,
@@ -32,9 +38,20 @@ const SingleLinePlugin = lazy(() =>
     })),
 )
 const CodeEditorPlugin = lazy(() => import("./code"))
+
 const TokenPlugin = lazy(() =>
     import("./token/TokenPlugin").then((module) => ({
         default: module.TokenPlugin,
+    })),
+)
+const AutoCloseTokenBracesPlugin = lazy(() =>
+    import("./token/AutoCloseTokenBracesPlugin").then((module) => ({
+        default: module.AutoCloseTokenBracesPlugin,
+    })),
+)
+const TokenTypeaheadPlugin = lazy(() =>
+    import("./token/TokenTypeaheadPlugin").then((module) => ({
+        default: module.TokenMenuPlugin,
     })),
 )
 
@@ -50,6 +67,8 @@ const EditorPlugins = ({
     handleUpdate,
     initialValue,
     validationSchema,
+    tokens,
+    additionalCodePlugins = [],
 }: EditorPluginsProps) => {
     return (
         <Suspense
@@ -80,20 +99,29 @@ const EditorPlugins = ({
             {autoFocus ? <AutoFocusPlugin /> : null}
             <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
-            {enableTokens && <TokenPlugin />}
+            {enableTokens && (
+                <>
+                    <TokenPlugin />
+                    <AutoCloseTokenBracesPlugin />
+                    <TokenTypeaheadPlugin tokens={tokens || []} />
+                </>
+            )}
             {singleLine && <SingleLinePlugin />}
             {codeOnly && (
                 <>
+                    <CodeFoldingPlugin />
                     <CodeEditorPlugin
                         validationSchema={validationSchema}
                         initialValue={initialValue}
                         language={language}
                         debug={debug}
+                        additionalCodePlugins={additionalCodePlugins}
                     />
                     <TabIndentationPlugin />
                 </>
             )}
             {debug && <DebugPlugin />}
+            {singleLine || codeOnly ? null : <MarkdownPlugin />}
         </Suspense>
     )
 }

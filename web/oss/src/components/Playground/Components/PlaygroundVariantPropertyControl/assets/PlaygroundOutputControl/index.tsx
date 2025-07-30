@@ -103,8 +103,8 @@ const PlaygroundOutputControl = ({
             className={clsx([
                 "flex !flex-row !gap-0 mt-2",
                 {
-                    "[&_.ant-select-selector]:!rounded-r-none": correctedStructuredOutput?.name,
-                    "[&_.ant-btn]:!rounded-l-none": correctedStructuredOutput?.name,
+                    "[&_.ant-select-selector]:!rounded-r-none": !!correctedStructuredOutput,
+                    "[&_.ant-btn]:!rounded-l-none": !!correctedStructuredOutput,
                 },
             ])}
         >
@@ -131,13 +131,13 @@ const PlaygroundOutputControl = ({
                     />
                 </div>
             </Tooltip>
-            {correctedStructuredOutput?.name ? (
+            {!!correctedStructuredOutput && value?.type === "json_schema" ? (
                 <Button
                     size="small"
                     className="-ml-[1px] z-[1] hover:z-[2]"
                     onClick={() => setModalState(true)}
                 >
-                    {correctedStructuredOutput.name}
+                    {correctedStructuredOutput?.name || "Unnamed"}
                 </Button>
             ) : null}
             <Modal
@@ -171,7 +171,6 @@ const PlaygroundOutputControl = ({
                             state="filled"
                         />
                     </div>
-                    <div className=""></div>
                 </PlaygroundVariantPropertyControlWrapper>
             </Modal>
         </PlaygroundVariantPropertyControlWrapper>

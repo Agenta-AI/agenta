@@ -74,15 +74,6 @@ export class CodeBlockNode extends ElementNode {
         code.setAttribute("tabindex", "0")
         code.setAttribute("data-lexical-editor", "true")
 
-        const hasError = this.__hasValidationError
-
-        if (hasError) {
-            const badge = document.createElement("span")
-            badge.className = "code-block-error-icon"
-            badge.textContent = "⚠️"
-            code.appendChild(badge)
-        }
-
         return code
     }
 

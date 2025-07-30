@@ -57,7 +57,7 @@ export class TokenNode extends TextNode {
 
     // Convert to regular text node if no longer valid token
     isValid(): boolean {
-        return /^\{\{[^{}]+\}\}$/.test(this.__text)
+        return /^\{\{[^{}]*\}\}$/.test(this.__text)
     }
 
     remove(): void {

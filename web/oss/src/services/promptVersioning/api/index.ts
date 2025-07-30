@@ -12,7 +12,6 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 // versioning
 export const fetchAllPromptVersioning = async (variantId: string, ignoreAxiosError = false) => {
     const {projectId} = getCurrentProject()
-    console.log("fetchAllPromptVersioning", projectId)
 
     const {data} = await axios.get(
         `${getAgentaApiUrl()}/variants/${variantId}/revisions?project_id=${projectId}`,

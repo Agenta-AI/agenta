@@ -202,6 +202,67 @@ body {
     }
 }
 
+.editor-inner:not(.code-editor) {
+    .editor-code:not([data-language]) {
+      background-color: rgb(240, 242, 245);
+      font-family: Menlo, Consolas, Monaco, monospace;
+      display: block;
+      padding: 8px;
+      line-height: 1.53;
+      font-size: 13px;
+      margin: 0;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      overflow-x: auto;
+      position: relative;
+      tab-size: 2;
+    }
+  }
+
+
+.editor-quote {
+    margin: 0;
+    margin-left: 20px;
+    margin-bottom: 10px;
+    color: rgb(101, 103, 107);
+    border-left-color: rgb(206, 208, 212);
+    border-left-width: 4px;
+    border-left-style: solid;
+    padding-left: 16px;
+}
+
+.editor-textCode {
+    background-color: rgb(240, 242, 245);
+    padding: 1px 0.25rem;
+    font-family: Menlo, Consolas, Monaco, monospace;
+    font-size: 94%;
+}
+
+.editor-heading1 {
+    font-size: 20px;
+}
+
+.editor-heading2 {
+    font-size: 18px;
+}
+
+.editor-heading3 {
+    font-size: 16px;
+}
+
+.editor-heading4 {
+    font-size: 14px;
+}
+
+.editor-heading5 {
+    font-size: 12px;
+}
+
+.editor-heading6 {
+    font-size: 10px;
+}
+
+
 .code-editor {
     /* === Editor container === */
     .editor-code {
@@ -210,6 +271,9 @@ body {
         white-space: pre;
         tab-size: 2;
         padding-left: 0 !important;
+        
+        /* Initialize CSS counter for line numbers */
+        counter-reset: line-number;
 
         font-family: Menlo, Consolas, Monaco, monospace;
         display: block;
@@ -237,17 +301,17 @@ body {
         --editor-error-bg: rgba(255, 0, 0, 0.05);
         --editor-error-border: #ff0000;
 
-        /* Syntax highlighting - Light theme */
-        --token-comment: #6a9955;
-        --token-string: #50a14f;
-        --token-keyword: #a626a4;
-        --token-number: #986801;
-        --token-property: #e45649;
-        --token-operator: #c18401;
-        --token-punctuation: #383a42;
-        --token-function: #4078f2;
-        --token-class-name: #4078f2;
-        --token-variable: #e45649;
+        /* Syntax highlighting - Light theme (GitHub-inspired) */
+        --token-comment: #6a737d;     /* muted gray */
+        --token-string: #032f62;      /* dark blue for strings */
+        --token-keyword: #d73a49;     /* red keywords */
+        --token-number: #005cc5;      /* bright blue numbers */
+        --token-property: #6f42c1;    /* purple mapping keys / properties */
+        --token-operator: #d73a49;    /* match keyword red */
+        --token-punctuation: #24292e; /* near-black punctuation */
+        --token-function: #005cc5;    /* blue functions */
+        --token-class-name: #e36209;  /* orange classes */
+        --token-variable: #116329;    /* green variables */
         --token-plain: #2d2d2d;
 
         /* Apply light theme variables */
@@ -267,18 +331,18 @@ body {
             --editor-error-bg: rgba(255, 70, 70, 0.2);
             --editor-error-border: #ff5555;
 
-            /* Vibrant syntax highlighting for dark theme */
-            --token-comment: #7cdc7c; /* Brighter green */
-            --token-string: #ff9d70; /* Vibrant orange */
-            --token-keyword: #79b8ff; /* Bright blue */
-            --token-number: #ffbf7a; /* Warm yellow */
-            --token-property: #79cbff; /* Sky blue */
-            --token-operator: #f8f8f8; /* Near white */
-            --token-punctuation: #e6e6e6; /* Light gray */
-            --token-function: #ffdf9e; /* Gold */
-            --token-class-name: #7ce3c7; /* Teal */
-            --token-variable: #b392f0; /* Purple */
-            --token-plain: #ffffff; /* White */
+            /* Enhanced syntax highlighting for dark theme (VS Code Dark+) */
+            --token-comment: #6a9955;  /* soft green */
+            --token-string: #ce9178;   /* salmon */
+            --token-keyword: #c586c0;  /* mauve */
+            --token-number: #b5cea8;   /* light green */
+            --token-property: #9cdcfe; /* light cyan */
+            --token-operator: #d4d4d4; /* light gray */
+            --token-punctuation: #d4d4d4; /* light gray */
+            --token-function: #dcdcaa; /* pale yellow */
+            --token-class-name: #4ec9b0; /* teal */
+            --token-variable: #9cdcfe; /* light cyan */
+            --token-plain: #ffffff;    /* white */
         }
     }
 
@@ -293,7 +357,9 @@ body {
 
     .editor-code-highlight {
         overflow-wrap: break-word;
-        white-space: pre;
+        text-wrap-mode: wrap;
+        display: inline !important;
+        vertical-align: top;
     }
     .editor-code-highlight.selected,
     .editor-code-highlight::selection {
@@ -303,44 +369,79 @@ body {
     }
 
     .editor-code-line {
+        overflow-wrap: break-word;
+        text-wrap-mode: wrap;
+        text-indent: -64px;
+        padding-left: 112px !important;
+
+        &.diff-context, &.diff-removed, &.diff-added {
+            padding-left: 132px !important;
+            white-space: pre-wrap;
+        }
+
+        > span {
+            text-indent: 0px !important;
+        }
+
         &:first-child {
             &::before {
-                padding-top: theme("spacing.2");
-                margin-top: calc(-1 * theme("spacing.2"));
+                /* padding-top: theme("spacing.2"); */
+                /* margin-top: calc(-1 * theme("spacing.2")); */
             }
         }
-        &::before {
-            content: attr(data-gutter);
+        /* Regular line numbers using CSS counters */
+        &:not(.diff-context):not(.diff-added):not(.diff-removed)::before {
+            content: counter(line-number);
+            counter-increment: line-number;
             z-index: 10;
             position: absolute;
             border-right: 1px solid var(--editor-gutter-border);
             top: 0;
             bottom: 0;
-            /* background-color: var(--editor-gutter-bg); */
             background-color: var(--editor-bg);
 
-            /* left: theme(spacing.3); */
             left: 0;
             padding: 0;
             padding-right: 4px;
-            /* padding-top: theme("spacing.2"); */
-            /* padding-bottom: theme("spacing.1"); */
             width: 2em;
             text-align: right;
             color: var(--editor-line-number);
             user-select: none;
             white-space: pre;
         }
+        
+        /* Diff line numbers using data attributes - use ::after to avoid conflict with diff symbols */
+        &.diff-context::after,
+        &.diff-added::after,
+        &.diff-removed::after {
+            content: attr(data-old-line-number) " " attr(data-new-line-number);
+            z-index: 10;
+            position: absolute;
+            border-right: 1px solid var(--editor-gutter-border);
+            top: 0;
+            bottom: 0;
+            background-color: var(--editor-bg);
+
+            left: 0;
+            padding: 0;
+            padding-right: 4px;
+            width: 4em; /* Wider for two numbers */
+            text-align: right;
+            color: var(--editor-line-number);
+            user-select: none;
+            white-space: pre;
+            font-size: 11px; /* Smaller font for two numbers */
+        } 
         position: relative;
 
-        padding-left: theme(spacing.12) !important;
 
         z-index: 1;
         @apply scrollbar scrollbar-h-0 scrollbar-thumb-[#ddd] scrollbar-track-[#f0f0f0];
+        
         &:hover {
             @apply scrollbar-h-[2px];
         }
-        white-space: pre;
+        white-space: pre-wrap;
 
         &.flex {
             .editor-code-highlight {
@@ -352,18 +453,187 @@ body {
                 }
             }
         }
-
-        /* text-overflow: ellipsis;
-        white-space: nowrap;
-  
-        &:hover {
-          text-overflow: clip;
-        } */
     }
 
     .editor-code-line.folded {
         display: none;
     }
+
+    /* GitHub-style dual line number gutter using both pseudo-elements */
+    .editor-code.language-json .editor-code-line[data-old-line-number],
+    .editor-code.language-json .editor-code-line[data-new-line-number],
+    .editor-code.language-yaml .editor-code-line[data-old-line-number],
+    .editor-code.language-yaml .editor-code-line[data-new-line-number] {
+        padding-left: 64px;
+    }
+
+    .editor-code.language-json .editor-code-line[data-old-line-number]::before,
+    .editor-code.language-yaml .editor-code-line[data-old-line-number]::before {
+        content: attr(data-old-line-number) !important;
+        padding-right: 4px;
+        box-sizing: border-box;
+        position: absolute !important;
+        left: 0px !important;
+        top: 0 !important;
+        width: 30px !important;
+        text-align: right !important;
+        color: #6b7280 !important;
+        font-size: 10px !important;
+        line-height: inherit !important;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace !important;
+        user-select: none !important;
+        pointer-events: none !important;
+        text-indent: 0 !important;
+        border-right: 1px solid var(--editor-gutter-border) !important;
+    }
+    
+    .editor-code.language-json .editor-code-line[data-new-line-number]::after,
+    .editor-code.language-yaml .editor-code-line[data-new-line-number]::after {
+        content: attr(data-new-line-number) !important;
+        padding-right: 0px;
+        padding-left: 4px;
+        box-sizing: border-box;
+        position: absolute !important;
+        left: 30px !important;
+        top: 0 !important;
+        width: 30px !important;
+        text-align: left !important;
+        color: #6b7280 !important;
+        font-size: 10px !important;
+        line-height: inherit !important;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace !important;
+        user-select: none !important;
+        pointer-events: none !important;
+        text-indent: 0 !important;
+    }
+    
+
+    /* Validation error highlighting for individual tokens */
+    .editor-code-highlight.validation-error {
+        /* Subtle background with gradient */
+        background: linear-gradient(135deg, 
+            rgba(220, 38, 38, 0.08) 0%, 
+            rgba(220, 38, 38, 0.12) 100%);
+        
+        /* Enhanced wavy underline */
+        border-bottom: 2px wavy #dc2626;
+        
+        /* Subtle text color adjustment */
+        color: #b91c1c;
+        
+        /* Positioning for pseudo-elements */
+        position: relative;
+        
+        /* Smooth transitions */
+        transition: all 0.2s ease;
+        
+        /* Subtle border radius for modern look */
+        border-radius: 2px;
+        
+        /* Optional: subtle box shadow for depth */
+        box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.1);
+    }
+
+    /* Enhanced hover state */
+    .editor-code-highlight.validation-error:hover {
+        background: linear-gradient(135deg, 
+            rgba(220, 38, 38, 0.15) 0%, 
+            rgba(220, 38, 38, 0.2) 100%);
+        
+        /* Stronger border on hover */
+        box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.2);
+        
+        /* Slightly darker text */
+        color: #991b1b;
+    }
+
+    /* Focus state for accessibility */
+    .editor-code-highlight.validation-error:focus {
+        outline: 2px solid rgba(220, 38, 38, 0.5);
+        outline-offset: 1px;
+    }
+
+    /* Subtle animation for newly added errors */
+    .editor-code-highlight.validation-error.newly-added {
+        animation: errorPulse 0.6s ease-out;
+    }
+
+    @keyframes errorPulse {
+        0% {
+            background: rgba(220, 38, 38, 0.3);
+            transform: scale(1.02);
+        }
+        50% {
+            background: rgba(220, 38, 38, 0.2);
+        }
+        100% {
+            background: linear-gradient(135deg, 
+                rgba(220, 38, 38, 0.08) 0%, 
+                rgba(220, 38, 38, 0.12) 100%);
+            transform: scale(1);
+        }
+    }
+
+    /* Ensure parent containers don't clip tooltips */
+    /* Token-level tooltip styling */
+    .editor-code-highlight.validation-error[title] {
+        position: relative;
+        cursor: help;
+        z-index: 1;
+        overflow: visible;
+    }
+
+    .editor-code-highlight.validation-error[title]:hover::after {
+        content: attr(title);
+        position: absolute;
+        bottom: calc(100% + 12px);
+        left: 50%;
+        /* transform: translateX(-50%); */
+        background: rgba(0, 0, 0, 0.95);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 6px;
+        font-size: 8px;
+        font-weight: 500;
+        white-space: nowrap;
+        z-index: 2147483647;
+        pointer-events: none;
+    }
+
+    .editor-code-highlight.validation-error[title]:hover::before {
+        content: '';
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        border: 6px solid transparent;
+        border-top-color: rgba(0, 0, 0, 0.95);
+        z-index: 2147483646;
+        pointer-events: none;
+    } 
+
+    
+    /* Separator pipe between line numbers */
+    /* .editor-code.language-json .editor-code-line[data-old-line-number][data-new-line-number]::before {
+        content: attr(data-old-line-number) "|" !important;
+    } */
+    
+    /* Hide original line numbers when diff gutter is active */
+    /* .editor-code-line[data-old-line-number] .editor-line-number,
+    .editor-code-line[data-new-line-number] .editor-line-number {
+        display: none;
+    } */
+    
+   
+    /* Diff line backgrounds */
+    /* .editor-code-line[data-old-line-number]:not([data-new-line-number]) {
+        background-color: rgba(239, 68, 68, 0.15);
+        border-left: 4px solid rgb(239, 68, 68);
+    } */
+    
+    /* .editor-code-line[data-new-line-number]:not([data-old-line-number]) {
+        background-color: rgba(16, 185, 129, 0.15);
+        border-left: 4px solid rgb(16, 185, 129);
+    } */
 
     .fold-toggle {
         position: absolute;
@@ -406,6 +676,7 @@ body {
         opacity: 0.7;
     }
 
+    .token-key,
     .token-property,
     .token-tag,
     .token-constant,
@@ -475,107 +746,6 @@ body {
         position: relative;
         border-bottom: 1px dashed var(--editor-error-border);
         cursor: help;
-    }
-
-    /* Tooltip that shows validation error message on hover */
-    .token-error:hover::after {
-        content: attr(data-error);
-        position: absolute;
-        background: var(--editor-error-bg);
-        color: var(--editor-error-border);
-        font-size: 12px;
-        padding: 4px 6px;
-        border: 1px solid var(--editor-error-border);
-        border-radius: 4px;
-        top: 100%;
-        left: 0;
-        z-index: 1000;
-        white-space: nowrap;
-    }
-
-    /* Warning icon shown when code block has validation errors */
-    .editor-code-block.error::after {
-        content: "⚠️";
-        position: absolute;
-        top: 6px;
-        right: 6px;
-        color: var(--editor-error-border);
-        font-size: 16px;
-        pointer-events: none;
-    }
-
-    /* Styling for the error indicator icon component */
-    .code-block-error-icon {
-        position: absolute;
-        top: 4px;
-        right: 4px;
-        font-size: 16px;
-        color: red;
-        z-index: 10;
-        pointer-events: none;
-    }
-
-    /* Container for positioning error indicators */
-    .code-block-error-anchor {
-        position: absolute;
-        top: theme(spacing.1);
-        right: theme(spacing.1);
-        z-index: 5;
-        & > span {
-            font-size: 1rem !important;
-        }
-    }
-
-    /* Styling for the clickable error indicator button */
-    .code-block-error-indicator {
-        background: white;
-        border: 1px solid red;
-        border-radius: 50%;
-        font-size: 12px;
-        padding: 1px 5px;
-        color: red;
-        font-weight: bold;
-        pointer-events: auto;
-        cursor: help;
-    }
-
-    /* Tooltip container for displaying validation error details */
-    .code-block-error-tooltip {
-        position: absolute;
-        top: 1.5rem;
-        right: 0;
-        background-color: #fff8f8;
-        color: #d00000;
-        border: 1px solid #faa;
-        border-radius: 4px;
-        padding: 0.5rem;
-        font-size: 0.875rem;
-        white-space: pre-wrap;
-        max-width: 300px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        z-index: 30;
-    }
-
-    .code-block-error-tooltip-inner > div + div {
-        margin-top: 0.25rem;
-    }
-
-    /* Base styling for elements with tooltips */
-    .has-tooltip[data-tooltip] {
-        position: relative;
-        cursor: help;
-    }
-
-    /* Tooltip content styling and positioning */
-    .has-tooltip[data-tooltip]::after {
-        content: attr(data-tooltip);
-        @apply absolute z-50 bg-red-600 text-white text-[0.5rem] py-[1px] px-0.5 rounded shadow-md top-full left-1/2 -translate-x-1/2 mt-0 opacity-0 pointer-events-none transition-opacity duration-[50ms];
-        white-space: nowrap;
-    }
-
-    /* Show tooltip on hover */
-    .has-tooltip[data-tooltip]:hover::after {
-        opacity: 1;
     }
 }
 

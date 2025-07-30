@@ -4,55 +4,6 @@ import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 
 /**
- * Normalizes pasted lines to the target indentation level.
- *
- * - Strips minimum indentation from all pasted lines (so their relative structure is preserved)
- * - Prepends the given number of tabs to each line, so the pasted block is indented at the insertion context
- *
- * @param pastedLines The array of pasted lines (strings)
- * @param baseIndentCount The indentation level (number of tabs) to prepend to each line
- * @returns The array of lines with normalized indentation
- */
-export function normalizePastedLinesIndentation(
-    pastedLines: string[],
-    baseIndentCount: number,
-): string[] {
-    // Find min indentation (in tabs or spaces) across all non-empty lines
-    let minIndent = Infinity
-    for (const line of pastedLines) {
-        if (!line.trim()) continue
-        const match = line.match(/^(\s*)/)
-        if (match) {
-            // Count tabs as 1, 2 spaces as 1 tab (for mixed content)
-            const tabCount = (match[1].match(/\t/g) || []).length
-            const spaceCount = (match[1].match(/ /g) || []).length
-            const total = tabCount + Math.floor(spaceCount / 2)
-            if (total < minIndent) minIndent = total
-        }
-    }
-    if (!isFinite(minIndent)) minIndent = 0
-
-    // Remove minIndent from each line and prepend baseIndentCount tabs
-    return pastedLines.map((line) => {
-        if (!line.trim()) return ""
-        // Remove minIndent tabs/spaces
-        let l = line
-        let removed = 0
-        while (removed < minIndent && l.startsWith("\t")) {
-            l = l.slice(1)
-            removed++
-        }
-        while (removed < minIndent && l.startsWith("  ")) {
-            // two spaces
-            l = l.slice(2)
-            removed++
-        }
-        // Prepend baseIndentCount tabs
-        return "\t".repeat(baseIndentCount) + l
-    })
-}
-
-/**
  * Analyzes and corrects the indentation of all lines in a code block node.
  * This utility can be used after a paste event or for bulk formatting.
  *
@@ -112,6 +63,55 @@ export function $fixCodeBlockIndentation(codeBlock: any) {
             indentLevel++
         }
     }
+}
+
+/**
+ * Normalizes pasted lines to the target indentation level.
+ *
+ * - Strips minimum indentation from all pasted lines (so their relative structure is preserved)
+ * - Prepends the given number of tabs to each line, so the pasted block is indented at the insertion context
+ *
+ * @param pastedLines The array of pasted lines (strings)
+ * @param baseIndentCount The indentation level (number of tabs) to prepend to each line
+ * @returns The array of lines with normalized indentation
+ */
+export function normalizePastedLinesIndentation(
+    pastedLines: string[],
+    baseIndentCount: number,
+): string[] {
+    // Find min indentation (in tabs or spaces) across all non-empty lines
+    let minIndent = Infinity
+    for (const line of pastedLines) {
+        if (!line.trim()) continue
+        const match = line.match(/^(\s*)/)
+        if (match) {
+            // Count tabs as 1, 2 spaces as 1 tab (for mixed content)
+            const tabCount = (match[1].match(/\t/g) || []).length
+            const spaceCount = (match[1].match(/ /g) || []).length
+            const total = tabCount + Math.floor(spaceCount / 2)
+            if (total < minIndent) minIndent = total
+        }
+    }
+    if (!isFinite(minIndent)) minIndent = 0
+
+    // Remove minIndent from each line and prepend baseIndentCount tabs
+    return pastedLines.map((line) => {
+        if (!line.trim()) return ""
+        // Remove minIndent tabs/spaces
+        let l = line
+        let removed = 0
+        while (removed < minIndent && l.startsWith("\t")) {
+            l = l.slice(1)
+            removed++
+        }
+        while (removed < minIndent && l.startsWith("  ")) {
+            // two spaces
+            l = l.slice(2)
+            removed++
+        }
+        // Prepend baseIndentCount tabs
+        return "\t".repeat(baseIndentCount) + l
+    })
 }
 
 /** @deprecated renamed to {@link $fixCodeBlockIndentation} by @lexical/eslint-plugin rules-of-lexical */

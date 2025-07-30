@@ -1,0 +1,49 @@
+.editor-code-diff-line {
+    /* Diff highlighting styles */
+    &:global(.diff-added) {
+        background-color: rgba(34, 197, 94, 0.1);
+        border-left: 3px solid #22c55e;
+        padding-left: 8px;
+        position: relative;
+    }
+    
+    &:global(.diff-added::before) {
+        content: '+';
+        color: #22c55e;
+        font-weight: bold;
+        margin-right: 8px;
+        display: inline-block;
+        /* width: 16px; */
+        position: absolute;
+        /* left: -20px; */
+        /* top: 0; */
+        line-height: inherit;
+    }
+    
+    &:global(.diff-removed) {
+        background-color: rgba(239, 68, 68, 0.1);
+        border-left: 3px solid #ef4444;
+        padding-left: 8px;
+        position: relative;
+    }
+    
+    &:global(.diff-removed::before) {
+        content: '-';
+        color: #ef4444;
+        font-weight: bold;
+        margin-right: 8px;
+        display: inline-block;
+        /* width: 16px; */
+        position: absolute;
+        /* left: -20px; */
+        /* top: 0; */
+        line-height: inherit;
+    }
+    
+    &:global(.diff-context) {
+        background-color: rgba(156, 163, 175, 0.05);
+        border-left: 3px solid var(--editor-bg);
+        padding-left: 8px;
+        position: relative;
+    }
+}

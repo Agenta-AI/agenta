@@ -137,6 +137,7 @@ const GenerationCompletionRow = ({
                                             propertyId={variableId}
                                             rowId={rowId}
                                             placeholder="Enter value"
+                                            editorProps={{enableTokens: false}}
                                         />
                                     )
                                 })}
@@ -333,6 +334,7 @@ const GenerationCompletionRow = ({
                                         ])}
                                         disabled={disabled}
                                         placeholder="Enter value"
+                                        editorProps={{enableTokens: false}}
                                     />
 
                                     {!inputOnly && (

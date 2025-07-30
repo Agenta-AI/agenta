@@ -96,7 +96,7 @@ const SelectControl = ({
                     placeholder={mode === "multiple" ? "Select multiple" : "Select one"}
                     {...rest}
                 />
-                {value?.length || allowClear ? (
+                {value?.length && allowClear ? (
                     <Button
                         icon={<X size={14} />}
                         type="text"

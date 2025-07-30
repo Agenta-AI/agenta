@@ -80,7 +80,7 @@ function isInsideString(text: string, offset: number): boolean {
 }
 
 const log = createLogger("AutoCloseBracketsPlugin", {
-    disabled: false,
+    disabled: true,
 })
 
 /**
@@ -144,7 +144,7 @@ export function AutoCloseBracketsPlugin() {
                     log("Active selection detected 4")
                     // Get the updated selection after deletion
                     const updatedSelection = $getSelection()
-                    if (!$isRangeSelection(updatedSelection)) return
+                    if (!$isRangeSelection(updatedSelection)) return false
 
                     let anchorNode = updatedSelection.anchor.getNode()
                     log("Active selection detected 5", anchorNode)
@@ -153,7 +153,7 @@ export function AutoCloseBracketsPlugin() {
                         !$isTabNode(anchorNode) &&
                         !$isCodeLineNode(anchorNode)
                     )
-                        return
+                        return false
 
                     const offset = updatedSelection.anchor.offset
                     const text = anchorNode.getTextContent()
@@ -250,6 +250,7 @@ export function AutoCloseBracketsPlugin() {
                         anchorNode.insertAfter(highlightNode)
                         anchorNode = highlightNode
                         selection = anchorNode.selectStart()
+                        if (!$isRangeSelection(selection)) return false
                         $setSelection(selection)
                         offset = selection.anchor.offset
                     } else {
