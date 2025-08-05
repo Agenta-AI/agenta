@@ -222,7 +222,14 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
             {envRevisions && (
                 <DeploymentsDrawer
                     mainContent={
-                        <UseApiContent variants={variants} selectedEnvironment={envRevisions} />
+                        <UseApiContent
+                            handleOpenSelectDeployVariantModal={() => {
+                                setIsUseApiDrawerOpen(false)
+                                setIsSelectDeployVariantModalOpen(true)
+                            }}
+                            variants={variants}
+                            selectedEnvironment={envRevisions}
+                        />
                     }
                     headerContent={
                         <Typography.Text className={classes.subTitle}>

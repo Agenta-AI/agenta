@@ -1,11 +1,16 @@
 import {memo, useMemo} from "react"
 
-import {Lightning} from "@phosphor-icons/react"
+import {Lightning, Sidebar} from "@phosphor-icons/react"
 import {Breadcrumb, Typography} from "antd"
+import clsx from "clsx"
+import {useAtom} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
+
 import packageJsonData from "../../../../package.json"
+import EnhancedButton from "../../Playground/assets/EnhancedButton"
 
 import {useStyles, type StyleProps} from "./styles"
 
@@ -22,6 +27,7 @@ export const BreadcrumbContainer = memo(
     ({appTheme, appName}: {appTheme: string; appName: string}) => {
         const classes = useStyles({themeMode: appTheme} as StyleProps)
         const router = useRouter()
+        const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
 
         const pathSegments = useMemo(
             () => router.asPath.split("?")[0].split("/").filter(Boolean),
@@ -58,7 +64,27 @@ export const BreadcrumbContainer = memo(
 
         return (
             <div className={classes.breadcrumbContainer}>
-                <Breadcrumb items={breadcrumbItems} />
+                <div className="flex items-center gap-4">
+                    <EnhancedButton
+                        type="text"
+                        className="-ml-1"
+                        icon={
+                            <Sidebar
+                                size={14}
+                                className={clsx(
+                                    "transition-transform",
+                                    collapsed ? "rotate-180" : "",
+                                )}
+                            />
+                        }
+                        onClick={() => setCollapsed(!collapsed)}
+                        tooltipProps={{
+                            title: "Toggle sidebar",
+                            mouseEnterDelay: 1,
+                        }}
+                    />
+                    <Breadcrumb items={breadcrumbItems} />
+                </div>
                 <div className={classes.topRightBar}>
                     <Text>agenta v{packageJsonData.version}</Text>
                 </div>

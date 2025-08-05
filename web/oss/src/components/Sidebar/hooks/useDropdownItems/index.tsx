@@ -1,12 +1,10 @@
 import {useMemo} from "react"
 
-import {Gear, SignOut} from "@phosphor-icons/react"
+import {SignOut} from "@phosphor-icons/react"
 import {Space, Typography} from "antd"
-import Link from "next/link"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import Avatar from "@/oss/components/Avatar/Avatar"
-import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {UseDropdownItemsProps} from "./types"
 
@@ -37,22 +35,14 @@ export const useDropdownItems = ({
                         </Space>
                     ),
                 })),
-                isDemo() && {type: "divider"},
-                {
-                    key: "settings",
-                    label: (
-                        <Link href={"/settings"} className="flex items-center gap-2">
-                            <Gear size={16} />
-                            <Text>Settings</Text>
-                        </Link>
-                    ),
-                },
+                {type: "divider"},
                 {
                     key: "logout",
+                    danger: true,
                     label: (
                         <div className="flex items-center gap-2">
                             <SignOut size={16} />
-                            <Text>Logout</Text>
+                            Logout
                         </div>
                     ),
                     onClick: () => {

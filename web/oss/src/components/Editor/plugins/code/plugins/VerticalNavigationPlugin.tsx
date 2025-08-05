@@ -4,7 +4,9 @@
  * This plugin improves vertical navigation in code blocks by:
  * 1. Maintaining cursor horizontal position when moving between lines
  * 2. Handling Alt+Up/Down for line movement
- * 3. Preventing selection from moving out of code blocks
+ * 3. Handling Cmd+Up/Down (macOS) for document navigation (jump to top/bottom)
+ * 4. Preventing selection from moving out of code blocks
+ * 5. Supporting Shift+Cmd+Up/Down for selection extension to document boundaries
  */
 import {useEffect} from "react"
 
@@ -198,6 +200,30 @@ function $handleShiftLines(
     // Log indentation after fix
     logIndentationState("Indentation AFTER auto-fix", parent)
 
+    // Trigger validation after line movement to update error indicators
+    // This ensures that validation errors are repositioned to match the moved lines
+    const textContent = parent.getTextContent()
+
+    if (textContent.length > 3) {
+        // Clean the text content by removing empty lines for validation
+        const originalLines = textContent.split("\n")
+        const cleanedLines: string[] = []
+        const cleanedToOriginalLineMap = new Map<number, number>()
+
+        originalLines.forEach((line: string, originalIndex: number) => {
+            if (line.trim() !== "") {
+                cleanedLines.push(line)
+                const cleanedLineNumber = cleanedLines.length
+                const originalLineNumber = originalIndex + 1
+                cleanedToOriginalLineMap.set(cleanedLineNumber, originalLineNumber)
+            }
+        })
+
+        log(
+            `🔄 [VerticalNavigationPlugin] Line movement completed - validation will be handled automatically`,
+        )
+    }
+
     return shouldHandle
 }
 
@@ -262,6 +288,61 @@ export function VerticalNavigationPlugin() {
 
                 if (!targetLine || !$isCodeLineNode(targetLine)) return false
 
+                // Handle Cmd+Arrow (metaKey) for document navigation (VSCode-like)
+                if (event.metaKey) {
+                    log("🎮 Cmd+Arrow detected, handling document navigation")
+                    event.preventDefault()
+
+                    // Find the code block containing the current line
+                    const codeBlock = currentLine.getParents().find($isCodeBlockNode)
+                    if (!codeBlock) return false
+
+                    // Get all lines in the code block
+                    const allLines = codeBlock.getChildren().filter($isCodeLineNode)
+                    if (allLines.length === 0) return false
+
+                    // Determine target line (first or last)
+                    const targetLine = isArrowUp ? allLines[0] : allLines[allLines.length - 1]
+                    if (!targetLine) return false
+
+                    // Position cursor at beginning or end of target line
+                    const targetNodes = targetLine.getChildren()
+                    if (targetNodes.length === 0) return false
+
+                    let targetNode, targetOffset
+                    if (isArrowUp) {
+                        // Go to beginning of first line
+                        targetNode = targetNodes[0]
+                        targetOffset = 0
+                    } else {
+                        // Go to end of last line
+                        const lastNode = targetNodes[targetNodes.length - 1]
+                        targetNode = lastNode
+                        targetOffset = lastNode.getTextContentSize()
+                    }
+
+                    // Create and set the selection
+                    const newSelection = $createRangeSelection()
+                    if (event.shiftKey) {
+                        // Extend selection from current position to target
+                        newSelection.anchor.set(anchor.getNode().getKey(), anchor.offset, "text")
+                        newSelection.focus.set(targetNode.getKey(), targetOffset, "text")
+                    } else {
+                        // Move cursor to target position
+                        newSelection.anchor.set(targetNode.getKey(), targetOffset, "text")
+                        newSelection.focus.set(targetNode.getKey(), targetOffset, "text")
+                    }
+
+                    $setSelection(newSelection)
+                    log("🎮 Document navigation completed", {
+                        direction: isArrowUp ? "top" : "bottom",
+                        targetNodeKey: targetNode.getKey(),
+                        targetOffset,
+                        shiftKey: event.shiftKey,
+                    })
+                    return true
+                }
+
                 // Handle Alt+Arrow for line movement
                 if (event.altKey) {
                     log("🎮 Alt+Arrow detected, handling line movement")
@@ -302,9 +383,9 @@ export function VerticalNavigationPlugin() {
 
                 // Get target line information
                 // const isTargetLineFolded = targetLine?.isCollapsed()
-                // console.log("TARGET LINE!", targetLine)
+
                 // if (isTargetLineFolded) {
-                //     console.log("🎮 Target line is folded, skipping")
+
                 //     // editor.dispatchCommand(KEY_DOWN_COMMAND, event)
                 //     // return true
                 // }

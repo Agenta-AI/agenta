@@ -1,4 +1,4 @@
-import {type Menu} from "antd"
+import {MenuProps} from "antd"
 
 export interface SidebarConfig {
     key: string
@@ -20,6 +20,6 @@ export interface SidebarConfig {
 export interface SidebarMenuProps {
     items: SidebarConfig[]
     collapsed: boolean
-    menuProps?: React.ComponentProps<typeof Menu>
+    menuProps?: MenuProps
     mode?: "horizontal" | "vertical" | "inline"
 }

@@ -70,14 +70,8 @@
         /* Positioning for pseudo-elements */
         position: relative;
         
-        /* Smooth transitions */
-        transition: all 0.2s ease;
-        
         /* Subtle border radius for modern look */
         border-radius: 2px;
-        
-        /* Optional: subtle box shadow for depth */
-        /* box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.1); */
     }
 }
 

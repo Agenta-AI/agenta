@@ -1,30 +1,25 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
-import {CaretDown, SidebarSimple} from "@phosphor-icons/react"
-import {Button, Divider, Dropdown, Layout, Typography} from "antd"
+import {Divider, Layout} from "antd"
 import clsx from "clsx"
+import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
-import {useLocalStorage} from "usehooks-ts"
 
-import Avatar from "@/oss/components/Avatar/Avatar"
 import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
-import {useProjectData} from "@/oss/contexts/project.context"
-import {useSession} from "@/oss/hooks/useSession"
+
+import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
-import {useStyles} from "./assets/styles"
+import ListOfOrgs from "./components/ListOfOrgs"
 import SidebarMenu from "./components/SidebarMenu"
-import {useDropdownItems} from "./hooks/useDropdownItems"
+
 import {useSidebarConfig} from "./hooks/useSidebarConfig"
 import SettingsSidebar from "./SettingsSidebar"
 import {SidebarConfig} from "./types"
 
 const {Sider} = Layout
-const {Text} = Typography
 
 const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
     showSettingsView,
@@ -32,19 +27,11 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
 }) => {
     const {appTheme} = useAppTheme()
     const router = useRouter()
-    const classes = useStyles()
     const [openKey, setOpenKey] = useState<string>()
-    const [collapsed, setCollapsed] = useLocalStorage("sidebarCollapsed", false)
+    const [collapsed] = useAtom(sidebarCollapsedAtom)
     const menu = useSidebarConfig()
-    const {user} = useProfileData()
-    const {logout} = useSession()
-    const {project, projects} = useProjectData()
-    const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
 
-    const [isHovered, setIsHovered] = useState(false)
-    const dropdownItems = useDropdownItems({logout, orgs, selectedOrg, user, project, projects})
-
-    const isSidebarExpanded = useMemo(() => collapsed && !isHovered, [collapsed, isHovered])
+    const isSidebarCollapsed = collapsed
 
     const {topItems, bottomItems} = useMemo(() => {
         const topItems: SidebarConfig[] = []
@@ -100,125 +87,57 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
     }, [openKeys[0]])
 
     return (
-        <div className={classes.siderWrapper}>
+        <div className="border-0 border-r border-solid border-gray-100">
             <Sider
                 theme={appTheme}
-                className={classes.sidebar}
+                className="sticky top-0 bottom-0 h-screen bg-white"
                 collapsible
                 width={collapsed ? 80 : 236}
                 trigger={null}
-                onMouseOver={() => {
-                    if (collapsed) setIsHovered(true)
-                }}
-                onMouseOut={() => {
-                    if (collapsed) setIsHovered(false)
-                }}
             >
                 <div
-                    className={clsx([
-                        classes.sliderContainer,
-                        "absolute left-0 top-0 h-full bg-white transition-all duration-300",
-                        collapsed ? (isHovered ? "w-[236px]" : "w-[80px]") : "w-[236px]",
-                    ])}
-                >
-                    {showSettingsView ? null : (
-                        <div
-                            className={` overflow-hidden h-[51px] transition-width duration-[inherit] ease-in-out relative flex flex-col ${
-                                isSidebarExpanded ? "w-[49px] relative left-[7px]" : "w-full"
-                            }`}
-                        >
-                            <div
-                                className={clsx([
-                                    "flex items-center gap-2",
-                                    "transition-width duration-[inherit] ease-in-out",
-                                    "w-full",
-                                ])}
-                            >
-                                <div className="transition-width duration-[inherit] ease-in-out w-full">
-                                    {selectedOrg?.id && user?.id && (
-                                        <Dropdown
-                                            trigger={["hover"]}
-                                            menu={{
-                                                // @ts-ignore
-                                                items: dropdownItems,
-                                                selectedKeys: [selectedOrg.id],
-                                                onClick: ({key}) => {
-                                                    if (["settings", "logout"].includes(key)) return
-                                                    changeSelectedOrg(key)
-                                                },
-                                            }}
-                                        >
-                                            <Button
-                                                className={`${classes.avatarMainContainer} ${isSidebarExpanded ? "border-transparent" : ""}`}
-                                            >
-                                                <div className={classes.avatarContainer}>
-                                                    <Avatar
-                                                        className="text-lg"
-                                                        name={
-                                                            selectedOrg.default_workspace?.name ||
-                                                            selectedOrg.name
-                                                        }
-                                                    />
-
-                                                    <div className="max-w-[95px] text-ellipsis overflow-hidden">
-                                                        <Text>
-                                                            {selectedOrg.default_workspace?.name ||
-                                                                selectedOrg.name}
-                                                        </Text>
-                                                        <Text>{selectedOrg.type}</Text>
-                                                    </div>
-                                                </div>
-
-                                                <CaretDown size={14} />
-                                            </Button>
-                                        </Dropdown>
-                                    )}
-                                </div>
-
-                                <Button
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        setCollapsed(!collapsed)
-                                    }}
-                                    icon={<SidebarSimple size={14} className="mt-0.5" />}
-                                    className="shrink-0 flex items-center justify-center"
-                                    type={collapsed && isHovered ? "primary" : undefined}
-                                />
-                            </div>
-                        </div>
+                    className={clsx(
+                        "flex flex-col h-full transition-all duration-300",
+                        collapsed ? "w-[80px]" : "w-[236px]",
                     )}
+                >
+                    {showSettingsView ? null : <ListOfOrgs collapsed={collapsed} />}
 
-                    {showSettingsView ? null : <Divider className="my-4" />}
+                    {showSettingsView ? null : <Divider className="-mt-[3.5px] mb-3" />}
                     <ErrorBoundary fallback={<div />}>
-                        <div className="flex flex-col h-full">
+                        <div className="flex flex-col justify-between items-center h-full">
                             {showSettingsView ? (
                                 <SettingsSidebar lastPath={lastPath} />
                             ) : (
                                 <SidebarMenu
                                     menuProps={{
-                                        className: classes.menuContainer,
+                                        className:
+                                            "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium",
                                         selectedKeys,
                                         openKeys: openKey ? [openKey] : [],
                                         onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
                                     }}
                                     items={topItems}
-                                    collapsed={isSidebarExpanded}
+                                    collapsed={isSidebarCollapsed}
                                 />
                             )}
-                            <div>
-                                <SidePanelSubscriptionInfo
-                                    collapsed={collapsed}
-                                    isHovered={isHovered}
-                                />
+                            <div className="w-full flex flex-col">
+                                {!collapsed && (
+                                    <div className="mx-auto">
+                                        <SidePanelSubscriptionInfo />
+                                    </div>
+                                )}
+
                                 <SidebarMenu
                                     menuProps={{
-                                        className: classes.menuContainer2,
+                                        className:
+                                            "[&_.ant-menu-item-icon]:!shrink-0 [&_.ant-menu-item-icon]:!w-[14px] [&_.ant-menu-item-icon]:!h-[14px]",
                                         selectedKeys,
                                         openKeys: openKey ? [openKey] : [],
                                         onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
                                     }}
                                     items={bottomItems}
-                                    collapsed={isSidebarExpanded}
+                                    collapsed={isSidebarCollapsed}
                                     mode={"vertical"}
                                 />
                             </div>

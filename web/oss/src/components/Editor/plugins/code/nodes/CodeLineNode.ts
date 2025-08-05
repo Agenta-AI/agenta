@@ -17,7 +17,7 @@ import {ErrorInfo} from "../plugins/GlobalErrorIndicatorPlugin"
 /**
  * Diff line types for code diff display
  */
-export type DiffType = "added" | "removed" | "context" | null
+export type DiffType = "added" | "removed" | "context" | "fold" | null
 
 /**
  * Represents the serialized form of a CodeLineNode.
@@ -187,10 +187,22 @@ export class CodeLineNode extends ElementNode {
 
     /**
      * Gets the validation errors for this line.
+     * Uses the unified ValidationManager as single source of truth.
      * @returns Array of validation errors for this line
      */
     getValidationErrors(): ErrorInfo[] {
-        return this.getLatest().__validationErrors
+        // Import ValidationManager dynamically to avoid circular dependencies
+        try {
+            // Use dynamic import to avoid circular dependency issues
+            const validationManagerModule = eval('require("../plugins/GlobalErrorIndicatorPlugin")')
+            const validationManager = validationManagerModule.ValidationManager.getInstance()
+            const lineNumber = this.calculateActualLineNumber()
+            return validationManager.getErrorsForLine(lineNumber)
+        } catch (error) {
+            // Fallback to stored validation errors (for backward compatibility)
+            console.warn("Failed to get ValidationManager, falling back to stored errors:", error)
+            return this.getLatest().__validationErrors
+        }
     }
 
     /**
@@ -273,8 +285,8 @@ export class CodeLineNode extends ElementNode {
             element.classList.add("folded")
         }
 
-        // Set line numbers for GitHub-style diff display
-        if (latest.__oldLineNumber || latest.__newLineNumber) {
+        // Set line numbers for GitHub-style diff display (but not for fold lines)
+        if ((latest.__oldLineNumber || latest.__newLineNumber) && latest.__diffType !== "fold") {
             const oldNum = latest.__oldLineNumber ? latest.__oldLineNumber.toString() : ""
             const newNum = latest.__newLineNumber ? latest.__newLineNumber.toString() : ""
             element.setAttribute("data-old-line-number", oldNum)

@@ -56,6 +56,7 @@ const TokenTypeaheadPlugin = lazy(() =>
 )
 
 const EditorPlugins = ({
+    id,
     showToolbar,
     singleLine,
     codeOnly,
@@ -111,6 +112,7 @@ const EditorPlugins = ({
                 <>
                     <CodeFoldingPlugin />
                     <CodeEditorPlugin
+                        editorId={id}
                         validationSchema={validationSchema}
                         initialValue={initialValue}
                         language={language}

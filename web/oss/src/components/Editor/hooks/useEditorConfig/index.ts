@@ -48,6 +48,7 @@ const useEditorConfig = ({
                     import("../../plugins/code/nodes/CodeHighlightNode"),
                     import("../../plugins/code/nodes/CodeLineNode"),
                     import("../../plugins/code/nodes/CodeBlockErrorIndicatorNode"),
+                    import("../../plugins/code/nodes/CodeTabNode"),
                 ])
 
                 initialNodes.push(
@@ -56,6 +57,7 @@ const useEditorConfig = ({
                         initialNodesPromises[1].CodeHighlightNode,
                         initialNodesPromises[2].CodeLineNode,
                         initialNodesPromises[3].CodeBlockErrorIndicatorNode,
+                        initialNodesPromises[4].CodeTabNode,
                     ],
                 )
             } else {
