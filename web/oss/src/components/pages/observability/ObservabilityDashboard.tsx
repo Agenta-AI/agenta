@@ -181,12 +181,12 @@ const ObservabilityDashboard = () => {
                 }}
             />
 
-            {activeTrace && !!traces?.length && (
-                <GenericDrawer
-                    open={!!selectedTraceId}
-                    onClose={() => setSelectedTraceId("")}
-                    expandable
-                    headerExtra={
+            <GenericDrawer
+                open={!!selectedTraceId && !!activeTrace && !!traces?.length}
+                onClose={() => setSelectedTraceId("")}
+                expandable
+                headerExtra={
+                    activeTrace && !!traces?.length ? (
                         <TraceHeader
                             activeTrace={activeTrace}
                             traces={traces}
@@ -196,23 +196,26 @@ const ObservabilityDashboard = () => {
                             isAnnotationsSectionOpen={isAnnotationsSectionOpen}
                             setSelected={setSelected}
                         />
-                    }
-                    mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}
-                    sideContent={
+                    ) : null
+                }
+                mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}
+                sideContent={
+                    activeTrace ? (
                         <TraceTree
                             activeTrace={activeTrace}
                             selected={selected}
                             setSelected={setSelected}
                         />
-                    }
-                    extraContent={
-                        isAnnotationsSectionOpen &&
-                        selectedItem && <TraceSidePanel activeTrace={selectedItem} />
-                    }
-                    externalKey={`extraContent-${isAnnotationsSectionOpen}`}
-                    className="[&_.ant-drawer-body]:p-0"
-                />
-            )}
+                    ) : null
+                }
+                extraContent={
+                    isAnnotationsSectionOpen && selectedItem ? (
+                        <TraceSidePanel activeTrace={selectedItem} />
+                    ) : null
+                }
+                externalKey={`extraContent-${isAnnotationsSectionOpen}`}
+                className="[&_.ant-drawer-body]:p-0"
+            />
         </div>
     )
 }

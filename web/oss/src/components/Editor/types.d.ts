@@ -49,6 +49,7 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
 }
 
 export interface EditorPluginsProps {
+    id: string
     showToolbar: boolean
     singleLine: boolean
     codeOnly: boolean

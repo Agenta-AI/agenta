@@ -22,6 +22,7 @@ import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
 import useCustomWorkflowConfig from "../pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
+import SidebarSkeletonLoader from "../Sidebar/components/SidebarSkeletonLoader"
 
 import {BreadcrumbContainer} from "./assets/Breadcrumbs"
 import {useStyles, type StyleProps} from "./assets/styles"
@@ -30,7 +31,7 @@ import {getDeviceTheme, useAppTheme} from "./ThemeContextProvider"
 
 const Sidebar: any = dynamic(() => import("../Sidebar/Sidebar"), {
     ssr: false,
-    loading: () => <Skeleton className="w-[236px]" />,
+    loading: () => <SidebarSkeletonLoader />,
 })
 
 type StyleClasses = ReturnType<typeof useStyles>

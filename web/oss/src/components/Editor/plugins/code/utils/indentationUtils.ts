@@ -1,7 +1,6 @@
-import {$createTabNode} from "lexical"
-
 import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
+import {$createCodeTabNode, $isCodeTabNode} from "../nodes/CodeTabNode"
 
 /**
  * Analyzes and corrects the indentation of all lines in a code block node.
@@ -23,8 +22,7 @@ export function $fixCodeBlockIndentation(codeBlock: any) {
         // Count current leading tab nodes
         let currentTabs = 0
         for (const child of children) {
-            // $isTabNode is from lexical, but not always imported. Use type or class check if needed.
-            if (child.getType && child.getType() === "tab") {
+            if ((child.getType && child.getType() === "tab") || $isCodeTabNode(child)) {
                 currentTabs++
             } else {
                 break
@@ -42,7 +40,7 @@ export function $fixCodeBlockIndentation(codeBlock: any) {
         if (currentTabs < indentLevel) {
             // Add missing tabs at the start
             for (let t = 0; t < indentLevel - currentTabs; t++) {
-                const tabNode = $createTabNode()
+                const tabNode = $createCodeTabNode()
                 // Always add as a child of the line
                 const updatedChildren = line.getChildren()
                 if (updatedChildren.length > 0) {

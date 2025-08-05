@@ -24,6 +24,7 @@ interface DeploymentTableProps {
     setSelectedVariantRevisionIdToRevert: React.Dispatch<React.SetStateAction<string>>
     envRevisions: DeploymentRevisions | undefined
     setIsSelectDeployVariantModalOpen: (value: React.SetStateAction<boolean>) => void
+    setQueryVariant: (val: string) => void
 }
 
 const DeploymentTable = ({

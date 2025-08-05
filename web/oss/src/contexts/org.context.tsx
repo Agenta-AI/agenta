@@ -100,7 +100,9 @@ const OrgContextProvider: React.FC<PropsWithChildren> = ({children}) => {
                 if (onSuccess) {
                     onSuccess()
                 }
-                router.push("/apps")
+                if (!router.asPath.includes("/settings")) {
+                    router.push("/apps")
+                }
             })
             .finally(() => setLoadingOrgDetails(false))
             .catch(console.error)

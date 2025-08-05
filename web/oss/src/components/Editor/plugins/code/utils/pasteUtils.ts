@@ -1,7 +1,8 @@
-import {$createRangeSelection, $setSelection, $createTabNode} from "lexical"
+import {$createRangeSelection, $setSelection} from "lexical"
 
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
+import {$createCodeTabNode} from "../nodes/CodeTabNode"
 
 import {normalizePastedLinesIndentation} from "./indentationUtils"
 import {tokenizeCodeLine} from "./tokenizer"
@@ -219,7 +220,7 @@ export function $createNodeForLineWithTabs(line: string, language: "json" | "yam
         let i = 0
         while (i < indent.length) {
             if (indent[i] === "\t") {
-                codeLine.append($createTabNode())
+                codeLine.append($createCodeTabNode())
                 i += 1
             } else if (indent[i] === " ") {
                 // Count consecutive spaces
@@ -227,12 +228,12 @@ export function $createNodeForLineWithTabs(line: string, language: "json" | "yam
                 while (indent[i + spaceCount] === " ") spaceCount++
                 const tabs = Math.floor(spaceCount / tabSize)
                 for (let t = 0; t < tabs; t++) {
-                    codeLine.append($createTabNode())
+                    codeLine.append($createCodeTabNode())
                 }
                 i += tabs * tabSize
                 // If any leftover spaces, append as plain
                 for (; i < indent.length && indent[i] === " "; i++) {
-                    codeLine.append($createTabNode())
+                    codeLine.append($createCodeTabNode())
                 }
             }
         }

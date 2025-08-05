@@ -9,13 +9,11 @@ import yaml from "js-yaml"
 import JSON5 from "json5"
 import {
     $getRoot,
-    $createTabNode,
     COMMAND_PRIORITY_LOW,
     createCommand,
     BLUR_COMMAND,
     FOCUS_COMMAND,
     $setSelection,
-    $isTabNode,
     LexicalNode,
 } from "lexical"
 
@@ -26,6 +24,7 @@ export const store = createStore()
 import {$createCodeBlockNode, $isCodeBlockNode} from "./nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode, $isCodeLineNode} from "./nodes/CodeLineNode"
+import {$createCodeTabNode, $isCodeTabNode} from "./nodes/CodeTabNode"
 import {AutoCloseBracketsPlugin} from "./plugins/AutoCloseBracketsPlugin"
 import {AutoFormatAndValidateOnPastePlugin} from "./plugins/AutoFormatAndValidateOnPastePlugin"
 import {ClosingBracketIndentationPlugin} from "./plugins/ClosingBracketIndentationPlugin"
@@ -37,7 +36,6 @@ import VerticalNavigationPlugin from "./plugins/VerticalNavigationPlugin"
 import {tryParsePartialJson} from "./tryParsePartialJson"
 import {createLogger} from "./utils/createLogger"
 import {tokenizeCodeLine} from "./utils/tokenizer"
-import {validateAll} from "./utils/validationUtils"
 
 export const TOGGLE_FORM_VIEW = createCommand<void>("TOGGLE_FORM_VIEW")
 
@@ -84,11 +82,12 @@ function getTokenValidation(
 
 /**
  * Applies validation errors to code line nodes during initial content creation.
+ * Uses the unified ValidationManager for consistent validation.
  *
  * @param codeLineNodes The array of code line nodes to apply validation to.
  * @param text The original text content.
  * @param validationSchema The schema to validate against.
- * @param editor The Lexical editor instance to store global errors.
+ * @param editor The Lexical editor instance.
  */
 function applyValidationToNodes(
     codeLineNodes: CodeLineNode[],
@@ -96,57 +95,9 @@ function applyValidationToNodes(
     validationSchema: any,
     editor?: any,
 ): void {
-    try {
-        // Run validation on the text content
-        const validationResult = validateAll(text, validationSchema)
-
-        // Create a map of errors by line number
-        const errorsByLine = new Map<number, any[]>()
-
-        // Add all types of errors to the map
-        ;[...validationResult.structuralErrors, ...validationResult.schemaErrors].forEach(
-            (error) => {
-                const lineNumber = error.line
-                if (lineNumber && !errorsByLine.has(lineNumber)) {
-                    errorsByLine.set(lineNumber, [])
-                }
-                if (lineNumber) {
-                    errorsByLine.get(lineNumber)!.push(error)
-                }
-            },
-        )
-
-        // Apply errors to the corresponding code line nodes
-        codeLineNodes.forEach((lineNode, index) => {
-            const lineNumber = index + 1 // Lines are 1-indexed
-            const lineErrors = errorsByLine.get(lineNumber) || []
-
-            if (lineErrors.length > 0) {
-                // Set validation errors on the line node
-                const writableLine = lineNode.getWritable()
-                writableLine.setValidationErrors(lineErrors)
-            }
-        })
-
-        // Store errors in editor state for GlobalErrorIndicatorPlugin
-        if (editor) {
-            ;(editor as any)._structuralErrors = validationResult.structuralErrors
-            ;(editor as any)._schemaErrors = validationResult.schemaErrors
-            ;(editor as any)._bracketErrors = validationResult.bracketErrors || []
-
-            console.log(`🎯 [applyValidationToNodes] Stored errors in editor state:`, {
-                structural: validationResult.structuralErrors.length,
-                schema: validationResult.schemaErrors.length,
-                bracket: (validationResult.bracketErrors || []).length,
-            })
-        }
-    } catch (error) {
-        // Silently ignore validation errors during initial content creation
-        console.warn(
-            "[createHighlightedNodes] Validation failed during initial content creation:",
-            error,
-        )
-    }
+    // Note: Validation is now handled automatically by the GlobalErrorIndicatorPlugin
+    // which listens to content changes and applies validation styling per editor instance.
+    // No need to manually trigger validation during initial content creation.
 }
 
 /**
@@ -183,7 +134,7 @@ export function createHighlightedNodes(
                 const codeLine = $createCodeLineNode()
                 let content = line
                 while (content.startsWith("  ")) {
-                    codeLine.append($createTabNode())
+                    codeLine.append($createCodeTabNode())
                     content = content.substring(2)
                 }
                 const tokens = tokenizeCodeLine(content, language)
@@ -219,7 +170,7 @@ export function createHighlightedNodes(
         const codeLine = $createCodeLineNode()
         let content = line
         while (content.startsWith("  ")) {
-            codeLine.append($createTabNode())
+            codeLine.append($createCodeTabNode())
             content = content.substring(2)
         }
         const tokens = tokenizeCodeLine(content, language)
@@ -256,17 +207,19 @@ export function createHighlightedNodes(
  * 3. Ensures the editor always has a valid code block to edit
  */
 function InsertInitialCodeBlockPlugin({
-    debug,
+    debug = false,
     initialValue,
     language = "json",
     validationSchema,
     additionalCodePlugins = [],
+    editorId,
 }: {
     debug?: boolean
     initialValue: string
     language?: "json" | "yaml"
     validationSchema: any
     additionalCodePlugins?: React.ReactNode[]
+    editorId: string
 }) {
     const [editor] = useLexicalComposerContext()
 
@@ -439,7 +392,7 @@ function InsertInitialCodeBlockPlugin({
                         return line
                             .getChildren()
                             .map((child: LexicalNode) =>
-                                $isTabNode(child) ? "  " : child.getTextContent(),
+                                $isCodeTabNode(child) ? "  " : child.getTextContent(),
                             )
                             .join("")
                     })
@@ -569,8 +522,8 @@ function InsertInitialCodeBlockPlugin({
             <IndentationPlugin />
             <ClosingBracketIndentationPlugin />
             <AutoCloseBracketsPlugin />
-            <SyntaxHighlightPlugin schema={validationSchema} debug={debug} />
-            <GlobalErrorIndicatorPlugin />
+            <GlobalErrorIndicatorPlugin editorId={editorId} />
+            <SyntaxHighlightPlugin editorId={editorId} schema={validationSchema} debug={debug} />
             {additionalCodePlugins?.map((plugin, index) => (
                 <Fragment key={index}>{plugin}</Fragment>
             ))}

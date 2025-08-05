@@ -317,6 +317,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 >
                     {view === "code" ? (
                         <EditorPlugins
+                            id={id}
                             autoFocus={autoFocus}
                             showToolbar={showToolbar}
                             singleLine={singleLine}

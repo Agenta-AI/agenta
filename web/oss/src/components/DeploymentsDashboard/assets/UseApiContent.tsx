@@ -2,7 +2,7 @@ import {useMemo, useState} from "react"
 
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
-import {Tabs} from "antd"
+import {Spin, Tabs} from "antd"
 import dynamic from "next/dynamic"
 
 import fetchConfigcURLCode from "@/oss/code_snippets/endpoints/fetch_config/curl"
@@ -27,15 +27,20 @@ const ApiKeyInput = dynamic(
 interface UseApiContentProps {
     variants: EnhancedVariant[]
     selectedEnvironment: DeploymentRevisions
+    handleOpenSelectDeployVariantModal: () => void
 }
 
-const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
+const UseApiContent = ({
+    selectedEnvironment,
+    variants,
+    handleOpenSelectDeployVariantModal,
+}: UseApiContentProps) => {
     const appId = useAppId()
     const {currentApp} = useAppsData()
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
 
-    const {data: uri} = useURI(appId, selectedEnvironment.deployed_app_variant_id || "")
+    const {data: uri, isLoading} = useURI(appId, selectedEnvironment.deployed_app_variant_id || "")
 
     const params = useMemo(() => {
         const _variant: any = (variants || []).find(
@@ -99,11 +104,17 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
                                 apiKeyValue={apiKeyValue}
                                 onApiKeyChange={setApiKeyValue}
                             />
-                            <LanguageCodeBlock
-                                fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                                invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                                selectedLang={selectedLang}
-                            />
+                            <Spin spinning={isLoading}>
+                                <LanguageCodeBlock
+                                    fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                    invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                    selectedLang={selectedLang}
+                                    handleOpenSelectDeployVariantModal={
+                                        handleOpenSelectDeployVariantModal
+                                    }
+                                    invokeLlmUrl={uri}
+                                />
+                            </Spin>
                         </div>
                     ),
                     icon: <PythonOutlined />,
@@ -117,11 +128,17 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
                                 apiKeyValue={apiKeyValue}
                                 onApiKeyChange={setApiKeyValue}
                             />
-                            <LanguageCodeBlock
-                                fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                                invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                                selectedLang={selectedLang}
-                            />
+                            <Spin spinning={isLoading}>
+                                <LanguageCodeBlock
+                                    fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                    invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                    selectedLang={selectedLang}
+                                    handleOpenSelectDeployVariantModal={
+                                        handleOpenSelectDeployVariantModal
+                                    }
+                                    invokeLlmUrl={uri}
+                                />
+                            </Spin>
                         </div>
                     ),
                     icon: <FileTs size={14} />,
@@ -135,11 +152,17 @@ const UseApiContent = ({selectedEnvironment, variants}: UseApiContentProps) => {
                                 apiKeyValue={apiKeyValue}
                                 onApiKeyChange={setApiKeyValue}
                             />
-                            <LanguageCodeBlock
-                                fetchConfigCodeSnippet={fetchConfigCodeSnippet}
-                                invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
-                                selectedLang={selectedLang}
-                            />
+                            <Spin spinning={isLoading}>
+                                <LanguageCodeBlock
+                                    fetchConfigCodeSnippet={fetchConfigCodeSnippet}
+                                    invokeLlmAppCodeSnippet={invokeLlmAppCodeSnippet}
+                                    selectedLang={selectedLang}
+                                    handleOpenSelectDeployVariantModal={
+                                        handleOpenSelectDeployVariantModal
+                                    }
+                                    invokeLlmUrl={uri}
+                                />
+                            </Spin>
                         </div>
                     ),
                     icon: <FileCode size={14} />,

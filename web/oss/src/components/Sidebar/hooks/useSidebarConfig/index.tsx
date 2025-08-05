@@ -36,14 +36,12 @@ export const useSidebarConfig = () => {
         {
             key: "app-management-link",
             title: "App Management",
-            tooltip: "Create new applications or switch between your existing projects.",
             link: "/apps",
             icon: <AppstoreOutlined size={16} />,
         },
         {
             key: "app-testsets-link",
             title: "Test Sets",
-            tooltip: "Create and manage testsets for evaluation purposes.",
             link: `/testsets`,
             icon: <DatabaseOutlined size={16} />,
         },
@@ -52,7 +50,7 @@ export const useSidebarConfig = () => {
             title: "Observability",
             link: `/observability`,
             icon: <ChartLineUp size={16} />,
-            divider: true,
+            divider: appId || recentlyVisitedAppId ? true : false,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,
@@ -70,8 +68,6 @@ export const useSidebarConfig = () => {
         {
             key: "app-playground-link",
             title: "Playground",
-            tooltip:
-                "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.",
             link: `/apps/${appId || recentlyVisitedAppId}/playground`,
             icon: <Rocket size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
@@ -105,21 +101,23 @@ export const useSidebarConfig = () => {
             icon: <CloudArrowUp size={16} />,
         },
         {
-            key: "invite-teammate-link",
-            title: "Invite Teammate",
-            link: "/settings?tab=workspace&inviteModal=open",
-            icon: <PaperPlane size={16} />,
-            isBottom: true,
-            isHidden: !doesSessionExist || !selectedOrg,
-        },
-        {
             key: "settings-link",
             title: "Settings",
             link: "/settings",
             icon: <Gear size={16} />,
             isBottom: true,
-            isHidden: true,
+            tooltip: "Settings",
         },
+        {
+            key: "invite-teammate-link",
+            title: "Invite Teammate",
+            link: "/settings?tab=workspace&inviteModal=open",
+            icon: <PaperPlane size={16} />,
+            isBottom: true,
+            tooltip: "Invite Teammate",
+            isHidden: !doesSessionExist || !selectedOrg,
+        },
+
         {
             key: "support-chat-link",
             title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
@@ -142,6 +140,7 @@ export const useSidebarConfig = () => {
                     title: "Documentation",
                     link: "https://docs.agenta.ai/",
                     icon: <Scroll size={16} />,
+                    divider: true,
                 },
                 {
                     key: "github-support",
@@ -154,6 +153,7 @@ export const useSidebarConfig = () => {
                     title: "Slack Support",
                     link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
                     icon: <SlackLogo size={16} />,
+                    divider: true,
                 },
                 {
                     key: "book-call",

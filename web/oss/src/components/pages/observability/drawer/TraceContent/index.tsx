@@ -114,13 +114,11 @@ const TraceContent = ({activeTrace}: TraceContentProps) => {
                     />
                 </div>
             </div>
-            {isTestsetDrawerOpen && (
-                <TestsetDrawer
-                    open={isTestsetDrawerOpen}
-                    data={[{data: activeTrace?.data as KeyValuePair, key: activeTrace?.key, id: 1}]}
-                    onClose={() => setIsTestsetDrawerOpen(false)}
-                />
-            )}
+            <TestsetDrawer
+                open={isTestsetDrawerOpen}
+                data={[{data: activeTrace?.data as KeyValuePair, key: activeTrace?.key, id: 1}]}
+                onClose={() => setIsTestsetDrawerOpen(false)}
+            />
         </div>
     )
 }

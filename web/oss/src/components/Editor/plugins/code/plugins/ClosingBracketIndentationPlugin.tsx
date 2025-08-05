@@ -2,17 +2,11 @@
 import {useEffect} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
-import {
-    $createTabNode,
-    $getSelection,
-    $isRangeSelection,
-    $isTabNode,
-    COMMAND_PRIORITY_HIGH,
-    KEY_DOWN_COMMAND,
-} from "lexical"
+import {$getSelection, $isRangeSelection, COMMAND_PRIORITY_HIGH, KEY_DOWN_COMMAND} from "lexical"
 
 import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeLineNode} from "../nodes/CodeLineNode"
+import {$createCodeTabNode, $isCodeTabNode} from "../nodes/CodeTabNode"
 import {createLogger} from "../utils/createLogger"
 
 const log = createLogger("ClosingBracketIndentationPlugin", {
@@ -161,7 +155,7 @@ export function ClosingBracketIndentationPlugin() {
                 const leadingTabs = []
 
                 for (const child of lineChildren) {
-                    if ($isTabNode(child)) {
+                    if ($isCodeTabNode(child)) {
                         leadingTabs.push(child)
                     } else {
                         break
@@ -190,11 +184,11 @@ export function ClosingBracketIndentationPlugin() {
                         // Add missing tabs
                         const tabsToAdd = matchingIndentLevel - currentIndentLevel
                         const firstNonTabChild = currentLineChildren.find(
-                            (child) => !$isTabNode(child),
+                            (child) => !$isCodeTabNode(child),
                         )
 
                         for (let i = 0; i < tabsToAdd; i++) {
-                            const tabNode = $createTabNode()
+                            const tabNode = $createCodeTabNode()
                             if (firstNonTabChild) {
                                 firstNonTabChild.insertBefore(tabNode)
                             } else {
