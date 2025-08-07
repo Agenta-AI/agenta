@@ -66,7 +66,7 @@ If Agenta doesn't start properly, check these common issues:
    docker logs agenta-oss-gh-api
    ```
 4. SDK connectivity issues: If you're using the Agenta SDK from outside Docker to connect to your localhost Agenta instance and experiencing connection failures, ensure the `DOCKER_NETWORK_MODE` environment variable is unset (this is the default behavior).
-
+5. Lack of memory provided to docker: If you are experiencing the web container restarting and dying unexpectedly, the most likely cause is that you are running out of memory. You may need to increase the memory allocated to docker (desktop).
 
 :::info
 To set up a development environment with features like hot-reloading, refer to our [Development Guide](/misc/contributing/development-mode).

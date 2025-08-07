@@ -220,6 +220,17 @@ export const createAndStartTemplate = async ({
                 allMetadata: getAllMetadata(),
                 routePath: uri.routePath,
             })
+
+            // Exclude system_prompt and user_prompt keys
+            if (parameters?.ag_config) {
+                for (const key in parameters.ag_config) {
+                    if (typeof parameters.ag_config[key] === "object") {
+                        delete parameters.ag_config[key].system_prompt
+                        delete parameters.ag_config[key].user_prompt
+                    }
+                }
+            }
+
             await axios.put(
                 `/api/variants/${variant.id}/parameters?project_id=${getCurrentProject().projectId}`,
                 {

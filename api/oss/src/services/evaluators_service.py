@@ -1,7 +1,7 @@
 import re
 import json
 import traceback
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, List
 
 import litellm
 import httpx
@@ -78,6 +78,62 @@ def validate_string_output(
             f"Evaluator {evaluator_key} requires the output to be a string, but received {type(final_output).__name__} instead. "
         )
     return final_output
+
+
+def detect_prompt_variables(
+    prompt: Union[str, List[Dict[str, str]]],
+) -> List[str]:
+    """
+    Detects variable placeholders in a prompt string or message-based prompt.
+    Looks for patterns like {variable_name} or {{variable_name}}
+
+    Args:
+        prompt: Either a string or a list of message dictionaries with 'content' field
+
+    Returns:
+        List[str]: List of variable names found in the prompt
+    """
+    import re
+
+    # Match both single and double curly brace variables
+    pattern = r"\{+(\w+)\}+"
+
+    if isinstance(prompt, list):
+        # For message-based prompts, search in all message contents
+        variables = set()
+        for message in prompt:
+            if isinstance(message, dict) and "content" in message:
+                matches = re.findall(pattern, message["content"])
+                variables.update(matches)
+        return list(variables)
+    else:
+        # For string prompts
+        return list(set(re.findall(pattern, prompt)))
+
+
+def validate_prompt_variables(
+    prompt: Union[str, List[Dict[str, str]]],
+    inputs: Dict[str, Any],
+) -> None:
+    """
+    Validates that all variables in the prompt have corresponding values in inputs.
+
+    Args:
+        prompt (str): The prompt string containing potential variables
+        inputs (Dict[str, Any]): The inputs dictionary that should contain variable values
+
+    Raises:
+        ValueError: If any variable in the prompt is missing from inputs
+    """
+
+    variables = detect_prompt_variables(prompt)
+    missing_vars = [var for var in variables if var not in inputs]
+
+    if missing_vars:
+        raise ValueError(
+            f"Prompt includes variables that are missing from inputs: {', '.join(missing_vars)}. "
+            "Please provide values for these variables in your inputs."
+        )
 
 
 async def map(
@@ -457,10 +513,22 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
     anthropic_api_key = input.credentials.get("ANTHROPIC_API_KEY", None)
     litellm.openai_key = openai_api_key
     litellm.anthropic_api_key = anthropic_api_key
+
     if not openai_api_key:
         raise Exception(
             "No OpenAI key was found. AI Critique evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
         )
+
+    # Validate prompt variables if there's a prompt in the inputs
+    if "prompt_template" in input.settings:
+        try:
+            validate_prompt_variables(
+                prompt=input.settings.get("prompt_template", []),
+                inputs=input.inputs,
+            )
+        except ValueError as e:
+            raise e
+
     if (
         input.settings.get("version", "1") == "2"
     ) and (  # this check is used when running in the background (celery)
@@ -1431,7 +1499,7 @@ async def evaluate(
             type="error",
             value=None,
             error=Error(
-                message="Error occurred while running {evaluator_key} evaluation. ",
+                message=f"Error occurred while running {evaluator_key} evaluation. ",
                 stacktrace=str(exc),
             ),
         )

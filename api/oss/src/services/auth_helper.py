@@ -116,6 +116,11 @@ async def authentication_middleware(request: Request, call_next):
 
         return Response(status_code=exc.status_code, content=exc.detail)
 
+    except ValueError as exc:
+        log.error("Bad Request: %s", exc)
+
+        return Response(status_code=400, content=str(exc))
+
     except Exception as e:  # pylint: disable=bare-except
         log.error("Internal Server Error: %s", traceback.format_exc())
         status_code = e.status_code if hasattr(e, "status_code") else 500

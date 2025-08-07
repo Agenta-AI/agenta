@@ -90,6 +90,7 @@ evaluators = [
                 "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
+                "required": True,
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
@@ -211,6 +212,7 @@ evaluators = [
                 "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
+                "required": False,
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
@@ -265,6 +267,7 @@ evaluators = [
                 "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
+                "required": False,
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer. This will be shown in the results page.",
@@ -297,6 +300,7 @@ evaluators = [
                 "label": "Expected Answer Column",
                 "default": "correct_answer",
                 "type": "string",
+                "required": False,
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
                 "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",

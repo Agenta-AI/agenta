@@ -106,6 +106,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }}
             classNames={{footer: "flex items-center justify-end"}}
             afterClose={() => onClose()}
+            width="fit-content"
             {...props}
         >
             <CommitVariantChangesModalContent

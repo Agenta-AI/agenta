@@ -1,19 +1,17 @@
-from typing import Any, Dict, List, Optional
-from datetime import datetime
 import json
 import asyncio
 import traceback
-
 import aiohttp
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils import common
 from oss.src.services import helpers
 from oss.src.services.auth_helper import sign_secret_token
-from oss.src.models.shared_models import InvokationResult, Result, Error
 from oss.src.services.db_manager import get_project_by_id
-
 from oss.src.apis.fastapi.tracing.utils import make_hash_id
+from oss.src.models.shared_models import InvokationResult, Result, Error
 
 log = get_module_logger(__name__)
 
@@ -84,14 +82,14 @@ def extract_result_from_response(response: dict):
                 value["data"] = str(value.get("data"))
 
             if "trace" in response:
-                latency = response["trace"].get("latency")
-                cost = response["trace"].get("cost")
+                latency = response["trace"].get("latency", None)
+                cost = response["trace"].get("cost", None)
 
         # Handle generic response (neither 2.0 nor 3.0)
         else:
             value = {"data": str(response.get("message", ""))}
-            latency = response.get("latency")
-            cost = response.get("cost")
+            latency = response.get("latency", None)
+            cost = response.get("cost", None)
 
         # Determine the type of 'value' (either 'text' or 'object')
         kind = "text" if isinstance(value, str) else "object"
@@ -244,7 +242,7 @@ async def invoke_app(
         app_response = {}
 
         try:
-            # log.info("Invoking workflow...", url=url)
+            log.info("Invoking workflow...", url=url)
             response = await client.post(
                 url,
                 json=payload,
@@ -341,7 +339,6 @@ async def run_with_retry(
 
     references = kwargs.get("references", None)
     links = kwargs.get("links", None)
-
     hash_id = make_hash_id(references=references, links=links)
     # log.debug("generating invocation with hash_id", hash_id=hash_id)
 

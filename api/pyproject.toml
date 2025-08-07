@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.50.4"
+version = "0.50.5"
 description = "Agenta API"
 authors = [{ name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" }]
 
@@ -13,7 +13,8 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
-fastapi = "^0.115.4"
+starlette = "^0.47.0"
+fastapi = "^0.116.0"
 pydantic = "^2.7.4"
 toml = "^0.10.2"
 uvicorn = "^0.22.0"

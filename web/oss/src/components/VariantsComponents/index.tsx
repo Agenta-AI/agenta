@@ -339,6 +339,7 @@ const VariantsDashboard = () => {
                     open={isComparisonModalOpen}
                     onCancel={() => setIsComparisonModalOpen(false)}
                     compareVariantList={selectedVariantsToCompare.compareVariantList}
+                    allVariants={data?.variants}
                 />
             )}
         </>
