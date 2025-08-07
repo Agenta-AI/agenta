@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.50.4",
+    "version": "0.50.5",
     "workspaces": [
         "ee",
         "oss",
@@ -20,7 +20,7 @@
         "@next/eslint-plugin-next": "^15.3.4",
         "@typescript-eslint/eslint-plugin": "^8.35.0",
         "@typescript-eslint/parser": "^8.35.0",
-        "eslint": "^9.29.0",
+        "eslint": "^9.32.0",
         "eslint-config-next": "^15.3.4",
         "eslint-config-prettier": "^10.1.5",
         "eslint-plugin-prettier": "^5.5.0",

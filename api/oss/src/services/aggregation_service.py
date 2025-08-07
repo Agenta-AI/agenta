@@ -96,7 +96,7 @@ def aggregate_float_from_llm_app_response(
         ]
 
         if not values:
-            raise ValueError(f"No valid values found for {key} aggregation.")
+            return Result(type=key, value=None)
 
         average_value = sum(values) / len(values)
         return Result(type=key, value=average_value)
@@ -122,7 +122,7 @@ def sum_float_from_llm_app_response(
         ]
 
         if not values:
-            raise ValueError(f"No valid values found for {key} sum aggregation.")
+            return Result(type=key, value=None)
 
         total_value = sum(values)
 

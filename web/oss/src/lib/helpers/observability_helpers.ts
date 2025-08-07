@@ -1,16 +1,40 @@
-import {TracesWithAnnotations} from "@/oss/components/pages/observability/ObservabilityDashboard"
 import {
     _AgentaRootsResponse,
     AgentaNodeDTO,
     AgentaTreeDTO,
+    TracesWithAnnotations,
 } from "@/oss/services/observability/types"
 
 import {uuidToSpanId, uuidToTraceId} from "../hooks/useAnnotations/assets/helpers"
+
+const normalizeContentFields = (obj: any): void => {
+    if (Array.isArray(obj)) {
+        obj.forEach(normalizeContentFields)
+        return
+    }
+
+    if (obj && typeof obj === "object") {
+        for (const [key, value] of Object.entries(obj)) {
+            if (
+                key === "content" &&
+                Array.isArray(value) &&
+                value.length === 1 &&
+                value[0]?.type === "text"
+            ) {
+                obj[key] = value[0].text
+            } else {
+                normalizeContentFields(value)
+            }
+        }
+    }
+}
 
 export const observabilityTransformer = (
     item: AgentaTreeDTO | AgentaNodeDTO,
 ): _AgentaRootsResponse[] => {
     const buildData = (node: AgentaNodeDTO) => {
+        normalizeContentFields(node)
+
         const key = node.node.id
         const hasChildren = node.nodes && Object.keys(node.nodes).length > 0
 
@@ -30,10 +54,10 @@ export const observabilityTransformer = (
         return Object.entries(item.nodes)
             .flatMap(([_, value]) => {
                 if (Array.isArray(value)) {
-                    return value.map((item, index) =>
+                    return value.map((childNode, index) =>
                         buildData({
-                            ...item,
-                            node: {...item.node, name: `${item.node.name}[${index}]`},
+                            ...childNode,
+                            node: {...childNode.node, name: `${childNode.node.name}[${index}]`},
                         }),
                     )
                 } else {

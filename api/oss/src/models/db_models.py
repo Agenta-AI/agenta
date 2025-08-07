@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     Enum,
+    JSON,
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy_json import mutable_json_type
@@ -269,7 +270,7 @@ class AppVariantDB(Base):
     base_id = Column(UUID(as_uuid=True), ForeignKey("bases.id"))
     config_name = Column(String, nullable=False)
     config_parameters = Column(
-        mutable_json_type(dbtype=JSONB, nested=True),  # type: ignore
+        mutable_json_type(dbtype=JSON, nested=True),  # type: ignore
         nullable=False,
         default=dict,
     )
@@ -316,7 +317,7 @@ class AppVariantRevisionsDB(Base):
     hidden = Column(Boolean, nullable=True)
     config_name = Column(String, nullable=False)
     config_parameters = Column(
-        mutable_json_type(dbtype=JSONB, nested=True),  # type: ignore
+        mutable_json_type(dbtype=JSON, nested=True),  # type: ignore
         nullable=False,
         default=dict,
     )

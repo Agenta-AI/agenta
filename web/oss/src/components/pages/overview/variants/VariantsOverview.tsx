@@ -273,6 +273,7 @@ const VariantsOverview = ({
                     open={isComparisonModalOpen}
                     onCancel={() => setIsComparisonModalOpen(false)}
                     compareVariantList={selectedVariantsToCompare.compareVariantList}
+                    allVariants={variantList}
                 />
             )}
         </>

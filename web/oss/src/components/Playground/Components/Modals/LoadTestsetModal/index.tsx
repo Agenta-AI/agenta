@@ -11,6 +11,7 @@ import {fetchTestset, useLoadTestsetsList} from "@/oss/services/testsets/api"
 
 import {useStyles} from "./styles"
 import {LoadTestsetModalProps} from "./types"
+import {Expandable} from "@/agenta-oss-common/components/EvalRunDetails/components/VirtualizedScenarioTable/assets/CellComponents"
 
 const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     testsetData,
@@ -25,6 +26,8 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     const [testsetCsvData, setTestsetCsvData] = useState<TestSet["csvdata"][]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [searchTerm, setSearchTerm] = useState("")
+
+    console.log("Expandable: ", Expandable)
 
     const testsetFetcher = useCallback(
         async (testsetId: string) => {
@@ -107,7 +110,14 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
                     }),
                     render: (_: any, record: any) => {
                         const display = getStringOrJson(record[key])
-                        return <div>{display}</div>
+                        return (
+                            <Expandable
+                                expandKey={`${index}-${key}`}
+                                className="whitespace-pre-wrap break-words"
+                            >
+                                {display}
+                            </Expandable>
+                        )
                     },
                 })),
             )
