@@ -607,6 +607,7 @@ const PromptMessageConfig = ({
                                 messageId={messageId}
                                 isMessageDeletable={isMessageDeletable}
                                 disabled={disabled}
+                                minimized={minimized}
                                 runnable={runnable}
                                 resultHashes={_resultHashes}
                                 actions={{

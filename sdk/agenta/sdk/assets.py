@@ -57,6 +57,9 @@ supported_llm_models = {
         "mistral/mistral-large-latest",
     ],
     "OpenAI": [
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
         "gpt-4.5-preview",
         "gpt-3.5-turbo-1106",
         "gpt-3.5-turbo",

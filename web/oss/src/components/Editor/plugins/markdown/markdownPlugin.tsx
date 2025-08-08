@@ -41,11 +41,7 @@ const markdownPlugin = () => {
                 const codeNode = $createCodeNode("markdown")
                 codeNode.append($createTextNode(markdown))
                 root.clear().append(codeNode)
-                if (markdown.length === 0) {
-                    codeNode.select()
-                } else {
-                    codeNode.selectEnd()
-                }
+                codeNode.selectStart()
                 setMarkdownView(true)
             }
         })

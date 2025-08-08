@@ -139,8 +139,8 @@ const PromptMessageContentOptions = ({
                 icon={minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
                 type="text"
                 onClick={() => minimize?.(messageId)}
-                disabled={isMessageDeletable}
-                tooltipProps={{title: "Minimize"}}
+                disabled={disabled}
+                tooltipProps={{title: minimized ? "Maximize" : "Minimize"}}
             />
 
             {children}
