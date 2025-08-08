@@ -133,7 +133,9 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
             })
             await handleFetchAllDeploymentRevisions(envRevisions?.name || "")
 
-            message.success(`Published ${deployedVariant?.variantName} to ${envRevisions?.name}`)
+            message.success(
+                `Published ${selectedVariantToDeploy?.variantName} v${selectedVariantToDeploy?.revision || ""} to ${envRevisions?.name}`,
+            )
             posthog?.capture?.("app_deployed", {app_id: appId, environment: envRevisions?.name})
         } catch (error) {
             console.error("Error deploying variant:", error)
@@ -161,7 +163,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                 environment: envRevisions?.name,
             })
             message.success(
-                `Published ${selectedVariantToRevert?.variantName} to ${envRevisions?.name}`,
+                `Published ${selectedVariantToRevert?.variantName} v${selectedVariantToRevert?.revision || ""} to ${envRevisions?.name}`,
             )
         } catch (error) {
             console.error("Error reverting deployment:", error)
