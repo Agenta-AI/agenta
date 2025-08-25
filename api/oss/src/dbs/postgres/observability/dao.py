@@ -21,6 +21,7 @@ from oss.src.dbs.postgres.observability.mappings import (
 )
 
 from oss.src.core.observability.interfaces import ObservabilityDAOInterface
+from oss.src.core.observability.dtos import TreeType
 from oss.src.core.observability.dtos import (
     QueryDTO,
     SpanDTO,
@@ -509,6 +510,8 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         span_dto: SpanDTO,
     ) -> None:
+        span_dto.tree.type = TreeType.INVOCATION
+
         span_dbe = map_span_dto_to_span_dbe(
             project_id=project_id,
             span_dto=span_dto,
@@ -524,6 +527,9 @@ class ObservabilityDAO(ObservabilityDAOInterface):
         project_id: UUID,
         span_dtos: List[SpanDTO],
     ) -> None:
+        for span_dto in span_dtos:
+            span_dto.tree.type = TreeType.INVOCATION
+
         span_dbes = [
             map_span_dto_to_span_dbe(
                 project_id=project_id,

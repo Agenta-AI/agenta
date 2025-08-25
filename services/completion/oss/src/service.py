@@ -13,7 +13,6 @@ from agenta.sdk.types import PromptTemplate
 litellm.drop_params = True
 mockllm.litellm = litellm
 
-
 ag.init()
 litellm.callbacks = [ag.callbacks.litellm_handler()]
 
@@ -53,14 +52,15 @@ async def generate(
             detail=f"Credentials not found for model {config.prompt.llm_config.model}. Please configure them under settings.",
         )
 
-    response = await mockllm.acompletion(
-        **{
-            k: v
-            for k, v in config.prompt.format(**inputs).to_openai_kwargs().items()
-            if k != "model"
-        },
-        **provider_settings,
-    )
+    with mockllm.user_aws_credentials_from(provider_settings):
+        response = await mockllm.acompletion(
+            **{
+                k: v
+                for k, v in config.prompt.format(**inputs).to_openai_kwargs().items()
+                if k != "model"
+            },
+            **provider_settings,
+        )
 
     message = response.choices[0].message
 

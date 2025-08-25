@@ -9,7 +9,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.client.client import AgentaApi, AsyncAgentaApi
 
 from agenta.sdk.tracing import Tracing
-from agenta.sdk.context.routing import routing_context
+from agenta.sdk.context.serving import serving_context
 
 
 log = get_module_logger(__name__)
@@ -149,7 +149,7 @@ class Config:
         return self.default_parameters
 
     def __getattr__(self, key):
-        context = routing_context.get()
+        context = serving_context.get()
 
         parameters = context.parameters
 

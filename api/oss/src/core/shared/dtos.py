@@ -41,7 +41,7 @@ Meta = Dict[str, FullJson]
 
 Tags = Dict[str, NoListJson]
 
-Flags = Dict[str, bool]
+Flags = Dict[str, bool | str]
 
 Hashes = Dict[str, StringJson]
 
@@ -138,3 +138,18 @@ class LegacyLifecycleDTO(BaseModel):
     updated_by_id: Optional[str] = None
     # DEPRECATING
     updated_by: Optional[str] = None  # email
+
+
+# WORKFLOWS --------------------------------------------------------------------
+
+
+class Status(BaseModel):
+    code: Optional[int] = 500
+    type: Optional[str] = None
+    message: Optional[str] = "An unexpected error occurred. Please try again later."
+    stacktrace: Optional[str] = None
+
+
+Mappings = Dict[str, str]
+
+Schema = Dict[str, FullJson]

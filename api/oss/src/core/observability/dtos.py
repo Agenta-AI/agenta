@@ -18,6 +18,7 @@ class RootDTO(BaseModel):
 class TreeType(Enum):
     # --- VARIANTS --- #
     INVOCATION = "invocation"
+    ANNOTATION = "annotation"
     # --- VARIANTS --- #
 
 

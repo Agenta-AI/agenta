@@ -102,7 +102,11 @@ const SharedEditor = ({
                     placeholder={placeholder}
                     showToolbar={false}
                     enableTokens={!editorProps?.codeOnly}
-                    initialValue={localValue}
+                    initialValue={
+                        editorProps?.codeOnly && localValue && typeof localValue !== "string"
+                            ? JSON.stringify(localValue)
+                            : localValue
+                    }
                     className={editorClassName}
                     onChange={(value: any) => {
                         handleLocalValueChange(value.textContent)

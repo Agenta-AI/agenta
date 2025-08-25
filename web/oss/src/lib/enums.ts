@@ -8,6 +8,7 @@ export enum EvaluationFlow {
 
 export enum EvaluationType {
     human = "human",
+    automatic = "automatic",
     human_a_b_testing = "human_a_b_testing",
     human_scoring = "human_scoring",
     auto_exact_match = "auto_exact_match",

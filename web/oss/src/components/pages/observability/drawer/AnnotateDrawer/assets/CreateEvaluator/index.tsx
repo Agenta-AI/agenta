@@ -26,6 +26,7 @@ const CreateEvaluator = ({setSteps, setSelectedEvaluators}: CreateEvaluatorProps
     const [debouncedName] = useDebounceValue(name, 500)
     const {mutate} = useEvaluators({
         preview: true,
+        queries: {is_human: true},
     })
 
     useEffect(() => {

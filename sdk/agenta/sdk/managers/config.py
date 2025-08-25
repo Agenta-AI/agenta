@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.managers.shared import SharedManager
-from agenta.sdk.context.routing import routing_context
+from agenta.sdk.context.serving import serving_context
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -45,7 +45,7 @@ class ConfigManager:
             Only one of these should be provided.
         """
 
-        context = routing_context.get()
+        context = serving_context.get()
 
         parameters = context.parameters
 

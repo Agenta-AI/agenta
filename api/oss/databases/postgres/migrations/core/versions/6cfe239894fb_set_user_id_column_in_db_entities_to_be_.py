@@ -1,7 +1,7 @@
 """Set user_id column in db entities to be optional --- prep for project_id scoping
 
 Revision ID: 6cfe239894fb
-Revises: 362gbs21a2ee
+Revises: 911e6034d05e
 Create Date: 2024-09-12 15:25:29.462793
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = "6cfe239894fb"
-down_revision: Union[str, None] = "362gbs21a2ee"
+down_revision: Union[str, None] = "911e6034d05e"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

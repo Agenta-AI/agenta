@@ -51,6 +51,7 @@ const PromptMessageContentOptions = ({
     resultHashes,
     allowFileUpload,
     uploadCount,
+    viewOnly,
     hideMarkdownToggle,
 }: PromptMessageContentOptionsProps) => {
     const [editor] = useLexicalComposerContext()
@@ -127,13 +128,15 @@ const PromptMessageContentOptions = ({
                 />
             )}
 
-            <EnhancedButton
-                icon={<MinusCircle size={14} />}
-                type="text"
-                onClick={() => deleteMessage?.(messageId)}
-                disabled={isMessageDeletable}
-                tooltipProps={{title: "Remove"}}
-            />
+            {!viewOnly && (
+                <EnhancedButton
+                    icon={<MinusCircle size={14} />}
+                    type="text"
+                    onClick={() => deleteMessage?.(messageId)}
+                    disabled={isMessageDeletable}
+                    tooltipProps={{title: "Remove"}}
+                />
+            )}
 
             <EnhancedButton
                 icon={minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}

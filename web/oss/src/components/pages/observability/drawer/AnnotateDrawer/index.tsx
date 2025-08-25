@@ -27,6 +27,7 @@ const AnnotateDrawer = ({
     const {projectId} = useProjectData()
     const {data: evaluators} = useEvaluators({
         preview: true,
+        queries: {is_human: true},
     })
     const evalLSKey = `${projectId}-evaluator`
 

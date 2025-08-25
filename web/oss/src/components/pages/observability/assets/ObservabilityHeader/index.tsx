@@ -31,7 +31,6 @@ const ObservabilityHeader = ({
     editColumns,
     columns,
 }: ObservabilityHeaderProps) => {
-    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
 
     const {
@@ -62,12 +61,6 @@ const ObservabilityHeader = ({
         return () => {
             window.removeEventListener("scroll", handleScroll)
         }
-    }, [])
-
-    const handleToggleColumnVisibility = useCallback((key: string) => {
-        setEditColumns((prev) =>
-            prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
-        )
     }, [])
 
     const updateFilter = useCallback(
@@ -336,11 +329,11 @@ const ObservabilityHeader = ({
                             </Button>
 
                             <EditColumns
-                                isOpen={isFilterColsDropdownOpen}
-                                handleOpenChange={setIsFilterColsDropdownOpen}
-                                selectedKeys={editColumns}
                                 columns={columns}
-                                onChange={handleToggleColumnVisibility}
+                                uniqueKey="observability-table-columns"
+                                onChange={(keys) => {
+                                    setEditColumns(keys)
+                                }}
                             />
                         </Space>
                     </div>

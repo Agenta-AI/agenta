@@ -13,7 +13,11 @@ from pydantic import ValidationError
 from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Request, status, HTTPException, UploadFile, File, Form
 
+from oss.src.utils.helpers import get_slug_from_name_and_id
+
 from oss.src.services.db_manager import fetch_testset_by_id
+from oss.src.models.db_models import TestSetDB
+
 from fastapi import APIRouter, Request, status, HTTPException, UploadFile, File, Form
 
 from oss.src.utils.common import is_ee
@@ -249,9 +253,9 @@ class SimpleTestsetsRouter:
         # POST /api/preview/simple/testsets/{testset_id}/transfer
         self.router.add_api_route(
             "/{testset_id}/transfer",
-            self.transfer_testset,
+            self.transfer_simple_testset,
             methods=["POST"],
-            operation_id="transfer_testset",
+            operation_id="transfer_simple_testset",
             status_code=status.HTTP_200_OK,
             response_model=SimpleTestsetResponse,
             response_model_exclude_none=True,
@@ -278,7 +282,9 @@ class SimpleTestsetsRouter:
 
             testcases_data = [testcase.data for testcase in testcases]
 
-            testcases_data = json_array_to_json_object(data=testcases_data)
+            testcases_data = json_array_to_json_object(
+                data=testcases_data,
+            )
 
             validate_testset_limits(testcases_data)
 
@@ -569,7 +575,9 @@ class SimpleTestsetsRouter:
 
             testcases_data = [testcase.data for testcase in testcases]
 
-            testcases_data = json_array_to_json_object(data=testcases_data)
+            testcases_data = json_array_to_json_object(
+                data=testcases_data,
+            )
 
             validate_testset_limits(testcases_data)
 
@@ -1529,60 +1537,91 @@ class SimpleTestsetsRouter:
         return testcase_response
 
     @intercept_exceptions()
-    async def transfer_testset(
+    async def transfer_simple_testset(
         self,
         *,
         request: Request,
         testset_id: UUID,
     ) -> SimpleTestsetResponse:
+        if is_ee():
+            if not await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TESTSETS,
+            ):
+                raise FORBIDDEN_EXCEPTION
+
         old_testset = await fetch_testset_by_id(
             testset_id=str(testset_id),
         )
 
         if old_testset is None:
-            return None
+            return SimpleTestsetResponse()
 
-        testcases_data = old_testset.csvdata
-
-        testcases = [Testcase(data=testcase_data) for testcase_data in testcases_data]
+        testset_revision_data = self._transfer_simple_testset_revision_data(
+            old_testset=old_testset,
+        )
 
         new_testset = await self.testsets_service.fetch_testset(
             project_id=UUID(request.state.project_id),
+            #
             testset_ref=Reference(id=testset_id),
         )
 
         if not new_testset:
-            slug = uuid4().hex
+            slug = get_slug_from_name_and_id(
+                name=old_testset.name,
+                id=testset_id,
+            )
 
             simple_testset_create_request = SimpleTestsetCreateRequest(
                 testset=SimpleTestsetCreate(
                     slug=slug,
                     name=old_testset.name,
-                    data=TestsetRevisionData(
-                        testcases=testcases,
-                    ),
+                    description=None,
+                    flags=None,
+                    tags=None,
+                    meta=None,
+                    data=testset_revision_data,
                 )
             )
 
-            return await self.create_simple_testset(
+            simple_testset_response = await self.create_simple_testset(
                 request=request,
-                simple_testset_create_request=simple_testset_create_request,
                 testset_id=testset_id,
+                simple_testset_create_request=simple_testset_create_request,
             )
+
+            return simple_testset_response
 
         else:
             simple_testset_edit_request = SimpleTestsetEditRequest(
                 testset=SimpleTestsetEdit(
                     id=testset_id,
-                    name=old_testset.name,
-                    data=TestsetRevisionData(
-                        testcases=testcases,
-                    ),
+                    name=new_testset.name,
+                    description=new_testset.description,
+                    flags=new_testset.flags,
+                    tags=new_testset.tags,
+                    meta=new_testset.meta,
+                    data=testset_revision_data,
                 )
             )
 
-            return await self.edit_simple_testset(
+            simple_testset_response = await self.edit_simple_testset(
                 request=request,
                 testset_id=testset_id,
                 simple_testset_edit_request=simple_testset_edit_request,
             )
+
+            return simple_testset_response
+
+    def _transfer_simple_testset_revision_data(
+        self,
+        *,
+        old_testset: TestSetDB,
+    ) -> TestsetRevisionData:
+        return TestsetRevisionData(
+            testcases=[
+                Testcase(data=testcase_data) for testcase_data in old_testset.csvdata
+            ],
+        )

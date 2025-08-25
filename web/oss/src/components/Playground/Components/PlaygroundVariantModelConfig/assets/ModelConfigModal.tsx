@@ -40,6 +40,7 @@ const ModalContent: React.FC<ModelConfigModalContentProps> = ({
 const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
     variantId,
     propertyIds,
+    disabled,
 }) => {
     const preventClickBubble = useCallback((e: MouseEvent<HTMLElement>) => {
         e.preventDefault()
@@ -55,6 +56,7 @@ const ModelConfigModal: React.FC<PlaygroundVariantModelConfigModalProps> = ({
                         variantId={variantId}
                         propertyId={propertyId}
                         withTooltip
+                        disabled={disabled}
                     />
                 )
             })}

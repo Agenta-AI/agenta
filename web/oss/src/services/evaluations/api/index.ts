@@ -49,11 +49,10 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
     const {projectId} = getCurrentProject()
 
     // TODO: new AUTO-EVAL trigger
-    // axios.post(`/api/evaluations/preview/start?project_id=${projectId}`, {
-    //     ...evaluation,
-    //     app_id: appId,
-    // })
-    return axios.post(`/evaluations?project_id=${projectId}`, {...evaluation, app_id: appId})
+    return axios.post(`/api/evaluations/preview/start?project_id=${projectId}`, {
+        ...evaluation,
+        app_id: appId,
+    })
 }
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {

@@ -1,5 +1,5 @@
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Column, UUID, VARCHAR, TIMESTAMP
+from sqlalchemy import Column, UUID, VARCHAR, TIMESTAMP, ARRAY
 
 from oss.src.dbs.postgres.shared.dbas import (
     IdentifierDBA,
@@ -126,6 +126,22 @@ class EvaluationMetricDBA(
         UUID(as_uuid=True),
         nullable=True,
     )
+
+    run_id = Column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
+
+
+class EvaluationQueueDBA(
+    IdentifierDBA,
+    LifecycleDBA,
+    FlagsDBA,
+    TagsDBA,
+    MetaDBA,
+    DataDBA,
+):
+    __abstract__ = True
 
     run_id = Column(
         UUID(as_uuid=True),

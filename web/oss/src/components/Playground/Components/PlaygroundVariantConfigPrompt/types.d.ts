@@ -8,6 +8,8 @@ export interface PlaygroundVariantConfigPromptComponentProps extends CollapsePro
     variantId: string
     /** Unique identifier for the prompt being configured */
     promptId: string
+    /** Whether the prompt is mutable or view only */
+    viewOnly?: boolean
 }
 
 /**
@@ -17,6 +19,8 @@ export interface PromptCollapseContentProps extends BaseContainerProps {
     /** ID of the variant being configured */
     variantId: EnhancedVariant["id"]
     promptId: string
+    /** Whether the prompt is mutable or view only */
+    viewOnly?: boolean
 }
 
 /**
@@ -27,4 +31,6 @@ export interface PromptCollapseHeaderProps extends BaseContainerProps {
     variantId: string
     /** ID of the prompt being configured */
     promptId: string
+    /** Whether the prompt is mutable or view only */
+    viewOnly?: boolean
 }

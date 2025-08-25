@@ -73,6 +73,7 @@ const PromptMessageConfig = ({
     isJSON,
     allowFileUpload = false,
     message: messageProp,
+    viewOnly,
     ...props
 }: PromptMessageConfigProps) => {
     // Allow null to represent an empty upload slot
@@ -595,7 +596,7 @@ const PromptMessageConfig = ({
                                 rowId={rowId}
                                 as="SimpleDropdownSelect"
                                 className="message-user-select"
-                                disabled={disabled}
+                                disabled={disabled || viewOnly}
                             />
                         ) : null}
 
@@ -610,6 +611,7 @@ const PromptMessageConfig = ({
                                 minimized={minimized}
                                 runnable={runnable}
                                 resultHashes={_resultHashes}
+                                minimized={minimized}
                                 actions={{
                                     deleteMessage,
                                     rerunMessage,
@@ -622,6 +624,7 @@ const PromptMessageConfig = ({
                                     allowFileUpload && messageProp?.role.value === ChatRole.User
                                 }
                                 uploadCount={imageProperties?.length}
+                                viewOnly={viewOnly}
                             />
                         )}
                     </div>
@@ -632,7 +635,7 @@ const PromptMessageConfig = ({
             initialValue={_value}
             editorClassName={editorClassName}
             placeholder={_placeholder || metadata?.description}
-            disabled={disabled}
+            disabled={disabled || viewOnly}
             className={clsx([
                 "mt-2",
                 {

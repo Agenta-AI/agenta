@@ -23,6 +23,7 @@ import type {PlaygroundVariantModelConfigTitleProps} from "../types"
 const PlaygroundVariantModelConfigTitle: React.FC<PlaygroundVariantModelConfigTitleProps> = ({
     handleReset,
     className,
+    disabled,
     ...props
 }) => {
     return (
@@ -34,7 +35,7 @@ const PlaygroundVariantModelConfigTitle: React.FC<PlaygroundVariantModelConfigTi
             <Typography.Text className="text-[14px] leading-[22px] font-[500]">
                 Model Parameters
             </Typography.Text>
-            <Button onClick={handleReset}>Reset default</Button>
+            <Button onClick={handleReset} disabled={disabled}>Reset default</Button>
         </div>
     )
 }

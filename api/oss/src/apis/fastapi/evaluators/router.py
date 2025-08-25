@@ -3,6 +3,11 @@ from uuid import uuid4, UUID
 
 from fastapi import APIRouter, Request, status, HTTPException
 
+from oss.src.utils.helpers import get_slug_from_name_and_id
+
+from oss.src.services.db_manager import fetch_evaluator_config
+from oss.src.models.db_models import EvaluatorConfigDB
+
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
@@ -29,10 +34,13 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionCommit,
     #
     WorkflowFlags,
+    WorkflowRevisionData,
 )
 
 from oss.src.apis.fastapi.evaluators.models import (
     SimpleEvaluator,
+    SimpleEvaluatorCreate,
+    SimpleEvaluatorEdit,
     SimpleEvaluatorQuery,
     #
     SimpleEvaluatorCreateRequest,
@@ -135,12 +143,23 @@ class SimpleEvaluatorsRouter:
             response_model_exclude_none=True,
         )
 
+        self.router.add_api_route(
+            "/{evaluator_id}/transfer",
+            self.transfer_simple_evaluator,
+            methods=["POST"],
+            operation_id="transfer_simple_evaluator",
+            status_code=status.HTTP_200_OK,
+            response_model=SimpleEvaluatorResponse,
+            response_model_exclude_none=True,
+        )
+
     @intercept_exceptions()
     async def create_simple_evaluator(
         self,
         *,
         request: Request,
         simple_evaluator_create_request: SimpleEvaluatorCreateRequest,
+        evaluator_id: Optional[UUID] = None,
     ) -> SimpleEvaluatorResponse:
         if is_ee():
             if not await check_action_access(
@@ -186,6 +205,8 @@ class SimpleEvaluatorsRouter:
             user_id=UUID(request.state.user_id),
             #
             workflow_create=_workflow_create,
+            #
+            workflow_id=evaluator_id,
         )
 
         if workflow is None:
@@ -983,3 +1004,169 @@ class SimpleEvaluatorsRouter:
         )
 
         return simple_evaluators_response
+
+    @intercept_exceptions()
+    async def transfer_simple_evaluator(
+        self,
+        *,
+        request: Request,
+        evaluator_id: UUID,
+    ) -> SimpleEvaluatorResponse:
+        if is_ee():
+            if not await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_EVALUATORS,
+            ):
+                raise FORBIDDEN_EXCEPTION
+
+        old_evaluator = await fetch_evaluator_config(
+            evaluator_config_id=str(evaluator_id),
+        )
+
+        if old_evaluator is None:
+            return SimpleEvaluatorsResponse()
+
+        workflow_revision_data = self._transfer_workflow_revision_data(
+            old_evaluator=old_evaluator,
+        )
+
+        new_evaluator = await self.workflows_service.fetch_workflow(
+            project_id=UUID(request.state.project_id),
+            #
+            workflow_ref=Reference(id=evaluator_id),
+        )
+
+        if not new_evaluator:
+            slug = get_slug_from_name_and_id(
+                name=old_evaluator.name,
+                id=evaluator_id,
+            )
+
+            simple_evaluator_create_request = SimpleEvaluatorCreateRequest(
+                evaluator=SimpleEvaluatorCreate(
+                    slug=slug,
+                    name=old_evaluator.name,
+                    description=None,
+                    flags=SimpleEvaluatorFlags(
+                        is_custom=False,
+                        is_human=False,
+                        is_evaluator=True,
+                    ),
+                    tags=None,
+                    meta=None,
+                    data=workflow_revision_data,
+                )
+            )
+
+            return await self.create_simple_evaluator(
+                request=request,
+                evaluator_id=evaluator_id,
+                simple_evaluator_create_request=simple_evaluator_create_request,
+            )
+
+        else:
+            simple_evaluator_edit_request = SimpleEvaluatorEditRequest(
+                evaluator=SimpleEvaluatorEdit(
+                    id=evaluator_id,
+                    name=new_evaluator.name,
+                    description=new_evaluator.description,
+                    flags=SimpleEvaluatorFlags(**new_evaluator.flags.model_dump()),
+                    tags=new_evaluator.tags,
+                    meta=new_evaluator.meta,
+                    data=workflow_revision_data,
+                )
+            )
+
+            return await self.edit_simple_evaluator(
+                request=request,
+                evaluator_id=evaluator_id,
+                simple_evaluator_edit_request=simple_evaluator_edit_request,
+            )
+
+    def _transfer_workflow_revision_data(
+        self,
+        *,
+        old_evaluator: EvaluatorConfigDB,
+    ) -> WorkflowRevisionData:
+        version = "2025.07.14"
+        uri = f"agenta:built-in:{old_evaluator.evaluator_key}:v0"
+        url = (
+            old_evaluator.settings_values.get("webhook_url", None)
+            if old_evaluator.evaluator_key == "auto_webhook_test"
+            else None
+        )
+        headers = None
+        mappings = None
+        properties = (
+            {"score": {"type": "number"}, "success": {"type": "boolean"}}
+            if old_evaluator.evaluator_key
+            in (
+                "auto_levenshtein_distance",
+                "auto_semantic_similarity",
+                "auto_similarity_match",
+                "auto_json_diff",
+                "auto_webhook_test",
+                "auto_custom_code_run",
+                "auto_ai_critique",
+                "rag_faithfulness",
+                "rag_context_relevancy",
+            )
+            else {"success": {"type": "boolean"}}
+        )
+        schemas = {
+            "outputs": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": properties,
+                "required": (
+                    list(properties.keys())
+                    if old_evaluator.evaluator_key
+                    not in (
+                        "auto_levenshtein_distance",
+                        "auto_semantic_similarity",
+                        "auto_similarity_match",
+                        "auto_json_diff",
+                        "auto_webhook_test",
+                        "auto_custom_code_run",
+                        "auto_ai_critique",
+                        "rag_faithfulness",
+                        "rag_context_relevancy",
+                    )
+                    else []
+                ),
+                "additionalProperties": False,
+            }
+        }
+        script = (
+            old_evaluator.settings_values.get("code", None)
+            if old_evaluator.evaluator_key == "auto_custom_code_run"
+            else None
+        )
+        parameters = old_evaluator.settings_values
+        service = {
+            "agenta": "0.1.0",
+            "format": {
+                "type": "object",
+                "$schema": "http://json-schema.org/schema#",
+                "required": ["outputs"],
+                "properties": {
+                    "outputs": schemas["outputs"],
+                },
+            },
+        }
+        configuration = parameters
+
+        return WorkflowRevisionData(
+            version=version,
+            uri=uri,
+            url=url,
+            headers=headers,
+            mappings=mappings,
+            schemas=schemas,
+            script=script,
+            parameters=parameters,
+            # LEGACY
+            service=service,
+            configuration=configuration,
+        )

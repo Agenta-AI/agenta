@@ -1,7 +1,6 @@
 import random
 import string
 from enum import Enum
-from uuid import UUID
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Union, Optional
 
@@ -27,7 +26,8 @@ from oss.src.core.shared.dtos import (
 class TraceType(Enum):
     INVOCATION = "invocation"
     ANNOTATION = "annotation"
-    UNDEFINED = "undefined"
+    #
+    UNKNOWN = "unknown"
 
 
 class SpanType(Enum):
@@ -42,7 +42,8 @@ class SpanType(Enum):
     COMPLETION = "completion"
     CHAT = "chat"
     RERANK = "rerank"
-    UNDEFINED = "undefined"
+    #
+    UNKNOWN = "unknown"
 
 
 class AgMetricEntryAttributes(BaseModel):
@@ -69,6 +70,7 @@ class AgTypeAttributes(BaseModel):
 
 
 class AgDataAttributes(BaseModel):
+    parameters: Optional[Dict[str, Any]] = None
     inputs: Optional[Dict[str, Any]] = None
     outputs: Optional[Any] = None
     internals: Optional[Dict[str, Any]] = None
@@ -389,3 +391,9 @@ class Bucket(BaseModel):
     window: int
     total: Analytics
     errors: Analytics
+
+
+# WORKFLOWS --------------------------------------------------------------------
+
+
+Trace = OTelTraceTree

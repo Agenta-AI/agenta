@@ -8,15 +8,15 @@ from opentelemetry.sdk.trace.export import (
     ReadableSpan,
 )
 
-from agenta.sdk.utils.exceptions import suppress
-from agenta.sdk.context.exporting import (
-    exporting_context_manager,
-    exporting_context,
-    ExportingContext,
-)
-from agenta.sdk.utils.cache import TTLLRUCache
-
 from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.cache import TTLLRUCache
+from agenta.sdk.context.tracing import (
+    tracing_exporter_context_manager,
+    tracing_exporter_context,
+    TracingExporterContext,
+)
+
 
 log = get_module_logger(__name__)
 
@@ -101,8 +101,8 @@ class OTLPExporter(OTLPSpanExporter):
         serialized_spans = []
 
         for credentials, _spans in grouped_spans.items():
-            with exporting_context_manager(
-                context=ExportingContext(
+            with tracing_exporter_context_manager(
+                context=TracingExporterContext(
                     credentials=credentials,
                 )
             ):
@@ -114,7 +114,7 @@ class OTLPExporter(OTLPSpanExporter):
             return SpanExportResult.FAILURE
 
     def _export(self, serialized_data: bytes, timeout_sec: Optional[float] = None):
-        credentials = exporting_context.get().credentials
+        credentials = tracing_exporter_context.get().credentials
 
         if credentials:
             self._session.headers.update({"Authorization": credentials})

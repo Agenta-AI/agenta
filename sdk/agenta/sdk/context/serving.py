@@ -12,16 +12,16 @@ class RoutingContext(BaseModel):
     mock: Optional[str] = None
 
 
-routing_context = ContextVar("routing_context", default=RoutingContext())
+serving_context = ContextVar("serving_context", default=RoutingContext())
 
 
 @contextmanager
-def routing_context_manager(
+def serving_context_manager(
     *,
     context: Optional[RoutingContext] = None,
 ):
-    token = routing_context.set(context)
+    token = serving_context.set(context)
     try:
         yield
     finally:
-        routing_context.reset(token)
+        serving_context.reset(token)

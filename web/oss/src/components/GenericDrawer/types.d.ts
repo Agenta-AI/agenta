@@ -10,4 +10,7 @@ export interface GenericDrawerProps extends DrawerProps {
     sideContent?: ReactNode
     initialWidth?: number
     externalKey?: string
+    sideContentDefaultSize?: number
+    mainContentDefaultSize?: number
+    extraContentDefaultSize?: number
 }

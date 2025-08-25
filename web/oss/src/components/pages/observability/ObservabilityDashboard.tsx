@@ -20,6 +20,7 @@ import TraceContent from "./drawer/TraceContent"
 import TraceHeader from "./drawer/TraceHeader"
 import TraceSidePanel from "./drawer/TraceSidePanel"
 import TraceTree from "./drawer/TraceTree"
+import {filterColumns} from "../../Filters/EditColumns/assets/helper"
 
 const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
@@ -94,24 +95,6 @@ const ObservabilityDashboard = () => {
                 }))
             })
         }
-
-    const filterColumns = (cols: ColumnsType<any>, hiddenKeys: string[]): ColumnsType<any> => {
-        return cols
-            .filter((col) => !hiddenKeys.includes(col.key as string))
-            .map((col) => {
-                if ("children" in col && Array.isArray(col.children)) {
-                    const filteredChildren = filterColumns(col.children, hiddenKeys)
-                    // Only keep parent if it has visible children
-                    if (filteredChildren.length > 0) {
-                        return {...col, children: filteredChildren}
-                    }
-                    // If all children are hidden, remove parent
-                    return null
-                }
-                return col
-            })
-            .filter(Boolean) as ColumnsType<any>
-    }
 
     const mergedColumns = useMemo(() => {
         return filterColumns(columns, editColumns).map((col) => ({

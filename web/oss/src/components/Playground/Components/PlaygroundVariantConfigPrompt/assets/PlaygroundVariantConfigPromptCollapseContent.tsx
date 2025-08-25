@@ -34,6 +34,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     variantId,
     promptId,
     className,
+    viewOnly,
     ...props
 }) => {
     const {
@@ -206,6 +207,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                     editorType="border"
                     editorClassName="min-h-4 [&_p:last-child]:!mb-0"
                     isMessageDeletable={messageIds?.length === 1}
+                    viewOnly={viewOnly}
                 />
             ))}
             {(toolIds || [])?.map((toolId) => (
@@ -220,7 +222,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                 </div>
             ))}
 
-            {!isCustom && !hasVariable && (
+            {!isCustom && !hasVariable && !viewOnly && (
                 <Alert
                     closable
                     message={
@@ -234,19 +236,26 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                 />
             )}
 
-            <div className="flex items-center gap-1 flex-wrap">
-                <AddButton className="mt-2" size="small" label="Message" onClick={addNewMessage} />
-                <AddButton className="mt-2" size="small" label="Tool" onClick={addNewTool} />
-                {responseFormatId ? (
-                    <div>
-                        <PlaygroundVariantPropertyControl
-                            variantId={variantId}
-                            propertyId={responseFormatId}
-                            promptName={promptName}
-                        />
-                    </div>
-                ) : null}
-            </div>
+            {viewOnly ? null : (
+                <div className="flex items-center gap-1 flex-wrap">
+                    <AddButton
+                        className="mt-2"
+                        size="small"
+                        label="Message"
+                        onClick={addNewMessage}
+                    />
+                    <AddButton className="mt-2" size="small" label="Tool" onClick={addNewTool} />
+                    {responseFormatId ? (
+                        <div>
+                            <PlaygroundVariantPropertyControl
+                                variantId={variantId}
+                                propertyId={responseFormatId}
+                                promptName={promptName}
+                            />
+                        </div>
+                    ) : null}
+                </div>
+            )}
         </div>
     )
 }

@@ -290,10 +290,10 @@ async def _maybe_retry_get(
 
 async def set_cache(
     namespace: str,
-    key: Optional[Union[str, dict]] = None,
-    value: Optional[Any] = None,
     project_id: Optional[str] = None,
     user_id: Optional[str] = None,
+    key: Optional[Union[str, dict]] = None,
+    value: Optional[Any] = None,
     ttl: Optional[int] = AGENTA_CACHE_TTL,
 ) -> Optional[bool]:
     try:

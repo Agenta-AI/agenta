@@ -12,6 +12,7 @@ from oss.src.dbs.postgres.evaluations.dbas import (
     EvaluationScenarioDBA,
     EvaluationStepDBA,
     EvaluationMetricDBA,
+    EvaluationQueueDBA,
 )
 
 
@@ -104,8 +105,6 @@ class EvaluationStepDBE(
             "run_id",
             "scenario_id",
             "key",
-            "retry_id",
-            "retry_id",
         ),  # for uniqueness
         Index(
             "ix_evaluation_steps_project_id",
@@ -165,5 +164,38 @@ class EvaluationMetricDBE(
         Index(
             "ix_evaluation_metrics_scenario_id",
             "scenario_id",
+        ),  # for filtering
+    )
+
+
+class EvaluationQueueDBE(
+    Base,
+    ProjectScopeDBA,
+    EvaluationQueueDBA,
+):
+    __tablename__ = "evaluation_queues"
+
+    __table_args__ = (
+        PrimaryKeyConstraint(
+            "project_id",
+            "id",
+        ),  # for uniqueness
+        ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            ondelete="CASCADE",
+        ),  # for project scope
+        ForeignKeyConstraint(
+            ["project_id", "run_id"],
+            ["evaluation_runs.project_id", "evaluation_runs.id"],
+            ondelete="CASCADE",
+        ),  # for project scope
+        Index(
+            "ix_evaluation_queues_project_id",
+            "project_id",
+        ),  # for filtering
+        Index(
+            "ix_evaluation_queues_run_id",
+            "run_id",
         ),  # for filtering
     )

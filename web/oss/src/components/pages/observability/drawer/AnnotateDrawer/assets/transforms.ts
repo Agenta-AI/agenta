@@ -1,6 +1,5 @@
 import deepEqual from "fast-deep-equal"
 
-import {makeHashId} from "@/oss/lib/helpers/hashUtils"
 import {AnnotationDto, AnnotationEditPayloadDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 

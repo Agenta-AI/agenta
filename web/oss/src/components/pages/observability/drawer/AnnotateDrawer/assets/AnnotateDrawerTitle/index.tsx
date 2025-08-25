@@ -48,6 +48,7 @@ const AnnotateDrawerTitle = ({
     })
     const {data: evaluators} = useEvaluators({
         preview: true,
+        queries: {is_human: true},
     })
 
     const onClickPrev = useCallback(

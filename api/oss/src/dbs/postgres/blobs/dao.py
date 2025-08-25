@@ -249,7 +249,11 @@ class BlobsDAO(BlobsDAOInterface):
 
                 existing_ids = {b.id for b in existing_dbes}
 
-                new_blobs = [blob for blob in blobs if blob.id not in existing_ids]
+                new_blobs = list(
+                    {
+                        blob.id: blob for blob in blobs if blob.id not in existing_ids
+                    }.values()
+                )
 
                 blob_dbes = [
                     map_dto_to_dbe(
@@ -308,7 +312,8 @@ class BlobsDAO(BlobsDAOInterface):
                 for blob_dbe in blob_dbes
             }
 
-            blobs = [_blobs.get(blob_id) for blob_id in blob_ids]
+            blobs = [_blobs.get(blob_id) for blob_id in blob_ids if blob_id in _blobs]
+            blobs = [blob for blob in blobs if blob is not None]
 
             return blobs
 

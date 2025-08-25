@@ -20,6 +20,10 @@ from oss.src.core.evaluations.types import (
     EvaluationMetricCreate,
     EvaluationMetricEdit,
     EvaluationMetricQuery,
+    EvaluationQueue,
+    EvaluationQueueCreate,
+    EvaluationQueueEdit,
+    EvaluationQueueQuery,
 )
 
 
@@ -393,7 +397,7 @@ class EvaluationsDAOInterface(ABC):
     ) -> List[EvaluationStep]:
         raise NotImplementedError
 
-    # - EVALUATION METRIC -----------------------------------------------------
+    # - EVALUATION METRIC ------------------------------------------------------
 
     @abstractmethod
     async def create_metric(
@@ -489,6 +493,104 @@ class EvaluationsDAOInterface(ABC):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationMetric]:
+        raise NotImplementedError
+
+    # - EVALUATION QUEUE -------------------------------------------------------
+
+    @abstractmethod
+    async def create_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue: EvaluationQueueCreate,
+    ) -> Optional[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def create_queues(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queues: List[EvaluationQueueCreate],
+    ) -> List[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def fetch_queue(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def fetch_queues(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue_ids: List[UUID],
+    ) -> List[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def edit_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue: EvaluationQueueEdit,
+    ) -> Optional[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def edit_queues(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queues: List[EvaluationQueueEdit],
+    ) -> List[EvaluationQueue]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete_queue(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue_id: UUID,
+    ) -> Optional[UUID]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete_queues(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue_ids: List[UUID],
+    ) -> List[UUID]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def query_queues(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue: EvaluationQueueQuery,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[EvaluationQueue]:
         raise NotImplementedError
 
     # --------------------------------------------------------------------------

@@ -33,6 +33,8 @@ class AnnotationChannel(str, Enum):
 
 class AnnotationReferences(BaseModel):
     evaluator: Reference
+    evaluator_variant: Optional[Reference] = None
+    evaluator_revision: Optional[Reference] = None
     testset: Optional[Reference] = None
     testcase: Optional[Reference] = None
 

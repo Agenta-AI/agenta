@@ -21,13 +21,15 @@ from .sdk.types import (
     PromptTemplate,
 )
 
-from .sdk.utils.logging import get_module_logger
-from .sdk.tracing import Tracing, get_tracer
-from .sdk.decorators.tracing import instrument
-from .sdk.tracing.conventions import Reference
-from .sdk.decorators.routing import entrypoint, app, route
 from .sdk.agenta_init import Config, AgentaSingleton, init as _init
+from .sdk.utils.logging import get_module_logger
 from .sdk.utils.costs import calculate_token_usage
+from .sdk.tracing import Tracing, get_tracer
+from .sdk.tracing.conventions import Reference
+from .sdk.decorators.tracing import instrument
+from .sdk.decorators.running import workflow, workflows
+from .sdk.decorators.serving import entrypoint, app, route
+from .sdk.context.running import workflow_mode_enabled
 from .sdk.litellm import litellm as callbacks
 from .sdk.managers.apps import AppManager
 from .sdk.managers.vault import VaultManager
@@ -52,6 +54,7 @@ tracer = get_tracer(tracing)
 
 def init(
     host: Optional[str] = None,
+    api_url: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
     redact: Optional[Callable[..., Any]] = None,
@@ -62,7 +65,7 @@ def init(
     global api, async_api, tracing, tracer  # pylint: disable=global-statement
 
     _init(
-        host=host,
+        host=host or api_url,
         api_key=api_key,
         config_fname=config_fname,
         redact=redact,

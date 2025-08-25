@@ -8,10 +8,7 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import AbTestingEvaluation from "@/oss/components/HumanEvaluations/AbTestingEvaluation"
-import SingleModelEvaluation from "@/oss/components/HumanEvaluations/SingleModelEvaluation"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-// import AutomaticEvalOverview from "@/oss/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
 import {useAppsData} from "@/oss/contexts/app.context"
@@ -33,6 +30,21 @@ const DeleteAppModal: any = dynamic(
 )
 const EditAppModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/EditAppModal"),
+)
+
+const AutoEvaluation = dynamic(
+    () => import("@/oss/components/pages/evaluations/autoEvaluation/AutoEvaluation"),
+    {ssr: false},
+)
+
+const AbTestingEvaluation = dynamic(
+    () => import("@/oss/components/HumanEvaluations/AbTestingEvaluation"),
+    {ssr: false},
+)
+
+const SingleModelEvaluation = dynamic(
+    () => import("@/oss/components/HumanEvaluations/SingleModelEvaluation"),
+    {ssr: false},
 )
 
 const {Title} = Typography
@@ -163,7 +175,7 @@ const OverviewPage = () => {
 
                 {isDemo() && (
                     <>
-                        {/* <AutomaticEvalOverview /> */}
+                        <AutoEvaluation viewType="overview" />
 
                         <AbTestingEvaluation viewType="overview" />
 

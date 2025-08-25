@@ -420,6 +420,9 @@ def merge_workflow_revision_query_requests(
 
 
 def parse_workflow_revision_retrieve_request_from_params(
+    workflow_id: Optional[UUID] = Query(None),
+    workflow_slug: Optional[UUID] = Query(None),
+    #
     workflow_variant_id: Optional[UUID] = Query(None),
     workflow_variant_slug: Optional[str] = Query(None),
     #
@@ -428,6 +431,9 @@ def parse_workflow_revision_retrieve_request_from_params(
     workflow_revision_version: Optional[str] = Query(None),
 ):
     return parse_workflow_revision_retrieve_request_from_body(
+        workflow_id=workflow_id,
+        workflow_slug=workflow_slug,
+        #
         workflow_variant_id=workflow_variant_id,
         workflow_variant_slug=workflow_variant_slug,
         #
@@ -438,6 +444,9 @@ def parse_workflow_revision_retrieve_request_from_params(
 
 
 def parse_workflow_revision_retrieve_request_from_body(
+    workflow_id: Optional[UUID] = None,
+    workflow_slug: Optional[UUID] = None,
+    #
     workflow_variant_id: Optional[UUID] = None,
     workflow_variant_slug: Optional[str] = None,
     #
@@ -447,6 +456,15 @@ def parse_workflow_revision_retrieve_request_from_body(
 ) -> Optional[WorkflowRevisionRetrieveRequest]:
     return (
         WorkflowRevisionRetrieveRequest(
+            workflow_ref=(
+                Reference(
+                    id=workflow_id,
+                    slug=workflow_slug,
+                )
+                if workflow_id or workflow_slug
+                else None
+            ),
+            #
             workflow_variant_ref=(
                 Reference(
                     id=workflow_variant_id,
