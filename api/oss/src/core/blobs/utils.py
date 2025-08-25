@@ -1,3 +1,4 @@
+from typing import Optional
 from uuid import UUID
 from hashlib import blake2b
 from json import dumps
@@ -6,7 +7,7 @@ from json import dumps
 def compute_blob_id(
     *,
     blob_data: dict,
-    set_id: UUID,
+    set_id: Optional[UUID] = None,
 ) -> UUID:
     # Deterministically serialize the blob data
     json_blob_data = dumps(blob_data, sort_keys=True, separators=(",", ":"))

@@ -35,6 +35,7 @@ const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeader
     variantId,
     className,
     promptId,
+    viewOnly,
     ...props
 }) => {
     const {promptName} = usePlayground({
@@ -47,7 +48,7 @@ const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeader
     return (
         <div className={clsx("w-full flex items-center justify-between", className)} {...props}>
             <Text className="capitalize">{promptName || "Prompt"}</Text>
-            <PlaygroundVariantModelConfig variantId={variantId} promptId={promptId} />
+            <PlaygroundVariantModelConfig variantId={variantId} promptId={promptId} viewOnly={viewOnly} />
         </div>
     )
 }

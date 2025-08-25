@@ -169,8 +169,14 @@ class instrument:  # pylint: disable=invalid-name
 
             ag.tracing.credentials.put(trace_id, context.credentials)
 
+            trace_type = context.type or "invocation"
+            span_type = self.type or "task"
+
             span.set_attributes(
-                attributes={"node": self.type},
+                attributes={
+                    "node": span_type,
+                    "tree": trace_type,
+                },
                 namespace="type",
             )
 

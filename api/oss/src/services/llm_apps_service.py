@@ -37,6 +37,7 @@ def extract_result_from_response(response: dict):
     value = None
     latency = None
     cost = None
+    tokens = None
 
     try:
         # Validate input
@@ -74,6 +75,9 @@ def extract_result_from_response(response: dict):
                 cost = get_nested_value(
                     trace_tree, ["metrics", "acc", "costs", "total"]
                 )
+                tokens = get_nested_value(
+                    trace_tree, ["metrics", "acc", "tokens", "total"]
+                )
 
         # Handle version 2.0 response
         elif response.get("version") == "2.0":
@@ -84,12 +88,14 @@ def extract_result_from_response(response: dict):
             if "trace" in response:
                 latency = response["trace"].get("latency", None)
                 cost = response["trace"].get("cost", None)
+                tokens = response["trace"].get("tokens", None)
 
         # Handle generic response (neither 2.0 nor 3.0)
         else:
             value = {"data": str(response.get("message", ""))}
             latency = response.get("latency", None)
             cost = response.get("cost", None)
+            tokens = response.get("tokens", None)
 
         # Determine the type of 'value' (either 'text' or 'object')
         kind = "text" if isinstance(value, str) else "object"
@@ -114,7 +120,7 @@ def extract_result_from_response(response: dict):
         value = {"error": f"Unexpected error: {e}"}
         kind = "error"
 
-    return value, kind, cost, latency
+    return value, kind, cost, tokens, latency
 
 
 async def make_payload(
@@ -252,7 +258,13 @@ async def invoke_app(
             app_response = await response.json()
             response.raise_for_status()
 
-            value, kind, cost, latency = extract_result_from_response(app_response)
+            (
+                value,
+                kind,
+                cost,
+                tokens,
+                latency,
+            ) = extract_result_from_response(app_response)
 
             trace_id = app_response.get("trace_id", None)
             span_id = app_response.get("span_id", None)
@@ -265,6 +277,7 @@ async def invoke_app(
                 ),
                 latency=latency,
                 cost=cost,
+                tokens=tokens,
                 trace_id=trace_id,
                 span_id=span_id,
             )

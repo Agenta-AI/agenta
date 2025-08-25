@@ -68,7 +68,7 @@ const useEvaluators = <Preview extends boolean = false>({
 
     return useSWR<Preview extends true ? EvaluatorPreviewDto[] : Evaluator[]>(
         projectId && projectId !== DEFAULT_UUID
-            ? `/api${preview ? "/preview" : ""}/evaluators/?project_id=${projectId}`
+            ? `/api${preview ? "/preview" : ""}/evaluators/?project_id=${projectId}&queries=${JSON.stringify(queries)}`
             : null,
         fetcher,
         {

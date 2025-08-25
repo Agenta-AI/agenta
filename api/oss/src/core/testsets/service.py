@@ -435,6 +435,7 @@ class TestsetsService:
         *,
         project_id: UUID,
         #
+        testset_ref: Optional[Reference] = None,
         testset_variant_ref: Optional[Reference] = None,
         testset_revision_ref: Optional[Reference] = None,
     ) -> Optional[TestsetRevision]:

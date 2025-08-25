@@ -32,6 +32,10 @@ from oss.src.core.evaluations.types import (
     EvaluationMetricCreate,
     EvaluationMetricEdit,
     EvaluationMetricQuery,
+    EvaluationQueue,
+    EvaluationQueueCreate,
+    EvaluationQueueEdit,
+    EvaluationQueueQuery,
 )
 
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
@@ -46,6 +50,7 @@ from oss.src.dbs.postgres.evaluations.dbes import (
     EvaluationScenarioDBE,
     EvaluationStepDBE,
     EvaluationMetricDBE,
+    EvaluationQueueDBE,
 )
 
 
@@ -692,10 +697,13 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     EvaluationRunDBE.status == run.status,
                 )
 
-            if run.statuses is not None:
+            if run.ids is not None:
                 stmt = stmt.filter(
-                    EvaluationRunDBE.status.in_(run.statuses),
+                    EvaluationRunDBE.id.in_(run.ids),
                 )
+
+            if run.search is not None:
+                stmt = stmt.filter(EvaluationRunDBE.name.ilike(f"%{run.search}%"))
 
             if include_archived is not True:
                 stmt = stmt.filter(
@@ -1242,12 +1250,15 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 run_id=step.run_id,
             )
 
-        step.repeat_id = step.repeat_id or uuid4()
-        step.scenario_id = step.scenario_id or uuid4()
-
         now = datetime.now(timezone.utc)
         step = EvaluationStep(
-            **step.model_dump(),
+            **step.model_dump(exclude={"repeat_idx", "repeat_id", "retry_id"}),
+            repeat_id=(
+                UUID(f"{step.scenario_id.hex[:-4]}{(step.repeat_idx or 0):04x}")
+                if step.repeat_id is None
+                else step.repeat_id
+            ),
+            retry_id=step.retry_id or uuid4(),
             created_at=now,
             created_by_id=user_id,
             timestamp=now,
@@ -1297,14 +1308,17 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=step.run_id,
                 )
 
-            step.repeat_id = step.repeat_id or uuid4()
-            step.retry_id = step.retry_id or uuid4()
-
         async with engine.core_session() as session:
             now = datetime.now(timezone.utc)
             steps = [
                 EvaluationStep(
-                    **step.model_dump(),
+                    **step.model_dump(exclude={"repeat_idx", "repeat_id", "retry_id"}),
+                    repeat_id=(
+                        UUID(f"{step.scenario_id.hex[:-4]}{(step.repeat_idx or 0):04x}")
+                        if step.repeat_id is None
+                        else step.repeat_id
+                    ),
+                    retry_id=step.retry_id or uuid4(),
                     created_at=now,
                     created_by_id=user_id,
                     timestamp=now,
@@ -1677,6 +1691,44 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     EvaluationStepDBE.repeat_id.in_(step.repeat_ids),
                 )
 
+            if step.repeat_idx is not None and step.scenario_id is not None:
+                repeat_id = UUID(f"{step.scenario_id.hex[:-4]}{step.repeat_idx:04x}")
+
+                stmt = stmt.filter(
+                    EvaluationStepDBE.repeat_id == repeat_id,
+                )
+
+            if step.repeat_idxs is not None and step.scenario_id is not None:
+                repeat_ids = [
+                    UUID(f"{step.scenario_id.hex[:-4]}{idx:04x}")
+                    for idx in step.repeat_idxs
+                ]
+
+                stmt = stmt.filter(
+                    EvaluationStepDBE.repeat_id.in_(repeat_ids),
+                )
+
+            if step.repeat_idx is not None and step.scenario_ids is not None:
+                repeat_ids = [
+                    UUID(f"{scenario_id.hex[:-4]}{step.repeat_idx:04x}")
+                    for scenario_id in step.scenario_ids
+                ]
+
+                stmt = stmt.filter(
+                    EvaluationStepDBE.repeat_id.in_(repeat_ids),
+                )
+
+            if step.repeat_idxs is not None and step.scenario_ids is not None:
+                repeat_ids = [
+                    UUID(f"{scenario_id.hex[:-4]}{idx:04x}")
+                    for scenario_id in step.scenario_ids
+                    for idx in step.repeat_idxs
+                ]
+
+                stmt = stmt.filter(
+                    EvaluationStepDBE.repeat_id.in_(repeat_ids),
+                )
+
             if step.retry_id is not None:
                 stmt = stmt.filter(
                     EvaluationStepDBE.retry_id == step.retry_id,
@@ -1749,7 +1801,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return steps
 
-    # - EVALUATION METRIC -----------------------------------------------------
+    # - EVALUATION METRIC ------------------------------------------------------
 
     @suppress_exceptions(exclude=[EntityCreationConflict])
     async def create_metric(
@@ -2235,6 +2287,441 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             ]
 
             return metrics
+
+    # - EVALUATION QUEUE -------------------------------------------------------
+
+    @suppress_exceptions(exclude=[EntityCreationConflict])
+    async def create_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue: EvaluationQueueCreate,
+    ) -> Optional[EvaluationQueue]:
+        run_flags = await _get_run_flags(
+            project_id=project_id,
+            run_id=queue.run_id,
+        )
+
+        if run_flags.get("is_closed", False):
+            raise EvaluationClosedConflict(
+                run_id=queue.run_id,
+            )
+
+        now = datetime.now(timezone.utc)
+        queue = EvaluationQueue(
+            **queue.model_dump(),
+            created_at=now,
+            created_by_id=user_id,
+        )
+
+        if queue.data and queue.data.user_ids:
+            queue.data.user_ids = [
+                [str(repeat_user_id) for repeat_user_id in repeat_user_ids]
+                for repeat_user_ids in queue.data.user_ids
+            ]
+
+        queue_dbe = create_dbe_from_dto(
+            DBE=EvaluationQueueDBE,
+            project_id=project_id,
+            dto=queue,
+        )
+
+        try:
+            async with engine.core_session() as session:
+                session.add(queue_dbe)
+
+                await session.commit()
+
+                queue = create_dto_from_dbe(
+                    DTO=EvaluationQueue,
+                    dbe=queue_dbe,
+                )
+
+                return queue
+
+        except Exception as e:
+            check_entity_creation_conflict(e)
+
+            raise
+
+    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
+    async def create_queues(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queues: List[EvaluationQueueCreate],
+    ) -> List[EvaluationQueue]:
+        for queue in queues:
+            run_flags = await _get_run_flags(
+                project_id=project_id,
+                run_id=queue.run_id,
+            )
+
+            if run_flags.get("is_closed", False):
+                raise EvaluationClosedConflict(
+                    run_id=queue.run_id,
+                )
+
+        now = datetime.now(timezone.utc)
+        queues = [
+            EvaluationQueue(
+                **queue.model_dump(),
+                created_at=now,
+                created_by_id=user_id,
+            )
+            for queue in queues
+        ]
+
+        for queue in queues:
+            if queue.data and queue.data.user_ids:
+                queue.data.user_ids = [
+                    [str(repeat_user_id) for repeat_user_id in repeat_user_ids]
+                    for repeat_user_ids in queue.data.user_ids
+                ]
+
+        queue_dbes = [
+            create_dbe_from_dto(
+                DBE=EvaluationQueueDBE,
+                project_id=project_id,
+                dto=queue,
+            )
+            for queue in queues
+        ]
+
+        try:
+            async with engine.core_session() as session:
+                session.add_all(queue_dbes)
+
+                await session.commit()
+
+                queues = [
+                    create_dto_from_dbe(
+                        DTO=EvaluationQueue,
+                        dbe=queue_dbe,
+                    )
+                    for queue_dbe in queue_dbes
+                ]
+
+                return queues
+
+        except Exception as e:
+            check_entity_creation_conflict(e)
+
+            raise
+
+    @suppress_exceptions()
+    async def fetch_queue(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue_id: UUID,
+    ) -> Optional[EvaluationQueue]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationQueueDBE).filter(
+                EvaluationQueueDBE.project_id == project_id,
+                EvaluationQueueDBE.id == queue_id,
+            )
+
+            stmt = stmt.limit(1)
+
+            result = await session.execute(stmt)
+
+            queue_dbe = result.scalars().first()
+
+            if queue_dbe is None:
+                return None
+
+            queue = create_dto_from_dbe(
+                DTO=EvaluationQueue,
+                dbe=queue_dbe,
+            )
+
+            return queue
+
+    @suppress_exceptions(default=[])
+    async def fetch_queues(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue_ids: List[UUID],
+    ) -> List[EvaluationQueue]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationQueueDBE).filter(
+                EvaluationQueueDBE.project_id == project_id,
+                EvaluationQueueDBE.id.in_(queue_ids),
+            )
+
+            stmt = stmt.limit(len(queue_ids))
+
+            result = await session.execute(stmt)
+
+            queue_dbes = result.scalars().all()
+
+            queues = [
+                create_dto_from_dbe(
+                    DTO=EvaluationQueue,
+                    dbe=queue_dbe,
+                )
+                for queue_dbe in queue_dbes
+            ]
+
+            return queues
+
+    @suppress_exceptions()
+    async def edit_queue(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        queue: EvaluationQueueEdit,
+    ) -> Optional[EvaluationQueue]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationQueueDBE).filter(
+                EvaluationQueueDBE.project_id == project_id,
+                EvaluationQueueDBE.id == queue.id,
+            )
+
+            stmt = stmt.limit(1)
+
+            result = await session.execute(stmt)
+
+            queue_dbe = result.scalars().first()
+
+            if queue_dbe is None:
+                return None
+
+            run_flags = await _get_run_flags(
+                session=session,
+                project_id=project_id,
+                run_id=queue_dbe.run_id,
+            )
+
+            if run_flags.get("is_closed", False):
+                raise EvaluationClosedConflict(
+                    run_id=queue_dbe.run_id,
+                    queue_id=queue_dbe.id,
+                )
+
+            queue_dbe = edit_dbe_from_dto(
+                dbe=queue_dbe,
+                dto=queue,
+                updated_at=datetime.now(timezone.utc),
+                updated_by_id=user_id,
+            )
+
+            await session.commit()
+
+            queue = create_dto_from_dbe(
+                DTO=EvaluationQueue,
+                dbe=queue_dbe,
+            )
+
+            return queue
+
+    @suppress_exceptions(default=[])
+    async def edit_queues(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        queues: List[EvaluationQueueEdit],
+    ) -> List[EvaluationQueue]:
+        queue_ids = [queue.id for queue in queues]
+
+        async with engine.core_session() as session:
+            stmt = select(EvaluationQueueDBE).filter(
+                EvaluationQueueDBE.project_id == project_id,
+                EvaluationQueueDBE.id.in_(queue_ids),
+            )
+
+            stmt = stmt.limit(len(queue_ids))
+
+            result = await session.execute(stmt)
+
+            queue_dbes = result.scalars().all()
+
+            if not queue_dbes:
+                return []
+
+            for queue_dbe in queue_dbes:
+                run_flags = await _get_run_flags(
+                    session=session,
+                    project_id=project_id,
+                    run_id=queue_dbe.run_id,
+                )
+
+                if run_flags.get("is_closed", False):
+                    raise EvaluationClosedConflict(
+                        run_id=queue_dbe.run_id,
+                        queue_id=queue_dbe.id,
+                    )
+
+                queue = next(
+                    (q for q in queues if q.id == queue_dbe.id),
+                    None,
+                )
+
+                if queue is not None:
+                    queue_dbe = edit_dbe_from_dto(
+                        dbe=queue_dbe,
+                        dto=queue,
+                        updated_at=datetime.now(timezone.utc),
+                        updated_by_id=user_id,
+                    )
+
+            await session.commit()
+
+            queues = [
+                create_dto_from_dbe(
+                    DTO=EvaluationQueue,
+                    dbe=queue_dbe,
+                )
+                for queue_dbe in queue_dbes
+            ]
+
+            return queues
+
+    @suppress_exceptions()
+    async def delete_queue(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue_id: UUID,
+    ) -> Optional[UUID]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationQueueDBE).filter(
+                EvaluationQueueDBE.project_id == project_id,
+                EvaluationQueueDBE.id == queue_id,
+            )
+
+            stmt = stmt.limit(1)
+
+            result = await session.execute(stmt)
+
+            queue_dbe = result.scalars().first()
+
+            if queue_dbe is None:
+                return None
+
+            await session.delete(queue_dbe)
+
+            await session.commit()
+
+            return queue_id
+
+    @suppress_exceptions(default=[])
+    async def delete_queues(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue_ids: List[UUID],
+    ) -> List[UUID]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationQueueDBE).filter(
+                EvaluationQueueDBE.project_id == project_id,
+                EvaluationQueueDBE.id.in_(queue_ids),
+            )
+
+            stmt = stmt.limit(len(queue_ids))
+
+            result = await session.execute(stmt)
+
+            queue_dbes = result.scalars().all()
+
+            if not queue_dbes:
+                return []
+
+            for queue_dbe in queue_dbes:
+                await session.delete(queue_dbe)
+
+            await session.commit()
+
+            return queue_ids
+
+    @suppress_exceptions(default=[])
+    async def query_queues(
+        self,
+        *,
+        project_id: UUID,
+        #
+        queue: EvaluationQueueQuery,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[EvaluationQueue]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationQueueDBE).filter(
+                EvaluationQueueDBE.project_id == project_id,
+            )
+
+            if queue.run_id is not None:
+                stmt = stmt.filter(
+                    EvaluationQueueDBE.run_id == queue.run_id,
+                )
+
+            if queue.run_ids is not None:
+                stmt = stmt.filter(
+                    EvaluationQueueDBE.run_id.in_(queue.run_ids),
+                )
+
+            if queue.flags is not None:
+                stmt = stmt.filter(
+                    EvaluationQueueDBE.flags.contains(
+                        queue.flags.model_dump(mode="json"),
+                    ),
+                )
+
+            if queue.tags is not None:
+                stmt = stmt.filter(
+                    EvaluationQueueDBE.tags.contains(queue.tags),
+                )
+
+            if queue.meta is not None:
+                stmt = stmt.filter(
+                    EvaluationQueueDBE.meta.contains(queue.meta),
+                )
+
+            stmt = stmt.order_by(EvaluationQueueDBE.created_at.desc())
+
+            if windowing is not None:
+                if windowing.next is not None:
+                    stmt = stmt.filter(
+                        EvaluationQueueDBE.id > windowing.next,
+                    )
+
+                if windowing.start is not None:
+                    stmt = stmt.filter(
+                        EvaluationQueueDBE.created_at > windowing.start,
+                    )
+
+                if windowing.stop is not None:
+                    stmt = stmt.filter(
+                        EvaluationQueueDBE.created_at <= windowing.stop,
+                    )
+
+                if windowing.limit is not None:
+                    stmt = stmt.limit(windowing.limit)
+
+            result = await session.execute(stmt)
+
+            queue_dbes = result.scalars().all()
+
+            queues = [
+                create_dto_from_dbe(
+                    DTO=EvaluationQueue,
+                    dbe=queue_dbe,
+                )
+                for queue_dbe in queue_dbes
+            ]
+
+            return queues
 
     # --------------------------------------------------------------------------
 

@@ -2,12 +2,14 @@ from typing import Optional, List, Dict, Any
 from json import loads, dumps
 from uuid import UUID, uuid4
 from io import BytesIO
-
+from hashlib import blake2b as digest
 
 import orjson
 import pandas
 
 from fastapi import Query, HTTPException
+
+from oss.src.core.blobs.utils import compute_blob_id
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.dtos import Reference, Meta
@@ -352,12 +354,12 @@ def merge_requests(
     )
 
 
-def to_uuid(value):
+def to_uuid(id, data):
     """Ensure value is a valid UUID; generate a new one if missing/invalid."""
     try:
-        return str(UUID(str(value)))  # Convert valid UUID to string
+        return str(UUID(str(id)))  # Convert valid UUID to string
     except ValueError:
-        return str(uuid4())  # Generate a new UUID
+        return str(compute_blob_id(blob_data=data))
 
 
 async def json_file_to_json_array(
@@ -419,19 +421,30 @@ def json_array_to_json_object(
 
     transformed_data = {}
 
-    for obj in data:
-        if not isinstance(obj, dict):
+    for testcase_idx, testcase_data in enumerate(data):
+        if not isinstance(testcase_data, dict):
             continue  # Ignore non-dict entries
 
-        # Remove `testcase_id` after extracting it
-        testcase_id = to_uuid(obj.pop(testcase_id_key, None))
+        testcase_dedup_id = testcase_data.pop(testcase_dedup_id_key, None)
+
+        testcase_id_str = testcase_data.pop(testcase_id_key, None)
+
+        testcase_id = to_uuid(testcase_id_str, testcase_data)
+
+        testcase_dedup_id = (
+            testcase_dedup_id
+            or digest(
+                f"{testcase_id}:{testcase_idx}".encode(),
+                digest_size=6,
+            ).hexdigest()
+        )
 
         if testcase_dedup_id_key is not None:
-            # Set `testcase_dedup_id` to a new UUID if not present
-            testcase_dedup_id = obj.pop(testcase_dedup_id_key, uuid4().hex[-12:])
-            obj[testcase_dedup_id_key] = testcase_dedup_id
+            testcase_data[testcase_dedup_id_key] = testcase_dedup_id
 
-        transformed_data[testcase_id] = obj  # Store object without `testcase_id`
+        testcase_id = to_uuid(testcase_id_str, testcase_data)
+
+        transformed_data[testcase_id] = testcase_data
 
     return transformed_data
 

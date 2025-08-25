@@ -33,6 +33,8 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
     variantId,
     promptId,
     className,
+    viewOnly=false,
+    ...props
 }) => {
     const defaultActiveKey = useRef(["1"])
     const classes = useStyles()
@@ -52,6 +54,7 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
                         <PlaygroundVariantConfigPromptCollapseHeader
                             variantId={variantId}
                             promptId={promptId}
+                            viewOnly={viewOnly}
                         />
                     </div>
                 ),
@@ -59,11 +62,12 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
                     <PlaygroundVariantConfigPromptCollapseContent
                         variantId={variantId}
                         promptId={promptId}
+                        viewOnly={viewOnly}
                     />
                 ),
             },
         ],
-        [variantId, promptId],
+        [variantId, promptId, viewOnly],
     )
 
     return (
@@ -73,6 +77,7 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
             bordered={false}
             defaultActiveKey={defaultActiveKey.current}
             items={items}
+            {...props}
         />
     )
 }

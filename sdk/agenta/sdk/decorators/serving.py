@@ -14,11 +14,11 @@ from agenta.sdk.middleware.inline import InlineMiddleware
 from agenta.sdk.middleware.vault import VaultMiddleware
 from agenta.sdk.middleware.config import ConfigMiddleware
 from agenta.sdk.middleware.otel import OTelMiddleware
-from agenta.sdk.middleware.auth import AuthMiddleware
+from agenta.sdk.middleware.auth import AuthHTTPMiddleware
 from agenta.sdk.middleware.cors import CORSMiddleware
 
-from agenta.sdk.context.routing import (
-    routing_context_manager,
+from agenta.sdk.context.serving import (
+    serving_context_manager,
     RoutingContext,
 )
 from agenta.sdk.context.tracing import (
@@ -145,7 +145,7 @@ class entrypoint:
             app.add_middleware(InlineMiddleware)
             app.add_middleware(VaultMiddleware)
             app.add_middleware(ConfigMiddleware)
-            app.add_middleware(AuthMiddleware)
+            app.add_middleware(AuthHTTPMiddleware)
             app.add_middleware(OTelMiddleware)
             app.add_middleware(CORSMiddleware)
         ### ------------------ #
@@ -326,7 +326,7 @@ class entrypoint:
         inline = state.inline
         mock = state.mock
 
-        with routing_context_manager(
+        with serving_context_manager(
             context=RoutingContext(
                 parameters=parameters,
                 secrets=secrets,

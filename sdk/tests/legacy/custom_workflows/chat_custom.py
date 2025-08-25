@@ -2,7 +2,7 @@ import os
 from typing import List, Dict
 import litellm
 from agenta.sdk.litellm import mockllm
-from agenta.sdk.context.routing import routing_context
+from agenta.sdk.context.serving import serving_context
 
 # Set up mockllm to use litellm
 mockllm.litellm = litellm
@@ -93,9 +93,9 @@ def search_docs(
 
 @ag.instrument()
 async def llm(query: str, results: List[Dict]):
-    # Set the mock in the routing context to use the 'hello' mock
+    # Set the mock in the serving context to use the 'hello' mock
     # You can replace 'hello' with any mock defined in the MOCKS dictionary
-    ctx = routing_context.get()
+    ctx = serving_context.get()
     ctx.mock = "hello"
 
     config = ag.ConfigManager.get_from_route(Config)
@@ -127,5 +127,5 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "agenta.sdk.decorators.routing:app", host="0.0.0.0", port=804, reload=True
+        "agenta.sdk.decorators.serving:app", host="0.0.0.0", port=804, reload=True
     )

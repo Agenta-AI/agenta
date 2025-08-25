@@ -109,6 +109,11 @@ const config: Config = {
           label: "Reference",
         },
         {
+          to: "/roadmap",
+          position: "left",
+          label: "Roadmap",
+        },
+        {
           to: "/changelog/main",
           position: "left",
           label: "Changelog",

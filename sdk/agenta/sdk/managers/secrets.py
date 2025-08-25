@@ -1,14 +1,14 @@
 import re
 from typing import Optional, Dict, Any, List
 
-from agenta.sdk.context.routing import routing_context
+from agenta.sdk.context.serving import serving_context
 from agenta.sdk.assets import model_to_provider_mapping as _standard_providers
 
 
 class SecretsManager:
     @staticmethod
     def get_from_route() -> Optional[List[Dict[str, Any]]]:
-        context = routing_context.get()
+        context = serving_context.get()
 
         secrets = context.secrets
 

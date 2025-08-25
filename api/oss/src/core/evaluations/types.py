@@ -70,9 +70,9 @@ class EvaluationRunFlags(BaseModel):
 
 
 class EvaluationRunData(BaseModel):
-    steps: Optional[List[Data]] = None  # ?
-    mappings: Optional[List[Data]] = None  # ?
-    data: Optional[Data] = None
+    steps: Optional[List[Data]] = None
+    mappings: Optional[List[Data]] = None
+    repeats: Optional[int] = None
 
 
 class EvaluationRun(Identifier, Header, Lifecycle):
@@ -119,6 +119,9 @@ class EvaluationRunQuery(BaseModel):
 
     ids: Optional[List[UUID]] = None
 
+    # Search term for case-insensitive partial matching on name field
+    search: Optional[str] = None
+
 
 # - EVALUATION SCENARIO --------------------------------------------------------
 
@@ -130,8 +133,12 @@ class EvaluationScenario(Identifier, Lifecycle):
 
     status: Optional[EvaluationStatus] = None
 
-    run_id: Optional[UUID] = None
+    run_id: UUID
     run: Optional[EvaluationRun] = None
+
+    # idx: int  # new : Optional / Migration
+    # rnd_idx: int  # new : Optional / Migration
+    # seq_idx: int  # new : Optional / Migration
 
 
 class EvaluationScenarioCreate(BaseModel):
@@ -140,7 +147,7 @@ class EvaluationScenarioCreate(BaseModel):
 
     status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
-    run_id: Optional[UUID] = None
+    run_id: UUID
 
 
 class EvaluationScenarioEdit(Identifier):
@@ -163,6 +170,10 @@ class EvaluationScenarioQuery(BaseModel):
 
     ids: Optional[List[UUID]] = None
 
+    # idxs: Optional[List[int]] = None  # new : Optional / Migration
+    # rnd_idxs: Optional[List[int]] = None  # new : Optional / Migration
+    # sea_idxs: Optional[List[int]] = None  # new : Optional / Migration
+
 
 # - EVALUATION STEP ------------------------------------------------------------
 
@@ -176,18 +187,19 @@ class EvaluationStep(Identifier, Lifecycle):
     timestamp: Optional[datetime] = None
 
     key: str
-    repeat_id: Optional[UUID] = None
-    retry_id: Optional[UUID] = None
+    # repeat_idx: int  # new : Optional / Migration
+    repeat_id: UUID
+    retry_id: UUID
 
     hash_id: Optional[UUID] = None
     trace_id: Optional[str] = None
     testcase_id: Optional[UUID] = None
     error: Optional[Data] = None
 
-    scenario_id: Optional[UUID] = None
+    scenario_id: UUID
     scenario: Optional[EvaluationScenario] = None
 
-    run_id: Optional[UUID] = None
+    run_id: UUID
     run: Optional[EvaluationRun] = None
 
 
@@ -198,6 +210,7 @@ class EvaluationStepCreate(BaseModel):
     status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
     key: str
+    repeat_idx: Optional[int] = None  # new : Optional
     repeat_id: Optional[UUID] = None
     retry_id: Optional[UUID] = None
 
@@ -206,8 +219,8 @@ class EvaluationStepCreate(BaseModel):
     testcase_id: Optional[UUID] = None
     error: Optional[Data] = None
 
-    scenario_id: Optional[UUID] = None
-    run_id: Optional[UUID] = None
+    scenario_id: UUID
+    run_id: UUID
 
 
 class EvaluationStepEdit(Identifier):
@@ -229,6 +242,8 @@ class EvaluationStepQuery(BaseModel):
 
     key: Optional[str] = None
     keys: Optional[List[str]] = None
+    repeat_idx: Optional[int] = None  # new : Optional
+    repeat_idxs: Optional[List[int]] = None  # new : Optional
     repeat_id: Optional[UUID] = None
     repeat_ids: Optional[List[UUID]] = None
     retry_id: Optional[UUID] = None
@@ -261,7 +276,7 @@ class EvaluationMetric(Identifier, Lifecycle):
     scenario_id: Optional[UUID] = None
     scenario: Optional[EvaluationScenario] = None
 
-    run_id: Optional[UUID] = None
+    run_id: UUID
     run: Optional[EvaluationRun] = None
 
 
@@ -274,7 +289,7 @@ class EvaluationMetricCreate(BaseModel):
     data: Optional[Data] = None
 
     scenario_id: Optional[UUID] = None
-    run_id: Optional[UUID] = None
+    run_id: UUID
 
 
 class EvaluationMetricEdit(Identifier):
@@ -296,6 +311,60 @@ class EvaluationMetricQuery(BaseModel):
 
     scenario_id: Optional[UUID] = None
     scenario_ids: Optional[List[UUID]] = None
+    run_id: Optional[UUID] = None
+    run_ids: Optional[List[UUID]] = None
+
+    ids: Optional[List[UUID]] = None
+
+
+# - EVALUATION QUEUE -----------------------------------------------------------
+
+
+class EvaluationQueueFlags(BaseModel):
+    is_sequential: bool = False
+
+
+class EvaluationQueueData(BaseModel):
+    user_ids: Optional[List[List[UUID]]] = None
+    scenario_ids: Optional[List[UUID]] = None
+
+
+class EvaluationQueue(Identifier, Lifecycle):
+    flags: Optional[EvaluationQueueFlags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    status: Optional[EvaluationStatus] = None
+
+    data: Optional[EvaluationQueueData] = None
+
+    run_id: UUID
+    run: Optional[EvaluationRun] = None
+
+
+class EvaluationQueueCreate(BaseModel):
+    flags: Optional[EvaluationQueueFlags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    data: Optional[EvaluationQueueData] = None
+
+    run_id: UUID
+
+
+class EvaluationQueueEdit(Identifier):
+    flags: Optional[EvaluationQueueFlags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    data: Optional[EvaluationQueueData] = None
+
+
+class EvaluationQueueQuery(BaseModel):
+    flags: Optional[EvaluationQueueFlags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
     run_id: Optional[UUID] = None
     run_ids: Optional[List[UUID]] = None
 

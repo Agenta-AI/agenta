@@ -4,3 +4,6 @@ boto3
 litellm
 structlog
 huggingface-hub<0.31.0
+
+# temporary
+decorator

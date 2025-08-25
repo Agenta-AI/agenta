@@ -1,10 +1,14 @@
-from typing import Optional, List
-from uuid import UUID
+from typing import Optional, List, Tuple
+from uuid import UUID, uuid4
 
 from oss.src.utils.logging import get_module_logger
 
+from oss.src.apis.fastapi.tracing.router import (
+    TracingRouter,
+)  # change to TracingRouterInterface
+
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import Reference, Windowing, Status
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
@@ -39,10 +43,75 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionEdit,
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
+    #
+    WorkflowServiceRequest,
+    WorkflowServiceResponse,
+    WorkflowServiceInterface,
+    #
+    WorkflowRevisionData,
+    WorkflowServiceData,
+)
+
+from oss.src.core.workflows.status import (
+    SuccessStatus,
+    HandlerNotFoundStatus,
+)
+from oss.src.core.workflows.errors import (
+    ErrorStatus,
 )
 
 
 log = get_module_logger(__name__)
+
+# - REGISTRY -------------------------------------------------------------------
+
+from oss.src.core.workflows.utils import (
+    auto_exact_match_v0,
+    auto_regex_test_v0,
+    field_match_test_v0,
+    auto_webhook_test_v0,
+    auto_custom_code_run_v0,
+    auto_ai_critique_v0,
+    auto_starts_with_v0,
+    auto_ends_with_v0,
+    auto_contains_v0,
+    auto_contains_any_v0,
+    auto_contains_all_v0,
+    auto_contains_json_v0,
+    auto_json_diff_v0,
+    rag_faithfulness_v0,
+    rag_context_relevancy_v0,
+    auto_levenshtein_distance_v0,
+    auto_similarity_match_v0,
+    auto_semantic_similarity_v0,
+)
+
+REGISTRY = {
+    "agenta": {
+        "built-in": {
+            "auto_exact_match": {"v0": auto_exact_match_v0},
+            "auto_regex_test": {"v0": auto_regex_test_v0},
+            "field_match_test": {"v0": field_match_test_v0},
+            "auto_webhook_test": {"v0": auto_webhook_test_v0},
+            "auto_custom_code_run": {"v0": auto_custom_code_run_v0},
+            "auto_ai_critique": {"v0": auto_ai_critique_v0},
+            "auto_starts_with": {"v0": auto_starts_with_v0},
+            "auto_ends_with": {"v0": auto_ends_with_v0},
+            "auto_contains": {"v0": auto_contains_v0},
+            "auto_contains_any": {"v0": auto_contains_any_v0},
+            "auto_contains_all": {"v0": auto_contains_all_v0},
+            "auto_contains_json": {"v0": auto_contains_json_v0},
+            "auto_json_diff": {"v0": auto_json_diff_v0},
+            "rag_faithfulness": {"v0": rag_faithfulness_v0},
+            "rag_context_relevancy": {"v0": rag_context_relevancy_v0},
+            "auto_levenshtein_distance": {"v0": auto_levenshtein_distance_v0},
+            "auto_similarity_match": {"v0": auto_similarity_match_v0},
+            "auto_semantic_similarity": {"v0": auto_semantic_similarity_v0},
+        },
+    },
+}
+
+# ------------------------------------------------------------------------------
 
 
 class WorkflowsService:
@@ -50,6 +119,7 @@ class WorkflowsService:
         self,
         *,
         workflows_dao: GitDAOInterface,
+        tracing_router: TracingRouter,
     ):
         self.workflows_dao = workflows_dao
 
@@ -62,6 +132,8 @@ class WorkflowsService:
         user_id: UUID,
         #
         workflow_create: WorkflowCreate,
+        #
+        workflow_id: Optional[UUID] = None,
     ) -> Optional[Workflow]:
         _artifact_create = ArtifactCreate(
             **workflow_create.model_dump(mode="json"),
@@ -72,6 +144,8 @@ class WorkflowsService:
             user_id=user_id,
             #
             artifact_create=_artifact_create,
+            #
+            artifact_id=workflow_id,
         )
 
         if not artifact:
@@ -456,9 +530,30 @@ class WorkflowsService:
         *,
         project_id: UUID,
         #
+        workflow_ref: Optional[Reference] = None,
         workflow_variant_ref: Optional[Reference] = None,
         workflow_revision_ref: Optional[Reference] = None,
     ) -> Optional[WorkflowRevision]:
+        if not workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
+            return None
+
+        if workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
+            workflow_variant = await self.query_workflow_variants(
+                project_id=project_id,
+                #
+                workflow_refs=[workflow_ref],
+                #
+                windowing=Windowing(limit=1, order="descending"),
+            )
+
+            if not workflow_variant:
+                return None
+
+            workflow_variant_ref = Reference(
+                id=workflow_variant[0].id,
+                slug=workflow_variant[0].slug,
+            )
+
         revision = await self.workflows_dao.fetch_revision(
             project_id=project_id,
             #
@@ -669,3 +764,113 @@ class WorkflowsService:
         return _workflow_revisions
 
     ## -------------------------------------------------------------------------
+
+    async def invoke_workflow(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        request: WorkflowServiceRequest,
+        revision: WorkflowRevision,
+    ) -> WorkflowServiceResponse:
+        try:
+            (
+                service_provider,
+                service_kind,
+                service_key,
+                service_version,
+            ) = await parse_service_uri(
+                uri=revision.data.uri,
+            )
+
+            handler = (
+                REGISTRY.get(service_provider, {})
+                .get(service_kind, {})
+                .get(service_key, {})
+                .get(service_version, None)
+            )
+
+            if not handler:
+                log.warn(
+                    "Could not find a suitable handler for service URI: %s",
+                    revision.data.uri,
+                )
+                return WorkflowServiceResponse(
+                    status=HandlerNotFoundStatus(
+                        uri=revision.data.uri,
+                    ),
+                )
+
+            outputs = await handler(
+                revision=revision,
+                request=request,
+                #
+                parameters=revision.data.parameters,
+                inputs=request.data.inputs,
+                #
+                trace_outputs=request.data.trace_outputs,
+                trace_parameters=request.data.trace_parameters,
+                #
+                trace=request.data.trace,
+                tree=request.data.tree,
+            )
+
+            response = WorkflowServiceResponse(
+                status=SuccessStatus(),
+                data=WorkflowServiceData(
+                    outputs=outputs,
+                ),
+            )
+
+            return response
+
+        except ErrorStatus as error:
+            log.warn(error)
+            return WorkflowServiceResponse(
+                status=Status(
+                    code=error.code,
+                    type=error.type,
+                    message=error.message,
+                    stacktrace=error.stacktrace,
+                ),
+            )
+
+        except Exception as ex:
+            log.warn(
+                "Failed to invoke workflow with error: %s",
+                str(ex),
+            )
+            return WorkflowServiceResponse(
+                status=Status(
+                    code=500,
+                    message=str(ex),
+                ),
+            )
+
+    async def inspect_workflow(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        interface: WorkflowServiceInterface,
+    ) -> WorkflowServiceInterface:
+        pass
+
+    ## -------------------------------------------------------------------------
+
+
+async def parse_service_uri(
+    uri: str,
+) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    if not uri or not uri.strip():
+        return None, None, None, None
+
+    # uri ~ [<provider>|empty|'custom']:<kind>:<key>:[<version>|'latest'|empty]
+
+    parts = uri.split(":")
+
+    if len(parts) != 4:
+        return None, None, None, None
+
+    return tuple(parts)

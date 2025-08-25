@@ -62,6 +62,7 @@ Attributes = Dict[str, AttributeValueType]
 class TreeType(Enum):
     # --- VARIANTS --- #
     INVOCATION = "invocation"
+    ANNOTATION = "annotation"
     # --- VARIANTS --- #
 
 

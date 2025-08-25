@@ -39,6 +39,11 @@ class AgentaTreeDTO(BaseModel):
     nodes: List[AgentaNodeDTO]
 
 
+class AgentaVersionedTreeDTO(BaseModel):
+    version: str
+    nodes: List[AgentaNodeDTO]
+
+
 class AgentaTreesDTO(BaseModel):
     trees: Optional[List[AgentaTreeDTO]] = []
 

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.50.6"
+version = "0.51.0"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = ["Mahmoud Mabrouk <mahmoud@agenta.ai>"]
@@ -29,7 +29,7 @@ importlib-metadata = ">=8.0.0,<9.0"
 httpx = ">=0.28.0"
 pyyaml = "^6.0.2"
 toml = "^0.10.2"
-litellm = ">=1.68.0"
+litellm = ">=1.75.9"
 jinja2 = "^3.1.6"
 opentelemetry-api = ">=1.27.0,<2.0.0"
 opentelemetry-sdk = ">=1.27.0,<2.0.0"
@@ -40,6 +40,8 @@ huggingface-hub = "<0.31.0"
 
 # audit fixes
 h11 = ">=0.16.0"
+decorator = "^5.2.1"
+openai = ">=1.100.0"
 
 [tool.poetry.group.dev.dependencies]
 posthog = "^3.1.0"

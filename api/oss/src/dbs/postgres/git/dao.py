@@ -646,15 +646,6 @@ class GitDAO(GitDAOInterface):
                         self.VariantDBE.artifact_id.in_(artifact_ids)  # type: ignore
                     )
 
-                artifact_slugs = [
-                    artifact.slug for artifact in artifact_refs if artifact.slug
-                ]
-
-                if artifact_slugs:
-                    query = query.filter(
-                        self.VariantDBE.artifact_id.in_(artifact_slugs)  # type: ignore
-                    )
-
             if variant_refs:
                 variant_ids = [variant.id for variant in variant_refs if variant.id]
 
@@ -1131,30 +1122,12 @@ class GitDAO(GitDAOInterface):
                         self.RevisionDBE.artifact_id.in_(artifact_ids)  # type: ignore
                     )
 
-                artifact_slugs = [
-                    artifact.slug for artifact in artifact_refs if artifact.slug
-                ]
-
-                if artifact_slugs:
-                    query = query.filter(
-                        self.RevisionDBE.artifact_id.in_(artifact_slugs)  # type: ignore
-                    )
-
             if variant_refs:
                 variant_ids = [variant.id for variant in variant_refs if variant.id]
 
                 if variant_ids:
                     query = query.filter(
                         self.RevisionDBE.variant_id.in_(variant_ids)  # type: ignore
-                    )
-
-                variant_slugs = [
-                    variant.slug for variant in variant_refs if variant.slug
-                ]
-
-                if variant_slugs:
-                    query = query.filter(
-                        self.RevisionDBE.variant_id.in_(variant_slugs)  # type: ignore
                     )
 
             if revision_refs:
@@ -1334,6 +1307,7 @@ class GitDAO(GitDAOInterface):
     ) -> List[Revision]:
         revision = await self.fetch_revision(  # type: ignore
             project_id=project_id,
+            #
             variant_ref=(
                 Reference(
                     id=artifact_log.variant_id,

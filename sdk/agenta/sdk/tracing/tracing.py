@@ -1,9 +1,7 @@
 from typing import Optional, Any, Dict, Callable
 from enum import Enum
-from uuid import UUID
 
 from pydantic import BaseModel
-from httpx import get as check
 
 
 from opentelemetry.trace import (
@@ -33,7 +31,6 @@ from agenta.sdk.tracing.conventions import Reference, is_valid_attribute_key
 from agenta.sdk.tracing.propagation import extract, inject
 from agenta.sdk.utils.cache import TTLLRUCache
 
-from agenta.sdk.context.tracing import tracing_context
 
 log = get_module_logger(__name__)
 
@@ -120,11 +117,6 @@ class Tracing(metaclass=Singleton):
         # TRACE PROCESSORS -- OTLP
         try:
             log.info("Agenta - OLTP URL: %s", self.otlp_url)
-            # check(
-            #     self.otlp_url,
-            #     headers=self.headers,
-            #     timeout=1,
-            # )
 
             _otlp = TraceProcessor(
                 OTLPExporter(

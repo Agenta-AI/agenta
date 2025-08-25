@@ -18,12 +18,16 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationStepQueryRequest,
     EvaluationMetricQuery,
     EvaluationMetricQueryRequest,
+    EvaluationQueueQuery,
+    EvaluationQueueQueryRequest,
 )
 
 log = get_module_logger(__name__)
 
 
 async def parse_run_query_request(
+    # SCOPING
+    ids: Optional[List[UUID]] = Query(None),
     # FILTERING
     flags: Optional[str] = Query(None),
     tags: Optional[str] = Query(None),
@@ -62,6 +66,8 @@ async def parse_run_query_request(
             #
             status=status,
             statuses=statuses,
+            #
+            ids=ids,
         ),
         include_archived=include_archived,
         windowing=Windowing(
@@ -78,6 +84,7 @@ async def parse_run_query_request(
 
 async def parse_scenario_query_request(
     # SCOPING
+    ids: Optional[List[UUID]] = Query(None),
     run_id: Optional[UUID] = Query(None),
     run_ids: Optional[List[UUID]] = Query(None),
     # FILTERING
@@ -112,6 +119,7 @@ async def parse_scenario_query_request(
             #
             run_id=run_id,
             run_ids=run_ids,
+            ids=ids,
         ),
         windowing=Windowing(
             next=next,
@@ -127,6 +135,7 @@ async def parse_scenario_query_request(
 
 async def parse_step_query_request(
     # SCOPING
+    ids: Optional[List[UUID]] = Query(None),
     run_id: Optional[UUID] = Query(None),
     run_ids: Optional[List[UUID]] = Query(None),
     scenario_id: Optional[UUID] = Query(None),
@@ -180,6 +189,7 @@ async def parse_step_query_request(
             scenario_ids=scenario_ids,
             run_id=run_id,
             run_ids=run_ids,
+            ids=ids,
         ),
         windowing=Windowing(
             next=next,
@@ -195,6 +205,7 @@ async def parse_step_query_request(
 
 async def parse_metric_query_request(
     # SCOPING
+    ids: Optional[List[UUID]] = Query(None),
     run_id: Optional[UUID] = Query(None),
     run_ids: Optional[List[UUID]] = Query(None),
     scenario_id: Optional[UUID] = Query(None),
@@ -228,6 +239,7 @@ async def parse_metric_query_request(
             scenario_ids=scenario_ids,
             run_id=run_id,
             run_ids=run_ids,
+            ids=ids,
         ),
         windowing=Windowing(
             next=next,
@@ -239,3 +251,58 @@ async def parse_metric_query_request(
     )
 
     return metric_query_request
+
+
+async def parse_queue_query_request(
+    # SCOPING
+    ids: Optional[List[UUID]] = Query(None),
+    run_id: Optional[UUID] = Query(None),
+    run_ids: Optional[List[UUID]] = Query(None),
+    user_id: Optional[UUID] = Query(None),
+    user_ids: Optional[List[UUID]] = Query(None),
+    # FILTERING
+    flags: Optional[str] = Query(None),
+    tags: Optional[str] = Query(None),
+    meta: Optional[str] = Query(None),
+    # WINDOWING
+    next: Optional[UUID] = Query(None),  # pylint: disable=redefined-builtin
+    start: Optional[datetime] = Query(None),
+    stop: Optional[datetime] = Query(None),
+    limit: Optional[int] = Query(None),
+) -> EvaluationQueueQueryRequest:
+    try:
+        flags = loads(flags) if flags else None
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
+
+    try:
+        tags = loads(tags) if tags else None
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
+
+    try:
+        meta = loads(meta) if meta else None
+    except Exception:  # pylint: disable=broad-exception-caught
+        pass
+
+    queue_query_request = EvaluationQueueQueryRequest(
+        queue=EvaluationQueueQuery(
+            flags=flags,
+            tags=tags,
+            meta=meta,
+            #
+            run_id=run_id,
+            run_ids=run_ids,
+            user_id=user_id,
+            user_ids=user_ids,
+            ids=ids,
+        ),
+        windowing=Windowing(
+            next=next,
+            start=start,
+            stop=stop,
+            limit=limit,
+        ),
+    )
+
+    return queue_query_request

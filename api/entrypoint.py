@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from celery import Celery
+from celery import Celery, signals
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from supertokens_python import get_all_cors_headers as get_all_supertokens_cors_headers
@@ -97,6 +97,12 @@ origins = [
 celery_app = Celery("agenta_app")
 celery_app.config_from_object("oss.src.celery_config")
 
+
+@signals.setup_logging.connect
+def on_celery_setup_logging(**kwargs):
+    pass  # effectively no-op, preventing celery from reconfiguring logging
+
+
 log = get_module_logger(__name__)
 
 
@@ -170,80 +176,80 @@ app.include_router(
 )
 app.include_router(workspace_router.router, prefix="/workspaces", tags=["Workspace"])
 
+vault_service = VaultService(
+    secrets_dao=SecretsDAO(),
+)
 
 vault_router = VaultRouter(
-    vault_service=VaultService(
-        secrets_dao=SecretsDAO(),
-    ),
+    vault_service=vault_service,
+)
+
+tracing_service = TracingService(
+    tracing_dao=TracingDAO(),
+)
+
+observability_service = ObservabilityService(
+    observability_dao=ObservabilityDAO(),
 )
 
 observability = ObservabilityRouter(
-    observability_service=ObservabilityService(
-        observability_dao=ObservabilityDAO(),
+    observability_service=observability_service,
+    tracing_service=tracing_service,
+)
+
+
+tracing = TracingRouter(
+    tracing_service=tracing_service,
+)
+
+workflow_service = WorkflowsService(
+    workflows_dao=GitDAO(
+        ArtifactDBE=WorkflowArtifactDBE,
+        VariantDBE=WorkflowVariantDBE,
+        RevisionDBE=WorkflowRevisionDBE,
     ),
-    tracing_service=TracingService(
-        tracing_dao=TracingDAO(),
-    ),
+    tracing_router=tracing.router,
 )
 
 simple_evaluators = SimpleEvaluatorsRouter(
-    workflows_service=WorkflowsService(
-        workflows_dao=GitDAO(
-            ArtifactDBE=WorkflowArtifactDBE,
-            VariantDBE=WorkflowVariantDBE,
-            RevisionDBE=WorkflowRevisionDBE,
-        )
-    ),
+    workflows_service=workflow_service,
 )
 
-tracing = TracingRouter(
-    tracing_service=TracingService(
-        tracing_dao=TracingDAO(),
-    )
-)
 
 annotations = AnnotationsRouter(
-    workflows_service=WorkflowsService(
-        workflows_dao=GitDAO(
-            ArtifactDBE=WorkflowArtifactDBE,
-            VariantDBE=WorkflowVariantDBE,
-            RevisionDBE=WorkflowRevisionDBE,
-        )
-    ),
-    tracing_service=TracingService(
-        tracing_dao=TracingDAO(),
-    ),
+    tracing_service=tracing_service,
+    workflows_service=workflow_service,
 )
 
 workflows = WorkflowsRouter(
-    workflows_service=WorkflowsService(
-        workflows_dao=GitDAO(
-            ArtifactDBE=WorkflowArtifactDBE,
-            VariantDBE=WorkflowVariantDBE,
-            RevisionDBE=WorkflowRevisionDBE,
-        )
+    workflows_service=workflow_service,
+)
+
+testcases_service = TestcasesService(
+    blobs_dao=BlobsDAO(
+        BlobDBE=TestcaseBlobDBE,
+    )
+)
+
+testsets_service = TestsetsService(
+    testsets_dao=GitDAO(
+        ArtifactDBE=TestsetArtifactDBE,
+        VariantDBE=TestsetVariantDBE,
+        RevisionDBE=TestsetRevisionDBE,
     ),
+    testcases_service=testcases_service,
 )
 
 simple_testsets = SimpleTestsetsRouter(
-    testsets_service=TestsetsService(
-        testsets_dao=GitDAO(
-            ArtifactDBE=TestsetArtifactDBE,
-            VariantDBE=TestsetVariantDBE,
-            RevisionDBE=TestsetRevisionDBE,
-        ),
-        testcases_service=TestcasesService(
-            blobs_dao=BlobsDAO(
-                BlobDBE=TestcaseBlobDBE,
-            )
-        ),
-    )
+    testsets_service=testsets_service,
+)
+
+evaluations_service = EvaluationsService(
+    evaluations_dao=EvaluationsDAO(),
 )
 
 evaluations = EvaluationsRouter(
-    evaluations_service=EvaluationsService(
-        evaluations_dao=EvaluationsDAO(),
-    )
+    evaluations_service=evaluations_service,
 )
 
 

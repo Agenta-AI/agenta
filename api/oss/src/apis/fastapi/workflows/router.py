@@ -9,7 +9,6 @@ from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import Reference
-from oss.src.core.workflows.dtos import WorkflowQuery
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.apis.fastapi.workflows.models import (
     WorkflowCreateRequest,
@@ -34,7 +33,17 @@ from oss.src.apis.fastapi.workflows.models import (
     WorkflowRevisionsResponse,
     #
     WorkflowRevisionRetrieveRequest,
+    #
+    WorkflowServiceRequest,
+    WorkflowServiceResponse,
+    WorkflowServiceInterface,
 )
+
+from oss.src.core.workflows.dtos import (
+    WorkflowRevision,
+    WorkflowRevisionData,
+)
+
 from oss.src.apis.fastapi.workflows.utils import (
     parse_workflow_query_request_from_params,
     parse_workflow_query_request_from_body,
@@ -68,7 +77,7 @@ class WorkflowsRouter:
 
         self.router = APIRouter()
 
-        # — artifacts ——————————————————————————————————————————————————————————
+        # — workflows ——————————————————————————————————————————————————————————
 
         self.router.add_api_route(
             "/",
@@ -142,7 +151,7 @@ class WorkflowsRouter:
 
         # ——————————————————————————————————————————————————————————————————————
 
-        # — variants ———————————————————————————————————————————————————————————
+        # — workflow variants ——————————————————————————————————————————————————
 
         self.router.add_api_route(
             "/variants/",
@@ -228,7 +237,7 @@ class WorkflowsRouter:
 
         # ——————————————————————————————————————————————————————————————————————
 
-        # — revisions ——————————————————————————————————————————————————————————
+        # — workflow revisions —————————————————————————————————————————————————
 
         self.router.add_api_route(
             "/revisions/retrieve",
@@ -329,6 +338,30 @@ class WorkflowsRouter:
             operation_id="log_workflow_revisions",
             status_code=status.HTTP_200_OK,
             response_model=WorkflowRevisionsResponse,
+            response_model_exclude_none=True,
+        )
+
+        # ——————————————————————————————————————————————————————————————————————
+
+        # — workflow executions ————————————————————————————————————————————————
+
+        self.router.add_api_route(
+            "/invoke",
+            self.invoke_workflow,
+            methods=["POST"],
+            operation_id="invoke_workflow",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowServiceResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/inspect",
+            self.inspect_workflow,
+            methods=["GET"],
+            operation_id="inspect_workflow",
+            status_code=status.HTTP_200_OK,
+            response_model=WorkflowServiceInterface,
             response_model_exclude_none=True,
         )
 
@@ -544,7 +577,7 @@ class WorkflowsRouter:
 
     # ——————————————————————————————————————————————————————————————————————————
 
-    # — variants ———————————————————————————————————————————————————————————————
+    # — workflow variants ——————————————————————————————————————————————————————
 
     @intercept_exceptions()
     async def create_workflow_variant(
@@ -790,7 +823,7 @@ class WorkflowsRouter:
 
     # ——————————————————————————————————————————————————————————————————————————
 
-    # — revisions ——————————————————————————————————————————————————————————————
+    # — workflow revisions —————————————————————————————————————————————————————
 
     @intercept_exceptions()
     async def create_workflow_revision(
@@ -1072,8 +1105,6 @@ class WorkflowsRouter:
 
         return revisions_response
 
-    # ——————————————————————————————————————————————————————————————————————————
-
     @intercept_exceptions()
     @suppress_exceptions(default=WorkflowRevisionResponse())
     async def retrieve_workflow_revision(
@@ -1108,12 +1139,36 @@ class WorkflowsRouter:
                 detail="Could not retrieve workflow revision. Please provide a valid request.",
             )
 
-        workflow_revision = await self.workflows_service.fetch_workflow_revision(
-            project_id=UUID(request.state.project_id),
-            #
-            workflow_variant_ref=workflow_revision_retrieve_request.workflow_variant_ref,
-            workflow_revision_ref=workflow_revision_retrieve_request.workflow_revision_ref,
+        cache_key = {
+            "artifact_ref": workflow_revision_retrieve_request.workflow_ref,
+            "variant_ref": workflow_revision_retrieve_request.workflow_variant_ref,
+            "revision_ref": workflow_revision_retrieve_request.workflow_revision_ref,
+        }
+
+        workflow_revision = get_cache(
+            namespace="workflows:retrieve",
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            key=cache_key,
+            model=WorkflowRevision,
         )
+
+        if not workflow_revision:
+            workflow_revision = await self.workflows_service.fetch_workflow_revision(
+                project_id=UUID(request.state.project_id),
+                #
+                workflow_ref=workflow_revision_retrieve_request.workflow_ref,
+                workflow_variant_ref=workflow_revision_retrieve_request.workflow_variant_ref,
+                workflow_revision_ref=workflow_revision_retrieve_request.workflow_revision_ref,
+            )
+
+            set_cache(
+                namespace="workflows:retrieve",
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                key=cache_key,
+                value=workflow_revision,
+            )
 
         workflow_revision_response = WorkflowRevisionResponse(
             count=1 if workflow_revision is not None else 0,
@@ -1121,3 +1176,125 @@ class WorkflowsRouter:
         )
 
         return workflow_revision_response
+
+    # ——————————————————————————————————————————————————————————————————————————
+
+    # — workflow executions ————————————————————————————————————————————————————
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowServiceResponse())
+    async def invoke_workflow(
+        self,
+        request: Request,
+        *,
+        workflow_service_request: WorkflowServiceRequest,
+        workflow_revision_data: Optional[WorkflowRevisionData] = None,
+        workflow_retrieve_request: Optional[WorkflowRevisionRetrieveRequest] = Depends(
+            parse_workflow_revision_retrieve_request_from_params
+        ),
+    ) -> WorkflowServiceResponse:
+        if is_ee():
+            if not await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.RUN_WORKFLOWS,
+            ):
+                raise FORBIDDEN_EXCEPTION
+
+        workflow_revision = None
+
+        if not workflow_revision_data:
+            if not workflow_retrieve_request:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Workflow revision data or retrieve request must be provided.",
+                )
+
+            workflow_revision_response = await self.retrieve_workflow_revision(
+                request=request,
+                retrieve_request_params=workflow_retrieve_request,
+            )
+
+            workflow_revision = workflow_revision_response.workflow_revision
+
+        else:
+            workflow_revision = WorkflowRevision(
+                data=workflow_revision_data,
+            )
+
+        if not workflow_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workflow revision could not be found.",
+            )
+
+        if workflow_revision.data.url:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workflows with URLs cannot be invoked with this endpoint. Please send a request directly to the URL.",
+            )
+
+        if not workflow_revision.data.uri:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workflows without URIs cannot be invoked with this endpoint. Please use a workflow revision with URI.",
+            )
+
+        workflow_service_response = await self.workflows_service.invoke_workflow(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            request=workflow_service_request,
+            revision=workflow_revision,
+        )
+
+        return workflow_service_response
+
+    @intercept_exceptions()
+    @suppress_exceptions(default=WorkflowServiceInterface())
+    async def inspect_workflow(
+        self,
+        request: Request,
+        *,
+        workflow_service_interface: WorkflowServiceInterface,
+    ) -> WorkflowServiceInterface:
+        if is_ee():
+            if not await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.VIEW_WORKFLOWS,
+            ):
+                raise FORBIDDEN_EXCEPTION
+
+        cache_key = {
+            "uri": workflow_service_interface.uri,
+            "url": workflow_service_interface.url,
+        }
+
+        workflow_service_interface = get_cache(
+            namespace="workflows:inspect",
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            key=cache_key,
+            model=WorkflowServiceInterface,
+        )
+
+        if not workflow_service_interface:
+            workflow_service_interface = await self.workflows_service.inspect_workflow(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                interface=workflow_service_interface,
+            )
+
+            set_cache(
+                namespace="workflows:inspect",
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                key=cache_key,
+                value=workflow_service_interface,
+            )
+
+        return workflow_service_interface
+
+    # ——————————————————————————————————————————————————————————————————————————

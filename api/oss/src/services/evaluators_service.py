@@ -496,7 +496,7 @@ async def auto_ai_critique(
                 }
             )
         )
-        return Result(type="text", value=str(response["outputs"]["score"]))
+        return Result(type="number", value=response["outputs"]["score"])
     except Exception as e:  # pylint: disable=broad-except∆`§
         return Result(
             type="error",
@@ -575,7 +575,8 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             model="gpt-3.5-turbo", messages=messages, temperature=0.8
         )
         evaluation_output = response.choices[0].message.content.strip()
-    return {"outputs": {"score": evaluation_output}}
+
+    return {"outputs": {"score": float(evaluation_output)}}
 
 
 async def auto_starts_with(
@@ -594,7 +595,7 @@ async def auto_starts_with(
                 **{"inputs": inputs, "settings": settings_values}
             )
         )
-        return Result(type="text", value=response["outputs"]["success"])
+        return Result(type="bool", value=response["outputs"]["success"])
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
@@ -1077,7 +1078,7 @@ async def rag_faithfulness(
         )
 
         if None in [question_val, answer_val, contexts_val]:
-            log.error(
+            log.warn(
                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
             )
 
@@ -1190,7 +1191,7 @@ async def rag_context_relevancy(
         )
 
         if None in [question_val, answer_val, contexts_val]:
-            log.error(
+            log.warn(
                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
             )
 
@@ -1283,7 +1284,7 @@ async def auto_levenshtein_distance(
             )
         )
         if "success" in response["outputs"]:
-            return Result(type="number", value=response["outputs"]["success"])
+            return Result(type="bool", value=response["outputs"]["success"])
         return Result(type="number", value=response["outputs"]["score"])
 
     except ValueError as e:

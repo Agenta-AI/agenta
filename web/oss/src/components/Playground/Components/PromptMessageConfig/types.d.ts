@@ -37,4 +37,7 @@ export interface PromptMessageConfigProps extends BaseContainerProps, SharedEdit
     allowFileUpload?: boolean
 
     editorProps?: EditorProps
+
+    /** Whether the component is in view-only mode or in mutable mode */
+    viewOnly?: boolean
 }

@@ -15,7 +15,6 @@ import {useOrgData} from "@/oss/contexts/org.context"
 import {useProfileData} from "@/oss/contexts/profile.context"
 import {DEFAULT_UUID, getCurrentProject, useProjectData} from "@/oss/contexts/project.context"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-// import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
@@ -271,7 +270,9 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 router.pathname.includes("/post-signup") ||
                 router.pathname.includes("/workspaces"),
             isAppRoute: router.pathname.startsWith("/apps/[app_id]"),
-            isPlayground: router.pathname.includes("/playground"),
+            isPlayground:
+                router.pathname.includes("/playground") ||
+                router.pathname.includes("/evaluations/results"),
             isHumanEval:
                 router.pathname.includes("/evaluations/single_model_test") ||
                 router.query.selectedEvaluation === "human_annotation",

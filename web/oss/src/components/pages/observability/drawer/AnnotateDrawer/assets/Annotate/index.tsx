@@ -30,6 +30,7 @@ const Annotate = ({
 }: AnnotateProps) => {
     const {data: evaluators} = useEvaluators({
         preview: true,
+        queries: {is_human: true},
     })
 
     // converting selected evaluator into useable metrics

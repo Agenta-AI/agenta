@@ -38,6 +38,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
     variantId,
     promptId,
     className,
+    viewOnly,
     ...popoverProps // Collect remaining props for Popover
 }) => {
     const variantSelector = useCallback(
@@ -120,10 +121,19 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
             trigger={["click"]}
             placement="bottomRight"
             arrow={false}
-            title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
+            title={
+                <PlaygroundVariantModelConfigTitle
+                    handleReset={handleResetDefaults}
+                    disabled={viewOnly}
+                />
+            }
             content={
                 isModalOpen ? (
-                    <ModelConfigModal variantId={variantId} propertyIds={propertyIds || []} />
+                    <ModelConfigModal
+                        variantId={variantId}
+                        propertyIds={propertyIds || []}
+                        disabled={viewOnly}
+                    />
                 ) : null
             }
             className={className}

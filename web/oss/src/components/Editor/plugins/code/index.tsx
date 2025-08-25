@@ -315,14 +315,29 @@ function InsertInitialCodeBlockPlugin({
                         try {
                             // For JSON/YAML content, parse and format
                             const objectValue =
-                                typeof payload.content === "string"
+                                payload.language === "json"
                                     ? JSON5.parse(payload.content)
                                     : payload.content
                             let value: string
                             if (payload.language === "json") {
                                 value = JSON.stringify(objectValue, null, 2)
                             } else {
-                                value = yaml.dump(objectValue, {indent: 2})
+                                try {
+                                    const obj = yaml.load(objectValue)
+                                    if (obj !== undefined) {
+                                        value = yaml.dump(obj as any, {indent: 2})
+                                    } else {
+                                        value = objectValue
+                                    }
+                                } catch {
+                                    // Try JSON as a fallback and then dump to YAML for consistent highlighting
+                                    try {
+                                        const obj = JSON5.parse(objectValue)
+                                        value = yaml.dump(obj as any, {indent: 2})
+                                    } catch {
+                                        value = objectValue
+                                    }
+                                }
                             }
                             log(" Reconstructing code block due to prop change", {
                                 language: payload.language,

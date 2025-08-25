@@ -13,7 +13,11 @@ import TraceDrawerButton from "../../../Drawers/TraceDrawer"
 
 import {GenerationResultUtilsProps} from "./types"
 
-const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className, result}) => {
+const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
+    className,
+    showStatus = true,
+    result,
+}) => {
     const tree = result?.response?.tree
     const metric = tree?.nodes?.[0]?.metrics?.acc
     const status = result?.error
@@ -38,9 +42,9 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({className,
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
-            <TraceDrawerButton result={result} size="small" className="!mr-1" type="default" />
+            <TraceDrawerButton result={result} size="small" type="default" />
 
-            <StatusRenderer status={status} />
+            {showStatus && <StatusRenderer status={status} />}
 
             <Tag color="default" bordered={false} className="flex items-center gap-1">
                 <Timer size={14} /> {formattedLatency}

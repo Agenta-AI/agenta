@@ -69,6 +69,18 @@ export interface TestSet {
     csvdata: KeyValuePair[]
 }
 
+export interface PreviewTestCase {
+    created_at: string
+    created_by_id: string
+
+    id: string
+    set_id: string
+    testset_id: string
+    data: {
+        [key: string]: any
+    }
+}
+
 export interface PreviewTestSet {
     id: string
     name: string
@@ -824,6 +836,8 @@ export enum EvaluationStatus {
     RUNNING = "running",
     SUCCESS = "success",
     FAILURE = "failure",
+    FAILED = "failed",
+    ERRORS = "errors",
     CANCELLED = "cancelled",
     PENDING = "pending",
     INCOMPLETE = "incomplete",

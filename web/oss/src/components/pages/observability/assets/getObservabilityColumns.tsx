@@ -28,6 +28,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
+            defaultHidden: true,
             fixed: "left",
             render: (_, record) => {
                 return <ResultTag value1={`# ${record.node.id.split("-")[0]}`} />
@@ -68,6 +69,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             title: "Span type",
             key: "span_type",
             dataIndex: ["node", "type"],
+            defaultHidden: true,
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
@@ -186,6 +188,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             title: "Usage",
             key: "usage",
             dataIndex: ["metrics", "acc", "tokens", "total"],
+            defaultHidden: true,
             width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},

@@ -7,7 +7,12 @@ import EnhancedDrawer from "../EnhancedUIs/Drawer"
 
 import {GenericDrawerProps} from "./types"
 
-const GenericDrawer = ({...props}: GenericDrawerProps) => {
+const GenericDrawer = ({
+    sideContentDefaultSize = 320,
+    mainContentDefaultSize = 640,
+    extraContentDefaultSize = 320,
+    ...props
+}: GenericDrawerProps) => {
     const initialWidth = props.initialWidth || 1200
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
@@ -51,13 +56,15 @@ const GenericDrawer = ({...props}: GenericDrawerProps) => {
         >
             <Splitter className="h-full" key={props.externalKey}>
                 {props.sideContent && (
-                    <Splitter.Panel min={200} defaultSize={320} collapsible>
+                    <Splitter.Panel defaultSize={sideContentDefaultSize} collapsible>
                         {props.sideContent}
                     </Splitter.Panel>
                 )}
-                <Splitter.Panel min={400}>{props.mainContent}</Splitter.Panel>
+                <Splitter.Panel min={400} defaultSize={mainContentDefaultSize}>
+                    {props.mainContent}
+                </Splitter.Panel>
                 {props.extraContent && (
-                    <Splitter.Panel min={200} defaultSize={320} collapsible>
+                    <Splitter.Panel min={200} defaultSize={extraContentDefaultSize} collapsible>
                         {props.extraContent}
                     </Splitter.Panel>
                 )}

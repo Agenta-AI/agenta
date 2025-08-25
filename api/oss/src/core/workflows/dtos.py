@@ -1,5 +1,5 @@
-from typing import Optional
-from uuid import UUID
+from typing import Optional, Dict, Any, Union
+from uuid import UUID, uuid4
 from urllib.parse import urlparse
 
 from pydantic import (
@@ -19,6 +19,7 @@ from jsonschema import (
 from jsonschema.exceptions import SchemaError
 
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
+
 from oss.src.core.git.dtos import (
     Artifact,
     ArtifactCreate,
@@ -37,6 +38,31 @@ from oss.src.core.git.dtos import (
     RevisionQuery,
     RevisionCommit,
     RevisionFork,
+)
+
+from oss.src.core.shared.dtos import (
+    Identifier,
+    Slug,
+    Version,
+    Header,
+    Status,
+    Data,
+    Metadata,
+    Reference,
+    Link,
+    Mappings,
+    Schema,
+    # Credentials,
+    # Secret,
+)
+
+from oss.src.core.tracing.dtos import (
+    Trace,
+)
+
+from oss.src.apis.fastapi.observability.models import (
+    AgentaNodesDTO as Tree,
+    AgentaVersionedTreeDTO as VersionedTree,
 )
 
 
@@ -117,7 +143,26 @@ class WorkflowVariantQuery(VariantQuery):
     flags: Optional[WorkflowFlags] = None
 
 
-class WorkflowRevisionData(BaseModel):
+class WorkflowServiceVersion(BaseModel):
+    version: Optional[str] = None
+
+
+class WorkflowServiceInterface(WorkflowServiceVersion):
+    uri: Optional[str] = None  # str (Enum) w/ validation
+    url: Optional[str] = None  # str w/ validation
+    headers: Optional[Dict[str, Reference | str]] = None  # either hardcoded or a secret
+
+    schemas: Optional[Dict[str, Schema]] = None  # json-schema instead of pydantic
+    mappings: Optional[Mappings] = None  # used in the workflow interface
+
+
+class WorkflowServiceConfiguration(WorkflowServiceInterface):
+    script: Optional[str] = None  # str w/ validation
+    parameters: Optional[Data] = None  # configuration values
+
+
+class WorkflowRevisionData(WorkflowServiceConfiguration):
+    # LEGACY FIELDS
     service: Optional[dict] = None  # url, schema, kind, etc
     configuration: Optional[dict] = None  # parameters, variables, etc
 
@@ -293,3 +338,48 @@ class WorkflowFork(
         sync_alias("workflow_revision", "revision", self)
         sync_alias("workflow_variant_id", "variant_id", self)
         sync_alias("workflow_revision_id", "revision_id", self)
+
+
+# WORKFLOWS --------------------------------------------------------------------
+
+
+class WorkflowServiceData(BaseModel):
+    inputs: Optional[Data] = None
+    #
+    outputs: Optional[Data | str] = None
+    #
+    traces: Optional[Dict[str, Trace]] = None
+    #
+    trace: Optional[Trace] = None
+    trace_inputs: Optional[Data] = None
+    trace_outputs: Optional[Data | str] = None
+    trace_parameters: Optional[Data] = None
+    # LEGACY
+    tree: Optional[VersionedTree] = None  # used for workflow execution traces
+
+
+class WorkflowServiceRequest(Version, Metadata):
+    data: Optional[WorkflowServiceData] = None
+
+    # path: Optional[str] = "/"
+    # method: Optional[str] = "invoke"
+
+    references: Optional[Dict[str, Reference]] = None
+    links: Optional[Dict[str, Link]] = None
+
+    credentials: Optional[str] = None
+    secrets: Optional[Dict[str, Any]] = None  # Fix typing
+
+
+class WorkflowServiceResponse(Identifier, Version):
+    data: Optional[WorkflowServiceData] = None
+
+    links: Optional[Dict[str, Link]] = None
+
+    status: Status = Status()
+
+    def __init__(self, **data):
+        super().__init__(**data)
+
+        self.id = uuid4() if not self.id else self.id
+        self.version = "2025.07.14" if not self.version else self.version

@@ -46,6 +46,7 @@ async def test_batch_invoke_success():
                 result=Result(type="text", value="Success", error=None),
                 latency=0.1,
                 cost=0.01,
+                tokens=1,
             )
 
         mock_invoke_app.side_effect = invoke_app_side_effect

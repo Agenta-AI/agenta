@@ -296,8 +296,6 @@ class ObservabilityRouter:
                     key=cache_key,
                     value=flag_create_spans_from_nodes,
                 )
-
-        # log.debug("Creating new spans from nodes: %s", flag_create_spans_from_nodes)
         # -------------------------------------------------------------------- #
 
         span_dtos = None
@@ -311,8 +309,16 @@ class ObservabilityRouter:
                 for otel_span in otel_spans
             ]
 
-            span_dtos = [parsed_span.get("nodes") for parsed_span in parsed_spans]
-            tracing_spans = [parsed_span.get("spans") for parsed_span in parsed_spans]
+            span_dtos = [
+                parsed_span.get("nodes")
+                for parsed_span in parsed_spans
+                if parsed_span.get("nodes")
+            ]
+            tracing_spans = [
+                parsed_span.get("spans")
+                for parsed_span in parsed_spans
+                if parsed_span.get("spans")
+            ]
 
             # ---------------------------------------------------------------- #
         except Exception as e:

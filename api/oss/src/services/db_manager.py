@@ -2926,7 +2926,7 @@ async def fetch_evaluators_configs(project_id: str):
         return evaluators_configs
 
 
-async def fetch_evaluator_config(evaluator_config_id: str):
+async def fetch_evaluator_config(evaluator_config_id: str) -> EvaluatorConfigDB:
     """Fetch evaluator configurations from the database.
 
     Args:

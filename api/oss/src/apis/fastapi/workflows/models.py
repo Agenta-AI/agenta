@@ -22,6 +22,10 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionEdit,
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
+    #
+    WorkflowServiceRequest,
+    WorkflowServiceResponse,
+    WorkflowServiceInterface,
 )
 
 
@@ -120,5 +124,6 @@ class WorkflowLogRequest(BaseModel):
 
 
 class WorkflowRevisionRetrieveRequest(BaseModel):
+    workflow_ref: Optional[Reference] = None
     workflow_variant_ref: Optional[Reference] = None
     workflow_revision_ref: Optional[Reference] = None

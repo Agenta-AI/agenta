@@ -24,6 +24,10 @@ from oss.src.core.evaluations.types import (
     EvaluationMetricCreate,
     EvaluationMetricEdit,
     EvaluationMetricQuery,
+    EvaluationQueue,
+    EvaluationQueueCreate,
+    EvaluationQueueEdit,
+    EvaluationQueueQuery,
 )
 
 
@@ -232,6 +236,55 @@ class EvaluationMetricIdResponse(BaseModel):
 class EvaluationMetricIdsResponse(BaseModel):
     count: int = 0
     metric_ids: List[UUID] = []
+
+
+# - EVALUATION QUEUE -----------------------------------------------------------
+
+
+class EvaluationQueuesCreateRequest(BaseModel):
+    queues: List[EvaluationQueueCreate]
+
+
+class EvaluationQueueEditRequest(BaseModel):
+    queue: EvaluationQueueEdit
+
+
+class EvaluationQueuesEditRequest(BaseModel):
+    queues: List[EvaluationQueueEdit]
+
+
+class EvaluationQueueQueryRequest(BaseModel):
+    queue: EvaluationQueueQuery
+    windowing: Optional[Windowing] = None
+
+
+class EvaluationQueueIdsRequest(BaseModel):
+    queue_ids: List[UUID]
+
+
+class EvaluationQueueResponse(BaseModel):
+    count: int = 0
+    queue: Optional[EvaluationQueue] = None
+
+
+class EvaluationQueuesResponse(BaseModel):
+    count: int = 0
+    queues: List[EvaluationQueue] = []
+
+
+class EvaluationQueueIdResponse(BaseModel):
+    count: int = 0
+    queue_id: Optional[UUID] = None
+
+
+class EvaluationQueueIdsResponse(BaseModel):
+    count: int = 0
+    queue_ids: List[UUID] = []
+
+
+class EvaluationQueueScenarioIdsResponse(BaseModel):
+    count: int = 0
+    scenario_ids: List[List[UUID]] = []
 
 
 # ------------------------------------------------------------------------------
