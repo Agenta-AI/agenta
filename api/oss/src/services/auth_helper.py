@@ -447,6 +447,8 @@ async def verify_bearer_token(
             organization_id = project.organization_id
 
         elif not query_project_id and query_workspace_id:
+            log.warning("[AUTH] Missing project_id in query params!")
+
             workspace = await db_manager.get_workspace(
                 workspace_id=query_workspace_id,
             )
@@ -469,6 +471,8 @@ async def verify_bearer_token(
             organization_id = workspace.organization_id
 
         else:
+            log.warning("[AUTH] Missing project_id in query params!")
+
             if is_ee():
                 workspace_id = await db_manager_ee.get_default_workspace_id(
                     user_id=user_id,

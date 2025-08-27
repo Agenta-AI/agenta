@@ -765,7 +765,7 @@ class AnnotationsRouter:
         meta: Optional[Meta] = None,
         #
         references: Optional[AnnotationReferences] = None,
-        links: Optional[AnnotationLinks] = None,
+        links: Optional[AnnotationLinks | List[Link]] = None,
         #
         annotation_links: Optional[List[Link]] = None,
         #
@@ -793,11 +793,11 @@ class AnnotationsRouter:
             else None
         )
 
-        span_ids = (
-            [annotation_link.span_id for annotation_link in annotation_links]
-            if annotation_links
-            else None
-        )
+        # span_ids = (
+        #     [annotation_link.span_id for annotation_link in annotation_links]
+        #     if annotation_links
+        #     else None
+        # )
 
         if trace_ids:
             conditions.append(
@@ -808,14 +808,14 @@ class AnnotationsRouter:
                 }
             )
 
-        if span_ids:
-            conditions.append(
-                {
-                    "field": "span_id",
-                    "value": span_ids,
-                    "operator": "in",
-                }
-            )
+        # if span_ids:
+        #     conditions.append(
+        #         {
+        #             "field": "span_id",
+        #             "value": span_ids,
+        #             "operator": "in",
+        #         }
+        #     )
 
         if flags:
             for key, value in flags.model_dump(mode="json", exclude_none=True).items():
