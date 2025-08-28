@@ -513,6 +513,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
     anthropic_api_key = input.credentials.get("ANTHROPIC_API_KEY", None)
     litellm.openai_key = openai_api_key
     litellm.anthropic_api_key = anthropic_api_key
+    litellm.drop_params = True
 
     if not openai_api_key:
         raise Exception(
