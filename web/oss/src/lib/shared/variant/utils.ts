@@ -179,7 +179,7 @@ async function processVariantsWithMetadata({
         // Extract revisions from variants
         const allRevisions = variants.flatMap((variant) => {
             if (!variant.revisions?.length) {
-                console.warn(`No revisions found for variant ${variant.variantId}`, variant)
+                console.debug(`No revisions found for variant ${variant.variantId}`, variant)
                 return []
             }
             return variant.revisions.map((rev) => ({...rev, uriObject: uri}))
@@ -843,16 +843,12 @@ export const validateVariantObject = (
     objectType = "object",
 ): boolean => {
     if (!object) {
-        console.warn(`Missing ${objectType}`)
+        console.debug(`Missing ${objectType}`)
         return false
     }
 
     const missingFields = requiredFields.filter((field) => !object[field])
     if (missingFields.length > 0) {
-        console.warn(
-            `Missing required fields in ${objectType}: ${missingFields.join(", ")}`,
-            object,
-        )
         return false
     }
 
@@ -912,15 +908,9 @@ export const adaptRevisionToVariant = (
 
     // Ensure we have a valid parent variant ID
     const parentId = parentVariant.id || parentVariant.variantId
-    if (!parentId) {
-        console.warn("Missing parent variant ID in adaptRevisionToVariant", parentVariant)
-    }
 
     // Ensure revision ID exists
     const revisionId = revision.id || revision._id
-    if (!revisionId) {
-        console.warn("Missing revision ID in adaptRevisionToVariant", revision)
-    }
 
     if (revision.revision === 0) {
         parentVariant.createdBy = revision.createdBy || revision.modifiedBy
