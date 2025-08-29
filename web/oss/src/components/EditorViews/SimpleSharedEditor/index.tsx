@@ -1,6 +1,6 @@
 import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
-import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
 import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
+import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
 import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
@@ -78,7 +78,7 @@ const SimpleSharedEditorContent = ({
             setLanguage("html")
             editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: "html"})
         } else {
-            setLanguage("text")
+            setLanguage("markdown")
         }
     }, [isJSON, isYAML, isHTML, editor])
 

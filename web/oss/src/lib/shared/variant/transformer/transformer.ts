@@ -104,7 +104,7 @@ export function transformToEnhancedVariant(
         )
 
         const isChat =
-            !!requestSchema && !!requestSchema.properties && !!requestSchema.properties.messages
+            !!requestSchema && !!requestSchema?.properties && !!requestSchema?.properties.messages
 
         const transformedPrompts = prompts
             .map((prompt) => {
@@ -161,9 +161,9 @@ export function transformToEnhancedVariant(
             messages: {} as EnhancedVariant["messages"],
             // NEW
             requestSchema: {
-                required: requestSchema.required,
-                title: requestSchema.title,
-                type: requestSchema.type,
+                required: requestSchema?.required,
+                title: requestSchema?.title,
+                type: requestSchema?.type,
             },
         }
     } catch (err) {

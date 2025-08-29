@@ -729,15 +729,15 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if windowing is not None:
                 if windowing.order:
                     if windowing.order.lower() == "ascending":
-                        stmt = stmt.order_by(EvaluationRunDBE.created_at.asc())
+                        stmt = stmt.order_by(EvaluationRunDBE.id.asc())
                     elif windowing.order.lower() == "descending":
-                        stmt = stmt.order_by(EvaluationRunDBE.created_at.desc())
+                        stmt = stmt.order_by(EvaluationRunDBE.id.desc())
                     else:
-                        stmt = stmt.order_by(EvaluationRunDBE.created_at.desc())
+                        stmt = stmt.order_by(EvaluationRunDBE.id.desc())
                 else:
-                    stmt = stmt.order_by(EvaluationRunDBE.created_at.desc())
+                    stmt = stmt.order_by(EvaluationRunDBE.id.desc())
             else:
-                stmt = stmt.order_by(EvaluationRunDBE.created_at.desc())
+                stmt = stmt.order_by(EvaluationRunDBE.id.desc())
 
             if windowing is not None:
                 if windowing.limit is not None:
@@ -1201,15 +1201,15 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if windowing is not None:
                 if windowing.order:
                     if windowing.order.lower() == "ascending":
-                        stmt = stmt.order_by(EvaluationScenarioDBE.created_at.asc())
+                        stmt = stmt.order_by(EvaluationScenarioDBE.id.asc())
                     elif windowing.order.lower() == "descending":
-                        stmt = stmt.order_by(EvaluationScenarioDBE.created_at.desc())
+                        stmt = stmt.order_by(EvaluationScenarioDBE.id.desc())
                     else:
-                        stmt = stmt.order_by(EvaluationScenarioDBE.created_at.desc())
+                        stmt = stmt.order_by(EvaluationScenarioDBE.id.asc())
                 else:
-                    stmt = stmt.order_by(EvaluationScenarioDBE.created_at.desc())
+                    stmt = stmt.order_by(EvaluationScenarioDBE.id.asc())
             else:
-                stmt = stmt.order_by(EvaluationScenarioDBE.created_at.desc())
+                stmt = stmt.order_by(EvaluationScenarioDBE.id.asc())
 
             if windowing is not None:
                 if windowing.limit is not None:
@@ -1773,15 +1773,15 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if windowing is not None:
                 if windowing.order:
                     if windowing.order.lower() == "ascending":
-                        stmt = stmt.order_by(EvaluationStepDBE.created_at.asc())
+                        stmt = stmt.order_by(EvaluationStepDBE.id.asc())
                     elif windowing.order.lower() == "descending":
-                        stmt = stmt.order_by(EvaluationStepDBE.created_at.desc())
+                        stmt = stmt.order_by(EvaluationStepDBE.id.desc())
                     else:
-                        stmt = stmt.order_by(EvaluationStepDBE.created_at.desc())
+                        stmt = stmt.order_by(EvaluationStepDBE.id.desc())
                 else:
-                    stmt = stmt.order_by(EvaluationStepDBE.created_at.desc())
+                    stmt = stmt.order_by(EvaluationStepDBE.id.desc())
             else:
-                stmt = stmt.order_by(EvaluationStepDBE.created_at.desc())
+                stmt = stmt.order_by(EvaluationStepDBE.id.desc())
 
             if windowing is not None:
                 if windowing.limit is not None:
@@ -2260,15 +2260,15 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if windowing is not None:
                 if windowing.order:
                     if windowing.order.lower() == "ascending":
-                        stmt = stmt.order_by(EvaluationMetricDBE.created_at.asc())
+                        stmt = stmt.order_by(EvaluationMetricDBE.id.asc())
                     elif windowing.order.lower() == "descending":
-                        stmt = stmt.order_by(EvaluationMetricDBE.created_at.desc())
+                        stmt = stmt.order_by(EvaluationMetricDBE.id.desc())
                     else:
-                        stmt = stmt.order_by(EvaluationMetricDBE.created_at.desc())
+                        stmt = stmt.order_by(EvaluationMetricDBE.id.asc())
                 else:
-                    stmt = stmt.order_by(EvaluationMetricDBE.created_at.desc())
+                    stmt = stmt.order_by(EvaluationMetricDBE.id.asc())
             else:
-                stmt = stmt.order_by(EvaluationMetricDBE.created_at.desc())
+                stmt = stmt.order_by(EvaluationMetricDBE.id.asc())
 
             if windowing is not None:
                 if windowing.limit is not None:
@@ -2688,8 +2688,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     EvaluationQueueDBE.meta.contains(queue.meta),
                 )
 
-            stmt = stmt.order_by(EvaluationQueueDBE.created_at.desc())
-
             if windowing is not None:
                 if windowing.next is not None:
                     stmt = stmt.filter(
@@ -2706,6 +2704,20 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationQueueDBE.created_at <= windowing.stop,
                     )
 
+            if windowing is not None:
+                if windowing.order:
+                    if windowing.order.lower() == "ascending":
+                        stmt = stmt.order_by(EvaluationQueueDBE.id.asc())
+                    elif windowing.order.lower() == "descending":
+                        stmt = stmt.order_by(EvaluationQueueDBE.id.desc())
+                    else:
+                        stmt = stmt.order_by(EvaluationQueueDBE.id.desc())
+                else:
+                    stmt = stmt.order_by(EvaluationQueueDBE.id.desc())
+            else:
+                stmt = stmt.order_by(EvaluationQueueDBE.id.desc())
+
+            if windowing is not None:
                 if windowing.limit is not None:
                     stmt = stmt.limit(windowing.limit)
 
