@@ -92,7 +92,7 @@
         "lexical": "^0.33.1",
         "lodash": "^4.17.21",
         "lucide-react": "^0.475.0",
-        "next": "^15.3.4",
+        "next": "^15.4.7",
         "papaparse": "^5.5.3",
         "postcss": "^8.5.6",
         "postcss-antd-fixes": "^0.2.0",
