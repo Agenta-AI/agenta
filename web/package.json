@@ -9,7 +9,7 @@
     "dependencies": {
         "ajv-formats": "^3.0.1",
         "json5": "^2.2.3",
-        "next": "^15.3.4"
+        "next": "^15.4.7"
     },
     "devDependencies": {
         "@agenta/ee": "workspace:./ee",
