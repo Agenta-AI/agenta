@@ -4,9 +4,6 @@ import {Skeleton} from "antd"
 import clsx from "clsx"
 import {Resizable} from "react-resizable"
 
-import "react-resizable/css/styles.css"
-import "@/oss/assets/custom-resize-handle.css"
-
 export const ResizableTitle = memo((props: any) => {
     const {onResize, width, minWidth, ...restProps} = props
 

@@ -475,6 +475,20 @@ export const removeEmptyFromObjects = (obj: any): any => {
     return obj
 }
 
+export const isUuid = (id: string) => {
+    // Check for full UUID format (8-4-4-4-12)
+    const fullUuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    // Check for just the last segment of a UUID (12 hex characters)
+    const uuidSegmentRegex = /^[0-9a-f]{12}$/i
+
+    return fullUuidRegex.test(id) || uuidSegmentRegex.test(id)
+}
+
+export const getUniquePartOfId = (id: string) => {
+    const parts = id.split("-")
+    return parts[parts.length - 1]
+}
+
 export const convertToStringOrJson = (value: any) => {
     return typeof value === "string" ? value : JSON.stringify(value)
 }

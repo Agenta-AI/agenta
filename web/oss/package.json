@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.51.3",
+    "version": "0.51.4",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -51,7 +51,7 @@
         "@lexical/table": "^0.33.1",
         "@lexical/utils": "^0.33.1",
         "@monaco-editor/react": "^4.7.0-rc.0",
-        "@next/bundle-analyzer": "^15.3.4",
+        "@next/bundle-analyzer": "15.5.2",
         "@phosphor-icons/react": "^2.1.10",
         "@prettier/sync": "^0.5.2",
         "@scalar/openapi-parser": "^0.9.0",
@@ -89,10 +89,11 @@
         "jotai-immer": "^0.4.1",
         "js-beautify": "^1.14.8",
         "js-yaml": "^4.1.0",
+        "jsonrepair": "^3.13.0",
         "lexical": "^0.33.1",
         "lodash": "^4.17.21",
         "lucide-react": "^0.475.0",
-        "next": "^15.3.4",
+        "next": "15.5.2",
         "papaparse": "^5.5.3",
         "postcss": "^8.5.6",
         "postcss-antd-fixes": "^0.2.0",

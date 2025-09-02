@@ -1,8 +1,18 @@
 from typing import Callable, Optional, Any, Dict, List, Union
 
+from opentelemetry import context as otel_context
+from opentelemetry.context import attach, detach
+from opentelemetry import trace
+
+
 from functools import wraps
 from itertools import chain
-from inspect import iscoroutinefunction, getfullargspec
+from inspect import (
+    getfullargspec,
+    iscoroutinefunction,
+    isgeneratorfunction,
+    isasyncgenfunction,
+)
 
 from opentelemetry import baggage
 from opentelemetry.context import attach, detach, get_current
@@ -31,6 +41,7 @@ class instrument:  # pylint: disable=invalid-name
         redact: Optional[Callable[..., Any]] = None,
         redact_on_error: Optional[bool] = True,
         max_depth: Optional[int] = 2,
+        aggregate: Optional[Callable[[List[Any]], Any]] = None,
         # DEPRECATING
         kind: str = "task",
         spankind: Optional[str] = "TASK",
@@ -43,67 +54,213 @@ class instrument:  # pylint: disable=invalid-name
         self.redact = redact
         self.redact_on_error = redact_on_error
         self.max_depth = max_depth
+        self.aggregate = aggregate
 
     def __call__(self, func: Callable[..., Any]):
         is_coroutine_function = iscoroutinefunction(func)
+        is_sync_generator = isgeneratorfunction(func)
+        is_async_generator = isasyncgenfunction(func)
 
-        @wraps(func)
-        async def awrapper(*args, **kwargs):
-            async def aauto_instrumented(*args, **kwargs):
+        # ---- ASYNC GENERATOR ----
+        if is_async_generator:
+
+            @wraps(func)
+            def astream_wrapper(*args, **kwargs):
                 self._parse_type_and_kind()
 
-                token = self._attach_baggage()
+                captured_ctx = otel_context.get_current()
+                parent_ctx = trace.set_span_in_context(trace.get_current_span())
 
+                token = self._attach_baggage()
                 ctx = self._get_traceparent()
 
-                with ag.tracer.start_as_current_span(
-                    name=func.__name__,
-                    kind=self.kind,
-                    context=ctx,
-                ):
-                    self._set_link()
+                agen = func(*args, **kwargs)
 
-                    self._pre_instrument(func, *args, **kwargs)
+                async def wrapped_generator():
+                    token_ctx = otel_context.attach(captured_ctx)
 
-                    result = await func(*args, **kwargs)
+                    try:
+                        with ag.tracer.start_as_current_span(
+                            name=func.__name__,
+                            kind=self.kind,
+                            context=parent_ctx or ctx,
+                        ):
+                            self._set_link()
+                            self._pre_instrument(func, *args, **kwargs)
 
-                    self._post_instrument(result)
+                            _result = []
 
-                    return result
+                            try:
+                                while True:
+                                    chunk = await agen.__anext__()
 
-                self._detach_baggage(token)
+                                    _result.append(chunk)
+                                    yield chunk
 
-            return await aauto_instrumented(*args, **kwargs)
+                            except StopAsyncIteration:
+                                pass
 
+                            finally:
+                                if self.aggregate:
+                                    result = self.aggregate(_result)
+                                elif all(isinstance(r, str) for r in _result):
+                                    result = "".join(_result)
+                                elif all(isinstance(r, bytes) for r in _result):
+                                    result = b"".join(_result)
+                                else:
+                                    result = _result
+
+                                self._post_instrument(result)
+
+                    finally:
+                        otel_context.detach(token_ctx)
+
+                        self._detach_baggage(token)
+
+                return wrapped_generator()
+
+            return astream_wrapper
+
+        # ---- SYNC GENERATOR ----
+        if is_sync_generator:
+
+            @wraps(func)
+            def stream_wrapper(*args, **kwargs):
+                self._parse_type_and_kind()
+
+                captured_ctx = otel_context.get_current()
+                parent_ctx = trace.set_span_in_context(trace.get_current_span())
+
+                token = self._attach_baggage()
+                ctx = self._get_traceparent()
+
+                agen = func(*args, **kwargs)
+
+                def wrapped_generator():
+                    token_ctx = otel_context.attach(captured_ctx)
+
+                    try:
+                        with ag.tracer.start_as_current_span(
+                            name=func.__name__,
+                            kind=self.kind,
+                            context=parent_ctx or ctx,
+                        ):
+                            self._set_link()
+                            self._pre_instrument(func, *args, **kwargs)
+
+                            _result = []
+
+                            gen_return = None
+                            stop_iteration_raised = False
+
+                            try:
+                                while True:
+                                    try:
+                                        chunk = next(agen)
+
+                                    except StopIteration as e:
+                                        gen_return = e.value
+                                        stop_iteration_raised = True
+                                        break
+
+                                    _result.append(chunk)
+
+                                    yield chunk
+
+                            finally:
+                                if self.aggregate:
+                                    result = self.aggregate(_result)
+                                elif all(isinstance(r, str) for r in _result):
+                                    result = "".join(_result)
+                                elif all(isinstance(r, bytes) for r in _result):
+                                    result = b"".join(_result)
+                                else:
+                                    result = _result
+
+                                self._post_instrument(result)
+
+                            return gen_return if stop_iteration_raised else None
+
+                    finally:
+                        otel_context.detach(token_ctx)
+
+                        self._detach_baggage(token)
+
+                return wrapped_generator()
+
+            return stream_wrapper
+
+        # ---- ASYNC FUNCTION (non-generator) ----
+        if is_coroutine_function:
+
+            @wraps(func)
+            async def awrapper(*args, **kwargs):
+                self._parse_type_and_kind()
+
+                captured_ctx = otel_context.get_current()
+                parent_ctx = trace.set_span_in_context(trace.get_current_span())
+
+                token = self._attach_baggage()
+                ctx = self._get_traceparent()
+
+                token_ctx = otel_context.attach(captured_ctx)
+
+                try:
+                    with ag.tracer.start_as_current_span(
+                        name=func.__name__,
+                        kind=self.kind,
+                        context=parent_ctx or ctx,
+                    ):
+                        self._set_link()
+                        self._pre_instrument(func, *args, **kwargs)
+
+                        result = await func(*args, **kwargs)
+
+                        self._post_instrument(result)
+
+                finally:
+                    otel_context.detach(token_ctx)
+
+                    self._detach_baggage(token)
+
+                return result
+
+            return awrapper
+
+        # ---- SYNC FUNCTION (non-generator) ----
         @wraps(func)
         def wrapper(*args, **kwargs):
-            def auto_instrumented(*args, **kwargs):
-                self._parse_type_and_kind()
+            self._parse_type_and_kind()
 
-                token = self._attach_baggage()
+            captured_ctx = otel_context.get_current()
+            parent_ctx = trace.set_span_in_context(trace.get_current_span())
 
-                ctx = self._get_traceparent()
+            token = self._attach_baggage()
+            ctx = self._get_traceparent()
 
+            token_ctx = otel_context.attach(captured_ctx)
+
+            try:
                 with ag.tracer.start_as_current_span(
                     name=func.__name__,
                     kind=self.kind,
-                    context=ctx,
+                    context=parent_ctx or ctx,
                 ):
                     self._set_link()
-
                     self._pre_instrument(func, *args, **kwargs)
 
                     result = func(*args, **kwargs)
 
                     self._post_instrument(result)
 
-                    return result
+            finally:
+                otel_context.detach(token_ctx)
 
                 self._detach_baggage(token)
 
-            return auto_instrumented(*args, **kwargs)
+            return result
 
-        return awrapper if is_coroutine_function else wrapper
+        return wrapper
 
     def _parse_type_and_kind(self):
         if not ag.tracing.get_current_span().is_recording():

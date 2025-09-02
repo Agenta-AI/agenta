@@ -14,6 +14,7 @@ import {useAppsData} from "@/oss/contexts/app.context"
 import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
 import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/oss/lib/Types"
 import {useLoadTestsetsList} from "@/oss/services/testsets/api"
+import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
 const TestsetModal: any = dynamic(() => import("@/oss/components/pages/testset/modals"))
 const DeleteTestsetModal: any = dynamic(
@@ -70,6 +71,8 @@ const Testset = () => {
     const [current, setCurrent] = useState(0)
     const [selectedTestsetToDelete, setSelectedTestsetToDelete] = useState<testset[]>([])
     const [isDeleteTestsetModalOpen, setIsDeleteTestsetModalOpen] = useState(false)
+
+    useBreadcrumbsEffect({breadcrumbs: {testsets: {label: "test sets"}}}, [])
 
     const filteredTestset = useMemo(() => {
         let allTestsets = testsets.sort(

@@ -5,13 +5,13 @@ import {Divider, Input, Menu, Modal, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
+import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {TestSet, testset} from "@/oss/lib/Types"
 import {fetchTestset, useLoadTestsetsList} from "@/oss/services/testsets/api"
 
 import {useStyles} from "./styles"
 import {LoadTestsetModalProps} from "./types"
-import {Expandable} from "@/agenta-oss-common/components/EvalRunDetails/components/VirtualizedScenarioTable/assets/CellComponents"
 
 const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     testsetData,
@@ -26,8 +26,6 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     const [testsetCsvData, setTestsetCsvData] = useState<TestSet["csvdata"][]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [searchTerm, setSearchTerm] = useState("")
-
-    console.log("Expandable: ", Expandable)
 
     const testsetFetcher = useCallback(
         async (testsetId: string) => {

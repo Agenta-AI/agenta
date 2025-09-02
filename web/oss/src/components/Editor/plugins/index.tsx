@@ -10,6 +10,7 @@ import {Skeleton} from "antd"
 import clsx from "clsx"
 
 import type {EditorPluginsProps} from "../types"
+
 import MarkdownPlugin from "./markdown/markdownPlugin"
 
 const CodeFoldingPlugin = lazy(() =>

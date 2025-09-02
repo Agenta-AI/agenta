@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.51.3",
+    "version": "0.51.4",
     "workspaces": [
         "ee",
         "oss",
@@ -9,7 +9,7 @@
     "dependencies": {
         "ajv-formats": "^3.0.1",
         "json5": "^2.2.3",
-        "next": "^15.3.4"
+        "next": "15.5.2"
     },
     "devDependencies": {
         "@agenta/ee": "workspace:./ee",
@@ -17,11 +17,11 @@
         "@eslint/eslintrc": "^3.3.1",
         "@eslint/js": "^9.29.0",
         "@lexical/eslint-plugin": "^0.33.1",
-        "@next/eslint-plugin-next": "^15.3.4",
+        "@next/eslint-plugin-next": "15.5.2",
         "@typescript-eslint/eslint-plugin": "^8.35.0",
         "@typescript-eslint/parser": "^8.35.0",
         "eslint": "^9.32.0",
-        "eslint-config-next": "^15.3.4",
+        "eslint-config-next": "15.5.2",
         "eslint-config-prettier": "^10.1.5",
         "eslint-plugin-prettier": "^5.5.0",
         "eslint-plugin-react": "^7.37.5",
@@ -31,7 +31,8 @@
         "prettier-eslint": "^16.4.0",
         "prettier-plugin-tailwindcss": "^0.1",
         "turbo": "2.5.4",
-        "typescript-eslint": "^8.34.1"
+        "typescript-eslint": "^8.34.1",
+        "tsx": "^4.19.4"
     },
     "packageManager": "pnpm@10.4.1",
     "scripts": {
@@ -42,7 +43,8 @@
         "lint": "turbo run lint",
         "lint-fix": "turbo run lint -- --fix",
         "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
-        "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore"
+        "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
+        "generate:tailwind-tokens": "tsx scripts/generate-tailwind-tokens.ts"
     },
     "pnpm": {
         "ignoredBuiltDependencies": [

@@ -13,6 +13,7 @@ import {useProjectData} from "@/oss/contexts/project.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
+import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
 
@@ -28,6 +29,23 @@ const Callback = () => {
 
     const state = router.query.state as string
     const code = router.query.code as string
+
+    const handleAuthError = (err: unknown) => {
+        if ((err as any)?.isSuperTokensGeneralError === true) {
+            setMessage({message: (err as any).message, type: "error"})
+        } else if (isBackendAvailabilityIssue(err)) {
+            setMessage({
+                message:
+                    "Unable to connect to the authentication service. Please check if the backend is running and accessible.",
+                type: "error",
+            })
+        } else {
+            setMessage({
+                message: "Oops, something went wrong. Please try again",
+                type: "error",
+            })
+        }
+    }
 
     const handleGoogleCallback = async () => {
         try {
@@ -68,14 +86,7 @@ const Callback = () => {
                 await router.push("/auth")
             }
         } catch (err: any) {
-            if (err.isSuperTokensGeneralError === true) {
-                setMessage({message: err.message, type: "error"})
-            } else {
-                setMessage({
-                    message: "Oops, something went wrong. Please try again",
-                    type: "error",
-                })
-            }
+            handleAuthError(err)
         }
     }
 
@@ -117,14 +128,7 @@ const Callback = () => {
                 await router.push("/auth")
             }
         } catch (err: any) {
-            if (err.isSuperTokensGeneralError === true) {
-                setMessage({message: err.message, type: "error"})
-            } else {
-                setMessage({
-                    message: "Oops, something went wrong. Please try again",
-                    type: "error",
-                })
-            }
+            handleAuthError(err)
         }
     }
 

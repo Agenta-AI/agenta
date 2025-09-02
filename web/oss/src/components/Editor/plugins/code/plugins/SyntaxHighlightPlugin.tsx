@@ -28,7 +28,6 @@ import {
 import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$isCodeTabNode} from "../nodes/CodeTabNode"
 import {createLogger} from "../utils/createLogger"
-import {getEnhancedValidationContext} from "../utils/enhancedValidationContext"
 import {getDiffRange} from "../utils/getDiffRange"
 import {isPluginLocked, lockPlugin, unlockPlugin} from "../utils/pluginLocks"
 import {tokenizeCodeLine} from "../utils/tokenizer"
@@ -49,6 +48,13 @@ const editorValidationContexts = new Map<
 
 // Current active editor ID for validation context
 let currentEditorId: string | null = null
+
+/**
+ * Get the current editor ID used for validation context
+ */
+export function getCurrentEditorId(): string | null {
+    return currentEditorId
+}
 
 /**
  * Set the current editor ID for validation context
