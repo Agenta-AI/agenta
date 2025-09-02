@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {type FC, type ChangeEvent, ReactNode, useEffect, useState} from "react"
+import {type FC, type ChangeEvent, ReactNode, useEffect, useState, useMemo} from "react"
 
 import {type IHeaderParams} from "@ag-grid-community/core"
 import {Button, Input, Typography, message} from "antd"
@@ -23,6 +23,7 @@ import EditRowModal from "./EditRowModal"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
+import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
 interface TestsetTableProps {
     mode: "edit"
@@ -102,6 +103,17 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
     const {isProjectId} = useProjectData()
 
     const {testset_id} = router.query
+
+    useBreadcrumbsEffect(
+        {
+            breadcrumbs: {
+                testsets: {label: "test sets", href: "/testsets"},
+                "testset-detail": {label: testsetName, value: testset_id},
+            },
+            condition: testsetName.trim() && testset_id,
+        },
+        [testsetName],
+    )
 
     useBlockNavigation(unSavedChanges, {
         title: "Unsaved changes",

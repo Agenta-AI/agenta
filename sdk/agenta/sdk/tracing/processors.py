@@ -8,10 +8,6 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
     ReadableSpan,
     BatchSpanProcessor,
-    _DEFAULT_MAX_QUEUE_SIZE,
-    _DEFAULT_SCHEDULE_DELAY_MILLIS,
-    _DEFAULT_MAX_EXPORT_BATCH_SIZE,
-    _DEFAULT_EXPORT_TIMEOUT_MILLIS,
 )
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -42,10 +38,10 @@ class TraceProcessor(SpanProcessor):
         if not self.inline:
             self._delegate = BatchSpanProcessor(
                 span_exporter,
-                max_queue_size or _DEFAULT_MAX_QUEUE_SIZE,
-                schedule_delay_millis or _DEFAULT_SCHEDULE_DELAY_MILLIS,
-                max_export_batch_size or _DEFAULT_MAX_EXPORT_BATCH_SIZE,
-                export_timeout_millis or _DEFAULT_EXPORT_TIMEOUT_MILLIS,
+                max_queue_size,
+                schedule_delay_millis,
+                max_export_batch_size,
+                export_timeout_millis,
             )
         # --- DISTRIBUTED
 

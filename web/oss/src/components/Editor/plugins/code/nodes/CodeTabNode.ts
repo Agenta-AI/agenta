@@ -40,6 +40,13 @@ export class CodeTabNode extends TabNode {
     }
 
     /**
+     * Instance-level clone used by paste utilities.
+     */
+    clone(): CodeTabNode {
+        return CodeTabNode.clone(this)
+    }
+
+    /**
      * Creates a new CodeTabNode instance.
      * @param language - The programming language for the code block (defaults to "json")
      * @param key - Optional unique identifier for the node

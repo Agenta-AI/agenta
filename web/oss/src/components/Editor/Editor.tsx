@@ -1,5 +1,6 @@
 import {forwardRef, useCallback, useEffect, useRef, ReactNode, memo, useState} from "react"
 
+import {$isCodeNode} from "@lexical/code"
 import {$convertFromMarkdownString, TRANSFORMERS} from "@lexical/markdown"
 import {LexicalComposer} from "@lexical/react/LexicalComposer"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
@@ -24,10 +25,9 @@ import EditorPlugins from "./plugins"
 import {createHighlightedNodes, TOGGLE_FORM_VIEW} from "./plugins/code"
 import {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
 import {$getEditorCodeAsString} from "./plugins/code/plugins/RealTimeValidationPlugin"
-import type {EditorProps} from "./types"
-import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
-import {$isCodeNode} from "@lexical/code"
 import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
+import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
+import type {EditorProps} from "./types"
 
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
     hydrateWithRemoteContent: string

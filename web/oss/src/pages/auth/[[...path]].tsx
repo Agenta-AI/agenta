@@ -12,6 +12,7 @@ import {useLocalStorage} from "usehooks-ts"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
+import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 
 const PasswordlessAuth = dynamic(() => import("@/oss/components/pages/auth/PasswordlessAuth"))
 const EmailPasswordAuth = dynamic(() => import("@/oss/components/pages/auth/EmailPasswordAuth"))
@@ -54,6 +55,12 @@ const Auth = () => {
         if (error.isSuperTokensGeneralError === true) {
             // this may be a custom error message sent from the API by you.
             setMessage({message: error.message, type: "error"})
+        } else if (isBackendAvailabilityIssue(error)) {
+            setMessage({
+                message: "Unable to connect to the authentication service",
+                sub: "Please check if the backend is running and accessible. If you're self-hosting, ensure all services are started properly.",
+                type: "error",
+            })
         } else {
             setMessage({
                 message: "Oops, something went wrong. Please try again",

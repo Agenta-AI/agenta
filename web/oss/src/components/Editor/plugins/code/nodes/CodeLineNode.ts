@@ -8,11 +8,12 @@
  *
  * @module CodeLineNode
  */
-import {ElementNode, LexicalNode, SerializedElementNode, Spread, DOMExportOutput} from "lexical"
+import {ElementNode, LexicalNode, SerializedElementNode, Spread} from "lexical"
 
 import styles from "../components/assets/CodeBlockErrorIndicator.module.css"
 import diffStyles from "../components/assets/DiffCodeBlock.module.css"
-import {ErrorInfo} from "../plugins/GlobalErrorIndicatorPlugin"
+import {ErrorInfo, getValidationManager} from "../plugins/GlobalErrorIndicatorPlugin"
+import {getCurrentEditorId} from "../plugins/SyntaxHighlightPlugin"
 
 /**
  * Diff line types for code diff display
@@ -191,16 +192,27 @@ export class CodeLineNode extends ElementNode {
      * @returns Array of validation errors for this line
      */
     getValidationErrors(): ErrorInfo[] {
-        // Import ValidationManager dynamically to avoid circular dependencies
         try {
-            // Use dynamic import to avoid circular dependency issues
-            const validationManagerModule = eval('require("../plugins/GlobalErrorIndicatorPlugin")')
-            const validationManager = validationManagerModule.ValidationManager.getInstance()
+            const editorId = getCurrentEditorId()
+            if (!editorId) {
+                // No active editor context; fall back to stored errors
+                return this.getLatest().__validationErrors
+            }
+
+            const manager = getValidationManager(editorId)
+            if (!manager) {
+                // Manager not registered yet for this editor; fall back
+                return this.getLatest().__validationErrors
+            }
+
             const lineNumber = this.calculateActualLineNumber()
-            return validationManager.getErrorsForLine(lineNumber)
+            return manager.getErrorsForLine(lineNumber)
         } catch (error) {
             // Fallback to stored validation errors (for backward compatibility)
-            console.warn("Failed to get ValidationManager, falling back to stored errors:", error)
+            console.warn(
+                "Failed to retrieve ValidationManager from registry; using stored errors:",
+                error,
+            )
             return this.getLatest().__validationErrors
         }
     }
@@ -522,18 +534,25 @@ export class CodeLineNode extends ElementNode {
         return this.getLatest().__isCollapsed
     }
 
-    /**
-     * Exports this node to a DOM representation.
-     * Creates a new DOM element with current folding state
-     * and styling for external use.
-     *
-     * @returns Object containing the DOM element
-     */
-    exportDOM(): DOMExportOutput {
-        return {
-            element: this.createDOM(),
-        }
-    }
+    // /**
+    //  * Exports this node to a DOM representation.
+    //  * Creates a new DOM element with current folding state
+    //  * and styling for external use.
+    //  *
+    //  * @returns Object containing the DOM element
+    //  */
+    // exportDOM(): DOMExportOutput {
+    //     return {
+    //         element: this.createDOM(),
+    //     }
+    // }
+
+    // importDOM(): void {
+    //     this.setDiffType(null)
+    //     this.setOldLineNumber(undefined)
+    //     this.setNewLineNumber(undefined)
+    //     this.setValidationErrors([])
+    // }
 
     /**
      * Serializes this node to JSON format.

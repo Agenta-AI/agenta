@@ -412,3 +412,11 @@ const items = useMemo(
 
 ;<AccordionTreePanel items={items} />
 ```
+
+## Tailwind Tokens
+
+The frontend uses Ant Design tokens which are transformed for Tailwind. If you modify `web/oss/src/styles/tokens/antd-themeConfig.json`, regenerate the Tailwind token file by running in the web directory and commit the changes:
+
+```bash
+pnpm generate:tailwind-tokens
+```

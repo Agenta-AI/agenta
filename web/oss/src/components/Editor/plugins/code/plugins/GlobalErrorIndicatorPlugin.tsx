@@ -20,6 +20,23 @@ export interface ErrorInfo {
     severity?: "error" | "warning" | "info"
 }
 
+// Registry of ValidationManager instances keyed by editorId
+const validationManagerRegistry = new Map<string, ValidationManager>()
+
+export function registerValidationManager(editorId: string, manager: ValidationManager) {
+    if (!editorId) return
+    validationManagerRegistry.set(editorId, manager)
+}
+
+export function getValidationManager(editorId: string): ValidationManager | null {
+    return validationManagerRegistry.get(editorId) ?? null
+}
+
+export function unregisterValidationManager(editorId: string) {
+    if (!editorId) return
+    validationManagerRegistry.delete(editorId)
+}
+
 // Global validation state - single source of truth
 interface ValidationState {
     errors: ErrorInfo[]
@@ -341,6 +358,8 @@ export function GlobalErrorIndicatorPlugin({editorId}: {editorId: string}) {
                 validationManager.current = new ValidationManager(editorContainerRef)
                 // Set this editor as the current one for validation context
                 setCurrentEditorId(editorId)
+                // Register this manager so nodes can query it by editorId
+                registerValidationManager(editorId, validationManager.current)
             }
         }
 
@@ -433,6 +452,8 @@ export function GlobalErrorIndicatorPlugin({editorId}: {editorId: string}) {
             if (unsubscribe) {
                 unsubscribe()
             }
+            // Unregister manager on cleanup
+            unregisterValidationManager(editorId)
         }
     }, [editor])
 

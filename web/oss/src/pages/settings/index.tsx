@@ -7,6 +7,7 @@ import {useRouter} from "next/router"
 import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
 import {useProjectData} from "@/oss/contexts/project.context"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
 const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
     ssr: false,
@@ -32,6 +33,29 @@ const Settings: React.FC = () => {
             router.push("/apps")
         }
     }, [project, router])
+
+    const breadcrumbs = useMemo(() => {
+        return {
+            settings: {
+                label: (() => {
+                    switch (tab) {
+                        case "workspace":
+                            return "Workspace"
+                        case "secrets":
+                            return "Model hub"
+                        case "apiKeys":
+                            return "API Keys"
+                        case "billing":
+                            return "Billing"
+                        default:
+                            return tab
+                    }
+                })(),
+            },
+        }
+    }, [tab])
+
+    useBreadcrumbsEffect({breadcrumbs, type: "new", condition: !!tab}, [tab])
 
     const {content, title} = useMemo(() => {
         switch (tab) {
