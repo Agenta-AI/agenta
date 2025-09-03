@@ -1,5 +1,12 @@
 from typing import Type, Any, Callable, Dict, Optional, Tuple, List
-from inspect import signature, iscoroutinefunction, Signature, Parameter
+from inspect import (
+    iscoroutinefunction,
+    isgenerator,
+    isasyncgen,
+    signature,
+    Signature,
+    Parameter,
+)
 from functools import wraps
 from traceback import format_exception
 from asyncio import sleep
@@ -7,6 +14,10 @@ from uuid import UUID
 from pydantic import BaseModel, HttpUrl, ValidationError
 from os import environ
 
+from starlette.responses import (
+    Response as StarletteResponse,
+    StreamingResponse,
+)
 from fastapi import Body, FastAPI, HTTPException, Request
 
 from agenta.sdk.middleware.mock import MockMiddleware
@@ -33,6 +44,7 @@ from agenta.sdk.utils.helpers import get_current_version
 from agenta.sdk.types import (
     MultipleChoice,
     BaseResponse,
+    StreamResponse,
     MCField,
 )
 
@@ -379,6 +391,37 @@ class entrypoint:
                 trace_id,
                 span_id,
             ) = await self.fetch_inline_trace(inline)
+
+        try:
+            if isinstance(result, StarletteResponse):
+                result.headers.setdefault("X-ag-version", "3.0")
+                if content_type:
+                    result.headers.setdefault("X-ag-content-type", content_type)
+                if tree_id:
+                    result.headers.setdefault("X-ag-tree-id", tree_id)
+                if trace_id:
+                    result.headers.setdefault("X-ag-trace-id", trace_id)
+                if span_id:
+                    result.headers.setdefault("X-ag-span-id", span_id)
+
+                return result
+        except:
+            return result
+
+        try:
+            if isasyncgen(result) or isgenerator(result):
+                return StreamResponse(
+                    content=result,
+                    content_type=content_type,
+                    tree_id=tree_id,
+                    trace_id=trace_id,
+                    span_id=span_id,
+                )
+        except:
+            return StreamingResponse(
+                result,
+                media_type="text/event-stream",
+            )
 
         try:
             return BaseResponse(

@@ -5,6 +5,9 @@ from typing import List, Union, Optional, Dict, Literal, Any
 from pydantic import ConfigDict, BaseModel, HttpUrl
 from pydantic import BaseModel, Field, model_validator
 
+from starlette.responses import StreamingResponse
+
+
 from agenta.sdk.assets import supported_llm_models
 from agenta.client.backend.types import AgentaNodesResponse, AgentaNodeDto
 
@@ -43,6 +46,42 @@ class BaseResponse(BaseModel):
     span_id: Optional[str] = None
 
     model_config = ConfigDict(use_enum_values=True, exclude_none=True)
+
+
+class StreamResponse(StreamingResponse):
+    def __init__(
+        self,
+        content,
+        media_type: str = "text/event-stream",
+        *,
+        version: Optional[str] = "3.0",
+        tree_id: Optional[str] = None,
+        trace_id: Optional[str] = None,
+        span_id: Optional[str] = None,
+        content_type: Optional[str] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+        status_code: int = 200,
+        background=None,
+    ):
+        headers = dict(extra_headers or {})
+        if version is not None:
+            headers["X-ag-version"] = version
+        if content_type:
+            headers["X-ag-content-type"] = content_type
+        if tree_id:
+            headers["X-ag-tree-id"] = tree_id
+        if trace_id:
+            headers["X-ag-trace-id"] = trace_id
+        if span_id:
+            headers["X-ag-span-id"] = span_id
+
+        super().__init__(
+            content=content,
+            media_type=media_type,
+            status_code=status_code,
+            headers=headers,
+            background=background,
+        )
 
 
 class DictInput(dict):

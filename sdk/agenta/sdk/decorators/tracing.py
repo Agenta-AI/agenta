@@ -18,11 +18,11 @@ from opentelemetry import baggage
 from opentelemetry.context import attach, detach, get_current
 from opentelemetry.baggage import set_baggage, get_all
 
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.otel import debug_otel_context
 from agenta.sdk.context.tracing import tracing_context
 from agenta.sdk.tracing.conventions import parse_span_kind
-
-from agenta.sdk.utils.logging import get_module_logger
 
 import agenta as ag
 
@@ -66,39 +66,42 @@ class instrument:  # pylint: disable=invalid-name
 
             @wraps(func)
             def astream_wrapper(*args, **kwargs):
-                self._parse_type_and_kind()
+                # debug_otel_context("[BEFORE STREAM] [BEFORE SETUP]")
 
                 captured_ctx = otel_context.get_current()
-                parent_ctx = trace.set_span_in_context(trace.get_current_span())
 
-                token = self._attach_baggage()
+                self._parse_type_and_kind()
+
+                self._attach_baggage()
+
                 ctx = self._get_traceparent()
 
-                agen = func(*args, **kwargs)
+                # debug_otel_context("[BEFORE STREAM] [AFTER SETUP]")
 
                 async def wrapped_generator():
-                    token_ctx = otel_context.attach(captured_ctx)
+                    # debug_otel_context("[WITHIN STREAM] [BEFORE ATTACH]")
+
+                    otel_token = otel_context.attach(captured_ctx)
+
+                    # debug_otel_context("[WITHIN STREAM] [AFTER ATTACH]")
 
                     try:
                         with ag.tracer.start_as_current_span(
                             name=func.__name__,
                             kind=self.kind,
-                            context=parent_ctx or ctx,
+                            context=ctx,
                         ):
                             self._set_link()
                             self._pre_instrument(func, *args, **kwargs)
 
                             _result = []
 
-                            try:
-                                while True:
-                                    chunk = await agen.__anext__()
+                            agen = func(*args, **kwargs)
 
+                            try:
+                                async for chunk in agen:
                                     _result.append(chunk)
                                     yield chunk
-
-                            except StopAsyncIteration:
-                                pass
 
                             finally:
                                 if self.aggregate:
@@ -113,9 +116,11 @@ class instrument:  # pylint: disable=invalid-name
                                 self._post_instrument(result)
 
                     finally:
-                        otel_context.detach(token_ctx)
+                        # debug_otel_context("[WITHIN STREAM] [BEFORE DETACH]")
 
-                        self._detach_baggage(token)
+                        otel_context.detach(otel_token)
+
+                        # debug_otel_context("[WITHIN STREAM] [AFTER DETACH]")
 
                 return wrapped_generator()
 
@@ -128,43 +133,36 @@ class instrument:  # pylint: disable=invalid-name
             def stream_wrapper(*args, **kwargs):
                 self._parse_type_and_kind()
 
-                captured_ctx = otel_context.get_current()
-                parent_ctx = trace.set_span_in_context(trace.get_current_span())
-
                 token = self._attach_baggage()
+
                 ctx = self._get_traceparent()
 
-                agen = func(*args, **kwargs)
-
                 def wrapped_generator():
-                    token_ctx = otel_context.attach(captured_ctx)
-
                     try:
                         with ag.tracer.start_as_current_span(
                             name=func.__name__,
                             kind=self.kind,
-                            context=parent_ctx or ctx,
+                            context=ctx,
                         ):
                             self._set_link()
+
                             self._pre_instrument(func, *args, **kwargs)
 
                             _result = []
 
+                            gen = func(*args, **kwargs)
+
                             gen_return = None
-                            stop_iteration_raised = False
 
                             try:
                                 while True:
                                     try:
-                                        chunk = next(agen)
-
+                                        chunk = next(gen)
                                     except StopIteration as e:
                                         gen_return = e.value
-                                        stop_iteration_raised = True
                                         break
 
                                     _result.append(chunk)
-
                                     yield chunk
 
                             finally:
@@ -179,11 +177,9 @@ class instrument:  # pylint: disable=invalid-name
 
                                 self._post_instrument(result)
 
-                            return gen_return if stop_iteration_raised else None
+                            return gen_return
 
                     finally:
-                        otel_context.detach(token_ctx)
-
                         self._detach_baggage(token)
 
                 return wrapped_generator()
@@ -197,21 +193,18 @@ class instrument:  # pylint: disable=invalid-name
             async def awrapper(*args, **kwargs):
                 self._parse_type_and_kind()
 
-                captured_ctx = otel_context.get_current()
-                parent_ctx = trace.set_span_in_context(trace.get_current_span())
-
                 token = self._attach_baggage()
-                ctx = self._get_traceparent()
 
-                token_ctx = otel_context.attach(captured_ctx)
+                ctx = self._get_traceparent()
 
                 try:
                     with ag.tracer.start_as_current_span(
                         name=func.__name__,
                         kind=self.kind,
-                        context=parent_ctx or ctx,
+                        context=ctx,
                     ):
                         self._set_link()
+
                         self._pre_instrument(func, *args, **kwargs)
 
                         result = await func(*args, **kwargs)
@@ -219,8 +212,6 @@ class instrument:  # pylint: disable=invalid-name
                         self._post_instrument(result)
 
                 finally:
-                    otel_context.detach(token_ctx)
-
                     self._detach_baggage(token)
 
                 return result
@@ -232,21 +223,18 @@ class instrument:  # pylint: disable=invalid-name
         def wrapper(*args, **kwargs):
             self._parse_type_and_kind()
 
-            captured_ctx = otel_context.get_current()
-            parent_ctx = trace.set_span_in_context(trace.get_current_span())
-
             token = self._attach_baggage()
-            ctx = self._get_traceparent()
 
-            token_ctx = otel_context.attach(captured_ctx)
+            ctx = self._get_traceparent()
 
             try:
                 with ag.tracer.start_as_current_span(
                     name=func.__name__,
                     kind=self.kind,
-                    context=parent_ctx or ctx,
+                    context=ctx,
                 ):
                     self._set_link()
+
                     self._pre_instrument(func, *args, **kwargs)
 
                     result = func(*args, **kwargs)
@@ -254,8 +242,6 @@ class instrument:  # pylint: disable=invalid-name
                     self._post_instrument(result)
 
             finally:
-                otel_context.detach(token_ctx)
-
                 self._detach_baggage(token)
 
             return result
