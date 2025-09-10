@@ -1,0 +1,372 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Agenta OSS Helm Chart Values",
+  "description": "Configuration values for the Agenta OSS Helm chart",
+  "properties": {
+    "global": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string",
+          "description": "Target namespace for all resources",
+          "default": "agenta-oss",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        }
+      },
+      "required": ["namespace"],
+      "additionalProperties": true
+    },
+    "images": {
+      "type": "object",
+      "properties": {
+        "api": {
+          "$ref": "#/definitions/imageConfig"
+        },
+        "web": {
+          "$ref": "#/definitions/imageConfig"
+        },
+        "chat": {
+          "$ref": "#/definitions/imageConfig"
+        },
+        "completion": {
+          "$ref": "#/definitions/imageConfig"
+        }
+      },
+      "required": ["api", "web", "chat", "completion"],
+      "additionalProperties": false
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "license": {
+          "type": "string",
+          "description": "License type for Agenta",
+          "enum": ["oss", "pro", "enterprise"],
+          "default": "oss"
+        },
+        "autoMigrations": {
+          "type": "boolean",
+          "description": "Enable automatic database migrations",
+          "default": true
+        },
+        "telemetryEnabled": {
+          "type": "boolean",
+          "description": "Enable telemetry collection",
+          "default": true
+        },
+        "serviceMiddlewareCacheEnabled": {
+          "type": "boolean",
+          "description": "Enable service middleware caching",
+          "default": true
+        }
+      },
+      "required": ["license"],
+      "additionalProperties": false
+    },
+    "externalUrls": {
+      "type": "object",
+      "description": "External URLs for accessing Agenta services",
+      "properties": {
+        "api": {
+          "type": "string",
+          "description": "External API URL",
+          "format": "uri",
+          "pattern": "^https?://.*"
+        },
+        "web": {
+          "type": "string",
+          "description": "External web frontend URL",
+          "format": "uri",
+          "pattern": "^https?://.*"
+        },
+        "services": {
+          "type": "string",
+          "description": "External services URL",
+          "format": "uri",
+          "pattern": "^https?://.*"
+        }
+      },
+      "required": ["api", "web", "services"],
+      "additionalProperties": false
+    },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "agentaAuthKey": {
+          "type": "string",
+          "description": "Authentication key for Agenta",
+          "minLength": 8
+        },
+        "agentaCryptKey": {
+          "type": "string",
+          "description": "Encryption key for Agenta",
+          "minLength": 8
+        }
+      },
+      "required": ["agentaAuthKey", "agentaCryptKey"],
+      "additionalProperties": false
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "api": {
+          "$ref": "#/definitions/resourceRequirements"
+        },
+        "web": {
+          "$ref": "#/definitions/resourceRequirements"
+        },
+        "chat": {
+          "$ref": "#/definitions/resourceRequirements"
+        },
+        "completion": {
+          "$ref": "#/definitions/resourceRequirements"
+        },
+        "worker": {
+          "$ref": "#/definitions/resourceRequirements"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable ingress",
+          "default": true
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Ingress annotations",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "hosts": {
+          "type": "array",
+          "description": "Ingress hosts configuration",
+          "items": {
+            "type": "object",
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "Hostname"
+              },
+              "paths": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "pathType": {
+                      "type": "string",
+                      "enum": ["Exact", "Prefix", "ImplementationSpecific"]
+                    },
+                    "service": {
+                      "type": "string"
+                    },
+                    "port": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["path", "pathType", "service", "port"]
+                }
+              }
+            },
+            "required": ["host", "paths"]
+          }
+        },
+        "tls": {
+          "oneOf": [
+            {
+              "type": "array",
+              "description": "TLS configuration as array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "secretName": {
+                    "type": "string"
+                  },
+                  "hosts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": ["secretName", "hosts"]
+              }
+            },
+            {
+              "type": "object",
+              "description": "TLS configuration as object"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "postgresql": {
+      "type": "object",
+      "description": "PostgreSQL configuration (using Bitnami chart)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable PostgreSQL deployment",
+          "default": true
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "username": {
+              "type": "string"
+            },
+            "password": {
+              "type": "string"
+            },
+            "database": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "redis": {
+      "type": "object",
+      "description": "Redis configuration (using Bitnami chart)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable Redis deployment",
+          "default": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "rabbitmq": {
+      "type": "object",
+      "description": "RabbitMQ configuration (using Bitnami chart)",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable RabbitMQ deployment",
+          "default": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "supertokens": {
+      "type": "object",
+      "description": "SuperTokens authentication service configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable SuperTokens deployment",
+          "default": true
+        },
+        "image": {
+          "$ref": "#/definitions/imageConfig"
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "global",
+    "images", 
+    "config",
+    "externalUrls",
+    "secrets"
+  ],
+  "additionalProperties": true,
+  "definitions": {
+    "imageConfig": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "description": "Container image repository",
+          "pattern": "^[a-z0-9]+(\\.[a-z0-9]+)*(\\/[a-z0-9]+([\\._\\-][a-z0-9]+)*)+$"
+        },
+        "tag": {
+          "type": "string",
+          "description": "Container image tag",
+          "default": "latest"
+        },
+        "pullPolicy": {
+          "type": "string",
+          "description": "Image pull policy",
+          "enum": ["Always", "IfNotPresent", "Never"],
+          "default": "IfNotPresent"
+        }
+      },
+      "required": ["repository"],
+      "additionalProperties": false
+    },
+    "resourceRequirements": {
+      "type": "object",
+      "properties": {
+        "limits": {
+          "type": "object",
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "description": "CPU limit (e.g., '500m', '1')",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(m|$)"
+            },
+            "memory": {
+              "type": "string", 
+              "description": "Memory limit (e.g., '512Mi', '1Gi')",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(Mi|Gi|Ki|Ti)$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "requests": {
+          "type": "object",
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "description": "CPU request (e.g., '100m', '0.5')",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(m|$)"
+            },
+            "memory": {
+              "type": "string",
+              "description": "Memory request (e.g., '128Mi', '256Mi')",
+              "pattern": "^[0-9]+(\\.[0-9]+)?(Mi|Gi|Ki|Ti)$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "databaseAuth": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string",
+          "description": "Database username",
+          "minLength": 1
+        },
+        "password": {
+          "type": "string",
+          "description": "Database password",
+          "minLength": 8
+        },
+        "database": {
+          "type": "string",
+          "description": "Default database name",
+          "minLength": 1
+        }
+      },
+      "required": ["username", "password", "database"],
+      "additionalProperties": false
+    }
+  }
+}

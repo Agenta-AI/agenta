@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache
+  namespace: agenta-oss
+  labels:
+    app: cache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cache
+  template:
+    metadata:
+      labels:
+        app: cache
+    spec:
+      containers:
+        - name: cache
+          image: redis:latest
+          command:
+            - "redis-server"
+            - "--port"
+            - "6378"
+            - "--appendonly"
+            - "no"
+            - "--appendfsync"
+            - "no"
+            - "--save"
+            - ""
+            - "--maxmemory"
+            - "128mb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"
+          ports:
+            - containerPort: 6378
+          readinessProbe:
+            exec:
+              command:
+                - "redis-cli"
+                - "-p"
+                - "6378"
+                - "ping"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - "redis-cli"
+                - "-p"
+                - "6378"
+                - "ping"
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          volumeMounts:
+            - name: cache-data
+              mountPath: /data
+      volumes:
+        - name: cache-data
+          persistentVolumeClaim:
+            claimName: cache-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache
+  namespace: agenta-oss
+spec:
+  selector:
+    app: cache
+  ports:
+    - protocol: TCP
+      port: 6378
+      targetPort: 6378
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cache-pvc
+  namespace: agenta-oss
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

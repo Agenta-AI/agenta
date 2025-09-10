@@ -1,0 +1,84 @@
+{{- if .Values.supertokens.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta-oss.fullname" . }}-supertokens
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "agenta-oss.labels" . | nindent 4 }}
+    app.kubernetes.io/component: supertokens
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "agenta-oss.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: supertokens
+  template:
+    metadata:
+      labels:
+        {{- include "agenta-oss.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: supertokens
+    spec:
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 3000
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: supertokens
+          image: {{ .Values.supertokens.image.repository }}:{{ .Values.supertokens.image.tag }}
+          imagePullPolicy: {{ .Values.supertokens.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: POSTGRESQL_CONNECTION_URI
+              value: "{{ include "agenta-oss.postgres.supertokens" . }}"
+          ports:
+            - containerPort: 3567
+          livenessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e "GET /hello HTTP/1.1\r\nhost: 127.0.0.1:3567\r\nConnection: close\r\n\r\n" >&3 && cat <&3 | grep "Hello"'
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.supertokens.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agenta-oss.fullname" . }}-supertokens
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "agenta-oss.labels" . | nindent 4 }}
+    app.kubernetes.io/component: supertokens
+spec:
+  selector:
+    {{- include "agenta-oss.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: supertokens
+  ports:
+    - protocol: TCP
+      port: 3567
+      targetPort: 3567
+{{- end }}

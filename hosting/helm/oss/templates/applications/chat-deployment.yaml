@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta-oss.fullname" . }}-chat
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "agenta-oss.labels" . | nindent 4 }}
+    app.kubernetes.io/component: chat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "agenta-oss.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: chat
+  template:
+    metadata:
+      labels:
+        {{- include "agenta-oss.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: chat
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 3000
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: chat
+          image: "{{ .Values.images.chat.repository }}:{{ .Values.images.chat.tag | default "latest" }}"
+          imagePullPolicy: {{ .Values.images.chat.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - "python"
+            - "oss/src/main.py"
+          envFrom:
+            - configMapRef:
+                name: {{ include "agenta-oss.fullname" . }}-config
+          env:
+            - name: AGENTA_API_INTERNAL_URL
+              value: "http://{{ include "agenta-oss.fullname" . }}-api.{{ .Values.global.namespace }}.svc.cluster.local:8000"
+            - name: AGENTA_AUTH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta-oss.fullname" . }}-secret
+                  key: AGENTA_AUTH_KEY
+            - name: AGENTA_CRYPT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta-oss.fullname" . }}-secret
+                  key: AGENTA_CRYPT_KEY
+          ports:
+            - containerPort: 80
+          resources:
+            {{- toYaml .Values.resources.chat | nindent 12 }}

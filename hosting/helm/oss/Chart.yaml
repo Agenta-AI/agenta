@@ -1,0 +1,52 @@
+apiVersion: v2
+name: agenta-oss
+description: A Helm chart for Agenta OSS - Production-ready LLMOps platform for AI application development, evaluation, and deployment
+type: application
+version: 0.1.0
+appVersion: "0.50.3"
+keywords:
+  - llmops
+  - ai
+  - machine-learning
+  - evaluation
+  - prompt-engineering
+  - llm
+  - deployment
+  - mlops
+  - kubernetes
+kubeVersion: ">=1.19.0-0"
+home: https://agenta.ai
+sources:
+  - https://github.com/Agenta-AI/agenta
+icon: https://raw.githubusercontent.com/Agenta-AI/agenta/main/docs/images/agenta-logo.png
+maintainers:
+  - name: Agenta Team
+    email: hello@agenta.ai
+    url: https://agenta.ai
+annotations:
+  category: AI/ML Platform
+  licenses: Apache-2.0
+  images: |
+    - name: agenta-api
+      image: ghcr.io/agenta-ai/agenta-api:latest
+    - name: agenta-web  
+      image: ghcr.io/agenta-ai/agenta-web:latest
+    - name: agenta-chat
+      image: ghcr.io/agenta-ai/agenta-chat:latest
+    - name: agenta-completion
+      image: ghcr.io/agenta-ai/agenta-completion:latest
+    - name: supertokens
+      image: registry.supertokens.io/supertokens/supertokens-postgresql:latest
+dependencies:
+  - name: postgresql
+    version: "15.5.6"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: redis
+    version: "19.6.4"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: redis.enabled
+  - name: rabbitmq
+    version: "14.6.6"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: rabbitmq.enabled

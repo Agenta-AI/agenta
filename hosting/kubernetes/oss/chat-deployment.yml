@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat
+  namespace: agenta-oss
+  labels:
+    app: chat
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chat
+  template:
+    metadata:
+      labels:
+        app: chat
+    spec:
+      containers:
+        - name: chat
+          image: ghcr.io/agenta-ai/agenta-chat:latest
+          command:
+            - "python"
+            - "oss/src/main.py"
+          envFrom:
+            - configMapRef:
+                name: agenta-config
+            - secretRef:
+                name: agenta-secret
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat
+  namespace: agenta-oss
+spec:
+  selector:
+    app: chat
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

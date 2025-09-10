@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: alembic
+  namespace: agenta-oss
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.28
+        command: ['sh', '-c', 'until nslookup postgres; do echo waiting for postgres; sleep 2; done;']
+      containers:
+      - name: alembic
+        image: ghcr.io/agenta-ai/agenta-api:latest
+        command:
+        - "sh"
+        - "-c"
+        - "python -c 'from oss.databases.postgres.migrations.utils import split_core_and_tracing as split; split(); from oss.databases.postgres.migrations.core.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.tracing.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.utils import copy_nodes_from_core_to_tracing as copy; copy();'"
+        envFrom:
+        - configMapRef:
+            name: agenta-config
+        - secretRef:
+            name: agenta-secret
+      restartPolicy: Never
+  backoffLimit: 4
