@@ -1,17 +1,24 @@
-import {memo, useCallback, useMemo} from "react"
+import {memo, useMemo} from "react"
 
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import {PlusCircle, Timer, X} from "@phosphor-icons/react"
 import {Button, Tag, Typography} from "antd"
 import clsx from "clsx"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {generationLogicalTurnIdsAtom as compatRowIdsAtom} from "@/oss/state/generation/compat"
+import {logicalTurnIndexAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 
 import Version from "../../../../../assets/Version"
-import usePlayground from "../../../../../hooks/usePlayground"
+import {
+    removeVariantFromSelectionMutationAtom,
+    variantByRevisionIdAtomFamily,
+    generationResultAtomFamily,
+    appChatModeAtom,
+} from "../../../../../state/atoms"
 
 import {useStyles} from "./styles"
 import type {VariantNavigationCardProps} from "./types"
@@ -19,31 +26,95 @@ import type {VariantNavigationCardProps} from "./types"
 const {Text} = Typography
 
 const VariantNavigationCard = ({
-    variantId,
+    revisionId,
     id,
     className,
     handleScrollClick,
 }: VariantNavigationCardProps) => {
     const classes = useStyles()
-    const {toggleVariantDisplay, variant, resultHashes} = usePlayground({
-        variantId,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                // TODO: add a conditional to handle completion and chat
-                const variantRuns = state.generationData.inputs.value.map(
-                    (item) => item.__runs?.[variantId],
-                )
-                const resultHashes = variantRuns.map((result) => result?.__result)
-                return {resultHashes}
-            },
-            [variantId],
-        ),
-    })
-    const results = useMemo(() => {
-        return resultHashes.map((hash) => {
-            return getResponseLazy(hash)
-        })
-    }, [resultHashes])
+
+    // Read only the specific variant by revisionId
+    const variant = useAtomValue(variantByRevisionIdAtomFamily(revisionId)) as any
+    const removeVariantFromSelection = useSetAtom(removeVariantFromSelectionMutationAtom)
+
+    // Aggregate visible trace results for this revision across current rows
+    const metricsAtom = useMemo(
+        () =>
+            atom((get) => {
+                const isChat = Boolean(get(appChatModeAtom))
+                const rowIds = (get(compatRowIdsAtom) as string[]) || []
+                const results: any[] = []
+                // Read run status map up-front so changes trigger recompute even if other deps don't
+                const statusMap = get(runStatusByRowRevisionAtom) || {}
+                for (const rowId of rowIds) {
+                    if (isChat) {
+                        // Map logical turn id to this revision's session turn id
+                        const sessionTurnId = (get(logicalTurnIndexAtom)?.[rowId]?.[revisionId] ||
+                            "") as string
+                        if (!sessionTurnId) {
+                            continue
+                        }
+                        const key = `${sessionTurnId}:${revisionId}`
+                        const {resultHash} = (statusMap as any)[key] || {}
+                        const res = getResponseLazy(resultHash)
+                        if (res) results.push(res)
+                        continue
+                    }
+
+                    // Completion: use canonical selector
+                    const {resultHash} = get(
+                        generationResultAtomFamily({variantId: revisionId, rowId}),
+                    )
+                    const res = getResponseLazy(resultHash)
+                    if (res) {
+                        results.push(res)
+                        continue
+                    }
+
+                    // Last-resort: use run-status map resultHash
+                    const key = `${rowId}:${revisionId}`
+                    const hash = (statusMap as any)[key]?.resultHash
+                    if (hash) {
+                        const rs = getResponseLazy(hash)
+                        if (rs) results.push(rs)
+                    }
+                }
+
+                // Reduce metrics across results (prefer acc, fallback to unit)
+                let durationTotal = 0
+                let costsTotal = 0
+                let tokensTotal = 0
+                let count = 0
+
+                for (const r of results) {
+                    const metrics =
+                        (r as any)?.response?.tree?.nodes?.[0]?.metrics?.acc ||
+                        (r as any)?.response?.tree?.nodes?.[0]?.metrics?.unit
+                    if (!metrics) continue
+                    durationTotal += Number(metrics?.duration?.total || 0)
+                    costsTotal += Number(metrics?.costs?.total || 0)
+                    tokensTotal += Number(metrics?.tokens?.total || 0)
+                    count += 1
+                }
+
+                if (count === 0) {
+                    return {
+                        avgLatency: "-",
+                        avgTokens: "-",
+                        avgCost: "-",
+                    }
+                }
+
+                const summary = {
+                    avgLatency: formatLatency(durationTotal / count / 1000),
+                    avgTokens: formatTokenUsage(tokensTotal / count),
+                    avgCost: formatCurrency(costsTotal / count),
+                }
+                return summary
+            }),
+        [revisionId],
+    )
+    const {avgLatency, avgTokens, avgCost} = useAtomValue(metricsAtom)
     const {attributes, listeners, setNodeRef, transform, transition, isDragging, active} =
         useSortable({id})
     const style = useMemo(
@@ -52,34 +123,6 @@ const VariantNavigationCard = ({
             transition,
         }),
         [transform, transition],
-    )
-
-    // From total rows calculating average costs, tokens, and durations of a variant in each run
-    const calculateAverageLatency = useCallback(
-        (type: "tokens" | "duration" | "costs") => {
-            if (!results || results.length === 0) return null
-
-            const total = results.reduce((sum, item) => {
-                const value = Number(
-                    item?.response?.tree?.nodes?.[0]?.metrics?.acc?.[type]?.total || 0,
-                )
-                return sum + value
-            }, 0)
-
-            const average = total
-
-            switch (type) {
-                case "duration":
-                    return formatLatency(average / 1000)
-                case "costs":
-                    return formatCurrency(average)
-                case "tokens":
-                    return formatTokenUsage(average)
-                default:
-                    return null
-            }
-        },
-        [results],
     )
 
     return (
@@ -120,27 +163,29 @@ const VariantNavigationCard = ({
                         <Version revision={variant?.revision as number} />
                     </div>
                     <Button
-                        icon={<X size={14} />}
                         type="text"
                         className="relative z-[2]"
                         onClick={(e) => {
                             e.preventDefault()
                             e.stopPropagation()
-                            toggleVariantDisplay?.(variantId, false)
+
+                            // Use atom-based mutation for better performance and consistency
+                            removeVariantFromSelection(revisionId)
                         }}
-                    />
+                    >
+                        <X size={14} />
+                    </Button>
                 </div>
                 <div className="flex items-center justify-between">
                     <Text>Average Latency</Text>
                     <Tag color="default" bordered={false} className="flex items-center gap-1">
-                        <Timer size={14} /> {calculateAverageLatency("duration")}
+                        <Timer size={14} /> {avgLatency}
                     </Tag>
                 </div>
                 <div className="flex items-center justify-between">
                     <Text>Average Cost</Text>
                     <Tag color="default" bordered={false} className="flex items-center gap-1">
-                        <PlusCircle size={14} /> {calculateAverageLatency("tokens")} /{" "}
-                        {calculateAverageLatency("costs")}
+                        <PlusCircle size={14} /> {avgTokens} / {avgCost}
                     </Tag>
                 </div>
             </div>

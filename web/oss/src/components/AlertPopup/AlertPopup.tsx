@@ -4,8 +4,8 @@ import {ExclamationCircleOutlined} from "@ant-design/icons"
 import {Modal, ModalFuncProps} from "antd"
 import {HookAPI} from "antd/es/modal/useModal"
 
-import {getAppValues} from "@/oss/contexts/app.context"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
+import {getAppValues} from "@/oss/state/app"
 
 function handleCb(cb: AlertPopupProps["onOk"]) {
     if (typeof cb !== "function") return cb

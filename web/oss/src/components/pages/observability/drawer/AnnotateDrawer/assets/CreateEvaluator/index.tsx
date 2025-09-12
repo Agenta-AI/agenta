@@ -77,7 +77,9 @@ const CreateEvaluator = ({setSteps, setSelectedEvaluators}: CreateEvaluatorProps
                     onScrollTo("top")
                 } else {
                     const errorMessages = Array.isArray(error.response?.data?.detail)
-                        ? error.response?.data?.detail?.map((item: any) => item?.msg).filter(Boolean)
+                        ? error.response?.data?.detail
+                              ?.map((item: any) => item?.msg)
+                              .filter(Boolean)
                         : [error.response?.data?.detail]
 
                     onScrollTo("top")

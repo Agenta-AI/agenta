@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import {CheckCircleOutlined, ExclamationCircleOutlined} from "@ant-design/icons"
+import {CheckCircleOutlined, ExclamationCircleOutlined, LinkOutlined} from "@ant-design/icons"
 import {Button, notification, Space, Tooltip, Typography} from "antd"
 
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
@@ -15,6 +15,8 @@ const CustomWorkflowModalFooter = ({
     appNameExist,
     handleCancelButton,
     handleCreateApp,
+    isUrlValid,
+    variantsReady,
 }: {
     handleEditCustomUrl: () => Promise<void>
     testConnectionStatus: {
@@ -33,30 +35,40 @@ const CustomWorkflowModalFooter = ({
     isConfiguringWorkflow: boolean
     handleCreateApp: () => void
     handleCancelButton: () => void
+    isUrlValid?: boolean
+    variantsReady?: boolean
 }) => {
     return (
         <div className="flex items-center justify-between">
-            <Space>
+            <Space align="center">
                 <Button
                     loading={testConnectionStatus.loading}
-                    type={testConnectionStatus.loading ? "dashed" : "default"}
+                    icon={<LinkOutlined />}
+                    type="default"
                     onClick={() => runTestConnection(undefined, customWorkflowAppValues.appUrl)}
-                    disabled={!customWorkflowAppValues.appUrl}
+                    disabled={
+                        !customWorkflowAppValues.appUrl ||
+                        (typeof isUrlValid === "boolean" && !isUrlValid)
+                    }
+                    style={{minWidth: 140}}
+                    className="whitespace-nowrap"
                 >
-                    {testConnectionStatus.loading ? "Testing" : "Test connection"}
+                    Test connection
                 </Button>
-                {testConnectionStatus.success && (
-                    <>
-                        <CheckCircleOutlined style={{color: "green"}} />
-                        <Typography.Text type="secondary">Successful</Typography.Text>
-                    </>
-                )}
-                {testConnectionStatus.error && (
-                    <>
-                        <ExclamationCircleOutlined style={{color: "red"}} />
-                        <Typography.Text type="secondary">Failed</Typography.Text>
-                    </>
-                )}
+                <div style={{minWidth: 120, display: "inline-flex", alignItems: "center", gap: 6}}>
+                    {testConnectionStatus.success && (
+                        <>
+                            <CheckCircleOutlined style={{color: "green"}} />
+                            <Typography.Text type="secondary">Successful</Typography.Text>
+                        </>
+                    )}
+                    {testConnectionStatus.error && (
+                        <>
+                            <ExclamationCircleOutlined style={{color: "red"}} />
+                            <Typography.Text type="secondary">Failed</Typography.Text>
+                        </>
+                    )}
+                </div>
             </Space>
 
             {configureWorkflow ? (
@@ -64,16 +76,24 @@ const CustomWorkflowModalFooter = ({
                     <Button onClick={handleCancelButton}>Cancel</Button>
                     <Tooltip
                         title={
-                            !testConnectionStatus.success
-                                ? "Please test the connection and ensure a successful response before configuring the app."
-                                : ""
+                            variantsReady === false
+                                ? "Loading app variants..."
+                                : !customWorkflowAppValues.appUrl
+                                  ? "Enter a workflow URL"
+                                  : typeof isUrlValid === "boolean" && !isUrlValid
+                                    ? "Enter a valid URL (http/https)"
+                                    : !testConnectionStatus.success
+                                      ? "Please test the connection and ensure a successful response before configuring the app."
+                                      : ""
                         }
                     >
                         <Button
                             type="primary"
                             disabled={
-                                !customWorkflowAppValues.appName || !customWorkflowAppValues.appUrl
-                                // !testConnectionStatus.success
+                                variantsReady === false ||
+                                !customWorkflowAppValues.appUrl ||
+                                (typeof isUrlValid === "boolean" && !isUrlValid) ||
+                                !testConnectionStatus.success
                             }
                             onClick={handleEditCustomUrl}
                             loading={isConfiguringWorkflow}
@@ -85,9 +105,13 @@ const CustomWorkflowModalFooter = ({
             ) : (
                 <Tooltip
                     title={
-                        !testConnectionStatus.success
-                            ? "Please test the connection and ensure a successful response before creating the app."
-                            : ""
+                        !customWorkflowAppValues.appUrl
+                            ? "Enter a workflow URL"
+                            : typeof isUrlValid === "boolean" && !isUrlValid
+                              ? "Enter a valid URL (http/https)"
+                              : !testConnectionStatus.success
+                                ? "Please test the connection and ensure a successful response before creating the app."
+                                : ""
                     }
                 >
                     <Button
@@ -95,6 +119,7 @@ const CustomWorkflowModalFooter = ({
                         disabled={
                             !customWorkflowAppValues.appName ||
                             !customWorkflowAppValues.appUrl ||
+                            (typeof isUrlValid === "boolean" && !isUrlValid) ||
                             appNameExist ||
                             !isAppNameInputValid(customWorkflowAppValues.appName) ||
                             !testConnectionStatus.success

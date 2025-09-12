@@ -10,17 +10,11 @@ import {ListAppsItem} from "@/oss/lib/Types"
 
 interface AppTableProps {
     filteredApps: ListAppsItem[]
-    setSelectedApp: React.Dispatch<React.SetStateAction<ListAppsItem | null>>
-    setIsDeleteAppModalOpen: (value: React.SetStateAction<boolean>) => void
-    setIsEditAppModalOpen: (value: React.SetStateAction<boolean>) => void
+    openDeleteAppModal: (appDetails: ListAppsItem) => void
+    openEditAppModal: (appDetails: ListAppsItem) => void
 }
 
-const AppTable = ({
-    filteredApps,
-    setIsDeleteAppModalOpen,
-    setIsEditAppModalOpen,
-    setSelectedApp,
-}: AppTableProps) => {
+const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTableProps) => {
     const router = useRouter()
 
     const columns: ColumnsType<ListAppsItem> = [
@@ -77,8 +71,7 @@ const AppTable = ({
                                     icon: <PencilLine size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        setSelectedApp(record)
-                                        setIsEditAppModalOpen(true)
+                                        openEditAppModal(record)
                                     },
                                 },
                                 {
@@ -88,8 +81,7 @@ const AppTable = ({
                                     danger: true,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        setSelectedApp(record)
-                                        setIsDeleteAppModalOpen(true)
+                                        openDeleteAppModal(record)
                                     },
                                 },
                             ],

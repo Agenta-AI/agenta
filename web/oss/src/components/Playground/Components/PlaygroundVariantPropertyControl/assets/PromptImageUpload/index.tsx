@@ -8,9 +8,9 @@ import clsx from "clsx"
 import ImagePreview from "@/oss/components/Common/ImagePreview"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 
+import {isValidImageUrl} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import {PromptImageUploadProps} from "./types"
-import {isValidImageUrl} from "./assets/helpers"
 
 const {Dragger} = Upload
 

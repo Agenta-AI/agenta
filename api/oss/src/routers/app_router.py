@@ -199,14 +199,15 @@ async def create_app(
     """
 
     if is_ee():
-        api_key_from_headers = request.headers.get("Authorization", None)
-        if api_key_from_headers is not None:
-            api_key = api_key_from_headers.split(" ")[-1]  # ["ApiKey", "xxxxx.xxxxxx"]
-            await check_apikey_action_access(
-                api_key,
-                request.state.user_id,
-                Permission.CREATE_APPLICATION,
-            )
+        auth_header = request.headers.get("Authorization", None)
+        # if auth_header is not None and auth_header.startswith("ApiKey "):
+        #     # Only check API key access if it's actually an API key, not a JWT
+        #     api_key = auth_header.split(" ")[-1]  # ["ApiKey", "xxxxx.xxxxxx"]
+        #     await check_apikey_action_access(
+        #         api_key,
+        #         request.state.user_id,
+        #         Permission.CREATE_APPLICATION,
+        #     )
 
         try:
             user_org_workspace_data = await get_user_org_and_workspace_id(

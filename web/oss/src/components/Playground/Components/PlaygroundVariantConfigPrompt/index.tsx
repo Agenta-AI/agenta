@@ -3,8 +3,6 @@ import {useMemo, useRef} from "react"
 import {Collapse} from "antd"
 import clsx from "clsx"
 
-import {componentLogger} from "../../assets/utilities/componentLogger"
-
 import PlaygroundVariantConfigPromptCollapseContent from "./assets/PlaygroundVariantConfigPromptCollapseContent"
 import PlaygroundVariantConfigPromptCollapseHeader from "./assets/PlaygroundVariantConfigPromptCollapseHeader"
 import {useStyles} from "./styles"
@@ -33,13 +31,11 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
     variantId,
     promptId,
     className,
-    viewOnly=false,
+    viewOnly = false,
     ...props
 }) => {
     const defaultActiveKey = useRef(["1"])
     const classes = useStyles()
-
-    componentLogger("PlaygroundVariantConfigPrompt", variantId, promptId)
 
     const items = useMemo(
         () => [

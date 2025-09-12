@@ -1,10 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
+
 import {Columns} from "@phosphor-icons/react"
 import {Button, Checkbox, Popover, Space} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {EditColumnsProps} from "./assets/types"
-import {formatColumnTitle} from "./assets/helper"
 import {useLocalStorage} from "usehooks-ts"
+
+import {formatColumnTitle} from "./assets/helper"
+import {EditColumnsProps} from "./assets/types"
 
 const collectColumnByKey = <T,>(columns: ColumnsType<T>, key: string): any | null => {
     for (const col of columns) {

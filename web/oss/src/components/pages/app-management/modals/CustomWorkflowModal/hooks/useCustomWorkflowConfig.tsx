@@ -1,7 +1,7 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback} from "react"
 
-import {useAppsData} from "@/oss/contexts/app.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
+import {useSetAtom, useStore} from "jotai"
+
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
@@ -9,8 +9,13 @@ import {isDemo} from "@/oss/lib/helpers/utils"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {removeTrailingSlash} from "@/oss/lib/shared/variant"
 import {createAndStartTemplate, ServiceType} from "@/oss/services/app-selector/api"
-
-import CustomWorkflowModal from ".."
+import {useAppsData} from "@/oss/state/app"
+import {
+    openCustomWorkflowModalAtom,
+    closeCustomWorkflowModalAtom,
+} from "@/oss/state/customWorkflow/modalAtoms"
+import {customWorkflowValuesAtomFamily} from "@/oss/state/customWorkflow/modalAtoms"
+import {useProfileData} from "@/oss/state/profile"
 
 import {useCustomWorkflowConfigProps} from "./types"
 
@@ -18,48 +23,38 @@ const useCustomWorkflowConfig = ({
     setFetchingTemplate,
     setStatusData,
     setStatusModalOpen,
-    configureWorkflow = true,
+    // configureWorkflow = true,
+    appId: propsAppId,
     afterConfigSave,
 }: useCustomWorkflowConfigProps) => {
-    const {currentApp, apps} = useAppsData()
+    const {currentApp} = useAppsData()
     const {secrets} = useVaultSecret()
-    const [isCustomWorkflowModalOpen, setIsCustomWorkflowModalOpen] = useState(false)
-    const [customWorkflowAppValues, setCustomWorkflowAppValues] = useState(() => ({
-        appName: "",
-        appUrl: "",
-        appDesc: "",
-    }))
+    // Read current form values directly from the atom family (scoped by appId for configure mode)
+    const rawAppId = propsAppId ?? (currentApp as any)?.app_id ?? ""
+    const modalAtomKey = rawAppId && String(rawAppId).trim().length ? String(rawAppId) : "new-app"
+    const configureWorkflow = modalAtomKey !== "new-app"
 
     const {mutate} = useAppsData()
     // @ts-ignore
-    const {data, mutate: variantsMutate} = useVariants(currentApp)(
-        {
-            appId: currentApp?.app_id,
-        },
-        [],
-    )
+    const {data, mutate: variantsMutate} = useVariants(currentApp)
 
     const posthog = usePostHogAg()
 
-    const variant = useMemo(() => data?.variants?.[0], [data?.variants])
+    // No local seeding based on first variant here; hydration is centralized
     const {user} = useProfileData()
 
-    useEffect(() => {
-        if (!configureWorkflow) return
+    const openModalAtom = useSetAtom(openCustomWorkflowModalAtom)
+    const closeModalAtom = useSetAtom(closeCustomWorkflowModalAtom)
+    const jotaiStore = useStore()
 
-        if (variant) {
-            setCustomWorkflowAppValues({
-                appName: currentApp?.app_name ?? "",
-                appUrl: variant?.uri ?? "",
-                appDesc: "",
-            })
-        }
-    }, [variant, currentApp, configureWorkflow])
+    // Hydration of initial values is handled centrally in openCustomWorkflowModalAtom
 
     const handleCustomWorkflowClick = async () => {
         if (!setFetchingTemplate || !setStatusData || !setStatusModalOpen) return
-
-        setIsCustomWorkflowModalOpen(false)
+        // Read freshest form values at call-time to avoid stale closure
+        const latestValues = jotaiStore.get(customWorkflowValuesAtomFamily(modalAtomKey))
+        // console.log("handleCustomWorkflowClick", latestValues)
+        closeModalAtom()
         // warn the user and redirect if openAI key is not present
         // TODO: must be changed for multiples LLM keys
         // if (redirectIfNoLLMKeys()) return
@@ -71,9 +66,9 @@ const useCustomWorkflowConfig = ({
         const apiKeys = secrets
         await createAndStartTemplate({
             isCustomWorkflow: true,
-            appName: customWorkflowAppValues.appName,
+            appName: latestValues.appName,
             templateKey: ServiceType.Custom,
-            serviceUrl: removeTrailingSlash(customWorkflowAppValues.appUrl),
+            serviceUrl: removeTrailingSlash(latestValues.appUrl),
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             onStatusChange: async (status, details, appId) => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))
@@ -94,57 +89,37 @@ const useCustomWorkflowConfig = ({
         })
     }
 
-    const appNameExist = useMemo(
-        () =>
-            apps.some(
-                (app) =>
-                    app.app_name.toLowerCase() === customWorkflowAppValues.appName.toLowerCase(),
-            ),
-        [apps, customWorkflowAppValues.appName],
-    )
+    // appNameExist moved to modal content for both modes
 
-    const Modal = useMemo(() => {
-        return (
-            <CustomWorkflowModal
-                open={isCustomWorkflowModalOpen}
-                onCancel={() => {
-                    setIsCustomWorkflowModalOpen(false)
-                    if (!configureWorkflow) {
-                        setCustomWorkflowAppValues({
-                            appName: "",
-                            appUrl: "",
-                            appDesc: "",
-                        })
-                    }
-                }}
-                customWorkflowAppValues={customWorkflowAppValues}
-                setCustomWorkflowAppValues={setCustomWorkflowAppValues}
-                handleCreateApp={configureWorkflow ? () => {} : handleCustomWorkflowClick}
-                configureWorkflow={configureWorkflow}
-                // @ts-ignore
-                allVariantsDataMutate={variantsMutate}
-                variants={data?.variants}
-                mutate={async () => afterConfigSave}
-                {...(!configureWorkflow && {appNameExist})}
-            />
-        )
+    const openModal = useCallback(() => {
+        openModalAtom({
+            open: true,
+            onCancel: () => {
+                closeModalAtom()
+            },
+            handleCreateApp: configureWorkflow ? () => {} : handleCustomWorkflowClick,
+            configureWorkflow,
+            appId: modalAtomKey,
+            // @ts-ignore
+            allVariantsDataMutate: variantsMutate,
+            variants:
+                (Array.isArray((data as any)?.variants) && (data as any)?.variants) ||
+                (Array.isArray(data as any) ? (data as any) : []),
+            mutate: async () => afterConfigSave?.(),
+        })
     }, [
-        isCustomWorkflowModalOpen,
-        customWorkflowAppValues,
-        data?.variants,
+        openModalAtom,
+        closeModalAtom,
         configureWorkflow,
-        setCustomWorkflowAppValues,
+        (currentApp as any)?.app_id,
+        modalAtomKey,
         handleCustomWorkflowClick,
         variantsMutate,
+        data?.variants,
         afterConfigSave,
     ])
 
-    const openModal = useCallback(() => {
-        setIsCustomWorkflowModalOpen(true)
-    }, [])
-
     return {
-        CustomWorkflowModal: Modal,
         openModal,
     }
 }

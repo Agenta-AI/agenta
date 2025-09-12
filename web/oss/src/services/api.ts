@@ -1,6 +1,5 @@
 import Session from "supertokens-auth-react/recipe/session"
 
-import {DEFAULT_UUID, getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
@@ -18,6 +17,7 @@ import {
     BaseResponse,
     User,
 } from "@/oss/lib/Types"
+import {DEFAULT_UUID, getProjectValues} from "@/oss/state/project"
 
 import {findCustomWorkflowPath, uriFixer} from "../lib/shared/variant"
 import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
@@ -36,7 +36,7 @@ import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
 export const axiosFetcher = (url: string) => axios.get(url).then((res) => res.data)
 
 export async function fetchVariants(appId: string, ignoreAxiosError = false): Promise<Variant[]> {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     if (!projectId || projectId === DEFAULT_UUID) {
         return []
@@ -87,7 +87,18 @@ export const getJWT = async () => {
             return jwt
         }
     } catch (error) {
-        console.error("Failed to fetch JWT")
+        console.error("Failed to fetch JWT", process.env.NODE_ENV)
+    }
+
+    // In test environment, fall back to test JWT if available
+    if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+        const testJWT = process.env.VITEST_TEST_JWT || process.env.TEST_JWT
+        if (testJWT) {
+            console.log("🔑 Using test JWT for authentication:", testJWT.substring(0, 30) + "...")
+            return testJWT
+        } else {
+            console.log("❌ No test JWT found in environment variables")
+        }
     }
 
     return undefined
@@ -201,7 +212,7 @@ export async function callVariant(
         return response?.data
     } else {
         const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
-        const {projectId} = getCurrentProject()
+        const {projectId} = getProjectValues()
         const jwt = await getJWT()
 
         const base_url = `${appContainerURI}/test?application_id=${appId}`
@@ -259,7 +270,7 @@ export const fetchVariantParametersFromOpenAPI = async (
 ) => {
     console.log("fetchVariantParametersFromOpenAPI !!")
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
     const jwt = await getJWT()
 
     const base_url = `${appContainerURI}/openapi.json`
@@ -342,7 +353,7 @@ export const fetchAppContainerURL = async (
         if (!getAgentaApiUrl()) {
             throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
         }
-        const {projectId} = getCurrentProject()
+        const {projectId} = getProjectValues()
 
         // Retrieve container URL from backend
         const {data} = await axios.get(
@@ -370,6 +381,7 @@ export const fetchSingleProfile = async (
     userId: string,
     ignoreAxiosError = false,
 ): Promise<User> => {
+    console.log("fetchSingleProfile", userId)
     const {data} = await axios.get(`${getAgentaApiUrl()}/profile?user_id=${userId}`, {
         _ignoreError: ignoreAxiosError,
     } as any)
@@ -414,3 +426,6 @@ export const waitForAppToStart = async ({
         return {stopper: () => {}, promise: Promise.reject(new Error("Variant not found"))}
     }
 }
+
+// Re-export profile mutations for backward compatibility with older imports
+export {updateProfile, changePassword} from "./profile"

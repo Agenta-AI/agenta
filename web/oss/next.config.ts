@@ -18,6 +18,13 @@ const COMMON_CONFIG: NextConfig = {
     typescript: {
         ignoreBuildErrors: true,
     },
+    experimental: {
+        swcPlugins: [
+            // ["@swc-jotai/react-refresh", {}],
+            // ["@swc-jotai/debug-label", {}],
+        ],
+    },
+    transpilePackages: ["jotai-devtools"],
     async redirects() {
         return [
             {

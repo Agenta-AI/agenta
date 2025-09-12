@@ -3,9 +3,9 @@ import {useCallback} from "react"
 import {useAtom} from "jotai"
 import {type PostHog} from "posthog-js"
 
-import {useProfileData} from "@/oss/contexts/profile.context"
 import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
 import {generateOrRetrieveDistinctId, isDemo} from "@/oss/lib/helpers/utils"
+import {useProfileData} from "@/oss/state/profile"
 
 import {getEnv} from "../../dynamicEnv"
 import {posthogAtom} from "../store/atoms"

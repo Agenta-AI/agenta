@@ -1,22 +1,21 @@
-import {useCallback} from "react"
+import {useEffect, useMemo} from "react"
 
 import {Alert} from "antd"
 import clsx from "clsx"
-import {v4 as uuidv4} from "uuid"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {findVariantById} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {ArrayMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {variantIsCustomAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {
+    promptsAtomFamily,
+    promptVariablesByPromptAtomFamily,
+} from "@/oss/state/newPlayground/core/prompts"
+import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import {createObjectFromMetadata} from "../../../../../lib/shared/variant/genericTransformer/helpers/arrays"
-import AddButton from "../../../assets/AddButton"
-import {hashMetadata} from "../../../assets/hash"
-import {componentLogger} from "../../../assets/utilities/componentLogger"
-import usePlayground from "../../../hooks/usePlayground"
-import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
-import PromptMessageConfig from "../../PromptMessageConfig"
 import type {PromptCollapseContentProps} from "../types"
+
+import ActionsOutputRenderer from "./ActionsOutputRenderer"
+import MessagesRenderer from "./MessagesRenderer"
+import ToolsRenderer from "./ToolsRenderer"
 
 /**
  * PlaygroundVariantConfigPromptCollapseContent renders the configuration interface
@@ -37,190 +36,43 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
     viewOnly,
     ...props
 }) => {
-    const {
-        responseFormatId,
-        promptName,
-        isCustom,
-        inputKeys,
-        messageIds,
-        toolIds,
-        mutateVariant,
-        hasVariable,
-        mutate,
-    } = usePlayground({
-        variantId,
-        hookId: "PlaygroundConfigVariantPrompts",
-        variantSelector: useCallback(
-            (variant: EnhancedVariant) => {
-                const prompt = (variant.prompts || []).find((p) => p.__id === promptId)
-                const messages = prompt?.messages
+    // Minimal subscriptions by stable key `${revisionId}:${promptId}`
+    const compoundKey = `${variantId}:${promptId}`
 
-                if (!messages) {
-                    return {messageIds: []}
-                }
+    // Seed local prompts cache once to avoid first-edit race between derived and local state
+    const seedPrompts = useSetAtom(promptsAtomFamily(variantId))
+    useEffect(() => {
+        seedPrompts((draft: any) => draft)
+        // run once per variantId mount
+    }, [variantId])
 
-                return {
-                    messageIds: messages.value.map((message) => message.__id),
-                    inputKeys: prompt.inputKeys.value || [],
-                    hasVariable: prompt.inputKeys.value.length > 0,
-                    isCustom: variant.isCustom,
-                    responseFormatId: prompt.llmConfig?.responseFormat?.__id,
-                    responseFormat: prompt.llmConfig?.responseFormat?.value?.type,
-                    promptName: prompt.__name,
-                    toolIds: (prompt.llmConfig?.tools?.value || []).map((tool) => tool.__id),
-                }
-            },
-            [promptId],
+    // const promptsAtom = useMemo(
+    //     () =>
+    //         atom((get) => {
+    //             // const variant = get(variantByRevisionIdAtomFamily(variantId)) as any
+    //             return get(promptsAtomFamily(variantId))
+    //         }),
+    //     [variantId],
+    // )
+
+    const promptVars = useAtomValue(
+        useMemo(
+            () => promptVariablesByPromptAtomFamily({revisionId: variantId, promptId}),
+            [variantId, promptId],
         ),
-    })
-
-    const addNewTool = useCallback(() => {
-        if (!mutateVariant) return
-
-        mutateVariant((draft) => {
-            const variantPrompt = draft.prompts?.find((p) => p.__id === promptId)
-            if (!variantPrompt?.llmConfig?.tools.value) {
-                variantPrompt.llmConfig.tools.value = []
-            }
-
-            variantPrompt?.llmConfig?.tools.value.push({
-                __id: uuidv4(),
-                __metadata: hashMetadata({
-                    type: "object",
-                    name: "ToolConfiguration",
-                    description: "Tool configuration",
-                    properties: {
-                        type: {
-                            type: "string",
-                            description: "Type of the tool",
-                        },
-                        name: {
-                            type: "string",
-                            description: "Name of the tool",
-                        },
-                        description: {
-                            type: "string",
-                            description: "Description of the tool",
-                        },
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                type: {
-                                    type: "string",
-                                    enum: ["object", "function"],
-                                },
-                            },
-                        },
-                    },
-                    required: ["name", "description", "parameters"],
-                }),
-                value: {
-                    type: "function",
-                    function: {
-                        name: "get_weather",
-                        description: "Get current temperature for a given location.",
-                        parameters: {
-                            type: "object",
-                            properties: {
-                                location: {
-                                    type: "string",
-                                    description: "City and country e.g. Bogotá, Colombia",
-                                },
-                            },
-                            required: ["location"],
-                            additionalProperties: false,
-                        },
-                    },
-                },
-            })
-
-            return draft
-        })
-    }, [mutateVariant, promptId])
-    const addNewMessage = useCallback(() => {
-        if (!mutateVariant) return
-
-        mutateVariant((draft) => {
-            const variantPrompt = draft.prompts?.find((p) => p.__id === promptId)
-            const messages = variantPrompt?.messages.value
-            const parentMetadata = getMetadataLazy<ArrayMetadata>(
-                variantPrompt?.messages.__metadata,
-            )
-            const metadata = parentMetadata?.itemMetadata
-
-            if (variantPrompt && messages && metadata) {
-                const newMessage = createObjectFromMetadata(metadata) as (typeof messages)[number]
-                if (newMessage) {
-                    messages.push(newMessage)
-                }
-            }
-
-            return draft
-        })
-    }, [mutateVariant, promptId])
-
-    const deleteMessage = useCallback(
-        (messageId: string) => {
-            if (!mutateVariant) return
-
-            mutate(
-                (clonedState) => {
-                    if (!clonedState) return clonedState
-
-                    const variant = findVariantById(clonedState, variantId)
-
-                    if (!variant) return clonedState
-
-                    const variantPrompt = variant.prompts?.find((p) => p.__id === promptId)
-                    const messages = variantPrompt?.messages.value
-
-                    if (variantPrompt && messages) {
-                        // Filter out the message with the specified ID
-                        variantPrompt.messages.value = messages.filter(
-                            (message) => message.__id !== messageId,
-                        )
-                    }
-
-                    return clonedState
-                },
-                {revalidate: false},
-            )
-        },
-        [mutateVariant, promptId],
-    )
-
-    componentLogger(
-        "PlaygroundVariantConfigPromptCollapseContent",
-        variantId,
-        messageIds,
-        inputKeys,
-    )
+    ) as string[]
+    const hasVariable = (promptVars?.length || 0) > 0
+    const isCustom = useAtomValue(variantIsCustomAtomFamily(variantId))
 
     return (
         <div className={clsx("flex flex-col gap-2 pt-3", className)} {...props}>
-            {messageIds?.map((messageId) => (
-                <PromptMessageConfig
-                    key={messageId}
-                    variantId={variantId}
-                    messageId={messageId}
-                    deleteMessage={deleteMessage}
-                    editorType="border"
-                    editorClassName="min-h-4 [&_p:last-child]:!mb-0"
-                    isMessageDeletable={messageIds?.length === 1}
-                    viewOnly={viewOnly}
-                />
-            ))}
-            {(toolIds || [])?.map((toolId) => (
-                <div key={toolId}>
-                    <PlaygroundVariantPropertyControl
-                        key={toolId}
-                        variantId={variantId}
-                        propertyId={toolId}
-                        promptName={promptName}
-                        debug
-                    />
-                </div>
-            ))}
+            <MessagesRenderer
+                variantId={variantId}
+                compoundKey={compoundKey}
+                promptId={promptId}
+                viewOnly={viewOnly}
+            />
+            <ToolsRenderer variantId={variantId} compoundKey={compoundKey} viewOnly={viewOnly} />
 
             {!isCustom && !hasVariable && !viewOnly && (
                 <Alert
@@ -236,26 +88,11 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                 />
             )}
 
-            {viewOnly ? null : (
-                <div className="flex items-center gap-1 flex-wrap">
-                    <AddButton
-                        className="mt-2"
-                        size="small"
-                        label="Message"
-                        onClick={addNewMessage}
-                    />
-                    <AddButton className="mt-2" size="small" label="Tool" onClick={addNewTool} />
-                    {responseFormatId ? (
-                        <div>
-                            <PlaygroundVariantPropertyControl
-                                variantId={variantId}
-                                propertyId={responseFormatId}
-                                promptName={promptName}
-                            />
-                        </div>
-                    ) : null}
-                </div>
-            )}
+            <ActionsOutputRenderer
+                variantId={variantId}
+                compoundKey={compoundKey}
+                viewOnly={viewOnly}
+            />
         </div>
     )
 }

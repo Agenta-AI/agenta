@@ -1,7 +1,6 @@
 import uniqBy from "lodash/uniqBy"
 import {v4 as uuidv4} from "uuid"
 
-import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {
     ComparisonResultRow,
@@ -13,16 +12,17 @@ import {
     _EvaluationScenario,
 } from "@/oss/lib/Types"
 import {fetchTestset} from "@/oss/services/testsets/api"
+import {getProjectValues} from "@/oss/state/project"
 
 export const fetchEvaluation = async (evaluationId: string) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     const response = await axios.get(`/evaluations/${evaluationId}?project_id=${projectId}`)
     return evaluationTransformer(response.data) as _Evaluation
 }
 
 export const fetchEvaluationStatus = async (evaluationId: string) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     const response = await axios.get(`/evaluations/${evaluationId}/status?project_id=${projectId}`)
     return response.data as {status: _Evaluation["status"]}
@@ -46,7 +46,7 @@ export type CreateEvaluationData =
           correct_answer_column: string
       }
 export const createEvaluation = async (appId: string, evaluation: CreateEvaluationData) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     // TODO: new AUTO-EVAL trigger
     return axios.post(`/api/evaluations/preview/start?project_id=${projectId}`, {
@@ -56,7 +56,7 @@ export const createEvaluation = async (appId: string, evaluation: CreateEvaluati
 }
 
 export const deleteEvaluations = async (evaluationsIds: string[]) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     return axios.delete(`/evaluations?project_id=${projectId}`, {
         data: {evaluations_ids: evaluationsIds},
@@ -65,7 +65,7 @@ export const deleteEvaluations = async (evaluationsIds: string[]) => {
 
 // Evaluation Scenarios
 export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     const [{data: evaluationScenarios}, evaluation] = await Promise.all([
         axios.get(`/evaluations/${evaluationId}/evaluation_scenarios?project_id=${projectId}`),
@@ -85,7 +85,7 @@ export const updateScenarioStatus = async (
     scenario: _EvaluationScenario,
     status: EvaluationStatus,
 ) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
     return axios.patch(`/preview/evaluations/scenarios/?project_id=${projectId}`, {
         scenarios: [{...scenario, status}],
     })
@@ -171,7 +171,7 @@ export const fetchEvaluatonIdsByResource = async ({
     resourceIds: string[]
     resourceType: "testset" | "evaluator_config" | "variant"
 }) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     return axios.get(`/evaluations/by_resource?project_id=${projectId}`, {
         params: {resource_ids: resourceIds, resource_type: resourceType},

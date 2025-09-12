@@ -1,23 +1,24 @@
 import {memo, useEffect, useMemo} from "react"
 
+import {Sidebar} from "@phosphor-icons/react"
 import {Breadcrumb, Typography} from "antd"
+import clsx from "clsx"
 import {useAtom, useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
 import {breadcrumbAtom, type BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb"
-import {useBreadcrumbs} from "@/oss/lib/hooks/useBreadcrumbs"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
+import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
+import {useBreadcrumbs} from "@/oss/lib/hooks/useBreadcrumbs"
+import {appsAtom} from "@/oss/state/app"
+
 import packageJsonData from "../../../../package.json"
 import EnhancedButton from "../../Playground/assets/EnhancedButton"
+import TooltipWithCopyAction from "../../TooltipWithCopyAction"
 
 import {useStyles, type StyleProps} from "./styles"
-import {useAppsData} from "@/oss/contexts/app.context"
-import clsx from "clsx"
-import TooltipWithCopyAction from "../../TooltipWithCopyAction"
-import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
 import {generateSegmentsForBreadcrumb} from "./utils"
-import {Sidebar} from "@phosphor-icons/react"
 
 const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.ReactNode}[] => {
     if (!breadcrumbs) return []
@@ -68,7 +69,7 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
 
 const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const {apps} = useAppsData()
+    const apps = useAtomValue(appsAtom)
     const router = useRouter()
     const breadcrumbs = useAtomValue(breadcrumbAtom)
     const {setBreadcrumbs, clearBreadcrumbs} = useBreadcrumbs()
@@ -77,7 +78,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const urlBasedBreadcrumbs = useMemo(() => {
         return generateSegmentsForBreadcrumb({
             uriPath: router.asPath,
-            apps: apps.slice(0, 5),
+            apps: apps,
         })
     }, [router.pathname, apps])
 
@@ -97,7 +98,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     )
 
     return (
-        <section className={classes.breadcrumbContainer}>
+        <section className={clsx(classes.breadcrumbContainer, "sticky top-0 z-10 bg-white")}>
             <div className="flex items-center gap-4">
                 <EnhancedButton
                     type="text"

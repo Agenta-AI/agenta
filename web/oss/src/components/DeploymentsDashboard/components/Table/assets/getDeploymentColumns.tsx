@@ -5,13 +5,13 @@ import {ColumnsType} from "antd/es/table"
 import {NextRouter} from "next/router"
 
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
+import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 
 import {DeploymentRevisionWithVariant} from "../../.."
 import VariantDetailsRenderer from "../../../assets/VariantDetailsRenderer"
 
 export const getColumns = ({
-    handleFetchRevisionConfig,
     setSelectedRevisionRow,
     setIsRevertModalOpen,
     setSelectedVariantRevisionIdToRevert,
@@ -20,7 +20,6 @@ export const getColumns = ({
     router,
     appId,
 }: {
-    handleFetchRevisionConfig: (revisionId: string) => Promise<void>
     setSelectedRevisionRow: React.Dispatch<
         React.SetStateAction<DeploymentRevisionWithVariant | undefined>
     >
@@ -121,7 +120,6 @@ export const getColumns = ({
                                 icon: <Note size={16} />,
                                 onClick: (e) => {
                                     e.domEvent.stopPropagation()
-                                    handleFetchRevisionConfig(record.id)
                                     setSelectedRevisionRow(record)
                                     handleAssignRevisionId(record)
                                 },
@@ -135,7 +133,9 @@ export const getColumns = ({
                                     router.push({
                                         pathname: `/apps/${appId}/playground`,
                                         query: {
-                                            revisions: JSON.stringify([record.variant?.id]),
+                                            revisions: buildRevisionsQueryParam([
+                                                record.variant?.id,
+                                            ]),
                                         },
                                     })
                                 },

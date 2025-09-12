@@ -23,6 +23,8 @@ export interface PlaygroundVariantPropertyControlProps extends BaseContainerProp
     rowId?: string
     /** Unique identifier for the property */
     propertyId: string
+    /** Message ID for chat message-specific updates */
+    messageId?: string
     /** Optional rendering variant for the control */
     as?: "SimpleDropdownSelect" | "PromptMessageContent" | "SimpleInput"
     view?: string
