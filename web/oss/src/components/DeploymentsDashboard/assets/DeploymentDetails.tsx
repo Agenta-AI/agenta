@@ -13,7 +13,7 @@ interface DeploymentDetailsProps {
 const DeploymentDetails = ({revisionConfig, variant}: DeploymentDetailsProps) => {
     return (
         <Tabs
-            destroyInactiveTabPane
+            destroyOnHidden
             defaultActiveKey={"variant"}
             items={[
                 {

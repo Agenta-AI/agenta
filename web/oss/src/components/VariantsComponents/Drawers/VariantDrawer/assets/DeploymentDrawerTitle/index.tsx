@@ -3,19 +3,22 @@ import {memo} from "react"
 import {CloseOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
-import {useRouter} from "next/router"
+import {useAtomValue} from "jotai"
 
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
+import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {useQueryParam} from "@/oss/hooks/useQuery"
 
 import {DeploymentDrawerTitleProps} from "../types"
 
 const DeploymentDrawerTitle = ({
-    selectedVariant,
+    variantId,
     onClose,
     revert,
     isLoading,
 }: DeploymentDrawerTitleProps) => {
-    const router = useRouter()
+    const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId))
+    const [envName] = useQueryParam("selectedEnvName")
 
     return (
         <section className="flex items-center justify-between">
@@ -24,7 +27,7 @@ const DeploymentDrawerTitle = ({
 
                 <div className="flex items-center gap-2">
                     {/*TODO: update this with select variant deployment */}
-                    <EnvironmentTagLabel environment={router.query.selectedEnvName as string} />
+                    <EnvironmentTagLabel environment={envName || ""} />
                     <Tag bordered={false} className="bg-[#0517290F]">
                         v{selectedVariant?.revision}
                     </Tag>

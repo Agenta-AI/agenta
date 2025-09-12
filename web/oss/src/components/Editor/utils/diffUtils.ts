@@ -138,11 +138,13 @@ function applyFolding(
                     // Add fold indicator - calculate actual folded line range
                     const firstFoldedLine = diffLines[contextStart]
                     const lastFoldedLine = diffLines[foldEnd - 1]
-                    const startLineNum = firstFoldedLine.oldLineNumber || firstFoldedLine.newLineNumber || 1
-                    const endLineNum = lastFoldedLine.oldLineNumber || lastFoldedLine.newLineNumber || 1
-                    
+                    const startLineNum =
+                        firstFoldedLine.oldLineNumber || firstFoldedLine.newLineNumber || 1
+                    const endLineNum =
+                        lastFoldedLine.oldLineNumber || lastFoldedLine.newLineNumber || 1
+
                     // Debug: fold range calculation is working correctly
-                    
+
                     result.push({
                         type: "fold",
                         content: showFoldedLineCount
@@ -172,11 +174,13 @@ function applyFolding(
                     // Add fold indicator - calculate actual folded line range
                     const firstFoldedLine = diffLines[foldStart]
                     const lastFoldedLine = diffLines[contextEnd - 1]
-                    const startLineNum = firstFoldedLine.oldLineNumber || firstFoldedLine.newLineNumber || 1
-                    const endLineNum = lastFoldedLine.oldLineNumber || lastFoldedLine.newLineNumber || 1
-                    
+                    const startLineNum =
+                        firstFoldedLine.oldLineNumber || firstFoldedLine.newLineNumber || 1
+                    const endLineNum =
+                        lastFoldedLine.oldLineNumber || lastFoldedLine.newLineNumber || 1
+
                     // Debug: fold range calculation is working correctly
-                    
+
                     result.push({
                         type: "fold",
                         content: showFoldedLineCount
@@ -211,9 +215,11 @@ function applyFolding(
                     // Add fold indicator - calculate actual folded line range
                     const firstFoldedLine = diffLines[foldStart]
                     const lastFoldedLine = diffLines[foldEnd - 1]
-                    const startLineNum = firstFoldedLine.oldLineNumber || firstFoldedLine.newLineNumber || 1
-                    const endLineNum = lastFoldedLine.oldLineNumber || lastFoldedLine.newLineNumber || 1
-                    
+                    const startLineNum =
+                        firstFoldedLine.oldLineNumber || firstFoldedLine.newLineNumber || 1
+                    const endLineNum =
+                        lastFoldedLine.oldLineNumber || lastFoldedLine.newLineNumber || 1
+
                     result.push({
                         type: "fold",
                         content: showFoldedLineCount
@@ -364,7 +370,7 @@ export function computeDiff(
             }
         })
         .join("\n")
-    
+
     return result
 }
 

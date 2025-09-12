@@ -11,7 +11,7 @@ export const TestScope = {
     EVALUATIONS: "evaluations", // Evaluation flows
     SETTINGS: "settings", // Settings flows
     DEPLOYMENT: "deployment", // Deployment flows
-    OBSERVABILITY: "observability"
+    OBSERVABILITY: "observability",
 } as const
 
 /**

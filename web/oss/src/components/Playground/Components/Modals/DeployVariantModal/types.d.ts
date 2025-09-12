@@ -10,9 +10,12 @@ export interface ExtendedEnvironment extends Environment {
     }
 }
 export interface DeployVariantModalProps extends ModalProps {
+    /** When deploying a whole variant (not a specific revision). Synonym: variantId. */
+    parentVariantId?: string
+    /** Optional alias supported by DeployVariantButton */
     variantId?: string
     revisionId?: string
-    environments: ExtendedEnvironment[]
+    environments?: ExtendedEnvironment[]
     variantName: string
     revision: number | string
     isLoading?: boolean

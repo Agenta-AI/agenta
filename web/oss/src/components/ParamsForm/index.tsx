@@ -65,13 +65,16 @@ const ParamsForm: React.FC<Props> = ({
     const imgHeight = imageSize === "small" ? 90 : 120
 
     const chat = inputParams.find((param) => param.name === "chat")?.value
+    const inputParamsToRender = isChatVariant
+        ? inputParams.filter((p) => p.name !== "chat")
+        : inputParams
 
     return isChatVariant ? (
         <>
             <Form form={form} className={classes.form} onFinish={onFinish}>
                 {/*@ts-ignore*/}
                 {(_, formInstance) => {
-                    return inputParams.map((param, index) => {
+                    return inputParamsToRender.map((param, index) => {
                         const type =
                             param.type === "file_url"
                                 ? "url"
@@ -172,7 +175,7 @@ const ParamsForm: React.FC<Props> = ({
         <Form form={form} className={classes.form} onFinish={onFinish}>
             {/*@ts-ignore*/}
             {(_, formInstance) => {
-                return inputParams.map((param, index) => {
+                return inputParamsToRender.map((param, index) => {
                     const type =
                         param.type === "file_url"
                             ? "url"

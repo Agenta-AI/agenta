@@ -1,15 +1,16 @@
 // @ts-nocheck
-import {useCallback, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {Drawer} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 
-import {getEnhancedProperties} from "@/oss/components/Playground/assets/utilities/genericTransformer/utilities/enhanced"
-import {EnhancedVariant} from "@/oss/components/Playground/assets/utilities/transformer/types"
 import GenerationComparisonCompletionOutput from "@/oss/components/Playground/Components/PlaygroundGenerationComparisonView/GenerationComparisonCompletionOutput"
 import GenerationCompletionRow from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/GenerationCompletionRow"
 import useDrawerWidth from "@/oss/components/Playground/hooks/useDrawerWidth"
-import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {findVariantById} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
+import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygroundLayout"
+import {playgroundStateAtom} from "@/oss/components/Playground/state/atoms"
 
 import GenerationFocusDrawerHeader from "./assets/GenerationFocusDrawerHeader"
 import GenerationOutputNavigator from "./assets/GenerationOutputNavigator"
@@ -27,27 +28,17 @@ const GenerationFocusDrawer: React.FC<GenerationFocusDrawerProps> = ({
     const [format, setFormat] = useState<OutputFormat>("PRETTY")
     const {drawerWidth} = useDrawerWidth()
 
-    const {isRunning, displayedVariants, viewType} = usePlayground({
-        variantId,
-        variantSelector: useCallback(
-            (variant: EnhancedVariant) => {
-                const inputRow = (variant.inputs?.value || []).find((inputRow) => {
-                    return inputRow.__id === rowId
-                })
+    const playgroundState = useAtomValue(playgroundStateAtom)
+    const {displayedVariants, isComparisonView} = usePlaygroundLayout()
+    const viewType = isComparisonView ? "comparison" : "single"
 
-                const variables = getEnhancedProperties(inputRow)
-                const variableIds = variables.map((p) => p.__id)
-                const canRun = variables.reduce((acc, curr) => acc && !!curr.value, true)
-
-                return {
-                    variableIds,
-                    canRun,
-                    isRunning: inputRow?.__isLoading,
-                }
-            },
-            [rowId],
-        ),
-    })
+    const isRunning = useMemo(() => {
+        const variant = findVariantById(playgroundState, variantId)
+        const inputRow = (variant?.inputs?.value || []).find((inputRow) => {
+            return inputRow.__id === rowId
+        })
+        return inputRow?.__isLoading || false
+    }, [playgroundState, variantId, rowId])
 
     const onClose = (e: any) => {
         props?.onClose?.(e)

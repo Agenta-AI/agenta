@@ -1,11 +1,13 @@
 import React from "react"
+import {useMemo} from "react"
 
 import {Collapse, CollapseProps, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
+import {TracesWithAnnotations} from "@/oss/services/observability/types"
 
-import {TracesWithAnnotations} from "../../ObservabilityDashboard"
+import useTraceDrawer from "../hooks/useTraceDrawer"
 
 import TraceAnnotations from "./TraceAnnotations"
 import TraceDetails from "./TraceDetails"
@@ -40,8 +42,16 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const TraceSidePanel = ({activeTrace}: {activeTrace: TracesWithAnnotations}) => {
+const TraceSidePanel = ({
+    activeTrace,
+    activeTraceId,
+}: {
+    activeTrace?: TracesWithAnnotations
+    activeTraceId?: string
+}) => {
     const classes = useStyles()
+    const {getTraceById} = useTraceDrawer()
+    const derived = activeTrace || getTraceById(activeTraceId)
 
     const items: CollapseProps["items"] = [
         {
@@ -49,12 +59,12 @@ const TraceSidePanel = ({activeTrace}: {activeTrace: TracesWithAnnotations}) => 
             label: (
                 <Typography.Text className={classes.collapseItemLabel}>Annotations</Typography.Text>
             ),
-            children: <TraceAnnotations annotations={activeTrace.annotations || []} />,
+            children: <TraceAnnotations annotations={derived?.annotations || []} />,
         },
         {
             key: "details",
             label: <Typography.Text className={classes.collapseItemLabel}>Details</Typography.Text>,
-            children: <TraceDetails activeTrace={activeTrace} />,
+            children: <TraceDetails activeTrace={derived as any} />,
         },
     ]
 

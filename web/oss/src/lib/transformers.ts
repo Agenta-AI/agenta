@@ -1,7 +1,8 @@
-import {getAppValues} from "@/oss/contexts/app.context"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {TraceSpan} from "@/oss/lib/Types"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
+
+import {getAppValues} from "../state/app"
 
 import {EvaluationType} from "./enums"
 import {formatDay} from "./helpers/dateTimeHelper"

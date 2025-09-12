@@ -3,6 +3,7 @@ import {useRef, useState} from "react"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Form, FormProps, Input, Typography} from "antd"
 import {OTPRef} from "antd/es/input/OTP"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {
     clearLoginAttemptInfo,
@@ -11,12 +12,12 @@ import {
 } from "supertokens-auth-react/recipe/passwordless"
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
-import {LS_ORG_KEY} from "@/oss/contexts/org.context"
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
-import {useProjectData} from "@/oss/contexts/project.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {selectedOrgIdAtom} from "@/oss/state/org"
+import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
@@ -36,6 +37,7 @@ const SendOTP = ({
     const {reset: resetProjectData} = useProjectData()
     const classes = useStyles()
     const router = useRouter()
+    const setSelectedOrgId = useSetAtom(selectedOrgIdAtom)
 
     const [isResendDisabled, setIsResendDisabled] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
@@ -88,11 +90,12 @@ const SendOTP = ({
 
             if (response.status === "OK") {
                 resetProfileData()
-                resetOrgData()
-                resetProjectData()
+                // resetOrgData()
+                // resetProjectData()
                 await clearLoginAttemptInfo()
                 setMessage({message: "Verification successful", type: "success"})
-                localStorage.setItem(LS_ORG_KEY, "")
+                // Clear selected org via atom to keep storage in sync
+                setSelectedOrgId(null)
                 if (
                     isDemo() &&
                     response.createdNewRecipeUser &&

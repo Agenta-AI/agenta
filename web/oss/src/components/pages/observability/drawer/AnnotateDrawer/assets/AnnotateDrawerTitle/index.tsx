@@ -3,11 +3,13 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {CaretLeft, Plus} from "@phosphor-icons/react"
 import {Button, message, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
+import {useRouter} from "next/router"
 
 import useAnnotations from "@/oss/lib/hooks/useAnnotations"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
+import {useObservability} from "@/oss/state/newObservability"
 
 import {AnnotateDrawerSteps} from "../enum"
 import {
@@ -17,8 +19,6 @@ import {
     getInitialSelectedEvalMetrics,
 } from "../transforms"
 import {AnnotateDrawerIdsType, AnnotateDrawerStepsType, AnnotateDrawerTitleProps} from "../types"
-import {useRouter} from "next/router"
-import {getObservabilityValues} from "@/oss/contexts/observability.context"
 
 const AnnotateDrawerTitle = ({
     steps,
@@ -32,6 +32,7 @@ const AnnotateDrawerTitle = ({
     showOnly,
 }: AnnotateDrawerTitleProps) => {
     const router = useRouter()
+    const {fetchAnnotations} = useObservability()
     const [isSaving, setIsSaving] = useState(false)
     const {mutate} = useAnnotations({
         queries: {
@@ -135,9 +136,9 @@ const AnnotateDrawerTitle = ({
             }
             message.success("Annotations updated successfully")
 
-            // need to mutate the from observability context only if it's used there
+            // Update via observability atoms if on observability pages; otherwise mutate local hook
             if (router.asPath.includes("/observability") || router.asPath.includes("/traces")) {
-                getObservabilityValues().fetchAnnotations()
+                await fetchAnnotations()
             } else {
                 await mutate()
             }

@@ -1,5 +1,6 @@
-import {atom} from "jotai"
 import {ReactNode} from "react"
+
+import {atom} from "jotai"
 
 export interface BreadcrumbItem {
     label: string
@@ -10,9 +11,7 @@ export interface BreadcrumbItem {
     value?: string
 }
 
-export interface BreadcrumbAtom {
-    [key: string]: BreadcrumbItem
-}
+export type BreadcrumbAtom = Record<string, BreadcrumbItem>
 
 // Main breadcrumb state atom
 export const breadcrumbAtom = atom<BreadcrumbAtom | null>(null)

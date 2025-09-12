@@ -4,10 +4,9 @@ import {Typography} from "antd"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
-import {useProjectData} from "@/oss/contexts/project.context"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import {useProjectData} from "@/oss/state/project"
 
 const Secrets = dynamic(() => import("@/oss/components/pages/settings/Secrets/Secrets"), {
     ssr: false,
@@ -80,8 +79,4 @@ const Settings: React.FC = () => {
     )
 }
 
-export default () => (
-    <ProtectedRoute>
-        <Settings />
-    </ProtectedRoute>
-)
+export default () => <Settings />

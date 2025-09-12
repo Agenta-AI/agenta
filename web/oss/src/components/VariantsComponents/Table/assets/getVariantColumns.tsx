@@ -1,30 +1,106 @@
+import {memo, useCallback} from "react"
+
 import {GearSix} from "@phosphor-icons/react"
-import {Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
+import {getDefaultStore, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import Avatar from "@/oss/components/Avatar/Avatar"
+import {openDeleteVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeleteVariantModal/store/deleteVariantModalStore"
+import {openDeployVariantModalAtom} from "@/oss/components/Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
-import {filterVariantParameters, isDemo} from "@/oss/lib/helpers/utils"
+import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
+import VariantNameCell from "@/oss/components/VariantNameCell"
+import {isDemo} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {modelNameByRevisionIdAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), {ssr: false})
+
+const store = getDefaultStore()
+
+const CreatedByCell = memo(({record}: {record: EnhancedVariant}) => (
+    <UserAvatarTag variantId={record.id} />
+))
+
+const CreatedOnCell = memo(({record}: {record: EnhancedVariant}) => {
+    return <div>{record.createdAt}</div>
+})
+
+const ModelCell = memo(({record}: {record: EnhancedVariant}) => {
+    // const model = useAtomValue(modelNameByRevisionIdAtomFamily(record.id))
+    const name = record.modelName || store.get(modelNameByRevisionIdAtomFamily(record.id))
+    return <div>{name || "-"}</div>
+})
+
+const CommitNotesCell = memo(({record}: {record: EnhancedVariant}) => {
+    const msg = record.commitMessage
+    return msg ? (
+        <div onClick={(e) => e.stopPropagation()}>
+            <TruncatedTooltipTag children={msg} width={560} />
+        </div>
+    ) : null
+})
+
+const ActionCell = memo(
+    ({
+        record,
+        handleOpenDetails,
+        handleOpenInPlayground,
+    }: {
+        record: EnhancedVariant
+        handleOpenDetails?: (record: EnhancedVariant) => void
+        handleOpenInPlayground?: (record: EnhancedVariant) => void
+    }) => {
+        const openDeleteVariantModal = useSetAtom(openDeleteVariantModalAtom)
+        const openDeployVariantModal = useSetAtom(openDeployVariantModalAtom)
+
+        const onDeploy = useCallback(
+            (r: EnhancedVariant) => {
+                // In this overview table, each row represents a revision. Always pass revisionId.
+                const payload = {
+                    parentVariantId: null,
+                    revisionId: (r as any)._revisionId ?? (r as any)._id ?? (r as any).id,
+                    variantName: (r as any).variantName,
+                    revision: (r as any).revision ?? (r as any).revisionNumber,
+                }
+                console.debug("[VariantsTable] deploy:open", {record: r, payload})
+                openDeployVariantModal(payload)
+            },
+            [openDeployVariantModal],
+        )
+
+        const onDelete = useCallback(
+            (r: EnhancedVariant) => {
+                // Open the global DeleteVariant modal immediately; it will perform its own pre-check
+                openDeleteVariantModal(r.id)
+            },
+            [openDeleteVariantModal],
+        )
+
+        return (
+            <VariantDropdown
+                record={record}
+                handleOpenDetails={handleOpenDetails}
+                handleOpenInPlayground={handleOpenInPlayground}
+                handleDeploy={onDeploy}
+                handleDeleteVariant={onDelete}
+            />
+        )
+    },
+)
 
 export const getColumns = ({
     handleOpenDetails,
     handleOpenInPlayground,
-    handleDeploy,
-    handleDeleteVariant,
     showEnvBadges,
     showActionsDropdown,
+    showStableName = false,
 }: {
     showEnvBadges: boolean
     handleOpenDetails?: (record: EnhancedVariant) => void
     handleOpenInPlayground?: (record: EnhancedVariant) => void
-    handleDeploy?: (record: EnhancedVariant) => void
-    handleDeleteVariant?: (record: EnhancedVariant) => void
     showActionsDropdown: boolean
+    showStableName?: boolean
 }): ColumnsType<EnhancedVariant> => {
     const columns: ColumnsType<EnhancedVariant> = [
         {
@@ -36,16 +112,15 @@ export const getColumns = ({
             onHeaderCell: () => ({
                 style: {minWidth: 280},
             }),
-            render: (_, record) => {
-                return (
-                    <VariantDetailsWithStatus
-                        variantName={record.variantName || record.name}
-                        revision={record.revision}
-                        variant={record}
-                        showBadges={showEnvBadges}
-                    />
-                )
-            },
+            render: (_, record) => (
+                <VariantNameCell
+                    revisionId={record.id}
+                    showBadges={showEnvBadges}
+                    // Avoid showing draft tag for selection tables when requested
+                    // (uses stable name display)
+                    showStable={showStableName}
+                />
+            ),
         },
         {
             title: "Model",
@@ -55,16 +130,7 @@ export const getColumns = ({
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
-            render: (_, record) => {
-                const parameters =
-                    (record.parameters?.prompt as Record<string, unknown>)?.llm_config ||
-                    record.parameters
-                return parameters && Object.keys(parameters).length
-                    ? Object.values(
-                          filterVariantParameters({record: parameters, key: "model"}),
-                      ).map((value, index) => (value ? <div key={index}>{value}</div> : "-"))
-                    : "-"
-            },
+            render: (_, record) => <ModelCell record={record} />,
         },
         {
             title: "Created on",
@@ -74,9 +140,7 @@ export const getColumns = ({
             onHeaderCell: () => ({
                 style: {minWidth: 120},
             }),
-            render: (_, record) => {
-                return <div>{record.createdAt}</div>
-            },
+            render: (_, record) => <CreatedOnCell record={record} />,
         },
     ]
 
@@ -90,21 +154,7 @@ export const getColumns = ({
                 style: {minWidth: 160},
             }),
             render: (_, record) => {
-                if (record._parentVariant) {
-                    return (
-                        <Tag bordered={false}>
-                            <Avatar name={record?.modifiedBy} className="w-4 h-4 text-[9px]" />{" "}
-                            {record?.modifiedBy}
-                        </Tag>
-                    )
-                } else {
-                    return (
-                        <Tag bordered={false}>
-                            <Avatar name={record?.createdBy} className="w-4 h-4 text-[9px]" />{" "}
-                            {record?.createdBy}
-                        </Tag>
-                    )
-                }
+                return <CreatedByCell record={record} />
             },
         })
     }
@@ -118,13 +168,7 @@ export const getColumns = ({
             style: {minWidth: 560},
         }),
         className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[560px]",
-        render: (_, record) => {
-            return record.commitMessage ? (
-                <div onClick={(e) => e.stopPropagation()}>
-                    <TruncatedTooltipTag children={record.commitMessage} width={560} />
-                </div>
-            ) : null
-        },
+        render: (_, record) => <CommitNotesCell record={record} />,
     })
 
     if (showActionsDropdown) {
@@ -134,17 +178,13 @@ export const getColumns = ({
             width: 56,
             fixed: "right",
             align: "center",
-            render: (_, record) => {
-                return (
-                    <VariantDropdown
-                        record={record}
-                        handleOpenDetails={handleOpenDetails}
-                        handleOpenInPlayground={handleOpenInPlayground}
-                        handleDeploy={handleDeploy}
-                        handleDeleteVariant={handleDeleteVariant}
-                    />
-                )
-            },
+            render: (_, record) => (
+                <ActionCell
+                    record={record}
+                    handleOpenDetails={handleOpenDetails}
+                    handleOpenInPlayground={handleOpenInPlayground}
+                />
+            ),
         })
     }
 

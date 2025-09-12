@@ -25,6 +25,7 @@ const ErrorFallback: React.FC<FallbackProps> = ({error, resetErrorBoundary}) => 
             title="An Error Occurred"
             subTitle={getErrorMessage(error)}
             extra={[
+                // TODO: REPLACE WITH NEXT/LINK
                 <Button key="home" href="/apps" type="primary">
                     Go to home screen
                 </Button>,

@@ -5,13 +5,13 @@ import {Alert, Form, Input, Modal, Select, Space, Typography, message, theme} fr
 import {useAtom} from "jotai"
 import Link from "next/link"
 
-import {useOrgData} from "@/oss/contexts/org.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan} from "@/oss/lib/Types"
 import {inviteToWorkspace} from "@/oss/services/workspace/api"
+import {useOrgData} from "@/oss/state/org"
 
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
 

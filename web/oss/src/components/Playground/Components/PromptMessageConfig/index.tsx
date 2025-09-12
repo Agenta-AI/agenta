@@ -2,33 +2,34 @@ import {useMemo, useCallback, useState, useEffect} from "react"
 
 import {mergeRegister} from "@lexical/utils"
 import clsx from "clsx"
+import deepEqual from "fast-deep-equal"
+import {atom, useSetAtom, useAtomValue} from "jotai"
 import JSON5 from "json5"
 import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
 
 import {useLexicalComposerContext, EditorProvider} from "@/oss/components/Editor/Editor"
 import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
-import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
-import {getMetadataLazy, getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {createObjectFromMetadata} from "@/oss/lib/shared/variant/genericTransformer/helpers/arrays"
+import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {ChatRole} from "@/oss/lib/Types"
+import {chatTurnsByIdAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 
+import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
+import {usePromptMessageConfig} from "../../hooks/usePromptMessageConfig"
 import {
-    Enhanced,
-    EnhancedObjectConfig,
-} from "../../../../lib/shared/variant/genericTransformer/types"
-import {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
-import usePlayground from "../../hooks/usePlayground"
-import {findPropertyInObject, findVariantById} from "../../hooks/usePlayground/assets/helpers"
-import {findPropertyById} from "../../hooks/usePlayground/middlewares/playgroundVariantMiddleware"
-import {PlaygroundStateData} from "../../hooks/usePlayground/types"
+    updateGenerationDataPropertyMutationAtom,
+    promptPropertyAtomFamily,
+    updateVariantPropertyEnhancedMutationAtom,
+    displayedVariantsAtom,
+} from "../../state/atoms"
 import PlaygroundVariantPropertyControl from "../PlaygroundVariantPropertyControl"
 import PromptImageUpload from "../PlaygroundVariantPropertyControl/assets/PromptImageUpload"
 import SharedEditor from "../SharedEditor"
 
 import type {PromptMessageConfigProps} from "./types"
-import {getEnhancedProperties} from "@/oss/lib/shared/variant"
 
 const PromptMessageContentOptions = dynamic(
     () =>
@@ -76,146 +77,116 @@ const PromptMessageConfig = ({
     viewOnly,
     ...props
 }: PromptMessageConfigProps) => {
-    // Allow null to represent an empty upload slot
+    // Allow null to xrepresent an empty upload slot
     // const [uploadedFileItems, setUploadedFileItems] = useState<(UploadFile | null)[]>([])
     const [minimized, setMinimized] = useState(false)
 
-    const {isChat} = usePlayground({
-        stateSelector: (state) => ({
-            isChat: state.variants.some((v) => v.isChat),
-        }),
-    })
-
-    const {message} = usePlayground({
-        variantId,
-        hookId: "PromptMessageConfig",
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                if (!rowId) {
-                    const variant = findVariantById(state, variantId)
-                    if (!variant) return {message: undefined}
-
-                    for (const prompt of variant.prompts || []) {
-                        const message = prompt.messages?.value.find((msg) => msg.__id === messageId)
-                        if (message) {
-                            return {
-                                messageFull: message,
-                                message: {
-                                    role: message.role.__id,
-                                    content: message.content.__id,
-                                    name: message.name?.__id,
-                                    toolCalls: message.toolCalls?.__id,
-                                    toolCallId: message.toolCallId?.__id,
-                                },
-                            }
-                        }
-                    }
-                    return {message: undefined}
-                } else {
-                    const object =
-                        state.generationData.inputs.value.find((v) => v.__id === rowId) ||
-                        state.generationData.messages.value.find((v) => v.__id === rowId)
-
-                    let message = findPropertyInObject(object, messageId)
-
-                    message = message?.value || message
-
-                    if (!message) return {message: undefined}
-
-                    // only access content after confirming message exists
-                    let contentTarget = message.content
-                    return {
-                        message: {
-                            role: message.role.__id,
-                            content: contentTarget.__id,
-                            toolCalls: message.toolCalls?.__id,
-                            name: message.name?.__id,
-                            toolCallId: message.toolCallId?.__id,
-                        },
-                    }
-                }
-            },
-            [messageId, rowId, variantId],
-        ),
-    })
-
+    // Use optimized hook for chat detection and message data
     const {
-        mutate,
-        handleParamUpdate: updateVariantProperty,
-        baseProperty,
-        isTool,
-        baseImageProperties,
-        messageRow,
-        baseContentProperty,
-    } = usePlayground({
-        hookId: "PlaygroundVariantPropertyControl",
-        stateSelector: (state) => {
-            const object = rowId
-                ? state.generationData.inputs.value.find((v) => v.__id === rowId) ||
-                  (state.generationData.messages.value || []).find((v) => v.__id === rowId)
-                : variantId
-                  ? state.variants.find((v) => v.id === variantId)
-                  : null
-
-            const messageRow = state.generationData.messages.value.find(
-                (messageId) => messageId.__id === rowId,
-            )
-
-            if (!object) {
-                return {}
-            } else {
-                const toolCalls =
-                    findPropertyById(object as EnhancedVariant, message?.toolCalls) ||
-                    findPropertyInObject(state, message?.toolCalls)
-
-                const isTool = !!toolCalls?.value && toolCalls.value.length > 0
-
-                let baseContentProperty = null
-                let textProperty = null
-                let baseImageProperties = null
-                let property = rowId
-                    ? (findPropertyInObject(
-                          object,
-                          isTool ? toolCalls.value[0].__id : message?.content,
-                      ) as EnhancedObjectConfig<any>)
-                    : (findPropertyById(
-                          object as EnhancedVariant,
-                          isTool ? toolCalls.value[0].__id : message?.content,
-                      ) as EnhancedObjectConfig<any>)
-
-                baseContentProperty = property
-                if (Array.isArray(property?.value)) {
-                    textProperty = property.value.find((v) => !!v && "text" in v)?.text
-                    baseImageProperties = property.value
-                        .map((v) => (!!v && "imageUrl" in v ? v.imageUrl?.url : undefined))
-                        .filter(Boolean)
-                    property = textProperty || baseImageProperties
-                }
-                return {
-                    baseProperty: property,
-                    isTool,
-                    messageRow,
-                    textProperty,
-                    baseImageProperties,
-                    baseContentProperty,
-                }
-            }
-        },
-    })
-
-    const {variables} = usePlayground({
+        isChat: _isChat,
+        message: optimizedMessage,
+        variables: optimizedVariables,
+    } = usePromptMessageConfig({
         variantId,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const variant = findVariantById(state, variantId)
-                const inputKeyValues = variant?.prompts.map((p) => p.inputKeys.value)
-                const variables = inputKeyValues?.flatMap((key) => key.map((k) => k.value))
-
-                return {variables}
-            },
-            [variantId],
-        ),
+        messageId,
+        rowId,
     })
+
+    // Prefer live message from generation entities to reflect mutations immediately
+    const turnsById = useAtomValue(chatTurnsByIdAtom) as any
+    const messageFromTurns = useMemo(() => {
+        const turn = rowId ? turnsById?.[rowId] : undefined
+        if (!turn) return undefined
+        if (messageId?.endsWith("-assistant")) {
+            // Assistant message is revision-scoped; try optimized variables for revision if available
+            const revId = (optimizedVariables as any)?.selectedRevisionId
+            return revId ? turn?.assistantMessageByRevision?.[revId] : undefined
+        }
+        return turn?.userMessage
+    }, [turnsById, rowId, messageId, optimizedVariables])
+
+    // Use the freshest available message
+    const message = (messageFromTurns as any) ?? (optimizedMessage as any) ?? (messageProp as any)
+
+    // Get variant data directly from atoms to avoid data contamination
+    // const playgroundVariants = useAtomValue(playgroundVariantsAtom)
+    // const variant = playgroundVariants?.[variantId || ""]
+
+    // Get optimized mutation functions
+    const updateVariantProperty = useSetAtom(updateVariantPropertyEnhancedMutationAtom)
+    const updateGenerationDataProperty = useSetAtom(updateGenerationDataPropertyMutationAtom)
+
+    // Facade write setup for content property (prompts-only). Fallback to noop when unavailable.
+    const noopWriteAtom = useMemo(() => atom(null, () => {}), [])
+    const revisionId = useMemo(() => {
+        return variantId && typeof variantId === "object"
+            ? (variantId as any).id
+            : (variantId as any)
+    }, [variantId])
+
+    // content write facade is defined after baseContentProperty to use the correct property id
+
+    // Essential property extraction for message rendering
+    // The usePromptMessageConfig hook should provide the message with proper structure
+    const baseProperty = useMemo(() => {
+        if (!message?.content) return null
+
+        // If content is an array, find the text item and return its text property
+        if (Array.isArray(message.content.value)) {
+            const textItem = message.content.value.find((item: any) => item?.type?.value === "text")
+            return textItem?.text || null
+        }
+
+        // For simple string content, return the content property itself
+        return message.content
+    }, [message?.content]) // Use the message content property
+    const isTool = message?.role?.value === "tool" || false
+
+    // Extract image properties from content property
+    const baseImageProperties = useMemo(() => {
+        const val = message?.content?.value
+        const isArr = Array.isArray(val)
+
+        if (!val || !isArr) {
+            return []
+        }
+
+        const nodes = val
+            .map((v) => (!!v && "imageUrl" in v ? v.imageUrl?.url : undefined))
+            .filter((node) => node != null)
+
+        return nodes
+    }, [message?.content?.value])
+
+    const baseContentProperty = message?.content || null
+
+    const contentPromptWriteAtom = useMemo(() => {
+        const contentId = (baseContentProperty as any)?.__id
+        if (revisionId && contentId) {
+            return promptPropertyAtomFamily({
+                revisionId,
+                propertyId: contentId,
+            })
+        }
+        return noopWriteAtom
+    }, [revisionId, (baseContentProperty as any)?.__id, noopWriteAtom])
+    const setContentPromptValue = useSetAtom(contentPromptWriteAtom)
+
+    // Facade write setup for base text property (prompts-only)
+    const baseTextPromptWriteAtom = useMemo(() => {
+        const textId = (baseProperty as any)?.__id
+        if (revisionId && textId) {
+            return promptPropertyAtomFamily({
+                revisionId,
+                propertyId: textId,
+            })
+        }
+        return noopWriteAtom
+    }, [revisionId, (baseProperty as any)?.__id, noopWriteAtom])
+    const setBaseTextPromptValue = useSetAtom(baseTextPromptWriteAtom)
+
+    // Use optimized variables data (already retrieved above)
+    const variables = optimizedVariables
 
     const getProperty = useCallback(
         (property: any) => {
@@ -223,65 +194,64 @@ const PromptMessageConfig = ({
 
             const {__metadata, value} = property
 
-            const handler = isTool
-                ? (e: any) => {
-                      mutate((clonedState) => {
-                          const message = findPropertyById(
-                              clonedState.variants.find(
-                                  (v) => v.id === variantId,
-                              ) as EnhancedVariant,
-                              property.__id,
-                          )
-                          if (!message) return clonedState
-                          try {
-                              const _obj = typeof e === "string" ? JSON.parse(e) : e
-                          } catch (error) {
-                              const _obj = tryParsePartialJson(e)
-                          }
-                      })
-                  }
-                : rowId
-                  ? (e: any) => {
-                        mutate(
-                            (clonedState) => {
-                                if (!clonedState) return clonedState
-                                const val =
-                                    e !== null && e !== undefined
-                                        ? typeof e === "object" && "target" in e
-                                            ? e.target.value
-                                            : e
-                                        : null
+            // Smart handler with rowId-based routing (same logic as PlaygroundVariantPropertyControl)
+            const handler = (e: any) => {
+                const val =
+                    e !== null && e !== undefined
+                        ? typeof e === "object" && "target" in e
+                            ? e.target.value
+                            : e
+                        : null
 
-                                const generationData = structuredClone(clonedState.generationData)
-                                const object =
-                                    generationData.inputs.value.find((v) => v.__id === rowId) ||
-                                    generationData.messages.value.find((v) => v.__id === rowId)
+                const propertyId = property.__id
+                if (!propertyId) return
 
-                                if (!object) {
-                                    return clonedState
-                                }
+                // No-op guard: avoid redundant mutations that can cause render loops.
+                const currentVal = property?.value
+                const isSame =
+                    typeof val === "object" && val !== null
+                        ? deepEqual(val, currentVal)
+                        : val === currentVal
+                if (!isTool && isSame) {
+                    return
+                }
 
-                                const _property = findPropertyInObject(
-                                    object,
-                                    property.__id,
-                                ) as Enhanced<any>
-
-                                if (!_property) return clonedState
-
-                                _property.value = val
-
-                                clonedState.generationData = generationData
-
-                                return clonedState
-                            },
-                            {
-                                revalidate: false,
-                            },
-                        )
+                // Route mutations based on rowId presence (generation data vs variant data)
+                if (rowId) {
+                    // Handle generation data mutations when rowId is present
+                    updateGenerationDataProperty({
+                        rowId,
+                        propertyId,
+                        value: val,
+                        messageId, // Pass messageId for message-specific updates
+                    })
+                } else if (variantId) {
+                    // Prefer prompts-only facade when possible
+                    if ((baseProperty as any)?.__id && propertyId === (baseProperty as any).__id) {
+                        setBaseTextPromptValue(val)
+                    } else if (
+                        (baseContentProperty as any)?.__id &&
+                        propertyId === (baseContentProperty as any).__id
+                    ) {
+                        setContentPromptValue(val)
+                    } else {
+                        updateVariantProperty?.({
+                            variantId,
+                            propertyId,
+                            value: val,
+                        })
                     }
-                  : (newValue: any) => {
-                        updateVariantProperty?.(newValue, property.__id, variantId)
-                    }
+                } else {
+                    console.warn(
+                        "⚠️ [PROMPT MESSAGE CONFIG] HANDLER Unable to determine mutation target:",
+                        {
+                            variantId,
+                            rowId,
+                            propertyId,
+                        },
+                    )
+                }
+            }
 
             return {
                 __metadata: getMetadataLazy(__metadata),
@@ -290,11 +260,22 @@ const PromptMessageConfig = ({
                 handleChange: handler,
             }
         },
-        [isTool, mutate, rowId, updateVariantProperty, variantId],
+        [
+            isTool,
+            rowId,
+            updateVariantProperty,
+            updateGenerationDataProperty,
+            variantId,
+            (baseProperty as any)?.__id,
+            (baseContentProperty as any)?.__id,
+            setBaseTextPromptValue,
+            setContentPromptValue,
+        ],
     )
 
     const property = useMemo(() => {
-        return getProperty(baseProperty)
+        const result = getProperty(baseProperty)
+        return result
     }, [baseProperty, getProperty])
 
     const imageProperties = useMemo(() => {
@@ -305,61 +286,235 @@ const PromptMessageConfig = ({
         return getProperty(baseContentProperty)
     }, [baseContentProperty, getProperty])
 
-    const {__metadata: metadata, value, handleChange} = property || {}
+    // Defensive programming: Handle revoked proxy for property object
+    let metadata: any
+    let value: any
+    let handleChange: any
+
+    try {
+        const safeProperty = property || {}
+        metadata = safeProperty.__metadata
+        value = safeProperty.value
+        handleChange = safeProperty.handleChange
+    } catch (error) {
+        console.error("❌ [PromptMessageConfig] Error accessing property:", error)
+        metadata = undefined
+        value = undefined
+        handleChange = undefined
+    }
 
     const _value = useMemo(() => {
         if (isFunction) {
             return propsInitialValue || value
         } else if (isTool) {
             let _val = propsInitialValue || value
-            let args = _val?.function?.arguments
-            if (typeof args === "string") {
-                args = JSON5.parse(args)
-                _val = args
-            }
-            return JSON5.stringify(_val, null, 2)
-        } else {
             const x = value
             if (Array.isArray(x)) {
-                const textNode = x.filter((part) => "text" in part)
-                return textNode.map((part) => part.text).join("")
+                const textNode = x.filter(
+                    (part) => part && typeof part === "object" && "text" in part,
+                )
+                return textNode.map((part: any) => part.text).join("")
             } else {
                 return x || ""
             }
+        } else {
+            // Prefer message content over the whole message object when present
+            const source = (contentProperty as any)?.value ?? value
+
+            // Unwrap Enhanced value objects (e.g., { __id, __metadata, value: [...] })
+            const raw = source as any
+            const x = raw && typeof raw === "object" && "value" in raw ? raw.value : raw
+            if (Array.isArray(x)) {
+                const textNodes = x.filter((part) => {
+                    // Check for text property and that it's a text type
+                    if (!part || typeof part !== "object") return false
+                    const hasText = "text" in part
+                    const isTextType = (part as any)?.type?.value === "text"
+
+                    return hasText && isTextType
+                })
+
+                return textNodes.map((part: any) => part.text?.value || "").join("")
+            } else {
+                return (typeof x === "string" ? x : "") || ""
+            }
         }
-    }, [propsInitialValue, value, isFunction, isTool])
+    }, [debug, propsInitialValue, value, isFunction, isTool])
 
     const handleAddUploadSlot = useCallback(() => {
         const imageNodes = Array.isArray(contentProperty?.value)
-            ? contentProperty.value.filter((part) => "imageUrl" in part)
+            ? contentProperty.value.filter(
+                  (part: any) => part && typeof part === "object" && "imageUrl" in part,
+              )
             : []
         if (imageNodes?.length >= 5) return
 
         const itemMetadata = getMetadataLazy(
             contentProperty?.__metadata,
-        )?.itemMetadata?.options?.find((part) => "imageUrl" in part.properties)
-        const imageNode = createObjectFromMetadata(itemMetadata)
-        imageNode.type.value = "image_url"
+        )?.itemMetadata?.options?.find(
+            (part: any) =>
+                part &&
+                typeof part === "object" &&
+                part.properties &&
+                typeof part.properties === "object" &&
+                "imageUrl" in part.properties,
+        )
+        let imageNode = createObjectFromMetadata(itemMetadata)
+        if (imageNode) {
+            imageNode.type.value = "image_url"
+        } else {
+            // Fallback: construct a minimal image node when metadata is missing
+            imageNode = {
+                __id: generateId(),
+                __metadata: {},
+                type: {
+                    __id: generateId(),
+                    __metadata: {},
+                    value: "image_url",
+                },
+                imageUrl: {
+                    __id: generateId(),
+                    __metadata: {},
+                    url: {
+                        __id: generateId(),
+                        __metadata: {},
+                        value: "",
+                    },
+                    detail: {
+                        __id: generateId(),
+                        __metadata: {},
+                        value: "auto",
+                    },
+                },
+            } as any
+        }
 
-        const newValue = [...contentProperty?.value, imageNode]
-        contentProperty?.handleChange(newValue)
-    }, [contentProperty])
+        // When content is not an array (e.g., plain string), coerce it into a single text node
+        // so we can append image nodes safely.
+        let baseArray: any[]
+        if (Array.isArray(contentProperty?.value)) {
+            baseArray = contentProperty!.value
+        } else {
+            // Try to construct a text node from metadata; otherwise, create a minimal text node
+            const textItemMetadata = getMetadataLazy(
+                contentProperty?.__metadata,
+            )?.itemMetadata?.options?.find(
+                (part: any) =>
+                    part &&
+                    typeof part === "object" &&
+                    part.properties &&
+                    typeof part.properties === "object" &&
+                    "text" in part.properties,
+            )
+            let textNode = createObjectFromMetadata(textItemMetadata)
+            const existing = (contentProperty as any)?.value
+            if (textNode) {
+                textNode.type.value = "text"
+                if (textNode.text) {
+                    if (typeof existing === "string") {
+                        textNode.text.value = existing
+                    } else if (existing && typeof existing === "object" && "value" in existing) {
+                        textNode.text.value = (existing as any).value ?? ""
+                    } else {
+                        textNode.text.value = ""
+                    }
+                }
+            } else {
+                textNode = {
+                    __id: generateId(),
+                    __metadata: {},
+                    type: {
+                        __id: generateId(),
+                        __metadata: {},
+                        value: "text",
+                    },
+                    text: {
+                        __id: generateId(),
+                        __metadata: {},
+                        value:
+                            typeof existing === "string"
+                                ? existing
+                                : existing && typeof existing === "object" && "value" in existing
+                                  ? ((existing as any).value ?? "")
+                                  : "",
+                    },
+                } as any
+            }
+            baseArray = [textNode]
+        }
+
+        const newValue = [...baseArray, imageNode]
+
+        // Use the proper mutation approach instead of direct handleChange
+        const targetPropertyId = baseContentProperty?.__id ?? contentProperty?.__id
+        if (rowId && targetPropertyId) {
+            updateGenerationDataProperty({
+                rowId,
+                propertyId: targetPropertyId,
+                value: newValue,
+                messageId, // Pass messageId for message-specific updates
+            })
+        } else if (variantId) {
+            // For variant prompts, the write atom already knows the property
+            setContentPromptValue(newValue)
+        } else {
+            console.warn("⚠️ [handleAddUploadSlot] Unable to determine mutation target:", {
+                variantId,
+                rowId,
+                propertyId: targetPropertyId,
+            })
+        }
+    }, [
+        contentProperty,
+        baseContentProperty,
+        rowId,
+        messageId,
+        variantId,
+        updateGenerationDataProperty,
+        updateVariantProperty,
+    ])
 
     const handleRemoveFileItem = useCallback(
         (propertyId: string) => {
             if (!contentProperty) return
             const cloned = structuredClone(contentProperty.value)
-            const index = cloned.findIndex((part) => {
+            const index = cloned.findIndex((part: any) => {
+                if (!part || typeof part !== "object") return false
                 const found = findPropertyInObject(part, propertyId)
                 return !!found
             })
             if (index >= 0) {
                 // remove item at index
-                const x = cloned.splice(index, 1)
-                contentProperty.handleChange(cloned)
+                cloned.splice(index, 1)
+
+                // Use the proper mutation approach instead of direct handleChange
+                if (rowId && baseContentProperty?.__id) {
+                    updateGenerationDataProperty({
+                        rowId,
+                        propertyId: baseContentProperty.__id,
+                        value: cloned,
+                        messageId, // Pass messageId for message-specific updates
+                    })
+                } else if (variantId && baseContentProperty?.__id) {
+                    setContentPromptValue(cloned)
+                } else {
+                    console.warn("⚠️ [handleRemoveFileItem] Unable to determine mutation target:", {
+                        variantId,
+                        rowId,
+                        propertyId: baseContentProperty?.__id,
+                    })
+                }
             }
         },
-        [contentProperty],
+        [
+            contentProperty,
+            baseContentProperty,
+            rowId,
+            messageId,
+            variantId,
+            updateGenerationDataProperty,
+            updateVariantProperty,
+        ],
     )
 
     // Try to access the Lexical editor instance from context
@@ -385,62 +540,72 @@ const PromptMessageConfig = ({
         return unregister
     }, [editor])
 
+    // Derive existing trace/result hashes for this turn across the scoped variants
+    const displayedVariantIds = useAtomValue(displayedVariantsAtom) as string[] | undefined
+    const runStatusMap = useAtomValue(runStatusByRowRevisionAtom) as Record<string, any>
     const _resultHashes = useMemo(() => {
-        if (!messageRow?.history?.value) return []
+        try {
+            const scopedIds: string[] = (() => {
+                if (revisionId) return [revisionId as string]
+                return Array.isArray(displayedVariantIds) ? displayedVariantIds : []
+            })()
 
-        const results: string[] = []
+            if (!rowId || scopedIds.length === 0) return []
 
-        if (messageId) {
-            const historyItem = messageRow.history.value.find((h) => h.__id === messageId)
-
-            if (historyItem) {
-                Object.values(historyItem.__runs || {}).forEach((run) => {
-                    // Only include results from runs associated with the selected messageId
-                    if (run?.__result && run.messageId === messageId) results.push(run.__result)
-                })
-            } else {
-                for (const history of messageRow.history.value) {
-                    for (const run of Object.values(history.__runs || {})) {
-                        if (run?.message?.__id === messageId) {
-                            if (run.__result) results.push(run.__result)
-                        }
-
-                        if (
-                            Array.isArray(run?.messages) &&
-                            run.messages.some((m) => m.__id === messageId)
-                        ) {
-                            if (run.__result) results.push(run.__result)
-                        }
-                    }
-                }
+            const hashes: string[] = []
+            for (const vid of scopedIds) {
+                const key = `${rowId}:${vid}`
+                const entry = (runStatusMap || {})[key]
+                const h = entry?.resultHash
+                if (h) hashes.push(h)
             }
-        } else {
-            messageRow.history.value.forEach((history) => {
-                const result = history.__runs?.[variantId]?.__result
-                if (result) results.push(result)
-            })
+            return hashes
+        } catch {
+            return []
         }
-
-        return results
-    }, [messageId, messageRow, variantId])
+    }, [runStatusMap, rowId, revisionId, displayedVariantIds])
 
     const toolInfo = useMemo(() => {
         if (!message || !isTool) return null
         const _value = propsInitialValue || value
-        const parsed = typeof _value === "string" ? JSON5.parse(_value) : _value
-        return parsed
+        if (typeof _value === "string") {
+            try {
+                return JSON5.parse(_value)
+            } catch {
+                return null
+            }
+        }
+        return _value
     }, [propsInitialValue, message, value, isTool])
 
     const _placeholder = useMemo(() => {
         return isFunction ? "Enter function output" : placeholder
     }, [isFunction, placeholder])
 
-    if (!property) {
-        return null
+    if (debug) {
+        // Extract actual text content for better debugging
+        let _actualTextValue = null
+        try {
+            if (value && Array.isArray(value)) {
+                // For content arrays, extract text from first text item
+                const textItem = value.find((item: any) => item?.type?.value === "text")
+                _actualTextValue = textItem?.text?.value || null
+            } else if (typeof value === "string") {
+                _actualTextValue = value
+            } else if (value && typeof value === "object") {
+                _actualTextValue = JSON.stringify(value, null, 2)
+            }
+        } catch (error) {
+            _actualTextValue = "[Error extracting value]"
+        }
     }
 
     if (!message) {
         return null
+    }
+    // Allow rendering in read-only when property metadata is missing (raw prompts)
+    if (!property) {
+        // render in read-only without extra logs
     }
 
     return (
@@ -452,7 +617,7 @@ const PromptMessageConfig = ({
                     >
                         <div className={clsx("w-full flex items-center justify-between")}>
                             <PlaygroundVariantPropertyControl
-                                propertyId={message.role}
+                                propertyId={message.role.__id}
                                 variantId={variantId}
                                 rowId={rowId}
                                 as="SimpleDropdownSelect"
@@ -462,7 +627,7 @@ const PromptMessageConfig = ({
                             {!disabled && (
                                 <PromptMessageContentOptions
                                     className="invisible group-hover/item:visible"
-                                    propertyId={message.content}
+                                    propertyId={message.content?.__id}
                                     variantId={variantId}
                                     messageId={messageId}
                                     isMessageDeletable={isMessageDeletable}
@@ -477,37 +642,37 @@ const PromptMessageConfig = ({
                                         },
                                         handleAddUploadSlot,
                                     }}
-                                    allowFileUpload={allowFileUpload}
+                                    allowFileUpload={
+                                        allowFileUpload && message?.role?.value === ChatRole.User
+                                    }
                                     uploadCount={imageProperties?.length}
                                     hideMarkdownToggle={true}
                                 />
                             )}
                         </div>
                         <div className="w-full pb-2 pt-0 flex items-center justify-between">
-                            <PlaygroundVariantPropertyControl
-                                propertyId={message.name}
-                                variantId={variantId}
-                                rowId={rowId}
-                                as="SimpleInput"
-                                className="message-user-select px-0"
-                                disabled={disabled}
-                                placeholder="Function name"
-                                editorProps={{
-                                    variant: "borderless",
-                                }}
-                            />
-                            <PlaygroundVariantPropertyControl
-                                propertyId={message.toolCallId}
-                                variantId={variantId}
-                                rowId={rowId}
-                                as="SimpleInput"
-                                className="message-user-select px-0 text-right"
-                                disabled={disabled}
-                                placeholder="Tool call id"
-                                editorProps={{
-                                    variant: "borderless",
-                                }}
-                            />
+                            {message.name && (
+                                <PlaygroundVariantPropertyControl
+                                    propertyId={message.name}
+                                    variantId={variantId}
+                                    rowId={rowId}
+                                    as="SimpleInput"
+                                    className="message-user-select px-0"
+                                    disabled={disabled}
+                                    placeholder="Function name"
+                                />
+                            )}
+                            {message.toolCallId && (
+                                <PlaygroundVariantPropertyControl
+                                    propertyId={message.toolCallId}
+                                    variantId={variantId}
+                                    rowId={rowId}
+                                    as="SimpleInput"
+                                    className="message-user-select px-0 text-right"
+                                    disabled={disabled}
+                                    placeholder="Tool call id"
+                                />
+                            )}
                             {/* <Input variant="borderless" placeholder="Function name" /> */}
                             {/* <Input variant="borderless" placeholder="Call Id" value={""} /> */}
                             {/* <TooltipWithCopyAction title={"Call id"}>
@@ -524,23 +689,17 @@ const PromptMessageConfig = ({
                     >
                         <div className={clsx("w-full flex items-center justify-between")}>
                             <PlaygroundVariantPropertyControl
-                                propertyId={message.role}
+                                propertyId={message.role?.__id}
                                 variantId={variantId}
                                 rowId={rowId}
                                 as="SimpleDropdownSelect"
                                 className="message-user-select"
                                 disabled={disabled}
-                                runnable={runnable}
-                                resultHashes={_resultHashes}
-                                actions={{
-                                    deleteMessage,
-                                    rerunMessage,
-                                }}
-                            ></PlaygroundVariantPropertyControl>
+                            />
                             {!disabled && (
                                 <PromptMessageContentOptions
                                     className="invisible group-hover/item:visible"
-                                    propertyId={message.content}
+                                    propertyId={message.content?.__id}
                                     variantId={variantId}
                                     messageId={messageId}
                                     isMessageDeletable={isMessageDeletable}
@@ -555,7 +714,9 @@ const PromptMessageConfig = ({
                                         },
                                         handleAddUploadSlot,
                                     }}
-                                    allowFileUpload={allowFileUpload}
+                                    allowFileUpload={
+                                        allowFileUpload && message?.role?.value === ChatRole.User
+                                    }
                                     uploadCount={imageProperties?.length || 0}
                                     hideMarkdownToggle={true}
                                 >
@@ -589,11 +750,12 @@ const PromptMessageConfig = ({
                             headerClassName,
                         )}
                     >
-                        {message.role ? (
+                        {message.role?.__id ? (
                             <PlaygroundVariantPropertyControl
-                                propertyId={message.role}
+                                propertyId={message.role.__id}
                                 variantId={variantId}
                                 rowId={rowId}
+                                messageId={messageId}
                                 as="SimpleDropdownSelect"
                                 className="message-user-select"
                                 disabled={disabled || viewOnly}
@@ -601,31 +763,32 @@ const PromptMessageConfig = ({
                         ) : null}
 
                         {!disabled && (
-                            <PromptMessageContentOptions
-                                className="invisible group-hover/item:visible"
-                                propertyId={message.content}
-                                variantId={variantId}
-                                messageId={messageId}
-                                isMessageDeletable={isMessageDeletable}
-                                disabled={disabled}
-                                minimized={minimized}
-                                runnable={runnable}
-                                resultHashes={_resultHashes}
-                                minimized={minimized}
-                                actions={{
-                                    deleteMessage,
-                                    rerunMessage,
-                                    minimize: () => {
-                                        setMinimized((current) => !current)
-                                    },
-                                    handleAddUploadSlot,
-                                }}
-                                allowFileUpload={
-                                    allowFileUpload && messageProp?.role.value === ChatRole.User
-                                }
-                                uploadCount={imageProperties?.length}
-                                viewOnly={viewOnly}
-                            />
+                            <>
+                                <PromptMessageContentOptions
+                                    className="invisible group-hover/item:visible"
+                                    propertyId={message.content?.__id}
+                                    variantId={variantId}
+                                    messageId={messageId}
+                                    isMessageDeletable={isMessageDeletable}
+                                    disabled={disabled}
+                                    runnable={runnable}
+                                    resultHashes={_resultHashes}
+                                    minimized={minimized}
+                                    actions={{
+                                        deleteMessage,
+                                        rerunMessage,
+                                        minimize: () => {
+                                            setMinimized((current) => !current)
+                                        },
+                                        handleAddUploadSlot,
+                                    }}
+                                    allowFileUpload={
+                                        allowFileUpload && message?.role?.value === ChatRole.User
+                                    }
+                                    uploadCount={imageProperties?.length}
+                                    viewOnly={viewOnly}
+                                />
+                            </>
                         )}
                     </div>
                 )
@@ -657,35 +820,83 @@ const PromptMessageConfig = ({
             footer={
                 <div className="w-full">
                     <div className="flex flex-col my-2 items-center gap-2">
-                        {isChat && imageProperties?.length > 0
-                            ? imageProperties.map((property, idx) => (
-                                  <PromptImageUpload
-                                      key={property.__id}
-                                      disabled={disabled}
-                                      imageFile={
-                                          property?.value
-                                              ? {
-                                                    status: "done",
-                                                    thumbUrl: property.value,
-                                                }
-                                              : undefined
-                                      }
-                                      handleUploadFileChange={(newFile) => {
-                                          const imagePart =
-                                              newFile?.base64 ||
-                                              newFile?.url ||
-                                              newFile?.thumbUrl ||
-                                              ""
+                        {imageProperties?.length > 0
+                            ? imageProperties.map((property) => {
+                                  // Derive current URL from the property value
+                                  const currentUrl =
+                                      property &&
+                                      typeof property.value === "object" &&
+                                      property.value
+                                          ? ((property.value as any).value ?? "")
+                                          : ((property as any)?.value ?? "")
 
-                                          if (property) {
-                                              property.handleChange(imagePart)
-                                          }
-                                      }}
-                                      handleRemoveUploadFile={() => {
-                                          handleRemoveFileItem(property.__id)
-                                      }}
-                                  />
-                              ))
+                                  return (
+                                      <PromptImageUpload
+                                          key={property.__id}
+                                          disabled={disabled}
+                                          imageFile={{
+                                              status: "done",
+                                              thumbUrl: currentUrl,
+                                              uid: currentUrl || property.__id,
+                                              name: currentUrl || property.__id,
+                                          }}
+                                          handleUploadFileChange={(newFile) => {
+                                              const imagePart =
+                                                  newFile?.url || newFile?.thumbUrl || ""
+                                              if (!imagePart) return
+
+                                              if (property && contentProperty?.value) {
+                                                  const cloned = structuredClone(
+                                                      contentProperty.value,
+                                                  )
+                                                  const targetIndex = cloned.findIndex(
+                                                      (part: any) =>
+                                                          Boolean(
+                                                              findPropertyInObject(
+                                                                  part,
+                                                                  property.__id,
+                                                              ),
+                                                          ),
+                                                  )
+                                                  if (targetIndex >= 0) {
+                                                      const targetPart = cloned[targetIndex]
+                                                      const urlProp = findPropertyInObject(
+                                                          targetPart,
+                                                          property.__id,
+                                                      ) as any
+                                                      if (urlProp) {
+                                                          if (
+                                                              urlProp.content &&
+                                                              typeof urlProp.content === "object"
+                                                          ) {
+                                                              urlProp.content.value = imagePart
+                                                          } else {
+                                                              urlProp.value = imagePart
+                                                          }
+                                                      }
+
+                                                      if (rowId && baseContentProperty?.__id) {
+                                                          updateGenerationDataProperty({
+                                                              rowId,
+                                                              propertyId: baseContentProperty.__id,
+                                                              value: cloned,
+                                                              messageId,
+                                                          })
+                                                      } else if (
+                                                          variantId &&
+                                                          baseContentProperty?.__id
+                                                      ) {
+                                                          setContentPromptValue(cloned)
+                                                      }
+                                                  }
+                                              }
+                                          }}
+                                          handleRemoveUploadFile={() => {
+                                              handleRemoveFileItem(property.__id)
+                                          }}
+                                      />
+                                  )
+                              })
                             : null}
                     </div>
 
@@ -696,112 +907,12 @@ const PromptMessageConfig = ({
     )
 }
 
-const checkIsJSON = (_value: any) => {
-    if (!_value || _value === "{}" || _value === "[]") return false // Special case for empty object
-    if (typeof _value === "string") {
-        try {
-            const parsed = JSON5.parse(_value)
-            return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
-        } catch {
-            return false
-        }
-    }
-
-    return false
-}
-
 const PromptMessageConfigWrapper = (props: PromptMessageConfigProps) => {
-    const {message, isFunction, isJSON} = usePlayground({
-        variantId: props.variantId,
-        hookId: "PromptMessageConfig",
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                if (!props.rowId) {
-                    const variant = findVariantById(state, props.variantId)
-                    if (!variant) return {message: undefined}
-
-                    for (const prompt of variant.prompts || []) {
-                        const message = prompt.messages?.value.find(
-                            (msg) => msg.__id === props.messageId,
-                        )
-                        if (message) {
-                            return {
-                                message: {
-                                    role: message.role.__id,
-                                    content: message.content.__id,
-                                    name: message.name?.__id,
-                                    toolCalls: message.toolCalls?.__id,
-                                },
-                                isJSON: checkIsJSON(message.content?.value),
-                            }
-                        }
-                    }
-                    return {message: undefined, isJSON: false}
-                } else {
-                    const object =
-                        state.generationData.inputs.value.find((v) => v.__id === props.rowId) ||
-                        state.generationData.messages.value.find((v) => v.__id === props.rowId)
-
-                    let message = findPropertyInObject(object, props.messageId)
-
-                    message = message?.value || message
-
-                    if (!message) return {message: undefined, isJSON: false}
-
-                    if (!message.role) {
-                        const messagesResponse = getResponseLazy(message?.__result)?.response
-                        if (messagesResponse) {
-                            return {
-                                messages: messagesResponse,
-                                isJSON: checkIsJSON(message.content?.value),
-                            }
-                        }
-                    }
-                    return message.role && message.content
-                        ? {
-                              message: {
-                                  role: message.role?.__id,
-                                  content: message.content?.__id,
-                                  toolCalls: message.toolCalls?.__id,
-                                  toolCallId: message.toolCallId?.__id,
-                                  name: message.name?.__id,
-                              },
-                              isJSON: checkIsJSON(message.content?.value),
-                              isFunction: message.role?.value === "tool",
-                          }
-                        : {
-                              messages: undefined,
-                              isJSON: false,
-                          }
-                }
-            },
-            [props.messageId, props.rowId, props.variantId],
-        ),
-    })
-
-    const {isTool} = usePlayground({
-        hookId: "PlaygroundVariantPropertyControl",
-        stateSelector: (state) => {
-            const object = props.rowId
-                ? state.generationData.inputs.value.find((v) => v.__id === props.rowId) ||
-                  (state.generationData.messages.value || []).find((v) => v.__id === props.rowId)
-                : props.variantId
-                  ? state.variants.find((v) => v.id === props.variantId)
-                  : null
-
-            if (!object) {
-                return {}
-            } else {
-                const toolCalls =
-                    findPropertyById(object as EnhancedVariant, message?.toolCalls) ||
-                    findPropertyInObject(state, message?.toolCalls)
-
-                const isTool = !!toolCalls?.value && toolCalls.value.length > 0
-
-                return {isTool}
-            }
-        },
-    })
+    // Simplified wrapper - use default values for now
+    // These can be enhanced later with proper atom-based detection
+    const isTool = false // Default value
+    const isFunction = false // Default value
+    const isJSON = false // Default value
 
     return (
         <div className="w-full relative">

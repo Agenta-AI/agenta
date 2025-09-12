@@ -1,12 +1,16 @@
 import axiosApi, {CanceledError} from "axios"
+import {getDefaultStore} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 import isObject from "lodash/isObject"
 import router from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
+// import AlertPopup from "@/oss/components/AlertPopup/AlertPopup" // Commented out for test environment
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {getProfileValues} from "@/oss/contexts/profile.context"
-import {getCurrentProject, DEFAULT_UUID} from "@/oss/contexts/project.context"
 import {getJWT} from "@/oss/services/api"
+import {userAtom} from "@/oss/state/profile/selectors/user"
+import {DEFAULT_UUID} from "@/oss/state/project"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {getErrorMessage, globalErrorHandler} from "../../helpers/errorHandler"
 import {getAgentaApiUrl, isDemo} from "../../helpers/utils"
@@ -26,6 +30,18 @@ axios.interceptors.request.use(async (config) => {
     const fullUri = axios.getUri(config)
     const agentaApiUrl = getAgentaApiUrl()
 
+    // Debug logging for test environment
+    if (process.env.NODE_ENV === "test") {
+        console.log("🌐 Axios Request Debug:", {
+            method: config.method?.toUpperCase(),
+            url: config.url,
+            baseURL: config.baseURL,
+            fullUri,
+            agentaApiUrl,
+            headers: config.headers,
+        })
+    }
+
     if (agentaApiUrl && !fullUri.includes(agentaApiUrl)) {
         config.headers.set("ngrok-skip-browser-warning", true)
     }
@@ -33,11 +49,14 @@ axios.interceptors.request.use(async (config) => {
     if (!isDemo()) return config
     const jwt = await getJWT()
 
-    const profile = getProfileValues()
+    const store = getDefaultStore()
+    // queryClient retained for other potential uses
+    // const queryClient = store.get(queryClientAtom)
 
-    const {projectId} = getCurrentProject()
+    const user = store.get(userAtom) as any | undefined
+    const projectId = store.get(projectIdAtom)
 
-    if (!jwt || !profile.user || projectId === DEFAULT_UUID) {
+    if (!jwt || !user || !projectId || projectId === DEFAULT_UUID) {
         const controller = new AbortController()
         const configuredUri = axios.getUri(config)
         if (!ENDPOINTS_PROJECT_ID_WHITELIST.some((endpoint) => configuredUri.includes(endpoint))) {
@@ -47,6 +66,15 @@ axios.interceptors.request.use(async (config) => {
         return {
             ...config,
             signal: controller.signal,
+        }
+    }
+
+    // Add JWT Authorization header (before any early returns)
+    if (jwt) {
+        config.headers.set("Authorization", `Bearer ${jwt}`)
+
+        if (process.env.NEXT_PUBLIC_LOG_APP_ATOMS === "true") {
+            console.log("🔐 Added JWT Authorization header:", `Bearer ${jwt.substring(0, 30)}...`)
         }
     }
 
@@ -92,7 +120,7 @@ axios.interceptors.response.use(
                 message: error.response?.data?.detail || PERMISSION_ERR_MSG,
                 cancelText: null,
                 okText: "Ok",
-            })
+            }) // Commented out for test environment
             error.message = error.response?.data?.detail || PERMISSION_ERR_MSG
             throw error
         }

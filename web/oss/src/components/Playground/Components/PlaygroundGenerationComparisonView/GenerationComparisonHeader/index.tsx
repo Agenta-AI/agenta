@@ -1,12 +1,21 @@
-import {memo, useCallback, useEffect} from "react"
+import {memo, useCallback, useEffect, useMemo} from "react"
 
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
+
+import {inputRowIdsWithPropertiesCompatAtom} from "@/oss/state/generation/compat"
 
 import RunButton from "../../../assets/RunButton"
-import usePlayground from "../../../hooks/usePlayground"
-import {clearRuns} from "../../../hooks/usePlayground/assets/generationHelpers"
-import {PlaygroundStateData} from "../../../hooks/usePlayground/types"
+import {
+    appChatModeAtom,
+    triggerWebWorkerTestAtom,
+    generationHeaderDataAtomFamily,
+    displayedVariantsAtom,
+} from "../../../state/atoms"
+import {canRunAllChatComparisonAtom} from "../../../state/atoms"
+import {clearAllRunsMutationAtom} from "../../../state/atoms/enhancedVariantMutations"
+import {runAllChatForDisplayedVariantsMutationAtom} from "../../../state/atoms/generationMutations"
 import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 import LoadTestsetButton from "../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 
@@ -16,66 +25,56 @@ import type {GenerationComparisonHeaderProps} from "./types"
 const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps) => {
     const classes = useStyles()
 
-    const {resultHashes, isRunning, runTests, mutate} = usePlayground({
-        stateSelector: useCallback((state: PlaygroundStateData) => {
-            const variants = state.variants.filter((variant) => state.selected.includes(variant.id))
-            const resultHashes: any[] = []
-            let isRunning
+    // Use atom-based state management
+    const displayedVariantIds = useAtomValue(displayedVariantsAtom) || []
+    const [inputRowIds] = useAtom(inputRowIdsWithPropertiesCompatAtom)
+    const clearAllRuns = useSetAtom(clearAllRunsMutationAtom)
+    const isChatVariant = useAtomValue(appChatModeAtom) ?? false
+    const triggerTest = useSetAtom(triggerWebWorkerTestAtom)
+    const runAllChat = useSetAtom(runAllChatForDisplayedVariantsMutationAtom)
+    const canRunAllChat = useAtomValue(canRunAllChatComparisonAtom)
 
-            if (variants[0].isChat) {
-                const messageRows = state.generationData.messages.value
+    const headerDataAtom = useMemo(
+        () =>
+            atom((get) => {
+                if (isChatVariant) return {resultHashes: [], isRunning: false}
+                const vids = (get(displayedVariantsAtom) || []) as string[]
+                const status = get(
+                    // Reuse generationHeaderData per variant and fold
+                    atom((g) => vids.map((id) => g(generationHeaderDataAtomFamily(id)))),
+                ) as {resultHashes: string[]; isRunning: boolean}[]
+                const resultHashes = status.flatMap((d) => d.resultHashes || [])
+                const isRunning = status.some((d) => d.isRunning)
+                return {resultHashes: resultHashes.filter(Boolean), isRunning}
+            }),
+        [isChatVariant],
+    )
+    const {resultHashes, isRunning} = useAtomValue(headerDataAtom)
 
-                messageRows.forEach((dataItem) => {
-                    if (dataItem.history && Array.isArray(dataItem.history.value)) {
-                        dataItem.history.value.forEach((historyItem) => {
-                            if (historyItem.__runs) {
-                                const runs = Object.values(historyItem.__runs)
-                                for (const runData of runs) {
-                                    isRunning = runs.some((runData) => runData?.__isRunning)
-                                    resultHashes.push(runData?.__result)
-                                }
-                            }
-                        })
-                    }
-                })
-
-                return {resultHashes: resultHashes.filter(Boolean), isRunning: isRunning || false}
-            } else {
-                const inputRows = state.generationData.inputs.value
-
-                inputRows.forEach((dataItem) => {
-                    if (dataItem.__runs) {
-                        const runs = Object.values(dataItem.__runs || {})
-                        for (const runData of runs) {
-                            isRunning = runs.some((runData) => runData?.__isRunning)
-
-                            resultHashes.push(runData?.__result)
-                        }
-                    }
-                })
-
-                return {resultHashes: resultHashes.filter(Boolean), isRunning: isRunning || false}
-            }
-        }, []),
-    })
+    // Create a runTests function that runs all available input rows
+    const runTests = useCallback(() => {
+        if (isChatVariant) {
+            console.log("runAllChat")
+            if (canRunAllChat) runAllChat()
+            return
+        }
+        ;(inputRowIds as string[]).forEach((rid) => {
+            ;(displayedVariantIds as string[]).forEach((vid) => {
+                triggerTest({rowId: rid, variantId: vid} as any)
+            })
+        })
+    }, [triggerTest, isChatVariant, inputRowIds, displayedVariantIds, runAllChat, canRunAllChat])
 
     const clearGeneration = useCallback(() => {
-        mutate(
-            (clonedState) => {
-                if (!clonedState) return clonedState
-                clearRuns(clonedState)
-                return clonedState
-            },
-            {revalidate: false},
-        )
-    }, [])
+        clearAllRuns()
+    }, [clearAllRuns])
 
     useEffect(() => {
         const listener = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                 e.preventDefault()
                 e.stopPropagation()
-                if (!isRunning) runTests?.()
+                if (!isRunning && (!isChatVariant || canRunAllChat)) runTests?.()
             }
         }
         document.addEventListener("keydown", listener, true)
@@ -104,14 +103,18 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
                     label="Add all to test set"
                     icon={false}
                     size="small"
-                    disabled={isRunning}
                     resultHashes={resultHashes}
-                    key={resultHashes.join("-")}
+                    key={resultHashes?.join("-") || "no-results"}
                 />
                 <LoadTestsetButton label="Load test set" />
 
                 <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
-                    <RunButton isRunAll type="primary" onClick={() => runTests?.()} />
+                    <RunButton
+                        isRunAll
+                        type="primary"
+                        disabled={isRunning || (isChatVariant && !canRunAllChat)}
+                        onClick={() => runTests?.()}
+                    />
                 </Tooltip>
             </div>
         </section>
