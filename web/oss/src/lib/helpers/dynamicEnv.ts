@@ -4,6 +4,10 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
     NEXT_PUBLIC_POSTHOG_API_KEY: process.env.NEXT_PUBLIC_POSTHOG_API_KEY,
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
+    NEXT_PUBLIC_LOG_APP_ATOMS: "true",
+    // process.env.NEXT_PUBLIC_LOG_APP_ATOMS,
+    NEXT_PUBLIC_ENABLE_ATOM_LOGS: "true",
+    // process.env.NEXT_PUBLIC_ENABLE_ATOM_LOGS,
 }
 
 export const getEnv = (envKey: string) => {

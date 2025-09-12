@@ -1,5 +1,6 @@
-import {useSetAtom} from "jotai"
 import {useEffect} from "react"
+
+import {useSetAtom} from "jotai"
 
 import {
     appendBreadcrumbAtom,
@@ -25,7 +26,7 @@ export const useBreadcrumbs = () => {
 
 /**
  * Hook to manage breadcrumbs with automatic cleanup on unmount
- * 
+ *
  * @param {BreadcrumbAtom} breadcrumbs - Object containing breadcrumb items to set
  * @param {'prepend' | 'append' | 'new'} [type='new'] - How to apply the breadcrumbs:
  *   - 'prepend': Add breadcrumbs before existing ones
@@ -61,5 +62,5 @@ export const useBreadcrumbsEffect = (
                 clearBreadcrumbs()
             }
         }
-    }, deps) // eslint-disable-line react-hooks/exhaustive-deps
+    }, deps)
 }

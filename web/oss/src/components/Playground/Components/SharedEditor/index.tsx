@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useRef, useState} from "react"
 
 import {Input} from "antd"
 import clsx from "clsx"
@@ -27,6 +27,9 @@ const SharedEditor = ({
     noProvider = false,
     debug = false,
     isTool,
+    propertyId,
+    baseProperty,
+    variantId,
     ...props
 }: SharedEditorProps) => {
     const [isEditorFocused, setIsEditorFocused] = useState(false)
@@ -45,9 +48,11 @@ const SharedEditor = ({
         [setLocalValue],
     )
 
-    const editorId = useMemo(() => {
-        return `${uuidv4()}-${editorProps?.codeOnly ? "code" : "text"}`
-    }, [editorProps?.codeOnly])
+    // Stable editor id to prevent remounts that reset cursor position
+    const editorIdRef = useRef<string>(`${uuidv4()}-${editorProps?.codeOnly ? "code" : "text"}`)
+    const editorId = editorIdRef.current
+
+    const mountInitialValueRef = useRef<string>(initialValue)
 
     return (
         <div
@@ -102,11 +107,8 @@ const SharedEditor = ({
                     placeholder={placeholder}
                     showToolbar={false}
                     enableTokens={!editorProps?.codeOnly}
-                    initialValue={
-                        editorProps?.codeOnly && localValue && typeof localValue !== "string"
-                            ? JSON.stringify(localValue)
-                            : localValue
-                    }
+                    // Use mount-time initial value to prevent re-hydrates moving cursor
+                    initialValue={mountInitialValueRef.current}
                     className={editorClassName}
                     onChange={(value: any) => {
                         handleLocalValueChange(value.textContent)
@@ -115,7 +117,6 @@ const SharedEditor = ({
                     autoFocus={autoFocus}
                     disabled={disabled}
                     showBorder={false}
-                    key={editorId}
                     id={editorId}
                     {...editorProps}
                 />

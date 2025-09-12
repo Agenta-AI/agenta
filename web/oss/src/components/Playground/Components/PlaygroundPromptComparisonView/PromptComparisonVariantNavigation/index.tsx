@@ -5,8 +5,10 @@ import {restrictToParentElement} from "@dnd-kit/modifiers"
 import {arrayMove, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
 import {Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import usePlayground from "../../../hooks/usePlayground"
+import {usePlaygroundLayout} from "../../../hooks/usePlaygroundLayout"
+import {selectedVariantsAtom, updateUrlRevisionsAtom} from "../../../state/atoms"
 
 import VariantNavigationCard from "./assets/VariantNavigationCard"
 import type {PromptComparisonVariantNavigationProps} from "./types"
@@ -16,7 +18,10 @@ const PromptComparisonVariantNavigation = ({
     handleScroll,
     ...props
 }: PromptComparisonVariantNavigationProps) => {
-    const {displayedVariants, setDisplayedVariants} = usePlayground()
+    const {displayedVariants} = usePlaygroundLayout()
+    const selectedVariants = useAtomValue(selectedVariantsAtom)
+    const setSelectedVariants = useSetAtom(selectedVariantsAtom)
+    const updateUrlRevisions = useSetAtom(updateUrlRevisionsAtom)
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -33,14 +38,32 @@ const PromptComparisonVariantNavigation = ({
             const {active, over} = event
 
             if (over?.id && active.id && active.id !== over?.id) {
-                const oldIndex = displayedVariants!.indexOf(active.id)
-                const newIndex = displayedVariants!.indexOf(over.id)
+                // Get current revision IDs from selectedVariants (which is a string array)
+                const currentRevisionIds = selectedVariants || []
 
-                const newArray = arrayMove(displayedVariants!, oldIndex, newIndex)
-                setDisplayedVariants?.(newArray)
+                const oldIndex = currentRevisionIds.indexOf(active.id)
+                const newIndex = currentRevisionIds.indexOf(over.id)
+
+                if (oldIndex !== -1 && newIndex !== -1) {
+                    // Reorder the array
+                    const reorderedRevisions = arrayMove(currentRevisionIds, oldIndex, newIndex)
+
+                    console.log("🔄 [PromptComparisonVariantNavigation] Reordering revisions:", {
+                        from: oldIndex,
+                        to: newIndex,
+                        activeId: active.id,
+                        overId: over.id,
+                        oldOrder: currentRevisionIds,
+                        newOrder: reorderedRevisions,
+                    })
+
+                    // Update both selectedVariantsAtom and urlRevisionsAtom to ensure display sync
+                    setSelectedVariants(reorderedRevisions)
+                    updateUrlRevisions(reorderedRevisions)
+                }
             }
         },
-        [displayedVariants],
+        [selectedVariants, setSelectedVariants, updateUrlRevisions],
     )
 
     return (
@@ -57,19 +80,17 @@ const PromptComparisonVariantNavigation = ({
                     modifiers={[restrictToParentElement]}
                 >
                     <SortableContext
-                        items={displayedVariants!}
+                        items={displayedVariants || []}
                         strategy={verticalListSortingStrategy}
                     >
-                        {displayedVariants?.map((variantId, idx) => {
-                            return (
-                                <VariantNavigationCard
-                                    key={variantId}
-                                    id={variantId}
-                                    variantId={variantId}
-                                    handleScrollClick={() => handleScroll(idx)}
-                                />
-                            )
-                        })}
+                        {displayedVariants?.map((variantId, idx) => (
+                            <VariantNavigationCard
+                                key={variantId}
+                                id={variantId}
+                                revisionId={variantId}
+                                handleScrollClick={() => handleScroll(idx)}
+                            />
+                        ))}
                     </SortableContext>
                 </DndContext>
             </div>

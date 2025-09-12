@@ -3,6 +3,7 @@ import {useEffect, useState} from "react"
 
 import {ApiOutlined, AppstoreOutlined, HistoryOutlined} from "@ant-design/icons"
 import {Alert, Collapse, CollapseProps, Empty, Radio, Tabs, Tooltip, Typography} from "antd"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -15,7 +16,6 @@ import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import DynamicCodeBlock from "@/oss/components/DynamicCodeBlock/DynamicCodeBlock"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
-import {useAppsData} from "@/oss/contexts/app.context"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
@@ -29,6 +29,7 @@ import {
 } from "@/oss/lib/Types"
 import {fetchAppContainerURL} from "@/oss/services/api"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
+import {currentAppAtom} from "@/oss/state/app"
 
 const DeploymentHistory: any = dynamic(
     () => import("@/oss/components/DeploymentHistory/DeploymentHistory"),
@@ -57,8 +58,7 @@ export const createParams = (
     inputParams: Parameter[] | null,
     environmentName: string,
     value: string | number,
-    isChatVariant: boolean | null,
-    app: ListAppsItem | null,
+    app?: ListAppsItem | null,
 ) => {
     const mainParams: GenericObject = {}
     const secondaryParams: GenericObject = {}
@@ -70,7 +70,10 @@ export const createParams = (
             secondaryParams[item.name] = item.default || value
         }
     })
-    if (isChatVariant) {
+    const isChat = Array.isArray(inputParams)
+        ? inputParams.some((p) => p?.name === "messages")
+        : false
+    if (isChat) {
         mainParams["messages"] = [
             {
                 role: "user",
@@ -95,7 +98,7 @@ export default function VariantEndpoint() {
     const appId = router.query.app_id as string
     const [tab, setTab] = useQueryParam("tab", "overview")
     const isOss = !isDemo()
-    const {currentApp} = useAppsData()
+    const currentApp = useAtomValue(currentAppAtom)
 
     // Load URL for the given environment
     const [uri, setURI] = useState<string | null>(null)
@@ -129,9 +132,7 @@ export default function VariantEndpoint() {
         loadURL(chosenEnvironment)
     }
 
-    const {data, isLoading, error} = useVariants(currentApp)({
-        appId: currentApp?.app_id,
-    })
+    const {data, isLoading, error} = useVariants(currentApp)
 
     const variants = data?.variants
 
@@ -153,7 +154,7 @@ export default function VariantEndpoint() {
         }
     }, [variants, appId])
 
-    const {inputParams, isChatVariant} = variant || {}
+    const {inputParams} = variant || {}
 
     if (isLoading) {
         return <ResultComponent status={"info"} title="Loading variants..." spinner={true} />
@@ -167,12 +168,7 @@ export default function VariantEndpoint() {
         )
     }
 
-    const params = createParams(
-        inputParams,
-        selectedEnvironment?.name || "none",
-        "add_a_value",
-        isChatVariant,
-    )
+    const params = createParams(inputParams, selectedEnvironment?.name || "none", "add_a_value")
     const invokeLlmAppCodeSnippet: Record<string, string> = {
         Python: invokeLlmApppythonCode(uri!, params),
         cURL: invokeLlmAppcURLCode(uri!, params),
@@ -232,7 +228,7 @@ export default function VariantEndpoint() {
             {selectedEnvironment?.deployed_app_variant_id ? (
                 <>
                     <Tabs
-                        destroyInactiveTabPane
+                        destroyOnHidden
                         defaultActiveKey={tab}
                         items={[
                             {

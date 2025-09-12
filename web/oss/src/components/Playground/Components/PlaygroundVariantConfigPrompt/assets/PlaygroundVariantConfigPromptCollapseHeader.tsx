@@ -1,11 +1,12 @@
-import {useCallback} from "react"
+import {useMemo} from "react"
 
 import {Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import {EnhancedVariant} from "../../../../../lib/shared/variant/transformer/types"
-import usePlayground from "../../../hooks/usePlayground"
+import {getPromptById} from "@/oss/components/Playground/context/promptShape"
+import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
+
 import type {PromptCollapseHeaderProps} from "../types"
 
 const {Text} = Typography
@@ -38,17 +39,19 @@ const PlaygroundVariantConfigPromptCollapseHeader: React.FC<PromptCollapseHeader
     viewOnly,
     ...props
 }) => {
-    const {promptName} = usePlayground({
-        variantId,
-        variantSelector: useCallback((variant: EnhancedVariant) => {
-            const prompt = variant?.prompts?.find((p) => p.__id === promptId)
-            return {promptName: prompt?.__name}
-        }, []),
-    })
+    const prompts = usePromptsSource(variantId)
+    const promptName = useMemo(() => {
+        const item = getPromptById(prompts, promptId)
+        return (item?.__name as string | undefined) ?? "Prompt"
+    }, [prompts, promptId])
     return (
         <div className={clsx("w-full flex items-center justify-between", className)} {...props}>
-            <Text className="capitalize">{promptName || "Prompt"}</Text>
-            <PlaygroundVariantModelConfig variantId={variantId} promptId={promptId} viewOnly={viewOnly} />
+            <Text className="capitalize whitespace-nowrap">{promptName || "Prompt"}</Text>
+            <PlaygroundVariantModelConfig
+                variantId={variantId}
+                promptId={promptId}
+                viewOnly={viewOnly}
+            />
         </div>
     )
 }

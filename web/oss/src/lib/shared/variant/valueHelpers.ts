@@ -63,8 +63,10 @@ export const checkValidity = (obj: Record<string, any>, metadata: ConfigMetadata
 export function extractValueByMetadata(
     _enhanced: Record<string, any> | null | undefined,
     allMetadata: Record<string, ConfigMetadata>,
+    debug = false,
 ): unknown {
     const enhanced = structuredClone(_enhanced)
+
     // Handle null/undefined
     if (enhanced === null || enhanced === undefined) return null
 
@@ -89,7 +91,7 @@ export function extractValueByMetadata(
     if (!metadata) {
         if (Array.isArray(enhanced)) {
             return enhanced
-                .map((item) => extractValueByMetadata(item, allMetadata))
+                .map((item) => extractValueByMetadata(item, allMetadata, debug))
                 .filter(shouldIncludeValue)
         }
 
@@ -98,7 +100,7 @@ export function extractValueByMetadata(
             .filter(([key]) => !key.startsWith("__"))
             .reduce(
                 (acc, [key, val]) => {
-                    const extracted = extractValueByMetadata(val, allMetadata)
+                    const extracted = extractValueByMetadata(val, allMetadata, debug)
                     if (shouldIncludeValue(extracted)) {
                         acc[key] = extracted
                     }
@@ -120,7 +122,7 @@ export function extractValueByMetadata(
             if (!Array.isArray(enhanced.value)) return undefined
             const arr = enhanced.value
                 .map((item: Record<string, any>) => {
-                    return extractValueByMetadata(item, allMetadata)
+                    return extractValueByMetadata(item, allMetadata, debug)
                 })
                 .filter(shouldIncludeValue)
                 .filter(Boolean)
@@ -151,7 +153,7 @@ export function extractValueByMetadata(
                             delete cloned.__metadata
                             acc[toSnakeCase(key)] = cloned
                         } else {
-                            const extracted = extractValueByMetadata(val, allMetadata)
+                            const extracted = extractValueByMetadata(val, allMetadata, debug)
                             if (shouldIncludeValue(extracted)) {
                                 acc[toSnakeCase(key)] = extracted
                             }
@@ -171,6 +173,7 @@ export function extractValueByMetadata(
                     obj.content = ""
                 }
             }
+
             return Object.keys(obj).length > 0 &&
                 checkValidity(obj, allMetadata[enhanced.__metadata])
                 ? obj
@@ -181,7 +184,7 @@ export function extractValueByMetadata(
                 (o) => o.value === (enhanced.selected || metadata.options[0].value),
             )
             if (!option) return undefined
-            return extractValueByMetadata(enhanced.value, allMetadata)
+            return extractValueByMetadata(enhanced.value, allMetadata, debug)
         }
         default:
             return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined

@@ -4,22 +4,20 @@ import {MoreOutlined} from "@ant-design/icons"
 import {PencilSimple} from "@phosphor-icons/react"
 import {Button, Dropdown, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
-import {useAppsData} from "@/oss/contexts/app.context"
-import {getCurrentProject} from "@/oss/contexts/project.context"
-import {fetchAndProcessRevisions} from "@/oss/lib/shared/variant"
-import {detectChatVariantFromOpenAISchema} from "@/oss/lib/shared/variant/genericTransformer"
+import {currentAppAtom} from "@/oss/state/app"
 
-import usePlayground from "../../hooks/usePlayground"
-import {
-    initializeGenerationInputs,
-    initializeGenerationMessages,
-} from "../../hooks/usePlayground/assets/generationHelpers"
-import {updateStateWithProcessedRevisions} from "../../hooks/usePlayground/assets/stateHelpers"
+import {usePlaygroundLayout} from "../../hooks/usePlaygroundLayout"
+import {variantListDisplayAtom, setDisplayedVariantsMutationAtom} from "../../state/atoms"
 import NewVariantButton from "../Modals/CreateVariantModal/assets/NewVariantButton"
 import type {BaseContainerProps} from "../types"
+
+interface PlaygroundHeaderProps extends BaseContainerProps {
+    isLoading?: boolean
+}
 
 import {useStyles} from "./styles"
 
@@ -27,120 +25,88 @@ const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
 })
 
-const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}) => {
+const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
+    className,
+    isLoading = false,
+    ...divProps
+}) => {
     const classes = useStyles()
-    const {toggleVariantDisplay, displayedVariants, variants, mutate} = usePlayground()
-    const {currentApp} = useAppsData()
 
+    // ATOM-LEVEL OPTIMIZATION: Use focused atom subscriptions instead of full playground state
+    const {displayedVariants} = usePlaygroundLayout()
+    const variants = useAtomValue(variantListDisplayAtom) // Only essential display data
+    const setDisplayedVariants = useSetAtom(setDisplayedVariantsMutationAtom)
+
+    const currentApp = useAtomValue(currentAppAtom)
+
+    // Simplified refresh function - atoms will handle the data updates automatically
     const handleUpdate = useCallback(async () => {
-        return await mutate(async (clonedState) => {
-            if (!currentApp?.app_id) {
-                return clonedState
-            }
-
-            try {
-                // Use the fetchAndProcessRevisions utility with forceRefresh parameter
-                // This ensures we get fresh data instead of relying on cached values
-                const {
-                    revisions: processedRevisions,
-                    spec,
-                    uri,
-                } = await fetchAndProcessRevisions({
-                    appId: currentApp.app_id,
-                    projectId: getCurrentProject().projectId,
-                    forceRefresh: true, // Force refresh the schema and variants
-                    logger: console.log,
-                    keyParts: "playground",
-                    appType: clonedState.appType,
-                })
-
-                // Update state with processed revisions using our shared utility
-                clonedState = updateStateWithProcessedRevisions(
-                    clonedState,
-                    processedRevisions,
-                    spec,
-                    uri,
-                )
-
-                // After updating the state with all revisions, select the first one for display
-                if (processedRevisions.length > 0) {
-                    clonedState.selected = [processedRevisions[0].id]
-                }
-
-                // Initialize generation data for the selected variants
-                clonedState.generationData.inputs = initializeGenerationInputs(
-                    clonedState.variants.filter((v) => clonedState.selected.includes(v.id)),
-                    spec,
-                    uri.routePath,
-                )
-
-                // Initialize chat messages if needed
-                if (detectChatVariantFromOpenAISchema(spec, uri)) {
-                    clonedState.generationData.messages = initializeGenerationMessages(
-                        clonedState.variants,
-                    )
-                }
-
-                // Clear any previous errors
-                clonedState.error = undefined
-
-                return clonedState
-            } catch (error) {
-                console.error("Error updating app schema:", error)
-                clonedState.error = error instanceof Error ? error : new Error(String(error))
-                return clonedState
-            }
-            //     spec,
-            //     undefined,
-            //     clonedState.routePath,
-            // )
-
-            // atomStore.set(specAtom, () => spec)
-
-            // clonedState.selected = [clonedState.variants[0].id]
-
-            // clonedState.generationData.inputs = initializeGenerationInputs(
-            //     clonedState.variants.filter((v) => clonedState.selected.includes(v.id)),
-            //     spec,
-            //     clonedState.uri.routePath,
-            // )
-
-            // if (detectChatVariantFromOpenAISchema(spec, clonedState.uri)) {
-            //     clonedState.generationData.messages = initializeGenerationMessages(
-            //         clonedState.variants,
-            //     )
-            // }
-
-            // clonedState.error = undefined
-            // clonedState.forceRevalidate = false
-            return clonedState
-        })
+        // For now, use a simple page reload since atoms auto-refresh on mount
+        // This is much simpler than complex state mutations
+        window.location.reload()
     }, [])
 
-    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
+    const {openModal} = useCustomWorkflowConfig({
         afterConfigSave: handleUpdate,
+        configureWorkflow: true,
     })
 
     const onAddVariant = useCallback(
         (value: any) => {
-            const variantIds = value.map((item: any) =>
-                typeof item === "string" ? item : item.value,
-            )
+            // Handle different data structures that TreeSelect might pass
+            let variantIds: string[] = []
 
-            const newSelection = variantIds.find((id: string) => !displayedVariants?.includes(id))
-            const removedSelection = displayedVariants?.find((id) => !variantIds.includes(id))
+            if (Array.isArray(value)) {
+                // Multiple selection mode - array of values
+                variantIds = value
+                    .map((item: any) => (typeof item === "string" ? item : item?.value || item))
+                    .filter(Boolean) // Remove any undefined/null values
+            } else if (value !== undefined && value !== null) {
+                // Single selection mode - single value
+                const singleId = typeof value === "string" ? value : value?.value || value
+                if (singleId) {
+                    variantIds = [singleId]
+                }
+            }
 
-            if (newSelection) {
-                toggleVariantDisplay?.(newSelection, true)
-            } else if (removedSelection && displayedVariants && displayedVariants.length > 1) {
-                toggleVariantDisplay?.(removedSelection, false)
+            // Use direct state mutation - no URL updates, immediate UI response
+            if (variantIds.length > 0) {
+                setDisplayedVariants(variantIds)
+            } else {
+                console.warn(
+                    "🚨 [PlaygroundHeader] No valid variant IDs found in selection:",
+                    value,
+                )
             }
         },
-        [toggleVariantDisplay, displayedVariants],
+        [setDisplayedVariants, displayedVariants],
     )
 
-    // Only render if variants are available
-    return variants ? (
+    // PROGRESSIVE LOADING: Show skeleton when loading, otherwise show full header
+    if (isLoading || !variants) {
+        return (
+            <div
+                className={clsx(
+                    "flex items-center justify-between gap-4 px-2.5 py-2",
+                    classes.header,
+                    className,
+                )}
+                {...divProps}
+            >
+                <div className="flex items-center gap-2">
+                    <Typography className="text-[16px] leading-[18px] font-[600]">
+                        Playground
+                    </Typography>
+                </div>
+                <div className="flex items-center gap-2">
+                    <div className="w-[120px] h-[24px] bg-gray-200 rounded animate-pulse" />
+                    <div className="w-[80px] h-[24px] bg-gray-200 rounded animate-pulse" />
+                </div>
+            </div>
+        )
+    }
+
+    return (
         <>
             <div
                 className={clsx(
@@ -186,10 +152,8 @@ const PlaygroundHeader: React.FC<BaseContainerProps> = ({className, ...divProps}
                     <NewVariantButton label="Variant" size="small" />
                 </div>
             </div>
-
-            {CustomWorkflowModal}
         </>
-    ) : null
+    )
 }
 
 export default PlaygroundHeader

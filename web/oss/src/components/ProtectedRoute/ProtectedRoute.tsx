@@ -1,19 +1,26 @@
 import {type PropsWithChildren, type FC, useEffect, useRef, useState} from "react"
 
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {useProfileData} from "@/oss/contexts/profile.context"
-import {useProjectData} from "@/oss/contexts/project.context"
 import {useSession} from "@/oss/hooks/useSession"
+import {selectedOrgAtom, selectedOrgQueryAtom} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
 
 const ProtectedRoute: FC<PropsWithChildren> = ({children}) => {
     const router = useRouter()
     const {loading, doesSessionExist: isSignedIn, logout} = useSession()
     const {pathname, query} = router
     const [shouldRender, setShouldRender] = useState(false)
-    const {isLoading, isProjectId} = useProjectData()
+    // Call to ensure project query mounts; values unused to avoid gating render
+    useProjectData()
     const {user, loading: loadingProfile} = useProfileData()
     const isBusy = useRef(false)
+    // Subscribe to selectedOrg to ensure the org query runs once enabled
+    const selectedOrg = useAtomValue(selectedOrgAtom)
+    // Also subscribe to the query atom object directly to mount the query itself
+    const selectedOrgQuery = useAtomValue(selectedOrgQueryAtom)
 
     useEffect(() => {
         const startHandler = (_newRoute: string) => (isBusy.current = true)
@@ -29,7 +36,8 @@ const ProtectedRoute: FC<PropsWithChildren> = ({children}) => {
 
     useEffect(() => {
         if (isBusy.current) return
-        if (loading || isLoading || loadingProfile) {
+        // Avoid blocking render on project loading to prevent flash
+        if (loading || loadingProfile) {
             setShouldRender(false)
         } else {
             if (pathname.startsWith("/auth")) {
@@ -42,7 +50,7 @@ const ProtectedRoute: FC<PropsWithChildren> = ({children}) => {
                 } else if (user && _email && user?.email !== _email) {
                     logout()
                 } else if (isSignedIn) {
-                    router.push("/apps")
+                    // router.push("/apps")
                 }
                 setShouldRender(true)
             } else {
@@ -52,11 +60,14 @@ const ProtectedRoute: FC<PropsWithChildren> = ({children}) => {
                             `${pathname}${window.location.search}`,
                         )}`,
                     )
+                    setShouldRender(false)
+                } else {
+                    // Always render once authenticated; downstream components gate their own data
+                    setShouldRender(true)
                 }
-                setShouldRender(!!isProjectId)
             }
         }
-    }, [pathname, isSignedIn, loading, isProjectId, isLoading, router, user])
+    }, [pathname, isSignedIn, loading, router, user, loadingProfile])
 
     return shouldRender ? children : null
 }

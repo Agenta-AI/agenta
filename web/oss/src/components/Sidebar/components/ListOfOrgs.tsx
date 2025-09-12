@@ -4,10 +4,10 @@ import {CaretDown} from "@phosphor-icons/react"
 import {Button, ButtonProps, Dropdown, DropdownProps} from "antd"
 import clsx from "clsx"
 
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
-import {useProjectData} from "@/oss/contexts/project.context"
 import {useSession} from "@/oss/hooks/useSession"
+import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
 
 import Avatar from "../../Avatar/Avatar"
 import {useDropdownItems} from "../hooks/useDropdownItems"

@@ -10,9 +10,9 @@ import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
 import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
-import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 
 const PasswordlessAuth = dynamic(() => import("@/oss/components/pages/auth/PasswordlessAuth"))
 const EmailPasswordAuth = dynamic(() => import("@/oss/components/pages/auth/EmailPasswordAuth"))

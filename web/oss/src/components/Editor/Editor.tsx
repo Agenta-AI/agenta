@@ -290,10 +290,15 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             )
         }, [editor])
 
+        const lastHydratedRef = useRef<string>("")
+
         useEffect(() => {
             if (codeOnly) return
+            const next = initialValue || ""
+            if (lastHydratedRef.current === next) return
+            lastHydratedRef.current = next
             editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
-                hydrateWithRemoteContent: initialValue || "",
+                hydrateWithRemoteContent: next,
                 parentId: "",
             })
         }, [initialValue])
@@ -465,12 +470,7 @@ const Editor = ({
     })
 
     return (
-        <div
-            className="agenta-editor-wrapper w-full relative"
-            ref={(el) => {
-                setContainerElm(el)
-            }}
-        >
+        <div className="agenta-editor-wrapper w-full relative" ref={setContainerElm}>
             {noProvider ? (
                 <EditorInner
                     dimensions={dimension}

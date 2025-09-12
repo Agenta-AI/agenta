@@ -4,9 +4,9 @@ import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {useLexicalTextEntity} from "@lexical/react/useLexicalTextEntity"
 import {TextNode, $createTextNode, LexicalNode, $isRangeSelection, $getSelection} from "lexical"
 
+import {navigateCursor} from "./assets/selectionUtils"
 import {TokenInputNode, $createTokenInputNode, $isTokenInputNode} from "./TokenInputNode"
 import {TokenNode, $createTokenNode, $isTokenNode} from "./TokenNode"
-import {navigateCursor} from "./assets/selectionUtils"
 
 const FULL_TOKEN_REGEX = /\{\{[^{}]*\}\}/
 const TOKEN_INPUT_REGEX = /\{\{[^{}]*$/

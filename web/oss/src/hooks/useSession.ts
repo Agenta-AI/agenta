@@ -1,10 +1,14 @@
-import {useRouter} from "next/router"
-import {useSessionContext} from "supertokens-auth-react/recipe/session"
-import {signOut} from "supertokens-auth-react/recipe/session"
+import {useEffect} from "react"
 
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
-import {useProjectData} from "@/oss/contexts/project.context"
+import {useSetAtom} from "jotai"
+import {useRouter} from "next/router"
+import {signOut} from "supertokens-auth-react/recipe/session"
+import {useSessionContext} from "supertokens-auth-react/recipe/session"
+
+import {resetOrgData} from "@/oss/state/org"
+import {resetProfileData} from "@/oss/state/profile"
+import {resetProjectData} from "@/oss/state/project"
+import {sessionExistsAtom} from "@/oss/state/session"
 
 export const useSession: () => {
     loading: boolean
@@ -12,10 +16,14 @@ export const useSession: () => {
     logout: () => void
 } = () => {
     const res = useSessionContext()
+    const setSessionExists = useSetAtom(sessionExistsAtom)
     const router = useRouter()
-    const {reset: resetProfileData} = useProfileData()
-    const {reset: resetOrgData} = useOrgData()
-    const {reset: resetProjectData} = useProjectData()
+
+    useEffect(() => {
+        if (!res.loading) {
+            setSessionExists((res as any).doesSessionExist)
+        }
+    }, [res.loading, (res as any).doesSessionExist, setSessionExists])
 
     return {
         loading: res.loading,
@@ -25,6 +33,7 @@ export const useSession: () => {
                 .then(async () => {
                     const posthog = (await import("posthog-js")).default
                     posthog.reset()
+                    setSessionExists(false)
                     resetProfileData()
                     resetOrgData()
                     resetProjectData()

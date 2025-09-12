@@ -1,8 +1,8 @@
-import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {transformSecret} from "@/oss/lib/helpers/llmProviders"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
-import {StandardSecretDTO, CustomSecretDTO} from "@/oss/lib/Types"
+import {CustomSecretDTO, StandardSecretDTO} from "@/oss/lib/Types"
+import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -12,7 +12,7 @@ import {StandardSecretDTO, CustomSecretDTO} from "@/oss/lib/Types"
 //  - delete: DELETE data from server
 
 export const fetchVaultSecret = async () => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
     const response = await axios.get(
         `${getAgentaApiUrl()}/vault/v1/secrets?project_id=${projectId}`,
     )
@@ -20,7 +20,7 @@ export const fetchVaultSecret = async () => {
 }
 
 export const createVaultSecret = async <T>({payload}: {payload: T}) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
     const response = await axios.post(
         `${getAgentaApiUrl()}/vault/v1/secrets?project_id=${projectId}`,
         payload,
@@ -35,7 +35,7 @@ export const updateVaultSecret = async <T>({
     secret_id: string
     payload: T
 }) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
     const response = await axios.put(
         `${getAgentaApiUrl()}/vault/v1/secrets/${secret_id}?project_id=${projectId}`,
         payload,
@@ -44,7 +44,7 @@ export const updateVaultSecret = async <T>({
 }
 
 export const deleteVaultSecret = async ({secret_id}: {secret_id: string}) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
     return await axios.delete(
         `${getAgentaApiUrl()}/vault/v1/secrets/${secret_id}?project_id=${projectId}`,
     )

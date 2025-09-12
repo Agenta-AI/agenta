@@ -1,6 +1,6 @@
 export interface VariantNavigationCardProps {
     id: string
     className?: string
-    variantId: string
+    revisionId: string
     handleScrollClick: () => void
 }

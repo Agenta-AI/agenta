@@ -76,9 +76,7 @@ export interface PreviewTestCase {
     id: string
     set_id: string
     testset_id: string
-    data: {
-        [key: string]: any
-    }
+    data: Record<string, any>
 }
 
 export interface PreviewTestSet {

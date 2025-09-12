@@ -1,9 +1,15 @@
+"use client"
+
 import {useCallback, useEffect, useState} from "react"
 
 import {useAtom} from "jotai"
 
 import {webworkerAtom} from "./state"
 import type {WorkerStatus, UseWebWorkerHookReturn, WorkerMessage} from "./types"
+
+// Global listener management to prevent duplicate event listeners
+let globalListener: ((event: MessageEvent) => void) | null = null
+const messageHandlers = new Set<(message: any) => void>()
 
 const useWebWorker = <T>(
     onMessage: (message: WorkerMessage<T>) => void,
@@ -30,23 +36,42 @@ const useWebWorker = <T>(
     )
 
     const handleMessageFromWorker = useCallback(
-        (event: MessageEvent<WorkerMessage<T>>): void => {
-            onMessage(event.data)
+        (message: WorkerMessage<T>): void => {
+            onMessage(message)
             setWorkerStatus("idle")
         },
         [onMessage],
     )
 
     useEffect(() => {
-        if (!shouldListen) return
+        if (!shouldListen || !worker) return
 
-        if (worker) {
-            worker.addEventListener("message", handleMessageFromWorker)
+        // Add this handler to the global set
+        messageHandlers.add(handleMessageFromWorker)
+
+        // Create global listener if it doesn't exist
+        if (!globalListener) {
+            globalListener = (event: MessageEvent) => {
+                // Broadcast to all registered handlers
+                messageHandlers.forEach((handler) => {
+                    try {
+                        handler(event.data)
+                    } catch (error) {
+                        console.error("Error in web worker message handler:", error)
+                    }
+                })
+            }
+            worker.addEventListener("message", globalListener)
         }
 
         return () => {
-            if (worker) {
-                worker.removeEventListener("message", handleMessageFromWorker)
+            // Remove this handler from the global set
+            messageHandlers.delete(handleMessageFromWorker)
+
+            // If no more handlers, remove the global listener
+            if (messageHandlers.size === 0 && globalListener && worker) {
+                worker.removeEventListener("message", globalListener)
+                globalListener = null
             }
         }
     }, [worker, shouldListen, handleMessageFromWorker])

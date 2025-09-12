@@ -8,7 +8,8 @@ import {createUseStyles} from "react-jss"
 import {globalErrorHandler} from "@/oss/lib/helpers/errorHandler"
 import {isValidCSVFile, isValidJSONFile} from "@/oss/lib/helpers/fileManipulations"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
-import {uploadTestsets, useLoadTestsetsList} from "@/oss/services/testsets/api"
+import {uploadTestsets} from "@/oss/services/testsets/api"
+import {useTestsetsData} from "@/oss/state/testset"
 
 const {Text} = Typography
 
@@ -60,7 +61,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
     const [testsetName, setTestsetName] = useState("")
     const [uploadLoading, setUploadLoading] = useState(false)
     const [fileProgress, setFileProgress] = useState<UploadFile>({} as UploadFile)
-    const {mutate} = useLoadTestsetsList()
+    const {mutate} = useTestsetsData()
 
     const onFinish = async (values: any) => {
         const {file} = values

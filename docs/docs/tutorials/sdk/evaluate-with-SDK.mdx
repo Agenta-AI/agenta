@@ -1,12 +1,12 @@
 ---
-title: "Evaluate with SDK"
+title: "Run LLM Evaluations with SDK"
+sidebar_label: "Evaluate with SDK"
+description: Learn how to run LLM app evaluations programmatically using the Agenta SDK. This guide covers creating test sets, configuring evaluators, running evaluations, and retrieving results.
 ---
 
-:::note
-This guide is also available as a [Jupyter Notebook](https://github.com/Agenta-AI/agenta/blob/main/cookbook/evaluations_with_sdk.ipynb).
-:::
-
-# Using evaluations with the SDK
+```mdx-code-block
+import GoogleColabButton from "@site/src/components/GoogleColabButton";
+```
 
 In this cookbook we will show how to interact with evaluation in agenta programatically. Either using the SDK (or the raw API).
 
@@ -19,6 +19,9 @@ We will do the following:
 
 We assume that you have already created an LLM application and variants in agenta.
 
+<GoogleColabButton notebookPath="examples/jupyter/evaluations_with_sdk.ipynb">
+  Open in Google Colaboratory
+</GoogleColabButton>
 ### Architectural Overview:
 
 In this scenario, evaluations are executed on the Agenta backend. Specifically, Agenta invokes the LLM application for each row in the test set and subsequently processes the output using the designated evaluator.

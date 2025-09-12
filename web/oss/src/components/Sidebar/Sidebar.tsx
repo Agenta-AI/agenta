@@ -7,14 +7,12 @@ import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
 
 import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
-
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 import ListOfOrgs from "./components/ListOfOrgs"
 import SidebarMenu from "./components/SidebarMenu"
-
 import {useSidebarConfig} from "./hooks/useSidebarConfig"
 import SettingsSidebar from "./SettingsSidebar"
 import {SidebarConfig} from "./types"
@@ -115,7 +113,11 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
                                             "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium",
                                         selectedKeys,
                                         openKeys: openKey ? [openKey] : [],
-                                        onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
+                                        onOpenChange: (openKeys) =>
+                                            setOpenKey((prev) => {
+                                                const next = openKeys.at(-1)
+                                                return prev === next ? prev : next
+                                            }),
                                     }}
                                     items={topItems}
                                     collapsed={isSidebarCollapsed}
@@ -134,7 +136,11 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
                                             "[&_.ant-menu-item-icon]:!shrink-0 [&_.ant-menu-item-icon]:!w-[14px] [&_.ant-menu-item-icon]:!h-[14px]",
                                         selectedKeys,
                                         openKeys: openKey ? [openKey] : [],
-                                        onOpenChange: (openKeys) => setOpenKey(openKeys.at(-1)),
+                                        onOpenChange: (openKeys) =>
+                                            setOpenKey((prev) => {
+                                                const next = openKeys.at(-1)
+                                                return prev === next ? prev : next
+                                            }),
                                     }}
                                     items={bottomItems}
                                     collapsed={isSidebarCollapsed}

@@ -3,6 +3,7 @@ import {useMemo, useState} from "react"
 import {PythonOutlined} from "@ant-design/icons"
 import {FileCode, FileTs} from "@phosphor-icons/react"
 import {Spin, Tabs} from "antd"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import fetchConfigcURLCode from "@/oss/code_snippets/endpoints/fetch_config/curl"
@@ -13,11 +14,13 @@ import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import LanguageCodeBlock from "@/oss/components/pages/overview/deployments/DeploymentDrawer/assets/LanguageCodeBlock"
 import useURI from "@/oss/components/pages/overview/deployments/DeploymentDrawer/hooks/useURI"
-import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
+import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
+import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {createParams} from "@/oss/pages/apps/[app_id]/endpoints"
+import {currentAppAtom} from "@/oss/state/app"
 
 const ApiKeyInput = dynamic(
     () => import("@/oss/components/pages/app-management/components/ApiKeyInput"),
@@ -36,34 +39,37 @@ const UseApiContent = ({
     handleOpenSelectDeployVariantModal,
 }: UseApiContentProps) => {
     const appId = useAppId()
-    const {currentApp} = useAppsData()
+    const currentApp = useAtomValue(currentAppAtom)
     const [selectedLang, setSelectedLang] = useState("python")
     const [apiKeyValue, setApiKeyValue] = useState("")
 
     const {data: uri, isLoading} = useURI(appId, selectedEnvironment.deployed_app_variant_id || "")
 
-    const params = useMemo(() => {
-        const _variant: any = (variants || []).find(
-            (item) =>
-                (item?.id || item?.variantId) ===
-                selectedEnvironment?.deployed_app_variant_revision_id,
-        )
-        const {inputParams, isChatVariant} = _variant || {}
+    const {specMap, uriMap} = useStatelessVariants()
 
-        const params = createParams(
-            inputParams,
+    const params = useMemo(() => {
+        // Derive keys from OpenAPI schema using app-level spec/uri maps
+        const vId =
+            selectedEnvironment?.deployed_app_variant_id ||
+            selectedEnvironment?.deployed_app_variant_revision_id
+        const spec = (vId && (specMap?.[vId] as any)) || undefined
+        const routePath = (vId && uriMap?.[vId]?.routePath) || ""
+        const inputKeys = spec ? extractInputKeysFromSchema(spec, routePath) : []
+        const synthesized = inputKeys.map((name) => ({name, input: name === "messages"}))
+
+        return createParams(
+            synthesized,
             selectedEnvironment?.name || "none",
             "add_a_value",
-            isChatVariant,
             currentApp,
         )
-
-        return params
     }, [
-        variants,
-        currentApp,
+        specMap,
+        uriMap,
+        selectedEnvironment?.deployed_app_variant_id,
         selectedEnvironment?.deployed_app_variant_revision_id,
         selectedEnvironment?.name,
+        currentApp,
     ])
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
@@ -92,7 +98,7 @@ const UseApiContent = ({
 
     return (
         <Tabs
-            destroyInactiveTabPane
+            destroyOnHidden
             defaultActiveKey={selectedLang}
             items={[
                 {

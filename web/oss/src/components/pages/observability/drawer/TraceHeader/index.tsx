@@ -1,22 +1,26 @@
-import {useCallback, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
-import {useObservabilityData} from "@/oss/contexts/observability.context"
 import {_AgentaRootsResponse} from "@/oss/services/observability/types"
+import {useObservability} from "@/oss/state/newObservability"
 
 import DeleteTraceModal from "../../components/DeleteTraceModal"
+import useTraceDrawer from "../hooks/useTraceDrawer"
 
 import {useStyles} from "./assets/styles"
 import {TraceHeaderProps} from "./assets/types"
 
 const TraceHeader = ({
-    activeTrace,
-    traces,
+    activeTrace: propActiveTrace,
+    traces: propTraces,
+    activeTraceId,
+    navigationIds,
     setSelectedTraceId,
+    setSelectedNode,
     activeTraceIndex,
     setIsAnnotationsSectionOpen,
     isAnnotationsSectionOpen,
@@ -25,18 +29,50 @@ const TraceHeader = ({
     const classes = useStyles()
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
-    const {pagination, count, navigateToPage, fetchTraces, traceTabs} = useObservabilityData()
+    const {pagination, count, navigateToPage, fetchTraces, traceTabs} = useObservability()
 
-    const isFirstItem = pagination.page === 1 && activeTraceIndex === 0
-    const isLastItem =
-        pagination.page === Math.ceil(count / pagination.size) &&
-        activeTraceIndex === traces.length - 1
+    // Derive from drawer hook when only id is given
+    const {traces: hookTraces, getTraceById} = useTraceDrawer()
+
+    const traces = ((propTraces as any) || hookTraces) ?? []
+    const activeTrace =
+        (propActiveTrace as any) || (activeTraceId ? getTraceById(activeTraceId) : undefined)
+
+    // Prefer explicit navigation list when provided (including empty array)
+    const navIds = navigationIds
+    const resolvedIndex = navIds
+        ? Math.max(0, navIds.indexOf(activeTraceId || ""))
+        : typeof activeTraceIndex === "number"
+          ? activeTraceIndex
+          : Math.max(
+                0,
+                traces.findIndex((t: any) => t?.node?.id === activeTrace?.node?.id),
+            )
+
+    const isFirstItem = navIds
+        ? resolvedIndex <= 0 || (navIds?.length || 0) <= 1
+        : pagination.page === 1 && resolvedIndex === 0
+    const isLastItem = navIds
+        ? resolvedIndex >= (navIds?.length || 1) - 1 || (navIds?.length || 0) <= 1
+        : pagination.page === Math.ceil(count / pagination.size) &&
+          resolvedIndex === traces.length - 1
 
     const handleNextTrace = useCallback(async () => {
-        if (activeTraceIndex === undefined) return
+        if (resolvedIndex === undefined) return
+
+        if (navIds) {
+            if ((navIds?.length || 0) <= 1) return
+            // Use explicit list when provided
+            if (resolvedIndex >= navIds.length - 1) return
+            const id = navIds[resolvedIndex + 1]
+            setSelectedTraceId(id)
+            setSelectedNode?.(id)
+            setSelected?.(id)
+            return
+        }
 
         // Check if we're at the last item of the current page
-        if (activeTraceIndex === traces.length - 1) {
+        if (resolvedIndex === traces.length - 1) {
             const nextPage = pagination.page + 1
             const totalPages = Math.ceil(count / pagination.size)
 
@@ -54,9 +90,11 @@ const TraceHeader = ({
                     // Set the first item of the new page as selected
                     if (nextPageTraces.length > 0) {
                         const firstTrace = nextPageTraces[0]
-                        const id = traceTabs === "node" ? firstTrace.node.id : firstTrace.root.id
+                        // Always select by node id to keep drawer lean and stable
+                        const id = firstTrace.node.id
                         setSelectedTraceId(id)
-                        setSelected?.(firstTrace.node.id)
+                        setSelectedNode?.(id)
+                        setSelected?.(id)
                     }
                 } catch (error) {
                     console.error("Error navigating to next page:", error)
@@ -64,18 +102,30 @@ const TraceHeader = ({
             }
         } else {
             // Regular next item within current page
-            const nextTrace = traces[activeTraceIndex + 1]
-            const id = traceTabs === "node" ? nextTrace.node.id : nextTrace.root.id
+            const nextTrace = traces[resolvedIndex + 1]
+            // Always select by node id to keep drawer lean and stable
+            const id = nextTrace.node.id
             setSelectedTraceId(id)
-            setSelected?.(nextTrace.node.id)
+            setSelectedNode?.(id)
+            setSelected?.(id)
         }
-    }, [activeTraceIndex, traces, traceTabs, pagination, count, navigateToPage, fetchTraces])
+    }, [resolvedIndex, navIds, traces, pagination, count, navigateToPage, fetchTraces])
 
     const handlePrevTrace = useCallback(async () => {
-        if (activeTraceIndex === undefined) return
+        if (resolvedIndex === undefined) return
+
+        if (navIds) {
+            if ((navIds?.length || 0) <= 1) return
+            if (resolvedIndex <= 0) return
+            const id = navIds[resolvedIndex - 1]
+            setSelectedTraceId(id)
+            setSelectedNode?.(id)
+            setSelected?.(id)
+            return
+        }
 
         // Check if we're at the first item of the current page
-        if (activeTraceIndex === 0 && pagination.page > 1) {
+        if (resolvedIndex === 0 && pagination.page > 1) {
             const prevPage = pagination.page - 1
 
             try {
@@ -89,21 +139,25 @@ const TraceHeader = ({
                 // Set the last item of the previous page as selected
                 if (prevPageTraces.length > 0) {
                     const lastTrace = prevPageTraces[prevPageTraces.length - 1]
-                    const id = traceTabs === "node" ? lastTrace.node.id : lastTrace.root.id
+                    // Always select by node id to keep drawer lean and stable
+                    const id = lastTrace.node.id
                     setSelectedTraceId(id)
-                    setSelected?.(lastTrace.node.id)
+                    setSelectedNode?.(id)
+                    setSelected?.(id)
                 }
             } catch (error) {
                 console.error("Error navigating to previous page:", error)
             }
-        } else if (activeTraceIndex > 0) {
+        } else if (resolvedIndex > 0) {
             // Regular previous item within current page
-            const prevTrace = traces[activeTraceIndex - 1]
-            const id = traceTabs === "node" ? prevTrace.node.id : prevTrace.root.id
+            const prevTrace = traces[resolvedIndex - 1]
+            // Always select by node id to keep drawer lean and stable
+            const id = prevTrace.node.id
             setSelectedTraceId(id)
-            setSelected?.(prevTrace.node.id)
+            setSelectedNode?.(id)
+            setSelected?.(id)
         }
-    }, [activeTraceIndex, traces, traceTabs, pagination, navigateToPage, fetchTraces])
+    }, [resolvedIndex, navIds, traces, pagination, navigateToPage, fetchTraces])
 
     return (
         <>
@@ -125,13 +179,20 @@ const TraceHeader = ({
                     </div>
 
                     <Typography.Text className={classes.title}>Trace</Typography.Text>
-                    <TooltipWithCopyAction copyText={activeTrace.root.id} title="Copy trace id">
-                        <Tag className="font-normal"># {activeTrace.root.id}</Tag>
+                    <TooltipWithCopyAction
+                        copyText={activeTrace?.root?.id || ""}
+                        title="Copy trace id"
+                    >
+                        <Tag className="font-normal"># {activeTrace?.root?.id || "-"}</Tag>
                     </TooltipWithCopyAction>
                 </Space>
 
                 <Space>
-                    <Button icon={<DeleteOutlined />} onClick={() => setIsDeleteModalOpen(true)} />
+                    <Button
+                        icon={<DeleteOutlined />}
+                        onClick={() => setIsDeleteModalOpen(true)}
+                        disabled={!activeTrace}
+                    />
                     {setIsAnnotationsSectionOpen && (
                         <Button
                             icon={<SidebarSimple size={14} />}
@@ -146,7 +207,7 @@ const TraceHeader = ({
             <DeleteTraceModal
                 open={isDeleteModalOpen}
                 onCancel={() => setIsDeleteModalOpen(false)}
-                activeTraceNodeId={activeTrace.node.id}
+                activeTraceNodeId={activeTrace?.node?.id || ""}
                 setSelectedTraceId={setSelectedTraceId}
             />
         </>

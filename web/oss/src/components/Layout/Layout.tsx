@@ -1,8 +1,10 @@
 import {memo, useEffect, useMemo, useRef, type ReactNode, type RefObject} from "react"
+import {Suspense} from "react"
 
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
-import {Button, ConfigProvider, Layout, Modal, Skeleton, Space, Typography, theme} from "antd"
+import {ConfigProvider, Layout, Modal, Skeleton, Space, theme} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -10,76 +12,32 @@ import {ErrorBoundary} from "react-error-boundary"
 import {ThemeProvider} from "react-jss"
 import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 
-import {useAppsData} from "@/oss/contexts/app.context"
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
-import {DEFAULT_UUID, getCurrentProject, useProjectData} from "@/oss/contexts/project.context"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
+import {currentAppAtom} from "@/oss/state/app"
+import {useProfileData} from "@/oss/state/profile"
+import {DEFAULT_UUID, getProjectValues, useProjectData} from "@/oss/state/project"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
-import useCustomWorkflowConfig from "../pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
-import SidebarSkeletonLoader from "../Sidebar/components/SidebarSkeletonLoader"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"
-import {useStyles, type StyleProps} from "./assets/styles"
+import {useStyles} from "./assets/styles"
 import ErrorFallback from "./ErrorFallback"
+import {SidebarIsland} from "./SidebarIsland"
 import {getDeviceTheme, useAppTheme} from "./ThemeContextProvider"
 
-const Sidebar: any = dynamic(() => import("../Sidebar/Sidebar"), {
+const FooterIsland = dynamic(() => import("./FooterIsland").then((m) => m.FooterIsland), {
     ssr: false,
-    loading: () => <SidebarSkeletonLoader />,
+    loading: () => null,
 })
 
 type StyleClasses = ReturnType<typeof useStyles>
 
-const {Content, Footer} = Layout
+const {Content} = Layout
 
 interface LayoutProps {
     children: React.ReactNode
-}
-
-const WithVariants = ({
-    children,
-    handleBackToWorkspaceSwitch,
-}: {
-    children: ReactNode
-    handleBackToWorkspaceSwitch: () => void
-}) => {
-    const {currentApp} = useAppsData()
-
-    // @ts-ignoree
-    const {mutate, data} = useVariants(currentApp)(
-        {
-            appId: currentApp?.app_id,
-        },
-        [],
-    )
-
-    const variant = useMemo(() => data?.variants?.[0], [data?.variants])
-
-    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
-        afterConfigSave: async () => {
-            await mutate()
-        },
-    })
-
-    return (
-        <>
-            <OldAppDeprecationBanner>
-                {variant && (
-                    <CustomWorkflowBanner
-                        setIsCustomWorkflowModalOpen={openModal}
-                        variant={variant}
-                    />
-                )}
-                {children}
-            </OldAppDeprecationBanner>
-            {CustomWorkflowModal}
-        </>
-    )
 }
 
 const AppWithVariants = memo(
@@ -108,14 +66,15 @@ const AppWithVariants = memo(
             }
         }, [router.asPath])
 
-        const {currentApp} = useAppsData()
+        const currentApp = useAtomValue(currentAppAtom)
         const {project, projects} = useProjectData()
-        const {changeSelectedOrg} = useOrgData()
+        // const profileLoading = useAtomValue(profilePendingAtom)
+        // const {changeSelectedOrg} = useOrgData()
 
         const handleBackToWorkspaceSwitch = () => {
             const project = projects.find((p) => p.user_role === "owner")
             if (project && !project.is_demo && project.organization_id) {
-                changeSelectedOrg(project.organization_id)
+                // changeSelectedOrg(project.organization_id)
             }
         }
 
@@ -131,7 +90,7 @@ const AppWithVariants = memo(
                     </div>
                 )}
                 <Layout hasSider className={classes.layout}>
-                    <Sidebar
+                    <SidebarIsland
                         showSettingsView={router.pathname.startsWith("/settings")}
                         lastPath={lastNonSettingsRef.current || "/apps"}
                     />
@@ -143,13 +102,9 @@ const AppWithVariants = memo(
                                 appName={currentApp?.app_name || ""}
                             />
                             {isAppRoute &&
-                            (!currentApp ||
-                                getCurrentProject().projectId ===
-                                    DEFAULT_UUID) ? null : isAppRoute ? (
-                                <WithVariants
-                                    handleBackToWorkspaceSwitch={handleBackToWorkspaceSwitch}
-                                    {...props}
-                                >
+                            getProjectValues().projectId === DEFAULT_UUID ? null : isAppRoute ? (
+                                <OldAppDeprecationBanner>
+                                    <CustomWorkflowBanner />
                                     <Content
                                         className={clsx(classes.content, {
                                             "flex flex-col min-h-0 grow": isHumanEval,
@@ -170,7 +125,7 @@ const AppWithVariants = memo(
                                             </ConfigProvider>
                                         </ErrorBoundary>
                                     </Content>
-                                </WithVariants>
+                                </OldAppDeprecationBanner>
                             ) : (
                                 <Content
                                     className={clsx(classes.content, {
@@ -193,7 +148,7 @@ const AppWithVariants = memo(
                                 </Content>
                             )}
                         </div>
-                        <Footer className={classes.footer}>
+                        <FooterIsland className={classes.footer}>
                             <Space className={classes.footerLeft} size={10}>
                                 <Link href={"https://github.com/Agenta-AI/agenta"} target="_blank">
                                     <GithubFilled className={classes.footerLinkIcon} />
@@ -209,7 +164,7 @@ const AppWithVariants = memo(
                                 </Link>
                             </Space>
                             <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
-                        </Footer>
+                        </FooterIsland>
                     </Layout>
                 </Layout>
             </div>
@@ -218,18 +173,19 @@ const AppWithVariants = memo(
 )
 
 const App: React.FC<LayoutProps> = ({children}) => {
-    const {user, loading: loadingProfile} = useProfileData()
+    // profile used for side-effects in children; values unused here
+    useProfileData()
     const {appTheme} = useAppTheme()
-    const {currentApp, isLoading, error} = useAppsData()
+    // const {currentApp, isLoading, error} = useAppsData()
     const ref = useRef<HTMLElement | null>(null)
     const {height: footerHeight} = useResizeObserver({
         ref: ref as RefObject<HTMLElement>,
         box: "border-box",
     })
-    const {project} = useProjectData()
+    // const project = useAtomValue(projectAtom)
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const router = useRouter()
-    const appId = router.query.app_id as string
+    // const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
     const {token} = theme.useToken()
     const [, contextHolder] = Modal.useModal()
@@ -237,7 +193,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const posthog = usePostHogAg()
     const [hasCapturedTheme, setHasCapturedTheme] = useLocalStorage("hasCapturedTheme", false)
 
-    const userProfile = useMemo(() => !loadingProfile && !!user, [loadingProfile, user])
+    // const userProfile = useMemo(() => !loadingProfile && !!user, [loadingProfile, user])
 
     useEffect(() => {
         if (!hasCapturedTheme) {
@@ -280,23 +236,26 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [router.pathname, router.query])
 
     // wait until we have the app id, if its an app route
-    if (userProfile && isAppRoute && (!appId || !project)) return null
+    // if (userProfile && isAppRoute && (!appId || !project)) return null
 
-    if (userProfile && appId && !currentApp && !isLoading && !error) {
-        return (
-            <div className={classes.notFoundContainer}>
-                <Typography.Text>404 - Page Not Found</Typography.Text>
-                <Typography.Text>This page could not be found.</Typography.Text>
+    // console.log("currentApp", currentApp)
+    // if (userProfile && appId && !currentApp && !error) {
+    //     return (
+    //         <Suspense fallback={<Skeleton />}>
+    //             <div className={classes.notFoundContainer}>
+    //                 <Typography.Text>404 - Page Not Found</Typography.Text>
+    //                 <Typography.Text>This page could not be found.</Typography.Text>
 
-                <Button type="primary" onClick={() => router.push("/apps")}>
-                    Back To Apps
-                </Button>
-            </div>
-        )
-    }
+    //                 <Button type="primary" onClick={() => router.push("/apps")}>
+    //                     Back To Apps
+    //                 </Button>
+    //             </div>
+    //         </Suspense>
+    //     )
+    // }
 
     return (
-        <>
+        <Suspense fallback={<Skeleton />}>
             {typeof window === "undefined" ? null : (
                 <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
                     {isAuthRoute ? (
@@ -322,8 +281,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
                     )}
                 </ThemeProvider>
             )}
-        </>
+        </Suspense>
     )
 }
 
-export default memo(App)
+export default App

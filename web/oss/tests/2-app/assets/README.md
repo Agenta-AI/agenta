@@ -13,15 +13,15 @@
 #### Validations
 
 1. UI Validation
-   - Navigation to apps dashboard
-   - Modal interactions
-   - Loading states
-   - Success indicators
+    - Navigation to apps dashboard
+    - Modal interactions
+    - Loading states
+    - Success indicators
 
 2. API Validation
-   - Successful app creation request
-   - Valid response structure
-   - Correct app name in response
+    - Successful app creation request
+    - Valid response structure
+    - Correct app name in response
 
 ## Fixtures ([helpers/test.ts](helpers/test.ts))
 
@@ -31,31 +31,30 @@ Our tests use custom fixtures that extend Playwright's base functionality:
 
 - `navigateToApps()`: Navigates to apps dashboard and verifies page load
 
-  ```typescript
-  await navigateToApps(); // Navigates and checks for "App Management" text
-  ```
+    ```typescript
+    await navigateToApps() // Navigates and checks for "App Management" text
+    ```
 
 ### Create a new App
 
 - `createNewApp(name: string)`: Handles complete app creation flow
 
-  ```typescript
-  const response = await createNewApp("my-app");
-  // Returns CreateAppResponse with id, name, createdAt
-  ```
-
-  - Manages modal interactions
-  - Validates API response
-  - Ensures successful navigation to playground
+    ```typescript
+    const response = await createNewApp("my-app")
+    // Returns CreateAppResponse with id, name, createdAt
+    ```
+    - Manages modal interactions
+    - Validates API response
+    - Ensures successful navigation to playground
 
 ### Verification
 
 - `verifyAppCreation(name: string)`: Validates UI state after app creation
 
-  ```typescript
-  await verifyAppCreation("my-app");
-  // Checks loading states and app name visibility
-  ```
+    ```typescript
+    await verifyAppCreation("my-app")
+    // Checks loading states and app name visibility
+    ```
 
 ## Test Cases
 
@@ -70,12 +69,12 @@ Our tests use custom fixtures that extend Playwright's base functionality:
 ### Basic App Creation Flow
 
 ```typescript
-test('create app', async ({ navigateToApps, createNewApp, verifyAppCreation }) => {
-  await navigateToApps();
-  const appName = `test-app-${Date.now()}`;
-  await createNewApp(appName);
-  await verifyAppCreation(appName);
-});
+test("create app", async ({navigateToApps, createNewApp, verifyAppCreation}) => {
+    await navigateToApps()
+    const appName = `test-app-${Date.now()}`
+    await createNewApp(appName)
+    await verifyAppCreation(appName)
+})
 ```
 
 ## Types

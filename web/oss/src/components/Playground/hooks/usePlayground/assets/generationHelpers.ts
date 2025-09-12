@@ -3,6 +3,7 @@ import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {MessageWithRuns} from "@/oss/lib/hooks/useStatelessVariants/state/types"
 import {createInputRow, createInputSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
+import {deriveCustomPropertiesFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 
 import type {
     Enhanced,
@@ -28,7 +29,13 @@ export const initializeGenerationInputs = (
     routePath?: string,
 ) => {
     // Get all unique input keys across all variants
-    const isCustomWorkflow = variants.some((variant) => variant.isCustom)
+    const isCustomWorkflow = Boolean(
+        spec &&
+            variants.some((variant) => {
+                const customProps = deriveCustomPropertiesFromSpec(variant, spec, routePath)
+                return customProps && Object.keys(customProps).length > 0
+            }),
+    )
     let inputStrings: string[] = []
 
     if (isCustomWorkflow && spec) {
@@ -83,33 +90,21 @@ export const initializeGenerationMessages = (variants: EnhancedVariant[]) => {
     const uniqueSystemMessages = getUniqueMessages(variants)
 
     if (uniqueSystemMessages.length === 0) {
-        // const emptyMessage = {}
-        // emptyMessage.__id = generateId()
+        // Create at least one empty message row so users can start typing
+        const emptyMessageRow = {
+            __id: generateId(),
+            __metadata: {},
+            history: {
+                value: [],
+                __id: generateId(),
+                __metadata: {},
+            },
+        }
 
-        // const initialMessageRows = []
-
-        // for (const key in emptyMessage) {
-        //     if (key !== "__id" && key !== "__metadata") {
-        //         ;(
-        //             emptyMessage[key as keyof typeof emptyMessage] as EnhancedConfigValue<string>
-        //         ).value = ""
-        //     }
-        // }
-
-        // emptyMessage.role.value = "user" // initial chat message is from user
-
-        // const messagesMetadata = variants[0]?.prompts[0]?.messages.__metadata
-        // initialMessageRows.push(
-        //     createMessageRow(
-        //         emptyMessage,
-        //         uniqueSystemMessages[0].__metadata as ObjectMetadata,
-        //         messagesMetadata,
-        //     ),
-        // )
         return {
             __id: generateId(),
             __metadata: {},
-            value: [],
+            value: [emptyMessageRow],
         } as Enhanced<
             {
                 history: MessageWithRuns[]

@@ -8,6 +8,10 @@ export const formatDate24 = (date: dayjs.ConfigType, includeSeconds = false): st
     return dayjs(date).format("DD MMM YY, HH:mm" + (includeSeconds ? ":ss" : ""))
 }
 
+export const parseDate = ({date, inputFormat = "YYYY-MM-DD H:mm:sssAZ"}) => {
+    return dayjs(date, inputFormat)
+}
+
 export const formatDay = ({
     date,
     inputFormat = "YYYY-MM-DD H:mm:ssAZ",

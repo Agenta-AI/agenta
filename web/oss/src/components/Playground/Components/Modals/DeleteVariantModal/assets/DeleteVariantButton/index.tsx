@@ -1,11 +1,12 @@
-import {cloneElement, isValidElement, useState} from "react"
+import {cloneElement, isValidElement} from "react"
 
 import {Trash} from "@phosphor-icons/react"
 import {Button} from "antd"
-import dynamic from "next/dynamic"
+import {useSetAtom} from "jotai"
+
+import {openDeleteVariantModalAtom} from "../../store/deleteVariantModalStore"
 
 import {DeleteVariantButtonProps} from "./types"
-const DeleteVariantModal = dynamic(() => import("../.."), {ssr: false})
 
 const DeleteVariantButton = ({
     variantId,
@@ -14,8 +15,7 @@ const DeleteVariantButton = ({
     children,
     ...props
 }: DeleteVariantButtonProps) => {
-    const [isDeleteVariantModalOpen, setIsDeleteVariantModalOpen] = useState(false)
-
+    const openDeleteModal = useSetAtom(openDeleteVariantModalAtom)
     return (
         <>
             {isValidElement(children) ? (
@@ -24,28 +24,18 @@ const DeleteVariantButton = ({
                         onClick: () => void
                     }>,
                     {
-                        onClick: () => {
-                            setIsDeleteVariantModalOpen(true)
-                        },
+                        onClick: () => openDeleteModal(variantId),
                     },
                 )
             ) : (
                 <Button
                     type="text"
                     icon={icon && <Trash size={14} />}
-                    onClick={() => setIsDeleteVariantModalOpen(true)}
+                    onClick={() => openDeleteModal(variantId)}
                     {...props}
                 >
                     {label}
                 </Button>
-            )}
-
-            {isDeleteVariantModalOpen && (
-                <DeleteVariantModal
-                    open={isDeleteVariantModalOpen}
-                    onCancel={() => setIsDeleteVariantModalOpen(false)}
-                    variantId={variantId}
-                />
             )}
         </>
     )

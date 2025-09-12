@@ -1,11 +1,16 @@
 import {useState} from "react"
 
 import {Button, Form, FormProps, Input} from "antd"
+import {useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 import {signUp} from "supertokens-auth-react/recipe/emailpassword"
+import {useLocalStorage} from "usehooks-ts"
 
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
-import {useProjectData} from "@/oss/contexts/project.context"
+import {isDemo} from "@/oss/lib/helpers/utils"
+import {useOrgData} from "@/oss/state/org"
+import {selectedOrgIdAtom} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
 
 import ShowErrorMessage from "../assets/ShowErrorMessage"
 import {EmailPasswordAuthProps} from "../assets/types"
@@ -14,6 +19,9 @@ const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAut
     const {reset: resetProfileData} = useProfileData()
     const {reset: resetOrgData} = useOrgData()
     const {reset: resetProjectData} = useProjectData()
+    const setSelectedOrgId = useSetAtom(selectedOrgIdAtom)
+    const router = useRouter()
+    const [invite] = useLocalStorage("invite", {})
     const [form, setForm] = useState({email: "", password: ""})
     const [isLoading, setIsLoading] = useState(false)
 
@@ -48,10 +56,32 @@ const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAut
                 resetProfileData()
                 resetOrgData()
                 resetProjectData()
-                setMessage({
-                    message: "Sign in successfully!",
-                    type: "success",
-                })
+                // Clear selected org via atom to keep storage in sync
+                setSelectedOrgId(null)
+                setMessage({message: "Verification successful", type: "success"})
+
+                const isInvitedUser = !!(
+                    router.query?.token ||
+                    (invite && Object.keys(invite || {}).length > 0)
+                )
+                const isNewUser =
+                    isDemo() &&
+                    (response as any).createdNewRecipeUser &&
+                    (response as any).user?.loginMethods?.length === 1
+
+                if (isNewUser) {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept?survey=true")
+                    } else {
+                        await router.push("/post-signup")
+                    }
+                } else {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept")
+                    } else {
+                        await router.push("/apps")
+                    }
+                }
             }
         } catch (error) {
             authErrorMsg(error)

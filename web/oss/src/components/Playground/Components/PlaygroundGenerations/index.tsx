@@ -1,7 +1,6 @@
-import {useCallback} from "react"
+import {useAtomValue} from "jotai"
 
-import {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
-import usePlayground from "../../hooks/usePlayground"
+import {appChatModeAtom} from "../../state/atoms"
 
 import GenerationChat from "./assets/GenerationChat"
 import GenerationCompletion from "./assets/GenerationCompletion"
@@ -9,12 +8,8 @@ import GenerationHeader from "./assets/GenerationHeader"
 import {PlaygroundGenerationsProps} from "./types"
 
 const PlaygroundGenerations: React.FC<PlaygroundGenerationsProps> = ({variantId}) => {
-    const {isChat} = usePlayground({
-        variantId,
-        variantSelector: useCallback((variant: EnhancedVariant) => {
-            return {isChat: variant.isChat}
-        }, []),
-    })
+    // Use app-level chat mode detection (first revision) for rendering mode
+    const isChat = useAtomValue(appChatModeAtom)
 
     return (
         <div className="w-full">

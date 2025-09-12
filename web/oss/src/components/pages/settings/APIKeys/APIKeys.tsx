@@ -4,11 +4,11 @@ import {CopyOutlined, DeleteOutlined, PlusOutlined} from "@ant-design/icons"
 import {Alert, Button, Modal, Table, Tooltip, Typography, theme} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {useOrgData} from "@/oss/contexts/org.context"
 import {useLoading} from "@/oss/hooks/useLoading"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {APIKey} from "@/oss/lib/Types"
 import {createApiKey, deleteApiKey, fetchAllListApiKeys} from "@/oss/services/apiKeys/api"
+import {useOrgData} from "@/oss/state/org"
 
 import {Loading} from "./assets/constants"
 

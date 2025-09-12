@@ -1,10 +1,8 @@
 import {useState, useEffect} from "react"
 
-import dynamic from "next/dynamic"
+import {Drawer} from "antd"
 
 import {EnhancedDrawerProps} from "./types"
-
-const Drawer = dynamic(() => import("antd").then((mod) => mod.Drawer), {ssr: false})
 
 const EnhancedDrawer = ({children, ...props}: EnhancedDrawerProps) => {
     const [shouldRender, setShouldRender] = useState(false)

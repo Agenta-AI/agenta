@@ -10,6 +10,7 @@ import {
     WarningCircle,
 } from "@phosphor-icons/react"
 import {
+    AutoComplete,
     Button,
     Checkbox,
     Divider,
@@ -20,7 +21,6 @@ import {
     Select,
     Table,
     Typography,
-    AutoComplete,
 } from "antd"
 import clsx from "clsx"
 import yaml from "js-yaml"
@@ -32,15 +32,11 @@ import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import useResizeObserver from "@/oss/hooks/useResizeObserver"
 import {collectKeyPathsFromObject, getYamlOrJson} from "@/oss/lib/helpers/utils"
 import {KeyValuePair, testset} from "@/oss/lib/Types"
-import {
-    createNewTestset,
-    fetchTestset,
-    updateTestset,
-    useLoadTestsetsList,
-} from "@/oss/services/testsets/api"
+import {createNewTestset, fetchTestset, updateTestset} from "@/oss/services/testsets/api"
+import {useTestsetsData} from "@/oss/state/testset"
 
 import {useStyles} from "./assets/styles"
-import {Mapping, Preview, TestsetTraceData, TestsetDrawerProps, TestsetColumn} from "./assets/types"
+import {Mapping, Preview, TestsetColumn, TestsetDrawerProps, TestsetTraceData} from "./assets/types"
 
 const TestsetDrawer = ({
     onClose,
@@ -50,12 +46,12 @@ const TestsetDrawer = ({
 }: TestsetDrawerProps) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
-    const {testsets: listOfTestsets, isTestsetsLoading, mutate} = useLoadTestsetsList()
+    const {testsets: listOfTestsets, isLoading: isTestsetsLoading, mutate} = useTestsetsData()
     const elemRef = useResizeObserver<HTMLDivElement>((rect) => {
         setIsDrawerExtended(rect.width > 640)
     })
 
-    console.log("TestsetDrawer", data)
+    // console.log("TestsetDrawer", data)
 
     const [isDrawerExtended, setIsDrawerExtended] = useState(false)
     const [isLoading, setIsLoading] = useState(false)

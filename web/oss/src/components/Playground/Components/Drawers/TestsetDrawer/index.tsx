@@ -59,7 +59,33 @@ const TestsetDrawerButton = ({
         return extractedData
     }, [resultHashes, results, isTestsetDrawerOpen])
 
-    const isResults = useMemo(() => resultHashes?.filter(Boolean)?.length, [resultHashes])
+    // Count of valid result hashes (may include failed ones; see validResultsCount for success only)
+    // const isResults = useMemo(() => resultHashes?.filter(Boolean)?.length, [resultHashes])
+    // Count only successful results (those that have response data)
+    const validResultsCount = useMemo(() => {
+        // Direct results prop (rare path)
+        if (results) {
+            const arr = Array.isArray(results) ? results : [results]
+            return arr.filter((r: any) => {
+                const data =
+                    (r?.response?.tree?.nodes?.[0]?.data as Record<string, any>) ||
+                    r?.response?.data
+                return Boolean(data)
+            }).length
+        }
+
+        // Hash-based results (common path)
+        const hashes = Array.isArray(resultHashes) ? resultHashes : [resultHashes]
+        return hashes
+            .map((h) => (h ? getResponseLazy(h) : null))
+            .filter(Boolean)
+            .filter((r: any) => {
+                const data =
+                    (r?.response?.tree?.nodes?.[0]?.data as Record<string, any>) ||
+                    r?.response?.data
+                return Boolean(data)
+            }).length
+    }, [results, resultHashes])
 
     return (
         <>
@@ -70,7 +96,7 @@ const TestsetDrawerButton = ({
                     }>,
                     {
                         onClick: () => {
-                            if (!isResults) return
+                            if (validResultsCount <= 0) return
                             onClickTestsetDrawer?.(messageId)
                             setIsTestsetDrawerOpen(true)
                         },
@@ -81,9 +107,10 @@ const TestsetDrawerButton = ({
                     {...props}
                     label={label}
                     icon={icon && <Database size={14} />}
-                    disabled={!isResults || props.disabled}
+                    // Enable only when there is at least one successful generation
+                    disabled={validResultsCount <= 0 || props.disabled}
                     tooltipProps={{
-                        title: !isResults ? "Run tests before adding to test set" : "",
+                        title: validResultsCount <= 0 ? "No successful generations to add" : "",
                     }}
                     onClick={() => {
                         onClickTestsetDrawer?.(messageId)

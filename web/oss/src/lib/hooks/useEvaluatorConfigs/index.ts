@@ -3,9 +3,9 @@ import {useCallback} from "react"
 import useSWR from "swr"
 import {SWRConfiguration} from "swr"
 
-import {DEFAULT_UUID, getCurrentProject} from "@/oss/contexts/project.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {fetchAllEvaluatorConfigs} from "@/oss/services/evaluators"
+import {DEFAULT_UUID, getProjectValues} from "@/oss/state/project"
 
 import {EvaluatorConfig} from "../../Types"
 
@@ -17,7 +17,7 @@ const useEvaluatorConfigs = <Preview extends boolean = false>({
     preview,
     ...options
 }: {preview?: Preview} & SWRConfiguration) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
     const appId = useAppId()
 
     const fetcher = useCallback(async () => {

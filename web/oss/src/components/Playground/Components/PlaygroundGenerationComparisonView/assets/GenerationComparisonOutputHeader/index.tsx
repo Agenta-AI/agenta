@@ -1,11 +1,11 @@
-import {memo, useCallback} from "react"
+import {memo, useMemo} from "react"
 
 import {Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 
 import Version from "@/oss/components/Playground/assets/Version"
-import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
-import {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
+import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
 
 import {useStyles} from "../styles"
 
@@ -15,15 +15,16 @@ const GenerationComparisonOutputHeader: React.FC<GenerationComparisonOutputHeade
     className,
     variantId,
 }) => {
-    const {variantName, revision} = usePlayground({
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const variant = state.variants.find((variant) => variant.id === variantId)
-                return {variantName: variant?.variantName, revision: variant?.revision}
-            },
-            [variantId],
-        ),
-    })
+    // Use atom-based state management
+    const revisions = useAtomValue(revisionListAtom)
+
+    const {variantName, revision} = useMemo(() => {
+        const variant = (revisions || []).find((rev) => rev.id === variantId)
+        return {
+            variantName: variant?.variantName,
+            revision: variant?.revision,
+        }
+    }, [revisions, variantId])
     const classes = useStyles()
 
     return (

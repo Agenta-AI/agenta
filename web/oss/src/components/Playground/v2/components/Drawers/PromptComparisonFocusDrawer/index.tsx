@@ -2,13 +2,13 @@ import {Drawer} from "antd"
 
 import PlaygroundVariantConfig from "@/oss/components/Playground/Components/PlaygroundVariantConfig"
 import useDrawerWidth from "@/oss/components/Playground/hooks/useDrawerWidth"
-import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygroundLayout"
 
 import {PromptComparisonFocusDrawerProps} from "./types"
 
 const PromptComparisonFocusDrawer: React.FC<PromptComparisonFocusDrawerProps> = ({...props}) => {
     const {drawerWidth} = useDrawerWidth()
-    const {displayedVariants} = usePlayground()
+    const {displayedVariants} = usePlaygroundLayout()
 
     const onClose = (e: any) => {
         props?.onClose?.(e)
