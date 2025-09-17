@@ -41,6 +41,21 @@ class EnvironSettings(BaseModel):
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "")
     CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "")
 
+    # CACHE (REQUIRED)
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "cache")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6378"))
+    AGENTA_CACHE_DB: int = int(os.getenv("AGENTA_CACHE_DB", "1"))
+    AGENTA_CACHE_TTL: int = int(os.getenv("AGENTA_CACHE_TTL", str(5 * 60)))  # 5 minutes
+    AGENTA_CACHE_BACKOFF_BASE: int = int(os.getenv("AGENTA_CACHE_BACKOFF_BASE", "50"))  # milliseconds
+    AGENTA_CACHE_ATTEMPTS_MAX: int = int(os.getenv("AGENTA_CACHE_ATTEMPTS_MAX", "4"))
+    AGENTA_CACHE_JITTER_SPREAD: float = float(os.getenv("AGENTA_CACHE_JITTER_SPREAD", str(1 / 3)))
+    AGENTA_CACHE_LEAKAGE_PROBABILITY: float = float(os.getenv("AGENTA_CACHE_LEAKAGE_PROBABILITY", "0.05"))
+    AGENTA_CACHE_LOCK_TTL: int = int(os.getenv("AGENTA_CACHE_LOCK_TTL", "1"))
+    AGENTA_CACHE_SCAN_BATCH_SIZE: int = int(os.getenv("AGENTA_CACHE_SCAN_BATCH_SIZE", "500"))
+    AGENTA_CACHE_DELETE_BATCH_SIZE: int = int(os.getenv("AGENTA_CACHE_DELETE_BATCH_SIZE", "1000"))
+    CACHE_DEBUG: bool = os.getenv("CACHE_DEBUG", "false").lower() in _TRUTHY
+    CACHE_DEBUG_VALUE: bool = os.getenv("CACHE_DEBUG_VALUE", "false").lower() in _TRUTHY
+
     # Mail
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
     AGENTA_SEND_EMAIL_FROM_ADDRESS: str = os.getenv(

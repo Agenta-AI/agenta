@@ -7,36 +7,28 @@ from redis.asyncio import Redis
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
 
-# TODO: ADD ENV VARS
-REDIS_HOST = "cache"
-REDIS_PORT = 6378
-
-AGENTA_CACHE_DB = 1
-AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
-
-AGENTA_CACHE_BACKOFF_BASE = 50  # Base backoff delay in milliseconds
-AGENTA_CACHE_ATTEMPTS_MAX = 4  # Maximum number of attempts to retry cache retrieval
-AGENTA_CACHE_JITTER_SPREAD = 1 / 3  # Spread of jitter in backoff
-AGENTA_CACHE_LEAKAGE_PROBABILITY = 0.05  # Probability of early leak
-AGENTA_CACHE_LOCK_TTL = 1  # TTL for cache locks
-
-AGENTA_CACHE_SCAN_BATCH_SIZE = 500
-AGENTA_CACHE_DELETE_BATCH_SIZE = 1000
-
-CACHE_DEBUG = False
-CACHE_DEBUG_VALUE = False
-
 r = Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    db=AGENTA_CACHE_DB,
+    host=env.REDIS_HOST,
+    port=env.REDIS_PORT,
+    db=env.AGENTA_CACHE_DB,
     decode_responses=True,
     socket_timeout=0.5,  # read/write timeout
 )
 
+AGENTA_CACHE_TTL = env.AGENTA_CACHE_TTL
+AGENTA_CACHE_BACKOFF_BASE = env.AGENTA_CACHE_BACKOFF_BASE
+AGENTA_CACHE_ATTEMPTS_MAX = env.AGENTA_CACHE_ATTEMPTS_MAX
+AGENTA_CACHE_JITTER_SPREAD = env.AGENTA_CACHE_JITTER_SPREAD
+AGENTA_CACHE_LEAKAGE_PROBABILITY = env.AGENTA_CACHE_LEAKAGE_PROBABILITY
+AGENTA_CACHE_LOCK_TTL = env.AGENTA_CACHE_LOCK_TTL
+AGENTA_CACHE_SCAN_BATCH_SIZE = env.AGENTA_CACHE_SCAN_BATCH_SIZE
+AGENTA_CACHE_DELETE_BATCH_SIZE = env.AGENTA_CACHE_DELETE_BATCH_SIZE
+CACHE_DEBUG = env.CACHE_DEBUG
+CACHE_DEBUG_VALUE = env.CACHE_DEBUG_VALUE
 
 # HELPERS ----------------------------------------------------------------------
 
