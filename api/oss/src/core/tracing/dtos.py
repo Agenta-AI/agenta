@@ -233,7 +233,9 @@ OTelSpans = List[OTelSpan]
 
 class Fields(str, Enum):
     TRACE_ID = "trace_id"
+    TRACE_TYPE = "trace_type"
     SPAN_ID = "span_id"
+    SPAN_TYPE = "span_type"
     PARENT_ID = "parent_id"
     SPAN_NAME = "span_name"
     SPAN_KIND = "span_kind"

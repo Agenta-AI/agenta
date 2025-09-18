@@ -7,7 +7,6 @@ import dynamic from "next/dynamic"
 
 import VariableControlAdapter from "@/oss/components/Playground/adapters/VariableControlAdapter"
 import RunButton from "@/oss/components/Playground/assets/RunButton"
-import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import {variableIdsUnifiedAtomFamily} from "@/oss/state/newPlayground/generation/selectors"
 
 import {RunningPlaceholder, ClickRunPlaceholder} from "../ResultPlaceholder"
@@ -119,10 +118,8 @@ const SingleView = ({
                 )}
             </div>
             {!inputOnly ? (
-                <div className="w-full flex gap-1">
-                    <div
-                        className={clsx("flex items-start justify-start h-fit w-[100px] shrink-0")}
-                    >
+                <div className="w-full flex gap-4">
+                    <div className={clsx("flex items-center px-4 h-fit")}>
                         {!isBusy ? (
                             <RunButton onClick={runRow} disabled={!!isRunning} className="flex" />
                         ) : (
@@ -130,9 +127,9 @@ const SingleView = ({
                         )}
                     </div>
 
-                    <div className={clsx(["w-full flex flex-col gap-4  pb-2 mr-[52px]"])}>
+                    <div className={clsx(["w-full flex flex-col gap-4 pr-4 pl-2 pb-2"])}>
                         {isBusy ? (
-                            <TypingIndicator />
+                            <RunningPlaceholder />
                         ) : !result ? (
                             <ClickRunPlaceholder />
                         ) : result.error ? (

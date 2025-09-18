@@ -572,13 +572,10 @@ class TracingDAO(TracingDAOInterface):
                 # ---------
 
                 # SORTING
-                query = query.order_by(SpanDBE.start_time.desc())
+                query = query.order_by(
+                    SpanDBE.start_time.desc(),
+                )
                 # -------
-
-                # WINDOWING
-                if limit:
-                    query = query.limit(limit)
-                # --------
 
                 # GROUPING
                 if focus == Focus.TRACE:
@@ -589,8 +586,20 @@ class TracingDAO(TracingDAOInterface):
                     query = query.filter(SpanDBE.trace_id.in_(subquery))
 
                     # SORTING
-                    query = query.order_by(SpanDBE.start_time.asc())
+                    query = query.order_by(
+                        SpanDBE.created_at.desc(),
+                        SpanDBE.start_time.asc(),
+                    )
                     # -------
+                # else:
+                #     query = query.order_by(
+                #         SpanDBE.start_time.desc(),
+                #     )
+                # --------
+
+                # WINDOWING
+                if limit:
+                    query = query.limit(limit)
                 # --------
 
                 # DEBUGGING

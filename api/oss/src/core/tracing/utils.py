@@ -1,7 +1,10 @@
-from typing import Dict, Union, Any
+from typing import Dict, Union, Any, List
 from uuid import UUID
 from datetime import datetime
 from collections import OrderedDict
+
+from litellm import cost_calculator
+
 
 from oss.src.utils.logging import get_module_logger
 
@@ -11,6 +14,7 @@ from oss.src.core.tracing.dtos import (
     OTelSpanKind,
     OTelStatusCode,
     OTelSpan,
+    OTelFlatSpan,
     OTelLink,
     OTelFlatSpans,
     Query,
@@ -24,6 +28,8 @@ from oss.src.core.tracing.dtos import (
     DictOperator,
     ExistenceOperator,
     Fields,
+    TraceType,
+    SpanType,
     _C_OPS,
     _N_OPS,
     _S_OPS,
@@ -184,13 +190,21 @@ def unmarshall(
 # TREE
 
 
+def parse_span_dtos_to_span_idx(
+    span_dtos: List[OTelFlatSpan],
+) -> Dict[str, OTelFlatSpan]:
+    span_idx = {span.span_id: span for span in span_dtos}
+
+    return span_idx
+
+
 def parse_span_idx_to_span_id_tree(
-    span_idx: Dict[str, OTelSpan],
+    span_idx: Dict[str, OTelFlatSpan],
 ) -> OrderedDict:
     span_id_tree = OrderedDict()
     index = {}
 
-    def push(span_dto: OTelSpan) -> None:
+    def push(span_dto: OTelFlatSpan) -> None:
         if span_dto.parent_id is None:
             span_id_tree[span_dto.span_id] = OrderedDict()
             index[span_dto.span_id] = span_id_tree[span_dto.span_id]
@@ -238,6 +252,361 @@ def _connect_tree_dfs(
 
         if len(parent_span.spans) == 0:
             parent_span.spans = None
+
+
+def cumulate_costs(
+    spans_id_tree: OrderedDict,
+    spans_idx: Dict[str, OTelFlatSpan],
+) -> None:
+    def _get_incremental(span: OTelFlatSpan):
+        _costs = {
+            "prompt": 0.0,
+            "completion": 0.0,
+            "total": 0.0,
+        }
+
+        if span.attributes is None:
+            return _costs
+
+        attr: dict = span.attributes
+
+        return {
+            "prompt": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("costs", {})
+                .get("incremental", {})
+                .get("prompt", 0.0)
+            ),
+            "completion": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("costs", {})
+                .get("incremental", {})
+                .get("completion", 0.0)
+            ),
+            "total": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("costs", {})
+                .get("incremental", {})
+                .get("total", 0.0)
+            ),
+        }
+
+    def _get_cumulative(span: OTelFlatSpan):
+        _costs = {
+            "prompt": 0.0,
+            "completion": 0.0,
+            "total": 0.0,
+        }
+
+        if span.attributes is None:
+            return _costs
+
+        attr: dict = span.attributes
+
+        return {
+            "prompt": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("costs", {})
+                .get("cumulative", {})
+                .get("prompt", 0.0)
+            ),
+            "completion": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("costs", {})
+                .get("cumulative", {})
+                .get("completion", 0.0)
+            ),
+            "total": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("costs", {})
+                .get("cumulative", {})
+                .get("total", 0.0)
+            ),
+        }
+
+    def _accumulate(a: dict, b: dict):
+        return {
+            "prompt": a.get("prompt", 0.0) + b.get("prompt", 0.0),
+            "completion": a.get("completion", 0.0) + b.get("completion", 0.0),
+            "total": a.get("total", 0.0) + b.get("total", 0.0),
+        }
+
+    def _set_cumulative(span: OTelFlatSpan, costs: dict):
+        if span.attributes is None:
+            span.attributes = {}
+
+        if (
+            costs.get("prompt", 0.0) != 0.0
+            or costs.get("completion", 0.0) != 0.0
+            or costs.get("total", 0.0) != 0.0
+        ):
+            if "ag" not in span.attributes or not isinstance(
+                span.attributes["ag"],
+                dict,
+            ):
+                span.attributes["ag"] = {}
+
+            if "metrics" not in span.attributes["ag"] or not isinstance(
+                span.attributes["ag"]["metrics"],
+                dict,
+            ):
+                span.attributes["ag"]["metrics"] = {}
+
+            if "costs" not in span.attributes["ag"]["metrics"] or not isinstance(
+                span.attributes["ag"]["metrics"]["costs"],
+                dict,
+            ):
+                span.attributes["ag"]["metrics"]["costs"] = {}
+
+            span.attributes["ag"]["metrics"]["costs"]["cumulative"] = costs
+
+    _cumulate_tree_dfs(
+        spans_id_tree,
+        spans_idx,
+        _get_incremental,
+        _get_cumulative,
+        _accumulate,
+        _set_cumulative,
+    )
+
+
+def cumulate_tokens(
+    spans_id_tree: OrderedDict,
+    spans_idx: Dict[str, OTelFlatSpan],
+) -> None:
+    def _get_incremental(span: OTelFlatSpan):
+        _tokens = {
+            "prompt": 0.0,
+            "completion": 0.0,
+            "total": 0.0,
+        }
+
+        if span.attributes is None:
+            return _tokens
+
+        attr: dict = span.attributes
+
+        return {
+            "prompt": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("tokens", {})
+                .get("incremental", {})
+                .get("prompt", 0.0)
+            ),
+            "completion": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("tokens", {})
+                .get("incremental", {})
+                .get("completion", 0.0)
+            ),
+            "total": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("tokens", {})
+                .get("incremental", {})
+                .get("total", 0.0)
+            ),
+        }
+
+    def _get_cumulative(span: OTelFlatSpan):
+        _tokens = {
+            "prompt": 0.0,
+            "completion": 0.0,
+            "total": 0.0,
+        }
+
+        if span.attributes is None:
+            return _tokens
+
+        attr: dict = span.attributes
+
+        return {
+            "prompt": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("tokens", {})
+                .get("cumulative", {})
+                .get("prompt", 0.0)
+            ),
+            "completion": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("tokens", {})
+                .get("cumulative", {})
+                .get("completion", 0.0)
+            ),
+            "total": (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("tokens", {})
+                .get("cumulative", {})
+                .get("total", 0.0)
+            ),
+        }
+
+    def _accumulate(a: dict, b: dict):
+        return {
+            "prompt": a.get("prompt", 0.0) + b.get("prompt", 0.0),
+            "completion": a.get("completion", 0.0) + b.get("completion", 0.0),
+            "total": a.get("total", 0.0) + b.get("total", 0.0),
+        }
+
+    def _set_cumulative(span: OTelFlatSpan, tokens: dict):
+        if span.attributes is None:
+            span.attributes = {}
+
+        if (
+            tokens.get("prompt", 0.0) != 0.0
+            or tokens.get("completion", 0.0) != 0.0
+            or tokens.get("total", 0.0) != 0.0
+        ):
+            if "ag" not in span.attributes or not isinstance(
+                span.attributes["ag"],
+                dict,
+            ):
+                span.attributes["ag"] = {}
+
+            if "metrics" not in span.attributes["ag"] or not isinstance(
+                span.attributes["ag"]["metrics"],
+                dict,
+            ):
+                span.attributes["ag"]["metrics"] = {}
+
+            if "tokens" not in span.attributes["ag"]["metrics"] or not isinstance(
+                span.attributes["ag"]["metrics"]["tokens"],
+                dict,
+            ):
+                span.attributes["ag"]["metrics"]["tokens"] = {}
+
+            span.attributes["ag"]["metrics"]["tokens"]["cumulative"] = tokens
+
+    _cumulate_tree_dfs(
+        spans_id_tree,
+        spans_idx,
+        _get_incremental,
+        _get_cumulative,
+        _accumulate,
+        _set_cumulative,
+    )
+
+
+def _cumulate_tree_dfs(
+    spans_id_tree: OrderedDict,
+    spans_idx: Dict[str, OTelFlatSpan],
+    get_incremental,
+    get_cumulative,
+    accumulate,
+    set_cumulative,
+):
+    for span_id, children_spans_id_tree in spans_id_tree.items():
+        children_spans_id_tree: OrderedDict
+
+        cumulated_metric = get_incremental(spans_idx[span_id])
+
+        _cumulate_tree_dfs(
+            children_spans_id_tree,
+            spans_idx,
+            get_incremental,
+            get_cumulative,
+            accumulate,
+            set_cumulative,
+        )
+
+        for child_span_id in children_spans_id_tree.keys():
+            marginal_metric = get_cumulative(spans_idx[child_span_id])
+            cumulated_metric = accumulate(cumulated_metric, marginal_metric)
+
+        set_cumulative(spans_idx[span_id], cumulated_metric)
+
+
+TYPES_WITH_COSTS = [
+    "embedding",
+    "query",
+    "completion",
+    "chat",
+    "rerank",
+]
+
+
+def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
+    for span in span_idx.values():
+        if (
+            span.span_type
+            and span.span_type.name.lower() in TYPES_WITH_COSTS
+            and span.attributes
+        ):
+            attr: dict = span.attributes
+            model = attr.get("ag", {}).get("meta", {}).get("response", {}).get(
+                "model"
+            ) or attr.get("ag", {}).get("data", {}).get("parameters", {}).get("model")
+
+            prompt_tokens = (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("tokens", {})
+                .get("incremental", {})
+                .get("prompt", 0.0)
+            )
+
+            completion_tokens = (
+                attr.get("ag", {})
+                .get("metrics", {})
+                .get("tokens", {})
+                .get("incremental", {})
+                .get("completion", 0.0)
+            )
+
+            try:
+                costs = cost_calculator.cost_per_token(
+                    model=model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
+
+                if not costs:
+                    continue
+
+                prompt_cost, completion_cost = costs
+                total_cost = prompt_cost + completion_cost
+
+                if "ag" not in span.attributes or not isinstance(
+                    span.attributes["ag"],
+                    dict,
+                ):
+                    span.attributes["ag"] = {}
+                if "metrics" not in span.attributes["ag"] or not isinstance(
+                    span.attributes["ag"]["metrics"],
+                    dict,
+                ):
+                    span.attributes["ag"]["metrics"] = {}
+
+                if "costs" not in span.attributes["ag"]["metrics"] or not isinstance(
+                    span.attributes["ag"]["metrics"]["costs"],
+                    dict,
+                ):
+                    span.attributes["ag"]["metrics"]["costs"] = {}
+
+                span.attributes["ag"]["metrics"]["costs"]["incremental"] = {
+                    "prompt": prompt_cost,
+                    "completion": completion_cost,
+                    "total": total_cost,
+                }
+
+            except:  # pylint: disable=bare-except
+                log.warn(
+                    "Failed to calculate costs",
+                    model=model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
 
 
 # VALUES
@@ -529,7 +898,7 @@ def _parse_links_condition(condition: Condition) -> None:
                 condition.value[i] = Link(
                     trace_id=parse_trace_id_to_uuid(trace_id) if trace_id else None,
                     span_id=parse_span_id_to_uuid(span_id) if span_id else None,
-                ).model_dump()
+                ).model_dump(mode="json")
         except Exception as e:  # pylint: disable=broad-exception-caught
             raise FilteringException(
                 "'links' value must be one or more (possibly partial) links.",
@@ -594,14 +963,14 @@ def _parse_references_condition(condition: Condition) -> None:
                     _values.append(
                         Reference(
                             id=parse_ref_id_to_uuid(ref_id),
-                        ).model_dump(exclude_none=True)
+                        ).model_dump(mode="json", exclude_none=True)
                     )
 
                 if ref_slug:
                     _values.append(
                         Reference(
                             slug=parse_ref_slug_to_str(ref_slug),
-                        ).model_dump(exclude_none=True)
+                        ).model_dump(mode="json", exclude_none=True)
                     )
 
             condition.value = _values
@@ -737,8 +1106,12 @@ def parse_filtering(filtering: Filtering) -> None:
 def parse_condition(condition: Condition) -> None:
     if condition.field == Fields.TRACE_ID:
         _parse_trace_id_condition(condition)
+    elif condition.field == Fields.TRACE_TYPE:
+        _parse_enum_field_condition(condition, TraceType)
     elif condition.field == Fields.SPAN_ID:
         _parse_span_id_condition(condition)
+    elif condition.field == Fields.SPAN_TYPE:
+        _parse_enum_field_condition(condition, SpanType)
     elif condition.field == Fields.PARENT_ID:
         _parse_parent_id_condition(condition)
     elif condition.field == Fields.SPAN_KIND:
@@ -776,9 +1149,10 @@ def parse_condition(condition: Condition) -> None:
     elif condition.field == Fields.CONTENT:
         _parse_fts_field_condition(condition)
     else:
-        raise FilteringException(
-            f"Unsupported condition field '{condition.field}'.",
-        )
+        # raise FilteringException(
+        #     f"Unsupported condition field '{condition.field}'.",
+        # )
+        log.warning(f"Unsupported condition field: {condition.field}")
 
 
 # INGEST / QUERY

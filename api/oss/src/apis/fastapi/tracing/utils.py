@@ -50,6 +50,8 @@ from oss.src.core.tracing.utils import (
 
 log = get_module_logger(__name__)
 
+TRACE_DEFAULT_KEY = "__default__"
+
 # --- PARSE QUERY DTO ---
 
 
@@ -391,6 +393,12 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
     for key in ["flags", "tags", "meta", "exception", "hashes"]:
         cleaned_ag[key] = ag.get(key, None)
 
+        # --- move ag.meta.configuration to ag.data.parameters ---
+    if "meta" in cleaned_ag and cleaned_ag["meta"] is not None:
+        if "configuration" in cleaned_ag["meta"]:
+            if cleaned_ag["data"]["parameters"] is None:
+                cleaned_ag["data"]["parameters"] = cleaned_ag["meta"]["configuration"]
+
     # --- unsupported top-level ---
     for key in ag:
         if key not in AgAttributes.model_fields:
@@ -627,6 +635,13 @@ def _parse_span_into_response(
     # HANDLE ATTRIBUTES
     if marshall:
         pass  # TODO: MARSHALL ATTRIBUTES
+
+    ag = span_dto.attributes.get("ag")
+    if ag:
+        data = ag.get("data") if isinstance(ag, dict) else None
+        outputs = data.get("outputs") if isinstance(data, dict) else None
+        if isinstance(outputs, dict) and TRACE_DEFAULT_KEY in outputs:
+            data["outputs"] = outputs[TRACE_DEFAULT_KEY]
 
     return span_dto
 
