@@ -13,8 +13,8 @@ import {
 } from "@phosphor-icons/react"
 import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
-import {useRouter} from "next/router"
 
 import fetchConfigcURLCode from "@/oss/code_snippets/endpoints/fetch_config/curl"
 import fetchConfigpythonCode from "@/oss/code_snippets/endpoints/fetch_config/python"
@@ -23,10 +23,12 @@ import invokeLlmAppcURLCode from "@/oss/code_snippets/endpoints/invoke_llm_app/c
 import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app/python"
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopover"
-import {useAppsData} from "@/oss/contexts/app.context"
+import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
+import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
+import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {createParams} from "@/oss/pages/apps/[app_id]/endpoints"
+import {currentAppAtom} from "@/oss/state/app"
 
 import LanguageCodeBlock from "./assets/LanguageCodeBlock"
 import {useStyles} from "./assets/styles"
@@ -50,7 +52,7 @@ const DeploymentDrawer = ({
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
-    const {currentApp} = useAppsData()
+    const currentApp = useAtomValue(currentAppAtom)
     const [selectedLang, setSelectedLang] = useState("python")
     const {data: uri} = useURI(appId, selectedEnvironment?.deployed_app_variant_id)
     const variant = useMemo(() => {
@@ -62,31 +64,26 @@ const DeploymentDrawer = ({
     }, [variants, selectedEnvironment.deployed_app_variant_id])
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
 
-    const {data} = useVariants(currentApp)({appId}, [variant!].filter(Boolean))
+    // We no longer need variant.inputParams from useVariants; keep commented for reference
+    // const {data} = useVariants(currentApp, [variant!].filter(Boolean))
+    const {specMap, uriMap} = useStatelessVariants()
 
     const params = useMemo(() => {
-        const _variant = (data?.variants || []).find(
-            (item) =>
-                (item?.variant?.id || item?.variant?.variantId) ===
-                selectedEnvironment.deployed_app_variant_revision_id,
-        )
-        const {inputParams, isChatVariant} = _variant || {}
+        // Derive inputs from app-level OpenAPI schema
+        const vId = variant?.variantId
+        const spec = (vId && (specMap?.[vId] as any)) || undefined
+        const routePath = (vId && uriMap?.[vId]?.routePath) || ""
+        const inputKeys = spec ? extractInputKeysFromSchema(spec, routePath) : []
+        const synthesized = inputKeys.map((name) => ({name, input: name === "messages"}))
 
-        const params = createParams(
-            inputParams,
+        const built = createParams(
+            synthesized,
             selectedEnvironment?.name || "none",
             "add_a_value",
-            isChatVariant,
             currentApp,
         )
-
-        return params
-    }, [
-        data?.variants,
-        currentApp,
-        selectedEnvironment.deployed_app_variant_revision_id,
-        selectedEnvironment?.name,
-    ])
+        return built
+    }, [variant?.variantId, specMap, uriMap, currentApp, selectedEnvironment?.name])
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
         python: invokeLlmApppythonCode(uri!, params),
@@ -158,7 +155,7 @@ const DeploymentDrawer = ({
                                                     router.push({
                                                         pathname: `/apps/${appId}/playground`,
                                                         query: {
-                                                            revisions: JSON.stringify([
+                                                            revisions: buildRevisionsQueryParam([
                                                                 selectedEnvironment.deployed_app_variant_revision_id,
                                                             ]),
                                                         },
@@ -196,7 +193,7 @@ const DeploymentDrawer = ({
                             ])}
                         >
                             <Tabs
-                                destroyInactiveTabPane
+                                destroyOnHidden
                                 defaultActiveKey={selectedLang}
                                 items={[
                                     {

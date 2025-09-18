@@ -1,16 +1,16 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {Input, Tooltip} from "antd"
 import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
 import JSON5 from "json5"
+import {v4 as uuidv4} from "uuid"
 
 import {EditorProvider} from "@/oss/components/Editor/Editor"
+import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import usePlayground from "../../hooks/usePlayground"
-import {
-    findParentOfPropertyInObject,
-    findVariantById,
-} from "../../hooks/usePlayground/assets/helpers"
 import PlaygroundVariantPropertyControlWrapper from "../PlaygroundVariantPropertyControl/assets/PlaygroundVariantPropertyControlWrapper"
 import PromptMessageContentOptions from "../PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
 import SharedEditor from "../SharedEditor"
@@ -18,6 +18,7 @@ import SharedEditor from "../SharedEditor"
 import {TOOL_SCHEMA} from "./assets"
 
 const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProps}) => {
+    const editorIdRef = useRef(uuidv4())
     const [minimized, setMinimized] = useState(false)
     const [toolString, setToolString] = useState(() => {
         try {
@@ -111,19 +112,46 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
         }
     }, [toolString])
 
-    const {mutate} = usePlayground()
+    // Use atom-based state management for direct prompt updates via derived prompts
+    const variant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
+    const appUriInfo = useAtomValue(appUriInfoAtom)
+    const setPrompts = useSetAtom(
+        useMemo(() => promptsAtomFamily(variantId), [variant, variantId, appUriInfo?.routePath]),
+    )
+
     const deleteMessage = useCallback(() => {
-        mutate((draftState) => {
-            const variant = findVariantById(draftState, variantId)
+        if (!baseProperty?.__id) {
+            console.warn("Cannot delete tool: tool property ID not found")
+            return
+        }
 
-            const x = findParentOfPropertyInObject(variant, baseProperty.__id)
-            if (x) {
-                x.value = x.value.filter((v) => v.__id !== baseProperty.__id)
-            }
-
-            return draftState
+        // Update the prompts directly
+        setPrompts((prevPrompts: any[] = []) => {
+            return prevPrompts.map((prompt: any) => {
+                const toolsArr = prompt?.llmConfig?.tools?.value
+                if (Array.isArray(toolsArr)) {
+                    const updatedTools = toolsArr.filter(
+                        (tool: any) => tool.__id !== baseProperty.__id,
+                    )
+                    if (updatedTools.length !== toolsArr.length) {
+                        return {
+                            ...prompt,
+                            llmConfig: {
+                                ...prompt.llmConfig,
+                                tools: {
+                                    ...prompt.llmConfig.tools,
+                                    value: updatedTools,
+                                },
+                            },
+                        }
+                    }
+                }
+                return prompt
+            })
         })
-    }, [variantId, baseProperty.id])
+
+        // No imperative commit-ready update needed; derived atoms will recompute.
+    }, [variantId, baseProperty?.__id, setPrompts])
 
     return (
         <PlaygroundVariantPropertyControlWrapper className="w-full max-w-full overflow-y-auto flex [&_>_div]:!w-auto [&_>_div]:!grow !my-0">
@@ -132,6 +160,7 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                 codeOnly
                 showToolbar={false}
                 enableTokens={false}
+                id={editorIdRef.current}
             >
                 <SharedEditor
                     initialValue={toolString}
@@ -201,8 +230,9 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                             </div>
 
                             <PromptMessageContentOptions
+                                id={editorIdRef.current}
                                 className="invisible group-hover/item:visible"
-                                isMessageDeletable={false}
+                                isMessageDeletable={true}
                                 disabled={false}
                                 minimized={minimized}
                                 actions={{

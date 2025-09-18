@@ -1,4 +1,4 @@
-import { ColumnsType } from "antd/es/table"
+import {ColumnsType} from "antd/es/table"
 
 export const filterColumns = <T>(cols: ColumnsType<T>, hidden: string[]): ColumnsType<T> => {
     return cols

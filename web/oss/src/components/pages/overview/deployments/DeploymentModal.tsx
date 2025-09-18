@@ -2,11 +2,12 @@ import {useCallback, useState} from "react"
 
 import {Rocket} from "@phosphor-icons/react"
 import {message, Modal, Typography} from "antd"
+import {useAtomValue} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Environment, JSSTheme} from "@/oss/lib/Types"
-import {createPublishVariant, createPublishRevision} from "@/oss/services/deployment/api"
+import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 type DeploymentModalProps = {
     selectedEnvironment: Environment
@@ -47,38 +48,38 @@ const DeploymentModal = ({
     ...props
 }: DeploymentModalProps) => {
     const classes = useStyles()
-    const [isPublishVariantLoading, setIsPublishVariantLoading] = useState(false)
+    const {isPending: isPublishVariantLoading, mutateAsync: publish} =
+        useAtomValue(publishMutationAtom)
 
     const publishVariant = useCallback(async () => {
         try {
             if (!selectedEnvironment || !selectedVariant) return
-            setIsPublishVariantLoading(true)
 
-            if (selectedVariant._parentVariant) {
-                await createPublishRevision({
-                    revision_id: selectedVariant.id,
-                    environment_ref: selectedEnvironment.name,
-                    note: "",
-                })
-            } else {
-                await createPublishVariant({
-                    variant_id: selectedVariant.variantId,
-                    revision_id: selectedVariant.id,
-                    environment_name: selectedEnvironment.name,
-                    note: "",
-                })
-            }
-            await loadEnvironments()
+            await publish(
+                selectedVariant._parentVariant
+                    ? {
+                          type: "revision",
+                          revision_id: selectedVariant.id,
+                          environment_ref: selectedEnvironment.name,
+                          note: "",
+                      }
+                    : {
+                          type: "variant",
+                          variant_id: selectedVariant.variantId,
+                          revision_id: selectedVariant.id,
+                          environment_name: selectedEnvironment.name,
+                          note: "",
+                      },
+            )
             message.success(
                 `Published ${selectedVariant.variantName} to ${selectedEnvironment.name}`,
             )
         } catch (error) {
             console.error(error)
         } finally {
-            setIsPublishVariantLoading(false)
             setIsDeploymentModalOpen(false)
         }
-    }, [createPublishVariant, selectedEnvironment, selectedVariant, loadEnvironments])
+    }, [selectedEnvironment, selectedVariant, publish, setIsDeploymentModalOpen])
 
     return (
         <Modal

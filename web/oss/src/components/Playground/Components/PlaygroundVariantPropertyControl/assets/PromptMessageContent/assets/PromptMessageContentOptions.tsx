@@ -1,5 +1,6 @@
 import {useCallback, memo, useState} from "react"
 
+import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
     MinusCircle,
     Copy,
@@ -7,22 +8,22 @@ import {
     ArrowClockwise,
     CaretDown,
     CaretUp,
-    Image,
+    Image as PhImage,
     MarkdownLogoIcon,
     TextAa,
 } from "@phosphor-icons/react"
 import clsx from "clsx"
+import {useAtom, useAtomValue} from "jotai"
 
+import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
+import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {usePlaygroundAtoms} from "@/oss/components/Playground/hooks/usePlaygroundAtoms"
+import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
 
 import TestsetDrawerButton from "../../../../Drawers/TestsetDrawer"
 
 import type {PromptMessageContentOptionsProps} from "./types"
-import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
-import {useAtom} from "jotai"
-import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 
 export const getTextContent = (content: any) => {
     if (typeof content === "string") return content
@@ -40,6 +41,7 @@ export const getTextContent = (content: any) => {
 }
 
 const PromptMessageContentOptions = ({
+    id,
     messageId,
     className,
     propertyId,
@@ -55,13 +57,12 @@ const PromptMessageContentOptions = ({
     hideMarkdownToggle,
 }: PromptMessageContentOptionsProps) => {
     const [editor] = useLexicalComposerContext()
-    const [markdownView] = useAtom(markdownViewAtom)
+    const [markdownView] = useAtom(markdownViewAtom(id))
 
-    const {propertyGetter, isChat} = usePlayground({
-        stateSelector: (state) => ({
-            isChat: state.variants.some((v) => v.isChat),
-        }),
-    })
+    // Use atom-based state management
+    const {propertyGetter} = usePlaygroundAtoms()
+    const isChat = useAtomValue(appChatModeAtom) ?? false
+
     const {deleteMessage, rerunMessage, minimize, onClickTestsetDrawer, handleAddUploadSlot} =
         actions || {}
 
@@ -85,7 +86,10 @@ const PromptMessageContentOptions = ({
                 <EnhancedButton
                     icon={<ArrowClockwise size={14} />}
                     type="text"
-                    onClick={() => rerunMessage?.(messageId)}
+                    onClick={() => {
+                        rerunMessage?.(messageId)
+                    }}
+                    disabled={!resultHashes || resultHashes.length === 0}
                     tooltipProps={{title: "Re-run"}}
                 />
             ) : null}
@@ -102,7 +106,7 @@ const PromptMessageContentOptions = ({
 
             {isChat && allowFileUpload ? (
                 <EnhancedButton
-                    icon={<Image size={14} />}
+                    icon={<PhImage size={14} />}
                     type="text"
                     onClick={() => handleAddUploadSlot?.()}
                     tooltipProps={{title: "Upload Image"}}
@@ -132,8 +136,11 @@ const PromptMessageContentOptions = ({
                 <EnhancedButton
                     icon={<MinusCircle size={14} />}
                     type="text"
-                    onClick={() => deleteMessage?.(messageId)}
-                    disabled={isMessageDeletable}
+                    onClick={() => {
+                        console.log("delete message", messageId)
+                        deleteMessage?.(messageId)
+                    }}
+                    disabled={!isMessageDeletable}
                     tooltipProps={{title: "Remove"}}
                 />
             )}

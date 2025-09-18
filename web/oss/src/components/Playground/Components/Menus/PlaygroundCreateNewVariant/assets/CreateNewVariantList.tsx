@@ -3,9 +3,13 @@ import {useState, useMemo, useCallback} from "react"
 import {Check} from "@phosphor-icons/react"
 import {Button, Input} from "antd"
 import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useDebounceValue} from "usehooks-ts"
 
-import usePlayground from "../../../../hooks/usePlayground"
+import {
+    toggleVariantDisplayMutationAtom,
+    variantListDisplayFilteredAtomFamily,
+} from "../../../../state/atoms"
 import NewVariantButton from "../../../Modals/CreateVariantModal/assets/NewVariantButton"
 
 import {useStyles} from "./styles"
@@ -23,22 +27,19 @@ const CreateNewVariantList = ({
 
     const [debouncedQuery] = useDebounceValue(query, 300)
 
-    const {variantsList, toggleVariantDisplay} = usePlayground({
-        stateSelector: (state) => ({
-            variantsList: state.variants.map((variant) => ({
-                variantId: variant.id,
-                variantName: variant.variantName,
-            })),
-        }),
-    })
+    // Use filtered display list from atoms
+    const variantsDisplay = useAtomValue(variantListDisplayFilteredAtomFamily(debouncedQuery))
+    const toggleVariantDisplay = useSetAtom(toggleVariantDisplayMutationAtom)
 
-    // Memoized filtered variants
-    const filteredVariants = useMemo(() => {
-        if (!debouncedQuery) return variantsList
-        return variantsList.filter((variant) =>
-            variant.variantName.toLowerCase().includes(debouncedQuery),
-        )
-    }, [variantsList, debouncedQuery])
+    const variantsList = useMemo(() => {
+        return (variantsDisplay || []).map((v: any) => ({
+            variantId: v.id,
+            variantName: v.name,
+        }))
+    }, [variantsDisplay])
+
+    // Atom already filters; keep memoized mapped list only
+    const filteredVariants = variantsList
 
     const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value

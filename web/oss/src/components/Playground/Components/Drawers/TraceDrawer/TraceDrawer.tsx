@@ -1,21 +1,16 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useEffect, useState} from "react"
 
+import {Splitter} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import useTraceDrawer from "@/oss/components/pages/observability/drawer/hooks/useTraceDrawer"
 import TraceSidePanel from "@/oss/components/pages/observability/drawer/TraceSidePanel"
-import {
-    buildNodeTree,
-    getNodeById,
-    observabilityTransformer,
-} from "@/oss/lib/helpers/observability_helpers"
-import useAnnotations from "@/oss/lib/hooks/useAnnotations"
-import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
-import {_AgentaRootsResponse, AgentaNodeDTO} from "@/oss/services/observability/types"
+import {useObservability} from "@/oss/state/newObservability"
 
-import {resetTraceDrawerAtom, isDrawerOpenAtom, drawerResultAtom} from "./store/traceDrawerStore"
+import {isDrawerOpenAtom, closeTraceDrawerAtom} from "./store/traceDrawerStore"
 
-const GenericDrawer = dynamic(() => import("@/oss/components/GenericDrawer"))
 const TraceContent = dynamic(
     () => import("@/oss/components/pages/observability/drawer/TraceContent"),
 )
@@ -24,106 +19,86 @@ const TraceTree = dynamic(() => import("@/oss/components/pages/observability/dra
 
 const TraceDrawer = () => {
     const open = useAtomValue(isDrawerOpenAtom)
-    const result = useAtomValue(drawerResultAtom)
-    const setDrawerState = useSetAtom(resetTraceDrawerAtom)
+    const closeDrawer = useSetAtom(closeTraceDrawerAtom)
     const [selected, setSelected] = useState("")
-    const traceSpans = result?.response?.tree
-
-    const {data: annotations} = useAnnotations({
-        queries: {
-            annotation: {
-                links:
-                    traceSpans?.nodes?.map((node) => ({
-                        trace_id: node.trace_id,
-                        span_id: node.span_id,
-                    })) || [],
-            },
-        },
-        waitUntil: !open,
-    })
+    const {
+        traces,
+        navigationIds: payloadNavIds,
+        activeTraceId: payloadActiveId,
+        getTraceById,
+    } = useTraceDrawer()
+    const [drawerWidth] = useState(1200)
 
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useState(true)
+    const {setSelectedTraceId: setGlobalSelectedTraceId, setSelectedNode: setGlobalSelectedNode} =
+        useObservability()
 
-    const traces = useMemo(() => {
-        if (traceSpans) {
-            const rawTraces = traceSpans.nodes
-                .flatMap((node) => buildNodeTree(node as AgentaNodeDTO))
-                .flatMap((item: any) => observabilityTransformer(item))
-            return attachAnnotationsToTraces(rawTraces, annotations || [])
-        }
-        return []
-    }, [traceSpans, annotations])
-
-    const activeTrace = useMemo(
-        () =>
-            traces
-                ? (traces[0] ?? null)
-                : result?.error
-                  ? ({
-                        exception: result?.metadata?.rawError,
-                        node: {name: "Exception"},
-                        status: {code: "ERROR"},
-                    } as _AgentaRootsResponse)
-                  : null,
-        [traces, result],
-    )
-
+    // Initialize selection when drawer payload changes
     useEffect(() => {
-        if (!selected) {
-            setSelected(activeTrace?.node.id ?? "")
+        // If payload specifies an active id, prefer it
+        if (payloadActiveId) {
+            setSelected(payloadActiveId)
+            return
         }
-    }, [activeTrace, selected])
+        // Otherwise, default to first trace only when nothing is selected
+        if (traces.length > 0) {
+            setSelected((prev) => prev || traces[0]?.node?.id || "")
+        }
+    }, [payloadActiveId, traces])
 
-    const selectedItem = useMemo(
-        () => (traces?.length ? getNodeById(traces, selected) : null),
-        [selected, traces],
-    )
+    // If current selection is not found in the latest traces (e.g., user clicked a different row), re-anchor
+    useEffect(() => {
+        if (selected && traces.length > 0) {
+            const exists = getTraceById(selected)
+            if (!exists) {
+                setSelected(payloadActiveId || traces[0]?.node?.id || "")
+            }
+        }
+    }, [selected, traces, payloadActiveId, getTraceById])
 
-    const handleClose = useCallback(() => {
-        setDrawerState({open: false, result: null})
-        setSelected("")
-    }, [setDrawerState])
+    // Keep component mounted; EnhancedDrawer handles destroyOnHidden. We gate heavy work via memos.
+
+    const navigationIds = payloadNavIds ?? (traces?.length ? traces.map((t: any) => t.node.id) : [])
+
+    const activeId = selected || traces[0]?.node?.id || ""
 
     return (
-        <GenericDrawer
+        <EnhancedDrawer
+            title={
+                <TraceHeader
+                    activeTraceId={activeId}
+                    navigationIds={navigationIds}
+                    setSelectedTraceId={setGlobalSelectedTraceId}
+                    setSelectedNode={setGlobalSelectedNode}
+                    activeTraceIndex={0}
+                    setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
+                    isAnnotationsSectionOpen={isAnnotationsSectionOpen}
+                    setSelected={setSelected}
+                />
+            }
             open={open}
-            onClose={handleClose}
-            expandable
-            headerExtra={
-                !!activeTrace && !!traces ? (
-                    <TraceHeader
-                        activeTrace={activeTrace}
-                        traces={(traces as _AgentaRootsResponse[]) || []}
-                        setSelectedTraceId={handleClose}
-                        activeTraceIndex={0}
-                        setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
-                        isAnnotationsSectionOpen={isAnnotationsSectionOpen}
-                    />
-                ) : null
-            }
-            mainContent={
-                activeTrace ? (
-                    <TraceContent
-                        activeTrace={selectedItem || (activeTrace as _AgentaRootsResponse)}
-                    />
-                ) : null
-            }
-            sideContent={
-                activeTrace ? (
+            onClose={closeDrawer}
+            width={drawerWidth}
+            className="[&_.ant-drawer-body]:p-0"
+        >
+            <Splitter className="h-[calc(100%-48px)]">
+                <Splitter.Panel defaultSize={320} collapsible>
                     <TraceTree
-                        activeTrace={activeTrace as _AgentaRootsResponse}
-                        selected={selected}
+                        activeTraceId={activeId}
+                        selected={activeId}
                         setSelected={setSelected}
                     />
-                ) : null
-            }
-            extraContent={
-                isAnnotationsSectionOpen &&
-                selectedItem && <TraceSidePanel activeTrace={selectedItem} />
-            }
-            externalKey={`extraContent-${isAnnotationsSectionOpen}`}
-            className="[&_.ant-drawer-body]:p-0"
-        />
+                </Splitter.Panel>
+                <Splitter.Panel min={400} defaultSize={640}>
+                    <TraceContent activeTraceId={activeId} />
+                </Splitter.Panel>
+                {isAnnotationsSectionOpen && (
+                    <Splitter.Panel min={200} defaultSize={320} collapsible>
+                        <TraceSidePanel activeTraceId={activeId} />
+                    </Splitter.Panel>
+                )}
+            </Splitter>
+        </EnhancedDrawer>
     )
 }
 

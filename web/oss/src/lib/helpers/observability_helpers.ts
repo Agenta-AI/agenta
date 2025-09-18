@@ -1,3 +1,5 @@
+import {isDraft, isDraftable} from "immer"
+
 import {
     _AgentaRootsResponse,
     AgentaNodeDTO,
@@ -21,7 +23,13 @@ const normalizeContentFields = (obj: any): void => {
                 value.length === 1 &&
                 value[0]?.type === "text"
             ) {
-                obj[key] = value[0].text
+                if (Array.isArray(obj[key])) {
+                    for (const item of obj[key]) {
+                        normalizeContentFields(item)
+                    }
+                } else {
+                    obj[key] = value[0].text
+                }
             } else {
                 normalizeContentFields(value)
             }

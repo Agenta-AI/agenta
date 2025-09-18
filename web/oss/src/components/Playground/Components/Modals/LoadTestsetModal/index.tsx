@@ -8,7 +8,8 @@ import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {TestSet, testset} from "@/oss/lib/Types"
-import {fetchTestset, useLoadTestsetsList} from "@/oss/services/testsets/api"
+import {fetchTestset} from "@/oss/services/testsets/api"
+import {useTestsetsData} from "@/oss/state/testset"
 
 import {useStyles} from "./styles"
 import {LoadTestsetModalProps} from "./types"
@@ -20,7 +21,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     ...props
 }) => {
     const classes = useStyles()
-    const {testsets} = useLoadTestsetsList()
+    const {testsets} = useTestsetsData()
     const [isLoadingTestset, setIsLoadingTestset] = useState(false)
     const [selectedTestset, setSelectedTestset] = useState("")
     const [testsetCsvData, setTestsetCsvData] = useState<TestSet["csvdata"][]>([])

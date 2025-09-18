@@ -3,9 +3,9 @@ import {useCallback} from "react"
 import useSWR, {SWRResponse} from "swr"
 
 import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
-import {useOrgData} from "@/oss/contexts/org.context"
-import {DEFAULT_UUID, getCurrentProject} from "@/oss/contexts/project.context"
 import {fetchAllEvaluators} from "@/oss/services/evaluators"
+import {useOrgData} from "@/oss/state/org"
+import {DEFAULT_UUID, getProjectValues} from "@/oss/state/project"
 
 import axios from "../../api/assets/axiosConfig"
 import {Evaluator} from "../../Types"
@@ -32,7 +32,7 @@ const useEvaluators = <Preview extends boolean = false>({
     queries?: {is_human: boolean}
 }): UseEvaluatorsReturn<Preview> => {
     const {selectedOrg} = useOrgData()
-    const projectId = options?.projectId || getCurrentProject()?.projectId || ""
+    const projectId = options?.projectId || getProjectValues()?.projectId || ""
     const workspace = selectedOrg?.default_workspace
     const members = workspace?.members || []
 

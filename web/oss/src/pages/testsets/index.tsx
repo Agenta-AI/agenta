@@ -10,11 +10,11 @@ import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
-import {useAppsData} from "@/oss/contexts/app.context"
 import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
-import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/oss/lib/Types"
-import {useLoadTestsetsList} from "@/oss/services/testsets/api"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
+import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/oss/lib/Types"
+import {useAppsData} from "@/oss/state/app"
+import {useTestsetsData} from "@/oss/state/testset"
 
 const TestsetModal: any = dynamic(() => import("@/oss/components/pages/testset/modals"))
 const DeleteTestsetModal: any = dynamic(
@@ -63,7 +63,7 @@ const Testset = () => {
     const router = useRouter()
     const {isLoading: isAppsLoading} = useAppsData()
     const [selectedRowKeys, setSelectedRowKeys] = useState<testset[]>([])
-    const {testsets, isTestsetsLoading, mutate} = useLoadTestsetsList()
+    const {testsets, isLoading: isTestsetsLoading, mutate} = useTestsetsData()
     const [isCreateTestsetModalOpen, setIsCreateTestsetModalOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
     const [testsetCreationMode, setTestsetCreationMode] = useState<TestsetCreationMode>("create")
@@ -191,7 +191,6 @@ const Testset = () => {
         },
     ]
 
-    console.log("selectedRowKeys", selectedRowKeys)
     return (
         <>
             <section className="w-full flex flex-col gap-6 mb-2">

@@ -100,7 +100,6 @@ export interface ParentVariantObject {
     isChat?: boolean
     isCustom?: boolean
     isChatVariant?: boolean
-    isStatelessVariant?: boolean
     parameters?: any
     prompts?: any
     customProperties?: any

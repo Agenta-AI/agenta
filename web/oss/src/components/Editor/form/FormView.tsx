@@ -47,7 +47,6 @@ const renameKey = (
 ): Record<string, unknown> => {
     if (path.length === 0) return root
     const cloned = deepClone(root)
-    console.log("[renameKey] before", root, path.join("."), Object.keys(root), newKey)
     let cursor: any = cloned
     for (let i = 0; i < path.length - 1; i++) {
         const seg = path[i]
@@ -57,7 +56,6 @@ const renameKey = (
     const last = path[path.length - 1] as string
     if (typeof last !== "string") return cloned // arrays not renamable
     const prevKeys = Object.keys(cursor)
-    console.log("[renameKey] cursor before", cursor)
     const reordered: Record<string, unknown> = {}
     Object.entries(cursor).forEach(([key, val]) => {
         if (key === last) {
@@ -66,20 +64,6 @@ const renameKey = (
             reordered[key] = val
         }
     })
-    console.log(
-        "[renameKey] path",
-        path.join("."),
-        "oldKey",
-        last,
-        "newKey",
-        newKey,
-        "\n prevKeys",
-        prevKeys,
-        "\n nextKeys",
-        Object.keys(reordered),
-        "\n reordered object",
-        reordered,
-    )
     // replace object with reordered keys
     Object.keys(cursor).forEach((k) => delete cursor[k])
     Object.assign(cursor, reordered)
@@ -155,7 +139,6 @@ const FormView: FC<FormViewProps> = ({value, onChange, customRender}) => {
 
     const boundHandleValuesChange = useCallback(
         (path: (string | number)[], newValue: any) => {
-            console.log("boundHandleValuesChange", path, newValue)
             const updatedRoot = structuredClone(formValuesRef)
 
             // walk to parent

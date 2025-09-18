@@ -2,9 +2,11 @@ import {useState} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
 import {Modal} from "antd"
+import {useSetAtom} from "jotai"
 
-import {useObservabilityData} from "@/oss/contexts/observability.context"
+import {closeTraceDrawerAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import {deleteTrace} from "@/oss/services/observability/core"
+import {useObservability} from "@/oss/state/newObservability"
 
 type DeleteTraceModalProps = {
     setSelectedTraceId: (val: string) => void
@@ -16,15 +18,21 @@ const DeleteTraceModal = ({
     activeTraceNodeId,
     ...props
 }: DeleteTraceModalProps) => {
-    const {fetchTraces} = useObservabilityData()
+    const {fetchTraces, setSelectedTraceId: setGlobalSelectedTraceId} = useObservability()
+    const closeDrawer = useSetAtom(closeTraceDrawerAtom)
     const [isLoading, setIsLoading] = useState(false)
 
     const handleDelete = async () => {
         try {
             setIsLoading(true)
             await deleteTrace(activeTraceNodeId)
-            fetchTraces()
+            await fetchTraces()
+            // Clear both local (drawer) and global (observability) selections
             setSelectedTraceId("")
+            setGlobalSelectedTraceId("")
+            // Close modal and drawer on success to avoid dangling state
+            props.onCancel?.({} as any)
+            closeDrawer()
         } catch (error) {
             console.error(error)
         } finally {

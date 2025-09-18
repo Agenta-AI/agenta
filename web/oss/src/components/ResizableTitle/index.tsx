@@ -6,7 +6,7 @@ import {useStyles} from "./styles"
 
 const ResizableTitle: React.FC<GenericObject> = (props) => {
     const classes = useStyles()
-    const {onResize, width, children: _children, ...restProps} = props
+    const {onResize, width, children: _children, minWidth, ...restProps} = props
     const children = Array.isArray(_children) ? _children.filter(Boolean) : _children
 
     if (!width) {

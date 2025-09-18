@@ -184,7 +184,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                     className="ph-no-capture"
                     columns={columns}
                     dataSource={isCustom ? customRowSecrets : secrets}
-                    rowKey="id"
+                    rowKey={(record) => record.id || record.title || record.name || ""}
                     bordered
                     pagination={false}
                     loading={loading}

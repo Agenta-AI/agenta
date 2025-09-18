@@ -17,7 +17,7 @@ import {getEnv} from "./dynamicEnv"
 import {getErrorMessage} from "./errorHandler"
 
 if (typeof window !== "undefined") {
-    //@ts-ignore
+    // @ts-ignore
     if (!window.Cypress) {
         dayjs.extend(utc)
     }
@@ -72,16 +72,6 @@ export const capitalize = (s: string) => {
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ")
 }
-
-export const randString = (len = 8) =>
-    window
-        .btoa(
-            Array.from(window.crypto.getRandomValues(new Uint8Array(len * 2)))
-                .map((b) => String.fromCharCode(b))
-                .join(""),
-        )
-        .replace(/[+/]/g, "")
-        .substring(0, len)
 
 export const isAppNameInputValid = (input: string) => {
     return /^[a-zA-Z0-9_-]+$/.test(input)
@@ -290,9 +280,7 @@ export const shortPoll = (
 
     const executor = async () => {
         while (shouldContinue && Date.now() - startTime < timeoutMs) {
-            try {
-                await func()
-            } catch {}
+            await func()
             await delay(delayMs)
         }
         if (Date.now() - startTime >= timeoutMs) throw new Error("timeout")
@@ -432,6 +420,7 @@ export const formatVariantIdWithHash = (variantId: string) => {
 
 export const collectKeyPathsFromObject = (obj: any, prefix = ""): string[] => {
     const paths: string[] = []
+    if (!obj || typeof obj !== "object") return paths
 
     for (const [key, value] of Object.entries(obj)) {
         const fullPath = prefix ? `${prefix}.${key}` : key

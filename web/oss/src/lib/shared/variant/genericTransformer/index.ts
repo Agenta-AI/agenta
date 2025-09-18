@@ -208,15 +208,6 @@ function transformValue<T>(
             value: transformedValue?.value || transformedValue,
         } as Enhanced<T>
 
-        // console.log("TRANSFORMING COMPOUND", {
-        //     value,
-        //     metadata,
-        //     transformed,
-        //     transformedMetadata: getMetadataLazy(transformed.value.__metadata),
-        //     subMetadata,
-        //     subSchema,
-        // })
-
         return transformed
     }
 

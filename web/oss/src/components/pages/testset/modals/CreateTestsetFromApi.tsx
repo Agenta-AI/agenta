@@ -120,7 +120,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
 
                 <div>
                     <Tabs
-                        destroyInactiveTabPane
+                        destroyOnHidden
                         defaultActiveKey={selectedLang}
                         onChange={setSelectedLang}
                         items={[

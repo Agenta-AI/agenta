@@ -6,12 +6,8 @@ import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/oss/lib/Types"
-import {
-    createNewTestset,
-    fetchTestset,
-    updateTestset,
-    useLoadTestsetsList,
-} from "@/oss/services/testsets/api"
+import {createNewTestset, fetchTestset, updateTestset} from "@/oss/services/testsets/api"
+import {useTestsetsData} from "@/oss/state/testset"
 
 const {Text} = Typography
 
@@ -49,13 +45,15 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
         mode === "rename" ? (editTestsetValues?.name as string) : "",
     )
     const [isLoading, setIsLoading] = useState(false)
-    const {mutate} = useLoadTestsetsList()
+    const {mutate} = useTestsetsData()
 
     const handleCreateTestset = async (data?: KeyValuePair[]) => {
         setIsLoading(true)
         try {
             const rowData = data
             const response = await createNewTestset(testsetName, rowData)
+
+            await mutate()
             message.success("Test set created successfully")
             router.push(`/testsets/${response.data.id}`)
         } catch (error) {

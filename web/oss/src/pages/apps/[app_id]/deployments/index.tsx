@@ -1,19 +1,19 @@
 // @ts-nocheck
-import {useEffect, useMemo, useState} from "react"
+import {useMemo, useState, useEffect} from "react"
 
-import {Flex, Spin, Typography} from "antd"
+import {Flex, Typography} from "antd"
+import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import DeploymentCard from "@/oss/components/DeploymentCard"
 import DeploymentsDashboard from "@/oss/components/DeploymentsDashboard"
-import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {JSSTheme} from "@/oss/lib/Types"
-import {DeploymentRevisions} from "@/oss/lib/types_ee"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
-import {fetchAllDeploymentRevisions} from "@/oss/services/deploymentVersioning/api"
+import {deploymentRevisionsWithAppIdQueryAtomFamily} from "@/oss/state/deployment/atoms/revisions"
+import {deployedVariantByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
@@ -28,83 +28,96 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+// Child component to safely read per-environment deployed variant
+const EnvDeploymentCard = ({
+    envName,
+    selectedEnv,
+    onSelect,
+    isLoading,
+}: {
+    envName: string
+    selectedEnv: string
+    onSelect: (env: string) => void
+    isLoading: boolean
+}) => {
+    const deployedVariant = useAtomValue(deployedVariantByEnvironmentAtomFamily(envName))
+    return (
+        <DeploymentCard
+            onClick={() => onSelect(envName)}
+            selectedDeployedVariant={deployedVariant}
+            env={{name: envName} as any}
+            selectedEnv={selectedEnv}
+            loading={isLoading}
+        />
+    )
+}
+
 const DeploymentsPage = () => {
     const classes = useStyles()
-    const [selectedEnv, setSelectedEnv] = useQueryParam("selectedEnvName", "development")
+    const router = useRouter()
+    const [initialEnv] = useQueryParam("selectedEnvName", "development")
 
-    const {currentApp} = useAppsData()
-    const appId = useAppId()
-    const {environments, isEnvironmentsLoading, mutate: loadEnvironments} = useEnvironments({appId})
-    const {
-        data,
-        isLoading: isVariantLoading,
-        mutate: loadVariants,
-    } = useVariants(currentApp)({appId})
+    // Use local state for selectedEnv to prevent page flashing
+    const [selectedEnv, setSelectedEnvLocal] = useState(initialEnv)
 
-    const [isLoadingEnvRevisions, setIsLoadingEnvRevisions] = useState(false)
-    const [envRevisions, setEnvRevisions] = useState<DeploymentRevisions>()
+    // Sync local state with URL on mount and when URL changes
+    useEffect(() => {
+        setSelectedEnvLocal(initialEnv)
+    }, [initialEnv])
 
-    const variants = useMemo(() => data?.variants || [], [data])
-
-    const deployedVariant = useMemo(() => {
-        return (
-            (variants || []).find(
-                (variant) => variant?.id === envRevisions?.deployed_app_variant_revision_id,
-            ) || null
+    // Function to update both local state and URL (shallow)
+    const setSelectedEnv = (envName: string) => {
+        setSelectedEnvLocal(envName)
+        // Update URL with shallow routing to prevent page reload
+        router.push(
+            {
+                pathname: router.pathname,
+                query: {...router.query, selectedEnvName: envName},
+            },
+            undefined,
+            {shallow: true},
         )
-    }, [variants, envRevisions?.deployed_app_variant_revision_id])
-
-    const handleFetchAllDeploymentRevisions = async (envName: string) => {
-        try {
-            setIsLoadingEnvRevisions(true)
-            setSelectedEnv(envName)
-            const data = await fetchAllDeploymentRevisions(appId, envName)
-            setEnvRevisions(data)
-            loadEnvironments()
-            loadVariants()
-        } catch (error) {
-            console.error("Error fetching deployment revisions:", error)
-        } finally {
-            setIsLoadingEnvRevisions(false)
-        }
     }
 
-    useEffect(() => {
-        handleFetchAllDeploymentRevisions(selectedEnv)
-    }, [])
+    const appId = useAppId()
+    const {environments, isEnvironmentsLoading} = useEnvironments({appId})
+    const selectedDeployedVariantAtom = deployedVariantByEnvironmentAtomFamily(selectedEnv)
+    const selectedDeployedVariant = useAtomValue(selectedDeployedVariantAtom)
+
+    // Use atom for deployment revisions instead of manual state
+    const deploymentRevisionsAtom = deploymentRevisionsWithAppIdQueryAtomFamily({
+        appId,
+        envName: selectedEnv,
+    })
+    const {data: envRevisions} = useAtomValue(deploymentRevisionsAtom)
+
+    const deployedVariant = useMemo(() => {
+        // Use per-environment selector exclusively
+        return selectedDeployedVariant ?? null
+    }, [selectedDeployedVariant])
 
     return (
-        <Spin spinning={isLoadingEnvRevisions || isVariantLoading}>
-            <div className={classes.container}>
-                <Typography.Text className={classes.title}>Deployment</Typography.Text>
+        <div className={classes.container}>
+            <Typography.Text className={classes.title}>Deployment</Typography.Text>
 
-                <Flex align="center" gap={16}>
-                    {environments.map((env, index) => {
-                        const selectedDeployedVariant = variants?.find(
-                            (variant) => variant?.id === env.deployed_app_variant_revision_id,
-                        )
+            <Flex align="center" gap={16}>
+                {environments.map((env, index) => (
+                    <EnvDeploymentCard
+                        key={index}
+                        envName={env.name}
+                        onSelect={setSelectedEnv}
+                        selectedEnv={selectedEnv}
+                        isLoading={isEnvironmentsLoading}
+                    />
+                ))}
+            </Flex>
 
-                        return (
-                            <DeploymentCard
-                                key={index}
-                                onClick={() => handleFetchAllDeploymentRevisions(env.name)}
-                                selectedDeployedVariant={selectedDeployedVariant}
-                                env={env}
-                                selectedEnv={selectedEnv}
-                                loading={isEnvironmentsLoading}
-                            />
-                        )
-                    })}
-                </Flex>
-
-                <DeploymentsDashboard
-                    envRevisions={envRevisions}
-                    variants={variants}
-                    deployedVariant={deployedVariant}
-                    handleFetchAllDeploymentRevisions={handleFetchAllDeploymentRevisions}
-                />
-            </div>
-        </Spin>
+            <DeploymentsDashboard
+                envRevisions={envRevisions}
+                deployedVariant={deployedVariant}
+                isLoading={isEnvironmentsLoading}
+            />
+        </div>
     )
 }
 

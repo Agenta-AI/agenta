@@ -142,7 +142,6 @@ export const createConfig = (content: string[] = []): Config => {
                 nocompatible: true,
                 preferredStrategy: "pseudoelements",
             }),
-            require("@headlessui/tailwindcss"),
             // Use class strategy so Ant Design styles remain unaffected
             require("@tailwindcss/forms")({
                 strategy: "class",

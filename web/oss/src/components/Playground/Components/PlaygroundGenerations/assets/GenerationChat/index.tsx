@@ -1,91 +1,37 @@
-import {useCallback} from "react"
-
 import {Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
+import {atom} from "jotai"
+import {useSetAtom} from "jotai"
 
-import {autoScrollToBottom} from "@/oss/components/Playground/assets/utilities/utilityFunctions"
-import type {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {ObjectMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
+import LastTurnFooterControls from "@/oss/components/Playground/Components/ChatCommon/LastTurnFooterControls"
+import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
+import {
+    generationInputRowIdsAtom,
+    generationRowIdsAtom,
+} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {
+    addChatTurnAtom,
+    runChatTurnAtom,
+    cancelChatTurnAtom,
+} from "@/oss/state/newPlayground/chat/actions"
+import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
-import usePlayground from "../../../../hooks/usePlayground"
 import PromptMessageConfig from "../../../PromptMessageConfig"
-import GenerationChatRow from "../GenerationChatRow"
+import GenerationChatTurnNormalized from "../GenerationChatTurnNormalized"
 import GenerationCompletionRow from "../GenerationCompletionRow"
 
 import type {GenerationChatProps} from "./types"
 
 const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
-    const {inputRowIds, messageRowIds, viewType, historyIds, configMessageIds} = usePlayground({
-        variantId,
-        hookId: "PlaygroundConfigVariantPrompts",
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const inputRows = state.generationData.inputs.value || []
-                const messageRows = state.generationData.messages.value || []
-                const configMessages = (
-                    state.variants.find((v) => v.id === variantId)?.prompts || []
-                ).flatMap((variant) => {
-                    return variant.messages.value
-                })
+    const isComparisonView = useAtomValue(isComparisonViewAtom)
+    // Completion-style variable inputs for chat use normalized input rows with a derived fallback
+    const inputRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
+    const turnIds = useAtomValue(generationRowIdsAtom)
 
-                const historyIds = state.generationData.messages.value.reduce(
-                    (acc, messageRow) => {
-                        return {
-                            ...acc,
-                            [messageRow.__id]: messageRow.history.value.reduce(
-                                (acc, historyItem) => {
-                                    const copyItem = structuredClone(historyItem)
-                                    delete copyItem.__runs
-                                    return [
-                                        ...acc,
-                                        copyItem?.__id,
-                                        variantId
-                                            ? historyItem.__runs?.[variantId]?.__isRunning
-                                                ? `isRunning-${copyItem?.__id}`
-                                                : historyItem.__runs?.[variantId]?.__id
-                                            : undefined,
-                                    ].filter(Boolean) as string[]
-                                },
-                                [] as string[],
-                            ),
-                        }
-                    },
-                    {} as Record<string, string[]>,
-                )
-
-                return {
-                    inputRowIds: (inputRows || [])
-                        .filter((inputRow) => {
-                            return (
-                                Object.keys(
-                                    (getMetadataLazy(inputRow.__metadata) as ObjectMetadata)
-                                        ?.properties,
-                                ).length > 0
-                            )
-                        })
-                        .map((inputRow) => inputRow.__id),
-                    messageRowIds: (messageRows || [])
-                        .map((messageRow) => {
-                            return messageRow.__id
-                        })
-                        .filter(Boolean) as string[],
-                    configMessageIds: configMessages.map((message) => message.__id),
-                    historyIds,
-                }
-            },
-            [variantId],
-        ),
-    })
-    const isComparisonView = viewType === "comparison"
-
-    useLazyEffect(() => {
-        if (isComparisonView) return
-
-        const timer = autoScrollToBottom()
-        return timer
-    }, [messageRowIds])
+    // Config messages (read-only, single view only)
+    const prompts = useAtomValue(variantId ? promptsAtomFamily(variantId) : atom([])) as any[]
+    const configMessages = (prompts || []).flatMap((p: any) => p?.messages?.value || [])
 
     return (
         <section className="flex flex-col">
@@ -95,23 +41,22 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
              * meaning when there's
              */}
             {!!variantId &&
-                inputRowIds.map((inputRowId) => {
-                    return (
-                        <GenerationCompletionRow
-                            key={inputRowId}
-                            rowId={inputRowId}
-                            inputOnly={true}
-                            className={clsx([
-                                {
-                                    "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
-                                        isComparisonView,
-                                },
-                            ])}
-                        />
-                    )
-                })}
+                inputRowIds.map((inputRowId) => (
+                    <GenerationCompletionRow
+                        key={inputRowId}
+                        variantId={variantId}
+                        rowId={inputRowId}
+                        inputOnly={true}
+                        className={clsx([
+                            {
+                                "bg-[#f5f7fa] border-0 border-r border-solid border-[rgba(5,23,41,0.06)]":
+                                    isComparisonView,
+                            },
+                        ])}
+                    />
+                ))}
 
-            {/* Prompt chats */}
+            {/* Chat turns */}
             <div
                 className={clsx([
                     "flex flex-col gap-4 p-4 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
@@ -119,40 +64,70 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                 ])}
             >
                 <div className="flex flex-col gap-1">
-                    {!isComparisonView && <Typography>Chat</Typography>}
+                    {!isComparisonView && (
+                        <div className="shrink-0 top-[48px] sticky bg-colorBgContainer z-[10] w-full">
+                            <Typography>Chat</Typography>
+                        </div>
+                    )}
                     <div className={clsx(["flex flex-col gap-2", {"!gap-0": isComparisonView}])}>
-                        {!isComparisonView
-                            ? configMessageIds.map((messageId) => (
-                                  <PromptMessageConfig
-                                      key={messageId}
-                                      variantId={variantId as string}
-                                      messageId={messageId}
-                                      editorClassName="w-full"
-                                      isMessageDeletable={false}
-                                      state="readOnly"
-                                      disabled
-                                      debug
-                                  />
-                              ))
-                            : null}
-                        {messageRowIds.map((messageRow) => {
-                            return historyIds[messageRow].map((historyId, index) => {
+                        {!isComparisonView &&
+                            (configMessages || []).map((m: any) => {
+                                const contentStr = Array.isArray(m?.content?.value)
+                                    ? m.content.value
+                                          .map((p: any) => p?.text?.value || p?.text || "")
+                                          .join(" ")
+                                    : m?.content?.value || ""
                                 return (
-                                    <GenerationChatRow
-                                        key={`${messageRow}-${historyId}`}
-                                        variantId={variantId}
-                                        rowId={messageRow}
-                                        historyId={historyId}
-                                        withControls={index === historyIds[messageRow].length - 1}
-                                        isRunning={historyId.includes("isRunning")}
+                                    <PromptMessageConfig
+                                        key={`${m?.__id}:${contentStr}`}
+                                        variantId={variantId as string}
+                                        messageId={m?.__id}
+                                        disabled
+                                        state="readOnly"
+                                        isMessageDeletable={false}
+                                        editorClassName="w-full"
                                     />
                                 )
-                            })
-                        })}
+                            })}
+                        {turnIds.map((turnId) => (
+                            <GenerationChatTurnNormalized
+                                key={turnId}
+                                turnId={turnId}
+                                variantId={variantId as string}
+                                withControls={false}
+                            />
+                        ))}
+                        {turnIds.length > 0 ? (
+                            <FooterControlsSingle
+                                variantId={variantId as string}
+                                lastLogicalId={turnIds[turnIds.length - 1]}
+                            />
+                        ) : null}
                     </div>
                 </div>
             </div>
         </section>
+    )
+}
+
+const FooterControlsSingle = ({
+    variantId,
+    lastLogicalId,
+}: {
+    variantId: string
+    lastLogicalId: string
+}) => {
+    const addTurn = useSetAtom(addChatTurnAtom)
+    const runTurn = useSetAtom(runChatTurnAtom)
+    const cancelTurn = useSetAtom(cancelChatTurnAtom)
+    return (
+        <LastTurnFooterControls
+            logicalId={lastLogicalId}
+            onRun={() => runTurn({turnId: lastLogicalId, variantId})}
+            onCancelAll={() => cancelTurn({turnId: lastLogicalId, variantId})}
+            onAddMessage={() => addTurn()}
+            className="p-3"
+        />
     )
 }
 

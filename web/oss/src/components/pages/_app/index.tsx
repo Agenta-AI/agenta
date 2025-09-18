@@ -1,20 +1,22 @@
+import {QueryClientProvider} from "@tanstack/react-query"
 import {App as AppComponent} from "antd"
 import {enableMapSet} from "immer"
-import {Provider} from "jotai"
+import {useAtomValue} from "jotai"
 import type {AppProps} from "next/app"
 import dynamic from "next/dynamic"
 import {Inter} from "next/font/google"
 
-import AppContextComponent from "@/oss/components/AppMessageContext"
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
-import {traceDrawerJotaiStore} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
-import AppContextProvider from "@/oss/contexts/app.context"
-import OrgContextProvider from "@/oss/contexts/org.context"
-import ProfileContextProvider from "@/oss/contexts/profile.context"
-import ProjectContextProvider from "@/oss/contexts/project.context"
-import AgSWRConfig from "@/oss/lib/api/SWRConfig"
+import {queryClient} from "@/oss/lib/api/queryClient"
 import AuthProvider from "@/oss/lib/helpers/auth/AuthProvider"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
+import {useUser} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
+import GlobalStateProvider from "@/oss/state/Providers"
+
+import AppGlobalWrappers from "../../AppGlobalWrappers"
+import AppContextComponent from "../../AppMessageContext"
 
 enableMapSet()
 
@@ -23,10 +25,6 @@ const NoMobilePageWrapper = dynamic(
     {
         ssr: false,
     },
-)
-const TraceDrawer = dynamic(
-    () => import("@/oss/components/Playground/Components/Drawers/TraceDrawer/TraceDrawer"),
-    {ssr: false},
 )
 const CustomPosthogProvider = dynamic(() => import("@/oss/lib/helpers/analytics/AgPosthogProvider"))
 const Layout = dynamic(() => import("@/oss/components/Layout/Layout"), {
@@ -38,41 +36,44 @@ const inter = Inter({
     variable: "--font-inter",
 })
 
+const PreloadQueries = () => {
+    useAtomValue(selectedOrgIdAtom)
+    useUser()
+    useProjectData()
+
+    return null
+}
+
 export default function App({Component, pageProps, ...rest}: AppProps) {
     return (
-        <Provider store={traceDrawerJotaiStore}>
+        <>
             <GlobalScripts />
 
             <main className={`${inter.variable} font-sans`}>
-                <AgSWRConfig>
-                    <CustomPosthogProvider
-                        config={{
-                            persistence: "localStorage+cookie",
-                        }}
-                    >
-                        <AuthProvider pageProps={pageProps}>
-                            <ThemeContextProvider>
-                                <ProfileContextProvider>
-                                    <OrgContextProvider>
-                                        <ProjectContextProvider>
-                                            <AppContextProvider>
-                                                <AppComponent>
-                                                    <Layout>
-                                                        <AppContextComponent />
-                                                        <Component {...pageProps} />
-                                                        <TraceDrawer />
-                                                        <NoMobilePageWrapper />
-                                                    </Layout>
-                                                </AppComponent>
-                                            </AppContextProvider>
-                                        </ProjectContextProvider>
-                                    </OrgContextProvider>
-                                </ProfileContextProvider>
-                            </ThemeContextProvider>
-                        </AuthProvider>
-                    </CustomPosthogProvider>
-                </AgSWRConfig>
+                <QueryClientProvider client={queryClient}>
+                    <AuthProvider pageProps={pageProps}>
+                        <GlobalStateProvider>
+                            <CustomPosthogProvider
+                                config={{
+                                    persistence: "localStorage+cookie",
+                                }}
+                            >
+                                <ThemeContextProvider>
+                                    <AppComponent>
+                                        <PreloadQueries />
+                                        <Layout>
+                                            <AppContextComponent />
+                                            <Component {...pageProps} />
+                                            <NoMobilePageWrapper />
+                                            <AppGlobalWrappers />
+                                        </Layout>
+                                    </AppComponent>
+                                </ThemeContextProvider>
+                            </CustomPosthogProvider>
+                        </GlobalStateProvider>
+                    </AuthProvider>
+                </QueryClientProvider>
             </main>
-        </Provider>
+        </>
     )
 }

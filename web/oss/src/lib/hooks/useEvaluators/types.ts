@@ -48,4 +48,3 @@ export interface UseEvaluatorsOptions extends SWRConfiguration {
     preview?: boolean
     projectId?: string
 }
-

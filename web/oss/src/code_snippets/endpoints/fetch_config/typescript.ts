@@ -1,4 +1,5 @@
 import {js as beautify} from "js-beautify"
+
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 export default function tsCode(appName: string, env_name: string, apiKey: string): string {

@@ -6,10 +6,6 @@ import dynamic from "next/dynamic"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
-import {useAppsData} from "@/oss/contexts/app.context"
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
-import {useProjectData} from "@/oss/contexts/project.context"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {type LlmProvider} from "@/oss/lib/helpers/llmProviders"
@@ -18,6 +14,10 @@ import {Template, GenericObject, StyleProps} from "@/oss/lib/Types"
 import {waitForAppToStart} from "@/oss/services/api"
 import {createAndStartTemplate, deleteApp, ServiceType} from "@/oss/services/app-selector/api"
 import useTemplates from "@/oss/services/app-selector/hooks/useTemplates"
+import {useAppsData} from "@/oss/state/app"
+import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
 
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
@@ -57,23 +57,25 @@ const AppManagement: React.FC = () => {
     })
     const [statusModalOpen, setStatusModalOpen] = useState(false)
     const [fetchingTemplate, setFetchingTemplate] = useState(false)
-    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
+    const {openModal} = useCustomWorkflowConfig({
         setFetchingTemplate,
         setStatusData,
         setStatusModalOpen,
-        configureWorkflow: false,
+        appId: "",
+        // configureWorkflow: false,
     })
     const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const [isMaxAppModalOpen, setIsMaxAppModalOpen] = useState(false)
     const {user} = useProfileData()
+    // const user = useAtomValue(userAtom)
     const [templateKey, setTemplateKey] = useState<ServiceType | undefined>(undefined)
     const [isAddAppFromTemplatedModal, setIsAddAppFromTemplatedModal] = useState(false)
     const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
     const [newApp, setNewApp] = useState("")
     const [searchTerm, setSearchTerm] = useState("")
-    const {apps, error, isLoading, mutate} = useAppsData()
+    const {apps, error, mutate} = useAppsData()
 
     const {secrets} = useVaultSecret()
     const {project} = useProjectData()
@@ -162,9 +164,7 @@ const AppManagement: React.FC = () => {
     return (
         <>
             <div className={classes.container}>
-                {isLoading || (!apps && !error) ? (
-                    <ResultComponent status={"info"} title="Loading..." spinner={true} />
-                ) : error ? (
+                {error ? (
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
@@ -196,8 +196,6 @@ const AppManagement: React.FC = () => {
                     </>
                 )}
             </div>
-
-            {CustomWorkflowModal}
 
             <SetupTracingModal
                 open={isSetupTracingModal}

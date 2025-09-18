@@ -8,9 +8,9 @@ import clsx from "clsx"
 import ImagePreview from "@/oss/components/Common/ImagePreview"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 
+import {isValidImageUrl} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import {PromptImageUploadProps} from "./types"
-import {isValidImageUrl} from "./assets/helpers"
 
 const {Dragger} = Upload
 
@@ -150,7 +150,7 @@ const PromptImageUpload = ({
                 <div className="flex flex-col w-full items-start">
                     <Typography.Text>
                         Drag an image here or{" "}
-                        <Button type="link" className="p-0 hover:underline" onClick={triggerUpload}>
+                        <Button type="link" className="p-0 underline" onClick={triggerUpload}>
                             upload a file
                         </Button>
                     </Typography.Text>

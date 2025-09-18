@@ -58,7 +58,9 @@ const ImagePreview = ({
                 footer={null}
                 onCancel={() => setOpen(false)}
                 width="auto"
-                bodyStyle={{padding: 0, display: "flex", justifyContent: "center"}}
+                style={{
+                    body: {padding: 0, display: "flex", justifyContent: "center"},
+                }}
             >
                 {isValidPreview && isSafeImageSrc(src) && (
                     <img src={src} alt={alt} style={{maxWidth: "80vw", maxHeight: "80vh"}} />

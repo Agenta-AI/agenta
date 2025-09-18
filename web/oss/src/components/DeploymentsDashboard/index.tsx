@@ -1,23 +1,36 @@
-import {type FC, type Key, useMemo, useState} from "react"
+import {type FC, useEffect, useMemo, type SetStateAction, useCallback, useRef} from "react"
 
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {Button, Flex, Input, Space, Typography, message} from "antd"
-import posthog from "posthog-js"
+import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {DeploymentRevision, DeploymentRevisionConfig, DeploymentRevisions} from "@/oss/lib/Types"
+import {DeploymentRevisions} from "@/oss/lib/Types"
 import {JSSTheme} from "@/oss/lib/Types"
-import {createPublishRevision} from "@/oss/services/deployment/api"
-import {fetchAllDeploymentRevisionConfig} from "@/oss/services/deploymentVersioning/api"
+import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
-import VariantDrawer from "../VariantsComponents/Drawers/VariantDrawer"
+import {revisionListAtom} from "../Playground/state/atoms"
+import {
+    openVariantDrawerAtom,
+    drawerVariantIdAtom,
+} from "../VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
 
 import UseApiContent from "./assets/UseApiContent"
+import {
+    deploymentSearchAtom,
+    selectedDeploymentRowKeysAtom,
+    deploymentNoteAtom,
+    selectedRevisionRowAtom,
+    selectedVariantRevisionIdToRevertAtom,
+    envRevisionsAtom,
+    deploymentModalsAtom,
+    filteredDeploymentRevisionsAtom,
+    selectedVariantToDeployAtom,
+    selectedVariantToRevertAtom,
+} from "./atoms"
 import DeploymentsDrawer from "./components/Drawer"
 import DeploymentConfirmationModal from "./components/Modal/DeploymentConfirmationModal"
 import SelectDeployVariantModal from "./components/Modal/SelectDeployVariantModal"
@@ -39,142 +52,188 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 interface DeploymentsDashboardProps {
     envRevisions: DeploymentRevisions | undefined
-    variants: EnhancedVariant[]
-    deployedVariant: EnhancedVariant
-    handleFetchAllDeploymentRevisions: (envName: string) => Promise<void>
+    isLoading: boolean
 }
 
-export type DeploymentRevisionWithVariant = DeploymentRevision & {
-    variant: EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>> | undefined
-    environment_revision: number
-}
-
-const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
-    envRevisions,
-    variants,
-    deployedVariant,
-    handleFetchAllDeploymentRevisions,
-}) => {
+const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({envRevisions, isLoading}) => {
     const appId = useAppId()
+    const router = useRouter()
+    const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
     const classes = useStyles()
 
-    const [searchTerm, setSearchTerm] = useState("")
-    const [queryVariant, setQueryVariant] = useQueryParam("revisions")
+    // Sync envRevisions prop with atom
+    const setEnvRevisions = useSetAtom(envRevisionsAtom)
+    useEffect(() => {
+        setEnvRevisions(envRevisions)
+    }, [envRevisions, setEnvRevisions])
 
-    const [isUseApiDrawerOpen, setIsUseApiDrawerOpen] = useState(false)
-    const [_isRevisionsDetailsDrawerOpen, setIsRevisionsDetailsDrawerOpen] = useState(false)
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
-    const [note, setNote] = useState("")
-    const [isDeployVariantModalOpen, setIsDeployVariantModalOpen] = useState(false)
-    const [isDeployVariantLoading, setIsDeployVariantLoading] = useState(false)
-    const [_revisionConfig, setRevisionConfig] = useState<DeploymentRevisionConfig | null>(null)
-    const [isSelectDeployVariantModalOpen, setIsSelectDeployVariantModalOpen] = useState(false)
-    const [selectedRevisionRow, setSelectedRevisionRow] = useState<DeploymentRevisionWithVariant>()
+    // Atom-based drawer control
+    const openVariantDrawer = useSetAtom(openVariantDrawerAtom)
+    const setDrawerVariantId = useSetAtom(drawerVariantIdAtom)
 
-    const [isRevertModalOpen, setIsRevertModalOpen] = useState(false)
-    const [isRevertModalLoading, setIsRevertModalLoading] = useState(false)
-    const [selectedVariantRevisionIdToRevert, setSelectedVariantRevisionIdToRevert] =
-        useState<string>("")
+    // Create a custom variants atom for this component (needed for drawer)
+    const variants = useAtomValue(revisionListAtom) || []
+    const customVariantsAtom = useMemo(() => atom(variants || []), [variants])
 
-    const selectedVariantToDeploy = useMemo(
-        () => variants.find((variant) => variant.id === selectedRowKeys[0]),
-        [variants, selectedRowKeys],
-    )
-    const selectedVariantToRevert = useMemo(
-        () => variants.find((variant) => variant.id === selectedVariantRevisionIdToRevert),
-        [variants, selectedVariantRevisionIdToRevert],
+    // Optimized state management with atoms
+    const [searchTerm, setSearchTerm] = useAtom(deploymentSearchAtom)
+    const [note, setNote] = useAtom(deploymentNoteAtom)
+
+    // Keep some local state for now to avoid breaking existing functionality
+    const [selectedRowKeys, setSelectedRowKeys] = useAtom(selectedDeploymentRowKeysAtom)
+    const [selectedRevisionRow, setSelectedRevisionRow] = useAtom(selectedRevisionRowAtom)
+    const [selectedVariantRevisionIdToRevert, setSelectedVariantRevisionIdToRevert] = useAtom(
+        selectedVariantRevisionIdToRevertAtom,
     )
 
-    const revisions = useMemo(
-        () =>
-            (envRevisions?.revisions || [])
-                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                .map((rev, index) => ({
-                    ...rev,
-                    created_at: formatDay({date: rev.created_at}),
-                    variant: variants.find(
-                        (variant) => variant.id === rev.deployed_app_variant_revision,
-                    ),
-                    environment_revision: envRevisions?.revisions?.length
-                        ? envRevisions?.revisions?.length - index
-                        : 0,
-                })),
-        [envRevisions, variants],
-    )
+    // Modal states - using atoms for better optimization
+    const [modals, setModals] = useAtom(deploymentModalsAtom)
 
-    const filteredRevisions = useMemo(() => {
-        if (!searchTerm) return revisions
-
-        return revisions.filter(
-            (item) =>
-                `v${item.revision}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                item.commit_message?.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-    }, [searchTerm, revisions])
-
-    const handleFetchRevisionConfig = async (revisionId: string) => {
-        try {
-            const data = await fetchAllDeploymentRevisionConfig(revisionId)
-            setRevisionConfig(data)
-            setIsRevisionsDetailsDrawerOpen(true)
-        } catch (error) {
-            console.error("Failed to fetch revision config:", error)
-        }
+    // Modal state getters/setters for compatibility
+    const isDeployVariantModalOpen = modals.isDeployVariantModalOpen
+    const setIsDeployVariantModalOpen = (isOpen: SetStateAction<boolean>) => {
+        const newValue =
+            typeof isOpen === "function" ? isOpen(modals.isDeployVariantModalOpen) : isOpen
+        setModals((prev) => ({...prev, isDeployVariantModalOpen: newValue}))
     }
 
-    const handleDeployVariant = async () => {
+    const isSelectDeployVariantModalOpen = modals.isSelectDeployVariantModalOpen
+    const setIsSelectDeployVariantModalOpen = (isOpen: SetStateAction<boolean>) => {
+        const newValue =
+            typeof isOpen === "function" ? isOpen(modals.isSelectDeployVariantModalOpen) : isOpen
+        setModals((prev) => ({...prev, isSelectDeployVariantModalOpen: newValue}))
+    }
+
+    const isRevertModalOpen = modals.isRevertModalOpen
+    const setIsRevertModalOpen = (isOpen: SetStateAction<boolean>) => {
+        const newValue = typeof isOpen === "function" ? isOpen(modals.isRevertModalOpen) : isOpen
+        setModals((prev) => ({...prev, isRevertModalOpen: newValue}))
+    }
+
+    const isUseApiDrawerOpen = modals.isUseApiDrawerOpen
+    const setIsUseApiDrawerOpen = (isOpen: SetStateAction<boolean>) => {
+        const newValue = typeof isOpen === "function" ? isOpen(modals.isUseApiDrawerOpen) : isOpen
+        setModals((prev) => ({...prev, isUseApiDrawerOpen: newValue}))
+    }
+
+    const setIsRevisionsDetailsDrawerOpen = (isOpen: SetStateAction<boolean>) => {
+        const newValue =
+            typeof isOpen === "function" ? isOpen(modals.isRevisionsDetailsDrawerOpen) : isOpen
+        setModals((prev) => ({...prev, isRevisionsDetailsDrawerOpen: newValue}))
+    }
+
+    // URL parameter for drawer control
+    const [queryVariant] = useQueryParam("revisions")
+
+    // Atom-based computed values
+    const selectedVariantToDeploy = useAtomValue(selectedVariantToDeployAtom)
+    const selectedVariantToRevert = useAtomValue(selectedVariantToRevertAtom)
+    const revisions = useAtomValue(filteredDeploymentRevisionsAtom)
+
+    // Open drawer once on initial load if URL contains revisions (deep link)
+    const hasInitFromUrlRef = useRef(false)
+    useEffect(() => {
+        const isPlaygroundRoute = router.pathname.includes("/playground")
+        if (isPlaygroundRoute) return
+        if (hasInitFromUrlRef.current) return
+        if (!queryVariant) return
+        try {
+            const targetId = JSON.parse(String(queryVariant))?.[0]
+            if (targetId && typeof targetId === "string") {
+                setDrawerVariantId(targetId)
+                openVariantDrawer({
+                    type: "deployment",
+                    variantsAtom: customVariantsAtom,
+                    revert: {
+                        isDisabled:
+                            selectedRevisionRow?.deployed_app_variant_revision ===
+                            envRevisions?.deployed_app_variant_revision_id,
+                        onClick: () => setIsRevertModalOpen(true),
+                        isLoading: isPublishing,
+                    },
+                })
+                hasInitFromUrlRef.current = true
+            }
+        } catch {
+            // ignore
+        }
+    }, [
+        router.pathname,
+        queryVariant,
+        setDrawerVariantId,
+        openVariantDrawer,
+        customVariantsAtom,
+        selectedRevisionRow,
+        envRevisions,
+        isPublishing,
+        setIsRevertModalOpen,
+    ])
+
+    const handleDeployVariant = useCallback(async () => {
         const revisionId = selectedRowKeys[0] as string
         try {
-            setIsDeployVariantLoading(true)
-            await createPublishRevision({
+            await publish({
+                type: "revision",
                 note,
                 revision_id: revisionId,
                 environment_ref: envRevisions?.name || "",
+                // Metadata for centralized success messaging and analytics
+                variantName: selectedVariantToDeploy?.variantName,
+                appId,
+                deploymentType: "deploy",
             })
-            await handleFetchAllDeploymentRevisions(envRevisions?.name || "")
-
-            message.success(
-                `Published ${selectedVariantToDeploy?.variantName} v${selectedVariantToDeploy?.revision || ""} to ${envRevisions?.name}`,
-            )
-            posthog?.capture?.("app_deployed", {app_id: appId, environment: envRevisions?.name})
+            // No need to manually refetch - the mutation atom handles query invalidation
+            // Success message and analytics are now handled by the mutation atom
         } catch (error) {
             console.error("Error deploying variant:", error)
+            message.error("Failed to deploy variant. Please try again.")
         } finally {
+            // Clean up UI state
             setNote("")
             setIsDeployVariantModalOpen(false)
             setSelectedRowKeys([])
             setIsSelectDeployVariantModalOpen(false)
-            setIsDeployVariantLoading(false)
         }
-    }
+    }, [
+        publish,
+        selectedVariantToDeploy,
+        selectedRowKeys,
+        note,
+        setIsDeployVariantModalOpen,
+        setIsSelectDeployVariantModalOpen,
+    ])
 
-    const handleRevertDeployment = async () => {
+    const handleRevertDeployment = useCallback(async () => {
         try {
-            setIsRevertModalLoading(true)
-            await createPublishRevision({
+            await publish({
+                type: "revision",
                 note,
                 revision_id: selectedVariantRevisionIdToRevert,
                 environment_ref: envRevisions?.name || "",
+                // Metadata for centralized success messaging and analytics
+                variantName: selectedVariantToRevert?.variantName,
+                appId,
+                deploymentType: "revert",
             })
-            await handleFetchAllDeploymentRevisions(envRevisions?.name || "")
-
-            posthog?.capture?.("app_deployment_reverted", {
-                app_id: appId,
-                environment: envRevisions?.name,
-            })
-            message.success(
-                `Published ${selectedVariantToRevert?.variantName} v${selectedVariantToRevert?.revision || ""} to ${envRevisions?.name}`,
-            )
+            // No need to manually refetch - the mutation atom handles query invalidation
+            // Success message and analytics are now handled by the mutation atom
         } catch (error) {
             console.error("Error reverting deployment:", error)
+            message.error("Failed to revert deployment. Please try again.")
         } finally {
+            // Clean up UI state
             setNote("")
             setIsRevertModalOpen(false)
-            setIsRevertModalLoading(false)
             setSelectedVariantRevisionIdToRevert("")
             setIsRevisionsDetailsDrawerOpen(false)
         }
-    }
+    }, [
+        publish,
+        selectedVariantRevisionIdToRevert,
+        note,
+        setIsRevertModalOpen,
+        setIsRevisionsDetailsDrawerOpen,
+    ])
 
     return (
         <>
@@ -208,14 +267,28 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                     </div>
 
                     <DeploymentTable
-                        revisions={filteredRevisions}
+                        revisions={revisions}
                         setSelectedRevisionRow={setSelectedRevisionRow}
-                        handleFetchRevisionConfig={handleFetchRevisionConfig}
                         setIsRevertModalOpen={setIsRevertModalOpen}
                         setSelectedVariantRevisionIdToRevert={setSelectedVariantRevisionIdToRevert}
                         envRevisions={envRevisions}
                         setIsSelectDeployVariantModalOpen={setIsSelectDeployVariantModalOpen}
-                        setQueryVariant={setQueryVariant}
+                        isLoading={isLoading}
+                        onOpenDrawer={(targetId) => {
+                            if (!targetId) return
+                            setDrawerVariantId(targetId)
+                            openVariantDrawer({
+                                type: "deployment",
+                                variantsAtom: customVariantsAtom,
+                                revert: {
+                                    isDisabled:
+                                        selectedRevisionRow?.deployed_app_variant_revision ===
+                                        envRevisions?.deployed_app_variant_revision_id,
+                                    onClick: () => setIsRevertModalOpen(true),
+                                    isLoading: isPublishing,
+                                },
+                            })
+                        }}
                     />
                 </div>
             </Space>
@@ -244,21 +317,6 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                 />
             )}
 
-            {/* Revisions Details Drawer */}
-            <VariantDrawer
-                variants={variants || []}
-                type="deployment"
-                open={!!queryVariant}
-                onClose={() => setQueryVariant("")}
-                revert={{
-                    isDisabled:
-                        selectedRevisionRow?.deployed_app_variant_revision ===
-                        envRevisions?.deployed_app_variant_revision_id,
-                    onClick: () => setIsRevertModalOpen(true),
-                    isLoading: isRevertModalLoading,
-                }}
-            />
-
             {/* Select Deploy Variant Modal */}
             <SelectDeployVariantModal
                 variants={variants}
@@ -281,7 +339,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                         setNote("")
                         setIsDeployVariantModalOpen(false)
                     }}
-                    okButtonProps={{loading: isDeployVariantLoading}}
+                    okButtonProps={{loading: isPublishing}}
                     onOk={handleDeployVariant}
                     note={note}
                     setNote={setNote}
@@ -299,7 +357,7 @@ const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({
                     setSelectedVariantRevisionIdToRevert("")
                 }}
                 onOk={handleRevertDeployment}
-                okButtonProps={{loading: isRevertModalLoading}}
+                okButtonProps={{loading: isPublishing}}
                 note={note}
                 setNote={setNote}
                 envName={envRevisions?.name || ""}

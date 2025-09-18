@@ -1,60 +1,203 @@
 ---
-title: 'Human Evaluation'
+title: 'How to Run Human Annotations on your LLM Application'
+sidebar_label: 'Human Evaluation'
+description: 'Learn how to use human evaluation and annotations to evaluate the performance of your LLM application.'
 ---
 
 import Image from "@theme/IdealImage";
 
-Sometimes, you may need to evaluate the performance of your models using human judgment. This is where the Human Evaluation feature comes in. It allows you to conduct A/B tests and single model tests to evaluate the performance of your models using human judgment.
 
-## Single Model Evaluation
-Single model test allows you to score the performance of a single LLM app manually. 
+Human evaluation lets you evaluate your LLM application's performance using human judgment instead of automated metrics.
 
-To start a new evaluation with the single model test, you need to:
-- Select a variant would you like to evaluate
-- Select a testset you want to use for the evaluation
+<details>
+  <summary>⏯️ Watch a short demo of the human evaluation feature.</summary>
 
-To start a new evaluation with the single model test, follow these steps:
+  <iframe
+    width="100%"
+    height="400"
+    src="https://www.youtube.com/embed/zpoAbQlsfcw"
+    title="Human Evaluation - Demonstration"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</details>
 
-1. Select the variant you would like to evaluate.
-2. Choose the testset you want to use for the evaluation.
+## Why use human evaluation?
 
-Click on the "Start a new evaluation" button to begin the evaluation process. Once the evaluation is initiated, you will be directed to the Single Model Test Evaluation view. Here, you can perform the following actions:
+Automated metrics can't capture everything. Sometimes you need human experts to evaluate results and identify why errors occur.
 
-- <b>Score: </b> Enter a numerical score to evaluate the performance of the chosen variant.
-- <b>Additional Notes: </b> Add any relevant notes or comments to provide context or details about the evaluation.
-- <b>Export Results: </b> Use the "Export Results" functionality to save and export the evaluation results.
+Human evaluation helps you:
+- Get expert feedback to compare different versions of your application
+- Collect human feedback and insights to improve your prompts and configuration
+- Collect annotations to bootstrap automated evaluation
 
-<Image img={require("/images/basic_guides/22_single_model_test_view_card_view_light.png")} className="dark:hidden" />
-<Image img={require("/images/basic_guides/22_single_model_test_view_card_view_dark.png")} className="hidden dark:block" />
+## How human evaluation works
 
-## A/B Test
-A/B tests allow you to compare the performance of two different variants manually. For each data point you can select which variant is better, or if they are equally good or bad.
+Human evaluation follows the same process as automatic evaluation:
+1. Choose a test set
+2. Select the versions you want to evaluate
+3. Pick your evaluators
+4. Start the evaluation
 
-To start a new evaluation with an A/B Test, follow these steps:
+The only difference is that humans provide the evaluation scores instead of automated systems.
 
-1. Select two variants that you would like to evaluate.
-2. Choose the testset you want to use for the evaluation.
+## Single model evaluation
 
-### Invite Collaborators
+### Start a new evaluation
 
-In an A/B Test, you can invite members of your workspace to collaborate on the evaluation by sharing a link to the evaluation. For information on how to add members to your workspace, please refer to this guide.
+1. Go to the **Evaluations** page
+2. Select the **Human annotation** tab
+3. Click **Start new evaluation**
 
-Click on the "Start a new evaluation" button to begin the evaluation process. Once the evaluation is initiated, you will be directed to the A/B Test Evaluation view. Here, you can perform the following actions:
+<Image
+style={{
+    display: "block",
+    textAlign: "center",
+    marginBottom: "20px",
+}}
+img={require("/images/evaluation/human-evaluation/starting-human-evaluation.png")}
+alt="Starting human evaluation" 
+loading="lazy"
+/>
 
-- <b>Scoring between variants: </b> Evaluate and score the performance of each variant for the expected output.
-- <b>Additional Notes: </b> Add any relevant notes or comments to provide context or details about the evaluation.
-- <b>Export Results: </b> Use the "Export Results" functionality to save and export the evaluation results.
+### Configure your evaluation
 
-<Image img={require("/images/basic_guides/21_ab_test_view_card_view_light.png")} className="dark:hidden" />
-<Image img={require("/images/basic_guides/21_ab_test_view_card_view_dark.png")} className="hidden dark:block" />
+1. **Select your test set** - Choose the data you want to evaluate against
+2. **Select your revision** - Pick the version of your application to test
 
-## Toggle Evaluation View (Card/Table mode)
-You can also switch to the table view for a different perspective in your evaluation.
+:::warning
+Your test set columns must match the input variables in your revision. If they don't match, you'll see an error message.
+:::
 
-### A/B Test View
-<Image img={require("/images/basic_guides/21_ab_test_view_table_view_light.png")} className="dark:hidden" />
-<Image img={require("/images/basic_guides/21_ab_test_view_table_view_dark.png")} className="hidden dark:block" />
+3. **Choose evaluators** - Select how you want to measure performance
 
-### Single Model Test View
-<Image img={require("/images/basic_guides/22_single_model_test_view_table_view_light.png")} className="dark:hidden" />
-<Image img={require("/images/basic_guides/22_single_model_test_view_table_view_dark.png")} className="hidden dark:block" />
+<Image
+  style={{
+    display: "block",
+    textAlign: "center",
+    marginBottom: "20px",
+  }}
+  img={require("/images/evaluation/human-evaluation/human-evaluation-config-1.png")}
+  alt="Human evaluation configuration" 
+  loading="lazy"
+/>
+
+### Create evaluators (optional)
+
+If you don't have evaluators yet, click **Create new** in the **Evaluator** section.
+
+Each evaluator has:
+- **Name** - What you're measuring (e.g., "correctness")
+- **Description** - What the evaluator does
+- **Feedback types** - How evaluators will score responses
+
+For example, a "correctness" evaluator might have:
+- `is_correct` - A yes/no question about accuracy
+- `error_type` - A multiple-choice field for categorizing mistakes
+
+<Image
+  style={{
+    display: "block",
+    textAlign: "center",
+    marginBottom: "20px",
+  }}
+  img={require("/images/evaluation/human-evaluation/configuring-evaluators.png")}
+  alt="Creating evaluators for human evaluation" 
+  loading="lazy"
+/>
+
+**Available feedback types:**
+- **Boolean** - Yes/no questions
+- **Integer** - Whole number ratings
+- **Decimal** - Precise numerical scores
+- **Single-choice** - Pick one option
+- **Multi-choice** - Pick multiple options
+- **String** - Free-text comments or notes
+
+:::tip
+Evaluators can include multiple related feedback types. For example:
+
+**Correctness evaluator:**
+- `is_correct` - Yes/no question about accuracy
+- `error_type` - Multiple-choice field to categorize mistakes (only if incorrect)
+
+**Style adherence evaluator:**
+- `is_adherent` - Yes/no question about style compliance  
+- `comment` - Text field explaining why the style doesn't match (if needed)
+
+This grouping helps you evaluate different aspects of your LLM's performance in an organized way.
+:::
+
+### Run the evaluation
+
+After creating your evaluators:
+
+1. Select the evaluators you want to use
+2. Click **Start evaluation**
+3. You'll be redirected to the annotation interface
+4. Click **Run all** to generate outputs and begin evaluation
+
+<Image
+style={{
+    display: "block",
+    textAlign: "center",
+    marginBottom: "20px",
+}}
+img={require("/images/evaluation/human-evaluation/human-evaluation-view.png")}
+alt="Human evaluation interface" 
+loading="lazy"
+/>
+
+### Annotate responses
+
+For each test case:
+1. Review the input and output
+2. Use the evaluation form on the right to score the response
+3. Click **Annotate** to save your assessment
+4. Click **Next** to move to the next test case
+
+:::tip
+Select the **Unannotated** tab to see only the test cases you haven't reviewed yet.
+:::
+
+### Review results
+
+After completing all annotations:
+- View results in the **Results** section
+- Compare performance with other experiments
+- Export results to CSV using **Export results**
+- Save annotated data as a new test set with **Save test set**
+
+## A/B testing evaluation
+
+A/B testing lets you compare two versions of your application side-by-side. For each test case, you choose which version performs better.
+
+### Set up A/B testing
+
+1. Select **two versions** you want to compare
+2. Choose your **test set**
+3. For each test case, decide which version is better (or if they're equal)
+
+<Image
+style={{
+    display: "block",
+    textAlign: "center",
+    marginBottom: "20px",
+}}
+img={require("/images/basic_guides/21_ab_test_view_card_view_light.png")} 
+alt="A/B test comparison view" 
+loading="lazy"
+/>
+
+### Collaborate with your team
+
+You can invite team members to help with A/B testing by sharing the evaluation link. Team members must be added to your workspace first.
+
+### A/B testing features
+
+During A/B evaluation, you can:
+- **Compare variants** - Score which version performs better for each test case
+- **Add notes** - Include context or detailed feedback
+- **Export results** - Download your evaluation data for further analysis
+

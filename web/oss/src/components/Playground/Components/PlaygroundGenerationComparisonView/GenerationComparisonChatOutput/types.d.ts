@@ -1,16 +1,14 @@
 export interface GenerationComparisonChatOutputCellProps {
     variantId: string
-    rowId: string
-    historyId: string
+    turnId: string
     variantIndex?: number
     isFirstRow?: boolean
     isLastRow?: boolean
 }
 
 export interface GenerationComparisonChatOutputProps {
-    historyId: string
     className?: string
-    rowId: string
+    turnId: string
     isLastRow?: boolean
     isFirstRow?: boolean
 }
