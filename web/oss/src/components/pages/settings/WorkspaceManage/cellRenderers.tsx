@@ -3,11 +3,8 @@ import {useState} from "react"
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
-import {useAtom} from "jotai"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
-import {useOrgData} from "@/oss/contexts/org.context"
-import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan, User} from "@/oss/lib/Types"
@@ -18,6 +15,8 @@ import {
     resendInviteToWorkspace,
     unAssignWorkspaceRole,
 } from "@/oss/services/workspace/api"
+import {useOrgData} from "@/oss/state/org"
+import {useWorkspaceRoles} from "@/oss/state/workspace"
 
 export const Actions: React.FC<{
     member: WorkspaceMember
@@ -56,7 +55,9 @@ export const Actions: React.FC<{
             title: "Remove member",
             message: `Are you sure you want to remove ${user.username} from this workspace?`,
             onOk: () =>
-                removeFromWorkspace({orgId, workspaceId, email: user.email}, true).then(() => refetch()),
+                removeFromWorkspace({orgId, workspaceId, email: user.email}, true).then(() =>
+                    refetch(),
+                ),
             okText: "Remove",
         })
     }
@@ -112,7 +113,7 @@ export const Roles: React.FC<{
     workspaceId: string
 }> = ({member, signedInUser, orgId, workspaceId}) => {
     const [loading, setLoading] = useState(false)
-    const [roles] = useAtom(workspaceRolesAtom)
+    const {roles} = useWorkspaceRoles()
     const {selectedOrg, setSelectedOrg} = useOrgData()
     const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
         subscription: undefined,

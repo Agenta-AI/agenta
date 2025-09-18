@@ -17,6 +17,8 @@ import {
     LexicalNode,
 } from "lexical"
 
+import {safeJson5Parse} from "@/oss/lib/helpers/utils"
+
 import {INITIAL_CONTENT_COMMAND, InitialContentPayload} from "../../commands/InitialContentCommand"
 
 export const store = createStore()
@@ -501,17 +503,15 @@ function InsertInitialCodeBlockPlugin({
 
     useEffect(() => {
         // For JSON/YAML content, use semantic comparison
-        if (prevInitialRef.current !== undefined) {
-            try {
-                if (
-                    isEqual(
-                        JSON5.parse(prevInitialRef.current as string),
-                        JSON5.parse(initialValue),
-                    )
-                ) {
-                    return // no semantic change
-                }
-            } catch {}
+        if (prevInitialRef.current) {
+            if (
+                isEqual(
+                    safeJson5Parse(prevInitialRef.current as string),
+                    safeJson5Parse(initialValue),
+                )
+            ) {
+                return // no semantic change
+            }
         }
 
         prevInitialRef.current = initialValue

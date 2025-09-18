@@ -1,12 +1,17 @@
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useState} from "react"
 
 import {FloppyDiskBack} from "@phosphor-icons/react"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
-import {getAllRevisionsLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {
+    revisionListAtom,
+    saveVariantMutationAtom,
+    createVariantMutationAtom,
+    selectedVariantsAtom,
+    variantByRevisionIdAtomFamily,
+} from "@/oss/components/Playground/state/atoms"
 
 import {CommitVariantChangesModalProps, SelectedCommitType} from "./assets/types"
 const CommitVariantChangesModalContent = dynamic(
@@ -20,20 +25,22 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     commitType,
     ...props
 }) => {
-    const {saveVariant, addVariant, baseRevisionId, isMutating, variantName} = usePlayground({
-        variantId,
-        hookId: "CommitVariantChangesModal",
-        variantSelector: useCallback(
-            (variant: EnhancedVariant) => {
-                return {
-                    isMutating: variant.__isMutating,
-                    variantName: variant.variantName,
-                    baseRevisionId: variant.id,
-                }
-            },
-            [variantId],
-        ),
-    })
+    // Get variant metadata from revision list
+    const revisions = useAtomValue(revisionListAtom)
+    const variant = revisions?.find((rev: any) => rev.id === variantId)
+
+    // Extract values from variant
+    const variantName = variant?.variantName
+
+    // Get mutation functions
+    const saveVariant = useSetAtom(saveVariantMutationAtom)
+    const createVariant = useSetAtom(createVariantMutationAtom)
+
+    // Track loading state for mutations
+    const [isMutating, setIsMutating] = useState(false)
+    // Defer closing the modal until the UI actually swaps to target
+    const [waitForRevisionId, setWaitForRevisionId] = useState<string | undefined>(undefined)
+    const [waitForVariantId, setWaitForVariantId] = useState<string | undefined>(undefined)
 
     const [selectedCommitType, setSelectedCommitType] = useState<SelectedCommitType>({
         type: "version",
@@ -48,48 +55,105 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         setNote("")
     }, [])
 
+    // Observe current selected revision(s) to know when swap completes
+    const selectedRevisionIds = useAtomValue(selectedVariantsAtom)
+    const currentSelectedRevisionId = selectedRevisionIds?.[0] || ""
+    const currentSelectedVariant = useAtomValue(
+        variantByRevisionIdAtomFamily(currentSelectedRevisionId),
+    )
+
+    // Close when the swap we wait for is satisfied
+    useEffect(() => {
+        if (waitForRevisionId && selectedRevisionIds?.includes(waitForRevisionId)) {
+            setIsMutating(false)
+            onClose()
+            setWaitForRevisionId(undefined)
+        } else if (
+            waitForVariantId &&
+            currentSelectedVariant?._parentVariant?.id &&
+            currentSelectedVariant?._parentVariant?.id === waitForVariantId
+        ) {
+            setIsMutating(false)
+            onClose()
+            setWaitForVariantId(undefined)
+        }
+    }, [
+        selectedRevisionIds,
+        currentSelectedVariant?._parentVariant?.id,
+        waitForRevisionId,
+        waitForVariantId,
+    ])
+
     const onSaveVariantChanges = useCallback(async () => {
-        if (selectedCommitType?.type === "version") {
-            await saveVariant?.(note, commitType, (variant) => {
-                onSuccess?.({revisionId: variant?._revisionId})
-            })
-        } else if (selectedCommitType?.type === "variant" && selectedCommitType?.name) {
-            addVariant?.({
-                note,
-                commitType,
-                baseVariantName: variantName,
-                newVariantName: selectedCommitType?.name as string,
-                callback: (variant, state) => {
-                    state.selected = [
-                        ...state.selected.filter((id) => id !== baseRevisionId),
-                        variant.id,
-                    ]
+        try {
+            setIsMutating(true)
 
-                    const originalBaseVariant = getAllRevisionsLazy().find(
-                        (v) => v.id === baseRevisionId,
-                    ) as EnhancedVariant
+            if (selectedCommitType?.type === "version") {
+                const result = await saveVariant?.({
+                    variantId,
+                    note,
+                    commitType,
+                })
 
-                    const newVariants = [...state.variants]
-                    newVariants.splice(
-                        newVariants.findIndex((v) => v.id === baseRevisionId),
-                        1,
-                        originalBaseVariant,
-                    )
-
+                if (result?.success) {
+                    // Reset commit-ready state after successful commit
                     onSuccess?.({
-                        revisionId: variant?._revisionId,
-                        variantId: variant._parentVariant.variantId,
+                        revisionId: result.variant?.id,
+                        variantId: result.variant?.variantId,
                     })
 
-                    state.variants = newVariants
+                    // Wait for the selected revision to reflect the new revision id
+                    if (result.variant?.id) {
+                        setWaitForRevisionId(result.variant.id)
+                    }
+                }
+            } else if (selectedCommitType?.type === "variant" && selectedCommitType?.name) {
+                const result = await createVariant?.({
+                    revisionId: variantId,
+                    baseVariantName: variantName || "",
+                    newVariantName: selectedCommitType?.name as string,
+                    note,
+                    callback: (newVariant, state) => {
+                        // For new variant creation, switch to display ONLY the newly created variant
+                        // This is different from revision creation where we stay on the same variant
+                        state.selected = [newVariant.id]
+                        state.variants = [newVariant.id]
+                    },
+                })
 
-                    return state
-                },
-            })
+                if (result?.success) {
+                    // For variant creation, we get a variant object back, not a revision
+                    // The variant creation atom handles finding the matching revision and updating the URL
+                    // We just need to pass the variant ID to the onSuccess callback
+                    const newVariantId = result.variant?.variant_id
+
+                    // The onSuccess callback doesn't need a revisionId for variant creation
+                    // since the variant creation atom handles the UI switch via URL update
+                    onSuccess?.({
+                        revisionId: undefined, // Will be determined by variant creation atom
+                        variantId: newVariantId,
+                    })
+
+                    // Wait for the selected revision to belong to the newly created variant id
+                    if (newVariantId) {
+                        setWaitForVariantId(newVariantId)
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Failed to commit variant changes:", error)
+            // TODO: Show error message to user
+        } finally {
+            // Only close immediately if we're not waiting for the UI to reflect the swap
+            // (Keep isMutating true while waiting to prevent interactions)
+            if (!waitForRevisionId && !waitForVariantId) {
+                setIsMutating(false)
+                onClose()
+            }
         }
 
         onClose()
-    }, [selectedCommitType, baseRevisionId, saveVariant, addVariant, note])
+    }, [selectedCommitType, saveVariant, createVariant, note, variantName, onSuccess])
 
     return (
         <EnhancedModal
@@ -106,7 +170,10 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }}
             classNames={{footer: "flex items-center justify-end"}}
             afterClose={() => onClose()}
-            width="fit-content"
+            width="100%"
+            style={{
+                maxWidth: "calc(250px + 65ch)",
+            }}
             {...props}
         >
             <CommitVariantChangesModalContent
@@ -115,6 +182,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 setNote={setNote}
                 setSelectedCommitType={setSelectedCommitType}
                 selectedCommitType={selectedCommitType}
+                commitType={commitType}
             />
         </EnhancedModal>
     )

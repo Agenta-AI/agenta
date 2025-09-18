@@ -9,4 +9,5 @@ export interface TraceDrawerButtonProps extends ButtonProps {
     icon?: boolean
     children?: ReactNode
     result: TestResult | null | undefined
+    navigationIds?: string[]
 }

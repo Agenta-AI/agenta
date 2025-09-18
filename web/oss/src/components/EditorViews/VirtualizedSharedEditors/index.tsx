@@ -1,11 +1,15 @@
 // VirtualizedSharedEditors.tsx
 import React, {memo, useCallback, useLayoutEffect, useRef, useState, useEffect} from "react"
+
 import {VariableSizeList as List} from "react-window"
 import {useResizeObserver} from "usehooks-ts"
 
-type Entry = {k: string; v: unknown}
+interface Entry {
+    k: string
+    v: unknown
+}
 
-type Props = {
+interface Props {
     entries: Entry[]
     overscanCount?: number
     estimatedRowHeight?: number

@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Dict, Union
+from typing import Any, Optional, List, Dict, Union, Tuple
 from json import dumps
 from datetime import datetime, timedelta, time, timezone
 
@@ -61,6 +61,24 @@ def _to_nested_value(
     return value
 
 
+def _to_jsonb_path(
+    attribute: ColumnElement,
+    key: str,
+    leaf_as_text: bool = True,
+) -> Tuple[ColumnElement, str]:
+    parts = key.split(".")
+
+    if leaf_as_text:
+        for p in parts[:-1]:
+            attribute = attribute.op("->")(p)
+        attribute = attribute.op("->>")(parts[-1])
+        return attribute, ""
+    else:
+        for p in parts[:-1]:
+            attribute = attribute.op("->")(p)
+        return attribute, parts[-1]
+
+
 # OPERATORS
 
 
@@ -109,17 +127,18 @@ def _handle_numeric_operator(
     clauses = []
 
     if key is not None:
-        clauses.append(attribute.has_key(key))
+        container, leaf = _to_jsonb_path(attribute, key, leaf_as_text=False)
+        clauses.append(container.op("?")(leaf))
 
-        attribute = attribute[key].astext  # defaults to string
+        attribute, _ = _to_jsonb_path(attribute, key)
 
         if isinstance(value, int):
-            attribute = cast(attribute, Integer)
+            attribute = cast(attribute, Float)
         elif isinstance(value, float):
             attribute = cast(attribute, Float)
         elif isinstance(value, list):
             if all(isinstance(v, int) for v in value):
-                attribute = cast(attribute, Integer)
+                attribute = cast(attribute, Float)
             elif all(isinstance(v, float) for v in value):
                 attribute = cast(attribute, Float)
             elif all(isinstance(v, str) for v in value):
@@ -161,9 +180,10 @@ def _handle_string_operator(
         options = TextOptions()
 
     if key is not None:
-        clauses.append(attribute.has_key(key))
+        container, leaf = _to_jsonb_path(attribute, key, leaf_as_text=False)
+        clauses.append(container.op("?")(leaf))
 
-        attribute = attribute[key].astext
+        attribute, _ = _to_jsonb_path(attribute, key)
 
         attribute = cast(attribute, String)
 
@@ -227,11 +247,11 @@ def _handle_list_operator(
     subclauses: List[ClauseElement] = []
 
     if key is not None and not marshalled:
-        attribute = attribute[key]
+        container, leaf = _to_jsonb_path(attribute, key, leaf_as_text=False)
         for v in value:
-            bound = bindparam(None, f"[{v}]", type_=Text)
+            bound = bindparam(None, dumps([v]), type_=Text)  # ensure array JSON
             casted = cast(bound, JSONB)
-            subclauses.append(attribute.contains(casted))
+            subclauses.append(container[leaf].contains(casted))
 
     elif marshalled:
         for v in value:
@@ -279,12 +299,11 @@ def _handle_dict_operator(
     clauses: List[ClauseElement] = []
 
     if not marshalled:
-        attribute = attribute[key]
-
+        container, leaf = _to_jsonb_path(attribute, key, leaf_as_text=False)
         if operator == DictOperator.HAS:
-            clauses.append(attribute == value)
+            clauses.append(container[leaf] == value)
         elif operator == DictOperator.HAS_NOT:
-            clauses.append(attribute != value)
+            clauses.append(container[leaf] != value)
 
     else:
         value = [{key: value}]
@@ -308,7 +327,8 @@ def _handle_existence_operator(
 
     if operator == ExistenceOperator.EXISTS:
         if key:
-            clauses.append(attribute.op("?")(key))
+            container, leaf = _to_jsonb_path(attribute, key, leaf_as_text=False)
+            clauses.append(container.op("?")(leaf))
         else:
             clauses.append(attribute.isnot(None))
 
@@ -688,8 +708,12 @@ def filter(  # pylint:disable=redefined-builtin
 
             if field == Fields.TRACE_ID:
                 clauses.extend(_handle_uuid_field(condition))
+            elif field == Fields.TRACE_TYPE:
+                clauses.extend(_handle_enum_field(condition))
             elif field == Fields.SPAN_ID:
                 clauses.extend(_handle_uuid_field(condition))
+            elif field == Fields.SPAN_TYPE:
+                clauses.extend(_handle_enum_field(condition))
             elif field == Fields.PARENT_ID:
                 clauses.extend(_handle_uuid_field(condition))
             elif field == Fields.SPAN_KIND:
@@ -727,9 +751,10 @@ def filter(  # pylint:disable=redefined-builtin
             elif field == Fields.CONTENT:
                 clauses.extend(_handle_fts_field(condition))
             else:
-                raise FilteringException(
-                    f"Unsupported condition field: {field}",
-                )
+                # raise FilteringException(
+                #     f"Unsupported condition field: {field}",
+                # )
+                log.warning(f"Unsupported condition field: {field}")
 
     return clauses
 

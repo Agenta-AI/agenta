@@ -3,8 +3,10 @@ import {memo, useMemo} from "react"
 import {Timer, PlusCircle} from "@phosphor-icons/react"
 import {Tag, Space} from "antd"
 import clsx from "clsx"
+import {getDefaultStore, useAtomValue} from "jotai"
 
 import StatusRenderer from "@/oss/components/pages/observability/components/StatusRenderer"
+import {generationTraceIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {NodeStatusCode, NodeStatusDTO} from "@/oss/services/observability/types"
@@ -13,18 +15,23 @@ import TraceDrawerButton from "../../../Drawers/TraceDrawer"
 
 import {GenerationResultUtilsProps} from "./types"
 
+const store = getDefaultStore()
+
 const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
     className,
     showStatus = true,
     result,
 }) => {
     const tree = result?.response?.tree
-    const metric = tree?.nodes?.[0]?.metrics?.acc
+    const node = tree?.nodes?.[0]
+    const metricAcc = node?.metrics?.acc
+    const metricUnit = node?.metrics?.unit
+    const metric = metricAcc || metricUnit
     const status = result?.error
         ? {
               code: NodeStatusCode.ERROR,
           }
-        : (tree?.nodes?.[0]?.status as NodeStatusDTO)
+        : (node?.status as NodeStatusDTO)
     const durations = metric?.duration?.total
     const tokens = metric?.tokens?.total
     const costs = metric?.costs?.total
@@ -40,37 +47,48 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
     )
     const formattedCosts = useMemo(() => formatCurrency(costs), [costs])
 
+    const navigationIds = useAtomValue(generationTraceIdsAtom, {store})
+
     return (
         <div className={clsx("flex items-center gap-1", className)}>
-            <TraceDrawerButton result={result} size="small" type="default" />
+            <TraceDrawerButton
+                result={result}
+                size="small"
+                type="default"
+                navigationIds={navigationIds}
+            />
 
             {showStatus && <StatusRenderer status={status} />}
 
-            <Tag color="default" bordered={false} className="flex items-center gap-1">
-                <Timer size={14} /> {formattedLatency}
-            </Tag>
+            {durations ? (
+                <Tag color="default" bordered={false} className="flex items-center gap-1">
+                    <Timer size={14} /> {formattedLatency}
+                </Tag>
+            ) : null}
 
-            <ResultTag
-                color="default"
-                bordered={false}
-                value1={
-                    <div className="flex items-center gap-1">
-                        <PlusCircle size={14} /> {formattedTokens} / {formattedCosts}
-                    </div>
-                }
-                popoverContent={
-                    <Space direction="vertical">
-                        <Space>
-                            <div>{formattedPrompts}</div>
-                            <div>Prompt tokens</div>
+            {tokens || costs ? (
+                <ResultTag
+                    color="default"
+                    bordered={false}
+                    value1={
+                        <div className="flex items-center gap-1">
+                            <PlusCircle size={14} /> {formattedTokens} / {formattedCosts}
+                        </div>
+                    }
+                    popoverContent={
+                        <Space direction="vertical">
+                            <Space>
+                                <div>{formattedPrompts}</div>
+                                <div>Prompt tokens</div>
+                            </Space>
+                            <Space>
+                                <div>{formattedCompletions}</div>
+                                <div>Completion tokens</div>
+                            </Space>
                         </Space>
-                        <Space>
-                            <div>{formattedCompletions}</div>
-                            <div>Completion tokens</div>
-                        </Space>
-                    </Space>
-                }
-            />
+                    }
+                />
+            ) : null}
         </div>
     )
 }

@@ -1,69 +1,147 @@
-import {useMemo} from "react"
+import {memo, useEffect, useMemo} from "react"
 
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Button, Space, Spin, Tabs, Tag, Typography, TabsProps} from "antd"
+import {Button, Space, Spin, Tag, Typography, TabsProps, Tabs, Switch, Tooltip} from "antd"
 import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import Avatar from "@/oss/components/Avatar/Avatar"
+// Avatar removed; using UserAvatarTag instead
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
-import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
+import {useVariantPrompts} from "@/oss/components/Playground/hooks/useVariantPrompts"
+import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/dirtyState"
+import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppId} from "@/oss/hooks/useAppId"
+import {useQueryParam} from "@/oss/hooks/useQuery"
+import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
+import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
+import {
+    derivePromptsFromSpec,
+    deriveCustomPropertiesFromSpec,
+} from "@/oss/lib/shared/variant/transformer/transformer"
+import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
+import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
+import {clearVariantDrawerAtom} from "../../store/variantDrawerStore"
+import {variantDrawerAtom} from "../../store/variantDrawerStore"
 import {NewVariantParametersView} from "../Parameters"
 import {VariantDrawerContentProps} from "../types"
 
 const {Text} = Typography
 
 const VariantDrawerContent = ({
-    selectedVariant,
-    promptIds,
+    variantId,
     isLoading,
     type,
-    variants,
+    viewAs,
     onChangeViewAs,
+    showOriginal,
+    onToggleOriginal,
 }: VariantDrawerContentProps) => {
     const router = useRouter()
     const appId = useAppId()
 
-    const {appStatus, mutateVariant} = usePlayground({
-        variantId: selectedVariant?.id,
-        stateSelector: (state) => {
-            return {
-                appStatus: state.appStatus,
-            }
-        },
-    })
+    // Focused selected variant by revision ID
+    const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
 
-    const deployedIn = useMemo(() => {
-        if (type !== "variant") return []
+    // App-level: app status is true when OpenAPI schema is available
+    const appSchema = useAtomValue(appSchemaAtom)
+    const appStatus = !!appSchema
+    const uriInfo = useAtomValue(appUriInfoAtom)
 
-        if (variants[0]?.revisions && variants[0]?.revisions?.length > 0) {
-            return (
-                variants.find((v) => v?.id === selectedVariant?._parentVariant?.id)?.deployedIn ||
-                []
-            )
+    const {promptIds} = useVariantPrompts(variantId)
+    // Focused deployed environments by revision ID
+    const deployedIn = useAtomValue(revisionDeploymentAtomFamily(variantId)) || []
+    const commitMsg = selectedVariant?.commitMessage
+    const isDirty = useAtomValue(
+        variantIsDirtyAtomFamily((selectedVariant as any)?.id || variantId),
+    )
+
+    // Ensure clean revisions don't get stuck in Original mode
+    useEffect(() => {
+        if (!isDirty && showOriginal) {
+            onToggleOriginal?.(false)
         }
+    }, [isDirty, showOriginal, onToggleOriginal])
 
-        return selectedVariant?.deployedIn || []
-    }, [type, variants, selectedVariant])
+    // Derive original (saved) prompts from spec and saved parameters for read-only view
+    const originalPrompts = useMemo(() => {
+        try {
+            if (!showOriginal) return [] as any[]
+            if (!appSchema || !selectedVariant) return [] as any[]
+            const routePath = uriInfo?.routePath
+            const derived = derivePromptsFromSpec(
+                selectedVariant as any,
+                appSchema as any,
+                routePath,
+            )
+            return Array.isArray(derived) ? (derived as any[]) : []
+        } catch {
+            return [] as any[]
+        }
+    }, [showOriginal, appSchema, selectedVariant, uriInfo?.routePath])
+
+    const originalPromptIds = useMemo(
+        () => originalPrompts.map((p: any) => p.__id || p.__name).filter(Boolean),
+        [originalPrompts],
+    )
+
+    // Derive original (saved) custom properties for read-only view
+    const originalCustomPropsRecord = useMemo(() => {
+        try {
+            if (!showOriginal) return {}
+            if (!appSchema || !selectedVariant) return {}
+            const routePath = uriInfo?.routePath
+            const record = deriveCustomPropertiesFromSpec(
+                selectedVariant as any,
+                appSchema as any,
+                routePath,
+            ) as Record<string, any>
+            return record || {}
+        } catch {
+            return {}
+        }
+    }, [showOriginal, appSchema, selectedVariant, uriInfo?.routePath])
 
     const tabItems = useMemo(() => {
         return [
             appStatus
                 ? {
-                      key: type === "variant" ? "overview" : "variant",
-                      label: (
-                          <div onClick={() => onChangeViewAs("prompt")}>
-                              {type === "variant" ? "Overview" : "Variant"}
-                          </div>
-                      ),
+                      key: "main",
+                      label: type === "variant" ? "Overview" : "Variant",
                       className: "w-full h-full flex flex-col px-4",
 
-                      children: (
+                      children: showOriginal ? (
+                          <PromptsSourceProvider
+                              promptsByRevision={{
+                                  [(selectedVariant as any)?.id || variantId]: originalPrompts,
+                              }}
+                          >
+                              <>
+                                  {originalPromptIds.map((promptId: string) => (
+                                      <PlaygroundVariantConfigPrompt
+                                          key={promptId}
+                                          promptId={promptId}
+                                          variantId={(selectedVariant as any)?.id || variantId}
+                                          className="[&_.ant-collapse-content-box>div>div]:!w-[97%] border border-solid border-[#0517290F]"
+                                          viewOnly
+                                      />
+                                  ))}
+                                  <PlaygroundVariantCustomProperties
+                                      variantId={(selectedVariant as any)?.id || variantId}
+                                      initialOpen={originalPromptIds.length === 0}
+                                      viewOnly
+                                      customPropsRecord={originalCustomPropsRecord}
+                                  />
+                              </>
+                          </PromptsSourceProvider>
+                      ) : (
                           <>
                               {(promptIds || [])?.map((promptId: string) => (
                                   <PlaygroundVariantConfigPrompt
@@ -84,17 +162,51 @@ const VariantDrawerContent = ({
                 : undefined,
             {
                 key: "json",
-                label: <div onClick={() => onChangeViewAs("parameters")}>JSON</div>,
+                label: "JSON",
                 className: "h-full flex flex-col px-4",
                 children: selectedVariant ? (
                     <NewVariantParametersView
                         selectedVariant={selectedVariant}
-                        mutateVariant={mutateVariant}
+                        showOriginal={showOriginal}
                     />
                 ) : null,
             },
         ].filter(Boolean) as TabsProps["items"]
-    }, [selectedVariant, promptIds, type, onChangeViewAs])
+    }, [
+        appStatus,
+        selectedVariant,
+        promptIds,
+        type,
+        showOriginal,
+        originalPrompts,
+        originalPromptIds,
+    ])
+
+    const clearDrawer = useSetAtom(clearVariantDrawerAtom)
+    const drawerState = useAtomValue(variantDrawerAtom)
+    const [_, setQueryVariant] = useQueryParam("revisions")
+
+    const clearJsonOverride = useSetAtom(
+        parametersOverrideAtomFamily((selectedVariant as any)?.id || ""),
+    )
+
+    useEffect(() => {
+        // Component mount/unmount lifecycle for drawer content
+        return () => {
+            // In React StrictMode, components mount then immediately unmount once.
+            // Only clear when the drawer is actually closed to avoid reopen loops.
+            if (!drawerState.open) {
+                clearDrawer()
+                // Clear URL param after drawer is fully dismissed to prevent content flicker
+                const isPlaygroundRoute = router.pathname.includes("/playground")
+                if (!isPlaygroundRoute) {
+                    setQueryVariant("")
+                }
+                // Also clear any JSON override draft for this revision when closing the drawer
+                clearJsonOverride(null as any)
+            }
+        }
+    }, [clearDrawer, drawerState.open, clearJsonOverride])
 
     if (isLoading) {
         return (
@@ -123,9 +235,25 @@ const VariantDrawerContent = ({
                     ])}
                 >
                     <Tabs
-                        destroyInactiveTabPane
-                        defaultActiveKey={type === "variant" ? "overview" : "variant"}
+                        destroyOnHidden
+                        activeKey={!appStatus ? "json" : viewAs === "parameters" ? "json" : "main"}
+                        onChange={(key) => onChangeViewAs(key === "json" ? "parameters" : "prompt")}
                         className="overflow-auto"
+                        tabBarExtraContent={{
+                            right: (
+                                <div className="flex items-center gap-2 pr-4">
+                                    <Text type="secondary">Original</Text>
+                                    <Tooltip title={!isDirty ? "No local changes" : undefined}>
+                                        <Switch
+                                            size="small"
+                                            checked={!!showOriginal}
+                                            onChange={(checked) => onToggleOriginal?.(checked)}
+                                            disabled={!isDirty}
+                                        />
+                                    </Tooltip>
+                                </div>
+                            ),
+                        }}
                         items={tabItems}
                     />
                 </div>
@@ -151,8 +279,9 @@ const VariantDrawerContent = ({
                                         pathname: `/apps/${appId}/playground`,
                                         query: {
                                             playground: "new-playground",
-                                            revisions: JSON.stringify([
-                                                (selectedVariant as any)?._revisionId,
+                                            // Use the actual revision id for navigation
+                                            revisions: buildRevisionsQueryParam([
+                                                (selectedVariant as any)?.id,
                                             ]),
                                         },
                                     })
@@ -165,21 +294,26 @@ const VariantDrawerContent = ({
                 <div className="flex flex-col gap-1">
                     <Text className="font-medium">Date modified</Text>
                     <Tag bordered={false} className="bg-[#0517290F]">
-                        {selectedVariant?.updatedAt}
+                        {(() => {
+                            const ts =
+                                (selectedVariant as any)?.updatedAtTimestamp ??
+                                (selectedVariant as any)?.createdAtTimestamp
+                            return ts
+                                ? formatDate24(ts)
+                                : ((selectedVariant as any)?.createdAt ?? "-")
+                        })()}
                     </Tag>
                 </div>
                 <div className="flex flex-col gap-1">
                     <Text className="font-medium">Modified by</Text>
-                    <Tag bordered={false} className="bg-[#0517290F]">
-                        <Avatar name={selectedVariant?.modifiedBy} className="w-4 h-4 text-[9px]" />{" "}
-                        {selectedVariant?.modifiedBy}
-                    </Tag>
+                    {/* Pass the revision id so selector can resolve modifiedBy correctly */}
+                    <UserAvatarTag variantId={(selectedVariant as any)?.id} />
                 </div>
 
-                {selectedVariant?.commitMessage && (
+                {commitMsg && (
                     <div className="flex flex-col gap-1">
                         <Text className="font-medium">Note</Text>
-                        <Text>{selectedVariant?.commitMessage || ""}</Text>
+                        <Text>{commitMsg}</Text>
                     </div>
                 )}
 
@@ -198,4 +332,4 @@ const VariantDrawerContent = ({
     )
 }
 
-export default VariantDrawerContent
+export default memo(VariantDrawerContent)

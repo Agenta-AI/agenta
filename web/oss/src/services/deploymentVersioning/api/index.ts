@@ -1,7 +1,7 @@
-import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 import {DeploymentRevisionConfig, DeploymentRevisions} from "@/oss/lib/Types"
+import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -15,7 +15,7 @@ export const fetchAllDeploymentRevisionConfig = async (
     signal?: AbortSignal,
     ignoreAxiosError = true,
 ): Promise<DeploymentRevisionConfig> => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     const {data} = await axios(
         `${getAgentaApiUrl()}/configs/deployment/${deploymentRevisionId}?project_id=${projectId}`,
@@ -30,7 +30,7 @@ export const fetchAllDeploymentRevisions = async (
     environmentName: string,
     ignoreAxiosError = false,
 ): Promise<DeploymentRevisions> => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     const {data} = await axios.get(
         `${getAgentaApiUrl()}/apps/${appId}/revisions/${environmentName}?project_id=${projectId}`,
@@ -45,7 +45,7 @@ export const createRevertDeploymentRevision = async (
     deploymentRevisionId: string,
     ignoreAxiosError = false,
 ) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/configs/deployment/${deploymentRevisionId}/revert?project_id=${projectId}`,

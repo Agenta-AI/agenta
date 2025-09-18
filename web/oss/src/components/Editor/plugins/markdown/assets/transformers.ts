@@ -8,6 +8,7 @@ import {
     ElementTransformer,
     $convertFromMarkdownString,
 } from "@lexical/markdown"
+import {$convertToMarkdownString as originalConvert} from "@lexical/markdown"
 import {
     $createHorizontalRuleNode,
     $isHorizontalRuleNode,
@@ -26,7 +27,6 @@ import {
     TableRowNode,
 } from "@lexical/table"
 import {$isParagraphNode, $isTextNode, LexicalNode} from "lexical"
-import {$convertToMarkdownString as originalConvert} from "@lexical/markdown"
 
 export function $convertToMarkdownStringCustom(
     transformers: Transformer[],
@@ -206,7 +206,7 @@ const $createTableCell = (textContent: string): TableCellNode => {
     return cell
 }
 
-const mapToTableCells = (textContent: string): Array<TableCellNode> | null => {
+const mapToTableCells = (textContent: string): TableCellNode[] | null => {
     const match = textContent.match(TABLE_ROW_REG_EXP)
     if (!match || !match[1]) {
         return null
@@ -214,7 +214,7 @@ const mapToTableCells = (textContent: string): Array<TableCellNode> | null => {
     return match[1].split("|").map((text) => $createTableCell(text))
 }
 
-export const PLAYGROUND_TRANSFORMERS: Array<Transformer> = [
+export const PLAYGROUND_TRANSFORMERS: Transformer[] = [
     HR,
     TABLE,
     CHECK_LIST,

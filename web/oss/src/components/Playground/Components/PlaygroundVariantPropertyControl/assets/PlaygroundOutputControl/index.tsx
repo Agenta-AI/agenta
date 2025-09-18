@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {Button, Modal, Tooltip, Typography} from "antd"
 import clsx from "clsx"
@@ -22,6 +22,7 @@ const PlaygroundOutputControl = ({
     value,
     handleChange,
     promptName,
+    viewOnly,
     ...rest
 }: {
     withTooltip: boolean
@@ -34,39 +35,54 @@ const PlaygroundOutputControl = ({
     const [modalState, setModalState] = useState(false)
     const selectedOption = metadata.options.find((option) => option.value === value?.type)
     const schema = value?.json_schema
+    const {variantId: controlVariantId, propertyId: controlPropertyId} = (rest || {}) as any
 
-    const [structuredOutputState, setStructuredOutputState] = useState(
-        schema ||
-            constructJsonFromSchema(selectedOption?.config.json_schema, {
-                name: "Schema",
-                description: "A description of the schema",
-                strict: false,
-                schema: {
-                    type: "object",
-                    properties: {},
-                },
-            }),
-    )
+    const toPrettyString = useCallback((v: any): string => {
+        if (v == null) return ""
+        if (typeof v === "string") return v
+        try {
+            return JSON.stringify(v, null, 2)
+        } catch {
+            return String(v)
+        }
+    }, [])
+
+    const [structuredOutputState, setStructuredOutputState] = useState<string>(() => {
+        if (schema) return toPrettyString(schema)
+        const seed = constructJsonFromSchema(selectedOption?.config.json_schema, {
+            name: "Schema",
+            description: "A description of the schema",
+            strict: false,
+            schema: {type: "object", properties: {}},
+        })
+        return toPrettyString(seed)
+    })
 
     useEffect(() => {
-        if (!!selectedOption?.config.json_schema && !schema) {
-            const obj = constructJsonFromSchema(selectedOption?.config.json_schema, {
+        // Seed once when switching to json_schema and there is no existing value
+        if (!!selectedOption?.config?.json_schema && !schema) {
+            const obj = constructJsonFromSchema(selectedOption.config.json_schema, {
                 name: "MySchema",
                 description: "A description of the schema",
                 strict: false,
-                schema: {
-                    type: "object",
-                    properties: {},
-                },
+                schema: {type: "object", properties: {}},
             })
-
-            setStructuredOutputState(JSON.stringify(obj, null, 2))
+            const pretty = toPrettyString(obj)
+            if (pretty && pretty !== structuredOutputState) {
+                setStructuredOutputState(pretty)
+            }
         }
-    }, [selectedOption?.config?.json_schema])
+    }, [selectedOption?.config?.json_schema, schema, structuredOutputState, toPrettyString])
 
     useEffect(() => {
-        setStructuredOutputState(value?.json_schema)
-    }, [value?.json_schema])
+        // Sync only when upstream value is present
+        if (value?.json_schema != null) {
+            const pretty = toPrettyString(value.json_schema)
+            if (pretty !== structuredOutputState) {
+                setStructuredOutputState(pretty)
+            }
+        }
+    }, [value?.json_schema, toPrettyString, structuredOutputState])
 
     useEffect(() => {
         if (selectedOption?.value === "json_schema") {
@@ -76,13 +92,38 @@ const PlaygroundOutputControl = ({
         }
     }, [selectedOption?.value])
 
+    // Ensure modal opens when switching to json_schema regardless of seed presence
+    const prevTypeRef = useRef<string | undefined>(value?.type)
+    useEffect(() => {
+        const prev = prevTypeRef.current
+        if (value?.type === "json_schema" && prev !== "json_schema") {
+            console.debug("[OutputControl] type transition -> json_schema; opening modal")
+            setModalState(true)
+        }
+        prevTypeRef.current = value?.type
+    }, [value?.type])
+
+    // One-shot global fail-safe to reopen modal after possible remounts
+    useEffect(() => {
+        const flag = (window as any).__pgOpenJsonSchemaOnce
+        // Relax match to variant-level to avoid unstable propertyId mismatches
+        if (flag && value?.type === "json_schema" && flag === (controlVariantId || true)) {
+            console.debug("[OutputControl] open via global flag (variant)", {
+                variant: controlVariantId,
+            })
+            setModalState(true)
+            ;(window as any).__pgOpenJsonSchemaOnce = null
+        }
+    }, [controlVariantId, controlPropertyId, value?.type])
+
     const saveChanges = useCallback(() => {
         editor.read(() => {
             const test = $getEditorCodeAsString(editor)
 
             setModalState(false)
+            // Commit json_schema type and schema together
             handleChange({
-                type: selectedOption?.value,
+                type: "json_schema",
                 json_schema: tryParsePartialJson(test),
             })
         })
@@ -107,6 +148,7 @@ const PlaygroundOutputControl = ({
                     "[&_.ant-btn]:!rounded-l-none": !!correctedStructuredOutput,
                 },
             ])}
+            viewOnly
         >
             <Tooltip title={"Output schema"}>
                 <div>
@@ -114,11 +156,37 @@ const PlaygroundOutputControl = ({
                         label={metadata.title || ""}
                         options={metadata.options}
                         value={value?.type}
-                        onChange={(type) =>
-                            handleChange({
-                                type,
-                            })
-                        }
+                        disabled={viewOnly}
+                        onChange={(type) => {
+                            if (type === "json_schema") {
+                                const jsonOpt = metadata.options.find(
+                                    (o: any) => o.value === "json_schema",
+                                ) as any
+                                const seed =
+                                    value?.json_schema ??
+                                    constructJsonFromSchema(jsonOpt?.config?.json_schema, {
+                                        name: "Schema",
+                                        description: "A description of the schema",
+                                        strict: false,
+                                        schema: {type: "object", properties: {}},
+                                    })
+                                const pretty = toPrettyString(seed)
+                                if (pretty)
+                                    setStructuredOutputState(pretty)
+                                    // Use variant-level key to survive propertyId churn on first write
+                                ;(window as any).__pgOpenJsonSchemaOnce = controlVariantId || true
+
+                                // Open modal immediately so it's not lost on re-mount
+                                setModalState(true)
+                                // Commit locally to mark draft and reflect selection
+                                handleChange({
+                                    type: "json_schema",
+                                    json_schema: tryParsePartialJson(pretty),
+                                })
+                                return
+                            }
+                            handleChange({type})
+                        }}
                         className={clsx([
                             "[&.ant-select-sm]:h-[24px] [&_.ant-select-selection-item]:!text-[12px]",
                             "[&.ant-select-sm]:!w-fit",
@@ -136,6 +204,7 @@ const PlaygroundOutputControl = ({
                     size="small"
                     className="-ml-[1px] z-[1] hover:z-[2]"
                     onClick={() => setModalState(true)}
+                    disabled={viewOnly}
                 >
                     {correctedStructuredOutput?.name || "Unnamed"}
                 </Button>
@@ -145,7 +214,7 @@ const PlaygroundOutputControl = ({
                 open={modalState}
                 onCancel={() => {
                     setModalState(false)
-                    setStructuredOutputState(schema || structuredOutputState)
+                    // Keep current local draft selection; user can switch back explicitly
                 }}
                 classNames={{
                     content: "max-h-[80dvh] overflow-hidden flex flex-col",

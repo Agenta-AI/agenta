@@ -1,5 +1,4 @@
 import {SWRConfig, type SWRConfiguration} from "swr"
-import {SWRDevTools} from "swr-devtools"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 
@@ -28,11 +27,7 @@ const config: SWRConfiguration = {
 
 const AgSWRConfig = ({children, config: passedConfig = {}}: AgSWRConfigProps) => {
     const mergedConfig = {...config, ...passedConfig}
-    return (
-        <SWRDevTools>
-            <SWRConfig value={mergedConfig}>{children}</SWRConfig>
-        </SWRDevTools>
-    )
+    return <SWRConfig value={mergedConfig}>{children}</SWRConfig>
 }
 
 export default AgSWRConfig

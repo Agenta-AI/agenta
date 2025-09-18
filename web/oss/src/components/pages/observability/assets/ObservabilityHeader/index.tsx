@@ -7,16 +7,15 @@ import dynamic from "next/dynamic"
 
 import {SortResult} from "@/oss/components/Filters/Sort"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import {getAppValues} from "@/oss/contexts/app.context"
-import {useObservabilityData} from "@/oss/contexts/observability.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
+import {getAppValues} from "@/oss/state/app"
+import {useObservability} from "@/oss/state/newObservability"
 
-import {TestsetTraceData} from "../../drawer/TestsetDrawer/assets/types"
 import {FILTER_COLUMNS} from "../constants"
 import {ObservabilityHeaderProps} from "../types"
 
@@ -24,13 +23,8 @@ const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns")
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
-const ObservabilityHeader = ({
-    setEditColumns,
-    selectedRowKeys,
-    setTestsetDrawerData,
-    editColumns,
-    columns,
-}: ObservabilityHeaderProps) => {
+const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
 
     const {
@@ -49,7 +43,11 @@ const ObservabilityHeader = ({
         setPagination,
         fetchTraces,
         fetchAnnotations,
-    } = useObservabilityData()
+        selectedRowKeys,
+        setTestsetDrawerData,
+        editColumns,
+        setEditColumns,
+    } = useObservability()
 
     useEffect(() => {
         const handleScroll = () => {
@@ -168,9 +166,9 @@ const ObservabilityHeader = ({
         })
 
         if (extractData.length > 0) {
-            setTestsetDrawerData(extractData as TestsetTraceData[])
+            setTestsetDrawerData(extractData)
         }
-    }, [traces, selectedRowKeys])
+    }, [traces, selectedRowKeys, setTestsetDrawerData])
 
     const onExport = useCallback(async () => {
         try {

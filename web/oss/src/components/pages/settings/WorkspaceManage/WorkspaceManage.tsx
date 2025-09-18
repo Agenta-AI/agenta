@@ -1,20 +1,17 @@
 import {useEffect, useMemo, useState, type FC} from "react"
 
 import {GearSix, PencilSimple, Plus} from "@phosphor-icons/react"
-import {Button, Input, Space, Spin, Table, Tag, Typography, message} from "antd"
+import {Button, Input, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
-import {updateOrganization} from "@/oss/services/organization/api"
-import {fetchAllWorkspaceRoles, updateWorkspace} from "@/oss/services/workspace/api"
+import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {useUpdateWorkspaceName, useWorkspaceMembers} from "@/oss/state/workspace"
 
 import AvatarWithLabel from "./assets/AvatarWithLabel"
 import {Actions, Roles} from "./cellRenderers"
@@ -24,15 +21,15 @@ const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr
 
 const WorkspaceManage: FC = () => {
     const {user: signedInUser} = useProfileData()
-    const {selectedOrg, setSelectedOrg, loading, refetch} = useOrgData()
-    const [searchTerm, setSearchTerm] = useState("")
+    const {selectedOrg, loading, refetch} = useOrgData()
+    const {updateWorkspaceName} = useUpdateWorkspaceName()
+    const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInvitedUserLinkModalOpen, setIsInvitedUserLinkModalOpen] = useState(false)
     const [invitedUserData, setInvitedUserData] = useState<{email: string; uri: string}>({
         email: "",
         uri: "",
     })
-    const setRoles = useAtom(workspaceRolesAtom)[1]
     const [queryInviteModalOpen, setQueryInviteModalOpen] = useQueryParam("inviteModal")
 
     const orgId = selectedOrg?.id
@@ -45,21 +42,6 @@ const WorkspaceManage: FC = () => {
     useEffect(() => {
         setWorkspaceNameInput(workspace?.name || "")
     }, [workspace?.name])
-
-    const members = workspace?.members || []
-
-    useEffect(() => {
-        fetchAllWorkspaceRoles().then(setRoles).catch(console.error)
-    }, [])
-
-    const filteredMembers = useMemo(() => {
-        if (searchTerm) {
-            return members.filter((member) =>
-                member.user.email.toLowerCase().includes(searchTerm.toLowerCase()),
-            )
-        }
-        return members
-    }, [members, searchTerm])
 
     const columns = useMemo(
         () =>
@@ -165,30 +147,16 @@ const WorkspaceManage: FC = () => {
 
     const handleSaveWorkspaceName = async () => {
         if (!workspaceId || !orgId) return
-        try {
-            await Promise.all([
-                updateWorkspace({orgId, workspaceId, name: workspaceNameInput}),
-                updateOrganization(orgId, workspaceNameInput),
-            ])
-            setSelectedOrg((prev) =>
-                prev
-                    ? {
-                          ...prev,
-                          name: workspaceNameInput,
-                          default_workspace: {
-                              ...prev.default_workspace,
-                              name: workspaceNameInput,
-                          },
-                      }
-                    : prev,
-            )
-            refetch()
-            message.success("Workspace renamed")
-            setIsEditingName(false)
-        } catch (error) {
-            console.error(error)
-            message.error("Failed to rename workspace")
-        }
+
+        await updateWorkspaceName({
+            orgId,
+            workspaceId,
+            name: workspaceNameInput,
+            onSuccess: () => {
+                // Only handle UI state - workspace data is updated by the mutation atom
+                setIsEditingName(false)
+            },
+        })
     }
 
     return (
@@ -235,6 +203,7 @@ const WorkspaceManage: FC = () => {
                     placeholder="Search"
                     className="w-[400px]"
                     allowClear
+                    value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
 
@@ -250,6 +219,7 @@ const WorkspaceManage: FC = () => {
             <Spin spinning={loading}>
                 <Table<WorkspaceMember>
                     dataSource={filteredMembers}
+                    rowKey={(record) => record.user.id}
                     columns={columns}
                     pagination={false}
                     bordered

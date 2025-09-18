@@ -1,4 +1,3 @@
-import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getTagColors} from "@/oss/lib/helpers/colors"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
@@ -12,11 +11,12 @@ import webhookImg from "@/oss/media/link.png"
 import regexImg from "@/oss/media/programming.png"
 import exactMatchImg from "@/oss/media/target.png"
 import similarityImg from "@/oss/media/transparency.png"
+import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
 //  - create: POST data to server
 export const createEvaluator = async (evaluatorPayload: EvaluatorResponseDto<"payload">) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     try {
         const data = await axios.post(
@@ -48,7 +48,7 @@ const evaluatorIconsMap = {
 //Evaluators
 export const fetchAllEvaluators = async () => {
     const tagColors = getTagColors()
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     const response = await axios.get(`/evaluators?project_id=${projectId}`)
     const evaluators = (response.data || [])
@@ -66,7 +66,7 @@ export const fetchAllEvaluators = async () => {
 // Evaluator Configs
 export const fetchAllEvaluatorConfigs = async (appId: string) => {
     const tagColors = getTagColors()
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     const response = await axios.get(`/evaluators/configs?project_id=${projectId}`, {
         params: {app_id: appId},
@@ -81,7 +81,7 @@ export const fetchAllEvaluatorConfigs = async (appId: string) => {
 
 export type CreateEvaluationConfigData = Omit<EvaluatorConfig, "id" | "created_at">
 export const createEvaluatorConfig = async (appId: string, config: CreateEvaluationConfigData) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     return axios.post(`/evaluators/configs?project_id=${projectId}`, {
         ...config,
@@ -93,13 +93,13 @@ export const updateEvaluatorConfig = async (
     configId: string,
     config: Partial<CreateEvaluationConfigData>,
 ) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     return axios.put(`/evaluators/configs/${configId}?project_id=${projectId}`, config)
 }
 
 export const deleteEvaluatorConfig = async (configId: string) => {
-    const {projectId} = getCurrentProject()
+    const {projectId} = getProjectValues()
 
     return axios.delete(`/evaluators/configs/${configId}?project_id=${projectId}`)
 }

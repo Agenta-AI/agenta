@@ -105,26 +105,30 @@ export const createMessageFromSchema = (
                                         }
                                     } else if (item.type === "image_url") {
                                         const imageOptionMetadata = itemMetadata.options?.find(
-                                            (opt) => "imageUrl" in opt.properties,
+                                            (opt) =>
+                                                "image_url" in opt.properties ||
+                                                "imageUrl" in opt.properties,
                                         )
 
                                         const imageBase =
                                             createObjectFromMetadata(imageOptionMetadata)
+                                        const imageProp = (imageBase as any).image_url ||
+                                            (imageBase as any).imageUrl || {url: {}, detail: {}}
 
-                                        generatedItem.imageUrl = {
-                                            ...imageBase.imageUrl,
+                                        generatedItem.image_url = {
+                                            ...imageProp,
                                             url: {
-                                                ...imageBase.imageUrl?.url,
+                                                ...imageProp?.url,
                                                 value: item.image_url?.url || "",
                                             },
                                             detail: {
-                                                ...imageBase.imageUrl?.detail,
+                                                ...imageProp?.detail,
                                                 value: item.image_url?.detail || "auto",
                                             },
                                         }
 
-                                        generatedItem.__metadata = imageBase.__metadata
-                                        generatedItem.__id = imageBase.__id
+                                        generatedItem.__metadata = (imageBase as any).__metadata
+                                        generatedItem.__id = (imageBase as any).__id
                                     }
 
                                     return generatedItem
@@ -142,6 +146,12 @@ export const createMessageFromSchema = (
                         newValue.value[0].type.value = "text"
                         value = newValue
                     }
+                } else {
+                    value = {
+                        __id: generateId(),
+                        __metadata: hashMetadata(propMetadata),
+                        value,
+                    }
                 }
             } else if (key === "toolCalls") {
                 defaultValue = undefined
@@ -156,7 +166,12 @@ export const createMessageFromSchema = (
 
             value = value || defaultValue
             if (key === "content") {
-                if (!value || !value.value) {
+                if (
+                    value === undefined ||
+                    value === null ||
+                    value.value === null ||
+                    value.value === undefined
+                ) {
                     const contentMetadata = getMetadataLazy(propMetadata.__metadata)
                     const objectTypeMetadata = extractObjectSchemaFromMetadata(
                         contentMetadata || propMetadata,
@@ -246,7 +261,7 @@ export const constructChatHistory = ({
     includeResults = false,
 }: {
     messageRow?: PlaygroundStateData["generationData"]["messages"]["value"][number]
-    messageId: string
+    messageId?: string
     variantId: string
     includeLastMessage?: boolean
     includeResults?: boolean
@@ -255,9 +270,9 @@ export const constructChatHistory = ({
     const results = []
     const allMetadata = getAllMetadata()
 
-    if (messageRow) {
+    if (messageRow && messageRow.history?.value) {
         for (const historyItem of messageRow.history.value) {
-            let userMessage = extractValueByMetadata(historyItem, allMetadata)
+            let userMessage = extractValueByMetadata(historyItem, allMetadata, true)
             const messageMetadata = getMetadataLazy<ObjectMetadata>(
                 historyItem.__metadata as string,
             )
@@ -273,23 +288,30 @@ export const constructChatHistory = ({
             }
 
             if (messageMetadata) {
-                userMessage = checkValidity(historyItem, messageMetadata) ? userMessage : undefined
+                const isValid = checkValidity(historyItem, messageMetadata)
 
-                if (historyItem.__id === messageId) {
+                userMessage = isValid ? userMessage : undefined
+
+                // If messageId is provided and matches, handle the specific message logic
+                if (messageId && historyItem.__id === messageId) {
                     if (includeLastMessage) {
                         constructedHistory.push(userMessage)
                     }
                     break
                 }
 
-                constructedHistory.push(userMessage)
+                // Always add user message when no specific messageId or when messageId doesn't match
+                if (!messageId || historyItem.__id !== messageId) {
+                    constructedHistory.push(userMessage)
+                }
 
                 const variantResponses = historyItem.__runs?.[variantId]?.messages
                     ? historyItem.__runs?.[variantId]?.messages
                     : [historyItem.__runs?.[variantId]?.message]
 
                 for (const variantResponse of variantResponses) {
-                    if (variantResponse?.__id === messageId && !includeLastMessage) {
+                    // Only break for variant responses if we have a specific messageId and it matches
+                    if (messageId && variantResponse?.__id === messageId && !includeLastMessage) {
                         break
                     }
                     let llmResponse = extractValueByMetadata(variantResponse, allMetadata)

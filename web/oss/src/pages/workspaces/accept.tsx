@@ -6,10 +6,10 @@ import {useLocalStorage} from "usehooks-ts"
 
 import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProjectData} from "@/oss/contexts/project.context"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
+import {useOrgData} from "@/oss/state/org"
+import {useProjectData} from "@/oss/state/project"
 
 const Accept: FC = () => {
     const [invite, , removeInvite] = useLocalStorage<any>("invite", {})
@@ -35,7 +35,16 @@ const Accept: FC = () => {
         if (!loadingOrgs && !loadingProjects && !accept.current && orgId && token) {
             accept.current = true
             try {
-                await acceptWorkspaceInvite({token, orgId, workspaceId, projectId, email})
+                await acceptWorkspaceInvite(
+                    {
+                        token,
+                        orgId,
+                        workspaceId,
+                        projectId,
+                        email,
+                    },
+                    true,
+                )
 
                 refetchOrganization()
                 refetchProject()
@@ -49,17 +58,24 @@ const Accept: FC = () => {
                 message.success("Joined workspace!")
                 if (isSurvey) {
                     await router.push("/post-signup")
-                } else if (!isDemo()) {
-                    await router.push("/auth")
                 } else {
                     await router.push("/apps")
                 }
-            } catch (error) {
-                console.error(error)
+            } catch (error: any) {
+                // Treat idempotent scenarios (already a member / already accepted) as success
+                const alreadyMember =
+                    error?.response?.status === 409 ||
+                    /already a member/i.test(error?.response?.data?.detail || "") ||
+                    /already a member/i.test(error?.message || "")
+
+                if (alreadyMember) {
+                    message.info("You are already a member of this workspace")
+                } else {
+                    console.error(error)
+                }
+
                 if (isSurvey) {
                     await router.push("/post-signup")
-                } else if (!isDemo()) {
-                    await router.push("/auth")
                 } else {
                     await router.push("/apps")
                 }
@@ -76,8 +92,4 @@ const Accept: FC = () => {
     return <ContentSpinner />
 }
 
-export default () => (
-    <ProtectedRoute>
-        <Accept />
-    </ProtectedRoute>
-)
+export default () => <Accept />

@@ -1,9 +1,5 @@
-import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
-import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
-import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import {useCallback, useEffect, useMemo, useState} from "react"
+
 import {mergeRegister} from "@lexical/utils"
 import {
     BracketsCurly,
@@ -20,8 +16,16 @@ import {Button, MenuProps} from "antd"
 import clsx from "clsx"
 import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
-import {useCallback, useEffect, useMemo, useState} from "react"
+
+import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
+import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
+import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
+import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
+import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
+import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+
 import {checkIsHTML, checkIsJSON, checkIsYAML, getDisplayedContent} from "../assets/helper"
+
 import {Format, SimpleSharedEditorProps} from "./types"
 
 const Dropdown = dynamic(() => import("antd").then((mod) => mod.Dropdown), {ssr: false})

@@ -1,19 +1,20 @@
 import {useEffect, useState} from "react"
 
 import {Alert, Spin} from "antd"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
 import {useLocalStorage} from "usehooks-ts"
 
-import {LS_ORG_KEY} from "@/oss/contexts/org.context"
-import {useOrgData} from "@/oss/contexts/org.context"
-import {useProfileData} from "@/oss/contexts/profile.context"
-import {useProjectData} from "@/oss/contexts/project.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
-import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
+import {selectedOrgIdAtom} from "@/oss/state/org"
+import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {useProjectData} from "@/oss/state/project"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
 
@@ -23,6 +24,7 @@ const Callback = () => {
     const {reset: resetProjectData} = useProjectData()
     const router = useRouter()
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
+    const setSelectedOrgId = useSetAtom(selectedOrgIdAtom)
 
     const [invite] = useLocalStorage("invite", {})
     const isInvitedUser = invite && Object.keys(invite).length > 0
@@ -55,7 +57,8 @@ const Callback = () => {
                 resetProfileData()
                 resetOrgData()
                 resetProjectData()
-                localStorage.setItem(LS_ORG_KEY, "")
+                // Clear selected org via atom to keep storage in sync
+                setSelectedOrgId(null)
                 setMessage({message: "Verification successful", type: "success"})
                 const isNewUser =
                     isDemo() &&

@@ -1,84 +1,51 @@
-import {useEffect} from "react"
+import {useCallback} from "react"
 
 import {Skeleton, Typography} from "antd"
+import clsx from "clsx"
 import {useRouter} from "next/router"
-import {createUseStyles} from "react-jss"
 
 import DeploymentCard from "@/oss/components/DeploymentCard"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {Environment, JSSTheme} from "@/oss/lib/Types"
+import type {Environment} from "@/oss/lib/Types"
+import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
+import {getAppValues} from "@/oss/state/app"
 
 const {Title} = Typography
 
-interface DeploymentOverviewProps {
-    variants: EnhancedVariant[]
-    isDeploymentLoading: boolean
-    environments: Environment[]
-    loadEnvironments: () => Promise<void>
+interface WrappedDeploymentCardProps {
+    env: Environment
+}
+const WrappedDeploymentCard = ({env}: WrappedDeploymentCardProps) => {
+    const router = useRouter()
+    const handleClick = useCallback(() => {
+        const appId = getAppValues()?.currentApp?.app_id
+        router.push({
+            pathname: `/apps/${appId}/deployments`,
+            query: {
+                selectedEnvName: env.name,
+            },
+        })
+    }, [env?.name])
+
+    return <DeploymentCard onClick={handleClick} env={env} />
 }
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    container: {
-        display: "flex",
-        flexDirection: "column",
-        gap: theme.paddingXS,
-        "& > h1.ant-typography": {
-            fontSize: theme.fontSize,
-        },
-    },
-    cardContainer: {
-        display: "flex",
-        gap: theme.padding,
-    },
-}))
-
-const DeploymentOverview = ({
-    variants,
-    isDeploymentLoading,
-    environments,
-    loadEnvironments,
-}: DeploymentOverviewProps) => {
-    const classes = useStyles()
-    const router = useRouter()
-    const appId = router.query.app_id as string
-
-    useEffect(() => {
-        if (!appId) return
-        loadEnvironments()
-    }, [appId, loadEnvironments])
+const DeploymentOverview = () => {
+    const {environments, isEnvironmentsLoading: isDeploymentLoading} = useEnvironments()
 
     return (
-        <div className={classes.container}>
+        <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
             <Title>Deployment</Title>
 
             {isDeploymentLoading ? (
                 <div className="flex gap-2">
-                    {Array.from({length: 3}).map((_, index) => (
+                    {Array.from({length: 3}).map((_: undefined, index: number) => (
                         <Skeleton key={index} />
                     ))}
                 </div>
             ) : (
-                <div className={classes.cardContainer}>
-                    {environments.map((env, index) => {
-                        const selectedDeployedVariant = variants?.find(
-                            (variant) => variant?.id === env.deployed_app_variant_revision_id,
-                        )
-
-                        return (
-                            <DeploymentCard
-                                key={index}
-                                onClick={() => {
-                                    router.push({
-                                        pathname: `/apps/${appId}/deployments`,
-                                        query: {
-                                            selectedEnvName: env.name,
-                                        },
-                                    })
-                                }}
-                                selectedDeployedVariant={selectedDeployedVariant}
-                                env={env}
-                            />
-                        )
+                <div className={clsx(["flex gap-4"])}>
+                    {environments.map((env: Environment, index: number) => {
+                        return <WrappedDeploymentCard key={index} env={env} />
                     })}
                 </div>
             )}

@@ -1,26 +1,21 @@
-import {Dispatch, SetStateAction, useState} from "react"
+import {Dispatch, SetStateAction} from "react"
 
 import {PlusOutlined} from "@ant-design/icons"
 import {Cards, Table} from "@phosphor-icons/react"
 import {Button, Flex, Input, Pagination, Radio, Space, Typography} from "antd"
-import dynamic from "next/dynamic"
+import {useSetAtom} from "jotai"
 import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
 
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
+import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
+import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import usePagination from "@/oss/hooks/usePagination"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
 
 import AppCard from "./AppCard"
 import AppTable from "./AppTable"
 import EmptyAppView from "./EmptyAppView"
-
-const DeleteAppModal: any = dynamic(
-    () => import("@/oss/components/pages/app-management/modals/DeleteAppModal"),
-)
-const EditAppModal: any = dynamic(
-    () => import("@/oss/components/pages/app-management/modals/EditAppModal"),
-)
 
 interface ApplicationManagementSectionProps {
     selectedOrg: any
@@ -69,9 +64,8 @@ const ApplicationManagementSection = ({
         "app_management_display",
         "list",
     )
-    const [selectedApp, setSelectedApp] = useState<ListAppsItem | null>(null)
-    const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
-    const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
+    const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
+    const openEditAppModal = useSetAtom(openEditAppModalAtom)
 
     const {
         paginatedItems: paginatedApps,
@@ -127,9 +121,8 @@ const ApplicationManagementSection = ({
                             {appMsgDisplay === "list" ? (
                                 <AppTable
                                     filteredApps={paginatedApps}
-                                    setIsDeleteAppModalOpen={setIsDeleteAppModalOpen}
-                                    setIsEditAppModalOpen={setIsEditAppModalOpen}
-                                    setSelectedApp={setSelectedApp}
+                                    openDeleteAppModal={openDeleteAppModal}
+                                    openEditAppModal={openEditAppModal}
                                 />
                             ) : paginatedApps.length ? (
                                 <div className={classes.cardsList}>
@@ -137,9 +130,8 @@ const ApplicationManagementSection = ({
                                         <div key={index}>
                                             <AppCard
                                                 app={app}
-                                                setIsDeleteAppModalOpen={setIsDeleteAppModalOpen}
-                                                setIsEditAppModalOpen={setIsEditAppModalOpen}
-                                                setSelectedApp={setSelectedApp}
+                                                openDeleteAppModal={openDeleteAppModal}
+                                                openEditAppModal={openEditAppModal}
                                             />
                                         </div>
                                     ))}
@@ -162,22 +154,6 @@ const ApplicationManagementSection = ({
                     <EmptyAppView setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal} />
                 )}
             </div>
-
-            {selectedApp && (
-                <>
-                    <DeleteAppModal
-                        open={isDeleteAppModalOpen}
-                        onCancel={() => setIsDeleteAppModalOpen(false)}
-                        appDetails={selectedApp}
-                    />
-
-                    <EditAppModal
-                        open={isEditAppModalOpen}
-                        onCancel={() => setIsEditAppModalOpen(false)}
-                        appDetails={selectedApp}
-                    />
-                </>
-            )}
         </>
     )
 }

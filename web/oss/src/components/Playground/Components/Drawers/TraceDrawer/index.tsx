@@ -1,74 +1,41 @@
-import {cloneElement, isValidElement, useCallback, useEffect, useMemo, useState} from "react"
+import {cloneElement, isValidElement, useCallback} from "react"
 
 import {TreeView} from "@phosphor-icons/react"
 import {Button} from "antd"
 import clsx from "clsx"
+import {getDefaultStore, useSetAtom} from "jotai"
 
-import {traceDrawerJotaiStore, traceDrawerAtom} from "./store/traceDrawerStore"
+import {openTraceDrawerAtom} from "./store/traceDrawerStore"
 import {TraceDrawerButtonProps} from "./types"
-import {buildNodeTree, observabilityTransformer} from "@/oss/lib/helpers/observability_helpers"
-import {_AgentaRootsResponse, AgentaNodeDTO} from "@/oss/services/observability/types"
-import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
-import useAnnotations from "@/oss/lib/hooks/useAnnotations"
-import {useAtomValue} from "jotai"
+
+const store = getDefaultStore()
 
 const TraceDrawerButton = ({
     label,
     icon = true,
     children,
     result,
+    navigationIds,
     ...props
 }: TraceDrawerButtonProps) => {
-    const [selected, setSelected] = useState("")
-    const {open} = useAtomValue(traceDrawerAtom)
-    const traceSpans = result?.response?.tree
-
-    const {data: annotations} = useAnnotations({
-        queries: {
-            annotation: {
-                links:
-                    traceSpans?.nodes?.map((node) => ({
-                        trace_id: node?.trace_id,
-                        span_id: node?.span_id,
-                    })) || [],
-            },
-        },
-        waitUntil: !open,
-    })
-
-    const traces = useMemo(() => {
-        if (traceSpans) {
-            const rawTraces = traceSpans.nodes
-                .flatMap((node) => buildNodeTree(node as AgentaNodeDTO))
-                .flatMap((item: any) => observabilityTransformer(item))
-            return attachAnnotationsToTraces(rawTraces, annotations || [])
-        }
-        return []
-    }, [traceSpans, annotations])
+    const openDrawer = useSetAtom(openTraceDrawerAtom, {store})
 
     const handleOpen = useCallback(() => {
-        traceDrawerJotaiStore.set(traceDrawerAtom, {open: true, result})
-    }, [])
-
-    const activeTrace = useMemo(
-        () =>
-            traces
-                ? traces[0] ?? null
-                : result?.error
-                  ? ({
-                        exception: result?.metadata?.rawError,
-                        node: {name: "Exception"},
-                        status: {code: "ERROR"},
-                    } as _AgentaRootsResponse)
-                  : null,
-        [traces],
-    )
-
-    useEffect(() => {
-        if (!selected) {
-            setSelected(activeTrace?.node.id ?? "")
-        }
-    }, [activeTrace, selected])
+        const nodes = (result as any)?.response?.tree?.nodes
+        const first = Array.isArray(nodes) ? nodes[0] : undefined
+        // Support both flattened and nested shapes
+        const nodeId =
+            (first as any)?.node?.id ||
+            (first as any)?.id ||
+            (first as any)?.trace_id ||
+            (first as any)?.traceId ||
+            undefined
+        const payload =
+            navigationIds !== undefined
+                ? {...(result as any), navigationIds, activeTraceId: nodeId}
+                : {...(result as any), activeTraceId: nodeId}
+        openDrawer({result: payload})
+    }, [openDrawer, result, navigationIds])
 
     const hasTrace = !!result?.response?.tree?.nodes?.length || !!result?.error
 

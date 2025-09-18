@@ -8,14 +8,14 @@ import {useRouter} from "next/router"
 import EmptyComponent from "@/oss/components/EmptyComponent"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 
-import {DeploymentRevisionWithVariant} from "../.."
+import {DeploymentRevisionWithVariant} from "../../atoms"
 
 import {getColumns} from "./assets/getDeploymentColumns"
 
 interface DeploymentTableProps {
-    handleFetchRevisionConfig: (revisionId: string) => Promise<void>
     setSelectedRevisionRow: React.Dispatch<
         React.SetStateAction<DeploymentRevisionWithVariant | undefined>
     >
@@ -24,17 +24,18 @@ interface DeploymentTableProps {
     setSelectedVariantRevisionIdToRevert: React.Dispatch<React.SetStateAction<string>>
     envRevisions: DeploymentRevisions | undefined
     setIsSelectDeployVariantModalOpen: (value: React.SetStateAction<boolean>) => void
-    setQueryVariant: (val: string) => void
+    onOpenDrawer: (variantId: string) => void
 }
 
 const DeploymentTable = ({
-    handleFetchRevisionConfig,
+    revisions,
+    envRevisions,
+    isLoading,
     setSelectedRevisionRow,
     setIsRevertModalOpen,
-    revisions,
     setSelectedVariantRevisionIdToRevert,
-    envRevisions,
     setIsSelectDeployVariantModalOpen,
+    onOpenDrawer,
 }: DeploymentTableProps) => {
     const [_, setQueryRevision] = useQueryParam("revisions")
     const router = useRouter()
@@ -42,14 +43,13 @@ const DeploymentTable = ({
 
     const handleAssignRevisionId = useCallback((record: DeploymentRevisionWithVariant) => {
         setQueryRevision(
-            JSON.stringify([record.deployed_app_variant_revision ?? record.variant.id]),
+            buildRevisionsQueryParam([record.deployed_app_variant_revision ?? record.variant.id]),
         )
     }, [])
 
     const initialColumns = useMemo(
         () =>
             getColumns({
-                handleFetchRevisionConfig,
                 setSelectedRevisionRow,
                 setIsRevertModalOpen,
                 setSelectedVariantRevisionIdToRevert,
@@ -59,7 +59,6 @@ const DeploymentTable = ({
                 appId,
             }),
         [
-            handleFetchRevisionConfig,
             setSelectedRevisionRow,
             setIsRevertModalOpen,
             setSelectedVariantRevisionIdToRevert,
@@ -82,14 +81,16 @@ const DeploymentTable = ({
                 pageSize: 15,
                 showSizeChanger: true,
             }}
+            loading={isLoading}
             onRow={(record) => ({
                 className: "variant-table-row",
                 style: {cursor: "pointer"},
                 onClick: () => {
-                    handleFetchRevisionConfig(record.id)
                     setSelectedRevisionRow(record)
                     setSelectedVariantRevisionIdToRevert(record.deployed_app_variant_revision)
                     handleAssignRevisionId(record)
+                    const vid = record.deployed_app_variant_revision ?? record.variant?.id
+                    if (vid) onOpenDrawer(vid)
                 },
             })}
             locale={{

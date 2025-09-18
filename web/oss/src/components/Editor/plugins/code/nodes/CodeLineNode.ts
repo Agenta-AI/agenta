@@ -255,7 +255,6 @@ export class CodeLineNode extends ElementNode {
 
             for (const child of children) {
                 if (child === this) {
-                    // console.log(`📍 Node ${this.__key} calculated line: ${lineNumber}`)
                     return lineNumber
                 }
                 if (child.getType() === "code-line") {
@@ -322,8 +321,6 @@ export class CodeLineNode extends ElementNode {
         // Store line number on the element for use in event listener
         const lineNumber = this.calculateActualLineNumber()
         element.setAttribute("data-line-number", lineNumber.toString())
-
-        // console.log(`🏠 DOM created: Node ${latest.__key} -> Line ${lineNumber}`)
 
         return element
     }
@@ -396,9 +393,6 @@ export class CodeLineNode extends ElementNode {
         const prevLineNumber = parseInt(dom.getAttribute("data-line-number") || "1")
         if (currentLineNumber !== prevLineNumber) {
             dom.setAttribute("data-line-number", currentLineNumber.toString())
-            // console.log(
-            //     `🔄 Updated line number: ${prevLineNumber} → ${currentLineNumber} (node key: ${latest.__key})`,
-            // )
         }
 
         // Check for validation errors changes
@@ -423,11 +417,6 @@ export class CodeLineNode extends ElementNode {
 
             // Apply new validation error styling if errors exist
             if (currentValidationErrors.length > 0) {
-                // console.log(
-                //     `🔴 Applying validation errors to line ${currentLineNumber}:`,
-                //     currentValidationErrors.map((e) => `[${e.type}] ${e.message}`),
-                //     `(node key: ${latest.__key})`,
-                // )
                 const primaryError = currentValidationErrors[0]
                 dom.classList.add("validation-error")
                 dom.setAttribute("data-validation-error", primaryError.message)
