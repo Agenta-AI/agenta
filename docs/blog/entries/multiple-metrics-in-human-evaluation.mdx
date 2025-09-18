@@ -1,0 +1,27 @@
+---
+title: "Multiple Metrics in Human Evaluation"
+slug: multiple-metrics-in-human-evaluation
+date: 2025-09-09
+tags: [v0.51.0]
+---
+
+We spent the past months rethinking how evaluation should work. Today we're announcing one of the first big improvements.
+
+The fastest teams building LLM apps were using human evaluation to check their outputs before going live. Agenta was helping them do this in minutes.
+
+But we also saw that they were limited. You could only score the outputs with one metric.
+
+That's why we rebuilt the human evaluation workflow.
+
+Now you can set multiple evaluators and metrics and use them to score the outputs. This lets you evaluate the same output on different metrics like **relevance** or **completeness**. You can also create binary, numerical scores, or even use strings for **comments** or **expected answer**. 
+
+This unlocks a whole new set of use cases: 
+
+- Compare your prompts on multiple metrics and understand where you can improve.
+- Turn your annotations into test sets and use them in prompt engineering. For instance, you can add comments that help you later in improve your prompts.
+- Use human evaluation to bootstrap automatic evaluation. You can annotate your outputs with the expected answer or a rubic, then use it to set up an automatic evaluation.
+
+
+Watch the video below and read the [post](/changelog/multiple-metrics-in-human-evaluation) for more details. Or check out the [docs](/evaluation/human_evaluation) to learn how to use the new human evaluation workflow.
+
+---

@@ -1,12 +1,8 @@
 import {dereference} from "@scalar/openapi-parser"
 
-import {getCurrentProject} from "@/oss/contexts/project.context"
 import {getJWT} from "@/oss/services/api"
+import {getProjectValues} from "@/oss/state/project"
 
-import {initializeVariantInputs, updateVariantPromptKeys} from "./inputHelpers"
-import {transformToEnhancedVariant} from "./transformer/transformer"
-import {EnhancedVariant} from "./transformer/types"
-import {OpenAPISpec} from "./types/openapi"
 import {uriFixer} from "./utils"
 
 /**
@@ -17,19 +13,24 @@ import {uriFixer} from "./utils"
 export const fetchOpenApiSchemaJson = async (uri: string) => {
     const jwt = await getJWT()
     try {
-        const openapiJsonResponse = await fetch(
-            `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
-            {
-                headers: {
-                    "ngrok-skip-browser-warning": "1",
-                    ...(jwt
-                        ? {
-                              Authorization: `Bearer ${jwt}`,
-                          }
-                        : {}),
-                },
+        const ts = Date.now()
+        const base = `${uriFixer(uri)}/openapi.json${jwt ? `?project_id=${getProjectValues().projectId}` : ""}`
+        const url = `${base}${base.includes("?") ? "&" : "?"}_ts=${ts}`
+        const openapiJsonResponse = await fetch(url, {
+            // Prevent the browser or proxies from caching this request
+            cache: "no-store",
+            headers: {
+                "ngrok-skip-browser-warning": "1",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                Pragma: "no-cache",
+                Expires: "0",
+                ...(jwt
+                    ? {
+                          Authorization: `Bearer ${jwt}`,
+                      }
+                    : {}),
             },
-        )
+        })
         if (openapiJsonResponse.ok) {
             const responseJson = await openapiJsonResponse.json()
             const {schema, errors} = await dereference(responseJson)
@@ -73,6 +74,10 @@ export const findCustomWorkflowPath = async (
         const removedPath = paths.pop()
 
         const newPath = paths.join("/")
+        // Guard against pathological recursion (protocol-only like "http:" or empty)
+        if (!newPath || newPath.endsWith(":") || newPath === "http:" || newPath === "https:") {
+            return undefined
+        }
         return newPath
             ? await findCustomWorkflowPath(
                   newPath,
@@ -86,79 +91,73 @@ export const findCustomWorkflowPath = async (
     }
 
     try {
-        if (!uri || !uri.includes("//")) {
-            throw new Error("No uri found")
+        // Normalize relative URIs to absolute using window origin when available
+        let normalizedUri = uri
+        if (typeof normalizedUri === "string" && normalizedUri.startsWith("/")) {
+            const origin = (globalThis as any)?.location?.origin
+            if (origin) normalizedUri = `${origin}${normalizedUri}`
+        }
+        // Trim trailing slashes to avoid '//openapi.json'
+        normalizedUri = normalizedUri.replace(/\/+$/, "")
+        // Strip trailing openapi.json if provided as base
+        if (normalizedUri.endsWith("/openapi.json")) {
+            normalizedUri = normalizedUri.replace(/\/openapi\.json$/, "")
+        }
+        if (!normalizedUri || typeof normalizedUri !== "string") {
+            return undefined
+        }
+        // Guard: avoid fetching protocol-only strings like "http:" which produce http://openapi.json
+        if (!normalizedUri.includes("//")) {
+            return undefined
         }
 
-        const openapiJsonResponse = await fetch(
-            `${uri}${endpoint}${jwt ? `?project_id=${getCurrentProject().projectId}` : ""}`,
-            {
+        const endpointPath = normalizedUri.endsWith("/openapi.json") ? "" : endpoint
+        const url = `${normalizedUri}${endpointPath}${jwt ? `?project_id=${getProjectValues().projectId}` : ""}`
+        let openapiJsonResponse: Response | undefined
+        try {
+            openapiJsonResponse = await fetch(url, {
                 headers: {
                     "ngrok-skip-browser-warning": "1",
+                    "Cache-Control": "no-cache, no-store, must-revalidate",
+                    Pragma: "no-cache",
+                    Expires: "0",
                     ...(jwt
                         ? {
                               Authorization: `Bearer ${jwt}`,
                           }
                         : {}),
                 },
+                cache: "no-store",
                 signal,
-            },
-        )
+            })
+        } catch {
+            openapiJsonResponse = undefined
+        }
 
-        const data = await openapiJsonResponse.json()
-        if (!data || !openapiJsonResponse.ok) {
-            return await handleIncorrectUri(uri)
+        const data = await openapiJsonResponse?.json()
+        if (!data || !openapiJsonResponse?.ok) {
+            return await handleIncorrectUri(normalizedUri)
         } else {
             return {
                 routePath: removedPaths || "",
-                runtimePrefix: uri,
-                status: openapiJsonResponse.ok,
+                runtimePrefix: normalizedUri,
+                status: openapiJsonResponse?.ok,
             }
         }
     } catch (err) {
-        if (!uri.includes("//")) {
-            return undefined
-        } else {
-            return await handleIncorrectUri(uri)
+        if (typeof uri === "string") {
+            // If relative without leading slash, attempt origin + '/' + uri
+            if (!uri.includes("//") && !uri.startsWith("/")) {
+                const origin = (globalThis as any)?.location?.origin
+                if (origin) return await handleIncorrectUri(`${origin}/${uri}`)
+                return undefined
+            }
+            if (!uri.includes("//")) {
+                const origin = (globalThis as any)?.location?.origin
+                if (origin) return await handleIncorrectUri(`${origin}${uri}`)
+                return undefined
+            }
         }
-    }
-}
-
-/**
- * Transform a single variant using OpenAPI schema
- */
-export const transformVariant = (
-    variant: EnhancedVariant,
-    schema: OpenAPISpec,
-    appType?: string,
-) => {
-    try {
-        const enhancedVariant = transformToEnhancedVariant(variant, schema, appType)
-        // Update prompt keys and initialize inputs
-        // @ts-ignore
-        updateVariantPromptKeys(enhancedVariant)
-        // @ts-ignore
-        initializeVariantInputs(enhancedVariant, schema)
-        return enhancedVariant
-    } catch (err) {
-        console.error("Error transforming variant:", err)
-        throw err
-    }
-}
-
-/**
- * Transform multiple variants using OpenAPI schema
- */
-export const transformVariants = (
-    variants: EnhancedVariant[],
-    schema: OpenAPISpec,
-    appType?: string,
-): EnhancedVariant[] => {
-    try {
-        // @ts-ignore
-        return (variants || []).map((variant) => transformVariant(variant, schema, appType))
-    } catch (error) {
-        console.error("Error transforming variants:", error)
-        throw error
+        return await handleIncorrectUri(uri)
     }
 }

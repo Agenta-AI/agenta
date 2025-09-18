@@ -1,24 +1,23 @@
-import {Space, Tooltip, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import LabelValuePill from "@/oss/components/ui/LabelValuePill"
-import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
-import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {TracesWithAnnotations} from "@/oss/services/observability/types"
 
+import CostCell from "../components/CostCell"
+import DurationCell from "../components/DurationCell"
+import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"
+import NodeNameCell from "../components/NodeNameCell"
 import StatusRenderer from "../components/StatusRenderer"
-
-import {nodeTypeStyles} from "./constants"
+import TimestampCell from "../components/TimestampCell"
+import UsageCell from "../components/UsageCell"
 
 interface ObservabilityColumnsProps {
-    annotations: AnnotationDto[]
+    evaluatorSlugs: string[]
 }
 
-export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps) => {
+export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsProps) => {
     const columns: ColumnsType<TracesWithAnnotations> = [
         {
             title: "ID",
@@ -44,26 +43,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
                 style: {minWidth: 200},
             }),
             fixed: "left",
-            render: (_, record) => {
-                const {icon: Icon} = nodeTypeStyles[record.node.type ?? "default"]
-
-                return (
-                    <Space align="center" size={4}>
-                        <div className="grid place-items-center">
-                            <Icon size={16} />
-                        </div>
-                        <Typography>
-                            {record.node.name.length >= 15 ? (
-                                <Tooltip title={record.node.name} placement="bottom">
-                                    {record.node.name.slice(0, 15)}...
-                                </Tooltip>
-                            ) : (
-                                record.node.name
-                            )}
-                        </Typography>
-                    </Space>
-                )
-            },
+            render: (_, record) => <NodeNameCell name={record.node.name} type={record.node.type} />,
         },
         {
             title: "Span type",
@@ -110,50 +90,18 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             title: "Evaluators",
             key: "evaluators",
             align: "start",
-            children: Array.from(
-                new Set(annotations.map((a) => a.references?.evaluator?.slug).filter(Boolean)),
-            ).map((evaluatorSlug) => ({
+            children: evaluatorSlugs.map((evaluatorSlug) => ({
                 title: "",
                 key: evaluatorSlug,
                 onHeaderCell: () => ({
                     style: {display: "none"},
                 }),
-                render: (_, record) => {
-                    const metrics = record.aggregatedEvaluatorMetrics?.[evaluatorSlug || ""]
-                    if (!metrics) {
-                        return <span className="text-gray-500">–</span>
-                    }
-
-                    return (
-                        <div className="flex flex-col gap-[6px]">
-                            <div className="flex items-center justify-between">
-                                <Typography.Text className="text-[10px]">
-                                    {evaluatorSlug}
-                                </Typography.Text>
-
-                                <Typography.Text className="text-[10px]" type="secondary">
-                                    {Object.keys(metrics).length}{" "}
-                                    {Object.keys(metrics).length === 1 ? "metric" : "metrics"}
-                                </Typography.Text>
-                            </div>
-
-                            <div className="flex items-center gap-2 max-w-[450px] overflow-x-auto [&::-webkit-scrollbar]:!w-0">
-                                {Object.entries(metrics).map(([metricName, rawData]) => {
-                                    const data = rawData as {average?: number}
-
-                                    return (
-                                        <LabelValuePill
-                                            key={metricName}
-                                            label={metricName}
-                                            value={`μ ${data.average}`}
-                                            className="!min-w-fit"
-                                        />
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )
-                },
+                render: (_, record) => (
+                    <EvaluatorMetricsCell
+                        invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
+                        evaluatorSlug={evaluatorSlug}
+                    />
+                ),
             })),
         },
         {
@@ -164,15 +112,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
-            render: (_, record) => (
-                <div>
-                    {formatLatency(
-                        record?.metrics?.acc?.duration?.total
-                            ? record?.metrics?.acc?.duration?.total / 1000
-                            : null,
-                    )}
-                </div>
-            ),
+            render: (_, record) => <DurationCell ms={record?.metrics?.acc?.duration?.total} />,
         },
         {
             title: "Cost",
@@ -182,7 +122,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
-            render: (_, record) => <div>{formatCurrency(record.metrics?.acc?.costs?.total)}</div>,
+            render: (_, record) => <CostCell cost={record.metrics?.acc?.costs?.total} />,
         },
         {
             title: "Usage",
@@ -193,9 +133,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
-            render: (_, record) => (
-                <div>{formatTokenUsage(record.metrics?.acc?.tokens?.total)}</div>
-            ),
+            render: (_, record) => <UsageCell tokens={record.metrics?.acc?.tokens?.total} />,
         },
         {
             title: "Timestamp",
@@ -205,16 +143,7 @@ export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
-            render: (_, record) => {
-                return (
-                    <div>
-                        {formatDay({
-                            date: record.lifecycle?.created_at,
-                            outputFormat: "HH:mm:ss DD MMM YYYY",
-                        })}
-                    </div>
-                )
-            },
+            render: (_, record) => <TimestampCell timestamp={record.lifecycle?.created_at} />,
         },
         {
             title: "Status",

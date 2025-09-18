@@ -11,6 +11,7 @@ import {_AgentaRootsResponse, NodeStatusCode} from "@/oss/services/observability
 
 import {filterTree} from "../../assets/utils"
 import AvatarTreeContent from "../../components/AvatarTreeContent"
+import useTraceDrawer from "../hooks/useTraceDrawer"
 import TraceTreeSettings from "../TraceTreeSettings"
 
 import {useStyles} from "./assets/styles"
@@ -86,7 +87,7 @@ export const TreeContent = ({value, settings}: {value: _AgentaRootsResponse; set
     )
 }
 
-const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
+const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: TraceTreeProps) => {
     const classes = useStyles()
     const [searchValue, setSearchValue] = useState("")
 
@@ -96,11 +97,25 @@ const TraceTree = ({activeTrace, selected, setSelected}: TraceTreeProps) => {
         tokens: true,
     })
 
+    const {getTraceById, traces: allTraces} = useTraceDrawer()
+    const activeTrace = active || getTraceById(activeTraceId)
+
+    // When a child node is selected, anchor the tree to its top-level parent
+    const treeRoot = useMemo(() => {
+        if (!activeTrace) return undefined as any
+        const root = allTraces.find((t: any) => t?.root?.id === activeTrace?.root?.id)
+        return (root as any) || activeTrace
+    }, [activeTrace, allTraces])
+
     const filteredTree = useMemo(() => {
-        if (!searchValue.trim()) return activeTrace
-        const result = filterTree(activeTrace, searchValue)
-        return result || {...activeTrace, children: []}
-    }, [searchValue, activeTrace])
+        if (!searchValue.trim()) return treeRoot as any
+        const result = filterTree(treeRoot as any, searchValue)
+        return result || {...treeRoot, children: []}
+    }, [searchValue, treeRoot])
+
+    if (!activeTrace) {
+        return <div className="h-full overflow-hidden flex flex-col" />
+    }
 
     return (
         <div className={"h-full overflow-hidden flex flex-col"}>

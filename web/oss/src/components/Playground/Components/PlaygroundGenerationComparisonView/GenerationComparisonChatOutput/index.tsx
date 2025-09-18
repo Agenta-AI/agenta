@@ -1,139 +1,81 @@
-import {useCallback, useMemo} from "react"
+import {useMemo} from "react"
 
 import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
-import {findPropertyInObject} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
-import {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import TurnMessageAdapter from "@/oss/components/Playground/adapters/TurnMessageAdapter"
+// Shared placeholder for empty state
+import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygroundLayout"
+import {displayedVariantsAtom} from "@/oss/components/Playground/state/atoms"
+import {
+    generationInputRowIdsAtom,
+    resolvedGenerationResultAtomFamily,
+} from "@/oss/components/Playground/state/atoms/generationProperties"
+// import {inputRowIdsWithPropertiesCompatAtom} from "@/oss/state/generation/compat"
+import {generationRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {generationLogicalTurnIdsAtom} from "@/oss/state/generation/compat"
+import {chatTurnsByIdAtom, runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
+import {
+    addChatTurnAtom,
+    runChatTurnAtom,
+    cancelChatTurnAtom,
+} from "@/oss/state/newPlayground/chat/actions"
+import {
+    sessionTurnIdForVariantAtomFamily,
+    isCellRunningAtomFamily,
+} from "@/oss/state/newPlayground/chat/view"
 
-import {ObjectMetadata} from "../../../../../lib/shared/variant/genericTransformer/types"
-import GenerationChatRow, {
-    GenerationChatRowOutput,
-} from "../../PlaygroundGenerations/assets/GenerationChatRow"
+import LastTurnFooterControls from "../../ChatCommon/LastTurnFooterControls"
+import GenerationChatTurnNormalized from "../../PlaygroundGenerations/assets/GenerationChatTurnNormalized"
 import GenerationCompletionRow from "../../PlaygroundGenerations/assets/GenerationCompletionRow"
-import GenerationOutputText from "../../PlaygroundGenerations/assets/GenerationOutputText"
 
 import {GenerationComparisonChatOutputProps, GenerationComparisonChatOutputCellProps} from "./types"
 
+// No local schema plumbing; PromptMessageConfig derives structure internally
+
 const GenerationComparisonChatOutputCell = ({
     variantId,
-    historyId,
-    rowId,
+    turnId,
     variantIndex,
     isFirstRow,
-    isLastRow,
 }: GenerationComparisonChatOutputCellProps) => {
-    const {rerunChatOutput, messages, messageRow, inputRowIds, mutate} = usePlayground({
-        variantId,
-        registerToWebWorker: true,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const inputRows = state.generationData.inputs.value || []
+    const inputRowIds = useAtomValue(generationInputRowIdsAtom)
+    // Use the same list the renderer uses to decide "last" row
+    const allRowIds = useAtomValue(generationRowIdsAtom) as string[]
+    const isLastTurn = (allRowIds || [])[Math.max(0, (allRowIds || []).length - 1)] === turnId
 
-                const historyMessage = findPropertyInObject(state, historyId)
-                const messageRow = findPropertyInObject(state.generationData.messages.value, rowId)
-
-                const runs = !historyMessage?.__runs?.[variantId]
-                    ? undefined
-                    : historyMessage?.__runs?.[variantId]
-                      ? historyMessage?.__runs?.[variantId].messages
-                          ? historyMessage?.__runs?.[variantId].messages.map((message) => ({
-                                ...message,
-                                __result: historyMessage.__runs[variantId].__result,
-                                __isRunning: historyMessage.__runs[variantId].__isRunning,
-                            }))
-                          : [
-                                {
-                                    ...historyMessage.__runs[variantId].message,
-                                    __result: historyMessage.__runs[variantId].__result,
-                                    __isRunning: historyMessage.__runs[variantId].__isRunning,
-                                },
-                            ]
-                      : undefined
-
-                const inputRowIds = (inputRows || [])
-                    .filter((inputRow) => {
-                        return (
-                            Object.keys(
-                                (getMetadataLazy(inputRow.__metadata) as ObjectMetadata)
-                                    ?.properties,
-                            ).length > 0
-                        )
-                    })
-                    .map((inputRow) => inputRow.__id)
-
-                return {
-                    messages: runs,
-                    messageRow,
-                    inputRowIds,
-                }
-            },
-            [rowId, variantId, historyId],
-        ),
-    })
-
-    const handleDeleteMessage = useCallback(
-        (messageId: string) => {
-            mutate((clonedState) => {
-                if (!clonedState) return clonedState
-
-                if (!variantId) {
-                    const row = clonedState.generationData.messages.value.find(
-                        (v) => v.__id === rowId,
-                    )
-                    if (!row) return clonedState
-
-                    const isInput = row.history.value.findIndex((m) => m.__id === messageId)
-                    if (isInput !== -1) {
-                        row.history.value.splice(isInput, 1)
-                    } else {
-                        row.history.value.findIndex((m) => {
-                            return m.__runs?.[variantId]?.message?.__id === messageId
-                        })
-                    }
-                } else if (variantId) {
-                    const row = clonedState.generationData.messages.value.find(
-                        (v) => v.__id === rowId,
-                    )
-                    if (!row) return clonedState
-                    const isInput = row.history.value.findIndex((m) => {
-                        return m.__runs?.[variantId]?.message?.__id === messageId
-                    })
-                    if (isInput !== -1) {
-                        delete row.history.value[isInput].__runs?.[variantId]
-                    }
-                }
+    const displayedVariantIds = useAtomValue(displayedVariantsAtom)
+    const addTurn = useSetAtom(addChatTurnAtom)
+    const runTurn = useSetAtom(runChatTurnAtom)
+    const cancelTurn = useSetAtom(cancelChatTurnAtom)
+    const turnsById = useAtomValue(chatTurnsByIdAtom) as Record<string, any>
+    const userMessageId = useMemo(
+        () => (turnsById?.[turnId] as any)?.userMessage?.__id as string | undefined,
+        [turnsById, turnId],
+    )
+    const runStatusMap = useAtomValue(runStatusByRowRevisionAtom) as Record<string, any>
+    const resultHashes = useMemo(() => {
+        try {
+            const hashes = (displayedVariantIds || []).map((revId: string) => {
+                const entry = runStatusMap?.[`${turnId}:${revId}`]
+                return entry?.resultHash as string | undefined
             })
-        },
-        [variantId],
-    )
-
-    const canRerunMessage = useMemo(() => {
-        const isRunning = messages?.some((message) => message.__isRunning)
-        const hasResult = messages?.some((message) => !!message.__result)
-
-        return !isRunning && hasResult
-        // !message?.__isRunning && !!message?.__result
-    }, [variantId, messages])
-
-    const rerunMessage = useCallback(
-        (messageId: string) => {
-            rerunChatOutput?.(messageId, variantId)
-        },
-        [variantId],
-    )
+            return hashes.filter((h): h is string => typeof h === "string" && h.length > 0)
+        } catch {
+            return [] as string[]
+        }
+    }, [runStatusMap, displayedVariantIds, turnId])
 
     return (
         <>
             <div
                 className={clsx([
-                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[4] bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                    "shrink-0 flex flex-col self-stretch sticky left-0 z-[3] bg-white border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
                     {"border-r": variantIndex === 0},
                 ])}
             >
                 {variantIndex === 0 && (
-                    <div className="!w-[399.2px] shrink-0 sticky top-9 z-[2]">
+                    <div className="!w-[400px] shrink-0 sticky top-9 z-[2]">
                         <div>
                             {isFirstRow &&
                                 inputRowIds.map((inputRowId) => {
@@ -147,21 +89,35 @@ const GenerationComparisonChatOutputCell = ({
                                 })}
                         </div>
 
-                        <div>
-                            <GenerationChatRow
-                                rowId={rowId}
-                                historyId={historyId}
-                                viewAs={"input"}
-                                withControls={isLastRow} // Only show controls (to add a message) in the last row
-                                isMessageDeletable={messageRow.history?.value?.length === 1}
+                        <div className="flex flex-col gap-2">
+                            <TurnMessageAdapter
+                                rowId={turnId as string}
+                                kind="user"
+                                className="w-full"
+                                handleRerun={() => runTurn({turnId, messageId: userMessageId})}
+                                resultHashes={resultHashes}
+                                messageOptionProps={{
+                                    hideAddToTestset: true,
+                                }}
                                 messageProps={{
-                                    className: "!p-0 [&_.agenta-editor-wrapper]:!p-3",
+                                    className:
+                                        "!p-0 [&_.agenta-editor-wrapper]:!p-3 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
                                     editorClassName: "!p-3",
                                     headerClassName:
                                         "min-h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                                    footerClassName: "px-3",
+                                    footerClassName: "px-3 h-[48px] !m-0",
+                                    editorType: "borderless",
                                 }}
                             />
+                            {isLastTurn ? (
+                                <LastTurnFooterControls
+                                    logicalId={turnId}
+                                    onRun={() => runTurn({turnId: turnId})}
+                                    onCancelAll={() => cancelTurn({turnId: turnId})}
+                                    onAddMessage={() => addTurn()}
+                                    className="p-3"
+                                />
+                            ) : null}
                         </div>
                     </div>
                 )}
@@ -176,39 +132,21 @@ const GenerationComparisonChatOutputCell = ({
                 ])}
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[2]">
-                    {messages && messages.length ? (
-                        messages.map((message) => (
-                            <GenerationChatRowOutput
-                                key={message.__id}
-                                message={message}
-                                className="[&:nth-child(1)]:!mt-0 mt-2"
-                                deleteMessage={handleDeleteMessage}
-                                variantId={variantId}
-                                rerunMessage={
-                                    canRerunMessage && !message.toolCallId.value
-                                        ? rerunMessage
-                                        : undefined
-                                }
-                                rowId={messageRow?.__id}
-                                resultHash={
-                                    !message?.toolCallId?.value ? message?.__result : undefined
-                                }
-                                isRunning={message?.__isRunning}
-                                disabled={!messageRow}
-                                messageProps={{
-                                    className: "!p-0 [&_.agenta-editor-wrapper]:!p-3 !mt-0",
-                                    editorClassName: "!p-3",
-                                    headerClassName:
-                                        "min-h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                                    footerClassName: "px-3 h-[48px] !m-0",
-                                }}
-                            />
-                        ))
-                    ) : (
-                        <div className="p-3">
-                            <GenerationOutputText text="Click run to generate" isPlaceholder />
-                        </div>
-                    )}
+                    <GenerationChatTurnNormalized
+                        turnId={turnId}
+                        variantId={variantId}
+                        withControls={false}
+                        hideUserMessage
+                        messageProps={{
+                            className:
+                                "!p-0 [&_.agenta-editor-wrapper]:!p-3 !mt-0 [&:nth-child(1)]:!mt-0 mt-2",
+                            editorClassName: "!p-3",
+                            headerClassName:
+                                "min-h-[48px] border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
+                            footerClassName: "px-3 h-[48px] !m-0",
+                            editorType: "borderless",
+                        }}
+                    />
                 </div>
             </div>
         </>
@@ -216,26 +154,24 @@ const GenerationComparisonChatOutputCell = ({
 }
 
 const GenerationComparisonChatOutput = ({
-    rowId,
-    historyId,
-    isLastRow,
+    turnId,
     isFirstRow,
 }: GenerationComparisonChatOutputProps) => {
-    const {displayedVariants} = usePlayground()
+    const {displayedVariants} = usePlaygroundLayout()
 
     return (
         <div className="flex">
-            {(displayedVariants || []).map((variantId, variantIndex) => (
-                <GenerationComparisonChatOutputCell
-                    key={`${historyId}-${variantId}`}
-                    variantId={variantId}
-                    historyId={historyId}
-                    rowId={rowId}
-                    variantIndex={variantIndex}
-                    isLastRow={isLastRow}
-                    isFirstRow={isFirstRow}
-                />
-            ))}
+            {(displayedVariants || []).map((variantId, variantIndex) => {
+                return (
+                    <GenerationComparisonChatOutputCell
+                        key={`${turnId}-${variantId}`}
+                        variantId={variantId}
+                        turnId={turnId}
+                        variantIndex={variantIndex}
+                        isFirstRow={isFirstRow}
+                    />
+                )
+            })}
         </div>
     )
 }

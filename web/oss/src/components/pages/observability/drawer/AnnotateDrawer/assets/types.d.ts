@@ -6,7 +6,7 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {AnnotateDrawerSteps} from "./enum"
 
 export type AnnotateDrawerStepsType = AnnotateDrawerSteps
-export type ShowOnlyType = {
+export interface ShowOnlyType {
     annotateUi?: boolean
     selectEvaluatorsUi?: boolean
     createEvaluatorUi?: boolean

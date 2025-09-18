@@ -2,11 +2,12 @@ import {useMemo} from "react"
 
 import {Alert, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import Link from "next/link"
 import {useRouter} from "next/router"
 import semver from "semver"
 
-import {useAppsData} from "@/oss/contexts/app.context"
+import {currentAppAtom} from "@/oss/state/app"
 
 import packageJsonData from "../../../../package.json"
 
@@ -16,7 +17,7 @@ import {CustomWorkflowBannerProps} from "./types"
 const {Text} = Typography
 
 const OldAppDeprecationBanner = ({children}: CustomWorkflowBannerProps) => {
-    const {currentApp} = useAppsData()
+    const currentApp = useAtomValue(currentAppAtom)
     const router = useRouter()
     const isPlaygroundPage = useMemo(
         () => router.pathname.includes("/playground"),

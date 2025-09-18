@@ -29,4 +29,5 @@ export interface CommitVariantChangesModalContentProps {
     setNote: React.Dispatch<React.SetStateAction<string>>
     selectedCommitType: SelectedCommitType | null
     setSelectedCommitType: React.Dispatch<React.SetStateAction<SelectedCommitType | null>>
+    commitType?: CommitType
 }

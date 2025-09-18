@@ -1,7 +1,10 @@
+import {useEffect, useCallback} from "react"
+
+import {$createCodeNode, $isCodeNode} from "@lexical/code"
+import {$convertFromMarkdownString} from "@lexical/markdown"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {MarkdownShortcutPlugin} from "@lexical/react/LexicalMarkdownShortcutPlugin"
-import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/transformers"
-import {useEffect, useCallback} from "react"
+import {useAtom} from "jotai"
 import {
     $getRoot,
     $createTextNode,
@@ -10,14 +13,14 @@ import {
     $isRangeSelection,
     COMMAND_PRIORITY_HIGH,
 } from "lexical"
-import {$createCodeNode, $isCodeNode} from "@lexical/code"
-import {$convertFromMarkdownString} from "@lexical/markdown"
+
 import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
-import {useAtom} from "jotai"
+
+import {$convertToMarkdownStringCustom, PLAYGROUND_TRANSFORMERS} from "./assets/transformers"
 import {TOGGLE_MARKDOWN_VIEW} from "./commands"
 
-const markdownPlugin = () => {
-    const [, setMarkdownView] = useAtom(markdownViewAtom)
+const markdownPlugin = ({id}: {id: string}) => {
+    const [, setMarkdownView] = useAtom(markdownViewAtom(id))
     const [editor] = useLexicalComposerContext()
 
     const handleMarkdownToggle = useCallback(() => {

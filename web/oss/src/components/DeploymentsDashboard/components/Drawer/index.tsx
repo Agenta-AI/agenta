@@ -9,10 +9,11 @@ import {createUseStyles} from "react-jss"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {useAppId} from "@/oss/hooks/useAppId"
+import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {JSSTheme} from "@/oss/lib/Types"
 
-import {DeploymentRevisionWithVariant} from "../.."
 import VariantDetailsRenderer from "../../assets/VariantDetailsRenderer"
+import {DeploymentRevisionWithVariant} from "../../atoms"
 
 type DeploymentsDrawerProps = {
     mainContent: ReactNode
@@ -135,7 +136,7 @@ const DeploymentsDrawer = ({
                                                 router.push({
                                                     pathname: `/apps/${appId}/playground`,
                                                     query: {
-                                                        revisions: JSON.stringify([
+                                                        revisions: buildRevisionsQueryParam([
                                                             selectedRevisionRow.variant?.id,
                                                         ]),
                                                     },

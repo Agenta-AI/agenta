@@ -1,11 +1,14 @@
 import {memo} from "react"
-import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
+
 import {Skeleton} from "antd"
 import clsx from "clsx"
-import {useAtom} from "jotai"
+import {useAtomValue} from "jotai"
+
+import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 
 const SidebarSkeletonLoader = () => {
-    const [collapsed] = useAtom(sidebarCollapsedAtom)
+    const collapsed = useAtomValue(sidebarCollapsedAtom)
+
     return (
         <section
             className={clsx(

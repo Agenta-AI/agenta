@@ -50,10 +50,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const AppCard: React.FC<{
     app: ListAppsItem
-    setSelectedApp: React.Dispatch<React.SetStateAction<ListAppsItem | null>>
-    setIsDeleteAppModalOpen: (value: React.SetStateAction<boolean>) => void
-    setIsEditAppModalOpen: (value: React.SetStateAction<boolean>) => void
-}> = ({app, setSelectedApp, setIsDeleteAppModalOpen, setIsEditAppModalOpen}) => {
+    openDeleteAppModal: (appDetails: ListAppsItem) => void
+    openEditAppModal: (appDetails: ListAppsItem) => void
+}> = ({app, openDeleteAppModal, openEditAppModal}) => {
     const router = useRouter()
 
     const classes = useStyles()
@@ -86,8 +85,7 @@ const AppCard: React.FC<{
                                     icon: <PencilLine size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        setSelectedApp(app)
-                                        setIsEditAppModalOpen(true)
+                                        openEditAppModal(app)
                                     },
                                 },
                                 {
@@ -97,8 +95,7 @@ const AppCard: React.FC<{
                                     danger: true,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        setSelectedApp(app)
-                                        setIsDeleteAppModalOpen(true)
+                                        openDeleteAppModal(app)
                                     },
                                 },
                             ],

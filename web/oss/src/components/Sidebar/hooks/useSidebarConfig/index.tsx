@@ -16,12 +16,12 @@ import {
     ChatCircle,
 } from "@phosphor-icons/react"
 
-import {useAppsData} from "@/oss/contexts/app.context"
-import {useOrgData} from "@/oss/contexts/org.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import {isDemo} from "@/oss/lib/helpers/utils"
+import {useAppsData} from "@/oss/state/app"
+import {useOrgData} from "@/oss/state/org"
 
 import {SidebarConfig} from "../../types"
 

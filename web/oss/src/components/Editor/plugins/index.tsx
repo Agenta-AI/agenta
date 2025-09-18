@@ -124,7 +124,7 @@ const EditorPlugins = ({
                 </>
             )}
             {debug && <DebugPlugin />}
-            {singleLine || codeOnly ? null : <MarkdownPlugin />}
+            {singleLine || codeOnly ? null : <MarkdownPlugin id={id} />}
         </Suspense>
     )
 }

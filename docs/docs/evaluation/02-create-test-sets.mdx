@@ -67,9 +67,9 @@ The test set should be in JSON format with the following structure:
 ]
 ```
 
-### Schema for Chat Applications
+### Test set schema for Chat Applications
 
-For chat applications created using the chat template in Agenta, the input should be saved in the column called `chat`, which would contain the input list of messages:
+For chat applications created using the chat template in Agenta, the input should be saved in the column called `messages`, which would contain the input list of messages:
 
 ```json
 [
@@ -79,10 +79,19 @@ For chat applications created using the chat template in Agenta, the input shoul
 ]
 ```
 
+In case the prompt include other variables (e.g. `context`), make sure to have a column with the same name and the value of the variable.
+
 The reference answer column (by default `correct_answer`) should follow the same format:
 
 ```json
 { "content": "message.", "role": "assistant" }
+```
+
+Here is an example of a valid CSV for testing the default chat prompt template:
+
+```csv chat_test_set.csv
+context,messages,correct_answer
+test,"[{""role"":""user"",""content"":""hi""}]","{""content"":""Hello! How can I assist you today?"",""role"":""assistant"",""annotations"":[]}"
 ```
 
 ## Creating a Test Set Using the API

@@ -1,12 +1,13 @@
 import {useMemo, useCallback, useRef, type RefObject} from "react"
+
 import {DownOutlined, RightOutlined} from "@ant-design/icons"
 import {Table} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 import clsx from "clsx"
+import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 
-import {EnhancedTableProps, EnhancedColumnType} from "./types"
 import {ResizableTitle, SkeletonCell} from "./assets/CustomCells"
+import {EnhancedTableProps, EnhancedColumnType} from "./types"
 
 const EnhancedTable = <RecordType extends {key?: React.Key; isSkeleton?: boolean}>({
     columns,

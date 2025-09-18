@@ -1,14 +1,23 @@
-import {useCallback, useEffect} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
 
-import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
-import {findVariantById} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
+import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
+import {
+    generationInputRowIdsAtom,
+    generationRowIdsAtom,
+} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 
 import RunButton from "../../../../assets/RunButton"
-import {clearRuns} from "../../../../hooks/usePlayground/assets/generationHelpers"
-import type {PlaygroundStateData} from "../../../../hooks/usePlayground/types"
+import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
+import {
+    generationHeaderDataAtomFamily,
+    clearAllRunsMutationAtom,
+    triggerWebWorkerTestAtom,
+} from "../../../../state/atoms"
 import TestsetDrawerButton from "../../../Drawers/TestsetDrawer"
 import LoadTestsetButton from "../../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 
@@ -17,72 +26,46 @@ import type {GenerationHeaderProps} from "./types"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()
-    const {resultHashes, isRunning, mutate, runTests, cancelRunTests} = usePlayground({
-        variantId,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const variant = findVariantById(state, variantId)
 
-                if (variant?.isChat) {
-                    const messageRows = state.generationData.messages.value
+    // ATOM-LEVEL OPTIMIZATION: Use focused atom for generation header data
+    // Memoize the atom to prevent infinite re-renders
+    const generationHeaderAtom = useMemo(
+        () => generationHeaderDataAtomFamily(variantId),
+        [variantId],
+    )
+    const {resultHashes, isRunning} = useAtomValue(generationHeaderAtom)
 
-                    const resultHashes = messageRows
-                        .flatMap((message) => {
-                            const historyArray = message.history.value
-                            return historyArray.map(
-                                (history) => history.__runs?.[variantId]?.__result,
-                            )
-                        })
-                        .filter(Boolean)
+    // Use optimized playground atoms for mutations
+    const playgroundAtoms = usePlaygroundAtoms()
+    const clearGeneration = useSetAtom(clearAllRunsMutationAtom)
 
-                    const isRunning = messageRows.some((inputRow) =>
-                        inputRow.history.value.some((history) =>
-                            variantId ? history.__runs?.[variantId]?.__isRunning : false,
-                        ),
-                    )
-                    return {resultHashes, isRunning}
-                } else {
-                    const inputRows = state.generationData.inputs.value
-
-                    const resultHashes = (inputRows || []).map((inputRow) =>
-                        variantId ? inputRow?.__runs?.[variantId]?.__result : null,
-                    )
-
-                    const isRunning = (inputRows || []).some((inputRow) =>
-                        variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
-                    )
-
-                    return {resultHashes, isRunning}
-                }
-            },
-            [variantId],
-        ),
-    })
-
-    const clearGeneration = useCallback(() => {
-        mutate(
-            (clonedState) => {
-                if (!clonedState) return clonedState
-                clearRuns(clonedState)
-                return clonedState
-            },
-            {revalidate: false},
-        )
-    }, [mutate])
+    const triggerTest = useSetAtom(triggerWebWorkerTestAtom)
+    const runAllChat = useSetAtom(runAllChatAtom)
+    const appType = useAtomValue(appTypeAtom)
+    const completionRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
+    const runTests = useCallback(() => {
+        if (appType === "chat") runAllChat()
+        else {
+            // Run for all completion rows: iterate input row ids and trigger tests
+            for (const rid of completionRowIds || []) {
+                triggerTest({rowId: rid, variantId})
+            }
+        }
+    }, [appType, runAllChat, completionRowIds, triggerTest, variantId])
 
     useEffect(() => {
         const listener = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                 e.preventDefault()
                 e.stopPropagation()
-                if (!isRunning) runTests?.()
+                if (!isRunning) runTests()
             }
         }
         document.addEventListener("keydown", listener, true)
         return () => {
             document.removeEventListener("keydown", listener, true)
         }
-    }, [runTests, isRunning])
+    }, [playgroundAtoms.runTests, isRunning])
 
     return (
         <section
@@ -117,12 +100,16 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         <RunButton
                             isRunAll
                             type="primary"
-                            onClick={() => runTests?.()}
+                            onClick={() => runTests()}
                             disabled={isRunning}
                         />
                     </Tooltip>
                 ) : (
-                    <RunButton isCancel onClick={() => cancelRunTests?.()} className="flex" />
+                    <RunButton
+                        isCancel
+                        onClick={() => playgroundAtoms.cancelRunTests?.()}
+                        className="flex"
+                    />
                 )}
             </div>
         </section>

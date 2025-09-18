@@ -1,225 +1,124 @@
 // @ts-nocheck
-import {useCallback, useMemo, useState, type Key} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
 import {Rocket} from "@phosphor-icons/react"
-import {Button, Input, message, Radio, Space, Typography} from "antd"
-import dynamic from "next/dynamic"
+import {Button, Input, Radio, Space, Typography} from "antd"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
-import {useSWRConfig} from "swr"
 
-import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
-import {groupVariantsByParent, variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
-import {useVariants} from "@/oss/lib/hooks/useVariants"
-import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
-import {deleteSingleVariant, deleteSingleVariantRevision} from "@/oss/services/playground/api"
-
-import {getPlaygroundKey} from "../Playground/hooks/usePlayground/assets/helpers"
+import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
+import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
+import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {playgroundNavigationRequestAtom} from "@/oss/state/variant/atoms/navigation"
+import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
+import {
+    modelNameByRevisionIdAtomFamily,
+    revisionListAtom,
+    variantDisplayNameByIdAtomFamily,
+} from "@/oss/state/variant/selectors/variant"
 
 import {useStyles} from "./assets/styles"
+import {openVariantDrawerAtom} from "./Drawers/VariantDrawer/store/variantDrawerStore"
+import {
+    openComparisonModalAtom,
+    comparisonSelectionScopeAtom,
+} from "./Modals/VariantComparisonModal/store/comparisonModalStore"
 import VariantsTable from "./Table"
 
-const DeleteEvaluationModal = dynamic(
-    () => import("@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"),
-    {ssr: false},
-)
-const VariantDrawer = dynamic(() => import("./Drawers/VariantDrawer"), {ssr: false})
-const VariantComparisonModal = dynamic(() => import("./Modals/VariantComparisonModal"), {
-    ssr: false,
-})
-const DeployVariantModal = dynamic(
-    () => import("@/oss/components/Playground/Components/Modals/DeployVariantModal"),
-    {ssr: false},
-)
+// Comparison modal is opened via atoms; no local deploy/delete modals here
 
 const VariantsDashboard = () => {
     const appId = useAppId()
-    const classes = useStyles()
-    const [searchTerm, setSearchTerm] = useState("")
     const router = useRouter()
-    const {currentApp} = useAppsData()
-    const {data, mutate: fetchAllVariants, isLoading} = useVariants(currentApp)({appId})
+    const classes = useStyles()
+    const [, setQueryVariant] = useQueryParam("revisions")
+    const [displayMode, setDisplayMode] = useQueryParam("displayMode", "flat")
+    const [searchTerm, setSearchTerm] = useState("")
 
-    const groupedVariants = useMemo(() => groupVariantsByParent(data?.variants), [data?.variants])
-
-    const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
-
-    const [queryVariant, setQueryVariant] = useQueryParam("revisions")
-
-    const [selectedVariant, setSelectedVariant] = useState<EnhancedVariant>()
-    const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
-    const [isDeployVariantModalOpen, setIsDeployVariantModalOpen] = useState(false)
-    const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false)
-
-    const {environments: _environments, mutate: loadEnvironments} = useEnvironments({appId})
-
-    const environments = useMemo(() => {
-        return _environments.map((env) => {
-            const deployedAppRevisionId = env.deployed_app_variant_revision_id
-            const revision = (data?.variants || []).find(
-                (variant) => variant.id === deployedAppRevisionId,
-            )
+    // Data: use all revisions list and map once to table rows (no slicing)
+    const revisions = useAtomValue(revisionListAtom)
+    const isVariantLoading = useAtomValue(variantsPendingAtom)
+    const baseRows = useMemo(() => {
+        const store = getDefaultStore()
+        return (revisions || []).map((r: any) => {
+            const ts = r.updatedAtTimestamp ?? r.createdAtTimestamp
+            const modelName = store.get(modelNameByRevisionIdAtomFamily(r.id))
+            const variantName = store.get(variantDisplayNameByIdAtomFamily(r.variantId))
             return {
-                ...env,
-                revision: {
-                    ...revision,
-                    revisionNumber: revision?.revision || revision?.revisionNumber || 0,
-                },
+                id: r.id,
+                variantId: r.variantId,
+                variantName,
+                commitMessage: r.commitMessage ?? r.commit_message ?? null,
+                createdAt: formatDate24(ts),
+                createdAtTimestamp: ts,
+                modifiedBy: r.modifiedBy ?? r.modified_by ?? r.createdBy ?? r.created_by,
+                modelName,
+                _revisionId: r.id,
             }
         })
-    }, [data?.variants, _environments])
+    }, [revisions])
 
-    const {mutate} = useSWRConfig()
+    const filteredRows = useMemo(() => {
+        if (!searchTerm) return baseRows
+        const q = searchTerm.toLowerCase()
+        return baseRows.filter((r: any) => (r.variantName || "").toLowerCase().includes(q))
+    }, [baseRows, searchTerm])
 
-    const [displayMode, setDisplayMode] = useQueryParam("displayMode", "flat")
+    const tableRows = useMemo(() => {
+        if (displayMode !== "grouped") return filteredRows
+        // Group revisions by variantId; parent row uses latest revision id
+        const byVariant: Record<string, any[]> = {}
+        filteredRows.forEach((r: any) => {
+            ;(byVariant[r.variantId] ||= []).push(r)
+        })
+        const groups: any[] = []
+        Object.values(byVariant).forEach((arr) => {
+            const sorted = [...arr].sort(
+                (a, b) => (b.createdAtTimestamp || 0) - (a.createdAtTimestamp || 0),
+            )
+            const latest = sorted[0]
+            const children = sorted.slice(1)
+            groups.push({
+                ...latest,
+                _parentVariant: true,
+                children,
+            })
+        })
+        return groups
+    }, [filteredRows, displayMode])
 
-    const filteredVariants = useMemo(() => {
-        const variantsToFilter = displayMode === "grouped" ? groupedVariants : data?.variants
-        if (displayMode === "grouped") {
-            for (const variant of variantsToFilter) {
-                const deployedIn = variant.children.flatMap((revision) => revision.deployedIn)
-                const isLatest = variant.children.some((revision) => revision.isLatestRevision)
-                variant.deployedIn = deployedIn
-                variant.isLatestRevision = isLatest
-            }
+    // Selection/compare using global atoms with a stable scope
+    const selectionScope = "variants/dashboard"
+    const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
+    const openComparisonModal = useSetAtom(openComparisonModalAtom)
+    const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
+    const requestPlaygroundNav = useSetAtom(playgroundNavigationRequestAtom)
+    const openVariantDrawer = useSetAtom(openVariantDrawerAtom)
+    const prefetchPlayground = useCallback(async () => {
+        if (appId) {
+            router.prefetch(`/apps/${appId}/playground`).catch(() => {})
         }
-        if (!searchTerm || !variantsToFilter) return variantsToFilter
-        return variantsToFilter.filter((item: EnhancedVariant) =>
-            item.variantName.toLowerCase().includes(searchTerm.toLowerCase()),
-        )
-    }, [searchTerm, groupedVariants, data?.variants, displayMode])
-
-    const flattenAndFilterVariants = (variants: EnhancedVariant[], selectedIds: Key[]) => {
-        const result = []
-
-        const traverse = (variant: EnhancedVariant & {children: any}) => {
-            if (selectedIds.includes(variant.id)) {
-                result.push(variant)
-            }
-            if (variant.children && variant.children.length > 0) {
-                variant.children.forEach(traverse)
-            }
-        }
-
-        variants.forEach(traverse)
-        return result
-    }
-
-    const selectedVariantsToCompare = useMemo(() => {
-        const variants = flattenAndFilterVariants(filteredVariants || [], selectedRowKeys).filter(
-            (variant) => !variant.children,
-        )
-
-        return {
-            isCompareDisabled: variants.length !== 2,
-            compareVariantList: variants,
-        }
-    }, [selectedRowKeys, filteredVariants])
+    }, [appId, router])
 
     const handleNavigation = useCallback(
-        (revision?: EnhancedVariant) => {
-            const revisions = flattenAndFilterVariants(
-                filteredVariants || [],
-                selectedRowKeys,
-            ).filter((variant) => !variant.children)
-
-            if (revisions && revisions.length) {
-                router.push({
-                    pathname: `/apps/${appId}/playground`,
-                    query: {
-                        revisions: JSON.stringify(revisions.map((v) => v.id)),
-                    },
-                })
-            } else {
-                router.push({
-                    pathname: `/apps/${appId}/playground`,
-                    query: revision
-                        ? {
-                              revisions: JSON.stringify([revision.id]),
-                          }
-                        : {},
-                })
+        async (record?: any) => {
+            // Try to prefetch chunks before navigating for a seamless transition
+            prefetchPlayground()
+            // Prewarm prompts for the selected revision specifically
+            const store = getDefaultStore()
+            const revId = record?._revisionId ?? record?.id
+            if (revId) {
+                store.get(promptsAtomFamily(revId))
             }
+            requestPlaygroundNav(
+                record ? {appId, selectedKeys: [record._revisionId ?? record.id]} : {appId},
+            )
         },
-        [appId, router, filteredVariants, selectedRowKeys],
+        [appId, requestPlaygroundNav, prefetchPlayground],
     )
-
-    const handleDeleteVariant = useCallback(
-        async (selectedVariant: EnhancedVariant) => {
-            try {
-                if (
-                    !(await checkIfResourceValidForDeletion({
-                        resourceType: "variant",
-                        resourceIds: [selectedVariant.variantId],
-                    }))
-                )
-                    return
-
-                if (selectedVariant?._parentVariant) {
-                    await deleteSingleVariantRevision(selectedVariant.variantId, selectedVariant.id)
-                    message.success("Revision removed successfully!")
-                } else {
-                    await deleteSingleVariant(selectedVariant.variantId)
-                    message.success("Variant removed successfully!")
-                }
-                fetchAllVariants((state) => {
-                    if (!state) return state
-
-                    const clonedState = structuredClone(state)
-
-                    if (selectedVariant._parentVariant) {
-                        // Handle revision deletion
-                        clonedState.variants = [
-                            ...clonedState.variants.filter(
-                                (variant) => variant.id !== selectedVariant.id,
-                            ),
-                        ]
-                    } else if (!selectedVariant._parentVariant && selectedVariant.children) {
-                        // Handle variant deletion
-                        clonedState.variants = [
-                            ...clonedState.variants.filter(
-                                (variant) =>
-                                    variant._parentVariant.id !== selectedVariant.variantId,
-                            ),
-                        ]
-                    }
-
-                    return clonedState
-                })
-            } catch (error) {
-                console.error(error)
-            }
-
-            await mutate(getPlaygroundKey(), (playgroundState) => {
-                if (!playgroundState) return playgroundState
-                if (playgroundState.selected.includes(selectedVariant.variantId)) {
-                    playgroundState.selected.splice(
-                        playgroundState.selected.indexOf(selectedVariant.variantId),
-                        1,
-                    )
-                }
-
-                playgroundState.variants = playgroundState.variants.filter(
-                    (variant) => (variant.variantId || variant.id) !== selectedVariant.variantId,
-                )
-
-                return playgroundState
-            })
-
-            setIsDeleteEvalModalOpen(false)
-        },
-        [fetchAllVariants],
-    )
-
-    const handleDeployment = useCallback(() => {
-        mutate(getPlaygroundKey())
-        loadEnvironments()
-        fetchAllVariants()
-    }, [loadEnvironments, fetchAllVariants])
 
     return (
         <>
@@ -247,23 +146,27 @@ const VariantsDashboard = () => {
                         </div>
 
                         <div className="flex items-center gap-3">
-                            {selectedVariantsToCompare.compareVariantList.length > 0 && (
+                            {selectedCount > 0 && (
                                 <Typography.Text type="secondary" className="flex-shrink-0">
-                                    {selectedVariantsToCompare.compareVariantList.length} selected
+                                    {selectedCount} selected
                                 </Typography.Text>
                             )}
 
                             <Button
-                                type="text"
-                                disabled={selectedVariantsToCompare.isCompareDisabled}
+                                type="link"
+                                disabled={selectedCount !== 2}
                                 icon={<SwapOutlined />}
-                                onClick={() => setIsComparisonModalOpen(true)}
+                                onClick={() => {
+                                    setComparisonSelectionScope(selectionScope)
+                                    openComparisonModal()
+                                }}
                             >
                                 Compare
                             </Button>
 
                             <Button
                                 icon={<Rocket size={14} className="mt-[3px]" />}
+                                onMouseEnter={prefetchPlayground}
                                 onClick={() => handleNavigation()}
                             >
                                 Playground
@@ -274,74 +177,28 @@ const VariantsDashboard = () => {
                     <VariantsTable
                         enableColumnResize
                         showEnvBadges
-                        variants={filteredVariants || []}
+                        showStableName
+                        variants={tableRows}
+                        isLoading={isVariantLoading}
+                        selectionScope={selectionScope}
                         onRowClick={(variant) => {
-                            setQueryVariant(JSON.stringify([variant._revisionId ?? variant.id]))
-                            setSelectedVariant(variant)
+                            // Open global variant drawer and sync URL selection
+                            const revId = variant._revisionId ?? variant.id
+                            openVariantDrawer({type: "variant", selectedVariantId: revId})
+                            setQueryVariant(JSON.stringify([revId]))
                         }}
-                        rowSelection={{
-                            onChange: (value) => setSelectedRowKeys(value),
-                        }}
-                        isLoading={isLoading}
                         handleOpenDetails={(record) => {
-                            setQueryVariant(JSON.stringify([record._revisionId ?? record.id]))
-                            setSelectedVariant(record)
-                        }}
-                        handleDeleteVariant={(record) => {
-                            setSelectedVariant(record)
-                            setIsDeleteEvalModalOpen(true)
-                        }}
-                        handleDeploy={(record) => {
-                            setIsDeployVariantModalOpen(true)
-                            setSelectedVariant(record)
+                            // Open global variant drawer and sync URL selection
+                            const revId = record._revisionId ?? record.id
+                            openVariantDrawer({type: "variant", selectedVariantId: revId})
+                            setQueryVariant(JSON.stringify([revId]))
                         }}
                         handleOpenInPlayground={(record) => handleNavigation(record)}
                     />
                 </Space>
             </div>
 
-            <VariantDrawer
-                open={!!queryVariant}
-                onClose={() => setQueryVariant("")}
-                variants={filteredVariants || []}
-                type={"variant"}
-            />
-
-            {selectedVariant && (
-                <DeleteEvaluationModal
-                    open={isDeleteEvalModalOpen}
-                    onCancel={() => setIsDeleteEvalModalOpen(false)}
-                    onOk={() => handleDeleteVariant(selectedVariant)}
-                    evaluationType={variantNameWithRev({
-                        variant_name: selectedVariant.variantName,
-                        revision: selectedVariant.revision,
-                    })}
-                />
-            )}
-
-            {selectedVariant && (
-                <DeployVariantModal
-                    open={isDeployVariantModalOpen}
-                    onCancel={() => setIsDeployVariantModalOpen(false)}
-                    variantId={
-                        !selectedVariant._parentVariant ? selectedVariant.variantId : undefined
-                    }
-                    revisionId={selectedVariant._parentVariant ? selectedVariant.id : undefined}
-                    environments={environments}
-                    variantName={selectedVariant.variantName}
-                    revision={selectedVariant.revision}
-                    mutate={handleDeployment}
-                />
-            )}
-
-            {!selectedVariantsToCompare.isCompareDisabled && (
-                <VariantComparisonModal
-                    open={isComparisonModalOpen}
-                    onCancel={() => setIsComparisonModalOpen(false)}
-                    compareVariantList={selectedVariantsToCompare.compareVariantList}
-                    allVariants={data?.variants}
-                />
-            )}
+            {/* Comparison modal is handled globally via atoms */}
         </>
     )
 }

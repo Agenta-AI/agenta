@@ -1,3 +1,5 @@
+import React from "react"
+
 import {Avatar as MainAvatar} from "antd"
 
 import {getColorPairFromStr} from "@/oss/lib/helpers/colors"
@@ -24,4 +26,4 @@ const Avatar: React.FC<Props> = ({name, ...props}) => {
     )
 }
 
-export default Avatar
+export default React.memo(Avatar)

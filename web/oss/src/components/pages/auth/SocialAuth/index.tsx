@@ -1,3 +1,5 @@
+import {useRef} from "react"
+
 import {GithubOutlined, GoogleOutlined} from "@ant-design/icons"
 import {Button, Divider} from "antd"
 import {useRouter} from "next/router"
@@ -9,9 +11,12 @@ import {SocialAuthProps} from "../assets/types"
 
 const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAuthProps) => {
     const router = useRouter()
+    const inFlight = useRef(false)
 
     const googleSignInClicked = async () => {
         try {
+            if (disabled || isLoading || inFlight.current) return
+            inFlight.current = true
             setIsLoading(true)
 
             const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
@@ -20,17 +25,18 @@ const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAut
                     getEnv("NEXT_PUBLIC_AGENTA_WEB_URL") || getEnv("NEXT_PUBLIC_AGENTA_API_URL")
                 }/auth/callback/google`,
             })
-
-            router.push(authUrl)
+            await router.push(authUrl)
         } catch (err) {
             authErrorMsg(err)
-        } finally {
             setIsLoading(false)
+            inFlight.current = false
         }
     }
 
     const githubSignInClicked = async () => {
         try {
+            if (disabled || isLoading || inFlight.current) return
+            inFlight.current = true
             setIsLoading(true)
 
             const authUrl = await getAuthorisationURLWithQueryParamsAndSetState({
@@ -39,12 +45,11 @@ const SocialAuth = ({authErrorMsg, isLoading, setIsLoading, disabled}: SocialAut
                     getEnv("NEXT_PUBLIC_AGENTA_WEB_URL") || getEnv("NEXT_PUBLIC_AGENTA_API_URL")
                 }/auth/callback/github`,
             })
-
-            router.push(authUrl)
+            await router.push(authUrl)
         } catch (err) {
             authErrorMsg(err)
-        } finally {
             setIsLoading(false)
+            inFlight.current = false
         }
     }
 

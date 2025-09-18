@@ -2,43 +2,59 @@ import {useEffect, useMemo, useState} from "react"
 
 import {Table, TableColumnType, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
+import {useAtomValue} from "jotai"
+import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import GenericDrawer from "@/oss/components/GenericDrawer"
-import ObservabilityContextProvider, {
-    useObservabilityData,
-} from "@/oss/contexts/observability.context"
+import {TraceDrawer} from "@/oss/components/Playground/Components/Drawers/TraceDrawer"
+import {
+    isDrawerOpenAtom,
+    openTraceDrawerAtom,
+} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
-import {_AgentaRootsResponse, TracesWithAnnotations} from "@/oss/services/observability/types"
+import {TracesWithAnnotations} from "@/oss/services/observability/types"
+import {useObservability, annotationEvaluatorSlugsAtom} from "@/oss/state/newObservability"
 
+import {filterColumns} from "../../Filters/EditColumns/assets/helper"
 import ResizableTitle from "../../ResizableTitle"
 
 import {getObservabilityColumns} from "./assets/getObservabilityColumns"
-import {TestsetTraceData} from "./drawer/TestsetDrawer/assets/types"
-import TraceContent from "./drawer/TraceContent"
-import TraceHeader from "./drawer/TraceHeader"
-import TraceSidePanel from "./drawer/TraceSidePanel"
-import TraceTree from "./drawer/TraceTree"
-import {filterColumns} from "../../Filters/EditColumns/assets/helper"
 
 const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
 const TestsetDrawer = dynamic(() => import("./drawer/TestsetDrawer/TestsetDrawer"), {ssr: false})
 
 const ObservabilityDashboard = () => {
-    const {traces, isLoading, traceTabs, fetchTraces, annotations, fetchAnnotations} =
-        useObservabilityData()
-    const [selectedTraceId, setSelectedTraceId] = useQueryParam("trace", "")
-    const [editColumns, setEditColumns] = useState<string[]>(["span_type", "key", "usage", "tag"])
-    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-    const [testsetDrawerData, setTestsetDrawerData] = useState<TestsetTraceData[]>([])
+    const {
+        traces,
+        isLoading,
+        traceTabs,
+        fetchTraces,
+        selectedTraceId,
+        setSelectedTraceId,
+        editColumns,
+        // setEditColumns,
+        selectedRowKeys,
+        setSelectedRowKeys,
+        testsetDrawerData,
+        setTestsetDrawerData,
+        // isAnnotationsSectionOpen,
+        // setIsAnnotationsSectionOpen,
+        selectedNode,
+        setSelectedNode,
+        activeTrace,
+        // activeTraceIndex,
+        // selectedItem,
+    } = useObservability()
+    const evaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
+    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    const isTraceDrawerOpen = useAtomValue(isDrawerOpenAtom)
 
-    const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useState(true)
+    const [traceParam, setTraceParam] = useQueryParam("trace", "")
 
     const initialColumns = useMemo(
-        () => getObservabilityColumns({annotations: annotations || []}),
-        [annotations],
+        () => getObservabilityColumns({evaluatorSlugs}),
+        [evaluatorSlugs],
     )
     const [columns, setColumns] = useState<ColumnsType<TracesWithAnnotations>>(initialColumns)
 
@@ -46,25 +62,45 @@ const ObservabilityDashboard = () => {
         setColumns(initialColumns)
     }, [initialColumns])
 
-    const activeTraceIndex = useMemo(
-        () =>
-            traces?.findIndex((item) =>
-                traceTabs === "node"
-                    ? item.node.id === selectedTraceId
-                    : item.root.id === selectedTraceId,
-            ),
-        [selectedTraceId, traces, traceTabs],
-    )
-
-    const activeTrace = useMemo(() => traces[activeTraceIndex] ?? null, [activeTraceIndex, traces])
-
-    const [selected, setSelected] = useState("")
+    useEffect(() => {
+        if (traceParam && traceParam !== selectedTraceId) {
+            setSelectedTraceId(traceParam)
+        }
+    }, [traceParam])
 
     useEffect(() => {
-        if (!selected) {
-            setSelected(activeTrace?.node.id)
+        if (selectedTraceId !== traceParam) {
+            setTraceParam(selectedTraceId)
         }
-    }, [activeTrace, selected])
+    }, [selectedTraceId])
+
+    // Open global TraceDrawer when a trace is selected
+    useEffect(() => {
+        if (selectedTraceId && traces && traces.length > 0) {
+            const navigationIds = (traces || []).map((t: any) => t?.node?.id).filter(Boolean)
+            const activeNodeId = selectedNode || activeTrace?.node?.id || navigationIds[0] || ""
+            openTraceDrawer({
+                result: {
+                    traces,
+                    navigationIds,
+                    activeTraceId: activeNodeId,
+                },
+            })
+        }
+    }, [selectedTraceId, traces, selectedNode, activeTrace])
+
+    useEffect(() => {
+        if (!selectedNode) {
+            setSelectedNode(activeTrace?.node.id)
+        }
+    }, [activeTrace, selectedNode])
+
+    useEffect(() => {
+        if (!isTraceDrawerOpen && selectedTraceId) {
+            setSelectedTraceId("")
+            setTraceParam("")
+        }
+    }, [isTraceDrawerOpen, selectedTraceId, setSelectedTraceId, setTraceParam])
 
     useEffect(() => {
         const interval = setInterval(fetchTraces, 300000)
@@ -73,17 +109,10 @@ const ObservabilityDashboard = () => {
     }, [])
 
     const rowSelection = {
-        onChange: (selectedRowKeys: React.Key[]) => {
-            setSelectedRowKeys(selectedRowKeys)
+        onChange: (keys: React.Key[]) => {
+            setSelectedRowKeys(keys)
         },
     }
-
-    const selectedItem = useMemo(() => {
-        if (!traces?.length || !selected) return null
-
-        const item = getNodeById(traces, selected)
-        return item || null
-    }, [selected, traces])
 
     const handleResize =
         (key: string) =>
@@ -111,13 +140,7 @@ const ObservabilityDashboard = () => {
         <div className="flex flex-col gap-6">
             <Typography.Text className="text-[16px] font-medium">Observability</Typography.Text>
 
-            <ObservabilityHeader
-                setEditColumns={setEditColumns}
-                selectedRowKeys={selectedRowKeys}
-                setTestsetDrawerData={setTestsetDrawerData}
-                editColumns={editColumns}
-                columns={columns}
-            />
+            <ObservabilityHeader columns={columns} />
 
             <div className="flex flex-col gap-2">
                 <Table
@@ -134,12 +157,19 @@ const ObservabilityDashboard = () => {
                     style={{cursor: "pointer"}}
                     onRow={(record) => ({
                         onClick: () => {
-                            setSelected(record.node.id)
-                            if (traceTabs === "node") {
-                                setSelectedTraceId(record.node.id)
-                            } else {
-                                setSelectedTraceId(record.root.id)
-                            }
+                            setSelectedNode(record.node.id)
+                            const targetId = traceTabs === "node" ? record.node.id : record.root.id
+                            setSelectedTraceId(targetId)
+                            // Open global Trace Drawer immediately with current traces payload
+                            openTraceDrawer({
+                                result: {
+                                    traces,
+                                    navigationIds: (traces || [])
+                                        .map((t: any) => t?.node?.id)
+                                        .filter(Boolean),
+                                    activeTraceId: record.node.id,
+                                },
+                            })
                         },
                     })}
                     components={{
@@ -164,47 +194,9 @@ const ObservabilityDashboard = () => {
                 }}
             />
 
-            <GenericDrawer
-                open={!!selectedTraceId && !!activeTrace && !!traces?.length}
-                onClose={() => setSelectedTraceId("")}
-                expandable
-                headerExtra={
-                    activeTrace && !!traces?.length ? (
-                        <TraceHeader
-                            activeTrace={activeTrace}
-                            traces={traces}
-                            setSelectedTraceId={setSelectedTraceId}
-                            activeTraceIndex={activeTraceIndex}
-                            setIsAnnotationsSectionOpen={setIsAnnotationsSectionOpen}
-                            isAnnotationsSectionOpen={isAnnotationsSectionOpen}
-                            setSelected={setSelected}
-                        />
-                    ) : null
-                }
-                mainContent={selectedItem ? <TraceContent activeTrace={selectedItem} /> : null}
-                sideContent={
-                    activeTrace ? (
-                        <TraceTree
-                            activeTrace={activeTrace}
-                            selected={selected}
-                            setSelected={setSelected}
-                        />
-                    ) : null
-                }
-                extraContent={
-                    isAnnotationsSectionOpen && selectedItem ? (
-                        <TraceSidePanel activeTrace={selectedItem} />
-                    ) : null
-                }
-                externalKey={`extraContent-${isAnnotationsSectionOpen}`}
-                className="[&_.ant-drawer-body]:p-0"
-            />
+            <TraceDrawer />
         </div>
     )
 }
 
-export default () => (
-    <ObservabilityContextProvider>
-        <ObservabilityDashboard />
-    </ObservabilityContextProvider>
-)
+export default ObservabilityDashboard

@@ -4,9 +4,9 @@ import dynamic from "next/dynamic"
 import {useLocalStorage} from "usehooks-ts"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {useProjectData} from "@/oss/contexts/project.context"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+import {getProjectValues} from "@/oss/state/project"
 
 import {AnnotateDrawerSteps} from "./assets/enum"
 import {AnnotateDrawerProps, AnnotateDrawerStepsType, UpdatedMetricsType} from "./assets/types"
@@ -24,7 +24,7 @@ const AnnotateDrawer = ({
     evalSlugs,
     ...props
 }: AnnotateDrawerProps) => {
-    const {projectId} = useProjectData()
+    const {projectId} = getProjectValues()
     const {data: evaluators} = useEvaluators({
         preview: true,
         queries: {is_human: true},

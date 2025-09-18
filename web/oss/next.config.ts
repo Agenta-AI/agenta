@@ -9,6 +9,7 @@ const COMMON_CONFIG: NextConfig = {
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx", "js", "jsx"],
     productionBrowserSourceMaps: true,
+    outputFileTracingRoot: path.resolve(__dirname, ".."),
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
     },

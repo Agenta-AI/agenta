@@ -183,7 +183,19 @@ export const inProgressFeatures: PlannedFeature[] = [
                 color: "DE74FF",
             },
         ],
+    }, {
+        id: "date-range-filtering",
+        title: "Date Range Filtering in Metrics Dashboard",
+        description: "We are adding the ability to filter traces by date range in the metrics dashboard.",
+        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2774",
+        labels: [
+            {
+                name: "Observability",
+                color: "DE74FF",
+            },
+        ],
     },
+
 ];
 
 export const plannedFeatures: PlannedFeature[] = [

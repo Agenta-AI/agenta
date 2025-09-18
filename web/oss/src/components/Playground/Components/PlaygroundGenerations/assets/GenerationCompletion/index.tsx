@@ -1,15 +1,13 @@
-import {useCallback} from "react"
+import React, {useCallback} from "react"
 
 import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import AddButton from "@/oss/components/Playground/assets/AddButton"
-import {componentLogger} from "@/oss/components/Playground/assets/utilities/componentLogger"
-import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
-import {findPropertyInObject} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
-import type {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {ArrayMetadata, ObjectMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
-import {createInputRow} from "@/oss/lib/shared/variant/inputHelpers"
+import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygroundLayout"
+import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {generateId} from "@/oss/lib/shared/variant/stringUtils"
+import {inputRowIdsAtom} from "@/oss/state/generation/entities"
 
 import GenerationCompletionRow from "../GenerationCompletionRow"
 
@@ -22,59 +20,34 @@ const GenerationCompletion = ({
     rowId,
     withControls,
 }: GenerationCompletionProps) => {
-    const {inputRowId, mutate, viewType, inputRowIds} = usePlayground({
-        variantId,
-        stateSelector: useCallback(
-            (state: PlaygroundStateData) => {
-                const inputRowId = findPropertyInObject(state, rowId as string)
-                const inputRows = state.generationData.inputs.value || []
+    const {isComparisonView} = usePlaygroundLayout()
+    const viewType = isComparisonView ? "comparison" : "single"
 
-                return {
-                    inputRowId: inputRowId?.__id,
-                    inputRowIds: inputRows?.map((row) => row?.__id),
-                }
-            },
-            [rowId],
-        ),
-    })
+    // Use derived row IDs: returns normalized ids; for completion with none, exposes a virtual default id
+    const inputRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
+    const inputRowId = inputRowIds[0] || null
 
-    const addNewInputRow = useCallback(() => {
-        mutate((clonedState) => {
-            if (!clonedState) return clonedState
+    // EFFICIENT MUTATION: Use dedicated mutation atom instead of complex useCallback logic
+    const addNewInputRow = useSetAtom(inputRowIdsAtom)
+    const handleAddNewRow = useCallback(() => {
+        addNewInputRow((prev) => [...prev, `row-${generateId()}`])
+    }, [addNewInputRow])
 
-            const _metadata = getMetadataLazy<ArrayMetadata>(
-                clonedState?.generationData.inputs.__metadata,
-            )
-
-            const itemMetadata = _metadata?.itemMetadata as ObjectMetadata
-
-            if (!itemMetadata) return clonedState
-
-            const inputKeys = Object.keys(itemMetadata.properties)
-            const newRow = createInputRow(inputKeys, itemMetadata)
-
-            clonedState.generationData.inputs.value.push(newRow)
-
-            return clonedState
-        })
-    }, [mutate])
-
-    componentLogger("GenerationTestView", inputRowId)
-
+    // Ensure is handled at MainLayout level to avoid write-on-render here
     return (
         <div className={clsx(["flex flex-col", {"gap-2": viewType === "single"}], className)}>
             {viewType === "comparison" ? (
                 <GenerationCompletionRow
                     variantId={variantId}
-                    rowId={inputRowId}
+                    rowId={rowId || inputRowId || inputRowIds?.[0]}
                     className={rowClassName}
                 />
             ) : (
-                (inputRowIds || []).map((row) => (
+                (inputRowIds || []).map((rowIdItem) => (
                     <GenerationCompletionRow
-                        key={row}
+                        key={rowIdItem}
                         variantId={variantId}
-                        rowId={row}
+                        rowId={rowIdItem}
                         className={rowClassName}
                     />
                 ))
@@ -87,7 +60,7 @@ const GenerationCompletion = ({
                         {"mb-10": viewType !== "comparison"},
                     ])}
                 >
-                    <AddButton size="small" label="Test case" onClick={addNewInputRow} />
+                    <AddButton size="small" label="Test case" onClick={handleAddNewRow} />
                 </div>
             ) : null}
         </div>

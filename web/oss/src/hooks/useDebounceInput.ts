@@ -1,4 +1,4 @@
-import {useState, useEffect} from "react"
+import {useState, useEffect, useRef} from "react"
 
 import {useDebounceValue} from "usehooks-ts"
 
@@ -58,21 +58,39 @@ export function useDebounceInput<T>(
 ) {
     const [localValue, setLocalValue] = useState<T>(value ?? defaultValue)
     const [query, setQuery] = useDebounceValue(localValue, delay)
+    const lastEmittedRef = useRef<T | undefined>(undefined)
 
+    // Emit only when debounced value differs from the latest controlled value
+    // and hasn't been emitted already. This prevents update feedback loops.
     useLazyEffect(() => {
-        onChange?.(query)
-    }, [query])
+        const controlled = value ?? defaultValue
+        const shouldEmit = query !== controlled && query !== lastEmittedRef.current
+        if (shouldEmit) {
+            lastEmittedRef.current = query
+            onChange?.(query)
+        }
+    }, [query, value, defaultValue])
 
+    // Sync down stream changes from the controlled value but avoid wiping user input
+    // when value is temporarily undefined/null during upstream recalculations.
     useEffect(() => {
+        if (value === undefined || value === null) return
         setQuery(value)
         setLocalValue((prevValue) => {
-            const newValue = value ?? defaultValue
-            if (newValue !== prevValue) {
-                return newValue
-            }
-            return prevValue
+            return value !== prevValue ? value : prevValue
         })
-    }, [value, defaultValue])
+    }, [value])
+
+    // // Immediate emit on clears to avoid stale values when users submit quickly after deleting
+    // useEffect(() => {
+    //     const controlled = value ?? defaultValue
+    //     const isCleared = (localValue as any) === ""
+    //     if (isCleared && localValue !== controlled && localValue !== lastEmittedRef.current) {
+    //         lastEmittedRef.current = localValue
+    //         onChange?.(localValue)
+    //     }
+    //     // eslint-disable-next-line react-hooks/exhaustive-deps
+    // }, [localValue])
 
     return [localValue, setLocalValue] as const
 }

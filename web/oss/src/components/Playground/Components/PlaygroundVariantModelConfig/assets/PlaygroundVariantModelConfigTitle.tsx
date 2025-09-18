@@ -35,7 +35,9 @@ const PlaygroundVariantModelConfigTitle: React.FC<PlaygroundVariantModelConfigTi
             <Typography.Text className="text-[14px] leading-[22px] font-[500]">
                 Model Parameters
             </Typography.Text>
-            <Button onClick={handleReset} disabled={disabled}>Reset default</Button>
+            <Button onClick={handleReset} disabled={disabled}>
+                Reset default
+            </Button>
         </div>
     )
 }

@@ -471,23 +471,23 @@ export function SyntaxHighlightPlugin({
                 }
 
                 // Trigger bracket analysis if needed - CONSERVATIVE approach
-                if (shouldAnalyzeBrackets) {
-                    log("🔄 Scheduling conservative bracket re-analysis")
-                    // Just run validation directly - no need for full transform cycle
-                    editor.update(() => {
-                        // Find any code line and run validation only
-                        const root = $getRoot()
-                        const descendants = root.getAllTextNodes()
-                        for (const textNode of descendants) {
-                            const parent = textNode.getParent()
-                            if ($isCodeLineNode(parent)) {
-                                // Run validation directly - this will refresh bracket detection
+                // if (shouldAnalyzeBrackets) {
+                //     log("🔄 Scheduling conservative bracket re-analysis")
+                //     // Just run validation directly - no need for full transform cycle
+                //     editor.update(() => {
+                //         // Find any code line and run validation only
+                //         const root = $getRoot()
+                //         const descendants = root.getAllTextNodes()
+                //         for (const textNode of descendants) {
+                //             const parent = textNode.getParent()
+                //             if ($isCodeLineNode(parent)) {
+                //                 // Run validation directly - this will refresh bracket detection
 
-                                return // Only validate one line to refresh cache
-                            }
-                        }
-                    })
-                }
+                //                 return // Only validate one line to refresh cache
+                //             }
+                //         }
+                //     })
+                // }
             },
             {skipInitialization: true}, // Don't trigger on initial load
         )
@@ -507,24 +507,6 @@ export function SyntaxHighlightPlugin({
                 }
 
                 log(`🚀 [SyntaxHighlightPlugin] Initial content loaded, running validation`)
-
-                // Schedule validation after initial content is processed
-                setTimeout(() => {
-                    editor.update(() => {
-                        const root = $getRoot()
-                        const codeBlock = root.getChildren().find($isCodeBlockNode)
-
-                        if (codeBlock) {
-                            const codeLines = codeBlock.getChildren().filter($isCodeLineNode)
-                            if (codeLines.length > 0) {
-                                // Run validation on the first line to trigger full validation
-                                log(
-                                    `🚀 [SyntaxHighlightPlugin] Running initial validation on ${codeLines.length} lines`,
-                                )
-                            }
-                        }
-                    })
-                }, 100) // Small delay to ensure content is fully processed
 
                 return false // Don't prevent other handlers
             },

@@ -8,14 +8,16 @@ import {AxiosResponse} from "axios"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import {useProjectData} from "@/oss/contexts/project.context"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import useStateCallback from "@/oss/hooks/useStateCallback"
 import AgGridReact, {type AgGridReactType} from "@/oss/lib/helpers/agGrid"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
+import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {GenericObject, KeyValuePair} from "@/oss/lib/Types"
 import {fetchTestset, updateTestset} from "@/oss/services/testsets/api"
+import {useProjectData} from "@/oss/state/project"
+import {useTestsetsData} from "@/oss/state/testset"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
@@ -23,7 +25,6 @@ import EditRowModal from "./EditRowModal"
 import TestsetMusHaveNameModal from "./InsertTestsetNameModal"
 import TableCellsRenderer from "./TableCellsRenderer"
 import TableHeaderComponent from "./TableHeaderComponent"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
 interface TestsetTableProps {
     mode: "edit"
@@ -101,6 +102,7 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
     const router = useRouter()
     const {appTheme} = useAppTheme()
     const {isProjectId} = useProjectData()
+    const {mutate: mutateTestsets} = useTestsetsData()
 
     const {testset_id} = router.query
 
@@ -220,6 +222,7 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
             setIsLoading(true)
             const afterSave = (response: AxiosResponse) => {
                 if (response.status === 200) {
+                    mutateTestsets()
                     setUnSavedChanges(false, () => {
                         mssgModal("success", "Changes saved successfully!")
                     })
