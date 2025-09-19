@@ -4,7 +4,7 @@ import {selectAtom, atomFamily} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {ensureProjectId} from "@/oss/lib/api/assets/fetchClient"
+import {projectIdAtom} from "@/oss/state/project"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {formatLatency, formatCurrency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {
@@ -46,7 +46,7 @@ export const tracesQueryAtom = atomWithQuery((get) => {
     const sort = get(sortAtom)
     const filters = get(filtersAtom)
     const traceTabs = get(traceTabsAtom)
-    const projectId = ensureProjectId()
+    const projectId = get(projectIdAtom)
     const params: Record<string, any> = {
         size: pagination.size,
         page: pagination.page,
@@ -72,7 +72,7 @@ export const tracesQueryAtom = atomWithQuery((get) => {
     }
 
     return {
-        queryKey: ["traces", appId, params],
+        queryKey: ["traces", projectId, appId, params],
         queryFn: async () => {
             const data = await fetchAllTraces(params, appId as string)
 

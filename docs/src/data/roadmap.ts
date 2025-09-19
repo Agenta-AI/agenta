@@ -25,6 +25,19 @@ export const shippedFeatures: ShippedFeature[] = [
     // Observability: DE74FF
     // Evaluation: 86B7FF
     {
+        id: "speed-improvements-playground",
+        title: "Speed Improvements in the Playground",
+        description: "We improved the speed of the playground (creation of prompts, navigation, etc.) especially with hundreds of revisions.",
+        changelogPath: "/changelog/speed-improvements-in-the-playground",
+        shippedAt: "2025-09-19",
+        labels: [
+            {
+                name: "Playground",
+                color: "BCFF78",
+            },
+        ],
+    },
+    {
         id: "markdown-support",
         title: "Markdown support ",
         description: "You can view prompt and messages in markdown both in the playground and in the observability drawer.",
@@ -144,18 +157,6 @@ export const inProgressFeatures: PlannedFeature[] = [
             {
                 name: "Evaluation",
                 color: "86B7FF",
-            },
-        ],
-    },
-    {
-        id: "speed-improvements-playground",
-        title: "Speed Improvements in the Playground",
-        description: "We are improving the speed of the playground especially with hundreds of revisions.",
-        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2727",
-        labels: [
-            {
-                name: "Playground",
-                color: "BCFF78",
             },
         ],
     },
