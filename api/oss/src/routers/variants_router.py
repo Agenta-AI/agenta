@@ -156,7 +156,11 @@ async def remove_variant(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put("/{variant_id}/parameters/", operation_id="update_variant_parameters")
+@router.put(
+    "/{variant_id}/parameters/",
+    operation_id="update_variant_parameters",
+    response_model=AppVariantRevision,
+)
 async def update_variant_parameters(
     request: Request,
     variant_id: str,
@@ -210,6 +214,18 @@ async def update_variant_parameters(
         await invalidate_cache(
             project_id=request.state.project_id,
         )
+
+        variant = await get_variant(
+            variant_id=variant_id,
+            request=request,
+        )
+
+        return await get_variant_revision(
+            variant_id=variant_id,
+            revision_number=variant.revision,  # type: ignore
+            request=request,
+        )
+
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)

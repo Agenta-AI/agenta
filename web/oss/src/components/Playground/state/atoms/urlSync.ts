@@ -1,5 +1,7 @@
 import {atom} from "jotai"
 
+import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
+
 import {selectedVariantsAtom, viewTypeAtom} from "./core"
 
 type UserSaveState = {
@@ -114,13 +116,32 @@ export const switchVariantAtom = atom(
             const updatedVariants = currentVariantIds.map((id) =>
                 id === currentVariantId ? newVariantId : id,
             )
+
+            duplicateChatHistoryForRevision({
+                get,
+                set,
+                sourceRevisionId: currentVariantId,
+                targetRevisionId: newVariantId,
+                displayedVariantsAfterSwap: updatedVariants,
+            })
+
             set(selectedVariantsAtom, updatedVariants)
             set(urlRevisionsAtom, updatedVariants) // Keep URL in sync
             set(viewTypeAtom, "comparison")
         } else {
             // Single mode: Just switch to the new variant
-            set(selectedVariantsAtom, [newVariantId])
-            set(urlRevisionsAtom, [newVariantId]) // Keep URL in sync
+            const updatedVariants = [newVariantId]
+
+            duplicateChatHistoryForRevision({
+                get,
+                set,
+                sourceRevisionId: currentVariantId,
+                targetRevisionId: newVariantId,
+                displayedVariantsAfterSwap: updatedVariants,
+            })
+
+            set(selectedVariantsAtom, updatedVariants)
+            set(urlRevisionsAtom, updatedVariants) // Keep URL in sync
             set(viewTypeAtom, "single")
         }
     },

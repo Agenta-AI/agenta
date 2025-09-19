@@ -8,13 +8,7 @@ import {queryClient} from "@/oss/lib/api/queryClient"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
-import {
-    chatTurnIdsAtom,
-    chatTurnIdsByBaselineAtom,
-    allChatTurnIdsMapAtom,
-    chatTurnsByIdAtom,
-    chatTurnsByIdCacheAtom,
-} from "@/oss/state/generation/entities"
+import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
 import {currentAppContextAtom} from "@/oss/state/newApps/selectors/apps"
 import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
@@ -43,14 +37,6 @@ import {
     waitForNewRevisionAfterMutationAtom,
     invalidatePlaygroundQueriesAtom,
 } from "./index"
-
-// import {variantOriginalParametersAtomFamily} from "./dirtyState"
-
-/**
- * Phase 4.3: Variant CRUD Mutation Atoms
- * Atoms for creating, updating, and deleting variants with optimistic updates
- */
-
 // Add variant mutation atom
 export const addVariantMutationAtom = atom(
     null,
@@ -172,16 +158,26 @@ export const addVariantMutationAtom = atom(
                     updatedVariants = [newestRevisionId]
                 }
 
+                duplicateChatHistoryForRevision({
+                    get,
+                    set,
+                    sourceRevisionId: (currentBaseRevision as any)?.id,
+                    targetRevisionId: newestRevisionId,
+                    displayedVariantsAfterSwap: updatedVariants,
+                })
+
                 set(updateUrlRevisionsAtom, updatedVariants)
                 set(selectedVariantsAtom, updatedVariants)
 
                 // Clear draft state for the base revision used to create the new variant
                 try {
-                    const baseRevisionId = (currentBaseRevision as any)?.id as string | undefined
-                    if (baseRevisionId) {
-                        set(clearLocalPromptsForRevisionAtomFamily(baseRevisionId))
-                        set(clearLocalCustomPropsForRevisionAtomFamily(baseRevisionId))
-                        set(parametersOverrideAtomFamily(baseRevisionId), null)
+                    const baseRevisionIdForClear = (currentBaseRevision as any)?.id as
+                        | string
+                        | undefined
+                    if (baseRevisionIdForClear) {
+                        set(clearLocalPromptsForRevisionAtomFamily(baseRevisionIdForClear))
+                        set(clearLocalCustomPropsForRevisionAtomFamily(baseRevisionIdForClear))
+                        set(parametersOverrideAtomFamily(baseRevisionIdForClear), null)
                     }
                 } catch {}
 
@@ -292,88 +288,6 @@ export const saveVariantMutationAtom = atom(
 
                 let logicalIdsForNewRevision: string[] = []
 
-                try {
-                    const baselineMap = get(chatTurnIdsByBaselineAtom) || {}
-                    if (
-                        Array.isArray(baselineMap[previousRevisionId]) &&
-                        baselineMap[previousRevisionId].length > 0
-                    )
-                        logicalIdsForNewRevision = [...baselineMap[previousRevisionId]]
-                    else {
-                        const currentLogical = get(chatTurnIdsAtom)
-                        logicalIdsForNewRevision = Array.isArray(currentLogical)
-                            ? [...currentLogical]
-                            : []
-                    }
-
-                    const persistedTurns = get(chatTurnsByIdAtom) as Record<string, any>
-                    const cachedTurns = get(chatTurnsByIdCacheAtom) as Record<string, any>
-                    const mergedTurns: Record<string, any> = {
-                        ...(persistedTurns || {}),
-                        ...(cachedTurns || {}),
-                    }
-                    const updatedEntries: Record<string, any> = {}
-
-                    for (const [turnId, turnValue] of Object.entries(mergedTurns)) {
-                        if (!turnValue) continue
-
-                        const assistantMap = turnValue.assistantMessageByRevision || {}
-                        const toolMap = turnValue.toolResponsesByRevision || {}
-                        const hasAssistant = previousRevisionId in assistantMap
-                        const hasTool = previousRevisionId in toolMap
-                        if (!hasAssistant && !hasTool) continue
-
-                        const clonedTurn = structuredClone(turnValue)
-                        clonedTurn.id = turnId
-
-                        if (!clonedTurn.assistantMessageByRevision)
-                            clonedTurn.assistantMessageByRevision = {}
-                        if (
-                            hasAssistant &&
-                            !(newRevisionId in clonedTurn.assistantMessageByRevision)
-                        ) {
-                            const assistantNode = clonedTurn.assistantMessageByRevision[
-                                previousRevisionId
-                            ]
-                            clonedTurn.assistantMessageByRevision[newRevisionId] = assistantNode
-                                ? structuredClone(assistantNode)
-                                : null
-                        }
-
-                        if (!clonedTurn.toolResponsesByRevision)
-                            clonedTurn.toolResponsesByRevision = {}
-                        if (
-                            hasTool &&
-                            !(newRevisionId in clonedTurn.toolResponsesByRevision)
-                        ) {
-                            const toolNodes = clonedTurn.toolResponsesByRevision[
-                                previousRevisionId
-                            ]
-                            clonedTurn.toolResponsesByRevision[newRevisionId] = toolNodes
-                                ? structuredClone(toolNodes)
-                                : toolNodes
-                        }
-
-                        updatedEntries[turnId] = clonedTurn
-                    }
-
-                    if (Object.keys(updatedEntries).length > 0) {
-                        set(chatTurnsByIdCacheAtom, (prev) => ({
-                            ...(prev || {}),
-                            ...updatedEntries,
-                        }))
-                    }
-
-                    if (logicalIdsForNewRevision.length > 0) {
-                        set(chatTurnIdsByBaselineAtom, (prev) => ({
-                            ...(prev || {}),
-                            [newRevisionId]: [...logicalIdsForNewRevision],
-                        }))
-                    }
-                } catch (error) {
-                    console.warn("Failed to duplicate chat history for committed revision", error)
-                }
-
                 const currentDisplayedVariants = get(selectedVariantsAtom)
                 const updatedVariants = currentDisplayedVariants.map((id) =>
                     id === variantId ? newRevisionId : id,
@@ -381,13 +295,13 @@ export const saveVariantMutationAtom = atom(
                 // Update selected variants so the UI switches to the new revision immediately
                 set(selectedVariantsAtom, updatedVariants)
                 set(updateUrlRevisionsAtom, updatedVariants)
-                if (logicalIdsForNewRevision.length > 0) {
-                    const newKey = `set:${[...updatedVariants].sort().join("|")}`
-                    set(allChatTurnIdsMapAtom, (prev) => ({
-                        ...(prev || {}),
-                        [newKey]: [...logicalIdsForNewRevision],
-                    }))
-                }
+                duplicateChatHistoryForRevision({
+                    get,
+                    set,
+                    sourceRevisionId: previousRevisionId,
+                    targetRevisionId: newRevisionId,
+                    displayedVariantsAfterSwap: updatedVariants,
+                })
                 // Clear local prompts cache for the previous revision to revert live edits
                 set(clearLocalPromptsForRevisionAtomFamily(variantId))
                 // Clear any JSON editor override for the previous revision

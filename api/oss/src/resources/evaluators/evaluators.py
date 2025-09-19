@@ -200,11 +200,11 @@ evaluators = [
                 "default": [
                     {
                         "role": "system",
-                        "content": "You are an evaluator grading an LLM App.\n You will be the LLM APP OUTPUT, the CORRECT ANSWER, the PROMPT used in the LLM APP.\n Here is the grade criteria to follow:\n:- Ensure that the LLM APP OUTPUT has the same meaning as the CORRECT ANSWER\n\nSCORE:\n-The score should be a decimal between 0 and 1\n-A score of 1 means that the answer is perfect. This is the highest (best) score. \nA score of 0 means that the answer does not any of of the criteria. This is the lowest possible score you can give.\n\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER",
+                        "content": "You are an evaluator grading an LLM App.\nYou will be given INPUTS, the LLM APP OUTPUT, the CORRECT ANSWER used in the LLM APP.\n<grade_criteria>\n- Ensure that the LLM APP OUTPUT has the same meaning as the CORRECT ANSWER\n</grade_criteria>\n\n<score_criteria>\n-The score should be between 0 and 1\n-A score of 1 means that the answer is perfect. This is the highest (best) score.\nA score of 0 means that the answer does not meet any of the criteria. This is the lowest possible score you can give.\n</score_criteria>\n\n<output_format>\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER\n</output_format>",
                     },
                     {
                         "role": "user",
-                        "content": "CORRECT ANSWER:{correct_answer}\nLLM APP OUTPUT: {prediction}.",
+                        "content": "<correct_answer>{{correct_answer}}</correct_answer>\n<llm_app_output>{{prediction}}</llm_app_output>",
                     },
                 ],
             },
@@ -237,7 +237,7 @@ evaluators = [
             "version": {
                 "label": "Version",
                 "type": "hidden",
-                "default": "2",
+                "default": "3",
                 "description": "The version of the evaluator",  # ignore by the FE
                 "advanced": False,  # ignore by the FE
             },

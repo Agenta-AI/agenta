@@ -44,10 +44,12 @@ async def get_user_llm_providers_secrets(project_id: str) -> Dict[str, Any]:
     # 3: convert secrets to readable format
     readable_secrets = {}
     for secret in secrets:
-        provider_slug = str(secret["data"].get("kind", ""))
+        kind = secret["data"].get("kind")
+        provider_slug = kind.value if kind else ""
         secret_name = f"{provider_slug.upper()}_API_KEY"
         if provider_slug:
-            readable_secrets[secret_name] = secret["data"].get("key")
+            provider = secret["data"].get("provider")
+            readable_secrets[secret_name] = provider.get("key") if provider else None
     return readable_secrets
 
 

@@ -401,7 +401,9 @@ class WorkflowServiceVersion(BaseModel):
 class WorkflowServiceInterface(WorkflowServiceVersion):
     uri: Optional[str] = None  # str (Enum) w/ validation
     url: Optional[str] = None  # str w/ validation
-    headers: Optional[Dict[str, Reference | str]] = None  # either hardcoded or a secret
+    headers: Optional[
+        Dict[str, Union[Reference, str]]  # either hardcoded or a secret
+    ] = None
 
     schemas: Optional[Schema] = None  # json-schema instead of pydantic
     mappings: Optional[Mappings] = None  # used in the workflow interface
@@ -432,11 +434,11 @@ class WorkflowRevision(
 
 class WorkflowServiceData(BaseModel):
     inputs: Optional[Data] = None
-    outputs: Optional[str | Data] = None
+    outputs: Optional[Union[str, Data]] = None
     trace: Optional[Trace] = None
-    trace_outputs: Optional[str | Data] = None
+    trace_outputs: Optional[Union[str, Data]] = None
     traces: Optional[Dict[str, Trace]] = None
-    traces_outputs: Optional[Dict[str, str | Data]] = None
+    traces_outputs: Optional[Dict[str, Union[str, Data]]] = None
 
 
 class WorkflowServiceRequest(Version, Metadata):

@@ -1,3 +1,4 @@
+from typing import Union
 from json import dumps
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -11,7 +12,7 @@ async def exact_match_v1(
     *,
     parameters: Data,
     inputs: Data,
-    outputs: Data | str,
+    outputs: Union[Data, str],
 ) -> Data:
     success = False
 

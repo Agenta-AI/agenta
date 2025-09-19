@@ -19,6 +19,8 @@ interface MessageEditorProps {
     headerRight?: React.ReactNode
     footer?: React.ReactNode
     noProvider?: boolean
+    roleOptions?: {label: string; value: string}[]
+    enableTokens?: boolean
 }
 
 const MessageEditor: React.FC<MessageEditorProps> = ({
@@ -39,17 +41,20 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
     isJSON,
     isTool,
     noProvider,
+    roleOptions,
+    enableTokens,
     ...props
 }) => {
     // TODO: REPLACE WITH METADATA SELECTOR
-    const roleOptions = useMemo(
-        () => [
-            {label: "user", value: "user"},
-            {label: "assistant", value: "assistant"},
-            {label: "system", value: "system"},
-            {label: "tool", value: "tool"},
-        ],
-        [],
+    const selectOptions = useMemo(
+        () =>
+            roleOptions ?? [
+                {label: "user", value: "user"},
+                {label: "assistant", value: "assistant"},
+                {label: "system", value: "system"},
+                {label: "tool", value: "tool"},
+            ],
+        [roleOptions],
     )
 
     return (
@@ -65,7 +70,7 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
                     >
                         <SimpleDropdownSelect
                             value={role}
-                            options={roleOptions}
+                            options={selectOptions}
                             onChange={(v) => onChangeRole?.(v)}
                             disabled={disabled}
                             className="message-user-select"
@@ -88,7 +93,7 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
                 codeOnly: isJSON,
                 // disabled: isTool,
                 noProvider: true,
-                enableTokens: false,
+                enableTokens: Boolean(enableTokens),
                 // tokens: variables,
                 showToolbar: false,
             }}
@@ -101,7 +106,7 @@ const MessageEditorWrapper = (props) => {
     return (
         <EditorProvider
             codeOnly={props.isTool}
-            enableTokens={false}
+            enableTokens={Boolean(props.enableTokens)}
             showToolbar={false}
             id={props.id}
         >

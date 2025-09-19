@@ -1,4 +1,4 @@
-from typing import Protocol, Callable, Any
+from typing import Protocol, Callable, Any, Union
 
 from agenta.sdk.workflows.types import (
     WorkflowServiceRequest,
@@ -22,7 +22,7 @@ WorkflowMiddlewareDecorator = Callable[[WorkflowServiceHandler], WorkflowService
 
 
 def middleware_as_decorator(
-    middleware: WorkflowMiddleware | type[WorkflowMiddleware],
+    middleware: Union[WorkflowMiddleware, type[WorkflowMiddleware]],
 ) -> WorkflowMiddlewareDecorator:
     middleware = middleware() if isinstance(middleware, type) else middleware
 

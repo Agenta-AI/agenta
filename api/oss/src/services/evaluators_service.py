@@ -508,11 +508,45 @@ async def auto_ai_critique(
         )
 
 
+def _format_with_template(
+    content: str,
+    format: str,
+    kwargs: Dict[str, Any],
+) -> str:
+    """Internal method to format content based on template_format"""
+    try:
+        if format == "fstring":
+            return content.format(**kwargs)
+
+        elif format == "jinja2":
+            from jinja2 import Template, TemplateError
+
+            try:
+                return Template(content).render(**kwargs)
+            except TemplateError as e:
+                return content
+
+        elif format == "curly":
+            import re
+
+            result = content
+            for key, value in kwargs.items():
+                result = re.sub(r"\{\{" + key + r"\}\}", str(value), result)
+            if re.search(r"\{\{.*?\}\}", result):
+                return content
+            return result
+
+    except Exception as e:
+        return content
+
+    return content
+
+
 async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
     anthropic_api_key = input.credentials.get("ANTHROPIC_API_KEY", None)
     litellm.openai_key = openai_api_key
-    litellm.anthropic_api_key = anthropic_api_key
+    litellm.anthropic_key = anthropic_api_key
     litellm.drop_params = True
 
     if not openai_api_key:
@@ -531,7 +565,58 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             raise e
 
     if (
-        input.settings.get("version", "1") == "2"
+        input.settings.get("version") == "3"
+    ) and (  # this check is used when running in the background (celery)
+        type(input.settings.get("prompt_template", "")) is not str
+    ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
+        try:
+            prompt_template = input.settings.get("prompt_template", "")
+
+            template_version = input.settings.get("version") or "3"
+
+            default_format = "fstring" if template_version == "2" else "curly"
+
+            template_format = input.settings.get("template_format") or default_format
+
+            formatted_prompt_template = []
+            for message in prompt_template:
+                formatted_prompt_template.append(
+                    {
+                        "role": message["role"],
+                        "content": _format_with_template(
+                            content=message["content"],
+                            format=template_format,
+                            kwargs=input.inputs,
+                        ),
+                    }
+                )
+            app_output = input.inputs.get("prediction")
+            if app_output is None:
+                raise ValueError("Prediction is required in inputs")
+            response = await litellm.acompletion(
+                model=input.settings.get("model", "gpt-3.5-turbo"),
+                messages=formatted_prompt_template,
+                temperature=0.01,
+            )
+            evaluation_output = response.choices[0].message.content.strip()
+            score = None
+            try:
+                score = float(evaluation_output)
+                return {"outputs": {"score": score}}
+            except ValueError:
+                # if the output is not a float, we try to extract a float from the text
+                match = re.search(r"[-+]?\d*\.\d+|\d+", evaluation_output)
+                if match:
+                    score = float(match.group())
+                    return {"outputs": {"score": score}}
+                else:
+                    raise ValueError(
+                        f"Could not parse output as float: {evaluation_output}"
+                    )
+        except Exception as e:
+            raise RuntimeError(f"Evaluation failed: {str(e)}")
+    elif (
+        input.settings.get("version") == "2"
     ) and (  # this check is used when running in the background (celery)
         type(input.settings.get("prompt_template", "")) is not str
     ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
@@ -1370,6 +1455,8 @@ async def semantic_similarity(
         float: the semantic similarity score
     """
 
+    correct_answer_key = input.settings.get("correct_answer_key", "correct_answer")
+
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
     if not openai_api_key:
         raise HTTPException(
@@ -1388,8 +1475,8 @@ async def semantic_similarity(
     def cosine_similarity(output_vector: array, correct_answer_vector: array) -> float:
         return np.dot(output_vector, correct_answer_vector)
 
-    output_vector = await encode(input.inputs["prediction"])
-    correct_answer_vector = await encode(input.inputs["ground_truth"])
+    output_vector = await encode(input.inputs.get("prediction", ""))
+    correct_answer_vector = await encode(input.inputs.get(correct_answer_key, ""))
     similarity_score = cosine_similarity(output_vector, correct_answer_vector)
     return {"outputs": {"score": similarity_score}}
 

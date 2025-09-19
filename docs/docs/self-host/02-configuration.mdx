@@ -72,7 +72,9 @@ Essential third-party service configurations:
 #### Redis (Caching)
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `REDIS_URL` | Redis connection URL | `redis://redis:6379/0` |
+| `REDIS_URL` | Redis connection URL for task queue | `redis://redis:6379/0` |
+| `REDIS_CACHE_HOST` | Redis cache hostname for application caching | `cache` |
+| `REDIS_CACHE_PORT` | Redis cache port for application caching | `6378` |
 
 #### RabbitMQ (Message Queue)
 | Variable | Description | Default |
@@ -128,7 +130,6 @@ Optional port and service configurations:
 | `NGINX_PORT` | Nginx port (when using Nginx) | `80` |
 | `RABBITMQ_PORT` | RabbitMQ AMQP port | `5672` |
 | `RABBITMQ_UI_PORT` | RabbitMQ management UI port | `15672` |
-| `REDIS_CACHE_PORT` | Redis cache port | `6378` |
 | `POSTGRES_PORT` | PostgreSQL port | `5432` |
 | `SUPERTOKENS_PORT` | SuperTokens port | `3567` |
 

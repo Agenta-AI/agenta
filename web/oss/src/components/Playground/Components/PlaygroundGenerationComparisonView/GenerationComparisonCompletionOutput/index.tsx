@@ -6,6 +6,7 @@ import {useAtomValue} from "jotai"
 import {generationResultAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 
+import TypingIndicator from "../../../assets/TypingIndicator"
 import GenerationCompletion from "../../PlaygroundGenerations/assets/GenerationCompletion"
 import ErrorPanel from "../../PlaygroundGenerations/assets/GenerationCompletionRow/ErrorPanel"
 import GenerationResponsePanel from "../../PlaygroundGenerations/assets/GenerationCompletionRow/GenerationResponsePanel"
@@ -63,7 +64,7 @@ const GenerationComparisonCompletionOutput = ({
             >
                 <div className="!w-full shrink-0 sticky top-9 z-[2]">
                     {isRunning ? (
-                        <RunningPlaceholder />
+                        <TypingIndicator />
                     ) : result ? (
                         result.error ? (
                             <ErrorPanel result={result} />

@@ -19,6 +19,7 @@ import {TOOL_SCHEMA} from "./assets"
 
 const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProps}) => {
     const editorIdRef = useRef(uuidv4())
+    const isReadOnly = Boolean(disabled)
     const [minimized, setMinimized] = useState(false)
     const [toolString, setToolString] = useState(() => {
         try {
@@ -56,7 +57,7 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
     }, [toolString])
 
     useEffect(() => {
-        if (!toolString) {
+        if (isReadOnly || !toolString) {
             return
         }
 
@@ -69,10 +70,10 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
         } catch (err) {
             console.error(err)
         }
-    }, [functionName])
+    }, [functionName, isReadOnly, toolString])
 
     useEffect(() => {
-        if (!toolString) {
+        if (isReadOnly || !toolString) {
             return
         }
 
@@ -86,9 +87,11 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
         } catch (err) {
             console.error(err)
         }
-    }, [functionDescription])
+    }, [functionDescription, isReadOnly, toolString])
 
     useEffect(() => {
+        if (isReadOnly) return
+
         try {
             const parsedTool = JSON5.parse(toolString)
             editorProps?.handleChange?.(parsedTool)
@@ -110,7 +113,7 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                 setFunctionDescription(null)
             }
         }
-    }, [toolString])
+    }, [toolString, isReadOnly])
 
     // Use atom-based state management for direct prompt updates via derived prompts
     const variant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
@@ -120,12 +123,12 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
     )
 
     const deleteMessage = useCallback(() => {
+        if (isReadOnly) return
         if (!baseProperty?.__id) {
             console.warn("Cannot delete tool: tool property ID not found")
             return
         }
 
-        // Update the prompts directly
         setPrompts((prevPrompts: any[] = []) => {
             return prevPrompts.map((prompt: any) => {
                 const toolsArr = prompt?.llmConfig?.tools?.value
@@ -149,12 +152,17 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                 return prompt
             })
         })
-
-        // No imperative commit-ready update needed; derived atoms will recompute.
-    }, [variantId, baseProperty?.__id, setPrompts])
+    }, [isReadOnly, variantId, baseProperty?.__id, setPrompts])
 
     return (
-        <PlaygroundVariantPropertyControlWrapper className="w-full max-w-full overflow-y-auto flex [&_>_div]:!w-auto [&_>_div]:!grow !my-0">
+        <PlaygroundVariantPropertyControlWrapper
+            className={clsx(
+                "w-full max-w-full overflow-y-auto flex [&_>_div]:!w-auto [&_>_div]:!grow !my-0",
+                {
+                    "[_.agenta-shared-editor]:w-full": isReadOnly,
+                },
+            )}
+        >
             <EditorProvider
                 className="!border-none"
                 codeOnly
@@ -170,6 +178,7 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                         validationSchema: TOOL_SCHEMA,
                     }}
                     handleChange={(e) => {
+                        if (isReadOnly) return
                         setToolString(e)
                     }}
                     editorType="border"
@@ -181,7 +190,7 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                             "[&_.agenta-editor-wrapper]:h-fit": !minimized,
                         },
                     ])}
-                    state="filled"
+                    state={isReadOnly ? "readOnly" : "filled"}
                     header={
                         <div className={clsx("w-full flex items-center justify-between", "py-1")}>
                             <div className="grow">
@@ -199,9 +208,10 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                                             value={functionName}
                                             variant="borderless"
                                             placeholder="Function Name"
-                                            disabled={!parsed}
+                                            disabled={isReadOnly || !parsed}
                                             // onChange={handleNameChange}
                                             onChange={(e) => {
+                                                if (isReadOnly) return
                                                 setFunctionName(e.target.value)
                                             }}
                                         />
@@ -219,9 +229,10 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                                             value={functionDescription}
                                             variant="borderless"
                                             placeholder="Function Description"
-                                            disabled={!parsed}
+                                            disabled={isReadOnly || !parsed}
                                             // onChange={handleDescriptionChange}
                                             onChange={(e) => {
+                                                if (isReadOnly) return
                                                 setFunctionDescription(e.target.value)
                                             }}
                                         />
@@ -232,15 +243,19 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                             <PromptMessageContentOptions
                                 id={editorIdRef.current}
                                 className="invisible group-hover/item:visible"
-                                isMessageDeletable={true}
-                                disabled={false}
+                                isMessageDeletable={!isReadOnly}
+                                disabled={isReadOnly}
                                 minimized={minimized}
-                                actions={{
-                                    deleteMessage,
-                                    minimize: () => {
-                                        setMinimized((current) => !current)
-                                    },
-                                }}
+                                actions={
+                                    isReadOnly
+                                        ? undefined
+                                        : {
+                                              deleteMessage,
+                                              minimize: () => {
+                                                  setMinimized((current) => !current)
+                                              },
+                                          }
+                                }
                                 hideMarkdownToggle={true}
                             />
                         </div>

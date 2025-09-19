@@ -1,5 +1,6 @@
 import React, {useMemo} from "react"
 
+import clsx from "clsx"
 import {useSetAtom} from "jotai"
 
 import {getPromptById, getLLMConfig} from "@/oss/components/Playground/context/promptShape"
@@ -33,7 +34,11 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
     }, [prompts, promptId])
     const responseFormatId = responseFormatInfo.enhancedId as string | undefined
     return (
-        <div className="flex items-center gap-1 flex-wrap w-full">
+        <div
+            className={clsx(["flex items-center gap-1 flex-wrap w-full"], {
+                "[&>_div]:!w-full": viewOnly,
+            })}
+        >
             {!viewOnly && (
                 <>
                     <AddButton
