@@ -14,7 +14,7 @@ You can configure the prompt used for evaluation. The prompt can contain multipl
 
 - `{{correct_answer}}`: the column with the reference answer in the test set (optional). You can configure the name of this column under `Advanced Setting` in the configuration modal.
 - `{{prediction}}`: the output of the llm application
-- `{{$input_column_name}}`: the value of any input column for the given row of your test set (e.g. `{{$country}}`)
+- `{{test_case.$input_column_name}}`: the value of any input column for the given row of your test set (e.g. `{{test_case.country}}`)
 
 If no `correct_answer` column is present in your test set, the variable will be left blank in the prompt.
 
