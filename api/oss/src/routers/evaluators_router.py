@@ -88,9 +88,15 @@ async def evaluator_run(
 
     payload.credentials = providers_keys_from_vault
 
-    result = await evaluators_service.run(
-        evaluator_key=evaluator_key, evaluator_input=payload
-    )
+    try:
+        result = await evaluators_service.run(
+            evaluator_key=evaluator_key,
+            evaluator_input=payload,
+        )
+    except Exception as e:
+        log.warning(f"Error with evaluator /run", exc_info=True)
+        raise HTTPException(status_code=424 if "401" in str(e) else 500, detail=str(e))
+
     return result
 
 

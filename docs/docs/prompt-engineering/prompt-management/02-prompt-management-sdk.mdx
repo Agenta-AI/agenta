@@ -6,13 +6,14 @@ description: "Learn how to create variants, commit changes, deploy to environmen
 ---
 
 import Image from "@theme/IdealImage";
+import GoogleColabButton from "@site/src/components/GoogleColabButton";
 
 
 This guide covers all prompt management operations using the Agenta SDK: creating variants, committing changes, deploying to environments, and fetching configurations.
 
-:::tip Looking for a simpler introduction?
-For a step-by-step tutorial, see the [prompt management tutorial](/tutorials/sdk/manage-prompts-with-SDK).
-:::
+<GoogleColabButton notebookPath="examples/jupyter/prompt-management/how-to-prompt-management.ipynb">
+  Open in Google Colaboratory
+</GoogleColabButton>
 
 ## Prerequisites
 
@@ -32,7 +33,6 @@ Before starting, familiarize yourself with how versioning works in Agenta. Detai
 Agenta uses a Git-like structure for prompt versioning:
 - Create multiple branches called **variants**
 - Each variant is versioned.
-
 - Deploy specific versions to **environments** (development, staging, production)
 
 **Typical workflow:**
@@ -57,6 +57,29 @@ os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai" # only needed if self-host
 # Initialize the SDK
 ag.init()
 ```
+## Creating a new application
+
+You can create a new application from the UI or programmatically.
+
+### Creating a new application from the UI
+
+Go to the App Management page and click on the "Create New Prompt" button, then choose the type of application you want to create (chat for multi-turn chat applications or completion for single-turn applications).
+
+### Creating a new application from the SDK
+
+```Python
+# Creates an empty application
+app = ag.AppManager.create(
+    app_slug="my-app-slug",
+    template_key="SERVICE:completion", # we define here the app type
+    # template_key="SERVICE:chat" # chat prompts
+    # template_key="CUSTOM" # custom configuration (schema-less, however unless you provide a URI, you can only use the registry but not the playground)
+)
+```
+
+:::warning
+The app created until now is empty. You cannot use it from the UI yet. You need to create a variant and commit changes to it to be able to use it (next section).
+:::
 
 ## Creating and Managing Variants
 

@@ -379,18 +379,25 @@ export const createAppMutationAtom = atom(
                 message: `App "${appName}" created successfully with initial revision`,
             }
         } catch (error: any) {
-            if (error?.response?.status === 400) {
+            if (error?.status === 400) {
                 onStatusChange?.("bad_request", error)
                 return {
                     success: false,
                     error: error.message || "Bad request during app creation",
                 }
+            } else if (error?.status === 403) {
+                onStatusChange?.("permission_denied", error)
+                return {
+                    success: false,
+                    error: error.message || "Permission denied during app creation",
+                }
             }
 
-            onStatusChange?.("error", error)
+            // Handle any other errors
+            onStatusChange?.("error")
             return {
                 success: false,
-                error: error instanceof Error ? error.message : "Failed to create app",
+                error: error.message || "An unexpected error occurred during app creation",
             }
         }
     },

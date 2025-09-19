@@ -10,41 +10,40 @@ The evaluator has the following parameters:
 
 #### The Prompt
 
-You can configure the prompt used for evaluation. The prompt can contain multiple messages in OpenAI format (role/content). All messages in the prompt have access to the inputs, outputs, and reference answers (any columns in the test set). To reference these in your prompts, use the following variables:
+You can configure the prompt used for evaluation. The prompt can contain multiple messages in OpenAI format (role/content). All messages in the prompt have access to the inputs, outputs, and reference answers (any columns in the test set). To reference these in your prompts, use the following variables (inside double curly braces):
 
-- `correct_answer`: the column with the reference answer in the test set (optional). You can configure the name of this column under `Advanced Setting` in the configuration modal.
-- `prediction`: the output of the llm application
-- `$input_column_name`: the value of any input column for the given row of your test set
+- `{{correct_answer}}`: the column with the reference answer in the test set (optional). You can configure the name of this column under `Advanced Setting` in the configuration modal.
+- `{{prediction}}`: the output of the llm application
+- `{{$input_column_name}}`: the value of any input column for the given row of your test set (e.g. `{{$country}}`)
 
 If no `correct_answer` column is present in your test set, the variable will be left blank in the prompt.
 
-Here's the default prompt used for the country expert demo application (note that it uses the `country` input column from our test set):
+Here's the default prompt:
 
 **System prompt:**
-
 ```
 You are an evaluator grading an LLM App.
- You will be given INPUTS, the LLM APP OUTPUT, the CORRECT ANSWER, the PROMPT used in the LLM APP.
- Here is the grade criteria to follow:
-:- Ensure that the LLM APP OUTPUT has the same meaning as the CORRECT ANSWER
+You will be given INPUTS, the LLM APP OUTPUT, the CORRECT ANSWER used in the LLM APP.
+<grade_criteria>
+- Ensure that the LLM APP OUTPUT has the same meaning as the CORRECT ANSWER
+</grade_criteria>
 
-SCORE:
--The score should be between 0 and 10
--A score of 10 means that the answer is perfect. This is the highest (best) score.
+<score_criteria>
+-The score should be between 0 and 1
+-A score of 1 means that the answer is perfect. This is the highest (best) score.
 A score of 0 means that the answer does not any of of the criteria. This is the lowest possible score you can give.
+</score_criteria>
 
+<output_format>
 ANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER
+</output_format>
 ```
 
 **User prompt:**
 
 ```
-
-INPUTS:
-country: {country}
-CORRECT ANSWER:{correct_answer}
-LLM APP OUTPUT: {prediction}.
-
+<correct_answer>{{correct_answer}}</correct_answer>
+<llm_app_output>{{prediction}}</llm_app_output>
 ```
 
 ### The Model

@@ -3,13 +3,12 @@ import json
 import httpx
 import traceback
 from json import dumps, loads
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 
 import litellm
 import numpy as np
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, OpenAIError
 from difflib import SequenceMatcher
-from numpy._core._multiarray_umath import array
 from autoevals.ragas import Faithfulness, ContextRelevancy
 
 from oss.src.services.security import sandbox
@@ -68,8 +67,42 @@ async def _compute_embedding(openai: Any, model: str, input: str):
     return np.array(response.data[0].embedding)
 
 
-def _compute_similarity(embedding_1: array, embedding_2: array) -> float:
+def _compute_similarity(embedding_1, embedding_2) -> float:
     return np.dot(embedding_1, embedding_2)
+
+
+def _format_with_template(
+    content: str,
+    format: str,
+    kwargs: Dict[str, Any],
+) -> str:
+    """Internal method to format content based on template_format"""
+    try:
+        if format == "fstring":
+            return content.format(**kwargs)
+
+        elif format == "jinja2":
+            from jinja2 import Template, TemplateError
+
+            try:
+                return Template(content).render(**kwargs)
+            except TemplateError as e:
+                return content
+
+        elif format == "curly":
+            import re
+
+            result = content
+            for key, value in kwargs.items():
+                result = re.sub(r"\{\{" + key + r"\}\}", str(value), result)
+            if re.search(r"\{\{.*?\}\}", result):
+                return content
+            return result
+
+    except Exception as e:
+        return content
+
+    return content
 
 
 async def auto_exact_match_v0(
@@ -84,6 +117,8 @@ async def auto_exact_match_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Exact match evaluator for comparing trace_outputs against reference trace_outputs.
@@ -136,6 +171,8 @@ async def auto_regex_test_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Regex test evaluator for checking if output matches a regex pattern.
@@ -203,6 +240,8 @@ async def field_match_test_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Field match test evaluator for extracting and comparing a specific field from JSON output.
@@ -273,6 +312,8 @@ async def auto_webhook_test_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Webhook test evaluator for sending output to an external service for evaluation.
@@ -390,6 +431,8 @@ async def auto_custom_code_run_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Custom code execution evaluator for running arbitrary code to evaluate trace_outputs.
@@ -476,6 +519,8 @@ async def auto_ai_critique_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     AI critique evaluator for using an LLM to evaluate trace_outputs.
@@ -508,6 +553,10 @@ async def auto_ai_critique_v0(
             got=type(prompt_template),
         )
 
+    template_version = parameters.get("version") or "3"
+
+    template_format = "fstring" if template_version == "2" else "curly"
+
     model = parameters.get("model", "gpt-3.5-turbo")
 
     if not isinstance(model, str):
@@ -532,11 +581,6 @@ async def auto_ai_critique_v0(
 
     openai_api_key = secrets.get("OPENAI_API_KEY")
     anthropic_api_key = secrets.get("ANTHROPIC_API_KEY")
-
-    if not openai_api_key and not anthropic_api_key:
-        raise MissingSecretsPathV0Error(
-            path="OPENAI_API_KEY | ANTHROPIC_API_KEY",
-        )
 
     threshold = parameters.get("threshold") or 0.5
 
@@ -564,7 +608,11 @@ async def auto_ai_critique_v0(
         formatted_prompt_template = [
             {
                 "role": message["role"],
-                "content": message["content"].format(**context),
+                "content": _format_with_template(
+                    content=message["content"],
+                    format=template_format,
+                    kwargs=context,
+                ),
             }
             for message in prompt_template
         ]
@@ -575,13 +623,24 @@ async def auto_ai_critique_v0(
         ) from e
 
     try:
-        response = await litellm.acompletion(
-            model=model,
-            messages=formatted_prompt_template,
-            temperature=0.01,
-        )
+        completion_kwargs = {
+            "model": model,
+            "messages": formatted_prompt_template,
+        }
+
+        if "gpt-5" not in model:
+            completion_kwargs["temperature"] = 0.01
+
+        response = await litellm.acompletion(**completion_kwargs)
 
         score = response.choices[0].message.content.strip()
+
+    except litellm.AuthenticationError as e:
+        e.message = e.message.replace(
+            "litellm.AuthenticationError: AuthenticationError: ", ""
+        )
+        raise e
+
     except Exception as e:
         raise PromptCompletionV0Error(
             message=str(e),
@@ -614,6 +673,8 @@ async def auto_starts_with_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Starts with evaluator for checking if output starts with a specific prefix.
@@ -673,6 +734,8 @@ async def auto_ends_with_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Ends with evaluator for checking if output ends with a specific suffix.
@@ -732,6 +795,8 @@ async def auto_contains_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Contains evaluator for checking if output contains a specific substring.
@@ -791,6 +856,8 @@ async def auto_contains_any_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Contains any evaluator for checking if output contains any of the specified substrings.
@@ -859,6 +926,8 @@ async def auto_contains_all_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Contains all evaluator for checking if output contains all of the specified substrings.
@@ -920,13 +989,15 @@ async def auto_contains_json_v0(
     revision: WorkflowRevision,
     request: WorkflowServiceRequest,
     #
-    parameters: dict,
-    inputs: dict,
+    parameters: Data,
+    inputs: Data,
     trace_outputs: Data | str,
     #
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Contains JSON evaluator for checking if output contains valid JSON content.
@@ -976,6 +1047,8 @@ async def auto_json_diff_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     JSON diff evaluator for finding differences between JSON structures.
@@ -1063,13 +1136,15 @@ async def rag_faithfulness_v0(
     revision: WorkflowRevision,
     request: WorkflowServiceRequest,
     #
-    parameters: dict,
-    inputs: dict,
+    parameters: Data,
+    inputs: Data,
     trace_outputs: Data | str,
     #
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
-    tree: Optional[VersionedTree] = None,
+    tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     RAG faithfulness evaluator for measuring how faithful a response is to the provided context.
@@ -1203,13 +1278,15 @@ async def rag_context_relevancy_v0(
     revision: WorkflowRevision,
     request: WorkflowServiceRequest,
     #
-    parameters: dict,
-    inputs: dict,
+    parameters: Data,
+    inputs: Data,
     trace_outputs: Data | str,
     #
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
-    tree: Optional[VersionedTree] = None,
+    tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     RAG context relevancy evaluator for measuring how relevant the provided context is to the query.
@@ -1342,13 +1419,15 @@ async def auto_levenshtein_distance_v0(
     revision: WorkflowRevision,
     request: WorkflowServiceRequest,
     #
-    parameters: dict,
-    inputs: dict,
+    parameters: Data,
+    inputs: Data,
     trace_outputs: Data | str,
     #
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Levenshtein distance evaluator using pure Python implementation.
@@ -1458,6 +1537,8 @@ async def auto_similarity_match_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Similarity match evaluator for measuring string similarity between output and reference.
@@ -1552,6 +1633,8 @@ async def auto_semantic_similarity_v0(
     trace_parameters: Optional[Data] = None,
     trace: Optional[Trace] = None,
     tree: Optional[Tree] = None,
+    #
+    secrets: Optional[dict] = None,
 ) -> Data:
     """
     Semantic similarity evaluator for measuring semantic similarity between output and reference using embeddings.
@@ -1614,7 +1697,10 @@ async def auto_semantic_similarity_v0(
     success = None
 
     # --------------------------------------------------------------------------
-    openai = AsyncOpenAI(api_key=secrets.get("OPENAI_API_KEY"))
+    try:
+        openai = AsyncOpenAI(api_key=secrets.get("OPENAI_API_KEY"))
+    except OpenAIError as e:
+        raise OpenAIError("OpenAIException - " + e.args[0])
 
     output_embedding = await _compute_embedding(
         openai,

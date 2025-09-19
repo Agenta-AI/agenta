@@ -9,7 +9,9 @@ from llama_index.core import SimpleDirectoryReader
 from langchain_core.runnables import RunnableLambda
 from openinference.instrumentation.langchain import LangChainInstrumentor
 
+from dotenv import load_dotenv
 
+load_dotenv(override=True)
 ag.init()
 LangChainInstrumentor().instrument()
 

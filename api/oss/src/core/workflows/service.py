@@ -814,6 +814,8 @@ class WorkflowsService:
                 #
                 trace=request.data.trace,
                 tree=request.data.tree,
+                #
+                secrets=request.secrets,
             )
 
             response = WorkflowServiceResponse(

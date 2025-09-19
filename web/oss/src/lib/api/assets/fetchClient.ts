@@ -65,10 +65,35 @@ export async function fetchJson(url: URL, init: RequestInit = {}): Promise<any> 
     }
 
     const res = await fetch(url.toString(), {...init, headers})
-    if (!res.ok) {
-        throw new Error(`${init.method || "GET"} ${url.pathname} failed: ${res.status}`)
-    }
     const contentType = res.headers.get("content-type") || ""
+
+    if (!res.ok) {
+        let parsedBody: any = undefined
+        try {
+            parsedBody = contentType.includes("application/json")
+                ? await res.clone().json()
+                : await res.clone().text()
+        } catch {
+            parsedBody = undefined
+        }
+
+        const detail =
+            (parsedBody as any)?.detail ||
+            (parsedBody as any)?.error ||
+            (typeof parsedBody === "string" ? parsedBody : undefined)
+
+        const errorMessage =
+            detail && typeof detail === "string"
+                ? `${detail}`
+                : `${init.method || "GET"} ${url.pathname} failed: ${res.status}`
+
+        const error = new Error(errorMessage)
+        ;(error as any).status = res.status
+        ;(error as any).statusText = res.statusText
+        ;(error as any).data = parsedBody
+        throw error
+    }
+
     if (contentType.includes("application/json")) return res.json()
     return res.text()
 }

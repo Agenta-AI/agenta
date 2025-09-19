@@ -1,5 +1,5 @@
 from urllib.parse import urlparse
-from typing import Optional, Any, Dict, Union, List
+from typing import Optional, Any, Dict, Union, List, Set
 
 from supertokens_python.types import AccountInfo
 from supertokens_python.asyncio import list_users_by_account_info
@@ -42,6 +42,9 @@ from supertokens_python.recipe.emailpassword.interfaces import (
     SignUpPostOkResult as EmailPasswordSignUpPostOkResult,
 )
 
+import posthog
+
+from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.services.exceptions import UnauthorizedException
@@ -57,11 +60,107 @@ from oss.src.utils.validators import (
 )
 
 
-def _is_blocked(email: str) -> bool:
+async def _get_blocked_domains() -> Set[str]:
+    # 1. If env var is defined and is not empty, always use it
+    if env.AGENTA_BLOCKED_DOMAINS:
+        return env.AGENTA_BLOCKED_DOMAINS
+
+    # 2. Else, try PostHog feature flags if API key is present
+    if env.POSTHOG_API_KEY:
+        feature_flag = "blocked-domains"
+        cache_key = {
+            "ff": feature_flag,
+        }
+
+        # Try cache first
+        flag_blocked_domains: Optional[Set[str]] = await get_cache(
+            namespace="posthog:flags",
+            key=cache_key,
+            retry=False,
+        )
+
+        if flag_blocked_domains is not None:
+            return set(flag_blocked_domains)
+
+        # Fetch from PostHog if not cached
+        flag_blocked_domains = posthog.get_feature_flag(
+            feature_flag,
+            "user distinct id",
+        )
+
+        # Normalize to set
+        blocked_set = list(
+            {e.strip().lower() for e in flag_blocked_domains}
+            if isinstance(flag_blocked_domains, (list, set, tuple))
+            else set()
+        )
+
+        # Cache the result
+        await set_cache(
+            namespace="posthog:flags",
+            key=cache_key,
+            value=blocked_set,
+        )
+
+        return set(blocked_set)
+
+    # 3. Else, return empty set
+    return set()
+
+
+async def _get_blocked_emails() -> Set[str]:
+    # 1. If env var is defined and is not empty, always use it
+    if env.AGENTA_BLOCKED_EMAILS:
+        return env.AGENTA_BLOCKED_EMAILS
+
+    # 2. Else, try PostHog feature flags if API key is present
+    if env.POSTHOG_API_KEY:
+        feature_flag = "blocked-emails"
+        cache_key = {
+            "ff": feature_flag,
+        }
+
+        # Try cache first
+        flag_blocked_emails: Optional[Set[str]] = await get_cache(
+            namespace="posthog:flags",
+            key=cache_key,
+            retry=False,
+        )
+
+        if flag_blocked_emails is not None:
+            return set(flag_blocked_emails)
+
+        # Fetch from PostHog if not cached
+        flag_blocked_emails = posthog.get_feature_flag(
+            feature_flag,
+            "user distinct id",
+        )
+
+        # Normalize to set
+        blocked_set = list(
+            {e.strip().lower() for e in flag_blocked_emails}
+            if isinstance(flag_blocked_emails, (list, set, tuple))
+            else set()
+        )
+
+        # Cache the result
+        await set_cache(
+            namespace="posthog:flags",
+            key=cache_key,
+            value=blocked_set,
+        )
+
+        return set(blocked_set)
+
+    # 3. Else, return empty set
+    return set()
+
+
+async def _is_blocked(email: str) -> bool:
     email = email.lower()
-    if email in env.AGENTA_BLOCKED_EMAILS:
+    if email in await _get_blocked_emails():
         return True
-    if "@" in email and email.split("@")[-1] in env.AGENTA_BLOCKED_DOMAINS:
+    if "@" in email and email.split("@")[-1] in await _get_blocked_domains():
         return True
     return False
 
@@ -101,7 +200,7 @@ def override_passwordless_apis(
 
         # Post sign up response, we check if it was successful
         if isinstance(response, ConsumeCodeOkResult):
-            if is_ee() and _is_blocked(response.user.emails[0]):
+            if is_ee() and await _is_blocked(response.user.emails[0]):
                 raise UnauthorizedException(detail="This email is not allowed.")
             payload = {
                 "uid": response.user.id,
@@ -146,7 +245,7 @@ def override_thirdparty_apis(original_implementation: ThirdPartyAPIInterface):
         )
 
         if isinstance(response, SignInUpPostOkResult):
-            if is_ee() and _is_blocked(response.user.emails[0]):
+            if is_ee() and await _is_blocked(response.user.emails[0]):
                 raise UnauthorizedException(detail="This email is not allowed.")
             payload = {
                 "uid": response.user.id,
@@ -179,7 +278,7 @@ def override_password_apis(original: EmailPasswordAPIInterface):
         user_context: Dict[str, Any],
     ):
         if form_fields[0].id == "email" and is_input_email(form_fields[0].value):
-            if is_ee() and _is_blocked(form_fields[0].value):
+            if is_ee() and await _is_blocked(form_fields[0].value):
                 raise UnauthorizedException(detail="This email is not allowed.")
             user_id = await get_user_with_email(form_fields[0].value)
             if user_id is not None:
@@ -216,7 +315,7 @@ def override_password_apis(original: EmailPasswordAPIInterface):
     ):
         # FLOW 1: Sign in
         email = form_fields[0].value
-        if is_ee() and _is_blocked(email):
+        if is_ee() and await _is_blocked(email):
             raise UnauthorizedException(detail="This email is not allowed.")
         user_info_from_st = await list_users_by_account_info(
             tenant_id="public", account_info=AccountInfo(email=email)

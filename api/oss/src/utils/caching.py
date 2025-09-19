@@ -7,12 +7,9 @@ from redis.asyncio import Redis
 from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
-
-# TODO: ADD ENV VARS
-REDIS_HOST = "cache"
-REDIS_PORT = 6378
 
 AGENTA_CACHE_DB = 1
 AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
@@ -30,8 +27,8 @@ CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
 
 r = Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
+    host=env.REDIS_CACHE_HOST,
+    port=env.REDIS_CACHE_PORT,
     db=AGENTA_CACHE_DB,
     decode_responses=True,
     socket_timeout=0.5,  # read/write timeout

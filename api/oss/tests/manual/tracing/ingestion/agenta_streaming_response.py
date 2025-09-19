@@ -1,3 +1,6 @@
+# /// script
+# dependencies = ["agenta", "fastapi", "pydantic"]
+# ///
 """
 Simple Agenta Observability FastAPI Example
 

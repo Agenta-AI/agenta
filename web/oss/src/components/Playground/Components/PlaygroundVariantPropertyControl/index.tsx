@@ -126,6 +126,13 @@ const PlaygroundVariantPropertyControl = ({
         }
     }
 
+    if (providerNode && providerNode.__metadata) {
+        const providerMetadata = getMetadataLazy(providerNode.__metadata)
+        if (providerMetadata) {
+            propertyMetadata = providerMetadata
+        }
+    }
+
     // Prompts-only write facade for variant updates
     const variantPromptWriteAtom = useMemo(() => {
         if (!actualVariantId || !propertyId) return noopWriteAtom

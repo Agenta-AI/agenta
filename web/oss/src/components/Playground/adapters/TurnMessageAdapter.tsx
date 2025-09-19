@@ -142,19 +142,6 @@ const TurnMessageAdapter: React.FC<Props> = ({
         [turn, msg, getTarget, setTurn, isToolKind],
     )
 
-    const onChangeToolCallContent = useCallback(
-        (v: string) => {
-            if (!turn || !msg) return
-            // setTurn((draft: any) => {
-            //     const {target, assign} = getTarget(draft)
-            //     if (!target || !target.toolCallContent || typeof target.toolCallContent !== "object") return
-            //     const updated = {...target, toolCallContent: {...target.toolCallContent, value: v}}
-            //     assign(updated)
-            // })
-        },
-        [turn, msg, getTarget, setTurn],
-    )
-
     const onChangeText = useCallback(
         (v: string) => {
             // if (isToolKind) return

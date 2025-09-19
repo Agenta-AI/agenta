@@ -41,6 +41,10 @@ class EnvironSettings(BaseModel):
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "")
     CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND", "")
 
+    # CACHE (REQUIRED)
+    REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST", "cache")
+    REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT", "6378"))
+
     # Mail
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
     AGENTA_SEND_EMAIL_FROM_ADDRESS: str = os.getenv(

@@ -213,11 +213,7 @@ def _get_event_name_from_path(
     elif method == "PUT" and "/evaluators/configs/" in path:
         return "evaluator_updated"
 
-    elif (
-        method == "POST"
-        and ("/evaluations" in path)
-        or ("evaluators" in path_parts and "run" in path_parts)
-    ):
+    elif method == "POST" and path == "/preview/evaluations/runs/":
         return "evaluation_created"
 
     elif method == "POST" and "/human-evaluations" in path:
