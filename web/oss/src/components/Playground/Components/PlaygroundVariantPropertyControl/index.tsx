@@ -154,16 +154,42 @@ const PlaygroundVariantPropertyControl = ({
 
         const handler = (newValue: any, _: any, targetPropertyId?: string) => {
             // No-op guard: skip if value hasn't changed to avoid redundant atom writes
+
+            let _value = newValue
+            // if newValue is instance of change event, then get the value properly
+            const extractEventValue = (input: any) => {
+                if (!input || typeof input !== "object") return undefined
+                const target = (input as any).target ?? (input as any).currentTarget
+                const candidate = target && typeof target === "object" ? target : null
+                if (candidate && "value" in candidate) return (candidate as any).value
+                if ("nativeEvent" in (input as any)) {
+                    const nativeTarget = (input as any)?.nativeEvent?.target
+                    if (nativeTarget && typeof nativeTarget === "object" && "value" in nativeTarget)
+                        return (nativeTarget as any).value
+                }
+                return undefined
+            }
+
+            if (typeof Event !== "undefined" && newValue instanceof Event) {
+                _value = (newValue as any).target?.value
+            } else {
+                const syntheticVal = extractEventValue(newValue)
+                if (syntheticVal !== undefined) {
+                    _value = syntheticVal
+                }
+            }
+
             const currentVal = value
             const isSame =
-                typeof newValue === "object" && newValue !== null
-                    ? deepEqual(newValue, currentVal)
-                    : newValue === currentVal
+                typeof _value === "object" && _value !== null
+                    ? deepEqual(_value, currentVal)
+                    : _value === currentVal
+
             if (isSame) return
 
             if (source === "variant" && actualVariantId) {
                 // Use prompts-only facade to route writes through the centralized mutation
-                setVariantPromptValue(newValue)
+                setVariantPromptValue(_value)
             }
         }
 
@@ -172,15 +198,7 @@ const PlaygroundVariantPropertyControl = ({
             value,
             handleChange: handler,
         }
-    }, [
-        propertyData,
-        propertyMetadata,
-        propertyId,
-        rowId,
-        actualVariantId,
-        // updateGenerationDataProperty,
-        messageId,
-    ])
+    }, [propertyData, propertyMetadata, propertyId, rowId, actualVariantId, messageId])
 
     // Defensive programming: Handle revoked proxy for entire property object
     const {metadata, value, handleChange} = useMemo(() => {

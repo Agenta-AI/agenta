@@ -193,15 +193,13 @@ export const cancelChatTurnAtom = atom(
     async (get, set, params: {turnId: string; variantId?: string}) => {
         const {turnId, variantId} = params
         if (variantId) {
-            const cancel = get(cancelTestAtom)
-            cancel({rowId: turnId, variantId})
+            set(cancelTestAtom, {rowId: turnId, variantId})
             return
         }
         // Cancel across displayed variants
         const displayed = (get(displayedVariantsAtom) || []) as string[]
-        const cancel = get(cancelTestAtom)
         for (const rev of displayed) {
-            cancel({rowId: turnId, variantId: rev})
+            set(cancelTestAtom, {rowId: turnId, variantId: rev})
         }
     },
 )

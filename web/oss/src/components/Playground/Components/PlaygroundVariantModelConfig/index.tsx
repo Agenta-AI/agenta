@@ -103,7 +103,12 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
             trigger={["click"]}
             placement="bottomRight"
             arrow={false}
-            title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
+            title={
+                <PlaygroundVariantModelConfigTitle
+                    disabled={viewOnly}
+                    handleReset={handleResetDefaults}
+                />
+            }
             content={
                 <ModelConfigModal
                     variantId={variantId}

@@ -1,11 +1,12 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {useAtomValue} from "jotai"
+import {selectAtom} from "jotai/utils"
 import {useRouter} from "next/router"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {revisionListAtom} from "@/oss/components/Playground/state/atoms"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
 import DeploymentDrawerTitle from "./assets/DeploymentDrawerTitle"
 import type {VariantDrawerProps, ViewType} from "./assets/types"
@@ -13,9 +14,15 @@ import VariantDrawerContent from "./assets/VariantDrawerContent"
 import VariantDrawerTitle from "./assets/VariantDrawerTitle"
 import {variantDrawerAtom} from "./store/variantDrawerStore"
 
+const drawerSelectedVariantIdAtom = selectAtom(
+    variantDrawerAtom,
+    (state) => state.selectedVariantId,
+    (a, b) => a === b,
+)
+
 const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: VariantDrawerProps) => {
     const allVariants = useAtomValue(revisionListAtom)
-    const drawerState = useAtomValue(variantDrawerAtom)
+    const storedVariantId = useAtomValue(drawerSelectedVariantIdAtom)
     const variants = propsVariants || allVariants
     const [queryVariant] = useQueryParam("revisions")
     // Robust parsing: revisions can be a plain id string, a JSON array string, or an array
@@ -38,10 +45,10 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
     }, [queryVariant])
     const router = useRouter()
 
-    const selectedVariantId = drawerState.selectedVariantId ?? urlSelectedVariantId
+    const selectedVariantId = storedVariantId ?? urlSelectedVariantId
+
     const [viewAs, setViewAs] = useState<ViewType>("prompt")
     const [showOriginal, setShowOriginal] = useState<boolean>(false)
-    // const selectedVariantIds = useAtomValue(selectedVariantsAtom)
 
     const routerRevisions = useMemo(() => {
         // Skip URL processing on playground route to avoid conflicts
@@ -78,8 +85,6 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
 
     const onClose = useCallback(() => {
         props.onClose?.({} as any)
-        // setViewAs("prompt")
-        // Note: URL management is now handled by parent components via atoms
     }, [props.onClose])
 
     const onChangeViewAs = useCallback((view: ViewType) => {
@@ -91,7 +96,6 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
         setShowOriginal(false)
     }, [selectedVariantId])
 
-    const isLoading = false
     return (
         <EnhancedDrawer
             {...props}
@@ -107,7 +111,6 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
                         onClose={onClose}
                         variants={variants || []}
                         variantIds={routerRevisions?.length ? routerRevisions : undefined}
-                        isLoading={isLoading === undefined || isLoading}
                         viewAs={viewAs}
                     />
                 ) : (
@@ -115,14 +118,12 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
                         variantId={selectedVariantId}
                         onClose={onClose}
                         revert={revert}
-                        isLoading={isLoading === undefined || isLoading}
                     />
                 )
             }
         >
             <VariantDrawerContent
                 variantId={selectedVariantId}
-                isLoading={isLoading === undefined || isLoading}
                 type={type}
                 viewAs={viewAs}
                 onChangeViewAs={onChangeViewAs}

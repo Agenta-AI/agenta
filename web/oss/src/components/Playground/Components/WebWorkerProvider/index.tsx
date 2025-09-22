@@ -12,8 +12,9 @@ import {useEffect} from "react"
 
 import {useSetAtom} from "jotai"
 
-import useWebWorker from "../../hooks/useWebWorker"
 import {handleWebWorkerResultAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
+
+import useWebWorker from "../../hooks/useWebWorker"
 
 interface WebWorkerProviderProps {
     children: React.ReactNode
@@ -33,15 +34,13 @@ export const WebWorkerProvider = ({children}: WebWorkerProviderProps) => {
                     }
                     // Optional: handle ping/pong or errors
                     if (message.type === "error") {
-                        // eslint-disable-next-line no-console
                         console.error("[WW] error message", message.payload)
                         return
                     }
                 }
-                // eslint-disable-next-line no-console
+
                 console.debug("[WW] unhandled message", message)
             } catch (e) {
-                // eslint-disable-next-line no-console
                 console.error("[WW] handler failure", e)
             }
         },

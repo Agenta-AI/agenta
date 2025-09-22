@@ -61,8 +61,9 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
  * Creates focused atoms for specific app+variant combinations
  */
 export const uriQueryAtomFamily = atomFamily((params: {appId: string; variantId?: string}) =>
-    atomWithQuery<string>(() => {
+    atomWithQuery<string>((get) => {
         const {appId, variantId} = params
+        const projectId = get(projectIdAtom)
 
         return {
             queryKey: ["uri", appId, variantId],
@@ -74,7 +75,7 @@ export const uriQueryAtomFamily = atomFamily((params: {appId: string; variantId?
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,
             refetchOnMount: false,
-            enabled: !!variantId, // Only fetch when variantId is provided
+            enabled: !!projectId && !!variantId, // Only fetch when variantId is provided
             retry: (failureCount, error) => {
                 // Don't retry if it's a 404 or similar client error
                 if (

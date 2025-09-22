@@ -19,6 +19,10 @@ import {
     chatTurnIdsAtom,
 } from "@/oss/state/generation/entities"
 import {appUriInfoAtom, getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
+import {
+    loadingByRowRevisionAtomFamily,
+    responseByRowRevisionAtomFamily,
+} from "@/oss/state/newPlayground/generation/runtime"
 
 import {appChatModeAtom} from "./app"
 import {generationRowIdsAtom} from "./generationProperties"
@@ -68,6 +72,23 @@ export const clearAllRunsMutationAtom = atom(null, (get, set, variantIds?: strin
             })
         }),
     )
+
+    // Reset normalized response cache and loading states so UI stops rendering stale results
+    const normalizedStatus = get(runStatusByRowRevisionAtom) || {}
+    Object.keys(normalizedStatus).forEach((key) => {
+        const [rowId, revisionId] = key.split(":")
+        const matchesRow = selectedSet.has(rowId)
+        const matchesVariant = !actualVariantIds || actualVariantIds.includes(revisionId)
+        if (!matchesRow || !matchesVariant) return
+
+        try {
+            set(responseByRowRevisionAtomFamily({rowId, revisionId}), undefined as any)
+        } catch {}
+
+        try {
+            set(loadingByRowRevisionAtomFamily({rowId, revisionId}), false)
+        } catch {}
+    })
 
     if (isChat) {
         // For chat apps: remove all turns in the current view

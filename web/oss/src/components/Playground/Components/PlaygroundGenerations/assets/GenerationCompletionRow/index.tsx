@@ -1,8 +1,7 @@
 import {useCallback, useMemo} from "react"
 
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {autoScrollToBottom} from "@/oss/components/Playground/assets/utilities/utilityFunctions"
 import {loadingByRowRevisionAtomFamily} from "@/oss/state/newPlayground/generation/runtime"
 import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
 
@@ -12,7 +11,10 @@ import {
     cancelTestsMutationAtom,
     displayedVariantsAtom,
 } from "../../../../state/atoms"
-import {resolvedGenerationResultAtomFamily} from "../../../../state/atoms/generationProperties"
+import {
+    resolvedGenerationResultAtomFamily,
+    generationRunStatusAtomFamily,
+} from "../../../../state/atoms/generationProperties"
 
 import DefaultView from "./DefaultView"
 import SingleView from "./SingleView"
@@ -47,21 +49,40 @@ const GenerationCompletionRow = ({
     const isRunning = Boolean(resultState?.isRunning)
     const resultFromAtom = resultState?.result
 
-    const isLoading = !isChat
-        ? (useAtomValue(
-              useMemo(
-                  () => loadingByRowRevisionAtomFamily({rowId, revisionId: variantId || ""}),
-                  [rowId, variantId],
-              ),
-          ) as boolean)
-        : false
-    const isBusy = Boolean(!isChat && (isRunning || isLoading))
+    const displayedVariantIds = useAtomValue(displayedVariantsAtom)
+    const isBusy = useAtomValue(
+        useMemo(
+            () =>
+                atom((get) => {
+                    if (isChat) return false
+                    if (variantId) {
+                        const {isRunning: variantRunning} = get(
+                            generationRunStatusAtomFamily({variantId, rowId}),
+                        )
+                        const variantLoading = get(
+                            loadingByRowRevisionAtomFamily({rowId, revisionId: variantId}),
+                        )
+                        return Boolean(variantRunning || variantLoading)
+                    }
+
+                    const ids = Array.isArray(displayedVariantIds) ? displayedVariantIds : []
+                    return ids.some((vid) => {
+                        const {isRunning: variantRunning} = get(
+                            generationRunStatusAtomFamily({variantId: vid, rowId}),
+                        )
+                        const variantLoading = get(
+                            loadingByRowRevisionAtomFamily({rowId, revisionId: vid}),
+                        )
+                        return Boolean(variantRunning || variantLoading)
+                    })
+                }),
+            [displayedVariantIds, isChat, rowId, variantId],
+        ),
+    )
     const {isComparisonView} = usePlaygroundLayout()
     const viewType = isComparisonView ? "comparison" : "single"
-
     const triggerTest = useSetAtom(triggerWebWorkerTestAtom)
     const cancelTests = useSetAtom(cancelTestsMutationAtom)
-    const displayedVariantIds = useAtomValue(displayedVariantsAtom)
 
     const result = !isChat ? resultFromAtom : undefined
 
@@ -79,8 +100,8 @@ const GenerationCompletionRow = ({
 
     const cancelRow = useCallback(async () => {
         const variantIds = viewType === "single" && variantId ? [variantId] : displayedVariantIds
-        await cancelTests({variantIds, reason: "user_cancelled"} as any)
-    }, [cancelTests, displayedVariantIds, variantId, viewType])
+        await cancelTests({rowId, variantIds, reason: "user_cancelled"} as any)
+    }, [cancelTests, displayedVariantIds, variantId, viewType, rowId])
 
     // Single view content
     return forceSingle || (viewType === "single" && view !== "focus" && variantId) ? (
@@ -109,6 +130,7 @@ const GenerationCompletionRow = ({
             resultHash={resultHash}
             runRow={runRow}
             cancelRow={cancelRow}
+            isBusy={isBusy}
         />
     )
 }

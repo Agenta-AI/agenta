@@ -268,7 +268,7 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
         # ----------------------------------------------------------------------
 
         # ATTRIBUTES -----------------------------------------------------------
-        attributes = dict()
+        attributes = dict(otel_span_dto.attributes or {})
 
         attributes.update(**{f"ag.data.{k}": v for k, v in features.data.items()})
 

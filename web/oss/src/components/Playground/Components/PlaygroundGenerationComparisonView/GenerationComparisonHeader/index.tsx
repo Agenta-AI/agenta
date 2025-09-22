@@ -13,8 +13,9 @@ import {
     appChatModeAtom,
     generationHeaderDataAtomFamily,
     displayedVariantsAtom,
+    cancelTestsMutationAtom,
+    canRunAllChatComparisonAtom,
 } from "../../../state/atoms"
-import {canRunAllChatComparisonAtom} from "../../../state/atoms"
 import {clearAllRunsMutationAtom} from "../../../state/atoms/enhancedVariantMutations"
 import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 import LoadTestsetButton from "../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
@@ -32,6 +33,7 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
     const isChatVariant = useAtomValue(appChatModeAtom) ?? false
     const triggerTest = useSetAtom(triggerWebWorkerTestAtom)
     const runAllChat = useSetAtom(runAllChatAtom)
+    const cancelTests = useSetAtom(cancelTestsMutationAtom)
     const canRunAllChat = useAtomValue(canRunAllChatComparisonAtom)
 
     const headerDataAtom = useMemo(
@@ -107,14 +109,18 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
                 />
                 <LoadTestsetButton label="Load test set" />
 
-                <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
-                    <RunButton
-                        isRunAll
-                        type="primary"
-                        disabled={isRunning || (isChatVariant && !canRunAllChat)}
-                        onClick={() => runTests?.()}
-                    />
-                </Tooltip>
+                {!isRunning ? (
+                    <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
+                        <RunButton
+                            isRunAll
+                            type="primary"
+                            disabled={isRunning || (isChatVariant && !canRunAllChat)}
+                            onClick={() => runTests?.()}
+                        />
+                    </Tooltip>
+                ) : (
+                    <RunButton isCancel onClick={() => cancelTests({})} className="flex" />
+                )}
             </div>
         </section>
     )

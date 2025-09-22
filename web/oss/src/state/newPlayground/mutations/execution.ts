@@ -1,11 +1,12 @@
 import {atom} from "jotai"
 
 // Use local bridge to decouple from legacy folder
-import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
+import {cancelTestsMutationAtom} from "@/oss/components/Playground/state/atoms"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
+import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
 
 import {playgroundConfigAtom} from "../core/config"
-import {generationDataAtom, updateTestRunAtom} from "../core/generation"
+import {generationDataAtom} from "../core/generation"
 import type {RunTestParams} from "../types"
 
 /**
@@ -82,83 +83,10 @@ export const runAllTestsAtom = atom(null, async (get, set) => {
 
 // Cancel specific test
 export const cancelTestAtom = atom(null, (get, set, params: {rowId: string; variantId: string}) => {
-    const {rowId, variantId} = params
-
-    // Clear loading state
-    const updateTestRun = get(updateTestRunAtom)
-    updateTestRun({rowId, variantId, isRunning: false})
-
-    // Remove from pending requests
-    set(pendingWebWorkerRequestsAtom, (prev) => {
-        const filtered = Object.entries(prev).reduce(
-            (acc, [runId, request]) => {
-                if (request.rowId !== rowId || request.variantId !== variantId) {
-                    acc[runId] = request
-                }
-                return acc
-            },
-            {} as typeof prev,
-        )
-
-        return filtered
-    })
+    set(cancelTestsMutationAtom, params)
 })
 
 // Cancel all tests
-export const cancelAllTestsAtom = atom(null, (get, set) => {
-    const generationData = get(generationDataAtom)
-    const config = get(playgroundConfigAtom)
-    const updateTestRun = get(updateTestRunAtom)
-
-    // Clear all loading states
-    const allRows = [...generationData.inputs, ...generationData.messages]
-
-    for (const row of allRows) {
-        for (const variantId of config.displayedVariantIds) {
-            updateTestRun({rowId: row.__id, variantId, isRunning: false})
-        }
-    }
-
-    // Clear all pending requests
-    set(pendingWebWorkerRequestsAtom, {})
+export const cancelAllTestsAtom = atom(null, (_get, set) => {
+    set(cancelTestsMutationAtom, {})
 })
-
-// Handle web worker result (called by web worker integration)
-export const handleWebWorkerResultAtom = atom(
-    null,
-    (
-        get,
-        set,
-        payload: {
-            rowId: string
-            variantId: string
-            runId: string
-            result?: any
-            error?: any
-            messageId?: string
-        },
-    ) => {
-        const {rowId, variantId, runId, result, error, messageId} = payload
-
-        // Remove from pending requests
-        set(pendingWebWorkerRequestsAtom, (prev) => {
-            const {[runId]: removed, ...rest} = prev
-            return rest
-        })
-
-        // Update test run with result or error
-        const updateTestRun = get(updateTestRunAtom)
-
-        if (error) {
-            updateTestRun({rowId, variantId, error, isRunning: false})
-        } else if (result) {
-            updateTestRun({rowId, variantId, result, isRunning: false})
-        }
-
-        // For chat variants, handle message creation
-        if (messageId && result) {
-            // TODO: Handle chat message result storage
-            // This would involve updating the chat history with the assistant response
-        }
-    },
-)

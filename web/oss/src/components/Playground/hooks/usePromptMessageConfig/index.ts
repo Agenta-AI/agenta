@@ -33,44 +33,6 @@ export const usePromptMessageConfig = ({
 
     // Get message data for the specific variant/message/row (must come before isChat)
     const messageData = useMemo(() => {
-        // if (rowId) {
-        //     // For generation messages, find the generation row and extract message from history
-        //     const generationRow = messageRows.find((inputRow) => inputRow.__id === rowId)
-        //     if (generationRow && messageId) {
-        //         // Extract specific message from the generation row's history
-        //         const history = generationRow.history?.value || []
-
-        //         // First try to find user message directly in history
-        //         let messageFromHistory = history.find(
-        //             (historyItem: any) => historyItem.__id === messageId,
-        //         )
-
-        //         // If not found, search for assistant messages in __runs structure
-        //         if (!messageFromHistory) {
-        //             for (const historyItem of history) {
-        //                 // Check if this is an assistant message ID in __runs
-        //                 if (historyItem.__runs?.[variantId]?.message?.__id === messageId) {
-        //                     messageFromHistory = historyItem.__runs[variantId].message
-        //                     break
-        //                 }
-        //                 // Also check for multiple assistant messages
-        //                 if (historyItem.__runs?.[variantId]?.messages) {
-        //                     const assistantMessage = historyItem.__runs[variantId].messages.find(
-        //                         (msg: any) => msg?.__id === messageId,
-        //                     )
-        //                     if (assistantMessage) {
-        //                         messageFromHistory = assistantMessage
-        //                         break
-        //                     }
-        //                 }
-        //             }
-        //         }
-
-        //         return messageFromHistory || null
-        //     }
-        //     // If no messageId provided, return the generation row itself (fallback)
-        //     return generationRow || null
-        // } else
         if (messageId) {
             // For config messages, find in variant prompts (support both enhanced and raw shapes)
             for (const prompt of prompts || []) {

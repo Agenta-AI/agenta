@@ -29,17 +29,10 @@ const SimpleInput = ({
     const [localValue, setLocalValue] = useDebounceInput<string>(value, onChange, 300, "")
 
     const handleLocalValueChange = useCallback(
-        (value: ChangeEvent<HTMLInputElement>) => {
-            setLocalValue(value.target.value)
+        (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+            setLocalValue(event.target.value)
         },
         [setLocalValue],
-    )
-
-    const change = useCallback(
-        (value: string) => {
-            onChange(value)
-        },
-        [onChange],
     )
 
     if (as === "SimpleInputWithLabel") {
@@ -59,8 +52,8 @@ const SimpleInput = ({
     return (
         <Input
             {...props}
-            value={value}
-            onChange={change}
+            value={localValue}
+            onChange={handleLocalValueChange}
             className={className}
             view={view}
             description={description}

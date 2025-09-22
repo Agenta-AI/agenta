@@ -141,11 +141,13 @@ export const variantRevisionsQueryFamily = atomFamily((variantId: string) =>
 )
 
 // Normalized: expose revisions array directly per variantId (new in Phase 2)
-export const revisionsByVariantIdAtomFamily = atomFamily((variantId: string) =>
-    selectAtom(variantRevisionsQueryFamily(variantId), (res) => {
-        const data = (res as any)?.data ?? res
-        return (Array.isArray(data) ? data : []) as VariantRevision[]
-    }),
+export const revisionsByVariantIdAtomFamily = atomFamily(
+    (variantId: string) =>
+        selectAtom(variantRevisionsQueryFamily(variantId), (res) => {
+            const data = (res as any)?.data ?? res
+            return (Array.isArray(data) ? data : []) as VariantRevision[]
+        }),
+    deepEqual,
 )
 
 // -------- Central: all revisions flattened across variants ------------------

@@ -51,6 +51,8 @@ export const pendingWebWorkerRequestsAtom = atom<
     Record<string, {rowId: string; variantId: string; runId: string; timestamp: number}>
 >({})
 
+export const ignoredWebWorkerRunIdsAtom = atom<Record<string, true>>({})
+
 function resolveEffectiveRevisionId(
     get: any,
     requestedVariantId: string | undefined,
@@ -235,6 +237,11 @@ export const triggerWebWorkerTestAtom = atom(
         }))
         set(loadingByRowRevisionAtomFamily({rowId, revisionId: effectiveId}), true)
 
+        set(pendingWebWorkerRequestsAtom, (prev) => ({
+            ...prev,
+            [runId]: {rowId, variantId: effectiveId, runId, timestamp: Date.now()},
+        }))
+
         const allMetadata = getAllMetadata()
 
         let inputRow, chatHistory: any
@@ -383,6 +390,16 @@ export const handleWebWorkerResultAtom = atom(
             const {[runId]: _removed, ...rest} = prev
             return rest
         })
+
+        const ignored = get(ignoredWebWorkerRunIdsAtom)
+        if (runId && ignored?.[runId]) {
+            set(ignoredWebWorkerRunIdsAtom, (prev) => {
+                const {[runId]: _omit, ...rest} = prev
+                return rest
+            })
+            set(loadingByRowRevisionAtomFamily({rowId, revisionId: variantId}), false)
+            return
+        }
 
         const updateStatus = (responseHash: string | null) =>
             set(runStatusByRowRevisionAtom, (prev) => ({

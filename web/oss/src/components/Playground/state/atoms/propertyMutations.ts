@@ -1,14 +1,9 @@
-import {current, produce} from "immer"
 import {atom} from "jotai"
 
 import {updateVariantPromptKeys} from "@/oss/lib/shared/variant/inputHelpers"
-import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {deriveCustomPropertiesFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
-import {inputRowsByIdAtom, rowIdIndexAtom, chatTurnsByIdAtom} from "@/oss/state/generation/entities"
 import {customPropertiesAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {promptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
 import {
     appUriInfoAtom,
     getEnhancedRevisionById,
@@ -20,7 +15,6 @@ import {findPropertyById, findPropertyInObject} from "../../hooks/usePlayground/
 import type {EnhancedVariantPropertyMutationParams, ConfigValue} from "../types"
 
 import {selectedVariantsAtom} from "./core"
-import {displayedVariantsAtom, schemaInputKeysAtom} from "./variants"
 
 // Re-export the type for external use
 export type {ConfigValue} from "../types"
@@ -44,7 +38,7 @@ function updatePropertyValue(property: any, value: ConfigValue) {
         ;(property.content as any).value = value
     } else {
         // Direct property value assignment
-        if (property && typeof property === "object" && "value" in property) {
+        if (property && typeof property === "object") {
             ;(property as any).value = value
         }
     }
@@ -222,28 +216,32 @@ export const updateVariantPropertyEnhancedMutationAtom = atom(
                     routePath,
                     revisionId: targetRevisionId,
                 }),
-                (current: Record<string, any> | null) => {
+                (draft: Record<string, any> | undefined) => {
                     // Seed from derived spec if local cache is empty
-                    let next = current
-                    if (!next || Object.keys(next).length === 0) {
-                        if (variant && spec) {
-                            next = deriveCustomPropertiesFromSpec(
-                                variant as any,
-                                spec as any,
-                                routePath,
-                            )
-                            if (process.env.NODE_ENV === "development") {
-                                console.debug("[Params][Mut] seeded from spec", {
-                                    keys: Object.keys(next || {}),
-                                })
-                            }
-                        } else {
-                            next = {}
+                    if (!draft || Object.keys(draft).length === 0) {
+                        const seeded =
+                            variant && spec
+                                ? deriveCustomPropertiesFromSpec(
+                                      variant as any,
+                                      spec as any,
+                                      routePath,
+                                  )
+                                : {}
+                        if (process.env.NODE_ENV === "development") {
+                            console.debug("[Params][Mut] seeded from spec", {
+                                keys: Object.keys(seeded || {}),
+                            })
                         }
-                    } else {
-                        next = {...next}
+
+                        if (!draft) {
+                            draft = seeded
+                        } else {
+                            Object.keys(draft).forEach((key) => delete draft[key])
+                            Object.assign(draft, seeded)
+                        }
                     }
-                    const values = Object.values(next) as any[]
+
+                    const values = Object.values(draft || {}) as any[]
                     const node = values.find((n) => n?.__id === propertyId)
                     if (process.env.NODE_ENV === "development") {
                         console.debug("[Params][Mut] node lookup", {
@@ -262,150 +260,9 @@ export const updateVariantPropertyEnhancedMutationAtom = atom(
                             })
                         }
                     }
-                    return next
+                    return draft
                 },
             )
         }
     },
 )
-
-// Helper function to update generation data regardless of source
-const updateGenerationDataHelper = (
-    generationData: any,
-    _rowId: string,
-    _messageId: string | undefined,
-    _propertyId: string,
-    _value: any,
-) => {
-    if (!generationData) {
-        console.warn("No generation data found")
-        return
-    }
-
-    if (_messageId) {
-        // For chat mode with specific message updates
-        if (generationData.messages?.value) {
-            // Messages are nested inside message rows -> history.value array
-            let targetMessage = null
-            let _targetMessageRow = null
-
-            // Search through all message rows and their history
-            for (const messageRow of generationData.messages.value) {
-                if (messageRow.history?.value) {
-                    const foundMessage = messageRow.history.value.find(
-                        (msg: any) => msg.__id === _messageId,
-                    )
-                    if (foundMessage) {
-                        targetMessage = foundMessage
-                        _targetMessageRow = messageRow
-                        break
-                    }
-                }
-            }
-
-            if (targetMessage) {
-                // Use findPropertyInObject for messages, not findPropertyById (which is for variants)
-                const property = findPropertyInObject(targetMessage, _propertyId)
-
-                if (property) {
-                    updatePropertyValue(property, _value)
-                }
-            }
-        } else if (generationData.history?.value) {
-            // Try looking in history instead
-            const targetMessage = generationData.history.value.find(
-                (msg: any) => msg.__id === _messageId,
-            )
-
-            const property = findPropertyById(targetMessage, _propertyId)
-            if (property) {
-                updatePropertyValue(property, _value)
-            }
-        } else {
-            // Fallback: Try to find the property directly in the generation data
-
-            const property = findPropertyInObject(generationData, _propertyId)
-            if (property) {
-                updatePropertyValue(property, _value)
-            }
-        }
-    } else {
-        // For completion mode or general row updates
-
-        // Search in all generation data structures (both inputs and messages)
-        let targetRow: any = null
-        let _foundInStructure = ""
-
-        // First try to find by row ID in both structures
-        if (generationData.messages?.value) {
-            targetRow = generationData.messages.value.find((row: any) => row.__id === _rowId)
-            if (targetRow) {
-                _foundInStructure = "messages"
-            }
-        }
-
-        if (!targetRow && generationData.inputs?.value) {
-            targetRow = generationData.inputs.value.find((row: any) => row.__id === _rowId)
-            if (targetRow) _foundInStructure = "inputs"
-        }
-
-        // Fallback: Search by property content in all structures
-        if (!targetRow) {
-            // Search in messages
-            if (generationData.messages?.value) {
-                for (const row of generationData.messages.value) {
-                    if (findPropertyInObject(row, _propertyId)) {
-                        targetRow = row
-                        _foundInStructure = "messages"
-
-                        break
-                    }
-                }
-            }
-
-            // Search in inputs if not found in messages
-            if (!targetRow && generationData.inputs?.value) {
-                for (const row of generationData.inputs.value) {
-                    if (findPropertyInObject(row, _propertyId)) {
-                        targetRow = row
-                        _foundInStructure = "inputs"
-
-                        break
-                    }
-                }
-            }
-        }
-
-        if (!targetRow) {
-            console.warn("Target row not found in any generation data structure:", {
-                _rowId,
-                _propertyId,
-                availableMessageIds:
-                    generationData.messages?.value?.map((row: any) => row.__id) || [],
-                availableInputIds: generationData.inputs?.value?.map((row: any) => row.__id) || [],
-            })
-            return
-        }
-
-        // Try to find and update the property directly in the target row
-        let property = findPropertyInObject(targetRow, _propertyId)
-        if (property) {
-            updatePropertyValue(property, _value)
-        } else if (_foundInStructure === "inputs") {
-            // Create missing variable on input row dynamically
-            if (!targetRow[_propertyId]) {
-                targetRow[_propertyId] = {
-                    __id: generateId(),
-                    __metadata: {
-                        type: "string",
-                        title: _propertyId,
-                        description: `Template variable: {{${_propertyId}}}`,
-                    },
-                    value: _value,
-                }
-            } else {
-                targetRow[_propertyId].value = _value
-            }
-        }
-    }
-}

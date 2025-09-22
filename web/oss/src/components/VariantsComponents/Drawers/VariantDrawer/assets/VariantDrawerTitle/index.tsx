@@ -16,6 +16,7 @@ import {currentVariantAppStatusAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {setVariantDrawerSelectedIdAtom} from "../../store/variantDrawerStore"
 import {VariantDrawerTitleProps} from "../types"
+import {drawerVariantIsLoadingAtomFamily} from "../VariantDrawerContent"
 
 // Local, focused subcomponents to reduce subscriptions and re-renders
 const NavControls = memo(
@@ -206,12 +207,12 @@ const VariantDrawerTitle = ({
     onClose,
     variantId,
     variants,
-    isLoading,
     viewAs,
     variantIds,
     showOriginal,
     onToggleOriginal,
 }: VariantDrawerTitleProps) => {
+    const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
     return (
         <section className="flex items-center justify-between">
             <div className="flex items-center gap-3">

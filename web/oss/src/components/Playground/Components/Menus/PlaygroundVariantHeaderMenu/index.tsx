@@ -11,7 +11,10 @@ import {
 } from "@/oss/components/Playground/state/atoms"
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {clearLocalPromptsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {
+    clearLocalPromptsForRevisionAtomFamily,
+    clearLocalTransformedPromptsForRevisionAtomFamily,
+} from "@/oss/state/newPlayground/core/prompts"
 
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
 
@@ -33,6 +36,9 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     }, [removeVariantFromSelection, variantId])
 
     const clearPrompts = useSetAtom(clearLocalPromptsForRevisionAtomFamily(variantId || "") as any)
+    const clearTransformed = useSetAtom(
+        clearLocalTransformedPromptsForRevisionAtomFamily(variantId || "") as any,
+    )
     const clearCustomProps = useSetAtom(
         clearLocalCustomPropsForRevisionAtomFamily(variantId || "") as any,
     )
@@ -44,6 +50,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
         try {
             clearPrompts()
             clearCustomProps()
+            clearTransformed()
             setParamsOverride(null)
             // Prune dynamically added variables and re-add current ones based on prompts
 

@@ -1,21 +1,18 @@
-import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {MessageWithRuns} from "@/oss/lib/hooks/useStatelessVariants/state/types"
 import {
     createObjectFromMetadata,
     extractObjectSchemaFromMetadata,
 } from "@/oss/lib/shared/variant/genericTransformer/helpers/arrays"
 import {generateId, toSnakeCase} from "@/oss/lib/shared/variant/stringUtils"
-import {checkValidity, extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
 
 import {isObjectMetadata} from "../../../../../lib/shared/variant/genericTransformer/helpers/metadata"
 import type {
     ConfigMetadata,
     Enhanced,
-    ObjectMetadata,
 } from "../../../../../lib/shared/variant/genericTransformer/types"
-import {Message} from "../../../../../lib/shared/variant/transformer/types"
 import {hashMetadata} from "../../../assets/hash"
-import {ChatContentPart, PlaygroundStateData} from "../types"
+import {ChatContentPart} from "../types"
 
 export const createMessageFromSchema = (
     metadata: ConfigMetadata,
@@ -27,11 +24,37 @@ export const createMessageFromSchema = (
         Object.entries(metadata.properties).forEach(([key, propMetadata]) => {
             const metadataHash = hashMetadata(propMetadata)
 
-            // Initialize with default values based on property type
-            let value = json?.[key] || json?.[toSnakeCase(key)]
-            let defaultValue: any = null
+            const baseValue = createObjectFromMetadata(propMetadata as ConfigMetadata)
+
+            if (
+                baseValue &&
+                typeof baseValue === "object" &&
+                !Array.isArray(baseValue) &&
+                "value" in baseValue
+            ) {
+                const primitiveType = (propMetadata as any)?.type
+
+                if (primitiveType === "number" && (baseValue as any).value === "") {
+                    ;(baseValue as any).value = (propMetadata as any)?.nullable ? null : 0
+                } else if (primitiveType === "boolean" && (baseValue as any).value === "") {
+                    ;(baseValue as any).value = (propMetadata as any)?.nullable ? null : false
+                }
+            }
+
+            if (
+                key === "role" &&
+                baseValue &&
+                typeof baseValue === "object" &&
+                !Array.isArray(baseValue) &&
+                "value" in baseValue
+            ) {
+                ;(baseValue as any).value = ""
+            }
+
+            const jsonValue = json?.[key] ?? json?.[toSnakeCase(key)]
+            let value = jsonValue
+
             if (key === "role") {
-                defaultValue = ""
                 if (typeof value === "string") {
                     value = {value}
                 }
@@ -154,7 +177,6 @@ export const createMessageFromSchema = (
                     }
                 }
             } else if (key === "toolCalls") {
-                defaultValue = undefined
                 if (Array.isArray(value)) {
                     value = value.map((item) => ({
                         __id: generateId(),
@@ -164,7 +186,6 @@ export const createMessageFromSchema = (
                 }
             }
 
-            value = value || defaultValue
             if (key === "content") {
                 if (
                     value === undefined ||
@@ -214,6 +235,36 @@ export const createMessageFromSchema = (
                 value = {value}
             }
 
+            const baseIsObject =
+                baseValue && typeof baseValue === "object" && !Array.isArray(baseValue)
+
+            if (value === undefined) {
+                if (baseIsObject) {
+                    value = structuredClone(baseValue)
+                }
+            } else if (value === null) {
+                if (baseIsObject) {
+                    const baseClone = structuredClone(baseValue)
+                    if ("value" in baseClone) {
+                        ;(baseClone as any).value = null
+                    }
+                    value = baseClone
+                } else {
+                    value = {value: null}
+                }
+            } else if (
+                baseIsObject &&
+                typeof value === "object" &&
+                !Array.isArray(value) &&
+                (!("__id" in value) || !("__metadata" in value))
+            ) {
+                const baseClone = structuredClone(baseValue)
+                value = {
+                    ...baseClone,
+                    ...value,
+                }
+            }
+
             properties[key] = {
                 __id: generateId(),
                 __metadata: metadataHash,
@@ -232,107 +283,4 @@ export const createMessageFromSchema = (
     } else {
         return undefined
     }
-}
-
-export const createMessageRow = (
-    message: Enhanced<Message>,
-    metadata: ObjectMetadata,
-    messagesMetadata: string,
-) => {
-    const metadataHash = hashMetadata(metadata)
-    const arrayMetadata = getMetadataLazy(messagesMetadata)
-
-    return {
-        __id: generateId(),
-        __metadata: metadataHash,
-        history: {
-            value: [message],
-            __id: generateId(),
-            __metadata: hashMetadata(arrayMetadata),
-        },
-    }
-}
-
-export const constructChatHistory = ({
-    messageRow,
-    messageId,
-    variantId,
-    includeLastMessage = false,
-    includeResults = false,
-}: {
-    messageRow?: PlaygroundStateData["generationData"]["messages"]["value"][number]
-    messageId?: string
-    variantId: string
-    includeLastMessage?: boolean
-    includeResults?: boolean
-}) => {
-    let constructedHistory = []
-    const results = []
-    const allMetadata = getAllMetadata()
-
-    if (messageRow && messageRow.history?.value) {
-        for (const historyItem of messageRow.history.value) {
-            let userMessage = extractValueByMetadata(historyItem, allMetadata, true)
-            const messageMetadata = getMetadataLazy<ObjectMetadata>(
-                historyItem.__metadata as string,
-            )
-
-            // Extract run data if requested and __runs exists
-            if (includeResults && historyItem.__runs) {
-                for (const runData of Object.values(historyItem.__runs)) {
-                    results.push({
-                        isRunning: runData?.__isRunning,
-                        result: runData?.__result,
-                    })
-                }
-            }
-
-            if (messageMetadata) {
-                const isValid = checkValidity(historyItem, messageMetadata)
-
-                userMessage = isValid ? userMessage : undefined
-
-                // If messageId is provided and matches, handle the specific message logic
-                if (messageId && historyItem.__id === messageId) {
-                    if (includeLastMessage) {
-                        constructedHistory.push(userMessage)
-                    }
-                    break
-                }
-
-                // Always add user message when no specific messageId or when messageId doesn't match
-                if (!messageId || historyItem.__id !== messageId) {
-                    constructedHistory.push(userMessage)
-                }
-
-                const variantResponses = historyItem.__runs?.[variantId]?.messages
-                    ? historyItem.__runs?.[variantId]?.messages
-                    : [historyItem.__runs?.[variantId]?.message]
-
-                for (const variantResponse of variantResponses) {
-                    // Only break for variant responses if we have a specific messageId and it matches
-                    if (messageId && variantResponse?.__id === messageId && !includeLastMessage) {
-                        break
-                    }
-                    let llmResponse = extractValueByMetadata(variantResponse, allMetadata)
-
-                    if (variantResponse) {
-                        llmResponse = checkValidity(variantResponse, messageMetadata)
-                            ? llmResponse
-                            : undefined
-
-                        constructedHistory.push(llmResponse)
-                    }
-                }
-            }
-        }
-    }
-
-    constructedHistory = constructedHistory.filter(Boolean)
-
-    if (includeResults) {
-        return results.filter(Boolean)
-    }
-
-    return constructedHistory
 }

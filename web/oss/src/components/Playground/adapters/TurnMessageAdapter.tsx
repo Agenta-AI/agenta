@@ -2,6 +2,7 @@ import React, {ComponentProps, useCallback, useMemo, useRef, useState} from "rea
 
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
+import JSON5 from "json5"
 import {v4 as uuidv4} from "uuid"
 
 import TurnMessageHeaderOptions from "@/oss/components/Playground/adapters/TurnMessageHeaderOptions"
@@ -72,7 +73,41 @@ const TurnMessageAdapter: React.FC<Props> = ({
     }, [turn, variantId, kind, toolMessage])
 
     const {baseImageProperties, baseRoleProperty, computedText} = useMessageContentProps(msg as any)
-    const text = computedText
+
+    const {editorText, isJsonContent} = useMemo(() => {
+        const fallback = typeof computedText === "string" ? computedText : ""
+        const candidates: string[] = []
+        const rawContent = (msg as any)?.content
+
+        if (typeof rawContent === "string") {
+            candidates.push(rawContent)
+        } else if (rawContent && typeof rawContent === "object") {
+            const value = (rawContent as any).value
+            if (typeof value === "string") candidates.push(value)
+        }
+
+        candidates.push(fallback)
+
+        for (const candidate of candidates) {
+            if (typeof candidate !== "string") continue
+            const trimmed = candidate.trim()
+            if (!trimmed) continue
+            if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) continue
+            try {
+                const parsed = JSON5.parse(candidate)
+                if (parsed !== null && typeof parsed === "object") {
+                    return {
+                        editorText: JSON.stringify(parsed, null, 2),
+                        isJsonContent: true,
+                    }
+                }
+            } catch {
+                // ignore parse errors and fall back to plain text rendering
+            }
+        }
+
+        return {editorText: fallback, isJsonContent: false}
+    }, [computedText, msg])
 
     const {addUploadSlot, updateTextContent, removeUploadItem} = useMessageContentHandlers()
     const effectiveDisabled = disabled || isToolKind
@@ -284,10 +319,6 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return createToolCallPayloads(msg?.toolCalls?.value)
     }, [kind, msg])
 
-    // return msg ? (
-
-    // ) : null
-
     return toolPayloads?.length ? (
         toolPayloads.map((p) => (
             <div
@@ -311,6 +342,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                     isJSON={true}
                     isTool
                     text={p?.json}
+                    enableTokens={false}
                     disabled={effectiveDisabled}
                     className={clsx([className])}
                     editorClassName={editorClassName}
@@ -328,7 +360,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             id={editorIdRef.current}
                             messageId={(msg as any)?.__id}
                             resultHashes={propsResultHashes ?? resultHashes}
-                            text={text}
+                            text={p?.json ?? editorText}
                             minimized={minimized}
                             allowFileUpload={baseRoleProperty?.value === "user" && !isToolKind}
                             uploadCount={
@@ -367,9 +399,10 @@ const TurnMessageAdapter: React.FC<Props> = ({
         >
             <MessageEditor
                 id={editorIdRef.current}
+                key={`${editorIdRef.current}-${isJsonContent}`}
                 role={baseRoleProperty?.value}
-                text={text}
-                disabled={false}
+                text={editorText}
+                disabled={effectiveDisabled}
                 className={clsx([className])}
                 editorClassName={editorClassName}
                 headerClassName={headerClassName}
@@ -377,13 +410,15 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 onChangeRole={onChangeRole}
                 onChangeText={onChangeText}
                 state={editorState}
+                isJSON={isJsonContent}
+                enableTokens={messageProps?.enableTokens ?? !isJsonContent}
                 headerRight={
                     <TurnMessageHeaderOptions
                         {...messageOptionProps}
                         id={editorIdRef.current}
                         messageId={(msg as any)?.__id}
                         resultHashes={propsResultHashes ?? resultHashes}
-                        text={text}
+                        text={editorText}
                         minimized={minimized}
                         allowFileUpload={baseRoleProperty?.value === "user" && !isToolKind}
                         uploadCount={

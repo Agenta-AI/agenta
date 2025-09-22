@@ -1,4 +1,4 @@
-import {atom, createStore, getDefaultStore} from "jotai"
+import {atom, getDefaultStore} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
@@ -6,7 +6,6 @@ import {TestResult} from "@/oss/lib/shared/variant/transformer/types"
 
 // Create an atom store
 export const atomStore = getDefaultStore()
-// createStore()
 
 // Atom to store responses
 export const responseAtom = atom<Record<string, TestResult>>({})
@@ -23,24 +22,36 @@ export const getResponseLazy = <T extends TestResult>(
 export const getAllResponses = (): Record<string, TestResult> => {
     return atomStore.get(responseAtom) || {}
 }
-export const updateResponseAtom = async (metadata: Record<string, any>) => {
-    atomStore.set(responseAtom, (prev) => ({...prev, ...metadata}))
-}
+let pendingResponseUpdates: Record<string, TestResult> = {}
+let pendingMetadataUpdates: Record<string, ConfigMetadata> = {}
+let flushScheduled = false
 
-class TaskQueue {
-    private queue: Promise<void> = Promise.resolve()
+const flushPendingUpdates = () => {
+    flushScheduled = false
 
-    enqueue(task: () => Promise<void>): Promise<void> {
-        // Chain the task to the existing queue
-        const nextTask = this.queue.then(() => task())
-        this.queue = nextTask.catch((error) => {
-            console.error("TaskQueue error:", error)
-        }) // Catch errors to avoid breaking the chain
-        return nextTask
+    if (Object.keys(pendingResponseUpdates).length > 0) {
+        const updates = pendingResponseUpdates
+        pendingResponseUpdates = {}
+        atomStore.set(responseAtom, (prev) => ({...prev, ...updates}))
+    }
+
+    if (Object.keys(pendingMetadataUpdates).length > 0) {
+        const updates = pendingMetadataUpdates
+        pendingMetadataUpdates = {}
+        atomStore.set(metadataAtom, (prev) => ({...prev, ...updates}))
     }
 }
 
-const metadataQueue = new TaskQueue()
+const scheduleFlush = () => {
+    if (flushScheduled) return
+    flushScheduled = true
+    queueMicrotask(flushPendingUpdates)
+}
+
+export const updateResponseAtom = (metadata: Record<string, TestResult>) => {
+    pendingResponseUpdates = {...pendingResponseUpdates, ...metadata}
+    scheduleFlush()
+}
 
 // Atom to store metadata
 export const metadataAtom = atom<Record<string, ConfigMetadata>>({})
@@ -65,15 +76,7 @@ export const getAllMetadata = (): Record<string, ConfigMetadata> => {
     return atomStore.get(metadataAtom) || {}
 }
 
-export const updateMetadataAtom = async (metadata: Record<string, any>) => {
-    atomStore.set(metadataAtom, (prev) => ({...prev, ...metadata}))
-    await metadataQueue.enqueue(
-        () =>
-            new Promise<void>((resolve) => {
-                atomStore.set(metadataAtom, (prev) => ({...prev, ...metadata}))
-                resolve()
-            }),
-    )
+export const updateMetadataAtom = (metadata: Record<string, ConfigMetadata>) => {
+    pendingMetadataUpdates = {...pendingMetadataUpdates, ...metadata}
+    scheduleFlush()
 }
-
-// getSpecLazy moved to '@/oss/state/variant/atoms/fetcher'
