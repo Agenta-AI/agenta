@@ -5,8 +5,10 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {fetchJson} from "@/oss/lib/api/assets/fetchClient"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {fetchOpenApiSchemaJson, findCustomWorkflowPath} from "@/oss/lib/shared/variant"
 import {detectChatVariantFromOpenAISchema} from "@/oss/lib/shared/variant/genericTransformer"
+import {ConfigMetadata} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {extractVariables} from "@/oss/lib/shared/variant/inputHelpers"
 import {
     deriveCustomPropertiesFromSpec,
@@ -195,6 +197,32 @@ export const createAppMutationAtom = atom(
             })
         }
 
+        const waitForMetadata = (
+            parentVariantId: string,
+        ): Promise<Record<string, ConfigMetadata>> => {
+            const store = getDefaultStore()
+            return new Promise((resolve) => {
+                let unsub: () => void = () => {}
+
+                const check = () => {
+                    try {
+                        const metadata = store.get(metadataAtom)
+
+                        if (Object.keys(metadata)?.length > 0) {
+                            unsub()
+                            resolve(metadata)
+                        }
+                    } catch {
+                        // ignore, will retry on next subscription tick
+                    }
+                }
+
+                unsub = store.sub(metadataAtom, check)
+                // Run once in case data is already present
+                check()
+            })
+        }
+
         const {
             appName,
             templateKey,
@@ -264,6 +292,11 @@ export const createAppMutationAtom = atom(
                 routePath,
             )
 
+            const metadata = await waitForMetadata(variant.id)
+            if (!metadata) {
+                throw new Error("No metadata found for variant")
+            }
+
             // Compute variables referenced in messages (string or array parts)
             const variables = (() => {
                 const vars = new Set<string>()
@@ -312,6 +345,7 @@ export const createAppMutationAtom = atom(
 
             const parameters = transformToRequestBody({
                 prompts,
+                allMetadata: metadata,
                 customProperties,
                 isChat,
                 isCustom: isCustomFinal,

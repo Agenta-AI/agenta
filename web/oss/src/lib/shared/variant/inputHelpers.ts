@@ -1,9 +1,6 @@
-import {hashMetadata} from "@/oss/lib/hooks/useStatelessVariants/assets/hash"
-
 import {transformPrimitive} from "./genericTransformer"
 import {ArrayMetadata, ObjectMetadata, StringMetadata} from "./genericTransformer/types"
 import {getRequestSchema} from "./openapiUtils"
-import {generateId} from "./stringUtils"
 import {EnhancedVariant} from "./transformer/types"
 import {OpenAPISpec} from "./types/openapi"
 
@@ -98,42 +95,6 @@ export function createInputSchema(inputKeys: string[]): ArrayMetadata<ObjectMeta
  */
 
 /**
- * Creates a new input row with enhanced primitive values
- * Properties are spread at the root level instead of being nested under "value"
- */
-export function createInputRow(inputKeys: string[], metadata: ObjectMetadata): any {
-    // Create enhanced values for each input key
-    const enhancedValues = Object.fromEntries(
-        inputKeys.map((key) => {
-            const metadataHash = hashMetadata(metadata.properties[key])
-
-            return [
-                key,
-                {
-                    __id: generateId(),
-                    __metadata: metadataHash,
-                    value: "",
-                },
-            ]
-        }),
-    )
-
-    const metadataHash = hashMetadata(metadata)
-
-    // Return object with properties spread at root level and initialize __result as undefined
-    return {
-        __id: generateId(),
-        __metadata: metadataHash,
-        __runs: {},
-        ...enhancedValues,
-    }
-}
-/**
- * Prompt Key Management
- * --------------------
- */
-
-/**
  * Updates input keys for a single prompt based on its messages
  * @param prompt - Prompt configuration to update
  * @returns Array of extracted variable names
@@ -187,29 +148,6 @@ export function updateVariantPromptKeys(variant: EnhancedVariant) {
  * Variant Input Management
  * -----------------------
  */
-
-/**
- * Initialize variant inputs with a single empty row
- * @param variant - Variant to initialize inputs for
- * @returns Updated variant with initialized inputs
- */
-export function initializeVariantInputs(variant: EnhancedVariant, spec: OpenAPISpec) {
-    // Derive input keys purely from the OpenAPI request schema
-    const inputStrings = extractInputKeysFromSchema(spec, variant.routePath)
-    const inputSchema = createInputSchema(inputStrings)
-    const initialInputRow = createInputRow(inputStrings, inputSchema.itemMetadata)
-
-    const _metadataHash = hashMetadata(inputSchema)
-
-    // @ts-ignore
-    variant.inputs = {
-        __id: generateId(),
-        __metadata: inputSchema,
-        value: [initialInputRow],
-    }
-
-    return variant
-}
 
 /**
  * Extract input values from an enhanced input row

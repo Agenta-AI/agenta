@@ -119,7 +119,7 @@ export const renderMap: RenderFunctions = {
             if (as === "SimpleDropdownSelect") {
                 return (
                     <SimpleDropdownSelect
-                        value={value}
+                        value={typeof value === "string" ? value : value?.value || ""}
                         options={metadata.options}
                         onChange={handleChange}
                         placeholder={metadata.description}

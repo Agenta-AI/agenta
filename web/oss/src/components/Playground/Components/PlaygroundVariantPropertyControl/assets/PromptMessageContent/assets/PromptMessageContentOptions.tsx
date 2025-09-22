@@ -17,32 +17,20 @@ import {useAtom, useAtomValue} from "jotai"
 
 import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
+import {getTextContent} from "@/oss/components/Playground/adapters/TurnMessageHeaderOptions"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import {usePlaygroundAtoms} from "@/oss/components/Playground/hooks/usePlaygroundAtoms"
+import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
+import {findPropertyInObject} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
 
 import TestsetDrawerButton from "../../../../Drawers/TestsetDrawer"
 
 import type {PromptMessageContentOptionsProps} from "./types"
 
-export const getTextContent = (content: any) => {
-    if (typeof content === "string") return content
-    if (Array.isArray(content)) {
-        const value = content.filter(
-            (part: any) => part.type.value === "text" || part.type === "text",
-        )
-        return value.length > 0
-            ? typeof value[0].text === "string"
-                ? value[0].text
-                : value[0].text.value
-            : ""
-    }
-    return ""
-}
-
 const PromptMessageContentOptions = ({
     id,
     messageId,
+    variantId,
     className,
     propertyId,
     isMessageDeletable,
@@ -59,8 +47,9 @@ const PromptMessageContentOptions = ({
     const [editor] = useLexicalComposerContext()
     const [markdownView] = useAtom(markdownViewAtom(id))
 
-    // Use atom-based state management
-    const {propertyGetter} = usePlaygroundAtoms()
+    const prompts = usePromptsSource(variantId) || []
+    const message = findPropertyInObject(prompts, propertyId)
+
     const isChat = useAtomValue(appChatModeAtom) ?? false
 
     const {deleteMessage, rerunMessage, minimize, onClickTestsetDrawer, handleAddUploadSlot} =
@@ -69,7 +58,7 @@ const PromptMessageContentOptions = ({
     const [isCopied, setIsCopied] = useState(false)
 
     const onCopyText = useCallback(() => {
-        const text = getTextContent(propertyGetter?.(propertyId)?.value || "")
+        const text = getTextContent(message?.value)
 
         if (text) {
             setIsCopied(true)
@@ -78,7 +67,7 @@ const PromptMessageContentOptions = ({
                 setIsCopied(false)
             }, 1000)
         }
-    }, [propertyId, propertyGetter])
+    }, [message])
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>

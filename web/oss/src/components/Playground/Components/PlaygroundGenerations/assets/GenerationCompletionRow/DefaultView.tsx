@@ -23,6 +23,7 @@ interface Props {
     resultHash: string | null
     runRow: () => void
     cancelRow: () => void
+    isBusy: boolean
 }
 
 const DefaultView = ({
@@ -36,6 +37,7 @@ const DefaultView = ({
     resultHash,
     runRow,
     cancelRow,
+    isBusy,
 }: Props) => {
     const variableIds = useAtomValue(
         useMemo(
@@ -110,7 +112,11 @@ const DefaultView = ({
 
             {!inputOnly ? (
                 <div className={clsx("h-[48px] flex items-center px-4")}>
-                    <RunButton onClick={runRow} className="flex" />
+                    {isBusy ? (
+                        <RunButton isCancel onClick={cancelRow} className="flex" />
+                    ) : (
+                        <RunButton onClick={runRow} className="flex" />
+                    )}
                 </div>
             ) : null}
         </>

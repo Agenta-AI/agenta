@@ -3,7 +3,7 @@ import {useMemo, useCallback, useState, useEffect, useRef} from "react"
 import {mergeRegister} from "@lexical/utils"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
-import {atom, useSetAtom, useAtomValue} from "jotai"
+import {atom, useSetAtom} from "jotai"
 import {$getRoot} from "lexical"
 import {v4 as uuidv4} from "uuid"
 
@@ -14,17 +14,13 @@ import {useMessageContentHandlers} from "@/oss/components/Playground/hooks/useMe
 import {useMessageContentProps} from "@/oss/components/Playground/hooks/useMessageContentProps"
 import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {ChatRole} from "@/oss/lib/Types"
-import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 
-import {findPropertyInObject} from "../../hooks/usePlayground/assets/helpers"
 import {usePromptMessageConfig} from "../../hooks/usePromptMessageConfig"
 import {
     // updateGenerationDataPropertyMutationAtom,
     promptPropertyAtomFamily,
     updateVariantPropertyEnhancedMutationAtom,
-    displayedVariantsAtom,
 } from "../../state/atoms"
-import PromptImageUpload from "../PlaygroundVariantPropertyControl/assets/PromptImageUpload"
 import SharedEditor from "../SharedEditor"
 
 import type {PromptMessageConfigProps} from "./types"
@@ -65,13 +61,13 @@ const PromptMessageConfig = ({
     footerClassName,
     editorProps,
     isJSON,
-    allowFileUpload = false,
+    isTool,
     message: messageProp,
     viewOnly,
     ...props
 }: PromptMessageConfigProps) => {
     const editorIdRef = useRef(id || uuidv4())
-    // Allow null to xrepresent an empty upload slot
+    // Allow null to represent an empty upload slot
     // const [uploadedFileItems, setUploadedFileItems] = useState<(UploadFile | null)[]>([])
     const [minimized, setMinimized] = useState(false)
 
@@ -86,14 +82,11 @@ const PromptMessageConfig = ({
         rowId,
     })
 
+    console.log("optimizedMessage", optimizedMessage)
+
     // Prefer live message from generation entities to reflect mutations immediately
     // Prompt-only message resolution
     const message = (optimizedMessage as any) ?? (messageProp as any)
-
-    // Get variant data directly from atoms to avoid data contamination
-    // const playgroundVariants = useAtomValue(playgroundVariantsAtom)
-    // const variant = playgroundVariants?.[variantId || ""]
-
     // Get optimized mutation functions
     const updateVariantProperty = useSetAtom(updateVariantPropertyEnhancedMutationAtom)
     // const updateGenerationDataProperty = useSetAtom(updateGenerationDataPropertyMutationAtom)
@@ -109,7 +102,7 @@ const PromptMessageConfig = ({
     // content write facade is defined after baseContentProperty to use the correct property id
 
     // Essential property extraction for message rendering via shared hook
-    const {baseProperty, isTool, baseImageProperties, baseContentProperty} = useMessageContentProps(
+    const {baseProperty, baseImageProperties, baseContentProperty} = useMessageContentProps(
         message as any,
     )
 
@@ -248,7 +241,7 @@ const PromptMessageConfig = ({
         handleChange = undefined
     }
 
-    const {computeDisplayValue, addUploadSlot} = useMessageContentHandlers()
+    const {computeDisplayValue} = useMessageContentHandlers()
     const _value = useMemo(
         () =>
             computeDisplayValue({
@@ -259,30 +252,6 @@ const PromptMessageConfig = ({
                 contentProperty: contentProperty as any,
             }),
         [computeDisplayValue, propsInitialValue, value, isFunction, isTool, contentProperty],
-    )
-
-    const handleAddUploadSlot = useCallback(() => {
-        const result = addUploadSlot({contentProperty: contentProperty as any, max: 5})
-        if (!result) return
-        setContentPromptValue(result as any)
-    }, [addUploadSlot, contentProperty, setContentPromptValue])
-
-    const handleRemoveFileItem = useCallback(
-        (propertyId: string) => {
-            if (!contentProperty) return
-            const cloned = removeUploadItem({contentProperty: contentProperty as any, propertyId})
-            if (!cloned) return
-            if (variantId && baseContentProperty?.__id) {
-                setContentPromptValue(cloned as any)
-            } else {
-                console.warn("⚠️ [handleRemoveFileItem] Unable to determine mutation target:", {
-                    variantId,
-                    rowId,
-                    propertyId: baseContentProperty?.__id,
-                })
-            }
-        },
-        [contentProperty, baseContentProperty, setContentPromptValue, variantId, rowId],
     )
 
     // Try to access the Lexical editor instance from context
@@ -307,32 +276,6 @@ const PromptMessageConfig = ({
         )
         return unregister
     }, [editor])
-
-    // Derive existing trace/result hashes for this turn across the scoped variants
-    const displayedVariantIds = useAtomValue(displayedVariantsAtom) as string[] | undefined
-    const runStatusMap = useAtomValue(runStatusByRowRevisionAtom) as Record<string, any>
-    const _resultHashes = useMemo(() => {
-        try {
-            const scopedIds: string[] = (() => {
-                if (revisionId) return [revisionId as string]
-                return Array.isArray(displayedVariantIds) ? displayedVariantIds : []
-            })()
-
-            if (!rowId || scopedIds.length === 0) return []
-
-            const hashes: string[] = []
-            for (const vid of scopedIds) {
-                const key = `${rowId}:${vid}`
-                const entry = (runStatusMap || {})[key]
-                const h = entry?.resultHash
-                if (h) hashes.push(h)
-            }
-            return hashes
-        } catch {
-            return []
-        }
-    }, [runStatusMap, rowId, revisionId, displayedVariantIds])
-
     // toolInfo no longer needed after header extraction
 
     const _placeholder = useMemo(() => {
@@ -352,7 +295,7 @@ const PromptMessageConfig = ({
                     variantId={variantId}
                     rowId={rowId}
                     messageId={messageId}
-                    isFunction={Boolean(isFunction)}
+                    isFunction={Boolean(isFunction) || Boolean(isTool)}
                     isTool={Boolean(isTool)}
                     disabled={disabled}
                     minimized={minimized}
@@ -360,18 +303,22 @@ const PromptMessageConfig = ({
                     headerClassName={headerClassName}
                     rolePropertyId={message.role?.__id}
                     contentPropertyId={message.content?.__id}
-                    functionNamePropertyId={isFunction ? (message as any).name : undefined}
-                    toolCallIdPropertyId={isFunction ? (message as any).toolCallId : undefined}
-                    allowFileUpload={allowFileUpload && message?.role?.value === ChatRole.User}
+                    functionNamePropertyId={
+                        Boolean(isFunction) || Boolean(isTool)
+                            ? (message as any).name?.__id
+                            : undefined
+                    }
+                    toolCallIdPropertyId={
+                        Boolean(isFunction) || Boolean(isTool)
+                            ? (message as any).toolCallId?.__id
+                            : undefined
+                    }
                     uploadCount={imageProperties?.length || 0}
-                    resultHashes={_resultHashes}
                     viewOnly={viewOnly}
-                    hideMarkdownToggle
+                    hideMarkdownToggle={Boolean(isFunction || isTool)}
                     actions={{
                         onDelete: deleteMessage,
-                        onRerun: rerunMessage,
                         onMinimize: () => setMinimized((c) => !c),
-                        onAddUploadSlot: handleAddUploadSlot,
                     }}
                 />
             }
@@ -401,88 +348,9 @@ const PromptMessageConfig = ({
             {...props}
             footer={
                 <div className="w-full">
-                    <div className="flex flex-col my-2 items-center gap-2">
-                        {imageProperties?.length > 0
-                            ? imageProperties.map((property) => {
-                                  // Derive current URL from the property value
-                                  const currentUrl =
-                                      property &&
-                                      typeof property.value === "object" &&
-                                      property.value
-                                          ? ((property.value as any).value ?? "")
-                                          : ((property as any)?.value ?? "")
+                    <div className="flex flex-col my-2 items-center gap-2"></div>
 
-                                  return (
-                                      <PromptImageUpload
-                                          key={property.__id}
-                                          disabled={disabled}
-                                          imageFile={{
-                                              status: "done",
-                                              thumbUrl: currentUrl,
-                                              uid: currentUrl || property.__id,
-                                              name: currentUrl || property.__id,
-                                          }}
-                                          handleUploadFileChange={(newFile) => {
-                                              const imagePart =
-                                                  newFile?.url || newFile?.thumbUrl || ""
-                                              if (!imagePart) return
-
-                                              if (property && contentProperty?.value) {
-                                                  const cloned = structuredClone(
-                                                      contentProperty.value,
-                                                  )
-                                                  const targetIndex = cloned.findIndex(
-                                                      (part: any) =>
-                                                          Boolean(
-                                                              findPropertyInObject(
-                                                                  part,
-                                                                  property.__id,
-                                                              ),
-                                                          ),
-                                                  )
-                                                  if (targetIndex >= 0) {
-                                                      const targetPart = cloned[targetIndex]
-                                                      const urlProp = findPropertyInObject(
-                                                          targetPart,
-                                                          property.__id,
-                                                      ) as any
-                                                      if (urlProp) {
-                                                          if (
-                                                              urlProp.content &&
-                                                              typeof urlProp.content === "object"
-                                                          ) {
-                                                              urlProp.content.value = imagePart
-                                                          } else {
-                                                              urlProp.value = imagePart
-                                                          }
-                                                      }
-
-                                                      if (rowId && baseContentProperty?.__id) {
-                                                          //   updateGenerationDataProperty({
-                                                          //       rowId,
-                                                          //       propertyId: baseContentProperty.__id,
-                                                          //       value: cloned,
-                                                          //       messageId,
-                                                          //   })
-                                                      } else if (
-                                                          variantId &&
-                                                          baseContentProperty?.__id
-                                                      ) {
-                                                          setContentPromptValue(cloned)
-                                                      }
-                                                  }
-                                              }
-                                          }}
-                                          handleRemoveUploadFile={() => {
-                                              handleRemoveFileItem(property.__id)
-                                          }}
-                                      />
-                                  )
-                              })
-                            : null}
-                    </div>
-
-                    {props.footer}
+                    {props.footer ? props.footer : null}
                 </div>
             }
         />
@@ -490,16 +358,22 @@ const PromptMessageConfig = ({
 }
 
 const PromptMessageConfigWrapper = (props: PromptMessageConfigProps) => {
-    // Simplified wrapper - use default values for now
-    // These can be enhanced later with proper atom-based detection
-    const isTool = false // Default value
     const isFunction = false // Default value
     const isJSON = false // Default value
     const editorIdRef = useRef(uuidv4())
 
+    const {message} = usePromptMessageConfig({
+        variantId: props.variantId,
+        messageId: props.messageId,
+        rowId: props.rowId,
+    })
+
+    const isTool = useMemo(() => message?.role?.value === "tool", [message])
+
     return (
         <div className="w-full relative">
             <EditorProvider
+                key={`${editorIdRef.current}-${isTool}`}
                 codeOnly={isTool || isJSON}
                 enableTokens={!(isTool || isJSON)}
                 showToolbar={false}
@@ -508,8 +382,7 @@ const PromptMessageConfigWrapper = (props: PromptMessageConfigProps) => {
                     isJSON={isJSON}
                     isFunction={isFunction}
                     isTool={isTool}
-                    allowFileUpload={true}
-                    id={editorIdRef.current}
+                    id={`${editorIdRef.current}-${isTool}`}
                     {...props}
                 />
             </EditorProvider>

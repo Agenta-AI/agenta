@@ -102,15 +102,15 @@ const MessageEditor: React.FC<MessageEditorProps> = ({
     )
 }
 
-const MessageEditorWrapper = (props) => {
+const MessageEditorWrapper = ({isJSON, ...props}) => {
     return (
         <EditorProvider
-            codeOnly={props.isTool}
+            codeOnly={props.isTool || isJSON}
             enableTokens={Boolean(props.enableTokens)}
             showToolbar={false}
-            id={props.id}
+            id={`${props.id}-${isJSON}`}
         >
-            <MessageEditor {...props} />
+            <MessageEditor isJSON={isJSON} {...props} />
         </EditorProvider>
     )
 }

@@ -10,16 +10,12 @@ import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/a
 import {useQueryParam} from "@/oss/hooks/useQuery"
 
 import {DeploymentDrawerTitleProps} from "../types"
+import {drawerVariantIsLoadingAtomFamily} from "../VariantDrawerContent"
 
-const DeploymentDrawerTitle = ({
-    variantId,
-    onClose,
-    revert,
-    isLoading,
-}: DeploymentDrawerTitleProps) => {
+const DeploymentDrawerTitle = ({variantId, onClose, revert}: DeploymentDrawerTitleProps) => {
     const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId))
     const [envName] = useQueryParam("selectedEnvName")
-
+    const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
     return (
         <section className="flex items-center justify-between">
             <div className="flex items-center gap-3">

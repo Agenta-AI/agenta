@@ -94,13 +94,22 @@ def _format_with_template(
 
             result = content
             for key, value in kwargs.items():
-                result = re.sub(r"\{\{" + key + r"\}\}", str(value), result)
-            if re.search(r"\{\{.*?\}\}", result):
-                return content
+                pattern = r"\{\{" + re.escape(key) + r"\}\}"
+                old_result = result
+                result = re.sub(pattern, str(value), result)
+
+            unreplaced_matches = re.findall(r"\{\{(.*?)\}\}", result)
+            if unreplaced_matches:
+                log.info(f"WORKFLOW Found unreplaced variables: {unreplaced_matches}")
+                raise ValueError(
+                    f"Template variables not found in inputs: {', '.join(unreplaced_matches)}"
+                )
+
             return result
 
     except Exception as e:
-        return content
+        log.info(f"WORKFLOW Template formatting exception: {e}")
+        raise e
 
     return content
 

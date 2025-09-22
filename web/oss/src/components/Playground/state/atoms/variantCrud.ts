@@ -306,6 +306,7 @@ export const saveVariantMutationAtom = atom(
                 set(clearLocalPromptsForRevisionAtomFamily(variantId))
                 // Clear any JSON editor override for the previous revision
                 set(parametersOverrideAtomFamily(variantId), null)
+                set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
                 return {
                     success: true,
                     variant: savedVariant,
@@ -318,6 +319,7 @@ export const saveVariantMutationAtom = atom(
             // No revision swap detected – clear any local edits for this revision
             set(clearLocalPromptsForRevisionAtomFamily(variantId))
             set(parametersOverrideAtomFamily(variantId), null)
+            set(clearLocalCustomPropsForRevisionAtomFamily(variantId))
             return {
                 success: true,
                 variant: savedVariant,

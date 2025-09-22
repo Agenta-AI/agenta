@@ -16,6 +16,7 @@ import type {
     EnhancedObjectConfig,
 } from "../genericTransformer/types"
 import {getRequestSchema} from "../openapiUtils"
+import {generateId} from "../stringUtils"
 
 import type {EnhancedVariant, BaseVariant, AgentaConfigSchema, AgentaConfigPrompt} from "./types"
 
@@ -164,7 +165,7 @@ export function deriveCustomPropertiesFromSpec(
             // Stabilize IDs for custom properties to avoid re-mount loops
             // Use deterministic ID based on property key
             node.__id = `custom:${key}`
-
+            node.__test = generateId()
             acc[key] = node
             return acc
         },
@@ -183,13 +184,5 @@ export function transformToEnhancedVariant(
     appType?: string,
     routePath?: string,
 ): EnhancedVariant {
-    try {
-        // Keep the variant lean; no embedded requestSchema. All derivations should be external.
-        return {
-            ...variant,
-        }
-    } catch (err) {
-        console.error("Error transforming variant:", err)
-        throw err
-    }
+    return variant
 }

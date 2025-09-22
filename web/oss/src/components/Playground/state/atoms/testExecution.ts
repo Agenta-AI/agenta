@@ -7,7 +7,10 @@ import {
     responseByRowRevisionAtomFamily,
     loadingByRowRevisionAtomFamily,
 } from "@/oss/state/newPlayground/generation/runtime"
-import {pendingWebWorkerRequestsAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
+import {
+    pendingWebWorkerRequestsAtom,
+    ignoredWebWorkerRunIdsAtom,
+} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
 
 import type {CancelTestsParams, TestExecutionResult} from "../types"
 
@@ -64,6 +67,16 @@ export const cancelTestsMutationAtom = atom(
                         runIdsToCancel.push(req.runId)
                     }
                 })
+
+                if (runIdsToCancel.length > 0) {
+                    set(ignoredWebWorkerRunIdsAtom, (prev) => {
+                        const next = {...prev}
+                        runIdsToCancel.forEach((rid) => {
+                            next[rid] = true
+                        })
+                        return next
+                    })
+                }
 
                 runIdsToCancel.forEach((rid) => {
                     try {

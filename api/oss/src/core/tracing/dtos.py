@@ -71,7 +71,7 @@ class AgTypeAttributes(BaseModel):
 
 class AgDataAttributes(BaseModel):
     parameters: Optional[Dict[str, Any]] = None
-    inputs: Optional[Dict[str, Any]] = None
+    inputs: Optional[Any] = None
     outputs: Optional[Any] = None
     internals: Optional[Dict[str, Any]] = None
 

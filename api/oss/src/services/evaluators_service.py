@@ -96,19 +96,23 @@ def detect_prompt_variables(
     import re
 
     # Match both single and double curly brace variables
-    pattern = r"\{+(\w+)\}+"
+    pattern = r"\{+([a-zA-Z_][a-zA-Z0-9_.]*)\}+"
+    log.info(f"Variable detection using pattern: {pattern}")
 
     if isinstance(prompt, list):
         # For message-based prompts, search in all message contents
         variables = set()
-        for message in prompt:
+        for i, message in enumerate(prompt):
             if isinstance(message, dict) and "content" in message:
-                matches = re.findall(pattern, message["content"])
+                content = message["content"]
+                matches = re.findall(pattern, content)
                 variables.update(matches)
-        return list(variables)
+        result = list(variables)
+        return result
     else:
-        # For string prompts
-        return list(set(re.findall(pattern, prompt)))
+        matches = re.findall(pattern, prompt)
+        result = list(set(matches))
+        return result
 
 
 def validate_prompt_variables(
@@ -497,7 +501,7 @@ async def auto_ai_critique(
             )
         )
         return Result(type="number", value=response["outputs"]["score"])
-    except Exception as e:  # pylint: disable=broad-except∆`§
+    except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
             value=None,
@@ -531,9 +535,15 @@ def _format_with_template(
 
             result = content
             for key, value in kwargs.items():
-                result = re.sub(r"\{\{" + key + r"\}\}", str(value), result)
-            if re.search(r"\{\{.*?\}\}", result):
-                return content
+                pattern = r"\{\{" + re.escape(key) + r"\}\}"
+                old_result = result
+                result = re.sub(pattern, str(value), result)
+            unreplaced_matches = re.findall(r"\{\{(.*?)\}\}", result)
+            if unreplaced_matches:
+                raise ValueError(
+                    f"Template variables not found in inputs: {', '.join(unreplaced_matches)}"
+                )
+
             return result
 
     except Exception as e:
@@ -579,15 +589,16 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             template_format = input.settings.get("template_format") or default_format
 
             formatted_prompt_template = []
-            for message in prompt_template:
+            for i, message in enumerate(prompt_template):
+                formatted_content = _format_with_template(
+                    content=message["content"],
+                    format=template_format,
+                    kwargs=input.inputs,
+                )
                 formatted_prompt_template.append(
                     {
                         "role": message["role"],
-                        "content": _format_with_template(
-                            content=message["content"],
-                            format=template_format,
-                            kwargs=input.inputs,
-                        ),
+                        "content": formatted_content,
                     }
                 )
             app_output = input.inputs.get("prediction")

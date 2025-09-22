@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {getTextContent} from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
+import {getTextContent} from "../../adapters/TurnMessageHeaderOptions"
 
 export const useAssistantDisplayValue = (assistantMsg: any, result: any) => {
     return useMemo(() => {

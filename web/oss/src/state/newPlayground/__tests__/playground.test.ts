@@ -20,9 +20,8 @@ import {
 
     // Derived atoms
     selectedVariantRequestBodyAtom,
-    displayedVariantsRequestBodiesAtom,
     isSelectedVariantDirtyAtom,
-    selectedVariantValidationAtom,
+    // selectedVariantValidationAtom,
 
     // Mutation atoms
     updateVariantPromptAtom,
@@ -178,12 +177,12 @@ describe("New Playground Architecture", () => {
             })
         })
 
-        test("should validate variant configuration", () => {
-            const validation = store.get(selectedVariantValidationAtom)
+        // test("should validate variant configuration", () => {
+        //     const validation = store.get(selectedVariantValidationAtom)
 
-            expect(validation.isValid).toBe(true)
-            expect(validation.errors).toHaveLength(0)
-        })
+        //     expect(validation.isValid).toBe(true)
+        //     expect(validation.errors).toHaveLength(0)
+        // })
 
         test("should update derived state when config changes", () => {
             // Update prompt

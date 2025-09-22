@@ -3,15 +3,14 @@ import {memo, useEffect, useMemo} from "react"
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Button, Space, Spin, Tag, Typography, TabsProps, Tabs, Switch, Tooltip} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {atomFamily} from "jotai/utils"
 import {useRouter} from "next/router"
 
-// Avatar removed; using UserAvatarTag instead
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import PlaygroundVariantCustomProperties from "@/oss/components/Playground/Components/PlaygroundVariantCustomProperties"
 import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
-import {useVariantPrompts} from "@/oss/components/Playground/hooks/useVariantPrompts"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/dirtyState"
@@ -25,7 +24,12 @@ import {
     derivePromptsFromSpec,
     deriveCustomPropertiesFromSpec,
 } from "@/oss/lib/shared/variant/transformer/transformer"
-import {revisionDeploymentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
+import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {
+    appStatusLoadingAtom,
+    revisionDeploymentAtomFamily,
+    variantRevisionsQueryFamily,
+} from "@/oss/state/variant/atoms/fetcher"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {clearVariantDrawerAtom} from "../../store/variantDrawerStore"
@@ -35,9 +39,46 @@ import {VariantDrawerContentProps} from "../types"
 
 const {Text} = Typography
 
+const EMPTY_REVISION_ID = "__variant-drawer-empty__"
+
+const resolveParentVariantId = (variant: any): string | null => {
+    if (!variant) return null
+    const parent = variant?._parentVariant
+    if (typeof parent === "string" && parent.trim()) return parent
+    if (parent && typeof parent === "object") return parent.id || parent.variantId || null
+    return variant?.variantId ?? null
+}
+
+export const drawerVariantIsLoadingAtomFamily = atomFamily((revisionId: string) =>
+    atom((get) => {
+        const schemaLoading = !!get(appStatusLoadingAtom)
+        if (!revisionId || revisionId === EMPTY_REVISION_ID) {
+            return schemaLoading
+        }
+
+        const selectedVariant = get(variantByRevisionIdAtomFamily(revisionId)) as any
+        if (!selectedVariant) {
+            return true
+        }
+
+        const parentVariantId = resolveParentVariantId(selectedVariant)
+        if (!parentVariantId) {
+            return schemaLoading
+        }
+
+        const revisionsQuery = get(variantRevisionsQueryFamily(parentVariantId)) as any
+        const data = revisionsQuery?.data
+        const hasRevisionData = Array.isArray(data) && data.length > 0
+
+        const revisionLoading =
+            !!revisionsQuery?.isLoading || (!hasRevisionData && !!revisionsQuery?.isFetching)
+
+        return schemaLoading || revisionLoading
+    }),
+)
+
 const VariantDrawerContent = ({
     variantId,
-    isLoading,
     type,
     viewAs,
     onChangeViewAs,
@@ -47,6 +88,8 @@ const VariantDrawerContent = ({
     const router = useRouter()
     const appId = useAppId()
 
+    const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
+
     // Focused selected variant by revision ID
     const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
 
@@ -55,7 +98,9 @@ const VariantDrawerContent = ({
     const appStatus = !!appSchema
     const uriInfo = useAtomValue(appUriInfoAtom)
 
-    const {promptIds} = useVariantPrompts(variantId)
+    const prompts = useAtomValue(promptsAtomFamily(variantId))
+    const promptIds = prompts?.map((p: any) => p?.__id as string)
+
     // Focused deployed environments by revision ID
     const deployedIn = useAtomValue(revisionDeploymentAtomFamily(variantId)) || []
     const commitMsg = selectedVariant?.commitMessage
@@ -164,7 +209,7 @@ const VariantDrawerContent = ({
                 key: "json",
                 label: "JSON",
                 className: "h-full flex flex-col px-4",
-                children: selectedVariant ? (
+                children: isLoading ? null : selectedVariant ? (
                     <NewVariantParametersView
                         selectedVariant={selectedVariant}
                         showOriginal={showOriginal}
@@ -180,8 +225,8 @@ const VariantDrawerContent = ({
         showOriginal,
         originalPrompts,
         originalPromptIds,
+        isLoading,
     ])
-
     const clearDrawer = useSetAtom(clearVariantDrawerAtom)
     const drawerState = useAtomValue(variantDrawerAtom)
     const [_, setQueryVariant] = useQueryParam("revisions")

@@ -4,8 +4,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 // Legacy types/helpers removed with new playground state
 
-import {triggerWebWorkerTestAtom} from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
-
+import {usePromptsSource} from "../../context/PromptsSource"
 import {
     addVariantMutationAtom,
     cancelTestsMutationAtom,
@@ -30,6 +29,7 @@ import {findPropertyInObject} from "../usePlayground/assets/helpers"
 export function usePlaygroundAtoms({
     variantId,
     _propertyId,
+    messageId,
 }: {variantId?: string; _propertyId?: string} = {}): UsePlaygroundAtomsReturn {
     // Get selected variants for comparison mode
     const selectedVariants = useAtomValue(selectedVariantsAtom)
@@ -65,9 +65,6 @@ export function usePlaygroundAtoms({
     const saveVariant = useSetAtom(saveVariantMutationAtom)
     const deleteVariant = useSetAtom(deleteVariantMutationAtom)
 
-    // Web worker integration (atoms only, no hook here to prevent multiple instances)
-    const triggerWebWorkerTest = useSetAtom(triggerWebWorkerTestAtom)
-
     // Test execution with web worker integration
     const cancelTestsOriginal = useSetAtom(cancelTestsMutationAtom)
     // const rerunChatOutputOriginal = useSetAtom(rerunChatOutputMutationAtom)
@@ -86,29 +83,6 @@ export function usePlaygroundAtoms({
         [cancelTestsOriginal],
     )
 
-    // Enhanced rerunChatOutput that handles both truncation and web worker triggering
-    // const rerunChatOutput = useCallback(
-    //     (messageId: string, variantId?: string) => {
-    //         // Step 1: Truncate conversation using the atom
-    //         const messageRow = rerunChatOutputOriginal(messageId, variantId)
-
-    //         if (!messageRow) {
-    //             console.error("Message row not found for rerun:", messageId)
-    //             return
-    //         }
-
-    //         // Step 2: Set up test run state
-    //         const targetVariantIds = variantId ? [variantId] : displayedVariants
-    //         targetVariantIds.forEach((vId) => {
-    //             triggerWebWorkerTest({
-    //                 rowId: messageRow.__id,
-    //                 variantId: vId,
-    //             })
-    //         })
-    //     },
-    //     [rerunChatOutputOriginal, displayedVariants, triggerWebWorkerTest],
-    // )
-
     // Enhanced parameter update handler
     const handleParamUpdate = useCallback(
         (e: {target: {value: any}} | any, propId?: string, vId?: string) => {
@@ -124,9 +98,16 @@ export function usePlaygroundAtoms({
         [],
     )
 
+    const prompts = usePromptsSource(variantId) || []
     // Property getter function to access properties by ID
     const propertyGetter = useCallback(
         (propertyId: string) => {
+            if (prompts.length) {
+                for (const prompt of prompts) {
+                    const property = findPropertyInObject(prompt, propertyId)
+                    if (property) return property
+                }
+            }
             // Then try to find in current variant (for config messages and other properties)
             if (currentVariant) {
                 const property = findPropertyInObject(currentVariant, propertyId)
@@ -141,7 +122,7 @@ export function usePlaygroundAtoms({
 
             return undefined
         },
-        [currentVariant, variants],
+        [variantId, prompts, currentVariant, variants],
     )
 
     // Map displayedVariants IDs to actual variant objects

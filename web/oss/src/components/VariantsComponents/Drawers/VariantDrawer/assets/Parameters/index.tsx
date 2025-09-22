@@ -1,14 +1,16 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo, useRef} from "react"
 
-import isEqual from "fast-deep-equal"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {getYamlOrJson} from "@/oss/lib/helpers/utils"
 import {VariantUpdateFunction} from "@/oss/lib/hooks/useStatelessVariants/types"
-import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
+import {
+    deriveCustomPropertiesFromSpec,
+    derivePromptsFromSpec,
+} from "@/oss/lib/shared/variant/transformer/transformer"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {customPropertiesAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     transformedPromptsAtomFamily,
     promptsAtomFamily,
@@ -18,6 +20,24 @@ import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 const SharedEditor = dynamic(() => import("@/oss/components/Playground/Components/SharedEditor"), {
     ssr: false,
 })
+
+const collectIdentifiers = (value: unknown): string[] => {
+    if (!value || typeof value !== "object") {
+        return []
+    }
+
+    const entries = Array.isArray(value) ? value : Object.values(value as Record<string, unknown>)
+
+    const current = !Array.isArray(value)
+        ? ((value as Record<string, unknown>).__test ?? (value as Record<string, unknown>).__id)
+        : undefined
+
+    const nested = entries.flatMap((entry) => collectIdentifiers(entry))
+
+    return [current !== undefined ? String(current) : undefined, ...nested].filter(
+        (item): item is string => !!item,
+    )
+}
 
 export const NewVariantParametersView = ({
     selectedVariant,
@@ -31,25 +51,27 @@ export const NewVariantParametersView = ({
         | undefined
     showOriginal?: boolean
 }) => {
-    // Base parameters are derived from prompts (same structure used for prompt commits)
-    const derived = useAtomValue(transformedPromptsAtomFamily(selectedVariant?.id)) as any
-    const [override, setOverride] = useAtom(parametersOverrideAtomFamily(selectedVariant?.id))
-    const setPrompts = useSetAtom(promptsAtomFamily(selectedVariant?.id))
-    const spec = useAtomValue(appSchemaAtom)
     const appUriInfo = useAtomValue(appUriInfoAtom)
-    // Epoch used to force remount of the editor only when override is cleared (post-commit reset)
-    const [epoch, setEpoch] = useState(0)
-    const prevHadOverrideRef = useRef<boolean>(!!override)
+    const spec = useAtomValue(appSchemaAtom)
 
-    useEffect(() => {
-        const had = prevHadOverrideRef.current
-        const has = !!override
-        // When JSON override is cleared (e.g., after commit), remount the editor to reset content
-        if (had && !has) {
-            setEpoch((e) => e + 1)
-        }
-        prevHadOverrideRef.current = has
-    }, [override])
+    const revisionId = (selectedVariant as any)?._revisionId || selectedVariant?.id
+
+    // Base parameters are derived from prompts (same structure used for prompt commits)
+    const derived = useAtomValue(transformedPromptsAtomFamily(revisionId)) as any
+    const promptsAtom = useMemo(() => promptsAtomFamily(revisionId), [revisionId])
+    const prompts = useAtomValue(promptsAtom)
+    const setPrompts = useSetAtom(promptsAtom)
+
+    const customPropsAtom = useMemo(
+        () =>
+            customPropertiesAtomFamily({
+                revisionId,
+                routePath: appUriInfo?.routePath,
+            }),
+        [revisionId, appUriInfo?.routePath],
+    )
+    const setCustomProps = useSetAtom(customPropsAtom)
+    const customProps = useAtomValue(customPropsAtom)
 
     const configJsonString = useMemo(() => {
         // When viewing original, always show the saved revision parameters
@@ -58,77 +80,94 @@ export const NewVariantParametersView = ({
             return getYamlOrJson("JSON", base)
         }
 
-        // Live (editable) view:
-        // 1) Prefer explicit JSON override if present
-        if (override) {
-            return getYamlOrJson("JSON", override)
-        }
-
-        // 2) If OpenAPI schema isn't available, fall back to saved revision parameters
         if (!spec) {
             const fallback = (selectedVariant as any)?.parameters ?? {}
             return getYamlOrJson("JSON", fallback)
         }
 
-        // 3) Otherwise, use the derived ag_config from prompts/state
         const derivedConfig = derived?.ag_config ?? {}
         return getYamlOrJson("JSON", derivedConfig)
-    }, [selectedVariant?.id, override, derived?.ag_config, showOriginal, spec])
+    }, [derived?.ag_config, showOriginal, spec, selectedVariant])
 
+    const derivedKeyFromAllProperties = useMemo(() => {
+        const customPropsIdentifiers = collectIdentifiers(customProps)
+        const promptsIdentifiers = collectIdentifiers(prompts)
+
+        const identifiers = [...customPropsIdentifiers, ...promptsIdentifiers]
+
+        return identifiers.join("-")
+    }, [customProps, prompts])
+
+    const idsRef = useRef<string | undefined>(derivedKeyFromAllProperties)
+    const stableIdsRef = useRef(derivedKeyFromAllProperties)
     const onChange = useCallback(
-        (value: string) => {
+        (value: string, key: string) => {
             if (showOriginal) return
-            if (!value || !selectedVariant?.id) return
+            if (!value) return
+
             try {
                 const parsed = JSON.parse(value || "{}")
-                setOverride(parsed)
+                if (!spec) return
 
-                // Two-way: update prompts local cache to reflect JSON edits
-                if (spec) {
-                    const variantForDerive = {
-                        ...(selectedVariant as any),
-                        parameters: {
-                            ...(selectedVariant as any)?.parameters,
-                            ag_config: parsed,
-                        },
-                    }
-                    const nextPrompts = derivePromptsFromSpec(
-                        variantForDerive as any,
-                        spec as any,
-                        appUriInfo?.routePath,
-                    ) as any
-                    setPrompts(nextPrompts)
+                const variantForDerive = {
+                    ...(selectedVariant as any),
+                    parameters: {
+                        ...(selectedVariant as any)?.parameters,
+                        ag_config: parsed,
+                    },
                 }
+
+                const nextPrompts = derivePromptsFromSpec(
+                    variantForDerive as any,
+                    spec as any,
+                    appUriInfo?.routePath,
+                ) as any
+
+                const nextCustomProps = deriveCustomPropertiesFromSpec(
+                    variantForDerive as any,
+                    spec as any,
+                    appUriInfo?.routePath,
+                ) as Record<string, any>
+
+                const newIds = [
+                    ...collectIdentifiers(nextPrompts),
+                    ...collectIdentifiers(nextCustomProps),
+                ].join("-")
+
+                idsRef.current = newIds
+
+                setPrompts(nextPrompts)
+                setCustomProps(nextCustomProps)
             } catch (error) {
                 // Ignore parse errors; editor will keep showing the current text
             }
         },
         [
             showOriginal,
-            setOverride,
-            selectedVariant?.id,
             spec,
             appUriInfo?.routePath,
             setPrompts,
+            setCustomProps,
             selectedVariant,
+            derivedKeyFromAllProperties,
         ],
     )
 
-    // Keep JSON override in sync when prompts are edited from the UI
-    useEffect(() => {
-        if (showOriginal) return
-        // Do not sync from derived prompts if OpenAPI schema is unavailable
-        if (!spec) return
-        const ag = derived?.ag_config ?? {}
-        if (override && !isEqual(override, ag)) {
-            setOverride(ag)
-        }
-    }, [JSON.stringify(derived?.ag_config), showOriginal, spec])
+    const key =
+        idsRef.current === derivedKeyFromAllProperties
+            ? stableIdsRef.current
+            : derivedKeyFromAllProperties
+
+    if (key === derivedKeyFromAllProperties) {
+        stableIdsRef.current = key
+    }
+
+    if (!revisionId) return null
 
     return (
-        <div className="w-full h-full self-stretch grow" key={selectedVariant?.id}>
+        <div className="w-full h-full self-stretch grow" key={`${revisionId}-${key}`}>
             <SharedEditor
-                key={`${selectedVariant?.id}-${epoch}`}
+                key={`${selectedVariant?.id}-${showOriginal}-${key}`}
                 editorProps={{
                     codeOnly: true,
                     validationSchema: {
@@ -139,7 +178,9 @@ export const NewVariantParametersView = ({
                 editorType="border"
                 initialValue={configJsonString}
                 value={configJsonString}
-                handleChange={onChange}
+                handleChange={(value) => {
+                    onChange(value, derivedKeyFromAllProperties)
+                }}
                 disabled={!!showOriginal}
                 state={showOriginal ? "readOnly" : "filled"}
                 className="!w-[97%] *:font-mono"

@@ -43,7 +43,7 @@ export interface TurnMessageHeaderOptionsProps {
     children?: React.ReactNode
 }
 
-const getTextContent = (content: any) => {
+export const getTextContent = (content: any) => {
     if (typeof content === "string") return content
     if (Array.isArray(content)) {
         const value = content.filter(

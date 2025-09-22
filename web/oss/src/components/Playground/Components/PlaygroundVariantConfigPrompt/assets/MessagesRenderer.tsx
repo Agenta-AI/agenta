@@ -38,7 +38,7 @@ const MessagesRenderer: React.FC<Props> = ({promptId, variantId, compoundKey, vi
                 ? messageIds.map((messageId: string) => {
                       return (
                           <PromptMessageConfig
-                              key={`${variantId}:${messageId}`}
+                              key={`${variantId}:${messageId}-${viewOnly}`}
                               variantId={variantId}
                               messageId={messageId}
                               deleteMessage={viewOnly ? undefined : deleteMessage}
@@ -66,7 +66,10 @@ const MessagesRenderer: React.FC<Props> = ({promptId, variantId, compoundKey, vi
                             : JSON.stringify(content ?? "", null, 2)
 
                       return (
-                          <div key={`${variantId}:${idx}`} className="flex flex-col gap-1">
+                          <div
+                              key={`${variantId}:${idx}-${viewOnly}`}
+                              className="flex flex-col gap-1"
+                          >
                               <div className="flex items-center gap-2">
                                   <span className="message-user-select px-2 py-[2px] text-[12px] leading-[16px] border border-solid border-[rgba(5,23,41,0.15)] rounded-md text-[#1C2C3D] bg-white">
                                       {role}
@@ -74,6 +77,7 @@ const MessagesRenderer: React.FC<Props> = ({promptId, variantId, compoundKey, vi
                               </div>
                               <SharedEditor
                                   initialValue={text}
+                                  key={`${variantId}:${idx}-${viewOnly}`}
                                   editorProps={{
                                       codeOnly: false,
                                       enableTokens: false,

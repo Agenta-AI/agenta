@@ -1,12 +1,17 @@
-import {memo, useMemo} from "react"
+import {memo, useCallback, useEffect, useMemo} from "react"
 
 import {Collapse, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import deepEqual from "fast-deep-equal"
+import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {selectAtom} from "jotai/utils"
 
 import {parameterUpdateMutationAtom} from "@/oss/components/Playground/state/atoms/propertyMutations"
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
+import {getMetadataLazy, metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {
+    customPropertiesByRevisionAtomFamily,
+    customPropertyIdsByRevisionAtomFamily,
+} from "@/oss/state/newPlayground/core/customProperties"
 
 import {useStyles} from "../PlaygroundVariantConfigPrompt/styles"
 import {renderMap} from "../PlaygroundVariantPropertyControl/assets/helpers"
@@ -30,6 +35,77 @@ import type {PlaygroundVariantCustomPropertiesProps} from "./types"
 
 const {Text} = Typography
 
+const PlaygroundVariantCustomProperty = memo(
+    ({variantId, viewOnly, id, customPropsRecord}: PlaygroundVariantCustomPropertyProps) => {
+        const propertyAtom = useMemo(() => {
+            return customPropsRecord
+                ? atom(() => customPropsRecord[id])
+                : selectAtom(
+                      customPropertiesByRevisionAtomFamily(variantId),
+                      (state) => state[id],
+                      deepEqual,
+                  )
+        }, [variantId, id, customPropsRecord])
+        const customProperty = useAtomValue(propertyAtom)
+        const updateParam = useSetAtom(parameterUpdateMutationAtom)
+
+        const propertyMetadataAtom = useMemo(() => {
+            return selectAtom(metadataAtom, (state) => state[customProperty?.__metadata], deepEqual)
+        }, [customProperty])
+
+        const meta = useAtomValue(propertyMetadataAtom, {
+            store: getDefaultStore(),
+        })
+
+        const type: string | undefined = (meta && (meta as any).type) || undefined
+        const renderer = type ? (renderMap as any)[type as keyof typeof renderMap] : undefined
+
+        const handleChange = useCallback(
+            (newValue: any, _arg?: any, subPropertyId?: string) => {
+                const pid = subPropertyId || (customProperty as any)?.__id
+                if (process.env.NODE_ENV === "development") {
+                    console.debug("[CustomProps][Mut][UI]", {
+                        variantId,
+                        propertyId: pid,
+                        newValue,
+                    })
+                }
+                updateParam({
+                    event: newValue,
+                    propertyId: pid,
+                    variantId,
+                })
+            },
+            [variantId, updateParam],
+        )
+
+        if (!customProperty) {
+            return null
+        }
+
+        if (renderer) {
+            const key =
+                (customProperty?.__test || (customProperty as any))?.__id ||
+                String(meta?.title || Math.random())
+            return (
+                <div key={key}>
+                    {renderer({
+                        withTooltip: true,
+                        metadata: meta,
+                        key: customProperty?.__test,
+                        value: (customProperty as any)?.value,
+                        disabled: viewOnly,
+                        propertyId: (customProperty as any)?.__id,
+                        variantId,
+                        handleChange: handleChange,
+                    })}
+                </div>
+            )
+        }
+        return <Typography.Text key={id}>Unknown type</Typography.Text>
+    },
+)
+
 const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropertiesProps> = ({
     variantId,
     className,
@@ -41,17 +117,12 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
     const updateParam = useSetAtom(parameterUpdateMutationAtom)
 
     // Derive custom properties from spec + saved params using new selector
-    const atomCustomPropsRecord = useAtomValue(customPropertiesByRevisionAtomFamily(variantId))
-    const customPropsRecord = providedCustomProps || atomCustomPropsRecord
+    const atomCustomPropertyIds = useAtomValue(customPropertyIdsByRevisionAtomFamily(variantId))
+    const customPropertyIds = useMemo(() => {
+        return providedCustomProps ? Object.keys(providedCustomProps) : atomCustomPropertyIds
+    }, [providedCustomProps, atomCustomPropertyIds])
 
-    // Flatten values for rendering
-    const customProperties = useMemo(() => {
-        return Object.values(customPropsRecord || {})
-    }, [customPropsRecord])
-
-    const hasCustomProperties = useMemo(() => {
-        return Object.keys(customPropsRecord || {}).length > 0
-    }, [customPropsRecord])
+    const hasCustomProperties = customPropertyIds.length > 0
 
     const items = useMemo(() => {
         return hasCustomProperties
@@ -83,63 +154,15 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
                                   "[&_.playground-property-control.multi-select-control_.ant-select]:!max-w-[250px]",
                               )}
                           >
-                              {process.env.NODE_ENV === "development" &&
-                                  console.debug("[CustomProps][Render]", {
-                                      variantId,
-                                      count: customProperties.length,
-                                      ids: (customProperties || []).map((cp: any) => cp?.__id),
-                                  })}
-                              {customProperties.map((customProperty) => {
-                                  const meta = getMetadataLazy(
-                                      (customProperty as any)?.__metadata,
-                                  ) as any
-                                  const type: string | undefined =
-                                      (meta && (meta as any).type) || undefined
-                                  const renderer = type
-                                      ? (renderMap as any)[type as keyof typeof renderMap]
-                                      : undefined
-                                  if (renderer) {
-                                      const key =
-                                          (customProperty as any)?.__id ||
-                                          String(meta?.title || Math.random())
-                                      return (
-                                          <div key={key}>
-                                              {renderer({
-                                                  withTooltip: true,
-                                                  metadata: meta,
-                                                  value: (customProperty as any)?.value,
-                                                  disabled: viewOnly,
-                                                  propertyId: (customProperty as any)?.__id,
-                                                  variantId,
-                                                  handleChange: (
-                                                      newValue: any,
-                                                      _arg?: any,
-                                                      subPropertyId?: string,
-                                                  ) => {
-                                                      const pid =
-                                                          subPropertyId ||
-                                                          (customProperty as any)?.__id
-                                                      if (process.env.NODE_ENV === "development") {
-                                                          console.debug("[CustomProps][Mut][UI]", {
-                                                              variantId,
-                                                              propertyId: pid,
-                                                              newValue,
-                                                          })
-                                                      }
-                                                      updateParam({
-                                                          event: newValue,
-                                                          propertyId: pid,
-                                                          variantId,
-                                                      })
-                                                  },
-                                              })}
-                                          </div>
-                                      )
-                                  }
+                              {customPropertyIds.map((customPropertyId) => {
                                   return (
-                                      <Typography.Text key={(customProperty as any)?.__id}>
-                                          Unknown type
-                                      </Typography.Text>
+                                      <PlaygroundVariantCustomProperty
+                                          key={customPropertyId}
+                                          variantId={variantId}
+                                          id={customPropertyId}
+                                          viewOnly={viewOnly}
+                                          customPropsRecord={providedCustomProps}
+                                      />
                                   )
                               })}
                           </div>
@@ -147,7 +170,15 @@ const PlaygroundVariantCustomProperties: React.FC<PlaygroundVariantCustomPropert
                   },
               ]
             : []
-    }, [hasCustomProperties, customProperties, variantId, className])
+    }, [
+        hasCustomProperties,
+        customPropertyIds,
+        variantId,
+        className,
+        viewOnly,
+        updateParam,
+        providedCustomProps,
+    ])
 
     return hasCustomProperties ? (
         <Collapse

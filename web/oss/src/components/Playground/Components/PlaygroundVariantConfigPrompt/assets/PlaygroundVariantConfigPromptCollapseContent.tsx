@@ -2,14 +2,13 @@ import {useEffect, useMemo} from "react"
 
 import {Alert} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {variantIsCustomAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {
     promptsAtomFamily,
     promptVariablesByPromptAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import type {PromptCollapseContentProps} from "../types"
 
@@ -45,15 +44,6 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
         seedPrompts((draft: any) => draft)
         // run once per variantId mount
     }, [variantId])
-
-    // const promptsAtom = useMemo(
-    //     () =>
-    //         atom((get) => {
-    //             // const variant = get(variantByRevisionIdAtomFamily(variantId)) as any
-    //             return get(promptsAtomFamily(variantId))
-    //         }),
-    //     [variantId],
-    // )
 
     const promptVars = useAtomValue(
         useMemo(

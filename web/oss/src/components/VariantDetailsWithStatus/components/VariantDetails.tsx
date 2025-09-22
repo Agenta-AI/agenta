@@ -1,15 +1,20 @@
 // no react hooks needed here beyond Jotai
 
 import {PencilSimpleLine} from "@phosphor-icons/react"
-import {Dropdown, Space, Tag, Typography, message} from "antd"
+import {Dropdown, Space, Tag, Typography} from "antd"
 import type {MenuProps} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {Variant} from "@/oss/lib/Types"
 import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {clearLocalPromptsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {
+    clearLocalPromptsForRevisionAtomFamily,
+    clearLocalTransformedPromptsForRevisionAtomFamily,
+} from "@/oss/state/newPlayground/core/prompts"
 import {latestAppRevisionIdAtom} from "@/oss/state/variant/selectors/variant"
+
+import {message} from "../../AppMessageContext"
 
 interface VariantDetailsProps {
     variantName?: string
@@ -32,6 +37,9 @@ const VariantDetails = ({
     const clearLocalPrompts = useSetAtom(
         clearLocalPromptsForRevisionAtomFamily(currentRevisionId || "") as any,
     )
+    const clearLocalTransformed = useSetAtom(
+        clearLocalTransformedPromptsForRevisionAtomFamily(currentRevisionId || "") as any,
+    )
     const clearLocalCustomProps = useSetAtom(
         clearLocalCustomPropsForRevisionAtomFamily(currentRevisionId || "") as any,
     )
@@ -44,6 +52,7 @@ const VariantDetails = ({
         try {
             // Clear local prompt edits and JSON override for this revision
             clearLocalPrompts()
+            clearLocalTransformed()
             clearLocalCustomProps()
             setParamsOverride(null)
             message.success("Draft changes discarded")
