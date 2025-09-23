@@ -46,10 +46,23 @@ export const projectAtom = eagerAtom((get) => {
     const projects = get(projectsAtom) as ProjectsResponse[]
     const org = get(selectedOrgAtom)
     const workspaceId = org?.default_workspace?.id
+    const nonDemoProjects = projects.filter((project) => !project.is_demo)
+    const fallbackProject = nonDemoProjects[0] ?? projects[0] ?? null
+
     if (isDemo()) {
-        return projects.find((p) => p.workspace_id === workspaceId) || null
+        const matchingProject = projects.find((p) => p.workspace_id === workspaceId && !p.is_demo)
+
+        if (matchingProject) {
+            return matchingProject
+        }
+
+        const workspaceMatch = projects.find((p) => p.workspace_id === workspaceId)
+        if (workspaceMatch) {
+            return workspaceMatch.is_demo ? fallbackProject : workspaceMatch
+        }
     }
-    return projects[0] || null
+
+    return fallbackProject
 })
 
 export const projectIdAtom = eagerAtom((get) => {

@@ -38,12 +38,40 @@ const logOrgs = process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true"
 logAtom(orgsQueryAtom, "orgsQueryAtom", logOrgs)
 logAtom(selectedOrgIdAtom, "selectedOrgIdAtom", logOrgs)
 
+type OrgWithMeta = Org & {
+    type?: string | null
+    is_demo?: boolean | null
+}
+
+const isDemoOrg = (org?: Partial<OrgWithMeta>) => {
+    if (!org) return false
+    if (org.is_demo === true) return true
+
+    const orgType = typeof org.type === "string" ? org.type.toLowerCase() : ""
+    if (orgType === "view-only" || orgType === "demo") return true
+
+    const name = typeof org.name === "string" ? org.name.toLowerCase() : ""
+    const description = typeof org.description === "string" ? org.description.toLowerCase() : ""
+
+    if (name.includes("demo")) return true
+    if (description.includes("demo")) return true
+
+    return false
+}
+
+const pickFirstNonDemoOrg = (orgs?: Org[]) => {
+    if (!Array.isArray(orgs) || orgs.length === 0) return null
+    const nonDemo = orgs.find((org) => !isDemoOrg(org))
+    return nonDemo ?? orgs[0]
+}
+
 // Global effect to ensure selectedOrgId is valid once orgs load
 observe((get, set) => {
     const result = get(orgsQueryAtom) as any
     const status: string | undefined = result?.status
     const orgs: Org[] | undefined = result?.data
     const currentId = get(selectedOrgIdAtom)
+    const currentOrg = currentId ? orgs?.find((org) => org.id === currentId) : undefined
 
     if (process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true") {
         console.debug("[org] observe orgsQueryAtom", {status, currentId, count: orgs?.length ?? 0})
@@ -53,17 +81,25 @@ observe((get, set) => {
     if (status !== "success") return
 
     const hasOrgs = Array.isArray(orgs) && orgs.length > 0
-    const exists = currentId ? orgs?.some((o) => o.id === currentId) : false
+    const exists = !!currentOrg
+    const preferredOrg = pickFirstNonDemoOrg(orgs)
+    const preferredId = preferredOrg?.id ?? null
+    const shouldUnset = !hasOrgs
+    const currentIsDemo = isDemoOrg(currentOrg)
 
-    if (!hasOrgs) {
+    if (shouldUnset) {
         if (currentId !== null) set(selectedOrgIdAtom, null)
-    } else if (!currentId || !exists) {
-        const orgId = orgs![0].id
+        return
+    }
+
+    const needsSwitch = !currentId || !exists || currentIsDemo
+
+    if (needsSwitch && preferredId) {
         const selected = get(selectedOrgIdAtom)
 
-        if (selected !== orgId) {
-            set(selectedOrgIdAtom, orgs![0].id)
-            queryClient.invalidateQueries({queryKey: ["selectedOrg", orgId]})
+        if (selected !== preferredId) {
+            set(selectedOrgIdAtom, preferredId)
+            queryClient.invalidateQueries({queryKey: ["selectedOrg", preferredId]})
         }
     }
 })

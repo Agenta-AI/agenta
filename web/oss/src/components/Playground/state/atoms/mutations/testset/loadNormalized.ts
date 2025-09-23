@@ -1,6 +1,5 @@
 import {current} from "immer"
 import {atom} from "jotai"
-import JSON5 from "json5"
 
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms/app"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
@@ -39,6 +38,107 @@ const MESSAGE_FIELD_KEYS = new Set([
     "target",
     "label",
 ])
+
+type NormalizedContentPart =
+    | {type: "text"; text: string}
+    | {type: "image_url"; image_url: {url: string; detail?: string}}
+
+const unwrapValue = (input: any): any => {
+    const visited = new Set<any>()
+    let current = input
+    while (
+        current &&
+        typeof current === "object" &&
+        "value" in current &&
+        current.value !== undefined &&
+        current.value !== current &&
+        !visited.has(current)
+    ) {
+        visited.add(current)
+        current = (current as any).value
+    }
+    return current
+}
+
+const asString = (raw: any): string | undefined => {
+    const value = unwrapValue(raw)
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    return undefined
+}
+
+const buildImagePart = (raw: any): NormalizedContentPart | null => {
+    const value = unwrapValue(raw)
+    if (!value || typeof value !== "object") return null
+    const url = asString((value as any).url ?? (value as any).uri ?? value)
+    if (!url) return null
+    const detail = asString((value as any).detail)
+    const part: NormalizedContentPart = {type: "image_url", image_url: {url}}
+    if (detail && detail.length > 0) part.image_url.detail = detail
+    return part
+}
+
+const normalizeContentPart = (part: any): NormalizedContentPart | null => {
+    const value = unwrapValue(part)
+    if (value == null) return null
+
+    const primitive = asString(value)
+    if (primitive !== undefined) {
+        return primitive.length > 0 ? {type: "text", text: primitive} : null
+    }
+
+    if (typeof value !== "object") return null
+
+    const explicitType = asString((value as any).type)?.toLowerCase()
+    if (explicitType === "image_url") {
+        return buildImagePart((value as any).image_url ?? (value as any).imageUrl)
+    }
+
+    const imageCandidate = (value as any).image_url ?? (value as any).imageUrl
+    const imagePart = imageCandidate ? buildImagePart(imageCandidate) : null
+    if (imagePart) return imagePart
+
+    const textValue =
+        asString((value as any).text) ??
+        asString((value as any).content) ??
+        asString((value as any).message) ??
+        asString(value)
+
+    if (textValue && textValue.length > 0) return {type: "text", text: textValue}
+
+    return null
+}
+
+const normalizeMessageContent = (raw: any): string | NormalizedContentPart[] => {
+    const value = unwrapValue(raw)
+
+    const primitive = asString(value)
+    if (primitive !== undefined) return primitive
+
+    if (Array.isArray(value)) {
+        const parts = value
+            .map((item) => normalizeContentPart(item))
+            .filter((item): item is NormalizedContentPart => Boolean(item))
+        return parts.length > 0 ? parts : ""
+    }
+
+    if (value && typeof value === "object") {
+        const nested = (value as any).content ?? (value as any).parts
+        if (nested && nested !== value) {
+            const normalized = normalizeMessageContent(nested)
+            if (typeof normalized === "string") {
+                if (normalized.length > 0) return normalized
+            } else if (normalized.length > 0) {
+                return normalized
+            }
+        }
+
+        const single = normalizeContentPart(value)
+        if (single) return [single]
+    }
+
+    return ""
+}
 
 /**
  * Load testset rows into normalized store only.
@@ -176,15 +276,10 @@ export const loadTestsetNormalizedMutationAtom = atom(
                             ? getMetadataLazy(draft.userMessage.__metadata as any)
                             : undefined
 
-                        const text = Array.isArray(firstUserMessage.content)
-                            ? (firstUserMessage.content
-                                  .map((p: any) => p?.text?.value ?? p?.text ?? "")
-                                  .filter(Boolean)
-                                  .join("\n\n") as string)
-                            : String(firstUserMessage.content ?? "")
+                        const userContent = normalizeMessageContent(firstUserMessage.content)
 
                         draft.userMessage = buildUserMessage(schema as any, {
-                            content: text,
+                            content: userContent,
                             role: "user",
                         })
 
@@ -199,13 +294,8 @@ export const loadTestsetNormalizedMutationAtom = atom(
                         const assistantSource = Array.isArray(turnMessages)
                             ? [...turnMessages].reverse().find((m) => m && m.role !== "user")
                             : null
-                        const assistantText = assistantSource
-                            ? Array.isArray(assistantSource.content)
-                                ? (assistantSource.content
-                                      .map((p: any) => p?.text?.value ?? p?.text ?? "")
-                                      .filter(Boolean)
-                                      .join("\n\n") as string)
-                                : String(assistantSource.content ?? "")
+                        const assistantContent = assistantSource
+                            ? normalizeMessageContent(assistantSource.content)
                             : ""
 
                         if (!draft.assistantMessageByRevision) draft.assistantMessageByRevision = {}
@@ -215,7 +305,7 @@ export const loadTestsetNormalizedMutationAtom = atom(
                                 schema as any,
                                 {
                                     role: "assistant",
-                                    content: assistantText,
+                                    content: assistantContent,
                                 } as any,
                             )
                             // Append the same assistant message for every displayed revision in this row

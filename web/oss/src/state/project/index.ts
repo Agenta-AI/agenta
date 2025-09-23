@@ -4,12 +4,11 @@ export * from "./hooks"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {ProjectsResponse} from "@/oss/services/project/types"
 
 import {getOrgValues} from "../org"
 
-import {projectIdAtom} from "./selectors/project"
+import {projectAtom, projectIdAtom} from "./selectors/project"
 
 export const DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
 
@@ -24,10 +23,7 @@ export const getProjectValues = () => {
     const queryState = queryClient.getQueryState(queryKey)
 
     const projects: ProjectsResponse[] = queryData ?? []
-    const workspaceId = selectedOrg?.default_workspace?.id
-    const project = isDemo()
-        ? projects.find((p) => p.workspace_id === workspaceId) || null
-        : projects[0] || null
+    const project = store.get(projectAtom)
 
     const projectId = store.get(projectIdAtom)
     const isProjectId = !!projectId && projectId !== DEFAULT_UUID
