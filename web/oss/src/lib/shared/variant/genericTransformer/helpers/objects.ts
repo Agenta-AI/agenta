@@ -93,8 +93,12 @@ export function processObjectSchema(
     }
 
     // Simplified object processing
+    const additionalProperties =
+        "additionalProperties" in schema ? schema.additionalProperties !== false : false
+
     return {
         ...buildObjectBase(schema),
         properties: schema.properties ? processObjectProperties(schema.properties) : {},
+        additionalProperties,
     }
 }

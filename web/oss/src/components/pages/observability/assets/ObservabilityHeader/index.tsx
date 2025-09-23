@@ -192,6 +192,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                     Usage: formatTokenUsage(trace.metrics?.acc?.tokens?.total),
                     Timestamp: formatDay({
                         date: trace.time.start,
+                        inputFormat: "YYYY-MM-DDTHH:mm:ss.SSSSSS",
                         outputFormat: "HH:mm:ss DD MMM YYYY",
                     }),
                     Status: trace.status.code === "failed" ? "ERROR" : "SUCCESS",

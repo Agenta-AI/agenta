@@ -22,8 +22,8 @@ function transformObjectValue<T extends Record<string, any>>(
     value: T,
     properties: Record<string, SchemaProperty>,
     parentMetadata?: ConfigMetadata, // Add this parameter
-): Record<string, Enhanced<any>> {
-    return Object.entries(properties).reduce(
+): Record<string, any> {
+    const result = Object.entries(properties).reduce(
         (acc, [key, propSchema]) => {
             const camelKey = toCamelCase(key)
             const val = value?.[key] ?? null
@@ -37,8 +37,19 @@ function transformObjectValue<T extends Record<string, any>>(
             acc[camelKey] = transformValue(val, propSchema, propertyMetadata)
             return acc
         },
-        {} as Record<string, Enhanced<any>>,
+        {} as Record<string, any>,
     )
+
+    // Preserve any keys that are present in the value but not described in the schema
+    if (value && typeof value === "object") {
+        Object.keys(value).forEach((originalKey) => {
+            const camelKey = toCamelCase(originalKey)
+            if (camelKey in result) return
+            result[camelKey] = (value as Record<string, any>)[originalKey]
+        })
+    }
+
+    return result
 }
 
 function metadataToSchema(metadata: ConfigMetadata): SchemaProperty {
@@ -223,7 +234,7 @@ function transformValue<T>(
         return {
             __id: generateId(),
             __metadata: metadataHash,
-            ...transformObjectValue(value, properties),
+            ...transformObjectValue(value, properties, metadata),
         } as Enhanced<T>
     }
 
@@ -297,6 +308,7 @@ export function mergeWithSchema<T>(
                 schemaProperty,
                 (defaultValues[propertyKey] || {}) as any,
                 savedValues[propertyKey] as any,
+                ignoreKeys,
             )
         } else if (schemaProperty.type === "array") {
             // Handle arrays - prefer saved values, fallback to defaults
@@ -308,6 +320,26 @@ export function mergeWithSchema<T>(
             result[propertyKey] = (savedValues[propertyKey] ??
                 defaultValues[propertyKey]) as T[keyof T]
         }
+    }
+
+    // Preserve unknown keys from the saved config so they are not discarded when users
+    // edit JSON directly (e.g. adding new prompt properties).
+    for (const key of Object.keys(savedValues)) {
+        if (ignoreKeys?.includes(key)) continue
+        if (key in schemaProperties) continue
+
+        const propertyKey = key as keyof T
+        result[propertyKey] = savedValues[propertyKey] as T[keyof T]
+    }
+
+    // Ensure defaults remain available for non-schema keys when no saved value exists.
+    for (const key of Object.keys(defaultValues || {})) {
+        if (ignoreKeys?.includes(key)) continue
+        if (key in schemaProperties) continue
+        if (key in result) continue
+
+        const propertyKey = key as keyof T
+        result[propertyKey] = defaultValues[propertyKey] as T[keyof T]
     }
 
     return result as T
