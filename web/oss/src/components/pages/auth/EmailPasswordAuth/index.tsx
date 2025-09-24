@@ -11,6 +11,7 @@ import {useOrgData} from "@/oss/state/org"
 import {selectedOrgIdAtom} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
+import {waitForValidURL} from "@/oss/state/url"
 
 import ShowErrorMessage from "../assets/ShowErrorMessage"
 import {EmailPasswordAuthProps} from "../assets/types"
@@ -53,9 +54,9 @@ const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAut
                     setMessage({message: res.error, type: "error"})
                 })
             } else {
-                resetProfileData()
-                resetOrgData()
-                resetProjectData()
+                await resetProfileData()
+                await resetOrgData()
+                await resetProjectData()
                 // Clear selected org via atom to keep storage in sync
                 setSelectedOrgId(null)
                 setMessage({message: "Verification successful", type: "success"})
@@ -79,7 +80,8 @@ const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAut
                     if (isInvitedUser) {
                         await router.push("/workspaces/accept")
                     } else {
-                        await router.push("/apps")
+                        const url = (await waitForValidURL({requireProject: true})).baseAppURL
+                        await router.push(url)
                     }
                 }
             }

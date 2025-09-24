@@ -10,6 +10,7 @@ import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
+import useURL from "@/oss/hooks/useURL"
 import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/oss/lib/Types"
@@ -61,6 +62,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const Testset = () => {
     const classes = useStyles()
     const router = useRouter()
+    const {projectURL} = useURL()
     const {isLoading: isAppsLoading} = useAppsData()
     const [selectedRowKeys, setSelectedRowKeys] = useState<testset[]>([])
     const {testsets, isLoading: isTestsetsLoading, mutate} = useTestsetsData()
@@ -137,7 +139,7 @@ const Testset = () => {
                                     icon: <Note size={16} />,
                                     onClick: (e) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`/testsets/${record._id}`)
+                                        router.push(`${projectURL}/testsets/${record._id}`)
                                     },
                                 },
                                 {
@@ -246,7 +248,7 @@ const Testset = () => {
                     pagination={false}
                     onRow={(record) => {
                         return {
-                            onClick: () => router.push(`/testsets/${record._id}`),
+                            onClick: () => router.push(`${projectURL}/testsets/${record._id}`),
                             style: {cursor: "pointer"},
                         }
                     }}

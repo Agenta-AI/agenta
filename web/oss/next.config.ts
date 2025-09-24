@@ -22,13 +22,28 @@ const COMMON_CONFIG: NextConfig = {
     async redirects() {
         return [
             {
-                source: "/",
-                destination: "/apps",
+                source: "/apps",
+                destination: "/w",
                 permanent: true,
             },
             {
                 source: "/apps/:app_id",
-                destination: "/apps/:app_id/overview/",
+                destination: "/w",
+                permanent: true,
+            },
+            {
+                source: "/apps/:app_id/:path*",
+                destination: "/w",
+                permanent: true,
+            },
+            {
+                source: "/",
+                destination: "/w",
+                permanent: true,
+            },
+            {
+                source: "/:workspace_id/apps/:app_id",
+                destination: "/:workspace_id/apps/:app_id/overview/",
                 permanent: true,
             },
         ]

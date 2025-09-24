@@ -15,8 +15,11 @@ import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals
 // import AutomaticEvalOverview from "@/oss/components/pages/overview/automaticEvaluation/AutomaticEvalOverview"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
+import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import type {JSSTheme} from "@/oss/lib/Types"
+import {deleteApp} from "@/oss/services/app-selector/api"
+import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useAppsData} from "@/oss/state/app"
 
 const CustomWorkflowHistory: any = dynamic(

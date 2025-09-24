@@ -5,6 +5,7 @@ import {useAtom, useSetAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {OrgDetails} from "@/oss/lib/Types"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {
     orgsQueryAtom,
@@ -24,19 +25,16 @@ export const useOrgData = () => {
         useAtom(selectedOrgQueryAtom)
     const setSelectedOrgId = useSetAtom(selectedOrgIdAtom)
     const selectedOrgId = useAtomValue(selectedOrgIdAtom)
+    const setProjectId = useSetAtom(projectIdAtom)
 
     const changeSelectedOrg = useCallback(
         (orgId: string, onSuccess?: () => void) => {
             if (loadingOrgs) return
+            queryClient.removeQueries({queryKey: ["selectedOrg", selectedOrgId]})
             setSelectedOrgId(orgId)
-            queryClient.invalidateQueries({queryKey: ["selectedOrg"]}).then(() => {
-                if (onSuccess) onSuccess()
-                if (!router.asPath.includes("/settings")) {
-                    router.push("/apps")
-                }
-            })
+            setProjectId(null)
         },
-        [setSelectedOrgId, loadingOrgs, queryClient, router],
+        [setSelectedOrgId, selectedOrgId, loadingOrgs, queryClient, router, setProjectId],
     )
 
     const setSelectedOrg = useCallback(
@@ -48,15 +46,15 @@ export const useOrgData = () => {
         [queryClient, selectedOrgId],
     )
 
-    const reset = useCallback(() => {
-        queryClient.removeQueries({queryKey: ["orgs"]})
-        queryClient.removeQueries({queryKey: ["selectedOrg"]})
+    const reset = useCallback(async () => {
+        await queryClient.removeQueries({queryKey: ["orgs"]})
+        await queryClient.removeQueries({queryKey: ["selectedOrg"]})
         setSelectedOrgId(null)
     }, [queryClient, setSelectedOrgId])
 
-    const refetch = useCallback(() => {
-        refetchOrgs()
-        refetchSelectedOrg()
+    const refetch = useCallback(async () => {
+        await refetchOrgs()
+        await refetchSelectedOrg()
     }, [refetchOrgs, refetchSelectedOrg])
 
     return {

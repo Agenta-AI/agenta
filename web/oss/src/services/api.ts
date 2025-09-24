@@ -1,13 +1,14 @@
 import Session from "supertokens-auth-react/recipe/session"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
 } from "@/oss/lib/helpers/openapi_parser"
-import {getAgentaApiUrl, shortPoll} from "@/oss/lib/helpers/utils"
+import {shortPoll} from "@/oss/lib/helpers/utils"
 import {
     Variant,
     Parameter,

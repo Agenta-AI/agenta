@@ -1,13 +1,15 @@
 import Router from "next/router"
 
+import useURL from "@/oss/hooks/useURL"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {fetchJson} from "@/oss/lib/api/assets/fetchClient"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 import {AppTemplate} from "@/oss/lib/Types"
 import {getOrgValues} from "@/oss/state/org"
 import {getProjectValues} from "@/oss/state/project"
+import {waitForValidURL} from "@/oss/state/url"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -185,7 +187,6 @@ export const createAndStartTemplate = async ({
     // Import the atom-based app creation system
     const {getDefaultStore} = await import("jotai")
     const {createAppMutationAtom} = await import("@/oss/components/Playground/state/atoms")
-
     const store = getDefaultStore()
 
     try {
@@ -199,12 +200,13 @@ export const createAndStartTemplate = async ({
             onStatusChange,
         })
 
+        const baseAppURL = (await waitForValidURL({requireApp: true}))?.baseAppURL
         if (!result.success) {
             // If the atom-based creation failed, propagate the error
             onStatusChange?.("error", new Error(result.error || "App creation failed"))
         } else if (result.appId && result.revisionId) {
             await Router.push({
-                pathname: `/apps/${result.appId}/playground`,
+                pathname: `${baseAppURL}/${result.appId}/playground`,
                 query: {
                     revisions: buildRevisionsQueryParam([result.revisionId]),
                 },
@@ -213,7 +215,7 @@ export const createAndStartTemplate = async ({
             // Navigate to the newly created app's playground using Next.js router
             if (typeof window !== "undefined") {
                 try {
-                    await Router.push(`/apps/${result.appId}/playground`)
+                    await Router.push(`${baseAppURL}/${result.appId}/playground`)
                 } catch (navigationError) {
                     console.error("❌ [createAndStartTemplate] Navigation failed:", navigationError)
                     // Don't fail the entire operation if navigation fails

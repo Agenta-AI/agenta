@@ -10,7 +10,7 @@
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {fetchJson, getBaseUrl} from "@/oss/lib/api/assets/fetchClient"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {ListAppsItem} from "@/oss/lib/Types"
 
 import {getProjectId} from "../../utils/projectUtils"

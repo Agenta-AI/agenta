@@ -6,6 +6,7 @@ import {createUseStyles} from "react-jss"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
+import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 
@@ -54,6 +55,7 @@ const AppCard: React.FC<{
     openEditAppModal: (appDetails: ListAppsItem) => void
 }> = ({app, openDeleteAppModal, openEditAppModal}) => {
     const router = useRouter()
+    const {baseAppURL} = useURL()
 
     const classes = useStyles()
 
@@ -62,7 +64,7 @@ const AppCard: React.FC<{
             <Card
                 className={classes.card}
                 title={app.app_name}
-                onClick={() => router.push(`/apps/${app.app_id}/overview`)}
+                onClick={() => router.push(`${baseAppURL}/${app.app_id}/overview`)}
                 extra={
                     <Dropdown
                         trigger={["click"]}
@@ -75,7 +77,7 @@ const AppCard: React.FC<{
                                     icon: <Note size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`/apps/${app.app_id}/overview`)
+                                        router.push(`${baseAppURL}/${app.app_id}/overview`)
                                     },
                                 },
                                 {type: "divider"},

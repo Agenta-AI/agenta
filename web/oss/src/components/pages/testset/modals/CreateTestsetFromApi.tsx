@@ -13,7 +13,7 @@ import pythonCodeUpload from "@/oss/code_snippets/testsets/create_with_upload/py
 import tsCodeUpload from "@/oss/code_snippets/testsets/create_with_upload/typescript"
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import CodeBlock from "@/oss/components/DynamicCodeBlock/CodeBlock"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {JSSTheme} from "@/oss/lib/Types"
 
 const {Text} = Typography

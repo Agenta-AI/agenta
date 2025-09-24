@@ -1,6 +1,6 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {transformSecret} from "@/oss/lib/helpers/llmProviders"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {CustomSecretDTO, StandardSecretDTO} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 

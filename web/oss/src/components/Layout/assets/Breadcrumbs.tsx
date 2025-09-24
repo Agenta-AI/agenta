@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo} from "react"
+import {memo, useMemo} from "react"
 
 import {Sidebar} from "@phosphor-icons/react"
 import {Breadcrumb, Typography} from "antd"
@@ -10,8 +10,9 @@ import {useRouter} from "next/router"
 import {breadcrumbAtom, type BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
-import {useBreadcrumbs} from "@/oss/lib/hooks/useBreadcrumbs"
 import {appsAtom} from "@/oss/state/app"
+import {useOrgData} from "@/oss/state/org"
+import {projectIdAtom, projectsAtom} from "@/oss/state/project"
 
 import packageJsonData from "../../../../package.json"
 import EnhancedButton from "../../Playground/assets/EnhancedButton"
@@ -72,37 +73,48 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const apps = useAtomValue(appsAtom)
     const router = useRouter()
     const breadcrumbs = useAtomValue(breadcrumbAtom)
-    const {setBreadcrumbs, clearBreadcrumbs} = useBreadcrumbs()
+    const {selectedOrg} = useOrgData()
+    const projectId = useAtomValue(projectIdAtom)
+    const projects = useAtomValue(projectsAtom)
     const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
 
     const urlBasedBreadcrumbs = useMemo(() => {
+        const project = projects.find((projectItem) => projectItem.project_id === projectId) || null
         return generateSegmentsForBreadcrumb({
             uriPath: router.asPath,
-            apps: apps,
+            apps,
+            workspaceId: selectedOrg?.id ?? null,
+            workspaceName: selectedOrg?.name ?? "",
+            projectId,
+            projectName: project?.project_name,
+            projectIsPending: !!projectId && !project,
         })
-    }, [router.pathname, apps])
+    }, [router.asPath, apps, selectedOrg?.id, selectedOrg?.name, projectId, projects])
 
-    useEffect(() => {
-        if (Object.keys(urlBasedBreadcrumbs).length > 0) {
-            setBreadcrumbs(urlBasedBreadcrumbs)
+    const mergedBreadcrumbs = useMemo(() => {
+        if (!breadcrumbs || Object.keys(breadcrumbs).length === 0) {
+            return urlBasedBreadcrumbs
         }
 
-        return () => {
-            clearBreadcrumbs()
-        }
-    }, [urlBasedBreadcrumbs])
+        return {...urlBasedBreadcrumbs, ...breadcrumbs}
+    }, [urlBasedBreadcrumbs, breadcrumbs])
 
     const breadcrumbItems = useMemo(
-        () => breadcrumbItemsGenerator(breadcrumbs || {}),
-        [breadcrumbs],
+        () => breadcrumbItemsGenerator(mergedBreadcrumbs || {}),
+        [mergedBreadcrumbs],
     )
 
     return (
-        <section className={clsx(classes.breadcrumbContainer, "sticky top-0 z-10 bg-white")}>
-            <div className="flex items-center gap-4">
+        <section
+            className={clsx(
+                classes.breadcrumbContainer,
+                "sticky top-0 z-10 bg-white max-w-full overflow-hidden gap-4 !px-3",
+            )}
+        >
+            <div className="flex flex-nowrap items-center shrink-1 min-w-0">
                 <EnhancedButton
                     type="text"
-                    className="-ml-1"
+                    className="-ml-1 shrink-0"
                     icon={
                         <Sidebar
                             size={14}
@@ -115,17 +127,29 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
                         mouseEnterDelay: 1,
                     }}
                 />
-                <Breadcrumb
-                    items={breadcrumbItems}
-                    className={clsx(
-                        "[&_.ant-breadcrumb-overlay-link]:hover:!bg-transparent",
-                        "[&_.ant-breadcrumb-overlay-link]:flex [&_.ant-breadcrumb-overlay-link]:items-center [&_.ant-breadcrumb-overlay-link]:gap-1",
-                        "[&_.ant-dropdown-trigger:hover_.anticon-down]:rotate-180 [&_.ant-dropdown-open_.anticon-down]:rotate-180 [&_.anticon-down]:transition-transform [&_.anticon-down]:duration-200",
-                    )}
-                />
+                <div className="min-w-0 flex-1 overflow-hidden">
+                    <Breadcrumb
+                        items={breadcrumbItems}
+                        className={clsx(
+                            // Outer: single line with ellipsis when overflowing
+                            "whitespace-nowrap overflow-hidden text-ellipsis w-full max-w-full",
+                            "[&_ol]:flex-nowrap [&_ol]:mx-2",
+                            "[&_ol_*]:min-w-[min-content]",
+                            // Ensure each li can shrink and not force wrapping
+                            "[&_li]:min-w-0",
+                            // Prevent wrapping within link/overlay-link and enable truncation
+                            "[&_.ant-breadcrumb-link]:whitespace-nowrap [&_.ant-breadcrumb-link]:overflow-hidden [&_.ant-breadcrumb-link]:text-ellipsis",
+                            "[&_.ant-breadcrumb-overlay-link]:whitespace-nowrap [&_.ant-breadcrumb-overlay-link]:overflow-hidden [&_.ant-breadcrumb-overlay-link]:text-ellipsis",
+                            "[&_.ant-breadcrumb-overlay-link]:hover:!bg-transparent",
+                            // Keep flex for icon alignment but disallow wrapping inside
+                            "[&_.ant-breadcrumb-overlay-link]:flex [&_.ant-breadcrumb-overlay-link]:items-center [&_.ant-breadcrumb-overlay-link]:gap-1",
+                            "[&_.ant-dropdown-trigger:hover_.anticon-down]:rotate-180 [&_.ant-dropdown-open_.anticon-down]:rotate-180 [&_.anticon-down]:transition-transform [&_.anticon-down]:duration-200",
+                        )}
+                    />
+                </div>
             </div>
 
-            <div className={classes.topRightBar}>
+            <div className={clsx(classes.topRightBar, "shrink-0")}>
                 <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>

@@ -15,6 +15,7 @@ import {selectedOrgIdAtom} from "@/oss/state/org"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
+import {waitForValidURL} from "@/oss/state/url"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
 
@@ -75,7 +76,8 @@ const Callback = () => {
                     if (isInvitedUser) {
                         await router.push("/workspaces/accept")
                     } else {
-                        await router.push("/apps")
+                        const url = await waitForValidURL({requireProject: true})
+                        await router.push(url.baseAppURL)
                     }
                 }
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
@@ -117,7 +119,8 @@ const Callback = () => {
                     if (isInvitedUser) {
                         await router.push("/workspaces/accept")
                     } else {
-                        await router.push("/apps")
+                        const url = await waitForValidURL({requireProject: true})
+                        await router.push(url.baseAppURL)
                     }
                 }
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
@@ -137,7 +140,10 @@ const Callback = () => {
 
     useEffect(() => {
         if (router.isReady && !state && !code) {
-            router.push("/apps")
+            ;(async () => {
+                const url = await waitForValidURL({requireProject: true})
+                router.push(url.baseAppURL)
+            })()
         }
     }, [state, code, router.isReady])
 

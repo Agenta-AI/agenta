@@ -14,6 +14,7 @@ import {openComparisonModalAtom} from "@/oss/components/VariantsComponents/Modal
 import {comparisonSelectionScopeAtom} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import useURL from "@/oss/hooks/useURL"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {playgroundNavigationRequestAtom} from "@/oss/state/variant/atoms/navigation"
 import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
@@ -28,6 +29,7 @@ const VariantsOverview = () => {
     const router = useRouter()
     const appId = router.query.app_id as string
     const [, setQueryVariant] = useQueryParam("revisions")
+    const {appURL} = useURL()
 
     // Drawer open/close is handled in VariantDrawerWrapper based on URL param
     const openComparisonModal = useSetAtom(openComparisonModalAtom)
@@ -54,7 +56,7 @@ const VariantsOverview = () => {
                 <Space>
                     <Title>Recent Prompts</Title>
                     <Button>
-                        <Link href={`/apps/${appId}/variants`}>View all</Link>
+                        <Link href={`${appURL}/variants`}>View all</Link>
                     </Button>
                 </Space>
 

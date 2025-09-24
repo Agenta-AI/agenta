@@ -25,6 +25,19 @@ export const shippedFeatures: ShippedFeature[] = [
     // Observability: DE74FF
     // Evaluation: 86B7FF
     {
+        id: "deep-url-support",
+        title: "Deep URL Support for Sharable Links",
+        description: "URLs now include workspace context, making them shareable between team members. Fixed workspace bugs with page refresh and workspace selection.",
+        changelogPath: "/changelog/deep-url-support-for-sharable-links",
+        shippedAt: "2025-09-24",
+        labels: [
+            {
+                name: "Misc",
+                color: "000000",
+            },
+        ],
+    },
+    {
         id: "speed-improvements-playground",
         title: "Speed Improvements in the Playground",
         description: "We improved the speed of the playground (creation of prompts, navigation, etc.) especially with hundreds of revisions.",
@@ -157,18 +170,6 @@ export const inProgressFeatures: PlannedFeature[] = [
             {
                 name: "Evaluation",
                 color: "86B7FF",
-            },
-        ],
-    },
-    {
-        id: "bug-fixes-workspace",
-        title: "Bug Fixes in the Workspace",
-        description: "Fixing workspace bugs, especially with page refresh, workspace selection, and sharing workspace links.",
-        githubUrl: "https://github.com/Agenta-AI/agenta/issues/2686",
-        labels: [
-            {
-                name: "Misc",
-                color: "000000",
             },
         ],
     },

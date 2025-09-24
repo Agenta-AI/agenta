@@ -7,6 +7,7 @@ import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import Avatar from "@/oss/components/Avatar/Avatar"
 
 import {UseDropdownItemsProps} from "./types"
+import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 
@@ -18,11 +19,14 @@ export const useDropdownItems = ({
     logout,
     projects,
 }: UseDropdownItemsProps) => {
+    const {projectURL} = useURL()
+
     const filteredOrgs = useMemo(() => {
         return projects.flatMap((project) =>
             orgs.filter((org) => org.id === project.organization_id && !project.is_demo),
         )
     }, [projects, orgs])
+
     const dropdownItems = useMemo(() => {
         if (selectedOrg?.id && user?.id) {
             return [

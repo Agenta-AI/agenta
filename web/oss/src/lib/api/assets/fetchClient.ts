@@ -1,7 +1,7 @@
 import {getDefaultStore} from "jotai"
 
 import {projectIdAtom} from "../../../state/project"
-import {getAgentaApiUrl} from "../../helpers/utils"
+import {getAgentaApiUrl} from "../../helpers/api"
 
 // Lazily import to avoid circulars in non-test
 async function safeGetJWT(): Promise<string | undefined> {

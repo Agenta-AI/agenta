@@ -11,6 +11,7 @@ import {createUseStyles} from "react-jss"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import useStateCallback from "@/oss/hooks/useStateCallback"
+import useURL from "@/oss/hooks/useURL"
 import AgGridReact, {type AgGridReactType} from "@/oss/lib/helpers/agGrid"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
@@ -103,13 +104,14 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
     const {appTheme} = useAppTheme()
     const {isProjectId} = useProjectData()
     const {mutate: mutateTestsets} = useTestsetsData()
+    const {projectURL} = useURL()
 
     const {testset_id} = router.query
 
     useBreadcrumbsEffect(
         {
             breadcrumbs: {
-                testsets: {label: "test sets", href: "/testsets"},
+                testsets: {label: "test sets", href: `${projectURL}/testsets`},
                 "testset-detail": {label: testsetName, value: testset_id},
             },
             condition: testsetName.trim() && testset_id,

@@ -6,9 +6,11 @@ import {Rocket} from "@phosphor-icons/react"
 import {Button, Input, Radio, Space, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
+import {useSWRConfig} from "swr"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
@@ -37,7 +39,7 @@ const VariantsDashboard = () => {
     const [, setQueryVariant] = useQueryParam("revisions")
     const [displayMode, setDisplayMode] = useQueryParam("displayMode", "flat")
     const [searchTerm, setSearchTerm] = useState("")
-
+    const {baseAppURL} = useURL()
     // Data: use all revisions list and map once to table rows (no slicing)
     const revisions = useAtomValue(revisionListAtom)
     const isVariantLoading = useAtomValue(variantsPendingAtom)
@@ -99,7 +101,7 @@ const VariantsDashboard = () => {
     const openVariantDrawer = useSetAtom(openVariantDrawerAtom)
     const prefetchPlayground = useCallback(async () => {
         if (appId) {
-            router.prefetch(`/apps/${appId}/playground`).catch(() => {})
+            router.prefetch(`${baseAppURL}/${appId}/playground`).catch(() => {})
         }
     }, [appId, router])
 

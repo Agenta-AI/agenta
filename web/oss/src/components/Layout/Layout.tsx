@@ -12,6 +12,7 @@ import {ErrorBoundary} from "react-error-boundary"
 import {ThemeProvider} from "react-jss"
 import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 
+import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {currentAppAtom} from "@/oss/state/app"
 import {useProfileData} from "@/oss/state/profile"
@@ -58,10 +59,11 @@ const AppWithVariants = memo(
         isPlayground?: boolean
     }) => {
         const router = useRouter()
+        const {baseAppURL} = useURL()
         const lastNonSettingsRef = useRef<string | null>(null)
 
         useEffect(() => {
-            if (!router.pathname.startsWith("/settings")) {
+            if (!router.pathname.includes("/settings")) {
                 lastNonSettingsRef.current = router.asPath
             }
         }, [router.asPath])
@@ -91,8 +93,8 @@ const AppWithVariants = memo(
                 )}
                 <Layout hasSider className={classes.layout}>
                     <SidebarIsland
-                        showSettingsView={router.pathname.startsWith("/settings")}
-                        lastPath={lastNonSettingsRef.current || "/apps"}
+                        showSettingsView={router.pathname.endsWith("/settings")}
+                        lastPath={lastNonSettingsRef.current || baseAppURL}
                     />
 
                     <Layout className={classes.layout}>
@@ -176,7 +178,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     // profile used for side-effects in children; values unused here
     useProfileData()
     const {appTheme} = useAppTheme()
-    // const {currentApp, isLoading, error} = useAppsData()
+    const {baseAppURL} = useURL()
     const ref = useRef<HTMLElement | null>(null)
     const {height: footerHeight} = useResizeObserver({
         ref: ref as RefObject<HTMLElement>,
@@ -185,6 +187,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
     // const project = useAtomValue(projectAtom)
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
     const router = useRouter()
+
     // const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
     const {token} = theme.useToken()
@@ -225,7 +228,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 router.pathname.includes("/auth") ||
                 router.pathname.includes("/post-signup") ||
                 router.pathname.includes("/workspaces"),
-            isAppRoute: router.pathname.startsWith("/apps/[app_id]"),
+            isAppRoute: router.asPath.startsWith(baseAppURL),
             isPlayground:
                 router.pathname.includes("/playground") ||
                 router.pathname.includes("/evaluations/results"),
@@ -233,7 +236,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 router.pathname.includes("/evaluations/single_model_test") ||
                 router.query.selectedEvaluation === "human_annotation",
         }
-    }, [router.pathname, router.query])
+    }, [router.pathname, router.query, router.asPath, baseAppURL])
 
     return (
         <Suspense fallback={<Skeleton />}>

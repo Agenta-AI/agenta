@@ -1,5 +1,5 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:

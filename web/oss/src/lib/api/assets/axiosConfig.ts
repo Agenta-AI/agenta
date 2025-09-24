@@ -12,8 +12,9 @@ import {userAtom} from "@/oss/state/profile/selectors/user"
 import {DEFAULT_UUID} from "@/oss/state/project"
 import {projectIdAtom} from "@/oss/state/project"
 
+import {getAgentaApiUrl} from "../../helpers/api"
 import {getErrorMessage, globalErrorHandler} from "../../helpers/errorHandler"
-import {getAgentaApiUrl, isDemo} from "../../helpers/utils"
+import {isDemo} from "../../helpers/utils"
 
 export const PERMISSION_ERR_MSG =
     "You don't have permission to perform this action. Please contact your organization admin."

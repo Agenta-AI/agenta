@@ -4,6 +4,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import useURL from "@/oss/hooks/useURL"
 import {recentRevisionsAtom} from "@/oss/state/variant/selectors/variant"
 
 import {
@@ -23,6 +24,7 @@ const VariantDrawerWrapper = () => {
     const variants = useAtomValue(variantDrawerVariantsAtom)
     const [queryVariant] = useQueryParam("revisions")
     const previousPathnameRef = useRef(router.pathname)
+    const {isValidAppRoute} = useURL()
 
     // Handle closing drawer and clearing URL parameter
     const handleClose = useCallback(() => {
@@ -52,6 +54,9 @@ const VariantDrawerWrapper = () => {
 
         const isPlaygroundRoute = router.pathname.includes("/playground")
         if (isPlaygroundRoute) return
+
+        // Guard: only allow deep-link open on valid app routes
+        if (!isValidAppRoute()) return
 
         if (queryVariant && !drawerState.open && !drawerState.variantsAtom) {
             openDrawer({

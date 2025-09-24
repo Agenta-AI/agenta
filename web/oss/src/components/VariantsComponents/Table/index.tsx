@@ -2,8 +2,9 @@ import {type ComponentProps, useMemo, useState} from "react"
 
 import {Spin, Table, TableColumnType} from "antd"
 import {TableRowSelection} from "antd/es/table/interface"
-import {atom, useAtom, useAtomValue} from "jotai"
+import {atom, useAtom} from "jotai"
 
+import useURL from "@/oss/hooks/useURL"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {variantTableSelectionAtomFamily} from "@/oss/state/variant/atoms/selection"
 
@@ -41,6 +42,7 @@ const VariantsTable = ({
     showStableName = false,
     ...props
 }: VariantsTableProps) => {
+    const {appURL} = useURL()
     const initialColumns = useMemo(
         () =>
             getColumns({
@@ -49,6 +51,7 @@ const VariantsTable = ({
                 handleOpenInPlayground,
                 showActionsDropdown,
                 showStableName,
+                appURL,
             }),
         [
             handleOpenDetails,
@@ -56,6 +59,7 @@ const VariantsTable = ({
             showEnvBadges,
             showActionsDropdown,
             showStableName,
+            appURL,
         ],
     )
 

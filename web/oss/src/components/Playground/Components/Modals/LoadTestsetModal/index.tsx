@@ -21,7 +21,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     ...props
 }) => {
     const classes = useStyles()
-    const {testsets} = useTestsetsData()
+    const {testsets} = useTestsetsData({enabled: props.open})
     const [isLoadingTestset, setIsLoadingTestset] = useState(false)
     const [selectedTestset, setSelectedTestset] = useState("")
     const [testsetCsvData, setTestsetCsvData] = useState<TestSet["csvdata"][]>([])

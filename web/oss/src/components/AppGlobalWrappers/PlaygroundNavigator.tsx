@@ -4,6 +4,7 @@ import {atom} from "jotai"
 import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import useURL from "@/oss/hooks/useURL"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {
     navigationSelectionScopeAtom,
@@ -19,6 +20,7 @@ const PlaygroundNavigator = () => {
         () => (navScope ? selectedVariantsAtom(navScope) : atom<any[]>([])),
         [navScope],
     )
+    const {baseAppURL} = useURL()
     const scopedSelected = useAtomValue(scopedAtom)
 
     useEffect(() => {
@@ -32,7 +34,7 @@ const PlaygroundNavigator = () => {
         const params = param ? {revisions: param} : {}
 
         router.push({
-            pathname: `/apps/${appId}/playground`,
+            pathname: `${baseAppURL}/${appId}/playground`,
             query: params,
         })
 

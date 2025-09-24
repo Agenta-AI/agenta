@@ -14,7 +14,7 @@ import {loadable, selectAtom, atomWithStorage} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {LS_APP_KEY} from "../../app/atoms/fetcher"
+import {LS_APP_KEY} from "../../app/assets/constants"
 import {projectIdAtom} from "../../project/selectors/project"
 import {jwtReadyAtom} from "../../session/jwt"
 import {stringStorage} from "../../utils/stringStorage"

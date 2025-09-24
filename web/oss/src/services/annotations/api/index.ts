@@ -1,6 +1,6 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {fetchJson, getBaseUrl, ensureProjectId} from "@/oss/lib/api/assets/fetchClient"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {
     AnnotationDto,
     AnnotationEditPayloadDto,

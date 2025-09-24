@@ -25,6 +25,22 @@ export const testsetsQueryAtom = atomWithQuery<testset[]>((get) => {
     }
 })
 
+export const testsetsQueryAtomFamily = atomFamily(({enabled = true}: TestsetsQueryOptions = {}) =>
+    atomWithQuery<testset[]>((get) => {
+        const projectId = get(projectIdAtom)
+
+        return {
+            queryKey: ["testsets", projectId],
+            queryFn: fetchTestsets,
+            staleTime: 1000 * 60,
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+            refetchOnMount: false,
+            enabled: enabled && !!projectId,
+        }
+    }),
+)
+
 /**
  * Atom for fetching preview testsets
  */

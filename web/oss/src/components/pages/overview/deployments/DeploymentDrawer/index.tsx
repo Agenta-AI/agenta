@@ -23,11 +23,12 @@ import invokeLlmAppcURLCode from "@/oss/code_snippets/endpoints/invoke_llm_app/c
 import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app/python"
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopover"
+import useURL from "@/oss/hooks/useURL"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
+import useStatelessVariants from "@/oss/lib/hooks/useStatelessVarziants"
 import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
-import {createParams} from "@/oss/pages/apps/[app_id]/endpoints"
+import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
 import {currentAppAtom} from "@/oss/state/app"
 
 import LanguageCodeBlock from "./assets/LanguageCodeBlock"
@@ -54,6 +55,7 @@ const DeploymentDrawer = ({
     const appId = router.query.app_id as string
     const currentApp = useAtomValue(currentAppAtom)
     const [selectedLang, setSelectedLang] = useState("python")
+    const {baseAppURL} = useURL()
     const {data: uri} = useURI(appId, selectedEnvironment?.deployed_app_variant_id)
     const variant = useMemo(() => {
         return (
@@ -153,7 +155,7 @@ const DeploymentDrawer = ({
                                                 icon: <Rocket size={16} />,
                                                 onClick: () =>
                                                     router.push({
-                                                        pathname: `/apps/${appId}/playground`,
+                                                        pathname: `${baseAppURL}/${appId}/playground`,
                                                         query: {
                                                             revisions: buildRevisionsQueryParam([
                                                                 selectedEnvironment.deployed_app_variant_revision_id,

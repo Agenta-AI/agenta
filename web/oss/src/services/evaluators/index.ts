@@ -1,6 +1,6 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getTagColors} from "@/oss/lib/helpers/colors"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {isDemo, stringToNumberInRange} from "@/oss/lib/helpers/utils"
 import {EvaluatorResponseDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"

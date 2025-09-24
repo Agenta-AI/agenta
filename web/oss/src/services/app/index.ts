@@ -1,5 +1,5 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {ListAppsItem} from "@/oss/lib/Types"
 
 export const fetchAllApps = async (): Promise<ListAppsItem[]> => {

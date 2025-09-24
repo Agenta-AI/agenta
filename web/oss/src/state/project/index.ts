@@ -42,4 +42,5 @@ export const resetProjectData = () => {
     const store = getDefaultStore()
     const queryClient = store.get(queryClientAtom)
     queryClient.removeQueries({queryKey: ["projects"]})
+    store.set(projectIdAtom, null)
 }

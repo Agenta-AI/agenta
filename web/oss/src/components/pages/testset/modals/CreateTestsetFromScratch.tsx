@@ -5,6 +5,7 @@ import {Button, Input, message, Typography} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
+import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/oss/lib/Types"
 import {createNewTestset, fetchTestset, updateTestset} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
@@ -41,6 +42,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
 }) => {
     const classes = useStyles()
     const router = useRouter()
+    const {projectURL} = useURL()
     const [testsetName, setTestsetName] = useState(
         mode === "rename" ? (editTestsetValues?.name as string) : "",
     )
@@ -55,7 +57,7 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
 
             await mutate()
             message.success("Test set created successfully")
-            router.push(`/testsets/${response.data.id}`)
+            router.push(`${projectURL}/testsets/${response.data.id}`)
         } catch (error) {
             console.error("Error saving test set:", error)
             message.error("Failed to create Test set. Please try again!")

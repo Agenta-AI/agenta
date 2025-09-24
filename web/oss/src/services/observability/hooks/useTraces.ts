@@ -1,8 +1,10 @@
 import {useEffect, useMemo} from "react"
 
+import {useAtomValue} from "jotai"
 import useSWR, {preload} from "swr"
 
 import {buildNodeTree, observabilityTransformer} from "@/oss/lib/helpers/observability_helpers"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {fetchAllTraces} from "../core"
 import {_AgentaRootsResponse, AgentaNodeDTO, AgentaRootsDTO, AgentaTreeDTO} from "../types"
@@ -134,7 +136,8 @@ export const useTraces = (
         }
     }, [autoPrefetch, pagination.page, JSON.stringify(queryParams), appId, waitUntil])
 
-    const swrKey = waitUntil ? null : ["traces", appId, JSON.stringify(queryParams)]
+    const projectId = useAtomValue(projectIdAtom)
+    const swrKey = !projectId || waitUntil ? null : ["traces", appId, JSON.stringify(queryParams)]
     const swr = useSWR(swrKey, fetcher, {
         revalidateOnFocus: false,
         revalidateOnReconnect: false,
