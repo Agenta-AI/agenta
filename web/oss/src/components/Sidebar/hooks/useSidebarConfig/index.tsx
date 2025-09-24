@@ -19,6 +19,7 @@ import {
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
+import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useAppsData} from "@/oss/state/app"
 import {useOrgData} from "@/oss/state/org"
@@ -31,24 +32,24 @@ export const useSidebarConfig = () => {
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
-
+    const {projectURL, baseAppURL, appURL} = useURL()
     const sidebarConfig: SidebarConfig[] = [
         {
             key: "app-management-link",
             title: "App Management",
-            link: "/apps",
+            link: baseAppURL,
             icon: <AppstoreOutlined size={16} />,
         },
         {
             key: "app-testsets-link",
             title: "Test Sets",
-            link: `/testsets`,
+            link: `${projectURL}/testsets`,
             icon: <DatabaseOutlined size={16} />,
         },
         {
             key: "app-observability-link",
             title: "Observability",
-            link: `/observability`,
+            link: `${projectURL}/observability`,
             icon: <ChartLineUp size={16} />,
             divider: appId || recentlyVisitedAppId ? true : false,
         },
@@ -61,28 +62,28 @@ export const useSidebarConfig = () => {
         {
             key: "overview-link",
             title: "Overview",
-            link: `/apps/${appId || recentlyVisitedAppId}/overview`,
+            link: `${appURL}/overview`,
             icon: <Desktop size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-playground-link",
             title: "Playground",
-            link: `/apps/${appId || recentlyVisitedAppId}/playground`,
+            link: `${appURL}/playground`,
             icon: <Rocket size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-variants-link",
             title: "Registry",
-            link: `/apps/${appId || recentlyVisitedAppId}/variants`,
+            link: `${appURL}/variants`,
             isHidden: !appId && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
         },
         {
             key: "app-evaluations-link",
             title: "Evaluations",
-            link: `/apps/${appId || recentlyVisitedAppId}/evaluations`,
+            link: `${appURL}/evaluations`,
             isHidden: (!appId && !recentlyVisitedAppId) || !isDemo(),
             icon: <ChartDonut size={16} />,
         },
@@ -91,19 +92,19 @@ export const useSidebarConfig = () => {
             title: "Traces",
             icon: <TreeView size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
-            link: `/apps/${appId || recentlyVisitedAppId}/traces`,
+            link: `${appURL}/traces`,
         },
         {
             key: "app-deployments-link",
             title: "Deployments",
-            link: `/apps/${appId || recentlyVisitedAppId}/deployments`,
+            link: `${appURL}/deployments`,
             isHidden: !appId && !recentlyVisitedAppId,
             icon: <CloudArrowUp size={16} />,
         },
         {
             key: "settings-link",
             title: "Settings",
-            link: "/settings",
+            link: `${projectURL}/settings`,
             icon: <Gear size={16} />,
             isBottom: true,
             tooltip: "Settings",
@@ -111,13 +112,12 @@ export const useSidebarConfig = () => {
         {
             key: "invite-teammate-link",
             title: "Invite Teammate",
-            link: "/settings?tab=workspace&inviteModal=open",
+            link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
             icon: <PaperPlane size={16} />,
             isBottom: true,
             tooltip: "Invite Teammate",
             isHidden: !doesSessionExist || !selectedOrg,
         },
-
         {
             key: "support-chat-link",
             title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,

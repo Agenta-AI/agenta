@@ -4,6 +4,7 @@ import {CloseOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, Rocket} from "@phosphor-icons/react"
 import {Button} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
@@ -12,6 +13,7 @@ import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import useURL from "@/oss/hooks/useURL"
 import {currentVariantAppStatusAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {setVariantDrawerSelectedIdAtom} from "../../store/variantDrawerStore"
@@ -166,6 +168,8 @@ const TitleActions = memo(
         const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
         const isDirty = useAtomValue(variantIsDirtyAtomFamily(variantId))
         const {goToPlayground} = usePlaygroundNavigation()
+        const {appURL} = useURL()
+        const router = useRouter()
 
         return (
             <div className="flex items-center gap-2">
@@ -173,7 +177,17 @@ const TitleActions = memo(
                     className="flex items-center gap-2"
                     size="small"
                     disabled={!appStatus || isLoading}
-                    onClick={() => goToPlayground(selectedVariant)}
+                    onClick={() => {
+                        router.push({
+                            pathname: `${appURL}/playground`,
+                            query: selectedVariant
+                                ? {
+                                      revisions: JSON.stringify([selectedVariant?.id]),
+                                  }
+                                : {},
+                        })
+                    }}
+                    // onClick={() => goToPlayground(selectedVariant)}
                 >
                     <Rocket size={14} />
                     Playground

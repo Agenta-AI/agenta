@@ -14,13 +14,21 @@
 
 import deepEqual from "fast-deep-equal"
 import {atom} from "jotai"
-import {selectAtom, atomWithStorage} from "jotai/utils"
-import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
+import {selectAtom} from "jotai/utils"
+import {queryClientAtom} from "jotai-tanstack-query"
 
-import {Org, OrgDetails} from "../../../lib/Types"
-import {fetchAllOrgsList, fetchSingleOrg} from "../../../services/organization/api"
+import {Org} from "../../../lib/Types"
+import {fetchAllOrgsList} from "../../../services/organization/api"
+import {
+    orgsQueryAtom as baseOrgsQueryAtom,
+    orgsAtom as baseOrgsAtom,
+    selectedOrgIdAtom as baseSelectedOrgIdAtom,
+    selectedOrgQueryAtom as baseSelectedOrgQueryAtom,
+    selectedOrgAtom as baseSelectedOrgAtom,
+} from "../../org/selectors/org"
 import {userAtom} from "../../profile/selectors/user"
-import {stringStorage} from "../../utils/stringStorage"
+
+export {LS_ORG_KEY} from "../../org/selectors/org"
 
 // ============================================================================
 // Constants and Configuration
@@ -31,127 +39,33 @@ export const LS_ORG_KEY = "selectedOrg"
 // Environment variable for logging
 const logOrgs = process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true"
 
-// Environment variables for test compatibility
-const testApiUrl = process.env.VITEST_TEST_API_URL
-const isTestMode = !!testApiUrl
-
 // ============================================================================
-// Core Organization Query Atoms
+// Core Organization Query Atoms (aliases to primary org state)
 // ============================================================================
 
-/**
- * Organizations query atom - fetches all organizations for the current user
- */
-export const orgsQueryAtom = atomWithQuery<Org[]>((get) => {
-    const user = get(userAtom)
-
-    return {
-        queryKey: isTestMode ? ["orgs", "test-mode"] : ["orgs", user?.id],
-        queryFn: async (): Promise<Org[]> => {
-            if (isTestMode) {
-                console.log("🔍 Organizations query test mode:", {
-                    testApiUrl,
-                    enabled: !!testApiUrl,
-                })
-                console.log("🌐 Organizations query executing...")
-            }
-
-            if (!isTestMode && !user?.id) return []
-
-            try {
-                const data = await fetchAllOrgsList()
-
-                if (isTestMode) {
-                    console.log("📋 Fetched organizations successfully:", data?.length || 0)
-                }
-
-                if (logOrgs || isTestMode) {
-                    console.log("🏢 Fetched organizations:", data?.length || 0)
-                }
-                return data || []
-            } catch (error) {
-                console.error("Failed to fetch organizations:", error)
-                return []
-            }
-        },
-        enabled: isTestMode ? !!testApiUrl : !!user?.id,
-        staleTime: 2 * 60 * 1000, // 2 minutes
-        gcTime: 5 * 60 * 1000, // 5 minutes
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: true,
-        retry: 2,
-    }
-})
-
-/**
- * Organizations atom - provides the list of organizations with loading state
- */
-export const orgsAtom = selectAtom(orgsQueryAtom, (query) => query.data || [], deepEqual)
+export const orgsQueryAtom = baseOrgsQueryAtom
+export const orgsAtom = baseOrgsAtom
+export const selectedOrgIdAtom = baseSelectedOrgIdAtom
+export const selectedOrgQueryAtom = baseSelectedOrgQueryAtom
+export const selectedOrgAtom = baseSelectedOrgAtom
 
 /**
  * Organizations loading atom
  */
-export const orgsLoadingAtom = selectAtom(orgsQueryAtom, (query) => query.isLoading)
+export const orgsLoadingAtom = selectAtom(orgsQueryAtom, (query) => {
+    const result = query as any
+    return Boolean(result?.isPending || result?.isFetching || result?.isLoading)
+})
 
 /**
  * Organizations error atom
  */
-export const orgsErrorAtom = selectAtom(orgsQueryAtom, (query) => query.error)
+export const orgsErrorAtom = selectAtom(orgsQueryAtom, (query) => (query as any)?.error ?? null)
 
 /**
  * Organizations count atom
  */
 export const orgsCountAtom = selectAtom(orgsAtom, (orgs) => orgs.length)
-
-// ============================================================================
-// Selected Organization State Management
-// ============================================================================
-
-/**
- * Selected organization ID atom with storage-backed persistence
- */
-export const selectedOrgIdAtom = atomWithStorage<string | null>(LS_ORG_KEY, null, stringStorage)
-
-/**
- * Selected organization query atom - fetches details for the selected organization
- */
-export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
-    const selectedId = get(selectedOrgIdAtom)
-    const user = get(userAtom)
-
-    return {
-        queryKey: ["selectedOrg", selectedId, user?.id],
-        queryFn: async (): Promise<OrgDetails | null> => {
-            if (!selectedId || !user?.id) return null
-
-            try {
-                const data = await fetchSingleOrg({orgId: selectedId})
-                if (logOrgs) {
-                    console.log("🏢 Fetched selected organization:", data?.name || selectedId)
-                }
-                return data
-            } catch (error) {
-                console.error("Failed to fetch selected organization:", error)
-                return null
-            }
-        },
-        enabled: !!selectedId && !!user?.id,
-        staleTime: 2 * 60 * 1000, // 2 minutes
-        gcTime: 5 * 60 * 1000, // 5 minutes
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: true,
-        retry: 2,
-    }
-})
-
-/**
- * Selected organization atom - provides the selected organization details
- */
-export const selectedOrgAtom = selectAtom(
-    selectedOrgQueryAtom,
-    (query) => query.data || null,
-    deepEqual,
-)
 
 /**
  * Selected organization loading atom
@@ -262,13 +176,12 @@ export const orgsPrefetchAtom = atom(null, async (get, set) => {
     const queryClient = get(queryClientAtom)
     const user = get(userAtom)
 
-    if (user?.id) {
+    const userKey = user?.id || ""
+
+    if (userKey) {
         await queryClient.prefetchQuery({
-            queryKey: ["orgs", user.id],
-            queryFn: async () => {
-                const data = await fetchAllOrgsList()
-                return data || []
-            },
+            queryKey: ["orgs", userKey],
+            queryFn: async () => fetchAllOrgsList(),
             staleTime: 2 * 60 * 1000,
         })
 
@@ -283,23 +196,16 @@ export const orgsPrefetchAtom = atom(null, async (get, set) => {
  */
 export const orgsRefreshAtom = atom(null, async (get, set) => {
     const queryClient = get(queryClientAtom)
-    const user = get(userAtom)
+    const selectedId = get(selectedOrgIdAtom)
 
-    if (user?.id) {
-        await queryClient.invalidateQueries({
-            queryKey: ["orgs", user.id],
-        })
+    await queryClient.invalidateQueries({queryKey: ["orgs"]})
 
-        const selectedId = get(selectedOrgIdAtom)
-        if (selectedId) {
-            await queryClient.invalidateQueries({
-                queryKey: ["selectedOrg", selectedId, user.id],
-            })
-        }
+    if (selectedId) {
+        await queryClient.invalidateQueries({queryKey: ["selectedOrg", selectedId]})
+    }
 
-        if (logOrgs) {
-            console.log("🏢 Organizations refreshed")
-        }
+    if (logOrgs) {
+        console.log("🏢 Organizations refreshed")
     }
 })
 

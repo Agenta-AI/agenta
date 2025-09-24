@@ -4,7 +4,7 @@
  */
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {getProjectValues} from "@/oss/state/project"
 

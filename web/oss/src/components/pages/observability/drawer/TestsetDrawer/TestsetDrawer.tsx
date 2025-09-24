@@ -46,7 +46,13 @@ const TestsetDrawer = ({
 }: TestsetDrawerProps) => {
     const {appTheme} = useAppTheme()
     const classes = useStyles()
-    const {testsets: listOfTestsets, isLoading: isTestsetsLoading, mutate} = useTestsetsData()
+    const {
+        testsets: listOfTestsets,
+        isLoading: isTestsetsLoading,
+        mutate,
+    } = useTestsetsData({
+        enabled: props.open,
+    })
     const elemRef = useResizeObserver<HTMLDivElement>((rect) => {
         setIsDrawerExtended(rect.width > 640)
     })

@@ -19,6 +19,7 @@ export const getColumns = ({
     envRevisions,
     router,
     appId,
+    appURL,
 }: {
     setSelectedRevisionRow: React.Dispatch<
         React.SetStateAction<DeploymentRevisionWithVariant | undefined>
@@ -29,6 +30,7 @@ export const getColumns = ({
     envRevisions: DeploymentRevisions | undefined
     router: NextRouter
     appId: string
+    appURL: string
 }): ColumnsType<DeploymentRevisionWithVariant> => {
     const columns: ColumnsType<DeploymentRevisionWithVariant> = [
         {
@@ -131,7 +133,7 @@ export const getColumns = ({
                                 onClick: (e) => {
                                     e.domEvent.stopPropagation()
                                     router.push({
-                                        pathname: `/apps/${appId}/playground`,
+                                        pathname: `${appURL}/playground`,
                                         query: {
                                             revisions: buildRevisionsQueryParam([
                                                 record.variant?.id,

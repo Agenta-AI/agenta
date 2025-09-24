@@ -5,9 +5,9 @@ import clsx from "clsx"
 import {useRouter} from "next/router"
 
 import DeploymentCard from "@/oss/components/DeploymentCard"
+import useURL from "@/oss/hooks/useURL"
 import type {Environment} from "@/oss/lib/Types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
-import {getAppValues} from "@/oss/state/app"
 
 const {Title} = Typography
 
@@ -15,11 +15,11 @@ interface WrappedDeploymentCardProps {
     env: Environment
 }
 const WrappedDeploymentCard = ({env}: WrappedDeploymentCardProps) => {
+    const {appURL} = useURL()
     const router = useRouter()
     const handleClick = useCallback(() => {
-        const appId = getAppValues()?.currentApp?.app_id
         router.push({
-            pathname: `/apps/${appId}/deployments`,
+            pathname: `${appURL}/deployments`,
             query: {
                 selectedEnvName: env.name,
             },

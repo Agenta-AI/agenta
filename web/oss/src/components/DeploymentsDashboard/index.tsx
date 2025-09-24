@@ -8,6 +8,7 @@ import {createUseStyles} from "react-jss"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import useURL from "@/oss/hooks/useURL"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 import {JSSTheme} from "@/oss/lib/Types"
 import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
@@ -57,6 +58,7 @@ interface DeploymentsDashboardProps {
 
 const DeploymentsDashboard: FC<DeploymentsDashboardProps> = ({envRevisions, isLoading}) => {
     const appId = useAppId()
+    // const {appURL} = useURL()
     const router = useRouter()
     const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
     const classes = useStyles()

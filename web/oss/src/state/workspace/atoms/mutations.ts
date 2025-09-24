@@ -1,12 +1,12 @@
-import {message} from "antd"
 import {atom} from "jotai"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 
-import {WorkspaceRole, OrgDetails} from "@/oss/lib/Types"
+import {message} from "@/oss/components/AppMessageContext"
+import {WorkspaceRole} from "@/oss/lib/Types"
 import {updateOrganization} from "@/oss/services/organization/api"
 import {updateWorkspace, fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"
 
-import {selectedOrgQueryAtom} from "../../org/selectors/org"
+import {selectedOrgQueryAtom, orgsQueryAtom} from "../../org/selectors/org"
 import {userAtom} from "../../profile/selectors/user"
 
 /**
@@ -31,24 +31,16 @@ export const updateWorkspaceNameAtom = atomWithMutation<
 
         // Optimistically update the local cache with the new name
         const selectedOrgQuery = get(selectedOrgQueryAtom)
-        if (selectedOrgQuery.data) {
-            // Update the query cache directly with the new name
-            const updatedOrg: OrgDetails = {
-                ...selectedOrgQuery.data,
-                name,
-                default_workspace: {
-                    ...selectedOrgQuery.data.default_workspace,
-                    name,
-                },
-            }
-
-            // Set the updated data in the cache
-            selectedOrgQuery.queryClient?.setQueryData(["selectedOrg", orgId], updatedOrg)
-        }
 
         // Also trigger a refetch to ensure data consistency
         if (selectedOrgQuery.refetch) {
             selectedOrgQuery.refetch()
+        }
+
+        // Refetch orgs list to ensure sidebar and org lists reflect the new name
+        const orgsQuery = get(orgsQueryAtom)
+        if (orgsQuery.refetch) {
+            orgsQuery.refetch()
         }
     },
     onError: (error) => {
@@ -65,7 +57,7 @@ export const updateWorkspaceNameActionAtom = atom(
     null,
     async (
         get,
-        set,
+        _set,
         {
             orgId,
             workspaceId,
@@ -79,8 +71,9 @@ export const updateWorkspaceNameActionAtom = atom(
         },
     ) => {
         try {
-            // Execute the mutation
-            await set(updateWorkspaceNameAtom, {orgId, workspaceId, name})
+            // Execute the mutation using mutateAsync from the mutation atom
+            const {mutateAsync} = get(updateWorkspaceNameAtom)
+            await mutateAsync({orgId, workspaceId, name})
 
             // Call success callback if provided
             if (onSuccess) {

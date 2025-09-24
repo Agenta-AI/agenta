@@ -14,10 +14,10 @@ import {
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {selectedOrgIdAtom} from "@/oss/state/org"
-import {useOrgData} from "@/oss/state/org"
+import {selectedOrgIdAtom, useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
+import {waitForValidURL} from "@/oss/state/url"
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
@@ -33,12 +33,11 @@ const SendOTP = ({
     isInvitedUser,
 }: SendOTPProps) => {
     const {reset: resetProfileData} = useProfileData()
-    const {reset: resetOrgData} = useOrgData()
-    const {reset: resetProjectData} = useProjectData()
     const classes = useStyles()
     const router = useRouter()
     const setSelectedOrgId = useSetAtom(selectedOrgIdAtom)
-
+    const {reset: resetOrgData} = useOrgData()
+    const {reset: resetProjectData} = useProjectData()
     const [isResendDisabled, setIsResendDisabled] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
 
@@ -89,9 +88,9 @@ const SendOTP = ({
             const response = await consumeCode({userInputCode: values.otp})
 
             if (response.status === "OK") {
-                resetProfileData()
-                // resetOrgData()
-                // resetProjectData()
+                await resetProfileData()
+                await resetOrgData()
+                await resetProjectData()
                 await clearLoginAttemptInfo()
                 setMessage({message: "Verification successful", type: "success"})
                 // Clear selected org via atom to keep storage in sync
@@ -104,13 +103,20 @@ const SendOTP = ({
                     if (isInvitedUser) {
                         await router.push("/workspaces/accept?survey=true")
                     } else {
-                        await router.push("/post-signup")
+                        const redirect = isInvitedUser
+                            ? encodeURIComponent("/workspaces/accept?survey=true")
+                            : ""
+                        await router.push(
+                            redirect ? `/post-signup?redirect=${redirect}` : "/post-signup",
+                        )
                     }
                 } else {
                     if (isInvitedUser) {
                         await router.push("/workspaces/accept")
                     } else {
-                        await router.push("/apps")
+                        // Ensure project-level URL is ready before redirecting
+                        const url = await waitForValidURL({requireProject: true})
+                        await router.push(url.baseAppURL)
                     }
                 }
             } else if (response.status === "INCORRECT_USER_INPUT_CODE_ERROR") {

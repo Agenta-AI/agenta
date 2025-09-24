@@ -2,9 +2,9 @@ import {useEffect, useMemo} from "react"
 
 import {Typography} from "antd"
 import dynamic from "next/dynamic"
-import {useRouter} from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import useURL from "@/oss/hooks/useURL"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useProjectData} from "@/oss/state/project"
 
@@ -24,14 +24,14 @@ const Billing = dynamic(() => import("@/oss/components/pages/settings/Billing"),
 
 const Settings: React.FC = () => {
     const [tab] = useQueryParam("tab", "workspace", "replace")
-    const router = useRouter()
     const {project} = useProjectData()
+    const {redirectUrl} = useURL()
 
     useEffect(() => {
         if (project?.is_demo) {
-            router.push("/apps")
+            redirectUrl()
         }
-    }, [project, router])
+    }, [project, redirectUrl])
 
     const breadcrumbs = useMemo(() => {
         return {

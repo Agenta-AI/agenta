@@ -6,11 +6,13 @@ import {ListAppsItem, User} from "@/oss/lib/Types"
 import {fetchAppContainerURL} from "@/oss/services/api"
 import {fetchAllApps} from "@/oss/services/app"
 
+import {selectedOrgIdAtom, selectedOrgIdURLAtom} from "../../org"
 import {userAtom, profileQueryAtom} from "../../profile/selectors/user"
 import {projectIdAtom} from "../../project/selectors/project"
 import {jwtReadyAtom} from "../../session/jwt"
 import {devLog} from "../../utils/devLog"
 import {stringStorage} from "../../utils/stringStorage"
+import {LS_APP_KEY} from "../assets/constants"
 
 const baseRouterAppIdAtom = atom<string | null>(null)
 
@@ -30,8 +32,6 @@ export const routerAppIdAtom = atom(
     },
 )
 
-export const LS_APP_KEY = "recentlyVisitedApp"
-
 export const recentAppIdAtom = atomWithStorage<string | null>(LS_APP_KEY, null, stringStorage)
 
 export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
@@ -40,7 +40,9 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
     const user = get(userAtom) as User | null
     const isProj = !!projectId
     const jwtReady = get(jwtReadyAtom).data ?? false
-    const enabled = profileState.isSuccess && jwtReady && !!user?.id && isProj && !!projectId
+    const orgId = get(selectedOrgIdURLAtom)
+    const enabled =
+        profileState.isSuccess && jwtReady && !!user?.id && isProj && !!projectId && !!orgId
 
     return {
         queryKey: ["apps", projectId],

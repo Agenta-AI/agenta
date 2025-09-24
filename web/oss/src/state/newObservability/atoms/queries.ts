@@ -4,7 +4,6 @@ import {selectAtom, atomFamily} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {projectIdAtom} from "@/oss/state/project"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {formatLatency, formatCurrency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {
@@ -29,6 +28,7 @@ import type {
 } from "@/oss/services/observability/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {getOrgValues} from "@/oss/state/org"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {
     paginationAtom,

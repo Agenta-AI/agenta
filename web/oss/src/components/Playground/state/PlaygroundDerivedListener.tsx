@@ -6,7 +6,6 @@ import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 import {useIsomorphicLayoutEffect} from "usehooks-ts"
 
-import {variantDrawerAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {revisionListAtom} from "@/oss/state/variant/selectors/variant"
 
@@ -223,7 +222,7 @@ const PlaygroundDerivedListener = () => {
 
         // Only update URL if it's different from current state
         if (currentRevisions !== newRevisionsParam) {
-            const {app_id, revisions: _oldRevisions, ...rest} = router.query
+            const {revisions: _oldRevisions, ...rest} = router.query
             const newQuery = newRevisionsParam
                 ? {
                       ...rest,
@@ -233,12 +232,8 @@ const PlaygroundDerivedListener = () => {
                       ...rest,
                   }
 
-            const pathname = router.pathname.includes("[app_id]")
-                ? router.pathname.replace("[app_id]", router.query.app_id as string)
-                : router.pathname
-
             // Shallow update - doesn't trigger re-renders
-            router.replace({pathname, query: newQuery}, undefined, {shallow: true})
+            router.replace({pathname: router.pathname, query: newQuery}, undefined, {shallow: true})
         }
     }, [
         router.isReady,

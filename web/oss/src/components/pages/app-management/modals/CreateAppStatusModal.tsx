@@ -9,6 +9,7 @@ import {getErrorMessage} from "@/oss/lib/helpers/errorHandler"
 import {GenericObject, JSSTheme} from "@/oss/lib/Types"
 
 import CustomAppCreationLoader from "./CustomAppCreationLoader"
+import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 
@@ -73,6 +74,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
 }) => {
     const router = useRouter()
     const classes = useStyles()
+    const {baseAppURL} = useURL()
     const {
         token: {colorError, cyan5: colorSuccess},
     } = theme.useToken()
@@ -105,7 +107,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             onTimeoutRetry?.()
         } else if (isSuccess) {
             props.onCancel?.(e)
-            if (appId) router.push(`/apps/${appId}/playground`)
+            if (appId) router.push(`${baseAppURL}/${appId}/playground`)
         }
     }
 
@@ -143,7 +145,7 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
                     }
                     if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
                     if (appId) {
-                        router.push(`/apps/${appId}/playground`)
+                        router.push(`${baseAppURL}/${appId}/playground`)
                     }
                     return obj
                 case "bad_request":

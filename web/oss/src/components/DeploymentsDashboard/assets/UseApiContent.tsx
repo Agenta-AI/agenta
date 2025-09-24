@@ -19,7 +19,7 @@ import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {DeploymentRevisions} from "@/oss/lib/Types"
-import {createParams} from "@/oss/pages/apps/[app_id]/endpoints"
+import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
 import {currentAppAtom} from "@/oss/state/app"
 
 const ApiKeyInput = dynamic(

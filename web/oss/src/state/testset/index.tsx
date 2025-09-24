@@ -1,13 +1,16 @@
+import {useMemo} from "react"
+
 import {useAtom} from "jotai"
 
-import {testsetsQueryAtom, previewTestsetsQueryAtom} from "./atoms/fetcher"
+import {previewTestsetsQueryAtom, testsetsQueryAtomFamily} from "./atoms/fetcher"
 import {useTestset} from "./hooks/useTestset"
 
 /**
  * Hook for regular/legacy testsets
  */
-export const useTestsetsData = () => {
-    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(testsetsQueryAtom)
+export const useTestsetsData = ({enabled = true} = {}) => {
+    const stableAtom = useMemo(() => testsetsQueryAtomFamily({enabled}), [enabled])
+    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(stableAtom)
 
     return {
         testsets: testsets ?? [],

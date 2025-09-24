@@ -8,6 +8,7 @@ import {useRouter} from "next/router"
 import EmptyComponent from "@/oss/components/EmptyComponent"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import useURL from "@/oss/hooks/useURL"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 
@@ -40,6 +41,7 @@ const DeploymentTable = ({
     const [_, setQueryRevision] = useQueryParam("revisions")
     const router = useRouter()
     const appId = useAppId()
+    const {appURL} = useURL()
 
     const handleAssignRevisionId = useCallback((record: DeploymentRevisionWithVariant) => {
         setQueryRevision(
@@ -57,6 +59,7 @@ const DeploymentTable = ({
                 envRevisions,
                 router,
                 appId,
+                appURL,
             }),
         [
             setSelectedRevisionRow,
@@ -66,6 +69,7 @@ const DeploymentTable = ({
             envRevisions,
             router,
             appId,
+            appURL,
         ],
     )
 

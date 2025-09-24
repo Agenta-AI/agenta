@@ -1,24 +1,20 @@
 import {useEffect, useRef, type FC} from "react"
 
-import {message} from "antd"
+import {getDefaultStore} from "jotai"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
 
-import ProtectedRoute from "@/oss/components/ProtectedRoute/ProtectedRoute"
+import {message} from "@/oss/components/AppMessageContext"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {useProjectData} from "@/oss/state/project"
+import {jwtReadyAtom} from "@/oss/state/session/jwt"
 
 const Accept: FC = () => {
     const [invite, , removeInvite] = useLocalStorage<any>("invite", {})
-    const {
-        refetch: refetchOrganization,
-        changeSelectedOrg,
-        orgs,
-        loading: loadingOrgs,
-    } = useOrgData()
+    const {refetch: refetchOrganization, loading: loadingOrgs} = useOrgData()
     const {refetch: refetchProject, isLoading: loadingProjects} = useProjectData()
     const router = useRouter()
     const accept = useRef(false)
@@ -32,9 +28,24 @@ const Accept: FC = () => {
     const isSurvey = Boolean(router.query.survey)
 
     const onAcceptInvite = async () => {
-        if (!loadingOrgs && !loadingProjects && !accept.current && orgId && token) {
+        if (!accept.current && orgId && token) {
             accept.current = true
             try {
+                // Ensure JWT is ready before calling protected API
+                const store = getDefaultStore()
+                await new Promise<void>((resolve) => {
+                    let unsub: () => void = () => {}
+                    const check = () => {
+                        const ready = (store.get(jwtReadyAtom) as any)?.data ?? false
+                        if (ready) {
+                            unsub()
+                            resolve()
+                        }
+                    }
+                    unsub = store.sub(jwtReadyAtom, check)
+                    check()
+                })
+
                 await acceptWorkspaceInvite(
                     {
                         token,
@@ -46,20 +57,17 @@ const Accept: FC = () => {
                     true,
                 )
 
-                refetchOrganization()
-                refetchProject()
-
-                if (orgs.find((item) => item.id === orgId)) {
-                    isDemo() && changeSelectedOrg(orgId)
-                }
-
-                accept.current = true
+                await refetchOrganization()
+                await refetchProject()
 
                 message.success("Joined workspace!")
+                // Update selected org id; then navigate explicitly
+                store.set(selectedOrgIdAtom, orgId)
                 if (isSurvey) {
-                    await router.push("/post-signup")
+                    const redirect = encodeURIComponent(`/w/${orgId}`)
+                    await router.push(`/post-signup?redirect=${redirect}`)
                 } else {
-                    await router.push("/apps")
+                    await router.push(`/w/${orgId}/p/${projectId}/apps`)
                 }
             } catch (error: any) {
                 // Treat idempotent scenarios (already a member / already accepted) as success
@@ -75,9 +83,10 @@ const Accept: FC = () => {
                 }
 
                 if (isSurvey) {
-                    await router.push("/post-signup")
+                    const redirect = encodeURIComponent(`/w/${orgId}`)
+                    await router.push(`/post-signup?redirect=${redirect}`)
                 } else {
-                    await router.push("/apps")
+                    await router.push("/")
                 }
             } finally {
                 removeInvite()
@@ -87,7 +96,8 @@ const Accept: FC = () => {
 
     useEffect(() => {
         onAcceptInvite()
-    }, [orgId, loadingOrgs, loadingProjects, accept])
+        // We only need to react to orgId/token presence; jwt readiness awaited inside
+    }, [orgId, token])
 
     return <ContentSpinner />
 }

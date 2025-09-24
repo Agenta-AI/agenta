@@ -6,6 +6,7 @@ import {useRouter} from "next/router"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import VariantNameCell from "@/oss/components/VariantNameCell"
+import useURL from "@/oss/hooks/useURL"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Environment} from "@/oss/lib/Types"
@@ -25,6 +26,7 @@ const ModifiedByText = ({variant}: {variant: EnhancedVariant}) => {
 const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopoverProps) => {
     const router = useRouter()
     const appId = router.query.app_id as string
+    const {baseAppURL} = useURL()
 
     return (
         <Popover
@@ -52,7 +54,7 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                             className="flex items-center justify-center"
                             onClick={() => {
                                 router.push({
-                                    pathname: `/apps/${appId}/playground`,
+                                    pathname: `${baseAppURL}/${appId}/playground`,
                                     query: {
                                         revisions: buildRevisionsQueryParam([
                                             env.deployed_app_variant_revision_id,

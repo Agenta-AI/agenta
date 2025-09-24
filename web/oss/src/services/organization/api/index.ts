@@ -1,3 +1,6 @@
+import axios from "@/oss/lib/api/assets/axiosConfig"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+
 import {fetchJson, getBaseUrl} from "../../../lib/api/assets/fetchClient"
 import {Org, OrgDetails} from "../../../lib/Types"
 

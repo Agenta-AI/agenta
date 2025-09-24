@@ -9,6 +9,7 @@ import {createUseStyles} from "react-jss"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {useAppId} from "@/oss/hooks/useAppId"
+import useURL from "@/oss/hooks/useURL"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {JSSTheme} from "@/oss/lib/Types"
 
@@ -55,6 +56,7 @@ const DeploymentsDrawer = ({
     const router = useRouter()
     const classes = useStyles()
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
+    const {baseAppURL} = useURL()
 
     return (
         <EnhancedDrawer
@@ -134,7 +136,7 @@ const DeploymentsDrawer = ({
                                             type="default"
                                             onClick={() =>
                                                 router.push({
-                                                    pathname: `/apps/${appId}/playground`,
+                                                    pathname: `${baseAppURL}/${appId}/playground`,
                                                     query: {
                                                         revisions: buildRevisionsQueryParam([
                                                             selectedRevisionRow.variant?.id,

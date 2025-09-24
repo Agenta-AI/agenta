@@ -12,4 +12,8 @@ export const stringStorage = {
             localStorage.setItem(key, newValue)
         }
     },
+    removeItem: (key: string) => {
+        if (typeof window === "undefined") return
+        localStorage.removeItem(key)
+    },
 }

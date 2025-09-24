@@ -5,6 +5,7 @@ import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
+import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {ListAppsItem} from "@/oss/lib/Types"
 
@@ -16,6 +17,7 @@ interface AppTableProps {
 
 const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTableProps) => {
     const router = useRouter()
+    const {baseAppURL} = useURL()
 
     const columns: ColumnsType<ListAppsItem> = [
         {
@@ -61,7 +63,7 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
                                     icon: <Note size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`/apps/${record.app_id}/overview`)
+                                        router.push(`${baseAppURL}/${record.app_id}/overview`)
                                     },
                                 },
                                 {type: "divider"},
@@ -111,7 +113,7 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
                 bordered
                 onRow={(record) => ({
                     style: {cursor: "pointer"},
-                    onClick: () => router.push(`/apps/${record.app_id}/overview`),
+                    onClick: () => router.push(`${baseAppURL}/${record.app_id}/overview`),
                 })}
                 locale={{emptyText: <NoResultsFound />}}
             />

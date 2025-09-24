@@ -13,12 +13,14 @@ import packageJsonData from "../../../../package.json"
 
 import {DEPRECATION_VERSION} from "./assets/constants"
 import {CustomWorkflowBannerProps} from "./types"
+import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 
 const OldAppDeprecationBanner = ({children}: CustomWorkflowBannerProps) => {
     const currentApp = useAtomValue(currentAppAtom)
     const router = useRouter()
+    const {baseAppURL} = useURL()
     const isPlaygroundPage = useMemo(
         () => router.pathname.includes("/playground"),
         [router.pathname],
@@ -31,7 +33,7 @@ const OldAppDeprecationBanner = ({children}: CustomWorkflowBannerProps) => {
     const getDeprecationMessage = () => {
         const migrationLink = (
             <Link
-                href="/apps"
+                href={baseAppURL}
                 className="font-medium !text-blue-600 hover:!text-blue-800 inline-block !underline underline-offset-1"
             >
                 migrate to a new application

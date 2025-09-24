@@ -13,8 +13,12 @@ export const useProjectData = () => {
     const isProjectId = !!projectId
     const queryClient = useQueryClient()
 
-    const reset = useCallback(() => {
-        queryClient.removeQueries({queryKey: ["projects"]})
+    const reset = useCallback(async () => {
+        return await queryClient.removeQueries({queryKey: ["projects"]})
+    }, [queryClient])
+
+    const invalidate = useCallback(async () => {
+        return await queryClient.invalidateQueries({queryKey: ["projects"]})
     }, [queryClient])
 
     return {
@@ -25,7 +29,7 @@ export const useProjectData = () => {
         // isLoading: isPending,
         isLoading: isLoading,
         reset,
-        refetch,
+        refetch: invalidate,
     }
 }
 

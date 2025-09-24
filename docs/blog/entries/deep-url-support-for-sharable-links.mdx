@@ -1,0 +1,33 @@
+---
+title: "Deep URL Support for Sharable Links"
+slug: deep-url-support-for-sharable-links
+date: 2025-09-24
+tags: [v0.53.0]
+---
+
+URLs across Agenta now include workspace context, making them fully shareable between team members. This was a highly requested feature that addresses several critical issues with the previous URL structure.
+
+## What Changed
+
+### Before
+- URLs did not include workspace information
+- Sharing links between team members would redirect to the recipient's default workspace
+- Page refreshes would sometimes lose context and revert to the default workspace
+- Deep linking to specific resources was unreliable
+
+### Now
+- All URLs include the workspace context in the URL path
+- Links shared between team members work correctly, maintaining the intended workspace
+- Page refreshes maintain the correct workspace context
+- Deep linking works reliably for all resources
+
+## What You Can Deep Link
+
+You can now create shareable deep links to almost any resource in Agenta:
+
+- **Prompts**: Share direct links to specific prompts in any workspace
+- **Evaluations**: Link directly to evaluation results and configurations
+- **Test Sets**: Share test sets with team members
+- **Playground Sessions**: Link to specific playground configurations
+
+---

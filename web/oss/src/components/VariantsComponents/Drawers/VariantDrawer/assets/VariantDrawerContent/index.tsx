@@ -36,6 +36,7 @@ import {clearVariantDrawerAtom} from "../../store/variantDrawerStore"
 import {variantDrawerAtom} from "../../store/variantDrawerStore"
 import {NewVariantParametersView} from "../Parameters"
 import {VariantDrawerContentProps} from "../types"
+import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 
@@ -86,7 +87,7 @@ const VariantDrawerContent = ({
     onToggleOriginal,
 }: VariantDrawerContentProps) => {
     const router = useRouter()
-    const appId = useAppId()
+    const {appURL} = useURL()
 
     const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
 
@@ -321,7 +322,7 @@ const VariantDrawerContent = ({
                                 size="small"
                                 onClick={() =>
                                     router.push({
-                                        pathname: `/apps/${appId}/playground`,
+                                        pathname: `${appURL}/playground`,
                                         query: {
                                             playground: "new-playground",
                                             // Use the actual revision id for navigation
