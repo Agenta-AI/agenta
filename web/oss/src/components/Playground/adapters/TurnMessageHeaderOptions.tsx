@@ -157,11 +157,11 @@ const TurnMessageHeaderOptions = ({
             {/* ) : null} */}
 
             <EnhancedButton
-                icon={minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
+                icon={!minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
                 type="text"
                 onClick={onMinimize}
                 disabled={disabled}
-                tooltipProps={{title: minimized ? "Maximize" : "Minimize"}}
+                tooltipProps={{title: minimized ? "Minimize" : "Maximize"}}
             />
 
             {children}

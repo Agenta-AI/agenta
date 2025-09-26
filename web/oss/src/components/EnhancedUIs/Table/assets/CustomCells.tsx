@@ -1,4 +1,4 @@
-import {memo} from "react"
+import {memo, useEffect, useState} from "react"
 
 import {Skeleton} from "antd"
 import clsx from "clsx"
@@ -7,12 +7,19 @@ import {Resizable} from "react-resizable"
 export const ResizableTitle = memo((props: any) => {
     const {onResize, width, minWidth, ...restProps} = props
 
+    // Local live width to avoid forcing parent re-renders on every drag frame
+    const [liveWidth, setLiveWidth] = useState<number | undefined>(width)
+
+    useEffect(() => {
+        setLiveWidth(width)
+    }, [width])
+
     if (!width) {
         return <th {...restProps} />
     }
     return (
         <Resizable
-            width={width}
+            width={liveWidth ?? width}
             height={0}
             handle={
                 <span
@@ -20,7 +27,10 @@ export const ResizableTitle = memo((props: any) => {
                     onClick={(e) => e.stopPropagation()}
                 />
             }
-            onResize={onResize}
+            onResize={(e: any, data: any) => {
+                setLiveWidth(data.size.width)
+                onResize && onResize(e, data)
+            }}
             draggableOpts={{enableUserSelectHack: false}}
         >
             <th
@@ -29,7 +39,7 @@ export const ResizableTitle = memo((props: any) => {
                     ...restProps.style,
                     paddingRight: 8,
                     minWidth: 80,
-                    width: width || 160,
+                    width: (liveWidth ?? width) || 160,
                 }}
                 className={clsx([restProps.className, {"select-none": onResize}])}
             >

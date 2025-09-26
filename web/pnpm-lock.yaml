@@ -196,6 +196,9 @@ importers:
       fast-deep-equal:
         specifier: ^3.1.3
         version: 3.1.3
+      immer:
+        specifier: ^10.1.1
+        version: 10.1.1
       jotai:
         specifier: ^2.13.1
         version: 2.13.1(@types/react@19.0.10)(react@19.0.0)
@@ -210,7 +213,7 @@ importers:
         version: 2.1.0(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))
       jotai-immer:
         specifier: ^0.4.1
-        version: 0.4.1(immer@10.1.3)(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))
+        version: 0.4.1(immer@10.1.1)(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))
       jotai-tanstack-query:
         specifier: ^0.11.0
         version: 0.11.0(@tanstack/query-core@5.87.1)(@tanstack/react-query@5.87.1(react@19.0.0))(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0))(react@19.0.0)
@@ -261,7 +264,7 @@ importers:
         version: 21.1.0
       swc-loader:
         specifier: ^0.2.6
-        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17))(esbuild@0.25.9))
+        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17)))
       swr:
         specifier: ^2.3.0
         version: 2.3.3(react@19.0.0)
@@ -601,7 +604,7 @@ importers:
         version: 21.1.0
       swc-loader:
         specifier: ^0.2.6
-        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17)))
+        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17))(esbuild@0.25.9))
       swr:
         specifier: ^2.3.0
         version: 2.3.3(react@19.0.0)
@@ -9192,6 +9195,11 @@ snapshots:
 
   jotai-effect@2.1.0(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0)):
     dependencies:
+      jotai: 2.13.1(@types/react@19.0.10)(react@19.0.0)
+
+  jotai-immer@0.4.1(immer@10.1.1)(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0)):
+    dependencies:
+      immer: 10.1.1
       jotai: 2.13.1(@types/react@19.0.10)(react@19.0.0)
 
   jotai-immer@0.4.1(immer@10.1.3)(jotai@2.13.1(@types/react@19.0.10)(react@19.0.0)):

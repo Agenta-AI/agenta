@@ -2,14 +2,28 @@ import {ColumnsType} from "antd/es/table"
 
 export const filterColumns = <T>(cols: ColumnsType<T>, hidden: string[]): ColumnsType<T> => {
     return cols
-        .filter((col) => !hidden.includes(String(col.key)))
         .map((col) => {
+            const key = col.key != null ? String(col.key) : undefined
+            if (key && hidden.includes(key)) return null
+
             if ("children" in col && col.children) {
                 const children = filterColumns(col.children, hidden)
-                return children.length > 0 ? {...col, children} : {...col, children: undefined}
+
+                if (!children.length) {
+                    // Drop parent column when all descendants are hidden to avoid rendering entire records
+                    // as fallback cell content in Ant Table.
+                    return null
+                }
+
+                return {
+                    ...col,
+                    children,
+                }
             }
+
             return col
-        }) as ColumnsType<T>
+        })
+        .filter(Boolean) as ColumnsType<T>
 }
 
 export const formatColumnTitle = (text: string) => {

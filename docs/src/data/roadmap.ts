@@ -25,6 +25,19 @@ export const shippedFeatures: ShippedFeature[] = [
     // Observability: DE74FF
     // Evaluation: 86B7FF
     {
+        id: "evaluation-results-dashboard",
+        title: "New Evaluation Results Dashboard",
+        description: "Completely redesigned evaluation results dashboard with performance plots, side-by-side comparison, improved test cases view, focused detail view, configuration visibility, and run naming.",
+        changelogPath: "/changelog/new-evaluation-results-dashboard",
+        shippedAt: "2025-09-26",
+        labels: [
+            {
+                name: "Evaluation",
+                color: "86B7FF",
+            },
+        ],
+    },
+    {
         id: "deep-url-support",
         title: "Deep URL Support for Sharable Links",
         description: "URLs now include workspace context, making them shareable between team members. Fixed workspace bugs with page refresh and workspace selection.",
@@ -136,19 +149,6 @@ export const shippedFeatures: ShippedFeature[] = [
     },
 ];
 export const inProgressFeatures: PlannedFeature[] = [
-    // Example:
-    {
-        id: "evaluation-results-dashboard",
-        title: "Evaluation Results Dashboard",
-        description: "We are reworking the evaluation results page to make it more user friendly and informative.",
-        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2719",
-        labels: [
-            {
-                name: "Evaluation",
-                color: "86B7FF",
-            },
-        ],
-    },
     {
         id: "online-evaluation",
         title: "Online Evaluation",

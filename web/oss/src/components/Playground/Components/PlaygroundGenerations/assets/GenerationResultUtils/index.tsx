@@ -71,7 +71,7 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
                     color="default"
                     bordered={false}
                     value1={
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 text-nowrap">
                             <PlusCircle size={14} /> {formattedTokens} / {formattedCosts}
                         </div>
                     }
