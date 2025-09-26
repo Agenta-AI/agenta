@@ -811,3 +811,81 @@ body {
         padding-bottom: 3.1px !important;
     }
 }
+
+/* Comparison table styling fixes */
+.comparison-table .ant-table-expanded-row-fixed::after {
+    border-right: none !important;
+}
+
+.comparison-table .ant-table-tbody > tr.ant-table-expanded-row > td {
+    padding: 0 !important;
+    border-bottom: none !important;
+}
+
+.comparison-table .ant-table-tbody > tr.ant-table-expanded-row .ant-table-tbody > tr > td {
+    border-bottom: 1px solid #f0f0f0 !important;
+}
+
+.comparison-table .ant-table-tbody > tr.ant-table-expanded-row .ant-table {
+    margin: 0 !important;
+}
+
+.comparison-table .ant-table-tbody > tr.ant-table-expanded-row .ant-table-tbody > tr:last-child > td {
+    border-bottom: none !important;
+}
+
+/* Styling for comparison rows (children) - light background for differentiation */
+.comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"] {
+    background-color: #fafafa !important;
+}
+
+.comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"]:hover {
+    background-color: #f0f0f0 !important;
+}
+
+/* Ensure child rows have subtle visual distinction */
+.comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"] > td {
+    background-color: inherit !important;
+    border-left: 3px solid #e6f4ff !important;
+    padding-left: 12px !important;
+}
+
+.comparison-table {
+    .ant-table-row.comparison .ant-table-cell {
+        background-color: #ffdfdf;
+    }
+    .ant-table-cell:has(.ant-table-expanded-row-fixed) {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+    .ant-table-expanded-row-fixed {
+        margin: 0 !important;
+    }
+    
+    /* Fix expand button positioning and overflow */
+    .ant-table-row-expand-icon-cell {
+        width: 120px !important;
+        min-width: 120px !important;
+        padding: 8px !important;
+        text-align: center !important;
+    }
+    
+    /* Ensure first data column doesn't contain expand icon */
+    .ant-table-tbody > tr > td:first-child:not(.ant-table-row-expand-icon-cell) {
+        padding-left: 12px !important;
+    }
+    
+    /* Style the expand icon container */
+    .ant-table-row-expand-icon {
+        display: inline-block !important;
+        width: auto !important;
+        height: auto !important;
+        margin: 0 !important;
+    }
+    .ant-table-expanded-row-fixed {
+        padding-left: 0 !important;
+        thead {
+            display: none
+        }
+    }
+}

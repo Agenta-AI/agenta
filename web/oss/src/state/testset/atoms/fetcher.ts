@@ -1,8 +1,8 @@
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {testset, TestSet, PreviewTestSet} from "@/oss/lib/Types"
-import {fetchTestsets, fetchPreviewTestsets, fetchTestset} from "@/oss/services/testsets/api"
+import {testset} from "@/oss/lib/Types"
+import {fetchPreviewTestsets, fetchTestsets} from "@/oss/services/testsets/api"
 
 import {projectIdAtom} from "../../project"
 

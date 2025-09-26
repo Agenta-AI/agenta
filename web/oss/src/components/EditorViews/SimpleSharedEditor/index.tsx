@@ -263,11 +263,11 @@ const SimpleSharedEditorContent = ({
                         {isMinimizeVisible && (
                             <EnhancedButton
                                 {...minimizeButtonProps}
-                                icon={minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
+                                icon={!minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
                                 type="text"
                                 size="small"
                                 onClick={() => setMinimized((c) => !c)}
-                                tooltipProps={{title: !minimized ? "Minimize" : "Maximize"}}
+                                tooltipProps={{title: minimized ? "Minimize" : "Maximize"}}
                             />
                         )}
                     </div>
