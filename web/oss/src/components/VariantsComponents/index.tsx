@@ -6,15 +6,15 @@ import {Rocket} from "@phosphor-icons/react"
 import {Button, Input, Radio, Space, Typography} from "antd"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
-import {useSWRConfig} from "swr"
 
 import {useAppId} from "@/oss/hooks/useAppId"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {playgroundNavigationRequestAtom} from "@/oss/state/variant/atoms/navigation"
+import {useQueryParamState} from "@/oss/state/appState"
 import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
 import {
     modelNameByRevisionIdAtomFamily,
@@ -23,7 +23,6 @@ import {
 } from "@/oss/state/variant/selectors/variant"
 
 import {useStyles} from "./assets/styles"
-import {openVariantDrawerAtom} from "./Drawers/VariantDrawer/store/variantDrawerStore"
 import {
     openComparisonModalAtom,
     comparisonSelectionScopeAtom,
@@ -36,7 +35,7 @@ const VariantsDashboard = () => {
     const appId = useAppId()
     const router = useRouter()
     const classes = useStyles()
-    const [, setQueryVariant] = useQueryParam("revisions")
+    const [, setQueryVariant] = useQueryParamState("revisionId")
     const [displayMode, setDisplayMode] = useQueryParam("displayMode", "flat")
     const [searchTerm, setSearchTerm] = useState("")
     const {baseAppURL} = useURL()
@@ -97,13 +96,12 @@ const VariantsDashboard = () => {
     const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
     const openComparisonModal = useSetAtom(openComparisonModalAtom)
     const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
-    const requestPlaygroundNav = useSetAtom(playgroundNavigationRequestAtom)
-    const openVariantDrawer = useSetAtom(openVariantDrawerAtom)
+    const {goToPlayground} = usePlaygroundNavigation()
     const prefetchPlayground = useCallback(async () => {
         if (appId) {
             router.prefetch(`${baseAppURL}/${appId}/playground`).catch(() => {})
         }
-    }, [appId, router])
+    }, [appId, baseAppURL, router])
 
     const handleNavigation = useCallback(
         async (record?: any) => {
@@ -115,11 +113,23 @@ const VariantsDashboard = () => {
             if (revId) {
                 store.get(promptsAtomFamily(revId))
             }
-            requestPlaygroundNav(
-                record ? {appId, selectedKeys: [record._revisionId ?? record.id]} : {appId},
-            )
+            if (revId) {
+                goToPlayground(revId)
+            } else {
+                goToPlayground()
+            }
         },
-        [appId, requestPlaygroundNav, prefetchPlayground],
+        [goToPlayground, prefetchPlayground],
+    )
+
+    const handleOpenDetails = useCallback(
+        (record: any) => {
+            const revId = record._revisionId ?? record.id
+            if (!revId) return
+            // Shallow URL patch lets the route listener atom open the drawer
+            setQueryVariant(revId, {shallow: true})
+        },
+        [setQueryVariant],
     )
 
     return (
@@ -183,24 +193,12 @@ const VariantsDashboard = () => {
                         variants={tableRows}
                         isLoading={isVariantLoading}
                         selectionScope={selectionScope}
-                        onRowClick={(variant) => {
-                            // Open global variant drawer and sync URL selection
-                            const revId = variant._revisionId ?? variant.id
-                            openVariantDrawer({type: "variant", selectedVariantId: revId})
-                            setQueryVariant(JSON.stringify([revId]))
-                        }}
-                        handleOpenDetails={(record) => {
-                            // Open global variant drawer and sync URL selection
-                            const revId = record._revisionId ?? record.id
-                            openVariantDrawer({type: "variant", selectedVariantId: revId})
-                            setQueryVariant(JSON.stringify([revId]))
-                        }}
+                        onRowClick={handleOpenDetails}
+                        handleOpenDetails={handleOpenDetails}
                         handleOpenInPlayground={(record) => handleNavigation(record)}
                     />
                 </Space>
             </div>
-
-            {/* Comparison modal is handled globally via atoms */}
         </>
     )
 }

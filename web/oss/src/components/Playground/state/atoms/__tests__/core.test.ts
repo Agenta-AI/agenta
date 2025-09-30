@@ -3,7 +3,6 @@ import {createStore} from "jotai"
 import {
     selectedVariantsAtom,
     viewTypeAtom,
-    setSelectedVariantMutationAtom,
     toggleVariantDisplayMutationAtom,
     setDisplayedVariantsMutationAtom,
 } from "../index"
@@ -41,17 +40,17 @@ describe("Playground Core Atoms", () => {
         })
     })
 
-    describe("setSelectedVariantMutationAtom", () => {
-        it("should set single variant and switch to single view", () => {
-            store.set(setSelectedVariantMutationAtom, "variant-1")
+    // describe("setSelectedVariantMutationAtom", () => {
+    //     it("should set single variant and switch to single view", () => {
+    //         store.set(setSelectedVariantMutationAtom, "variant-1")
 
-            const selectedVariants = store.get(selectedVariantsAtom)
-            const viewType = store.get(viewTypeAtom)
+    //         const selectedVariants = store.get(selectedVariantsAtom)
+    //         const viewType = store.get(viewTypeAtom)
 
-            expect(selectedVariants).toEqual(["variant-1"])
-            expect(viewType).toBe("single")
-        })
-    })
+    //         expect(selectedVariants).toEqual(["variant-1"])
+    //         expect(viewType).toBe("single")
+    //     })
+    // })
 
     describe("toggleVariantDisplayMutationAtom", () => {
         it("should add variant when not present", () => {

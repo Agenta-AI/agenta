@@ -4,14 +4,15 @@ import {MoreOutlined} from "@ant-design/icons"
 import {PencilSimple} from "@phosphor-icons/react"
 import {Button, Dropdown, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {currentAppAtom} from "@/oss/state/app"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
 import {usePlaygroundLayout} from "../../hooks/usePlaygroundLayout"
-import {variantListDisplayAtom, setDisplayedVariantsMutationAtom} from "../../state/atoms"
+import {variantListDisplayAtom} from "../../state/atoms"
 import NewVariantButton from "../Modals/CreateVariantModal/assets/NewVariantButton"
 import type {BaseContainerProps} from "../types"
 
@@ -35,7 +36,6 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
     // ATOM-LEVEL OPTIMIZATION: Use focused atom subscriptions instead of full playground state
     const {displayedVariants} = usePlaygroundLayout()
     const variants = useAtomValue(variantListDisplayAtom) // Only essential display data
-    const setDisplayedVariants = useSetAtom(setDisplayedVariantsMutationAtom)
 
     const currentApp = useAtomValue(currentAppAtom)
 
@@ -51,36 +51,31 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
         configureWorkflow: true,
     })
 
-    const onAddVariant = useCallback(
-        (value: any) => {
-            // Handle different data structures that TreeSelect might pass
-            let variantIds: string[] = []
+    const onAddVariant = useCallback((value: any) => {
+        // Handle different data structures that TreeSelect might pass
+        let variantIds: string[] = []
 
-            if (Array.isArray(value)) {
-                // Multiple selection mode - array of values
-                variantIds = value
-                    .map((item: any) => (typeof item === "string" ? item : item?.value || item))
-                    .filter(Boolean) // Remove any undefined/null values
-            } else if (value !== undefined && value !== null) {
-                // Single selection mode - single value
-                const singleId = typeof value === "string" ? value : value?.value || value
-                if (singleId) {
-                    variantIds = [singleId]
-                }
+        if (Array.isArray(value)) {
+            // Multiple selection mode - array of values
+            variantIds = value
+                .map((item: any) => (typeof item === "string" ? item : item?.value || item))
+                .filter(Boolean) // Remove any undefined/null values
+        } else if (value !== undefined && value !== null) {
+            // Single selection mode - single value
+            const singleId = typeof value === "string" ? value : value?.value || value
+            if (singleId) {
+                variantIds = [singleId]
             }
+        }
 
-            // Use direct state mutation - no URL updates, immediate UI response
-            if (variantIds.length > 0) {
-                setDisplayedVariants(variantIds)
-            } else {
-                console.warn(
-                    "🚨 [PlaygroundHeader] No valid variant IDs found in selection:",
-                    value,
-                )
-            }
-        },
-        [setDisplayedVariants, displayedVariants],
-    )
+        if (variantIds.length > 0) {
+            void writePlaygroundSelectionToQuery(variantIds)
+            return
+        }
+
+        void writePlaygroundSelectionToQuery([])
+        console.warn("🚨 [PlaygroundHeader] No valid variant IDs found in selection:", value)
+    }, [])
 
     // PROGRESSIVE LOADING: Show skeleton when loading, otherwise show full header
     if (isLoading || !variants) {

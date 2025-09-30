@@ -203,35 +203,3 @@ export const cancelChatTurnAtom = atom(
         }
     },
 )
-
-export const deleteAssistantForTurnAtom = atom(
-    null,
-    (get, set, params: {turnId: string; variantId?: string}) => {
-        const {turnId, variantId} = params
-        // Remove assistant content for provided revision or all displayed
-        const targetRevs = variantId
-            ? [variantId]
-            : ((get(displayedVariantsAtom) || []) as string[])
-
-        set(chatTurnsByIdAtom, (prev) =>
-            produce(prev as any, (draft: any) => {
-                const t = draft?.[turnId]
-                if (!t) return
-                if (!t.assistantMessageByRevision) t.assistantMessageByRevision = {}
-                for (const rev of targetRevs) {
-                    if (rev in t.assistantMessageByRevision)
-                        delete t.assistantMessageByRevision[rev]
-                }
-            }),
-        )
-        // Clear run status entries
-        set(runStatusByRowRevisionAtom, (prev: any) => {
-            const next = {...(prev || {})}
-            for (const rev of targetRevs) {
-                const key = `${turnId}:${rev}`
-                if (key in next) delete next[key]
-            }
-            return next
-        })
-    },
-)

@@ -19,6 +19,7 @@ import {projectIdAtom} from "../../project/selectors/project"
 import {jwtReadyAtom} from "../../session/jwt"
 import {stringStorage} from "../../utils/stringStorage"
 import {fetchProjectApps} from "../api/apps"
+import {sessionExistsAtom} from "@/oss/state/session"
 
 // Get project ID for queries
 const currentProjectIdAtom = atom((get) => {
@@ -40,6 +41,7 @@ const currentProjectIdAtom = atom((get) => {
 export const appsQueryAtom = atomWithQuery((get) => {
     const projectId = get(currentProjectIdAtom)
     const jwtReady = get(jwtReadyAtom)
+    const sessionExists = get(sessionExistsAtom)
 
     // Support test mode
     const isTestMode = typeof process !== "undefined" && process.env.VITEST_TEST_API_URL
@@ -47,7 +49,8 @@ export const appsQueryAtom = atomWithQuery((get) => {
 
     console.log("🔍 Apps query test mode:", {
         testApiUrl,
-        enabled: !!(projectId && (jwtReady.data || isTestMode)),
+        projectId,
+        enabled: !!(sessionExists && projectId && (jwtReady.data || isTestMode)),
     })
 
     return {
@@ -63,7 +66,7 @@ export const appsQueryAtom = atomWithQuery((get) => {
                 throw error
             }
         },
-        enabled: !!(projectId && (jwtReady.data || isTestMode)),
+        enabled: !!(sessionExists && projectId && (jwtReady.data || isTestMode)),
         staleTime: 60000, // Cache for 1 minute - apps don't change frequently
         gcTime: 300000, // Keep in cache for 5 minutes
         refetchOnWindowFocus: false,

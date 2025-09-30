@@ -30,6 +30,8 @@ import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {getOrgValues} from "@/oss/state/org"
 import {projectIdAtom} from "@/oss/state/project"
 
+import {sessionExistsAtom} from "../../session"
+
 import {
     paginationAtom,
     sortAtom,
@@ -71,6 +73,8 @@ export const tracesQueryAtom = atomWithQuery((get) => {
         }
     }
 
+    const sessionExists = get(sessionExistsAtom)
+
     return {
         queryKey: ["traces", projectId, appId, params],
         queryFn: async () => {
@@ -104,7 +108,7 @@ export const tracesQueryAtom = atomWithQuery((get) => {
                 traceCount: data?.count || 0,
             }
         },
-        enabled: !!projectId,
+        enabled: sessionExists && !!projectId,
         refetchOnWindowFocus: false,
     }
 })

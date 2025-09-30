@@ -8,7 +8,7 @@ import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan, User} from "@/oss/lib/Types"
-import {WorkspaceMember, WorkspaceRole} from "@/oss/lib/Types"
+import {WorkspaceMember} from "@/oss/lib/Types"
 import {
     assignWorkspaceRole,
     removeFromWorkspace,
@@ -114,7 +114,7 @@ export const Roles: React.FC<{
 }> = ({member, signedInUser, orgId, workspaceId}) => {
     const [loading, setLoading] = useState(false)
     const {roles} = useWorkspaceRoles()
-    const {selectedOrg, setSelectedOrg} = useOrgData()
+    const {selectedOrg, refetch} = useOrgData()
     const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
         subscription: undefined,
     }
@@ -140,31 +140,11 @@ export const Roles: React.FC<{
                         }),
                     ),
             )
-            if (selectedOrg)
-                setSelectedOrg({
-                    ...selectedOrg,
-                    default_workspace: {
-                        ...selectedOrg.default_workspace,
-                        members: selectedOrg.default_workspace.members.map((item) => {
-                            if (item.user.email === user.email) {
-                                return {
-                                    ...item,
-                                    roles: [
-                                        {
-                                            ...(roles.find(
-                                                (item) => item.role_name === roleName,
-                                            ) as WorkspaceRole),
-                                            permissions: [],
-                                        },
-                                    ],
-                                }
-                            }
-                            return item
-                        }),
-                    },
-                })
+            await refetch()
+            message.success("Workspace role updated")
         } catch (error) {
             console.error("Failed to change the role:", error)
+            message.error("Failed to update workspace role")
         } finally {
             setLoading(false)
         }

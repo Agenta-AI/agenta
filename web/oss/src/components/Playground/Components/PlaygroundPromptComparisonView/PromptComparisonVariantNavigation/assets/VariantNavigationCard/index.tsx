@@ -7,6 +7,7 @@ import {Button, Tag, Typography} from "antd"
 import clsx from "clsx"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
+import {removeVariantFromSelectionMutationAtom} from "@/oss/components/Playground/state/atoms/variantCrudMutations"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generationLogicalTurnIdsAtom as compatRowIdsAtom} from "@/oss/state/generation/compat"
@@ -14,7 +15,6 @@ import {logicalTurnIndexAtom, runStatusByRowRevisionAtom} from "@/oss/state/gene
 
 import Version from "../../../../../assets/Version"
 import {
-    removeVariantFromSelectionMutationAtom,
     variantByRevisionIdAtomFamily,
     generationResultAtomFamily,
     appChatModeAtom,

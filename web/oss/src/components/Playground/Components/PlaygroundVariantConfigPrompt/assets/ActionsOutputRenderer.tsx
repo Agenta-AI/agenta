@@ -5,12 +5,12 @@ import {useSetAtom} from "jotai"
 
 import {getPromptById, getLLMConfig} from "@/oss/components/Playground/context/promptShape"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
+
+import AddButton from "../../../assets/AddButton"
 import {
     addPromptMessageMutationAtomFamily,
     addPromptToolMutationAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
-
-import AddButton from "../../../assets/AddButton"
+} from "../../../state/atoms/promptMutations"
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
 
 interface Props {

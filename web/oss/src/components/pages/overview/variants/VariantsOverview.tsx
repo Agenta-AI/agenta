@@ -7,16 +7,15 @@ import {Button, Space, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
-import {useRouter} from "next/router"
 
-import {openVariantDrawerAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
 import {openComparisonModalAtom} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
 import {comparisonSelectionScopeAtom} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
-import {useQueryParam} from "@/oss/hooks/useQuery"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
+import {useQuery} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
-import {playgroundNavigationRequestAtom} from "@/oss/state/variant/atoms/navigation"
 import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
 import {
     recentRevisionsAtom,
@@ -26,9 +25,7 @@ import {
 const {Title} = Typography
 
 const VariantsOverview = () => {
-    const router = useRouter()
-    const appId = router.query.app_id as string
-    const [, setQueryVariant] = useQueryParam("revisions")
+    const [, updateQuery] = useQuery()
     const {appURL} = useURL()
 
     // Drawer open/close is handled in VariantDrawerWrapper based on URL param
@@ -38,16 +35,18 @@ const VariantsOverview = () => {
     const slicedVariantList = useAtomValue(recentRevisionsTableRowsAtom)
     const selectionScope = "overview/recent"
     const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
-    const requestPlaygroundNav = useSetAtom(playgroundNavigationRequestAtom)
-    const openVariantDrawer = useSetAtom(openVariantDrawerAtom)
+    const {goToPlayground} = usePlaygroundNavigation()
 
     const handleNavigation = useCallback(
         (record?: EnhancedVariant) => {
-            requestPlaygroundNav(
-                record ? {appId, selectedKeys: [record._revisionId ?? record.id]} : {appId},
-            )
+            const revisionId = record ? ((record as any)?._revisionId ?? record.id) : undefined
+            if (revisionId) {
+                goToPlayground(revisionId)
+            } else {
+                goToPlayground()
+            }
         },
-        [appId, requestPlaygroundNav],
+        [goToPlayground],
     )
 
     return (
@@ -88,25 +87,21 @@ const VariantsOverview = () => {
                 variants={slicedVariantList}
                 onRowClick={(variant) => {
                     // Cosmetic URL update for deep linking
-                    setQueryVariant(JSON.stringify([variant._revisionId ?? variant.id]))
-                    // Open the drawer via atoms with an explicit selectedVariantId
-                    openVariantDrawer({
-                        type: "variant",
-                        variantsAtom: recentRevisionsAtom,
-                        selectedVariantId: variant._revisionId ?? variant.id,
+                    updateQuery({
+                        revisionId: variant._revisionId ?? variant.id,
+                        drawerType: "variant",
                     })
+                    // Open the drawer via atoms with an explicit selectedVariantId
                 }}
                 selectionScope={selectionScope}
                 isLoading={isVariantLoading}
                 handleOpenDetails={(record) => {
                     // Cosmetic URL update for deep linking
-                    setQueryVariant(JSON.stringify([record._revisionId ?? record.id]))
-                    // Open the drawer via atoms with an explicit selectedVariantId
-                    openVariantDrawer({
-                        type: "variant",
-                        variantsAtom: recentRevisionsAtom,
-                        selectedVariantId: record._revisionId ?? record.id,
+                    updateQuery({
+                        revisionId: record._revisionId ?? record.id,
+                        drawerType: "variant",
                     })
+                    // Open the drawer via atoms with an explicit selectedVariantId
                 }}
                 handleOpenInPlayground={(record) => {
                     handleNavigation(record)

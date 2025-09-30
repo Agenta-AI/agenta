@@ -5,13 +5,11 @@ import {Button} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {deleteGenerationInputRowMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/input/deleteInputRow"
+import {duplicateGenerationInputRowMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/input/duplicateInputRow"
 import {inputRowIdsAtom, inputRowsByIdFamilyAtom} from "@/oss/state/generation/entities"
 
 import {usePlaygroundLayout} from "../../../../hooks/usePlaygroundLayout"
-import {
-    deleteGenerationInputRowMutationAtom,
-    duplicateGenerationInputRowMutationAtom,
-} from "../../../../state/atoms"
 import PlaygroundGenerationVariableMenu from "../../../Menus/PlaygroundGenerationVariableMenu"
 
 import type {GenerationVariableOptionsProps} from "./types"

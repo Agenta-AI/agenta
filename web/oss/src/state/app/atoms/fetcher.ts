@@ -5,8 +5,10 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import {ListAppsItem, User} from "@/oss/lib/Types"
 import {fetchAppContainerURL} from "@/oss/services/api"
 import {fetchAllApps} from "@/oss/services/app"
+import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
+import {activeInviteAtom} from "@/oss/state/url/auth"
 
-import {selectedOrgIdAtom, selectedOrgIdURLAtom} from "../../org"
+import {selectedOrgIdAtom} from "../../org"
 import {userAtom, profileQueryAtom} from "../../profile/selectors/user"
 import {projectIdAtom} from "../../project/selectors/project"
 import {jwtReadyAtom} from "../../session/jwt"
@@ -18,19 +20,41 @@ const baseRouterAppIdAtom = atom<string | null>(null)
 
 export const routerAppIdAtom = atom(
     (get) => {
-        const appId = get(baseRouterAppIdAtom)
-
-        // In test environment, fall back to environment variable if not set
-        if (!appId && typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+        const derived = get(appIdentifiersAtom).appId
+        if (derived) return derived
+        const fallback = get(baseRouterAppIdAtom)
+        if (fallback) return fallback
+        if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
             return process.env.VITEST_TEST_APP_ID || process.env.TEST_APP_ID || null
         }
-
-        return appId
+        return null
     },
     (get, set, update: string | null) => {
-        set(baseRouterAppIdAtom, update)
+        const next =
+            typeof update === "function" ? (update as any)(get(baseRouterAppIdAtom)) : update
+        set(baseRouterAppIdAtom, next)
     },
 )
+
+export const routerAppNavigationAtom = atom(null, (get, set, next: string | null) => {
+    const identifiers = get(appIdentifiersAtom)
+    const {workspaceId, projectId, appId: current} = identifiers
+    if (!workspaceId || !projectId) return
+
+    if (!next) {
+        const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
+        set(requestNavigationAtom, {type: "href", href, method: "replace"})
+        return
+    }
+
+    if (next === current) return
+
+    const base = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps/${encodeURIComponent(next)}`
+    const snapshot = get(appStateSnapshotAtom)
+    const rest = snapshot.routeLayer === "app" ? snapshot.restPath : []
+    const href = rest.length ? `${base}/${rest.join("/")}` : `${base}/overview`
+    set(requestNavigationAtom, {type: "href", href, method: "push"})
+})
 
 export const recentAppIdAtom = atomWithStorage<string | null>(LS_APP_KEY, null, stringStorage)
 
@@ -40,9 +64,16 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
     const user = get(userAtom) as User | null
     const isProj = !!projectId
     const jwtReady = get(jwtReadyAtom).data ?? false
-    const orgId = get(selectedOrgIdURLAtom)
+    const orgId = get(selectedOrgIdAtom)
+    const activeInvite = get(activeInviteAtom)
     const enabled =
-        profileState.isSuccess && jwtReady && !!user?.id && isProj && !!projectId && !!orgId
+        profileState.isSuccess &&
+        jwtReady &&
+        !!user?.id &&
+        isProj &&
+        !!projectId &&
+        !!orgId &&
+        !activeInvite
 
     return {
         queryKey: ["apps", projectId],

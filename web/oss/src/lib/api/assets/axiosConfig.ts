@@ -1,15 +1,12 @@
 import axiosApi, {CanceledError} from "axios"
 import {getDefaultStore} from "jotai"
-import {queryClientAtom} from "jotai-tanstack-query"
 import isObject from "lodash/isObject"
 import router from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 
-// import AlertPopup from "@/oss/components/AlertPopup/AlertPopup" // Commented out for test environment
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {getJWT} from "@/oss/services/api"
 import {userAtom} from "@/oss/state/profile/selectors/user"
-import {DEFAULT_UUID} from "@/oss/state/project"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {getAgentaApiUrl} from "../../helpers/api"
@@ -51,13 +48,11 @@ axios.interceptors.request.use(async (config) => {
     const jwt = await getJWT()
 
     const store = getDefaultStore()
-    // queryClient retained for other potential uses
-    // const queryClient = store.get(queryClientAtom)
 
     const user = store.get(userAtom) as any | undefined
     const projectId = store.get(projectIdAtom)
 
-    if (!jwt || !user || !projectId || projectId === DEFAULT_UUID) {
+    if (!jwt || !user || !projectId) {
         const controller = new AbortController()
         const configuredUri = axios.getUri(config)
         if (!ENDPOINTS_PROJECT_ID_WHITELIST.some((endpoint) => configuredUri.includes(endpoint))) {

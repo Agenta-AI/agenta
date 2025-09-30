@@ -1,6 +1,7 @@
 import io
 import os
 import csv
+import sys
 import json
 import requests
 from pathlib import Path
@@ -43,6 +44,9 @@ upload_folder = "./path/to/upload/folder"
 
 TESTSETS_COUNT_LIMIT = 10 * 1_000  # 10,000 testcases per testset
 TESTSETS_SIZE_LIMIT = 10 * 1024 * 1024  # 10 MB per testset
+TESTSETS_FIELD_SIZE_LIMIT = 10 * 1024 * 1024  # 10 MB per CSV field
+
+csv.field_size_limit(TESTSETS_FIELD_SIZE_LIMIT)
 
 TESTSETS_COUNT_WARNING = f"Test set exceeds the maximum count of {TESTSETS_COUNT_LIMIT} test cases per test set."
 TESTSETS_SIZE_WARNING = f"Test set exceeds the maximum size of {TESTSETS_SIZE_LIMIT // (1024 * 1024)} MB per test set."

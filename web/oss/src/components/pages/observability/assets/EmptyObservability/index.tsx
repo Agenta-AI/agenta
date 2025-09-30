@@ -5,12 +5,14 @@ import {useRouter} from "next/router"
 
 import EmptyComponent from "@/oss/components/EmptyComponent"
 import {useAppId} from "@/oss/hooks/useAppId"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
 const EmptyObservability = () => {
     const router = useRouter()
     const appId = useAppId()
-    const {baseAppURL, appURL} = useURL()
+    const {baseAppURL} = useURL()
+    const {goToPlayground} = usePlaygroundNavigation()
 
     return (
         <div className="py-16">
@@ -21,7 +23,7 @@ const EmptyObservability = () => {
                 description="Monitor the performance and results of your LLM applications here."
                 primaryCta={{
                     text: appId ? "Go to Playground" : "Create an Application",
-                    onClick: () => router.push(appId ? `${appURL}/playground` : baseAppURL),
+                    onClick: () => (appId ? goToPlayground() : router.push(baseAppURL)),
                     tooltip: "Run your LLM app in the playground to generate and view insights.",
                 }}
                 secondaryCta={{

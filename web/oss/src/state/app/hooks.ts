@@ -1,29 +1,27 @@
 import {useCallback, useEffect} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtom, useSetAtom, useAtomValue} from "jotai"
-import {useRouter} from "next/router"
+import {useAtom, useAtomValue} from "jotai"
 
 import {ListAppsItem} from "@/oss/lib/Types"
 
-import {appsQueryAtom, routerAppIdAtom, recentAppIdAtom} from "./atoms/fetcher"
+import {useAppState} from "@/oss/state/appState"
+
+import {appsQueryAtom, recentAppIdAtom} from "./atoms/fetcher"
 import {currentAppAtom, appsAtom} from "./selectors/app"
 
 export const useApps = () => useAtom(appsQueryAtom)
 
 export const useAppsData = () => {
-    const router = useRouter()
     const [{data: apps, isPending, isLoading, error, refetch}] = useAtom(appsQueryAtom)
     const currentApp = useAtomValue(currentAppAtom)
     const [recentAppId, setRecentAppId] = useAtom(recentAppIdAtom)
-    const setRouterAppId = useSetAtom(routerAppIdAtom)
     const queryClient = useQueryClient()
+    const {appId} = useAppState()
 
     useEffect(() => {
-        const id = router.query.app_id as string | undefined
-        setRouterAppId(id || null)
-        if (id) setRecentAppId(id)
-    }, [router.query.app_id, setRouterAppId, setRecentAppId])
+        if (appId) setRecentAppId(appId)
+    }, [appId, setRecentAppId])
 
     useEffect(() => {
         if (recentAppId && Array.isArray(apps)) {
@@ -50,17 +48,6 @@ export const useAppsData = () => {
 
 export const useCurrentApp = () => useAtomValue(currentAppAtom)
 export const useAppList = () => useAtomValue(appsAtom)
-
-const AppListener = () => {
-    const router = useRouter()
-    const setAppId = useSetAtom(routerAppIdAtom)
-    const setRecent = useSetAtom(recentAppIdAtom)
-    useEffect(() => {
-        const id = router.query.app_id as string | undefined
-        setAppId(id || null)
-        if (id) setRecent(id)
-    }, [router.query.app_id, setAppId, setRecent])
+export default function AppListener() {
     return null
 }
-
-export default AppListener

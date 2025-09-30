@@ -6,8 +6,8 @@ import {useSetAtom} from "jotai"
 
 import {getPromptById, getArrayVal} from "@/oss/components/Playground/context/promptShape"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
-import {deletePromptMessageMutationAtomFamily} from "@/oss/components/Playground/state/atoms"
 
+import {deletePromptMessageMutationAtomFamily} from "../../../state/atoms/promptMutations"
 import PromptMessageConfig from "../../PromptMessageConfig"
 import SharedEditor from "../../SharedEditor"
 

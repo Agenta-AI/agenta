@@ -6,13 +6,13 @@ import deepEqual from "fast-deep-equal"
 import {atom, getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 
-import {parameterUpdateMutationAtom} from "@/oss/components/Playground/state/atoms/propertyMutations"
 import {getMetadataLazy, metadataAtom} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {
     customPropertiesByRevisionAtomFamily,
     customPropertyIdsByRevisionAtomFamily,
 } from "@/oss/state/newPlayground/core/customProperties"
 
+import {parameterUpdateMutationAtom} from "../../state/atoms/propertyMutations"
 import {useStyles} from "../PlaygroundVariantConfigPrompt/styles"
 import {renderMap} from "../PlaygroundVariantPropertyControl/assets/helpers"
 

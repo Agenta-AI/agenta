@@ -4,9 +4,9 @@ import {Drawer} from "antd"
 
 import {EnhancedDrawerProps} from "./types"
 
-const EnhancedDrawer = ({children, ...props}: EnhancedDrawerProps) => {
+const EnhancedDrawer = ({children, closeOnLayoutClick = true, ...props}: EnhancedDrawerProps) => {
     const [shouldRender, setShouldRender] = useState(false)
-    const {open: isVisible} = props
+    const {open: isVisible, onClose} = props
 
     useEffect(() => {
         if (isVisible) {
@@ -21,8 +21,8 @@ const EnhancedDrawer = ({children, ...props}: EnhancedDrawerProps) => {
         function handleClickOutside(event: MouseEvent) {
             if ((event.target as HTMLElement).closest(".variant-table-row")) {
                 return
-            } else if ((event.target as HTMLElement).closest(".ant-layout")) {
-                props.onClose?.({} as any)
+            } else if (closeOnLayoutClick && (event.target as HTMLElement).closest(".ant-layout")) {
+                onClose?.({} as any)
             }
         }
 
@@ -30,7 +30,7 @@ const EnhancedDrawer = ({children, ...props}: EnhancedDrawerProps) => {
         return () => {
             document.removeEventListener("click", handleClickOutside)
         }
-    }, [shouldRender])
+    }, [shouldRender, closeOnLayoutClick, onClose])
 
     const handleAfterClose = (open: boolean) => {
         props.afterOpenChange?.(open)

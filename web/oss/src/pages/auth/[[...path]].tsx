@@ -23,7 +23,6 @@ const SideBanner = dynamic(() => import("@/oss/components/pages/auth/SideBanner"
 const {Text, Title} = Typography
 
 const Auth = () => {
-    const [email, setEmail] = useState("")
     const [isAuthLoading, setIsAuthLoading] = useState(false)
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
@@ -31,13 +30,20 @@ const Auth = () => {
     const [invite, setInvite] = useLocalStorage("invite", {})
     const router = useRouter()
 
-    const token = router.query.token as string
-    const orgId = router.query.org_id as string
-    const projectId = router.query.project_id as string
-    const workspaceId = router.query.workspace_id as string
-    const _email = router.query.email as string
+    const firstString = (value: string | string[] | undefined): string | undefined => {
+        if (Array.isArray(value)) return value[0]
+        return typeof value === "string" ? value : undefined
+    }
+
+    const token = firstString(router.query.token)
+    const orgId = firstString(router.query.org_id)
+    const projectId = firstString(router.query.project_id)
+    const workspaceId = firstString(router.query.workspace_id)
+    const emailFromQuery = firstString(router.query.email)
     const {redirectToPath, ...queries} = router.query
     const isInvitedUser = Object.keys(queries.token ? queries : invite).length > 0
+
+    const [email, setEmail] = useState(emailFromQuery ?? "")
 
     useEffect(() => {
         if (isInvitedUser && Object.keys(invite).length === 0) {
@@ -46,10 +52,10 @@ const Auth = () => {
                 org_id: orgId,
                 project_id: projectId,
                 workspace_id: workspaceId,
-                email: _email,
+                email: emailFromQuery,
             })
         }
-    }, [isInvitedUser, invite])
+    }, [isInvitedUser, invite, setInvite, token, orgId, projectId, workspaceId, emailFromQuery])
 
     const authErrorMsg = (error: any) => {
         if (error.isSuperTokensGeneralError === true) {
@@ -154,6 +160,7 @@ const Auth = () => {
                             message={message}
                             setMessage={setMessage}
                             authErrorMsg={authErrorMsg}
+                            initialEmail={emailFromQuery}
                         />
                     ) : !isLoginCodeVisible ? (
                         <>

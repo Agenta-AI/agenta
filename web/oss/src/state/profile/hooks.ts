@@ -6,7 +6,7 @@ import {useAtom, useAtomValue} from "jotai"
 import {profileQueryAtom, userAtom} from "./selectors/user"
 
 export const useProfileData = () => {
-    const [{data, isLoading, isPending, refetch}] = useAtom(profileQueryAtom)
+    const [{data, isLoading, refetch}] = useAtom(profileQueryAtom)
     const queryClient = useQueryClient()
 
     const reset = useCallback(async () => {
@@ -16,7 +16,6 @@ export const useProfileData = () => {
 
     return {
         user: data ?? null,
-        // loading: isPending,
         loading: isLoading,
         reset,
         refetch,

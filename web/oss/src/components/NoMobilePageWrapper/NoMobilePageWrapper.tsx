@@ -29,8 +29,11 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
         (bounds: DOMRectReadOnly) => {
             setShouldDisplay(() => {
                 if (dismissed) return false // keep hidden if already dismissed by the user
-                if (!MOBILE_UNOPTIMIZED_APP_ROUTES.some((route) => pathname.startsWith(route)))
-                    return false
+                const pathSegments = pathname.split("/").filter(Boolean)
+                const isMobileUnoptimizedRoute = MOBILE_UNOPTIMIZED_APP_ROUTES.some((route) =>
+                    pathSegments.includes(route),
+                )
+                if (!isMobileUnoptimizedRoute) return false
 
                 return bounds.width < token.screenMD
             })

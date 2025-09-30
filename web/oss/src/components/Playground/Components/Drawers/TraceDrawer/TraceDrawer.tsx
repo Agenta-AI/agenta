@@ -79,6 +79,7 @@ const TraceDrawer = () => {
             open={open}
             onClose={closeDrawer}
             width={drawerWidth}
+            closeOnLayoutClick={false}
             className="[&_.ant-drawer-body]:p-0"
         >
             <Splitter className="h-[calc(100%-48px)]">

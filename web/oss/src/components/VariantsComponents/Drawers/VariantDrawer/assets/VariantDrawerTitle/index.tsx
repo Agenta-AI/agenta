@@ -3,20 +3,22 @@ import {memo, useCallback, useMemo} from "react"
 import {CloseOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, Rocket} from "@phosphor-icons/react"
 import {Button} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {
+    revisionListAtom,
+    variantByRevisionIdAtomFamily,
+} from "@/oss/components/Playground/state/atoms"
 import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms"
 import VariantNameCell from "@/oss/components/VariantNameCell"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {currentVariantAppStatusAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import {setVariantDrawerSelectedIdAtom} from "../../store/variantDrawerStore"
 import {VariantDrawerTitleProps} from "../types"
 import {drawerVariantIsLoadingAtomFamily} from "../VariantDrawerContent"
 
@@ -28,11 +30,9 @@ const NavControls = memo(
         variants,
         isLoading,
     }: Pick<VariantDrawerTitleProps, "variantId" | "variantIds" | "variants" | "isLoading">) => {
-        const [_, setQueryVariant] = useQueryParam("revisions", undefined, "replace")
+        const [, updateQuery] = useQuery("replace")
         const [displayMode] = useQueryParam("displayMode")
         const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
-        const setSelectedId = useSetAtom(setVariantDrawerSelectedIdAtom)
-
         const selectedParent = useMemo(() => {
             const parentId =
                 typeof selectedVariant?._parentVariant === "string"
@@ -84,18 +84,9 @@ const NavControls = memo(
                 nextId = variants?.[selectedVariantIndex - 1]?.id
             }
             if (!nextId) return
-            setSelectedId(nextId)
             // Shallow URL update for shareable deep link
-            setQueryVariant(JSON.stringify([nextId]))
-        }, [
-            selectedVariantIndex,
-            displayMode,
-            selectedParent,
-            variants,
-            setQueryVariant,
-            variantIds,
-            setSelectedId,
-        ])
+            updateQuery({revisionId: nextId, drawerType: "variant"})
+        }, [selectedVariantIndex, displayMode, selectedParent, variants, updateQuery, variantIds])
 
         const loadNextVariant = useCallback(() => {
             if (selectedVariantIndex === undefined) return
@@ -119,18 +110,9 @@ const NavControls = memo(
                 nextId = variants[selectedVariantIndex + 1]?.id
             }
             if (!nextId) return
-            setSelectedId(nextId)
             // Shallow URL update for shareable deep link
-            setQueryVariant(JSON.stringify([nextId]))
-        }, [
-            selectedVariantIndex,
-            displayMode,
-            selectedParent,
-            variants,
-            setQueryVariant,
-            variantIds,
-            setSelectedId,
-        ])
+            updateQuery({revisionId: nextId, drawerType: "variant"})
+        }, [selectedVariantIndex, displayMode, selectedParent, variants, updateQuery, variantIds])
 
         return (
             <div className="flex items-center gap-1">
@@ -178,16 +160,8 @@ const TitleActions = memo(
                     size="small"
                     disabled={!appStatus || isLoading}
                     onClick={() => {
-                        router.push({
-                            pathname: `${appURL}/playground`,
-                            query: selectedVariant
-                                ? {
-                                      revisions: JSON.stringify([selectedVariant?.id]),
-                                  }
-                                : {},
-                        })
+                        goToPlayground(selectedVariant ?? variantId)
                     }}
-                    // onClick={() => goToPlayground(selectedVariant)}
                 >
                     <Rocket size={14} />
                     Playground
@@ -223,8 +197,6 @@ const VariantDrawerTitle = ({
     variants,
     viewAs,
     variantIds,
-    showOriginal,
-    onToggleOriginal,
 }: VariantDrawerTitleProps) => {
     const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
     return (

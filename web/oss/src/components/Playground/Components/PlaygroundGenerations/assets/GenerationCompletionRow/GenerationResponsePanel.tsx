@@ -4,7 +4,6 @@ import dynamic from "next/dynamic"
 
 import ToolCallView from "@/oss/components/Playground/Components/ToolCallView"
 import {deriveToolViewModelFromResult} from "@/oss/state/newPlayground/chat/parsers"
-import {tryParseArrayFromString} from "@/oss/state/newPlayground/chat/parsers"
 
 import SharedEditor from "../../../SharedEditor"
 

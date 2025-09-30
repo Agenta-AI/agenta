@@ -8,7 +8,6 @@ import {useAtomValue} from "jotai/react"
 
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
-import {DEFAULT_UUID} from "@/oss/state/project"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {
     appSchemaAtom,
@@ -58,8 +57,7 @@ function useStatelessVariants(options: UseStatelessVariantsOptions = {}): Varian
         | string
         | null
         | undefined
-    const enabled =
-        !!routerAppId && routerAppId !== null && !!projectId && projectId !== DEFAULT_UUID
+    const enabled = !!routerAppId && routerAppId !== null && !!projectId
 
     // If there are no variants and we're not actively loading variants, do not block on revisions
     const noVariants = useAtomValue(variantsAtom, {store: rootStore}).length === 0

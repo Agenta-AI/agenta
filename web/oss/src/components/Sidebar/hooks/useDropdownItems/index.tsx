@@ -5,9 +5,9 @@ import {Space, Typography} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import Avatar from "@/oss/components/Avatar/Avatar"
+import useURL from "@/oss/hooks/useURL"
 
 import {UseDropdownItemsProps} from "./types"
-import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 
@@ -18,6 +18,7 @@ export const useDropdownItems = ({
     project,
     logout,
     projects,
+    interactive,
 }: UseDropdownItemsProps) => {
     const {projectURL} = useURL()
 
@@ -38,6 +39,7 @@ export const useDropdownItems = ({
                             <Text>{org.name}</Text>
                         </Space>
                     ),
+                    disabled: !interactive,
                 })),
                 {type: "divider"},
                 {
@@ -61,7 +63,7 @@ export const useDropdownItems = ({
         } else {
             return []
         }
-    }, [filteredOrgs, logout, orgs, project?.is_demo, selectedOrg?.id, user?.id])
+    }, [interactive, filteredOrgs, logout, orgs, project?.is_demo, selectedOrg?.id, user?.id])
 
     return dropdownItems
 }

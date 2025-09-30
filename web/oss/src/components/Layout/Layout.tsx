@@ -7,16 +7,15 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import Link from "next/link"
-import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
-import {ThemeProvider} from "react-jss"
 import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 
 import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {currentAppAtom} from "@/oss/state/app"
+import {useAppQuery, useAppState} from "@/oss/state/appState"
 import {useProfileData} from "@/oss/state/profile"
-import {DEFAULT_UUID, getProjectValues, useProjectData} from "@/oss/state/project"
+import {getProjectValues, useProjectData} from "@/oss/state/project"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
@@ -58,15 +57,15 @@ const AppWithVariants = memo(
         appTheme: string
         isPlayground?: boolean
     }) => {
-        const router = useRouter()
         const {baseAppURL} = useURL()
+        const appState = useAppState()
         const lastNonSettingsRef = useRef<string | null>(null)
 
         useEffect(() => {
-            if (!router.pathname.includes("/settings")) {
-                lastNonSettingsRef.current = router.asPath
+            if (!appState.pathname.includes("/settings")) {
+                lastNonSettingsRef.current = appState.asPath
             }
-        }, [router.asPath])
+        }, [appState.asPath, appState.pathname])
 
         const currentApp = useAtomValue(currentAppAtom)
         const {project, projects} = useProjectData()
@@ -93,7 +92,7 @@ const AppWithVariants = memo(
                 )}
                 <Layout hasSider className={classes.layout}>
                     <SidebarIsland
-                        showSettingsView={router.pathname.endsWith("/settings")}
+                        showSettingsView={appState.pathname.endsWith("/settings")}
                         lastPath={lastNonSettingsRef.current || baseAppURL}
                     />
 
@@ -103,8 +102,7 @@ const AppWithVariants = memo(
                                 appTheme={appTheme}
                                 appName={currentApp?.app_name || ""}
                             />
-                            {isAppRoute &&
-                            getProjectValues().projectId === DEFAULT_UUID ? null : isAppRoute ? (
+                            {isAppRoute && !getProjectValues().projectId ? null : isAppRoute ? (
                                 <OldAppDeprecationBanner>
                                     <CustomWorkflowBanner />
                                     <Content
@@ -184,19 +182,14 @@ const App: React.FC<LayoutProps> = ({children}) => {
         ref: ref as RefObject<HTMLElement>,
         box: "border-box",
     })
-    // const project = useAtomValue(projectAtom)
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
-    const router = useRouter()
+    const appState = useAppState()
+    const query = useAppQuery()
 
-    // const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
-    const {token} = theme.useToken()
     const [, contextHolder] = Modal.useModal()
-    // useFetchEvaluatorsData()
     const posthog = usePostHogAg()
     const [hasCapturedTheme, setHasCapturedTheme] = useLocalStorage("hasCapturedTheme", false)
-
-    // const userProfile = useMemo(() => !loadingProfile && !!user, [loadingProfile, user])
 
     useEffect(() => {
         if (!hasCapturedTheme) {
@@ -223,47 +216,47 @@ const App: React.FC<LayoutProps> = ({children}) => {
     }, [appTheme])
 
     const {isHumanEval, isPlayground, isAppRoute, isAuthRoute} = useMemo(() => {
+        const pathname = appState.pathname
+        const asPath = appState.asPath
+        const selectedEvaluation = Array.isArray(query.selectedEvaluation)
+            ? query.selectedEvaluation[0]
+            : query.selectedEvaluation
         return {
             isAuthRoute:
-                router.pathname.includes("/auth") ||
-                router.pathname.includes("/post-signup") ||
-                router.pathname.includes("/workspaces"),
-            isAppRoute: router.asPath.startsWith(baseAppURL),
+                pathname.includes("/auth") ||
+                pathname.includes("/post-signup") ||
+                pathname.includes("/workspaces"),
+            isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
             isPlayground:
-                router.pathname.includes("/playground") ||
-                router.pathname.includes("/evaluations/results"),
+                pathname.includes("/playground") || pathname.includes("/evaluations/results"),
             isHumanEval:
-                router.pathname.includes("/evaluations/single_model_test") ||
-                router.query.selectedEvaluation === "human_annotation",
+                pathname.includes("/evaluations/single_model_test") ||
+                selectedEvaluation === "human_annotation",
         }
-    }, [router.pathname, router.query, router.asPath, baseAppURL])
+    }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
 
     return (
         <Suspense fallback={<Skeleton />}>
-            {typeof window === "undefined" ? null : (
-                <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
-                    {isAuthRoute ? (
-                        <Layout className={classes.layout}>
-                            <ErrorBoundary FallbackComponent={ErrorFallback}>
-                                {children}
-                                {contextHolder}
-                            </ErrorBoundary>
-                        </Layout>
-                    ) : (
-                        <ProtectedRoute>
-                            <AppWithVariants
-                                isAppRoute={isAppRoute}
-                                classes={classes}
-                                appTheme={appTheme}
-                                isPlayground={isPlayground}
-                                isHumanEval={isHumanEval}
-                            >
-                                {children}
-                                {contextHolder}
-                            </AppWithVariants>
-                        </ProtectedRoute>
-                    )}
-                </ThemeProvider>
+            {typeof window === "undefined" ? null : isAuthRoute ? (
+                <Layout className={classes.layout}>
+                    <ErrorBoundary FallbackComponent={ErrorFallback}>
+                        {children}
+                        {contextHolder}
+                    </ErrorBoundary>
+                </Layout>
+            ) : (
+                <ProtectedRoute>
+                    <AppWithVariants
+                        isAppRoute={isAppRoute}
+                        classes={classes}
+                        appTheme={appTheme}
+                        isPlayground={isPlayground}
+                        isHumanEval={isHumanEval}
+                    >
+                        {children}
+                        {contextHolder}
+                    </AppWithVariants>
+                </ProtectedRoute>
             )}
         </Suspense>
     )

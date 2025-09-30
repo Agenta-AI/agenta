@@ -21,27 +21,7 @@ export {
 } from "./variants"
 
 // UI state mutations
-export {
-    setSelectedVariantMutationAtom,
-    toggleVariantDisplayMutationAtom,
-    setDisplayedVariantsMutationAtom,
-} from "./mutations"
-
-// Enhanced variant mutations (split into separate files)
-export {
-    parameterUpdateMutationAtom,
-    updateVariantPropertyEnhancedMutationAtom,
-    deleteGenerationInputRowMutationAtom,
-    duplicateGenerationInputRowMutationAtom,
-    createVariantMutationAtom,
-    removeVariantFromSelectionMutationAtom,
-    clearAllRunsMutationAtom,
-    // Prompt-scoped mutations
-    addPromptMessageMutationAtomFamily,
-    deletePromptMessageMutationAtomFamily,
-    addPromptToolMutationAtomFamily,
-    type ConfigValue,
-} from "./enhancedVariantMutations"
+export {toggleVariantDisplayMutationAtom, setDisplayedVariantsMutationAtom} from "./mutations"
 
 // Property-level selectors for optimized subscriptions
 // Prompt-related selectors
@@ -55,7 +35,6 @@ export {variantOptionsAtomFamily} from "./optionsSelectors"
 
 // Generation-related selectors
 export {
-    inputRowIdsAtomFamily,
     generationRowIdsAtom,
     generationResultAtomFamily,
     generationHeaderDataAtomFamily,
@@ -79,39 +58,25 @@ export {
     variantsHasDataAtom,
     variantsErrorAtom,
     variantRevisionsLoadableFamily,
-    preloadVariantRevisionsAtom,
     type VariantUpdate,
 } from "./loadable"
 
 // Dirty state management (derived atoms)
 export {promptsDirtyAtomFamily, variantIsDirtyAtomFamily} from "./dirtyState"
 
-// Revision-local editable state (prompts) and memoized transforms
-export {metadataVersionAtom, variantIsCustomAtomFamily} from "./revisionLocals"
-
 // Variant CRUD operations
-export {
-    addVariantMutationAtom,
-    saveVariantMutationAtom,
-    deleteVariantMutationAtom,
-    batchVariantOperationsMutationAtom,
-} from "./variantCrud"
+export {saveVariantMutationAtom, deleteVariantMutationAtom} from "./variantCrud"
 
 // App creation mutations
 export {
     createAppMutationAtom,
-    createAppAndRedirectMutationAtom,
     ServiceType,
     type CreateAppParams,
     type AppCreationResult,
 } from "./appCreationMutations"
 
 // Test execution
-export {
-    cancelTestsMutationAtom,
-    clearTestResultsMutationAtom,
-    testStatusAtomFamily,
-} from "./testExecution"
+export {cancelTestsMutationAtom} from "./testExecution"
 
 // Web worker integration (re-export from newPlayground surface)
 export {
@@ -123,13 +88,7 @@ export {
 } from "@/oss/state/newPlayground/mutations/webWorkerIntegration"
 
 // URL synchronization and derived state
-export {
-    urlRevisionsAtom,
-    urlSyncBypassAtom,
-    userSaveStateAtom,
-    clearUserSaveFlagsAtom,
-    updateUrlRevisionsAtom,
-} from "./urlSync"
+export {urlRevisionsAtom} from "./urlSync"
 
 // App-level configuration
 export {appChatModeAtom} from "./app"

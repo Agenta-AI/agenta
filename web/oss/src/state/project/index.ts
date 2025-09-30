@@ -8,9 +8,7 @@ import {ProjectsResponse} from "@/oss/services/project/types"
 
 import {getOrgValues} from "../org"
 
-import {projectAtom, projectIdAtom} from "./selectors/project"
-
-export const DEFAULT_UUID = "00000000-0000-0000-0000-000000000000"
+import {projectAtom, projectIdAtom, resetProjectDataAtom} from "./selectors/project"
 
 export const getProjectValues = () => {
     const store = getDefaultStore()
@@ -26,7 +24,7 @@ export const getProjectValues = () => {
     const project = store.get(projectAtom)
 
     const projectId = store.get(projectIdAtom)
-    const isProjectId = !!projectId && projectId !== DEFAULT_UUID
+    const isProjectId = !!projectId
 
     const isLoading = queryState?.status === "pending"
     return {
@@ -40,7 +38,5 @@ export const getProjectValues = () => {
 
 export const resetProjectData = () => {
     const store = getDefaultStore()
-    const queryClient = store.get(queryClientAtom)
-    queryClient.removeQueries({queryKey: ["projects"]})
-    store.set(projectIdAtom, null)
+    store.set(resetProjectDataAtom, null)
 }

@@ -1,9 +1,10 @@
 import {useCallback} from "react"
 
 import {useSetAtom} from "jotai"
-
 import {useAppId} from "@/oss/hooks/useAppId"
-import {playgroundNavigationRequestAtom} from "@/oss/state/variant/atoms/navigation"
+import useURL from "@/oss/hooks/useURL"
+import {recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+import {useAppNavigation} from "@/oss/state/appState"
 
 interface VariantLike {
     id?: string
@@ -44,16 +45,38 @@ export const normalizeRevisionIds = (target?: PlaygroundTarget): string[] => {
  * Reusable navigation helper for redirecting to Playground.
  * Uses the global PlaygroundNavigator via jotai to centralize routing logic.
  */
+interface GoToPlaygroundOptions {
+    appId?: string | null
+}
+
 export const usePlaygroundNavigation = () => {
     const appId = useAppId()
-    const requestPlaygroundNav = useSetAtom(playgroundNavigationRequestAtom)
+    const {push} = useAppNavigation()
+    const {baseAppURL} = useURL()
+    const setRecentAppId = useSetAtom(recentAppIdAtom)
 
     const goToPlayground = useCallback(
-        (target?: PlaygroundTarget) => {
-            const selectedKeys = normalizeRevisionIds(target)
-            requestPlaygroundNav(selectedKeys.length > 0 ? {appId, selectedKeys} : {appId})
+        (target?: PlaygroundTarget, options?: GoToPlaygroundOptions) => {
+            const resolvedAppId = options?.appId ?? appId
+            if (!resolvedAppId) return
+            const selectedKeys = Array.from(
+                new Set(
+                    normalizeRevisionIds(target).filter(
+                        (id) => typeof id === "string" && id.trim().length > 0,
+                    ),
+                ),
+            )
+            if (options?.appId) {
+                setRecentAppId(options.appId)
+            }
+            const querySuffix =
+                selectedKeys.length > 0
+                    ? `?playgroundRevisions=${encodeURIComponent(JSON.stringify(selectedKeys))}`
+                    : ""
+
+            push(`${baseAppURL}/${resolvedAppId}/playground${querySuffix}`)
         },
-        [appId, requestPlaygroundNav],
+        [appId, baseAppURL, push, setRecentAppId],
     )
 
     return {goToPlayground}

@@ -2,9 +2,11 @@ import {useEffect, useMemo} from "react"
 
 import {Alert} from "antd"
 import clsx from "clsx"
+import deepEqual from "fast-deep-equal"
 import {useAtomValue, useSetAtom} from "jotai"
+import {selectAtom} from "jotai/utils"
 
-import {variantIsCustomAtomFamily} from "@/oss/components/Playground/state/atoms"
+import {currentAppContextAtom} from "@/oss/state/newApps"
 import {
     promptsAtomFamily,
     promptVariablesByPromptAtomFamily,
@@ -28,6 +30,7 @@ import ToolsRenderer from "./ToolsRenderer"
  * @component
  */
 
+const isCustomAtom = selectAtom(currentAppContextAtom, (ctx) => ctx.appType === "custom", deepEqual)
 const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseContentProps> = ({
     variantId,
     promptId,
@@ -52,7 +55,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
         ),
     ) as string[]
     const hasVariable = (promptVars?.length || 0) > 0
-    const isCustom = useAtomValue(variantIsCustomAtomFamily(variantId))
+    const isCustom = useAtomValue(isCustomAtom)
 
     return (
         <div className={clsx("flex flex-col gap-2 pt-3", className)} {...props}>

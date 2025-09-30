@@ -8,10 +8,11 @@ import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
     revisionListAtom,
     saveVariantMutationAtom,
-    createVariantMutationAtom,
     selectedVariantsAtom,
     variantByRevisionIdAtomFamily,
 } from "@/oss/components/Playground/state/atoms"
+
+import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
 
 import {CommitVariantChangesModalProps, SelectedCommitType} from "./assets/types"
 const CommitVariantChangesModalContent = dynamic(

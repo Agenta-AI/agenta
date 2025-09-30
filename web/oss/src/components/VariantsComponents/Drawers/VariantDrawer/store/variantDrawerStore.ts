@@ -77,7 +77,6 @@ export const clearVariantDrawerAtom = atom(null, (_get, set) => {
 
 // Action to update only the selected revision inside the open drawer
 export const setVariantDrawerSelectedIdAtom = atom(null, (_get, set, newId: string | undefined) => {
-    if (!newId) return
     set(variantDrawerAtom, (draft) => {
         draft.selectedVariantId = newId
     })

@@ -1,10 +1,6 @@
-import {atom} from "jotai"
 import {loadable, atomFamily, selectAtom} from "jotai/utils"
 
 import {variantsQueryAtom, variantRevisionsQueryFamily} from "@/oss/state/variant/atoms/fetcher"
-
-// Import variant atom family
-import {selectedVariantsAtom} from "./core"
 
 /**
  * Phase 6.1: Non-Suspending Query Atoms
@@ -27,22 +23,6 @@ export const variantsErrorAtom = selectAtom(
 export const variantRevisionsLoadableFamily = atomFamily((variantId: string) =>
     loadable(variantRevisionsQueryFamily(variantId)),
 )
-
-/**
- * Phase 6.2: Eager Loading Patterns
- * Atoms that preload related data for better UX
- */
-
-// Eager load revisions for selected variants
-export const preloadVariantRevisionsAtom = atom(null, (get, set) => {
-    const selectedVariants = get(selectedVariantsAtom)
-
-    // Preload revisions for all selected variants
-    selectedVariants.forEach((variantId) => {
-        // Trigger loading by accessing the query family atom
-        set(variantRevisionsQueryFamily(variantId))
-    })
-})
 
 /**
  * Phase 6.3: Optimistic UI Updates

@@ -278,6 +278,7 @@ def rag_workflow(query:str, user_id:str):
      }
 ```
 
+
 ## Troubleshooting
 
 ### Payload Too Large
@@ -285,3 +286,32 @@ def rag_workflow(query:str, user_id:str):
 If your collector receives a **413** response when posting to `/otlp/v1/traces`, the batch size is too large. Agenta accepts batches up to **5 MB** by default.
 
 Reduce the batch size or enable compression in your collector configuration to keep requests under this limit.
+
+### Missing Traces in Serverless Functions
+
+If you're running Agenta observability in short-lived environments like **AWS Lambda**, **Vercel Functions**, **Cloudflare Workers**, or **Google Cloud Functions**, you may notice that some traces are missing from the Agenta dashboard.
+
+**Why this happens:**
+
+OpenTelemetry uses background processes to batch and export spans for efficiency. However, serverless functions terminate abruptly, often before these background processes can finish sending the trace data to Agenta. The spans get buffered but never exported.
+
+**Solution: Force Flush Before Function Exit**
+
+Use OpenTelemetry's `force_flush()` method to ensure all spans are exported before your function terminates:
+
+```python
+import agenta as ag
+from opentelemetry.trace import get_tracer_provider
+
+# Initialize once (outside handler for warm containers)
+ag.init()
+
+def handler(event, context):
+    try:
+        # Your instrumented application logic
+        result = your_instrumented_function()
+        return result
+    finally:
+        # Force export all pending spans before function exits
+        get_tracer_provider().force_flush()
+```

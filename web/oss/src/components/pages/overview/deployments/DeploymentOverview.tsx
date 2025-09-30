@@ -1,54 +1,43 @@
 import {useCallback} from "react"
 
-import {Skeleton, Typography} from "antd"
+import {Typography} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
 
-import DeploymentCard from "@/oss/components/DeploymentCard"
+import EnvironmentCardRow from "@/oss/components/DeploymentCard/EnvironmentCardRow"
 import useURL from "@/oss/hooks/useURL"
 import type {Environment} from "@/oss/lib/Types"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 
 const {Title} = Typography
 
-interface WrappedDeploymentCardProps {
-    env: Environment
-}
-const WrappedDeploymentCard = ({env}: WrappedDeploymentCardProps) => {
-    const {appURL} = useURL()
-    const router = useRouter()
-    const handleClick = useCallback(() => {
-        router.push({
-            pathname: `${appURL}/deployments`,
-            query: {
-                selectedEnvName: env.name,
-            },
-        })
-    }, [env?.name])
-
-    return <DeploymentCard onClick={handleClick} env={env} />
-}
-
 const DeploymentOverview = () => {
     const {environments, isEnvironmentsLoading: isDeploymentLoading} = useEnvironments()
+    const {appURL} = useURL()
+    const router = useRouter()
+
+    const handleCardClick = useCallback(
+        (env: Environment) => {
+            router.push({
+                pathname: `${appURL}/deployments`,
+                query: {
+                    selectedEnvName: env.name,
+                },
+            })
+        },
+        [router, appURL],
+    )
 
     return (
         <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
             <Title>Deployment</Title>
 
-            {isDeploymentLoading ? (
-                <div className="flex gap-2">
-                    {Array.from({length: 3}).map((_: undefined, index: number) => (
-                        <Skeleton key={index} />
-                    ))}
-                </div>
-            ) : (
-                <div className={clsx(["flex gap-4"])}>
-                    {environments.map((env: Environment, index: number) => {
-                        return <WrappedDeploymentCard key={index} env={env} />
-                    })}
-                </div>
-            )}
+            <EnvironmentCardRow
+                className="flex gap-4"
+                environments={environments}
+                isLoading={isDeploymentLoading}
+                onCardClick={handleCardClick}
+            />
         </div>
     )
 }

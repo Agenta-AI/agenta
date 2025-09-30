@@ -5,10 +5,7 @@ import {ArrowCounterClockwise, Copy, PencilSimple, Trash} from "@phosphor-icons/
 import {Button, Dropdown, MenuProps, message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {
-    selectedVariantsAtom,
-    removeVariantFromSelectionMutationAtom,
-} from "@/oss/components/Playground/state/atoms"
+import {selectedVariantsAtom} from "@/oss/components/Playground/state/atoms"
 import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
 import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
@@ -16,6 +13,7 @@ import {
     clearLocalTransformedPromptsForRevisionAtomFamily,
 } from "@/oss/state/newPlayground/core/prompts"
 
+import {removeVariantFromSelectionMutationAtom} from "../../../state/atoms/variantCrudMutations"
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
 
 import {PlaygroundVariantHeaderMenuProps} from "./types"

@@ -28,6 +28,44 @@ type DeploymentConfirmationModalProps = {
     actionType?: "deploy" | "revert"
 } & ComponentProps<typeof Modal>
 
+const DeploymentConfirmationModalContent = ({
+    variant,
+    note,
+    setNote,
+    isDeploy,
+    displayNote = true,
+    envName,
+    actionType = "deploy",
+}: DeploymentConfirmationModalProps) => {
+    const confirmationText =
+        actionType === "deploy"
+            ? "Are you sure you want to deploy"
+            : "Are you sure you want to revert?"
+    return (
+        <Space direction="vertical" size={16} className="w-full">
+            <Space direction="vertical" size={4}>
+                <Typography.Text>{confirmationText}</Typography.Text>
+
+                {variant && (
+                    <VariantDetailsWithStatus
+                        variantName={variant?.variantName || variant?.name || ""}
+                        revision={variant?.revision}
+                        variant={variant}
+                        className="font-medium"
+                    />
+                )}
+            </Space>
+            {displayNote && (
+                <CommitNote
+                    note={note || ""}
+                    setNote={setNote || (() => {})}
+                    text={`${isDeploy ? "Deploy" : "Revert"} message`}
+                />
+            )}
+        </Space>
+    )
+}
+
 const DeploymentConfirmationModal = ({
     variant,
     note,
@@ -40,9 +78,6 @@ const DeploymentConfirmationModal = ({
     const classes = useStyles()
     const isDeploy = actionType === "deploy"
     const actionText = isDeploy ? "Deploy" : "Revert"
-    const confirmationText = isDeploy
-        ? "Are you sure you want to deploy"
-        : "Are you sure you want to revert?"
 
     return (
         <EnhancedModal
@@ -63,27 +98,14 @@ const DeploymentConfirmationModal = ({
             width={520}
             {...props}
         >
-            <Space direction="vertical" size={16} className="w-full">
-                <Space direction="vertical" size={4}>
-                    <Typography.Text>{confirmationText}</Typography.Text>
-
-                    {variant && (
-                        <VariantDetailsWithStatus
-                            variantName={variant?.variantName || variant?.name || ""}
-                            revision={variant?.revision}
-                            variant={variant}
-                            className="font-medium"
-                        />
-                    )}
-                </Space>
-                {displayNote && (
-                    <CommitNote
-                        note={note || ""}
-                        setNote={setNote || (() => {})}
-                        text={`${actionText} message`}
-                    />
-                )}
-            </Space>
+            <DeploymentConfirmationModalContent
+                variant={variant}
+                note={note}
+                setNote={setNote}
+                isDeploy={isDeploy}
+                envName={envName}
+                actionType={actionType}
+            />
         </EnhancedModal>
     )
 }

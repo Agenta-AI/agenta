@@ -1,9 +1,10 @@
 import {getDefaultStore} from "jotai"
 import {eagerAtom} from "jotai-eager"
 
-import {recentAppIdAtom, routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
+import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {selectedOrgAtom} from "@/oss/state/org/selectors/org"
-import {projectIdAtom} from "@/oss/state/project/selectors/project"
+
+import {recentAppIdAtom} from "../app"
 
 export interface URLState {
     appId: string
@@ -15,38 +16,50 @@ export interface URLState {
     baseProjectURL: string
     projectURL: string
     baseAppURL: string
+    recentlyVisitedAppURL: string
     appURL: string
 }
 
 export const urlAtom = eagerAtom<URLState>((get) => {
+    const snapshot = get(appStateSnapshotAtom)
     const selectedOrg = get(selectedOrgAtom)
-    const projectId = get(projectIdAtom) as string | null
-    const routerAppId = get(routerAppIdAtom)
-    const recentAppId = get(recentAppIdAtom)
+    const recentlyVisitedAppId = get(recentAppIdAtom)
+    const {workspaceId, projectId, appId} = snapshot
 
     const workspaceName = selectedOrg?.name ?? ""
-    const workspaceId = selectedOrg?.id ?? ""
-    const appId = (routerAppId ?? recentAppId ?? "") || ""
+    const resolvedWorkspaceId = workspaceId ?? selectedOrg?.id ?? ""
 
     const baseOrgURL = "/w"
     // Build URLs with workspace id (not name)
-    const orgURL = workspaceId ? `${baseOrgURL}/${workspaceId}` : ""
-    const baseProjectURL = workspaceId ? `${orgURL}/p` : ""
-    const projectURL = workspaceId && projectId ? `${baseProjectURL}/${projectId}` : ""
-    const baseAppURL = workspaceId && projectId ? `${projectURL}/apps` : ""
-    const appURL = workspaceId && projectId && appId ? `${baseAppURL}/${appId}` : ""
+    const orgURL = resolvedWorkspaceId
+        ? `${baseOrgURL}/${encodeURIComponent(resolvedWorkspaceId)}`
+        : ""
+    const baseProjectURL = resolvedWorkspaceId ? `${orgURL}/p` : ""
+    const projectURL =
+        resolvedWorkspaceId && projectId ? `${baseProjectURL}/${encodeURIComponent(projectId)}` : ""
+    const baseAppURL = resolvedWorkspaceId && projectId ? `${projectURL}/apps` : ""
+    const appURL =
+        resolvedWorkspaceId && projectId && appId
+            ? `${baseAppURL}/${encodeURIComponent(appId)}`
+            : ""
+
+    const recentlyVisitedAppURL =
+        resolvedWorkspaceId && projectId && recentlyVisitedAppId
+            ? `${baseAppURL}/${encodeURIComponent(recentlyVisitedAppId)}`
+            : ""
 
     return {
-        appId,
-        workspaceId,
+        appId: appId ?? "",
+        workspaceId: resolvedWorkspaceId,
         workspaceName,
-        projectId,
+        projectId: projectId ?? null,
         baseOrgURL,
         orgURL,
         baseProjectURL,
         projectURL,
         baseAppURL,
         appURL,
+        recentlyVisitedAppURL,
     }
 })
 
@@ -62,6 +75,8 @@ export interface WaitForUrlOptions {
     requireProject?: boolean
     // Wait until appId-backed URLs are available
     requireApp?: boolean
+    // Maximum time to wait before resolving with a best-effort URL
+    timeoutMs?: number
 }
 
 const satisfies = (state: URLState, opts: WaitForUrlOptions) => {
@@ -83,13 +98,19 @@ export const waitForValidURL = (options: WaitForUrlOptions = {}): Promise<URLSta
 
         const check = () => {
             const current = store.get(urlAtom)
+            if (process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true") {
+                console.log("[url] waitForValidURL:tick", {
+                    time: new Date().toISOString(),
+                    current,
+                    options,
+                })
+            }
             if (satisfies(current, options)) {
                 unsub()
                 resolve(current)
             }
         }
 
-        // Subscribe then check immediately in case it's already ready
         unsub = store.sub(urlAtom, check)
         check()
     })

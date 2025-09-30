@@ -1,8 +1,7 @@
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
 
 import {detectChatVariantFromOpenAISchema} from "@/oss/lib/shared/variant/genericTransformer"
-import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appUriInfoAtom, getSpecLazy} from "@/oss/state/variant/atoms/fetcher"
 
 import {revisionListAtom} from "./variants"
@@ -40,16 +39,4 @@ export const appTypeAtom = selectAtom(
     appChatModeAtom,
     (isChat): AppType => (isChat === undefined ? undefined : isChat ? "chat" : "completion"),
     (a, b) => a === b,
-)
-
-/**
- * Minimal mapping from revisionId to appId.
- * Currently single-app context; returns the router appId for any revision.
- */
-export const revisionAppIdAtomFamily = atomFamily((revisionId: string) =>
-    selectAtom(
-        routerAppIdAtom,
-        (appId) => appId,
-        (a, b) => a === b,
-    ),
 )

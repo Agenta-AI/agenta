@@ -6,7 +6,7 @@ import {SWRConfiguration} from "swr"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import {fetchAllEvaluatorConfigs} from "@/oss/services/evaluators"
-import {DEFAULT_UUID, projectIdAtom} from "@/oss/state/project"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {EvaluatorConfig} from "../../Types"
 
@@ -27,7 +27,7 @@ const useEvaluatorConfigs = <Preview extends boolean = false>({
     }, [projectId, appId])
 
     return useSWR<EvaluatorConfigResult<Preview>, any>(
-        !preview && appId && !!projectId && projectId !== DEFAULT_UUID
+        !preview && appId && !!projectId
             ? `/api/preview/evaluator_configs/?project_id=${projectId}&app_id=${appId}`
             : null,
         fetcher,

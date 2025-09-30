@@ -18,7 +18,7 @@ import {
     BaseResponse,
     User,
 } from "@/oss/lib/Types"
-import {DEFAULT_UUID, getProjectValues} from "@/oss/state/project"
+import {getProjectValues} from "@/oss/state/project"
 
 import {findCustomWorkflowPath, uriFixer} from "../lib/shared/variant"
 import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
@@ -39,7 +39,7 @@ export const axiosFetcher = (url: string) => axios.get(url).then((res) => res.da
 export async function fetchVariants(appId: string, ignoreAxiosError = false): Promise<Variant[]> {
     const {projectId} = getProjectValues()
 
-    if (!projectId || projectId === DEFAULT_UUID) {
+    if (!projectId) {
         return []
     }
 
