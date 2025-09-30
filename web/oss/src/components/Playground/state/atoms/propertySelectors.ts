@@ -7,22 +7,7 @@ import isEqual from "fast-deep-equal"
 import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
-import {appTypeAtom} from "./app"
 import {revisionListAtom} from "./variants"
-
-// Chat-related selectors are in generationProperties.ts. This file keeps only lightweight, generic selectors.
-
-/**
- * Optimized chat detection selector
- * Returns a boolean derived from revision metadata: isChatVariant || isChat
- */
-export const isChatVariantAtomFamily = atomFamily((revisionId: string) =>
-    atom((get) => {
-        // App-level determination; ignore per-revision computation
-        const appType = get(appTypeAtom)
-        return appType === "chat"
-    }),
-)
 
 /**
  * Atom family for selecting a variant by revision ID

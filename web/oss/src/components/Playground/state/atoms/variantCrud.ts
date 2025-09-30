@@ -27,16 +27,14 @@ import type {
     EnhancedVariant,
 } from "../types"
 
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
+
 import {selectedVariantsAtom} from "./core"
 import {parametersOverrideAtomFamily} from "./parametersOverride"
-import {updateUrlRevisionsAtom, userSaveStateAtom} from "./urlSync"
 import {revisionListAtom} from "./variants"
 
-import {
-    variantByRevisionIdAtomFamily,
-    waitForNewRevisionAfterMutationAtom,
-    invalidatePlaygroundQueriesAtom,
-} from "./index"
+import {variantByRevisionIdAtomFamily} from "./propertySelectors"
+import {invalidatePlaygroundQueriesAtom, waitForNewRevisionAfterMutationAtom} from "./queries"
 // Add variant mutation atom
 export const addVariantMutationAtom = atom(
     null,
@@ -166,8 +164,7 @@ export const addVariantMutationAtom = atom(
                     displayedVariantsAfterSwap: updatedVariants,
                 })
 
-                set(updateUrlRevisionsAtom, updatedVariants)
-                set(selectedVariantsAtom, updatedVariants)
+                void writePlaygroundSelectionToQuery(updatedVariants)
 
                 // Clear draft state for the base revision used to create the new variant
                 try {
@@ -266,19 +263,10 @@ export const saveVariantMutationAtom = atom(
 
             // Set user save flags using the writable atom for better reactivity
             // Use the variantId (not the revision ID) so the listener can find all revisions of this variant
-            const sessionVariantId = savedVariant.variantId || currentVariant.variantId || variantId
-            const timestamp = Date.now().toString()
-
-            // Update the atom which will also update session storage
-            set(userSaveStateAtom, {
-                userSavedVariant: sessionVariantId,
-                userSaveTimestamp: timestamp,
-            })
-
             // Invalidate and wait for new revision id using focused waiter
             await set(invalidatePlaygroundQueriesAtom)
             const waitResult = await set(waitForNewRevisionAfterMutationAtom, {
-                variantId: sessionVariantId,
+                variantId: savedVariant.variantId || currentVariant.variantId || variantId,
                 prevRevisionId: variantId,
             })
 
@@ -292,9 +280,8 @@ export const saveVariantMutationAtom = atom(
                 const updatedVariants = currentDisplayedVariants.map((id) =>
                     id === variantId ? newRevisionId : id,
                 )
-                // Update selected variants so the UI switches to the new revision immediately
-                set(selectedVariantsAtom, updatedVariants)
-                set(updateUrlRevisionsAtom, updatedVariants)
+                // Update selected variants by pushing the change to the URL listener
+                void writePlaygroundSelectionToQuery(updatedVariants)
                 duplicateChatHistoryForRevision({
                     get,
                     set,
@@ -381,8 +368,7 @@ export const deleteVariantMutationAtom = atom(
                                 (id: string) => id !== revisionId,
                             )
                             if (nextSelected.length === 0 && preferred) nextSelected = [preferred]
-                            ;(store as any).set(selectedVariantsAtom, nextSelected)
-                            ;(store as any).set(updateUrlRevisionsAtom, nextSelected)
+                            void writePlaygroundSelectionToQuery(nextSelected)
                             ;(store as any).set(drawerVariantIdAtom, nextSelected[0] ?? null)
                             message.success("Revision deleted successfully")
 
@@ -433,61 +419,5 @@ export const deleteVariantMutationAtom = atom(
                 error: String(backendDetail),
             }
         }
-    },
-)
-
-// Batch variant operations atom
-export const batchVariantOperationsMutationAtom = atom(
-    null,
-    async (
-        get,
-        set,
-        operations: {
-            type: "add" | "save" | "delete"
-            params: AddVariantParams | SaveVariantParams | DeleteVariantParams
-        }[],
-    ): Promise<VariantCrudResult[]> => {
-        const results: VariantCrudResult[] = []
-
-        for (const operation of operations) {
-            try {
-                let result: VariantCrudResult
-
-                switch (operation.type) {
-                    case "add":
-                        result = await set(
-                            addVariantMutationAtom,
-                            operation.params as AddVariantParams,
-                        )
-                        break
-                    case "save":
-                        result = await set(
-                            saveVariantMutationAtom,
-                            operation.params as SaveVariantParams,
-                        )
-                        break
-                    case "delete":
-                        result = await set(
-                            deleteVariantMutationAtom,
-                            operation.params as DeleteVariantParams,
-                        )
-                        break
-                    default:
-                        result = {
-                            success: false,
-                            error: `Unknown operation type: ${(operation as any).type}`,
-                        }
-                }
-
-                results.push(result)
-            } catch (error) {
-                results.push({
-                    success: false,
-                    error: error instanceof Error ? error.message : "Batch operation failed",
-                })
-            }
-        }
-
-        return results
     },
 )

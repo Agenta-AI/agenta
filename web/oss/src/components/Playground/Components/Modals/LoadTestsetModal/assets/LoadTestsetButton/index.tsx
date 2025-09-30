@@ -6,7 +6,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
-import {loadTestsetNormalizedMutationAtom} from "@/oss/state/newPlayground/generation/mutations"
+import {loadTestsetNormalizedMutationAtom} from "@/oss/components/Playground/state/atoms/mutations/testset/loadNormalized"
 
 import {LoadTestsetButtonProps} from "./types"
 

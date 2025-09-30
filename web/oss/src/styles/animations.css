@@ -1,0 +1,61 @@
+/* Human eval specific styles */
+/* Highlight animation for selected table row */
+@keyframes highlight {
+    0% {
+        background-color: rgba(22, 119, 255, 0.1);
+    }
+    50% {
+        background-color: rgba(22, 119, 255, 0.2);
+    }
+    100% {
+        background-color: transparent;
+    }
+}
+
+.highlight-row {
+    animation: highlight 2s ease-out;
+}
+
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 7px rgba(255, 82, 82, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 82, 82, 0);
+    }
+}
+
+@keyframes colorChange {
+    0%,
+    25% {
+        stroke: #36cfc9;
+    }
+    26%,
+    100% {
+        stroke: #d6dee6;
+    }
+}
+
+@keyframes errorPulse {
+    0% {
+        background: rgba(220, 38, 38, 0.3);
+        transform: scale(1.02);
+    }
+    50% {
+        background: rgba(220, 38, 38, 0.2);
+    }
+    100% {
+        background: linear-gradient(
+            135deg,
+            rgba(220, 38, 38, 0.08) 0%,
+            rgba(220, 38, 38, 0.12) 100%
+        );
+        transform: scale(1);
+    }
+}

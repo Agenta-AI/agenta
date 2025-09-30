@@ -1,14 +1,5 @@
-import {SetStateAction} from "react"
-
 export interface useCustomWorkflowConfigProps {
     configureWorkflow?: boolean
-    setStatusData?: (
-        value: SetStateAction<{
-            status: string
-            details?: any
-            appId?: string
-        }>,
-    ) => void
     afterConfigSave?: (appConfig: {
         appName: string
         appUrl: string

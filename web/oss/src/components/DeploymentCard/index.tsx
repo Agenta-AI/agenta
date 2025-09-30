@@ -2,61 +2,30 @@ import type {ComponentProps} from "react"
 import {useMemo} from "react"
 
 import {Card, Space, Tag, Typography} from "antd"
-import {getDefaultStore} from "jotai"
-import {createUseStyles} from "react-jss"
+import {useAtomValue} from "jotai"
 
 import VariantNameCell from "@/oss/components/VariantNameCell"
-import {Environment, JSSTheme} from "@/oss/lib/Types"
+import {Environment} from "@/oss/lib/Types"
 import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms/fetcher"
 
 import EnvironmentTagLabel, {deploymentStatusColors} from "../EnvironmentTagLabel"
 
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    deploymentCard: {
-        cursor: "pointer",
-        width: "100%",
-        transition: "all 0.25s ease-in",
-        position: "relative",
-        "& .ant-card-body": {
-            padding: theme.paddingSM,
-            display: "flex",
-            flexDirection: "column",
-            gap: theme.paddingXS,
-            "&:before": {
-                display: "none",
-            },
-            "& > span.ant-typography:first-of-type": {
-                textTransform: "capitalize",
-            },
-        },
-        "&:hover": {
-            boxShadow: theme.boxShadowTertiary,
-            borderColor: "var(--hover-border-color)",
-        },
-    },
-}))
+import {useDeploymentCardStyles} from "./styles"
 
 type DeploymentCardProps = {
     env: Environment
     selectedEnv?: string
 } & ComponentProps<typeof Card>
 
-const store = getDefaultStore()
-const DeploymentCard = ({
-    env,
-    selectedEnv,
-    selectedDeployedVariant,
-    ...props
-}: DeploymentCardProps) => {
-    const classes = useStyles()
+const DeploymentCard = ({env, selectedEnv, ...props}: DeploymentCardProps) => {
+    const classes = useDeploymentCardStyles()
 
     const getBorderColor = (envName: string) =>
-        deploymentStatusColors[envName.toLowerCase()].textColor
+        deploymentStatusColors[envName.toLowerCase()]?.textColor
 
-    // Always pass a valid atom to Jotai hooks; fallback to a noop atom when no revisionId
-    const revision = useMemo(() => {
-        return store.get(deployedRevisionByEnvironmentAtomFamily((env as any)?.name))
-    }, [env])
+    const envName = env?.name ?? ""
+    const revisionAtom = useMemo(() => deployedRevisionByEnvironmentAtomFamily(envName), [envName])
+    const revision = useAtomValue(revisionAtom)
 
     const revisionId = revision?.id
 
@@ -89,7 +58,7 @@ const DeploymentCard = ({
             <Space className="justify-between">
                 <Typography.Text>Variant</Typography.Text>
                 {revisionId ? (
-                    <VariantNameCell revisionId={revisionId} showBadges={false} />
+                    <VariantNameCell revisionId={revisionId} showBadges={false} showStable />
                 ) : (
                     <Tag onClick={(e) => e.stopPropagation()}>No deployment</Tag>
                 )}
@@ -103,3 +72,5 @@ const DeploymentCard = ({
 }
 
 export default DeploymentCard
+
+export {default as DeploymentCardSkeleton, DEPLOYMENT_SKELETON_ENVIRONMENTS} from "./skeleton"

@@ -9,15 +9,12 @@ import {
     generationInputRowIdsAtom,
     generationRowIdsAtom,
 } from "@/oss/components/Playground/state/atoms/generationProperties"
+import {clearAllRunsMutationAtom} from "@/oss/components/Playground/state/atoms/utilityMutations"
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 
 import RunButton from "../../../../assets/RunButton"
 import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
-import {
-    generationHeaderDataAtomFamily,
-    clearAllRunsMutationAtom,
-    triggerWebWorkerTestAtom,
-} from "../../../../state/atoms"
+import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../../../state/atoms"
 import TestsetDrawerButton from "../../../Drawers/TestsetDrawer"
 import LoadTestsetButton from "../../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 
@@ -43,6 +40,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const runAllChat = useSetAtom(runAllChatAtom)
     const appType = useAtomValue(appTypeAtom)
     const completionRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
+
     const runTests = useCallback(() => {
         if (appType === "chat") runAllChat()
         else {
@@ -65,7 +63,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
         return () => {
             document.removeEventListener("keydown", listener, true)
         }
-    }, [playgroundAtoms.runTests, isRunning])
+    }, [runTests, isRunning])
 
     return (
         <section

@@ -8,7 +8,9 @@ import {OnChangePlugin} from "@lexical/react/LexicalOnChangePlugin"
 import {RichTextPlugin} from "@lexical/react/LexicalRichTextPlugin"
 import {Skeleton} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 
+import {markdownViewAtom} from "../state/assets/atoms"
 import type {EditorPluginsProps} from "../types"
 
 import MarkdownPlugin from "./markdown/markdownPlugin"
@@ -72,6 +74,8 @@ const EditorPlugins = ({
     tokens,
     additionalCodePlugins = [],
 }: EditorPluginsProps) => {
+    const markdown = useAtomValue(markdownViewAtom(id))
+
     return (
         <Suspense
             fallback={
@@ -85,9 +89,14 @@ const EditorPlugins = ({
             <RichTextPlugin
                 contentEditable={
                     <ContentEditable
-                        className={`editor-input relative outline-none min-h-[inherit] ${
-                            singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""
-                        } ${codeOnly ? "code-only" : ""}`}
+                        className={clsx(
+                            `editor-input relative outline-none min-h-[inherit] ${
+                                singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""
+                            } ${codeOnly ? "code-only" : ""}`,
+                            {
+                                "markdown-view": markdown,
+                            },
+                        )}
                     />
                 }
                 placeholder={

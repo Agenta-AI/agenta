@@ -2,15 +2,14 @@ import {useCallback, useMemo} from "react"
 
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {Table, Typography} from "antd"
+import {useAtomValue} from "jotai"
 import Image from "next/image"
-import {useRouter} from "next/router"
 
 import EmptyComponent from "@/oss/components/EmptyComponent"
-import {useAppId} from "@/oss/hooks/useAppId"
-import {useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
-import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
+import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
 import {DeploymentRevisions} from "@/oss/lib/Types"
+import {variantsLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {DeploymentRevisionWithVariant} from "../../atoms"
 
@@ -25,7 +24,8 @@ interface DeploymentTableProps {
     setSelectedVariantRevisionIdToRevert: React.Dispatch<React.SetStateAction<string>>
     envRevisions: DeploymentRevisions | undefined
     setIsSelectDeployVariantModalOpen: (value: React.SetStateAction<boolean>) => void
-    onOpenDrawer: (variantId: string) => void
+    onOpenUseApi: () => void
+    isLoading?: boolean
 }
 
 const DeploymentTable = ({
@@ -36,18 +36,23 @@ const DeploymentTable = ({
     setIsRevertModalOpen,
     setSelectedVariantRevisionIdToRevert,
     setIsSelectDeployVariantModalOpen,
-    onOpenDrawer,
+    onOpenUseApi,
 }: DeploymentTableProps) => {
-    const [_, setQueryRevision] = useQueryParam("revisions")
-    const router = useRouter()
-    const appId = useAppId()
-    const {appURL} = useURL()
+    const [, updateQuery] = useQuery()
+    const {goToPlayground} = usePlaygroundNavigation()
+    const variantsLoading = useAtomValue(variantsLoadingAtom)
 
-    const handleAssignRevisionId = useCallback((record: DeploymentRevisionWithVariant) => {
-        setQueryRevision(
-            buildRevisionsQueryParam([record.deployed_app_variant_revision ?? record.variant.id]),
-        )
-    }, [])
+    const handleAssignRevisionId = useCallback(
+        (record: DeploymentRevisionWithVariant) => {
+            const targetId = record.deployed_app_variant_revision ?? record.variant.id
+            if (targetId) {
+                updateQuery({revisionId: targetId, drawerType: "deployment"})
+            } else {
+                updateQuery({revisionId: undefined, drawerType: undefined})
+            }
+        },
+        [updateQuery],
+    )
 
     const initialColumns = useMemo(
         () =>
@@ -57,9 +62,9 @@ const DeploymentTable = ({
                 setSelectedVariantRevisionIdToRevert,
                 handleAssignRevisionId,
                 envRevisions,
-                router,
-                appId,
-                appURL,
+                onOpenInPlayground: goToPlayground,
+                onOpenUseApi,
+                isVariantLoading: isLoading || variantsLoading,
             }),
         [
             setSelectedRevisionRow,
@@ -67,9 +72,10 @@ const DeploymentTable = ({
             setSelectedVariantRevisionIdToRevert,
             revisions,
             envRevisions,
-            router,
-            appId,
-            appURL,
+            goToPlayground,
+            onOpenUseApi,
+            isLoading,
+            variantsLoading,
         ],
     )
 
@@ -93,8 +99,6 @@ const DeploymentTable = ({
                     setSelectedRevisionRow(record)
                     setSelectedVariantRevisionIdToRevert(record.deployed_app_variant_revision)
                     handleAssignRevisionId(record)
-                    const vid = record.deployed_app_variant_revision ?? record.variant?.id
-                    if (vid) onOpenDrawer(vid)
                 },
             })}
             locale={{

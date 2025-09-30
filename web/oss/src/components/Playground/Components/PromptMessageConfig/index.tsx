@@ -19,8 +19,8 @@ import {usePromptMessageConfig} from "../../hooks/usePromptMessageConfig"
 import {
     // updateGenerationDataPropertyMutationAtom,
     promptPropertyAtomFamily,
-    updateVariantPropertyEnhancedMutationAtom,
 } from "../../state/atoms"
+import {updateVariantPropertyEnhancedMutationAtom} from "../../state/atoms/propertyMutations"
 import SharedEditor from "../SharedEditor"
 
 import type {PromptMessageConfigProps} from "./types"
@@ -81,8 +81,6 @@ const PromptMessageConfig = ({
         messageId,
         rowId,
     })
-
-    console.log("optimizedMessage", optimizedMessage)
 
     // Prefer live message from generation entities to reflect mutations immediately
     // Prompt-only message resolution

@@ -1,9 +1,29 @@
-import {memo} from "react"
+import {memo, useEffect} from "react"
 
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import Router from "next/router"
+
+import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
+import {urlQuerySyncAtom} from "@/oss/state/url/test"
 
 const TraceDrawer = dynamic(
     () => import("@/oss/components/Playground/Components/Drawers/TraceDrawer/TraceDrawer"),
+    {ssr: false},
+)
+
+const SelectDeployVariantModalWrapper = dynamic(
+    () => import("@/oss/components/DeploymentsDashboard/modals/SelectDeployVariantModalWrapper"),
+    {ssr: false},
+)
+
+const DeploymentConfirmationModalWrapper = dynamic(
+    () => import("@/oss/components/DeploymentsDashboard/modals/DeploymentConfirmationModalWrapper"),
+    {ssr: false},
+)
+
+const DeploymentsDrawerWrapper = dynamic(
+    () => import("@/oss/components/DeploymentsDashboard/modals/DeploymentsDrawerWrapper"),
     {ssr: false},
 )
 
@@ -51,19 +71,99 @@ const DeleteVariantModalWrapper = dynamic(
     {ssr: false},
 )
 
-const PlaygroundNavigator = dynamic(
-    () => import("@/oss/components/AppGlobalWrappers/PlaygroundNavigator"),
-    {ssr: false},
-)
-
 const CustomWorkflowModalMount = dynamic(
     () => import("@/oss/components/Modals/CustomWorkflowModalMount"),
     {ssr: false},
 )
 
+const getHashFromAsPath = (asPath: string) => {
+    const hashIndex = asPath.indexOf("#")
+    if (hashIndex === -1) return undefined
+    return asPath.slice(hashIndex + 1)
+}
+
+const executeNavigationCommand = async (command: NavigationCommand) => {
+    if (typeof window === "undefined") return
+
+    const method = command.method ?? (command.type === "href" ? "push" : "replace")
+    const shallow = command.shallow ?? true
+
+    if (process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true") {
+        console.debug("[nav] execute", command)
+    }
+
+    if (command.type === "href") {
+        const action = method === "replace" ? Router.replace : Router.push
+        await action(command.href, undefined, {shallow})
+        return
+    }
+
+    const nextQuery: Record<string, any> = {...Router.query}
+    Object.entries(command.patch).forEach(([key, value]) => {
+        if (value === undefined) {
+            delete nextQuery[key]
+            return
+        }
+        if (Array.isArray(value)) {
+            if (value.length === 0) {
+                delete nextQuery[key]
+                return
+            }
+            nextQuery[key] = value
+            return
+        }
+        nextQuery[key] = value
+    })
+
+    const action = method === "replace" ? Router.replace : Router.push
+    const hash = command.preserveHash ? getHashFromAsPath(Router.asPath) : undefined
+    await action(
+        {
+            pathname: Router.pathname,
+            query: nextQuery,
+            ...(hash ? {hash} : {}),
+        },
+        undefined,
+        {shallow},
+    )
+}
+
+const NavigationCommandListener = () => {
+    const command = useAtomValue(navigationRequestAtom)
+    const resetNavigation = useSetAtom(navigationRequestAtom)
+
+    useEffect(() => {
+        if (!command) return
+
+        let cancelled = false
+
+        const run = async () => {
+            try {
+                await executeNavigationCommand(command)
+            } catch (error) {
+                console.error("Navigation command failed:", error)
+            } finally {
+                if (!cancelled) {
+                    resetNavigation(null)
+                }
+            }
+        }
+
+        void run()
+
+        return () => {
+            cancelled = true
+        }
+    }, [command, resetNavigation])
+
+    return null
+}
+
 const AppGlobalWrappers = () => {
+    useAtomValue(urlQuerySyncAtom)
     return (
         <>
+            <NavigationCommandListener />
             <TraceDrawer />
             <DeleteAppModalWrapper />
             <EditAppModalWrapper />
@@ -72,7 +172,9 @@ const AppGlobalWrappers = () => {
             <DeleteEvaluationModalWrapper />
             <DeployVariantModalWrapper />
             <DeleteVariantModalWrapper />
-            <PlaygroundNavigator />
+            <SelectDeployVariantModalWrapper />
+            <DeploymentConfirmationModalWrapper />
+            <DeploymentsDrawerWrapper />
             <CustomWorkflowModalMount />
         </>
     )

@@ -20,8 +20,6 @@ import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
 import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/newApps/selectors/apps"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-import {DEFAULT_UUID} from "../../project"
-
 // Utility: check if a string is a canonical UUID (v1–v5)
 const isUuid = (val: string): boolean =>
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val)
@@ -37,8 +35,7 @@ export const variantsQueryAtom = atomWithQuery<Variant[]>((get) => {
     const appId = routerAppId ?? get(recentAppIdAtom) ?? undefined
 
     // Enable query only when router app id is known to avoid fetching stale app data during app switches
-    const enabled =
-        !!routerAppId && routerAppId !== null && !!projectId && projectId !== DEFAULT_UUID
+    const enabled = !!routerAppId && routerAppId !== null && !!projectId
 
     return {
         queryKey: ["variants", appId, projectId],
@@ -83,7 +80,7 @@ export const variantRevisionsQueryFamily = atomFamily((variantId: string) =>
         const projectId = get(projectIdAtom)
         // Depend on variants query to ensure revisions refetch when variants change
         const variantsQuery = get(variantsQueryAtom)
-        const enabled = !!variantId && !!projectId && projectId !== DEFAULT_UUID
+        const enabled = !!variantId && !!projectId
         return {
             queryKey: ["variantRevisions", variantId, variantsQuery.dataUpdatedAt],
             queryFn: async () => {

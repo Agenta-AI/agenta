@@ -5,10 +5,12 @@ import {restrictToParentElement} from "@dnd-kit/modifiers"
 import {arrayMove, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue} from "jotai"
+
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
 import {usePlaygroundLayout} from "../../../hooks/usePlaygroundLayout"
-import {selectedVariantsAtom, updateUrlRevisionsAtom} from "../../../state/atoms"
+import {selectedVariantsAtom} from "../../../state/atoms"
 
 import VariantNavigationCard from "./assets/VariantNavigationCard"
 import type {PromptComparisonVariantNavigationProps} from "./types"
@@ -20,8 +22,6 @@ const PromptComparisonVariantNavigation = ({
 }: PromptComparisonVariantNavigationProps) => {
     const {displayedVariants} = usePlaygroundLayout()
     const selectedVariants = useAtomValue(selectedVariantsAtom)
-    const setSelectedVariants = useSetAtom(selectedVariantsAtom)
-    const updateUrlRevisions = useSetAtom(updateUrlRevisionsAtom)
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -48,13 +48,11 @@ const PromptComparisonVariantNavigation = ({
                     // Reorder the array
                     const reorderedRevisions = arrayMove(currentRevisionIds, oldIndex, newIndex)
 
-                    // Update both selectedVariantsAtom and urlRevisionsAtom to ensure display sync
-                    setSelectedVariants(reorderedRevisions)
-                    updateUrlRevisions(reorderedRevisions)
+                    void writePlaygroundSelectionToQuery(reorderedRevisions)
                 }
             }
         },
-        [selectedVariants, setSelectedVariants, updateUrlRevisions],
+        [selectedVariants],
     )
 
     return (

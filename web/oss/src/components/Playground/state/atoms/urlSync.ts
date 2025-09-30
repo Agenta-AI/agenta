@@ -1,14 +1,9 @@
 import {atom} from "jotai"
 
 import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
-import {selectedVariantsAtom, viewTypeAtom} from "./core"
-
-type UserSaveState = {
-    userSavedVariant: string
-    userSaveTimestamp: string
-    isRecentUserSave: boolean
-} | null
+import {selectedVariantsAtom} from "./core"
 
 /**
  * URL Synchronization and Variant Selection Atoms
@@ -42,64 +37,6 @@ export const urlRevisionsAtom = atom(
     },
 )
 
-// Atom to bypass URL synchronization (e.g., on evaluation pages)
-export const urlSyncBypassAtom = atom<boolean>(false)
-
-// Atom to track user save flags - writable atom for better reactivity
-export const userSaveStateAtom = atom<UserSaveState>(
-    // Initial state from session storage
-    (() => {
-        if (typeof window === "undefined") return null
-
-        const userSavedVariant = sessionStorage.getItem("agenta_user_saved_variant")
-        const userSaveTimestamp = sessionStorage.getItem("agenta_user_save_timestamp")
-        const isRecentUserSave =
-            userSaveTimestamp && Date.now() - parseInt(userSaveTimestamp) < 5000 // 5 seconds
-
-        return {
-            userSavedVariant,
-            userSaveTimestamp,
-            isRecentUserSave: Boolean(isRecentUserSave && userSavedVariant),
-        }
-    })(),
-    // Write function to update the atom and session storage
-    (get, set, update: {userSavedVariant: string; userSaveTimestamp: string} | null) => {
-        if (typeof window === "undefined") return
-
-        if (update) {
-            // Set session storage
-            sessionStorage.setItem("agenta_user_saved_variant", update.userSavedVariant)
-            sessionStorage.setItem("agenta_user_save_timestamp", update.userSaveTimestamp)
-
-            // Update atom state
-            const isRecentUserSave = Date.now() - parseInt(update.userSaveTimestamp) < 5000 // 5 seconds
-            set(userSaveStateAtom, {
-                userSavedVariant: update.userSavedVariant,
-                userSaveTimestamp: update.userSaveTimestamp,
-                isRecentUserSave: Boolean(isRecentUserSave && update.userSavedVariant),
-            })
-        } else {
-            // Clear session storage and atom state
-            sessionStorage.removeItem("agenta_user_saved_variant")
-            sessionStorage.removeItem("agenta_user_save_timestamp")
-            set(userSaveStateAtom, null)
-        }
-    },
-)
-
-// Removed deprecated computed atoms in favor of focused selectors and displayedVariantsAtom
-
-// Write-only atom to clear user save flags after processing
-export const clearUserSaveFlagsAtom = atom(null, (get, set) => {
-    // Use the writable userSaveStateAtom to clear flags
-    set(userSaveStateAtom, null)
-})
-
-// Write-only atom to update URL revisions
-export const updateUrlRevisionsAtom = atom(null, (get, set, revisions: string[]) => {
-    set(urlRevisionsAtom, revisions)
-})
-
 // Write-only atom to switch variant (handles both single and comparison mode)
 export const switchVariantAtom = atom(
     null,
@@ -124,10 +61,7 @@ export const switchVariantAtom = atom(
                 targetRevisionId: newVariantId,
                 displayedVariantsAfterSwap: updatedVariants,
             })
-
-            set(selectedVariantsAtom, updatedVariants)
-            set(urlRevisionsAtom, updatedVariants) // Keep URL in sync
-            set(viewTypeAtom, "comparison")
+            void writePlaygroundSelectionToQuery(updatedVariants)
         } else {
             // Single mode: Just switch to the new variant
             const updatedVariants = [newVariantId]
@@ -139,10 +73,7 @@ export const switchVariantAtom = atom(
                 targetRevisionId: newVariantId,
                 displayedVariantsAfterSwap: updatedVariants,
             })
-
-            set(selectedVariantsAtom, updatedVariants)
-            set(urlRevisionsAtom, updatedVariants) // Keep URL in sync
-            set(viewTypeAtom, "single")
+            void writePlaygroundSelectionToQuery(updatedVariants)
         }
     },
 )

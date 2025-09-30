@@ -10,11 +10,7 @@ import {getResponseLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {generationLogicalTurnIdsAtom as chatLogicalIdsAtom} from "@/oss/state/generation/compat"
 import {runStatusByRowRevisionAtom, inputRowIdsAtom} from "@/oss/state/generation/entities"
-import {
-    chatTurnAtomFamily,
-    rowResponsesForDisplayAtomFamily,
-} from "@/oss/state/generation/selectors"
-import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {rowResponsesForDisplayAtomFamily} from "@/oss/state/generation/selectors"
 import {
     loadingByRowRevisionAtomFamily,
     responseByRowRevisionAtomFamily,
@@ -136,8 +132,16 @@ export const generationInputRowIdsAtom = selectAtom(
 
         if (isChat === undefined) return []
         if (isChat) return ["row-__default__"]
-        if (!get(inputRowIdsAtom).length)
-            getDefaultStore().set(inputRowIdsAtom, [`row-${generateId()}`])
+
+        if (!get(inputRowIdsAtom).length) {
+            Promise.resolve().then(() => {
+                const store = getDefaultStore()
+                if ((store.get(inputRowIdsAtom) || []).length === 0) {
+                    store.set(inputRowIdsAtom, [`row-${generateId()}`])
+                }
+            })
+        }
+
         return get(inputRowIdsAtom)
     }),
     (ids) => ids,
@@ -208,36 +212,3 @@ export const generationTraceIdsAtom = atom((get) => {
     })
     return cleaned
 })
-
-/**
- * Session row IDs for the current view (chat mode):
- * - Uses the first displayed variant as the active revisionId
- * - Maps each logical id (from generationRowIdsAtom) to a session id: `turn-<revisionId>-<logicalId>`
- * - Returns an empty array when no revisionId is selected
- */
-export const sessionRowIdsAtom = selectAtom(
-    atom((get) => {
-        const displayedVariantIds = get(displayedVariantsAtom) || []
-        const revisionId = displayedVariantIds?.[0]
-        if (!revisionId) return [] as string[]
-
-        const logicalIds = (get(generationRowIdsAtom) as string[]) || []
-        return logicalIds.map((lid) => `turn-${revisionId}-${lid}`)
-    }),
-    (ids) => ids,
-    isEqual,
-)
-
-/**
- * Atom family for input row IDs, resolving mode from selected revision.
- */
-export const inputRowIdsAtomFamily = atomFamily(
-    (params: {variantId?: string; rowId?: string} = {}) =>
-        atom((get) => {
-            // Normalized-only: use inputRowIdsAtom for completion input rows
-            const ids = (get(inputRowIdsAtom) || []) as string[]
-            const inputRowId =
-                params.rowId && ids.includes(params.rowId) ? params.rowId : ids[0] || null
-            return {inputRowId, inputRowIds: ids}
-        }),
-)

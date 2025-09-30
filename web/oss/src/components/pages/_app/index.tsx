@@ -14,6 +14,7 @@ import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {useUser} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 import GlobalStateProvider from "@/oss/state/Providers"
+import ThemeContextBridge from "@/oss/ThemeContextBridge"
 
 import AppGlobalWrappers from "../../AppGlobalWrappers"
 import AppContextComponent from "../../AppMessageContext"
@@ -60,13 +61,15 @@ export default function App({Component, pageProps, ...rest}: AppProps) {
                             >
                                 <ThemeContextProvider>
                                     <AppComponent>
-                                        <PreloadQueries />
-                                        <Layout>
-                                            <AppContextComponent />
-                                            <Component {...pageProps} />
-                                            <NoMobilePageWrapper />
+                                        <ThemeContextBridge>
+                                            <PreloadQueries />
+                                            <Layout>
+                                                <AppContextComponent />
+                                                <Component {...pageProps} />
+                                                <NoMobilePageWrapper />
+                                            </Layout>
                                             <AppGlobalWrappers />
-                                        </Layout>
+                                        </ThemeContextBridge>
                                     </AppComponent>
                                 </ThemeContextProvider>
                             </CustomPosthogProvider>

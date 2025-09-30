@@ -16,12 +16,12 @@ import {
 } from "@/oss/state/customWorkflow/modalAtoms"
 import {customWorkflowValuesAtomFamily} from "@/oss/state/customWorkflow/modalAtoms"
 import {useProfileData} from "@/oss/state/profile"
+import {appCreationStatusAtom} from "@/oss/state/appCreation/status"
 
 import {useCustomWorkflowConfigProps} from "./types"
 
 const useCustomWorkflowConfig = ({
     setFetchingTemplate,
-    setStatusData,
     setStatusModalOpen,
     // configureWorkflow = true,
     appId: propsAppId,
@@ -46,11 +46,12 @@ const useCustomWorkflowConfig = ({
     const openModalAtom = useSetAtom(openCustomWorkflowModalAtom)
     const closeModalAtom = useSetAtom(closeCustomWorkflowModalAtom)
     const jotaiStore = useStore()
+    const setStatusData = useSetAtom(appCreationStatusAtom)
 
     // Hydration of initial values is handled centrally in openCustomWorkflowModalAtom
 
     const handleCustomWorkflowClick = async () => {
-        if (!setFetchingTemplate || !setStatusData || !setStatusModalOpen) return
+        if (!setFetchingTemplate || !setStatusModalOpen) return
         const latestValues = jotaiStore.get(customWorkflowValuesAtomFamily(modalAtomKey))
         closeModalAtom()
 
@@ -79,7 +80,7 @@ const useCustomWorkflowConfig = ({
                     })
                 }
 
-                setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
+                setStatusData((prev) => ({...prev, status, details, appId: appId || prev.appId}))
             },
         })
     }

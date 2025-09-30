@@ -5,7 +5,7 @@ import useSWR, {SWRResponse} from "swr"
 import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import {fetchAllEvaluators} from "@/oss/services/evaluators"
 import {useOrgData} from "@/oss/state/org"
-import {DEFAULT_UUID, getProjectValues} from "@/oss/state/project"
+import {getProjectValues} from "@/oss/state/project"
 
 import axios from "../../api/assets/axiosConfig"
 import {Evaluator} from "../../Types"
@@ -67,7 +67,7 @@ const useEvaluators = <Preview extends boolean = false>({
     }, [projectId, preview, queries])
 
     return useSWR<Preview extends true ? EvaluatorPreviewDto[] : Evaluator[]>(
-        projectId && projectId !== DEFAULT_UUID
+        projectId
             ? `/api${preview ? "/preview" : ""}/evaluators/?project_id=${projectId}&queries=${JSON.stringify(queries)}`
             : null,
         fetcher,

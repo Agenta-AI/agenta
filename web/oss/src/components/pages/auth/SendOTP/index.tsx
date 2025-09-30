@@ -3,8 +3,6 @@ import {useRef, useState} from "react"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Form, FormProps, Input, Typography} from "antd"
 import {OTPRef} from "antd/es/input/OTP"
-import {useSetAtom} from "jotai"
-import {useRouter} from "next/router"
 import {
     clearLoginAttemptInfo,
     consumeCode,
@@ -13,11 +11,7 @@ import {
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {isDemo} from "@/oss/lib/helpers/utils"
-import {selectedOrgIdAtom, useOrgData} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
-import {useProjectData} from "@/oss/state/project"
-import {waitForValidURL} from "@/oss/state/url"
+import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
@@ -32,12 +26,8 @@ const SendOTP = ({
     setIsLoginCodeVisible,
     isInvitedUser,
 }: SendOTPProps) => {
-    const {reset: resetProfileData} = useProfileData()
+    const {handleAuthSuccess} = usePostAuthRedirect()
     const classes = useStyles()
-    const router = useRouter()
-    const setSelectedOrgId = useSetAtom(selectedOrgIdAtom)
-    const {reset: resetOrgData} = useOrgData()
-    const {reset: resetProjectData} = useProjectData()
     const [isResendDisabled, setIsResendDisabled] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
 
@@ -88,37 +78,11 @@ const SendOTP = ({
             const response = await consumeCode({userInputCode: values.otp})
 
             if (response.status === "OK") {
-                await resetProfileData()
-                await resetOrgData()
-                await resetProjectData()
                 await clearLoginAttemptInfo()
                 setMessage({message: "Verification successful", type: "success"})
                 // Clear selected org via atom to keep storage in sync
-                setSelectedOrgId(null)
-                if (
-                    isDemo() &&
-                    response.createdNewRecipeUser &&
-                    response.user.loginMethods.length === 1
-                ) {
-                    if (isInvitedUser) {
-                        await router.push("/workspaces/accept?survey=true")
-                    } else {
-                        const redirect = isInvitedUser
-                            ? encodeURIComponent("/workspaces/accept?survey=true")
-                            : ""
-                        await router.push(
-                            redirect ? `/post-signup?redirect=${redirect}` : "/post-signup",
-                        )
-                    }
-                } else {
-                    if (isInvitedUser) {
-                        await router.push("/workspaces/accept")
-                    } else {
-                        // Ensure project-level URL is ready before redirecting
-                        const url = await waitForValidURL({requireProject: true})
-                        await router.push(url.baseAppURL)
-                    }
-                }
+                const {createdNewRecipeUser, user} = response
+                await handleAuthSuccess({createdNewRecipeUser, user}, {isInvitedUser})
             } else if (response.status === "INCORRECT_USER_INPUT_CODE_ERROR") {
                 const trileLeft =
                     response.maximumCodeInputAttempts - response.failedCodeInputAttemptCount

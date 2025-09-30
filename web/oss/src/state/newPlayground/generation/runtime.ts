@@ -2,7 +2,7 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 // Generic test result shape used by Playground UIs
-export type PlaygroundTestResult = {
+export interface PlaygroundTestResult {
     response?: any
     error?: string
     metadata?: any

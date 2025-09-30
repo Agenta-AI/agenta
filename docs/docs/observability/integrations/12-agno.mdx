@@ -1,0 +1,251 @@
+---
+title: Tracing and Observability for Agno with Agenta
+sidebar_label: Agno
+description: Trace and debug your Agno applications with Agenta's observability platform. Set up instrumentation and observability for Agno Agents for a better LLMOps workflows.
+category: Integrations
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+import GoogleColabButton from "@site/src/components/GoogleColabButton";
+```
+
+Learn how to connect **Agenta** with **Agno** for complete visibility into your AI agent performance, debugging capabilities, and execution observability.
+
+> **What is Agenta?** [Agenta](https://agenta.ai) is an open-source LLMOps platform designed to streamline the deployment, management, and scaling of large language models. It offers comprehensive observability, testing, and deployment capabilities for AI applications.
+
+> **What is Agno?** [Agno](https://github.com/agno-agi/agno) is a Python framework for building AI agents with tools, structured outputs, and efficient workflows. It provides a simple yet powerful interface for creating intelligent agents that can interact with external systems and perform complex tasks.
+
+
+<GoogleColabButton notebookPath="examples/jupyter/integrations/agno-integration.ipynb">
+  Open in Google Colaboratory
+</GoogleColabButton>
+
+
+Here are the steps to setup tracing and observability for Agno applications with Agenta.
+
+## Install Required Packages
+
+First, install the required dependencies:
+
+```bash
+pip install agenta openinference-instrumentation-agno agno
+```
+
+**Package Overview:**
+- `agenta`: The core Agenta SDK for prompt engineering and observability
+- `agno`: The Agno framework for building AI agents with tools
+- `openinference-instrumentation-agno`: Automatic instrumentation library for Agno operations
+
+## Setup and Configuration
+
+Initialize your environment and configure the Agenta SDK:
+
+```python
+import os
+import re
+from itertools import permutations
+import agenta as ag
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from openinference.instrumentation.agno import AgnoInstrumentor
+
+
+# Set up the environment
+os.environ["AGENTA_API_KEY"] = "your_agenta_api_key"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"  # Optional, defaults to the Agenta cloud API
+
+# Start the Agenta SDK
+ag.init()
+```
+
+> **What does `ag.init()` do?**
+> The `ag.init()` function initializes the Agenta SDK and sets up the necessary configuration for observability. It establishes connection to the Agenta platform, configures tracing and logging settings, and prepares the instrumentation context for your application.
+
+## Enable Agno Monitoring
+
+Initialize the OpenInference Agno instrumentation to automatically capture agent operations:
+
+```python
+AgnoInstrumentor().instrument()
+```
+
+## Complete Example of an Agno Application
+
+Here's a complete example showcasing a logistics dispatch agent with Agenta instrumentation:
+
+```python
+import os
+import re
+from itertools import permutations
+import agenta as ag
+from agno.agent import Agent
+from agno.models.openai import OpenAIChat
+from openinference.instrumentation.agno import AgnoInstrumentor
+
+
+# Set up the environment
+os.environ["AGENTA_API_KEY"] = "your_agenta_api_key"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"  # Optional, defaults to the Agenta cloud API
+
+# Start the Agenta SDK
+ag.init()
+AgnoInstrumentor().instrument()
+
+
+# Simulated logistics data
+tracking_data = {
+    "TRK10001": "In transit at Berlin Friedrichshain Distribution Center",
+    "TRK10002": "Delivered on 2025-06-14 at 18:32 in Charlottenburg",
+    "TRK10003": "Out for delivery — last scanned near Tempelhofer Feld",
+    "TRK10004": "Held at customs near Berlin Brandenburg Airport (BER)",
+    "TRK10005": "Awaiting pickup at Berlin Hauptbahnhof Parcel Station",
+}
+
+distance_matrix = {
+    "Warehouse": {"A": 10, "B": 15, "C": 20},
+    "A": {"Warehouse": 10, "B": 12, "C": 5},
+    "B": {"Warehouse": 15, "A": 12, "C": 8},
+    "C": {"Warehouse": 20, "A": 5, "B": 8},
+}
+
+driver_load = {"Alice": 2, "Bob": 3, "Charlie": 1}
+
+
+# Tool: TrackingTool
+class TrackingTool:
+    def __init__(self):
+        self.name = "TrackingTool"
+        self.description = "Provides shipment status updates given a tracking ID."
+
+    def run(self, query: str) -> str:
+        match = re.search(r"\bTRK\d+\b", query.upper())
+        if not match:
+            return "Please provide a valid tracking ID."
+
+        tid = match.group(0)
+        status = tracking_data.get(tid)
+        return f"Status for {tid}: {status}" if status else f"No information for {tid}."
+
+
+# Tool: RouteTool
+class RouteTool:
+    def __init__(self):
+        self.name = "RouteTool"
+        self.description = "Computes the best delivery route given a start and destinations."
+
+    def run(self, query: str) -> str:
+        m = re.search(r"from\s+([\w\s]+)\s+to\s+(.+)", query, re.IGNORECASE)
+        if not m:
+            return "Specify route as 'from <Origin> to <Dest1>, <Dest2>, ...'."
+
+        origin = m.group(1).strip()
+        dests = [d.strip() for d in re.split(r",| and ", m.group(2)) if d.strip()]
+        
+        if origin not in distance_matrix:
+            return f"Unknown origin: {origin}."
+        for loc in dests:
+            if loc not in distance_matrix:
+                return f"Unknown destination: {loc}."
+        
+        best_distance = float("inf")
+        best_order = None
+        for perm in permutations(dests):
+            total = 0
+            cur = origin
+            for nxt in perm:
+                total += distance_matrix[cur][nxt]
+                cur = nxt
+            if total < best_distance:
+                best_distance = total
+                best_order = perm
+        
+        route_plan = " → ".join([origin] + list(best_order)) if best_order else origin
+        return f"Optimal route: {route_plan} (Total distance: {best_distance} km)"
+
+
+# Tool: WorkloadBalancerTool
+class WorkloadBalancerTool:
+    def __init__(self):
+        self.name = "WorkloadBalancerTool"
+        self.description = "Assigns delivery locations to the least busy driver."
+        self.drivers = driver_load.copy()
+
+    def run(self, query: str) -> str:
+        m = re.search(r"deliver(?:y|ies)? to (.+)", query, re.IGNORECASE)
+        if not m:
+            return "Please specify delivery locations like 'deliver to A, B, C'."
+
+        locations = [
+            loc.strip() for loc in re.split(r",| and ", m.group(1)) if loc.strip()
+        ]
+        assignments = []
+        for loc in locations:
+            least_loaded = min(self.drivers, key=lambda d: self.drivers[d])
+            assignments.append(f"{loc} → {least_loaded}")
+            self.drivers[least_loaded] += 1
+        return "Delivery assignments:\n" + "\n".join(assignments)
+
+
+# Create the dispatch agent
+agent = Agent(
+    model=OpenAIChat(id="gpt-4o"),
+    description="You are a smart dispatch assistant for a logistics team.",
+    instructions=[
+        "Use TrackingTool for shipment queries.",
+        "Use RouteTool for route optimization.",
+        "Use WorkloadBalancerTool to assign deliveries to drivers.",
+        "Always return concise, formatted answers with relevant detail.",
+    ],
+    tools=[TrackingTool(), RouteTool(), WorkloadBalancerTool()],
+    show_tool_calls=False,
+)
+
+
+@ag.instrument()
+def handle_dispatch_request(query: str):
+    result = agent.run(query)
+    return result.content
+
+
+# Example usage
+if __name__ == "__main__":
+    response = handle_dispatch_request(
+        "Where is shipment TRK10001? Also, find the best route from Warehouse to A, B and C, "
+        "and assign deliveries to the least busy drivers."
+    )
+    print("Response:", response)
+```
+
+
+## View Traces in Agenta
+
+Once your application runs, access detailed execution traces through Agenta's dashboard. The observability data includes:
+
+- End-to-end agent workflow execution timeline
+- Agno agent initialization and tool configuration
+- Tool execution sequences and decision-making processes
+- LLM interactions and response generation
+- Tool call chains and data flow between tools
+- Performance metrics and execution duration
+
+<Image
+  style={{
+    display: "block",
+    margin: "20px",
+    textAlign: "center",
+  }}
+  img={require("/images/integrations/agenta-openinference-agno-trace.png")}
+  alt="Agenta dashboard showing Agno application trace with detailed execution steps" 
+  loading="lazy"
+/>
+
+The trace provides comprehensive visibility into your application's execution, helping you:
+- Debug complex agent interactions and tool usage patterns
+- Monitor tool execution performance and decision logic
+- Analyze LLM reasoning and response quality
+- Track multi-tool workflows and coordination
+
+## Next Steps
+
+For more detailed information about Agenta's observability features and advanced configuration options, visit the [Agenta Observability SDK Documentation](/observability/observability-sdk).

@@ -1,29 +1,17 @@
-"use client"
 import React from "react"
-import {memo, useCallback, useEffect, useRef, useState} from "react"
+import {memo, useCallback, useRef} from "react"
 
 import {Typography, Button, Splitter} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
-import useAnimationFrame from "use-animation-frame"
+import {useAtomValue} from "jotai"
 
-import LastTurnFooterControls from "@/oss/components/Playground/Components/ChatCommon/LastTurnFooterControls"
-import {
-    generationInputRowIdsAtom,
-    generationRowIdsAtom,
-} from "@/oss/components/Playground/state/atoms/generationProperties"
-// import {inputRowsByIdAtom} from "@/oss/state/generation/entities"
-// import {allInputRowIdsAtom} from "@/oss/state/generation/selectors"
-import {chatTurnIdsAtom, inputRowIdsAtom} from "@/oss/state/generation/entities"
-import {addChatTurnAtom} from "@/oss/state/newPlayground/chat/actions"
-import {runChatTurnAtom, cancelChatTurnAtom} from "@/oss/state/newPlayground/chat/actions"
+import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {chatTurnIdsAtom} from "@/oss/state/generation/entities"
 import {appStatusAtom} from "@/oss/state/variant/atoms/appStatus"
 import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
+import {usePlaygroundScrollSync} from "../../hooks/usePlaygroundScrollSync"
 import {displayedVariantsAtom, isComparisonViewAtom, appChatModeAtom} from "../../state/atoms"
-// No implicit input row seeding in this view
-// import {addVariablesInputRowMutationAtom} from "../../state/atoms/generationMutations"
-// import {displayedVariantsVariablesAtom} from "../../state/atoms/variants"
 import {GenerationComparisonOutput} from "../PlaygroundGenerationComparisonView"
 import PlaygroundComparisonGenerationInputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonInputHeader/index."
 import GenerationComparisonOutputHeader from "../PlaygroundGenerationComparisonView/assets/GenerationComparisonOutputHeader"
@@ -32,6 +20,10 @@ import PlaygroundGenerations from "../PlaygroundGenerations"
 import PromptComparisonVariantNavigation from "../PlaygroundPromptComparisonView/PromptComparisonVariantNavigation"
 import PlaygroundVariantConfig from "../PlaygroundVariantConfig"
 import type {BaseContainerProps} from "../types"
+
+import ComparisonVariantConfigSkeleton from "./assets/ComparisonVariantConfigSkeleton"
+import ComparisonVariantNavigationSkeleton from "./assets/ComparisonVariantNavigationSkeleton"
+import GenerationPanelSkeleton from "./assets/GenerationPanelSkeleton"
 
 interface MainLayoutProps extends BaseContainerProps {
     isLoading?: boolean
@@ -72,8 +64,6 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
     const appStatus = useAtomValue(appStatusAtom)
     const appStatusLoading = useAtomValue(appStatusLoadingAtom)
 
-    // OPTIMIZED LOADING: displayedVariants are just IDs, so we can render components immediately
-    // Let PlaygroundVariantConfig handle its own loading state internally
     const hasDisplayedVariantIds = displayedVariants && displayedVariants.length > 0
 
     // Only show skeleton when we don't have variant IDs yet (very early loading)
@@ -83,6 +73,9 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
     const shouldShowGenerationSkeleton = appStatusLoading || (isLoading && !hasDisplayedVariantIds)
     const notReachable = !appStatusLoading && !appStatus
     const variantRefs = useRef<(HTMLDivElement | null)[]>([])
+    const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
+        enabled: isComparisonView,
+    })
 
     const handleScroll = useCallback(
         (index: number) => {
@@ -94,82 +87,6 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
         },
         [variantRefs],
     )
-
-    /**
-     * Scroll Sync Login
-     * to be extracted to a custom hook once it is refined and tested
-     */
-
-    const [configPanelRef, setConfigPanelRef] = useState<HTMLElement | null>(null)
-    const [generationPanelRef, _setGenerationPanelRef] = useState<HTMLDivElement | null>(null)
-    const scrollingRef = useRef<{
-        scrolling: HTMLElement
-        target: HTMLElement
-    } | null>(null)
-
-    useAnimationFrame(({time}) => {
-        const isScrolling = scrollingRef.current
-
-        if (!isScrolling || !configPanelRef) return
-
-        const {scrolling, target} = isScrolling
-
-        if (scrolling && target) {
-            target.scrollLeft = scrolling.scrollLeft
-        }
-    })
-
-    useEffect(() => {
-        const configPanel = configPanelRef
-
-        const scrollHandle = (e: Event) => {
-            if (scrollingRef.current) return
-            if (!isComparisonView) return
-
-            const elm = e.target as HTMLElement
-            const scrolling = elm.isSameNode(configPanel) ? configPanel : generationPanelRef
-
-            if (!scrolling) {
-                return
-            }
-
-            const target = scrolling!.isSameNode(configPanel) ? generationPanelRef : configPanel
-
-            if (!target) {
-                return
-            }
-
-            scrollingRef.current = {
-                scrolling,
-                target,
-            }
-        }
-        const scrollEndHandle = () => {
-            scrollingRef.current = null
-        }
-
-        if (configPanel) {
-            configPanel.addEventListener("scroll", scrollHandle)
-            configPanel.addEventListener("scrollend", scrollEndHandle)
-        }
-
-        if (generationPanelRef) {
-            generationPanelRef.addEventListener("scroll", scrollHandle)
-            generationPanelRef.addEventListener("scrollend", scrollEndHandle)
-        }
-
-        return () => {
-            if (configPanel) {
-                configPanel.removeEventListener("scroll", scrollHandle)
-                configPanel.removeEventListener("scroll", scrollEndHandle)
-            }
-
-            if (generationPanelRef) {
-                generationPanelRef.removeEventListener("scroll", scrollHandle)
-                generationPanelRef.removeEventListener("scroll", scrollEndHandle)
-            }
-        }
-    }, [isComparisonView, configPanelRef, generationPanelRef])
 
     return notReachable ? (
         <main className="flex flex-col grow h-full overflow-hidden items-center justify-center">
@@ -212,73 +129,42 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                         >
                             {isComparisonView &&
                                 (shouldShowVariantConfigSkeleton ? (
-                                    // SKELETON: Show loading placeholder for variant navigation
-                                    <div className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white">
-                                        <div className="p-4 space-y-4">
-                                            <div className="h-6 bg-gray-200 rounded mb-4" />
-                                            {[1, 2, 3].map((index) => (
-                                                <div
-                                                    key={`nav-skeleton-${index}`}
-                                                    className="space-y-3 p-3 border border-gray-100 rounded"
-                                                >
-                                                    <div className="h-5 bg-gray-200 rounded " />
-                                                    <div className="h-4 bg-gray-200 rounded w-3/4" />
-                                                    <div className="h-3 bg-gray-200 rounded w-1/2" />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
+                                    <ComparisonVariantNavigationSkeleton />
                                 ) : (
                                     <PromptComparisonVariantNavigation
                                         className="[&::-webkit-scrollbar]:w-0 w-[400px] sticky left-0 z-10 h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] bg-white"
                                         handleScroll={handleScroll}
                                     />
                                 ))}
-                            {shouldShowVariantConfigSkeleton
-                                ? // SKELETON: Show loading placeholders for variant configs
-                                  [1, 2].map((index) => (
-                                      <div
-                                          key={`skeleton-${index}`}
-                                          className={clsx([
-                                              {
-                                                  "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative":
-                                                      isComparisonView,
-                                              },
-                                          ])}
-                                      >
-                                          <div className="p-4 space-y-4">
-                                              <div className="h-8 bg-gray-200 rounded" />
-                                              <div className="space-y-2">
-                                                  <div className="h-4 bg-gray-200 rounded " />
-                                                  <div className="h-4 bg-gray-200 rounded  w-3/4" />
-                                                  <div className="h-4 bg-gray-200 rounded  w-1/2" />
-                                              </div>
-                                              <div className="h-32 bg-gray-200 rounded" />
-                                          </div>
-                                      </div>
-                                  ))
-                                : (displayedVariants || []).map((variant, index) => {
-                                      // Handle both object and string cases for displayedVariants
-                                      const variantId =
-                                          typeof variant === "string" ? variant : variant?.id
+                            {shouldShowVariantConfigSkeleton ? (
+                                <ComparisonVariantConfigSkeleton
+                                    count={2}
+                                    isComparisonView={isComparisonView}
+                                />
+                            ) : (
+                                (displayedVariants || []).map((variant, index) => {
+                                    // Handle both object and string cases for displayedVariants
+                                    const variantId =
+                                        typeof variant === "string" ? variant : variant?.id
 
-                                      return (
-                                          <div
-                                              key={`variant-config-${variantId}`}
-                                              className={clsx([
-                                                  {
-                                                      "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative":
-                                                          isComparisonView,
-                                                  },
-                                              ])}
-                                              ref={(el) => {
-                                                  variantRefs.current[index] = el
-                                              }}
-                                          >
-                                              <PlaygroundVariantConfig variantId={variantId} />
-                                          </div>
-                                      )
-                                  })}
+                                    return (
+                                        <div
+                                            key={`variant-config-${variantId}`}
+                                            className={clsx([
+                                                {
+                                                    "[&::-webkit-scrollbar]:w-0 min-w-[400px] flex-1 h-full max-h-full overflow-y-auto flex-shrink-0 border-0 border-r border-solid border-[rgba(5,23,41,0.06)] relative":
+                                                        isComparisonView,
+                                                },
+                                            ])}
+                                            ref={(el) => {
+                                                variantRefs.current[index] = el
+                                            }}
+                                        >
+                                            <PlaygroundVariantConfig variantId={variantId} />
+                                        </div>
+                                    )
+                                })
+                            )}
                         </section>
                     </SplitterPanel>
 
@@ -292,7 +178,7 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                     >
                         {isComparisonView && <GenerationComparisonHeader />}
                         <section
-                            ref={_setGenerationPanelRef}
+                            ref={setGenerationPanelRef}
                             className={clsx([
                                 "playground-generation",
                                 {
@@ -321,20 +207,7 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
                             Comparison view: Uses rowIds from generationRowIdsAtom (chat/input rows)
                             Single view: Uses displayedVariants for individual variant generations */}
                             {shouldShowGenerationSkeleton ? (
-                                // SKELETON: Show loading placeholders for generation panel
-                                <div className="p-4 space-y-4">
-                                    <div className="h-6 bg-gray-200 rounded w-1/4" />
-                                    <div className="space-y-3">
-                                        <div className="h-4 bg-gray-200 rounded" />
-                                        <div className="h-4 bg-gray-200 rounded w-5/6" />
-                                        <div className="h-4 bg-gray-200 rounded w-3/4" />
-                                    </div>
-                                    <div className="h-24 bg-gray-200 rounded" />
-                                    <div className="flex gap-2">
-                                        <div className="h-8 w-16 bg-gray-200 rounded" />
-                                        <div className="h-8 w-20 bg-gray-200 rounded" />
-                                    </div>
-                                </div>
+                                <GenerationPanelSkeleton />
                             ) : isComparisonView ? (
                                 <GenerationComparisonRenderer />
                             ) : (
@@ -361,6 +234,5 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
 export default memo(PlaygroundMainView, (prevProps, nextProps) => {
     return (
         prevProps.className === nextProps.className && prevProps.isLoading === nextProps.isLoading
-        // Add other prop comparisons if needed
     )
 })

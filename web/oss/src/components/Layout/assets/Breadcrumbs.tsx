@@ -5,21 +5,17 @@ import {Breadcrumb, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue} from "jotai"
 import Link from "next/link"
-import {useRouter} from "next/router"
 
 import {breadcrumbAtom, type BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
-import {appsAtom} from "@/oss/state/app"
-import {useOrgData} from "@/oss/state/org"
-import {projectIdAtom, projectsAtom} from "@/oss/state/project"
+import {useAppState} from "@/oss/state/appState"
 
 import packageJsonData from "../../../../package.json"
 import EnhancedButton from "../../Playground/assets/EnhancedButton"
 import TooltipWithCopyAction from "../../TooltipWithCopyAction"
 
 import {useStyles, type StyleProps} from "./styles"
-import {generateSegmentsForBreadcrumb} from "./utils"
 
 const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.ReactNode}[] => {
     if (!breadcrumbs) return []
@@ -70,38 +66,12 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
 
 const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
-    const apps = useAtomValue(appsAtom)
-    const router = useRouter()
     const breadcrumbs = useAtomValue(breadcrumbAtom)
-    const {selectedOrg} = useOrgData()
-    const projectId = useAtomValue(projectIdAtom)
-    const projects = useAtomValue(projectsAtom)
     const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
-
-    const urlBasedBreadcrumbs = useMemo(() => {
-        const project = projects.find((projectItem) => projectItem.project_id === projectId) || null
-        return generateSegmentsForBreadcrumb({
-            uriPath: router.asPath,
-            apps,
-            workspaceId: selectedOrg?.id ?? null,
-            workspaceName: selectedOrg?.name ?? "",
-            projectId,
-            projectName: project?.project_name,
-            projectIsPending: !!projectId && !project,
-        })
-    }, [router.asPath, apps, selectedOrg?.id, selectedOrg?.name, projectId, projects])
-
-    const mergedBreadcrumbs = useMemo(() => {
-        if (!breadcrumbs || Object.keys(breadcrumbs).length === 0) {
-            return urlBasedBreadcrumbs
-        }
-
-        return {...urlBasedBreadcrumbs, ...breadcrumbs}
-    }, [urlBasedBreadcrumbs, breadcrumbs])
-
+    const appState = useAppState()
     const breadcrumbItems = useMemo(
-        () => breadcrumbItemsGenerator(mergedBreadcrumbs || {}),
-        [mergedBreadcrumbs],
+        () => breadcrumbItemsGenerator(breadcrumbs || {}),
+        [breadcrumbs],
     )
 
     return (

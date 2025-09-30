@@ -4,6 +4,7 @@ export interface EmailPasswordAuthProps {
     message: AuthErrorMsgType
     setMessage: React.Dispatch<React.SetStateAction<AuthErrorMsgType>>
     authErrorMsg: (error: any) => void
+    initialEmail?: string
 }
 
 export interface SendOTPProps {

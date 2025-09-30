@@ -1,12 +1,8 @@
 import {produce} from "immer"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
 
-import {runStatusByRowRevisionAtom, chatTurnsByIdAtom} from "@/oss/state/generation/entities"
-import {
-    responseByRowRevisionAtomFamily,
-    loadingByRowRevisionAtomFamily,
-} from "@/oss/state/newPlayground/generation/runtime"
+import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
+import {loadingByRowRevisionAtomFamily} from "@/oss/state/newPlayground/generation/runtime"
 import {
     pendingWebWorkerRequestsAtom,
     ignoredWebWorkerRunIdsAtom,
@@ -15,11 +11,6 @@ import {
 import type {CancelTestsParams, TestExecutionResult} from "../types"
 
 import {testRunStatesAtom, selectedVariantsAtom} from "./core"
-
-/**
- * Phase 4.4: Test Execution Mutation Atoms
- * Atoms for running tests, canceling tests, and rerunning chat outputs
- */
 
 // Cancel tests mutation atom
 export const cancelTestsMutationAtom = atom(
@@ -138,71 +129,4 @@ export const cancelTestsMutationAtom = atom(
             }
         }
     },
-)
-
-// Clear test results mutation atom
-export const clearTestResultsMutationAtom = atom(null, (get, set, variantIds?: string[]) => {
-    // Clear test run states
-    set(testRunStatesAtom, (prev) =>
-        produce(prev, (draft) => {
-            if (variantIds) {
-                // Clear specific variants
-                for (const variantId of variantIds) {
-                    delete draft[variantId]
-                }
-            } else {
-                // Clear all test results
-                Object.keys(draft).forEach((variantId) => {
-                    delete draft[variantId]
-                })
-            }
-        }),
-    )
-
-    // Also clear normalized per-(row,revision) responses and status
-    const status = get(runStatusByRowRevisionAtom)
-    Object.keys(status || {}).forEach((key) => {
-        const [rowId, revId] = key.split(":")
-        if (!variantIds || variantIds.includes(revId)) {
-            try {
-                set(responseByRowRevisionAtomFamily({rowId, revisionId: revId}), undefined as any)
-            } catch {}
-            set(runStatusByRowRevisionAtom, (prev) => ({
-                ...prev,
-                [key]: {isRunning: false, resultHash: null},
-            }))
-            try {
-                set(loadingByRowRevisionAtomFamily({rowId, revisionId: revId}), false)
-            } catch {}
-        }
-    })
-
-    if (process.env.NODE_ENV === "development") {
-        console.log("✅ All runs cleared")
-    }
-})
-
-// Get test status for variant atom family (proper atomFamily)
-export const testStatusAtomFamily = atomFamily((variantId: string) =>
-    atom((get) => {
-        const _testConfig = get(testConfigAtom)
-        const testStates = get(testRunStatesAtom)
-        const variantTests = testStates[variantId] || {}
-
-        const allTests = Object.values(variantTests)
-        const runningTests = allTests.filter((test) => test.__isRunning === "true")
-        const completedTests = allTests.filter((test) => test.__isRunning === "false")
-        const errorTests = completedTests.filter((test) => test.__error)
-        const successTests = completedTests.filter((test) => !test.__error)
-
-        return {
-            isRunning: runningTests.length > 0,
-            total: allTests.length,
-            running: runningTests.length,
-            completed: completedTests.length,
-            successful: successTests.length,
-            failed: errorTests.length,
-            hasResults: allTests.length > 0,
-        }
-    }),
 )

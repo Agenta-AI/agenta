@@ -5,7 +5,6 @@ import {useAtomValue} from "jotai"
 
 import {usePlaygroundLayout} from "../../hooks/usePlaygroundLayout"
 import {appChatModeAtom} from "../../state/atoms"
-import {isChatVariantAtomFamily} from "../../state/atoms/propertySelectors"
 
 import GenerationComparisonChatOutput from "./GenerationComparisonChatOutput"
 import GenerationComparisonCompletionOutput from "./GenerationComparisonCompletionOutput"

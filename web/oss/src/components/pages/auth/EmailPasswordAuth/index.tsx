@@ -1,29 +1,21 @@
 import {useState} from "react"
 
 import {Button, Form, FormProps, Input} from "antd"
-import {useSetAtom} from "jotai"
-import {useRouter} from "next/router"
 import {signUp} from "supertokens-auth-react/recipe/emailpassword"
-import {useLocalStorage} from "usehooks-ts"
 
-import {isDemo} from "@/oss/lib/helpers/utils"
-import {useOrgData} from "@/oss/state/org"
-import {selectedOrgIdAtom} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
-import {useProjectData} from "@/oss/state/project"
-import {waitForValidURL} from "@/oss/state/url"
+import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 
 import ShowErrorMessage from "../assets/ShowErrorMessage"
 import {EmailPasswordAuthProps} from "../assets/types"
 
-const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAuthProps) => {
-    const {reset: resetProfileData} = useProfileData()
-    const {reset: resetOrgData} = useOrgData()
-    const {reset: resetProjectData} = useProjectData()
-    const setSelectedOrgId = useSetAtom(selectedOrgIdAtom)
-    const router = useRouter()
-    const [invite] = useLocalStorage("invite", {})
-    const [form, setForm] = useState({email: "", password: ""})
+const EmailPasswordAuth = ({
+    message,
+    setMessage,
+    authErrorMsg,
+    initialEmail,
+}: EmailPasswordAuthProps) => {
+    const {handleAuthSuccess} = usePostAuthRedirect()
+    const [form, setForm] = useState({email: initialEmail || "", password: ""})
     const [isLoading, setIsLoading] = useState(false)
 
     const signUpClicked: FormProps<{email: string; password: string}>["onFinish"] = async (
@@ -54,36 +46,12 @@ const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAut
                     setMessage({message: res.error, type: "error"})
                 })
             } else {
-                await resetProfileData()
-                await resetOrgData()
-                await resetProjectData()
-                // Clear selected org via atom to keep storage in sync
-                setSelectedOrgId(null)
                 setMessage({message: "Verification successful", type: "success"})
-
-                const isInvitedUser = !!(
-                    router.query?.token ||
-                    (invite && Object.keys(invite || {}).length > 0)
-                )
-                const isNewUser =
-                    isDemo() &&
-                    (response as any).createdNewRecipeUser &&
-                    (response as any).user?.loginMethods?.length === 1
-
-                if (isNewUser) {
-                    if (isInvitedUser) {
-                        await router.push("/workspaces/accept?survey=true")
-                    } else {
-                        await router.push("/post-signup")
-                    }
-                } else {
-                    if (isInvitedUser) {
-                        await router.push("/workspaces/accept")
-                    } else {
-                        const url = (await waitForValidURL({requireProject: true})).baseAppURL
-                        await router.push(url)
-                    }
+                const {createdNewRecipeUser, user} = response as {
+                    createdNewRecipeUser?: boolean
+                    user?: {loginMethods?: unknown[]}
                 }
+                await handleAuthSuccess({createdNewRecipeUser, user})
             }
         } catch (error) {
             authErrorMsg(error)
@@ -94,7 +62,12 @@ const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAut
 
     return (
         <div>
-            <Form className="w-full flex flex-col gap-4" layout="vertical" onFinish={signUpClicked}>
+            <Form
+                className="w-full flex flex-col gap-4"
+                layout="vertical"
+                onFinish={signUpClicked}
+                initialValues={{email: initialEmail}}
+            >
                 <Form.Item
                     name="email"
                     label="Email"

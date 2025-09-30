@@ -17,9 +17,10 @@ import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms/
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {useAppId} from "@/oss/hooks/useAppId"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import useURL from "@/oss/hooks/useURL"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
-import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {
     derivePromptsFromSpec,
     deriveCustomPropertiesFromSpec,
@@ -32,11 +33,9 @@ import {
 } from "@/oss/state/variant/atoms/fetcher"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import {clearVariantDrawerAtom} from "../../store/variantDrawerStore"
 import {variantDrawerAtom} from "../../store/variantDrawerStore"
 import {NewVariantParametersView} from "../Parameters"
 import {VariantDrawerContentProps} from "../types"
-import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 
@@ -87,7 +86,7 @@ const VariantDrawerContent = ({
     onToggleOriginal,
 }: VariantDrawerContentProps) => {
     const router = useRouter()
-    const {appURL} = useURL()
+    const {goToPlayground} = usePlaygroundNavigation()
 
     const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
 
@@ -228,10 +227,7 @@ const VariantDrawerContent = ({
         originalPromptIds,
         isLoading,
     ])
-    const clearDrawer = useSetAtom(clearVariantDrawerAtom)
     const drawerState = useAtomValue(variantDrawerAtom)
-    const [_, setQueryVariant] = useQueryParam("revisions")
-
     const clearJsonOverride = useSetAtom(
         parametersOverrideAtomFamily((selectedVariant as any)?.id || ""),
     )
@@ -242,17 +238,13 @@ const VariantDrawerContent = ({
             // In React StrictMode, components mount then immediately unmount once.
             // Only clear when the drawer is actually closed to avoid reopen loops.
             if (!drawerState.open) {
-                clearDrawer()
-                // Clear URL param after drawer is fully dismissed to prevent content flicker
                 const isPlaygroundRoute = router.pathname.includes("/playground")
                 if (!isPlaygroundRoute) {
-                    setQueryVariant("")
+                    clearJsonOverride(null as any)
                 }
-                // Also clear any JSON override draft for this revision when closing the drawer
-                clearJsonOverride(null as any)
             }
         }
-    }, [clearDrawer, drawerState.open, clearJsonOverride])
+    }, [clearJsonOverride, drawerState.open, router.pathname])
 
     if (isLoading) {
         return (
@@ -320,18 +312,7 @@ const VariantDrawerContent = ({
                             <Button
                                 icon={<ArrowSquareOut size={16} />}
                                 size="small"
-                                onClick={() =>
-                                    router.push({
-                                        pathname: `${appURL}/playground`,
-                                        query: {
-                                            playground: "new-playground",
-                                            // Use the actual revision id for navigation
-                                            revisions: buildRevisionsQueryParam([
-                                                (selectedVariant as any)?.id,
-                                            ]),
-                                        },
-                                    })
-                                }
+                                onClick={() => goToPlayground((selectedVariant as any)?.id)}
                             />
                         </div>
                     </div>

@@ -35,21 +35,6 @@ export const metadataByHashAtomFamily = atomFamily((hash?: string) =>
     }),
 )
 
-// Legacy map reader for convenience (prefer metadataByHashAtomFamily in new code)
-export const metadataMapAtom = atom<Record<string, ConfigMetadata>>((get) => {
-    return get(allMetadataAtom)
-})
-
-// Spec access is provided via getSpecLazy() which reads appSchemaAtom
-
-// Helper functions that use the atoms
-// DEPRECATED: prefer atoms above in new code paths
-export const useMetadataHelpers = () => ({
-    getAllMetadata: () => getAllMetadata(),
-    getMetadataLazy: () => getMetadataLazy(),
-    getSpecLazy: () => getSpecLazy(),
-})
-
 // Metadata validation utilities
 export const validateMetadata = (metadata: Record<string, ConfigMetadata>): boolean => {
     try {

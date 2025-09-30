@@ -1,9 +1,9 @@
 import {atom} from "jotai"
 
 import {drawerVariantIdAtom} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/store/variantDrawerStore"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
 import {selectedVariantsAtom} from "./core"
-import {updateUrlRevisionsAtom} from "./urlSync"
 import {addVariantMutationAtom} from "./variantCrud"
 
 /**
@@ -24,8 +24,7 @@ export const removeVariantFromSelectionMutationAtom = atom(null, (get, set, vari
     const updatedSelected = currentSelected.filter((id) => id !== variantId)
 
     // Update selection and URL (playground will read this)
-    set(selectedVariantsAtom, updatedSelected)
-    set(updateUrlRevisionsAtom, updatedSelected)
+    void writePlaygroundSelectionToQuery(updatedSelected)
 
     // Keep drawer selection consistent
     const currentDrawerId = get(drawerVariantIdAtom)

@@ -16,7 +16,7 @@ import {
     cancelTestsMutationAtom,
     canRunAllChatComparisonAtom,
 } from "../../../state/atoms"
-import {clearAllRunsMutationAtom} from "../../../state/atoms/enhancedVariantMutations"
+import {clearAllRunsMutationAtom} from "../../../state/atoms/utilityMutations"
 import TestsetDrawerButton from "../../Drawers/TestsetDrawer"
 import LoadTestsetButton from "../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 

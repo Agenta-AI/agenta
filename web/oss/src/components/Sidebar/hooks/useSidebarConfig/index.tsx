@@ -32,7 +32,7 @@ export const useSidebarConfig = () => {
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
-    const {projectURL, baseAppURL, appURL} = useURL()
+    const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const sidebarConfig: SidebarConfig[] = [
         {
             key: "app-management-link",
@@ -62,28 +62,28 @@ export const useSidebarConfig = () => {
         {
             key: "overview-link",
             title: "Overview",
-            link: `${appURL}/overview`,
+            link: `${appURL || recentlyVisitedAppURL}/overview`,
             icon: <Desktop size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-playground-link",
             title: "Playground",
-            link: `${appURL}/playground`,
+            link: `${appURL || recentlyVisitedAppURL}/playground`,
             icon: <Rocket size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-variants-link",
             title: "Registry",
-            link: `${appURL}/variants`,
+            link: `${appURL || recentlyVisitedAppURL}/variants`,
             isHidden: !appId && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
         },
         {
             key: "app-evaluations-link",
             title: "Evaluations",
-            link: `${appURL}/evaluations`,
+            link: `${appURL || recentlyVisitedAppURL}/evaluations`,
             isHidden: (!appId && !recentlyVisitedAppId) || !isDemo(),
             icon: <ChartDonut size={16} />,
         },
@@ -92,12 +92,12 @@ export const useSidebarConfig = () => {
             title: "Traces",
             icon: <TreeView size={16} />,
             isHidden: !appId && !recentlyVisitedAppId,
-            link: `${appURL}/traces`,
+            link: `${appURL || recentlyVisitedAppURL}/traces`,
         },
         {
             key: "app-deployments-link",
             title: "Deployments",
-            link: `${appURL}/deployments`,
+            link: `${appURL || recentlyVisitedAppURL}/deployments`,
             isHidden: !appId && !recentlyVisitedAppId,
             icon: <CloudArrowUp size={16} />,
         },

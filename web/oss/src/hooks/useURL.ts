@@ -1,13 +1,14 @@
 import {useCallback} from "react"
 
 import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
+import {useAppNavigation, useAppState} from "@/oss/state/appState"
 import {urlAtom} from "@/oss/state/url"
 
 const useURL = () => {
-    const router = useRouter()
     const url = useAtomValue(urlAtom)
+    const navigation = useAppNavigation()
+    const appState = useAppState()
 
     const buildUrl = useCallback(
         ({
@@ -61,15 +62,15 @@ const useURL = () => {
     const redirectUrl = useCallback(
         (params?: Parameters<typeof buildUrl>[0]) => {
             const url = buildUrl(params)
-            router.push(url)
+            navigation.push(url)
         },
-        [buildUrl, router],
+        [buildUrl, navigation],
     )
 
     // Determine if the given path (or current asPath) is a valid app route
     const isValidAppRoute = useCallback(
         (path?: string) => {
-            const pathOnly = (path ?? router.asPath ?? "").split("?")[0]
+            const pathOnly = (path ?? appState.asPath ?? "").split("?")[0]
             const isAtOrgRoot = pathOnly === "/w"
             const isAtWsRoot = /^\/w\/[^/]+$/.test(pathOnly)
             const isAtWsProjectRoot = /^\/w\/[^/]+\/p\/?$/.test(pathOnly)
@@ -80,7 +81,7 @@ const useURL = () => {
             const validLocation = hasReadyBase ? isUnderAppBase : matchesValidAppPattern
             return !isAtOrgRoot && !isAtWsRoot && !isAtWsProjectRoot && validLocation
         },
-        [router.asPath, url.baseAppURL],
+        [appState.asPath, url.baseAppURL],
     )
 
     return {
@@ -95,6 +96,7 @@ const useURL = () => {
         baseProjectURL: url.baseProjectURL,
         projectURL: url.projectURL,
         baseAppURL: url.baseAppURL,
+        recentlyVisitedAppURL: url.recentlyVisitedAppURL,
         appURL: url.appURL,
         isValidAppRoute,
     }

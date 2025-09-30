@@ -7,11 +7,12 @@ import dynamic from "next/dynamic"
 import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
-    createVariantMutationAtom,
     revisionListAtom,
     selectedVariantsAtom,
     setDisplayedVariantsMutationAtom,
 } from "@/oss/components/Playground/state/atoms"
+
+import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
 
 import {CreateVariantModalProps} from "./types"
 

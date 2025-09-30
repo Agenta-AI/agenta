@@ -1,74 +1,13 @@
-import {useCallback, useMemo} from "react"
+import {useCallback} from "react"
 
-import {useAtomValue, useSetAtom} from "jotai"
+import {useSetAtom} from "jotai"
 
-// Legacy types/helpers removed with new playground state
+import {cancelTestsMutationAtom} from "../../state/atoms"
+import type {UsePlaygroundAtomsReturn} from "../../state/types"
 
-import {usePromptsSource} from "../../context/PromptsSource"
-import {
-    addVariantMutationAtom,
-    cancelTestsMutationAtom,
-    clearTestResultsMutationAtom,
-    displayedVariantsAtom,
-    deleteVariantMutationAtom,
-    // rerunChatOutputMutationAtom,
-    revisionListAtom,
-    saveVariantMutationAtom,
-    selectedVariantsAtom,
-    setDisplayedVariantsMutationAtom,
-    setSelectedVariantMutationAtom,
-    updateVariantPropertyEnhancedMutationAtom,
-    variantByRevisionIdAtomFamily,
-} from "../../state/atoms"
-import type {UsePlaygroundAtomsReturn, GenerationData} from "../../state/types"
-import {findPropertyInObject} from "../usePlayground/assets/helpers"
-
-/**
- * Hook to access playground state and mutations using Jotai atoms
- */
-export function usePlaygroundAtoms({
-    variantId,
-    _propertyId,
-    messageId,
-}: {variantId?: string; _propertyId?: string} = {}): UsePlaygroundAtomsReturn {
-    // Get selected variants for comparison mode
-    const selectedVariants = useAtomValue(selectedVariantsAtom)
-    const displayedVariants = useAtomValue(displayedVariantsAtom)
-    const enhancedRevisions = useAtomValue(revisionListAtom)
-    // Legacy generationData removed; do not read playgroundStateAtom
-    const generationData = useMemo(
-        () => ({
-            inputs: {value: [], __metadata: {}},
-            messages: {value: [], __metadata: {}},
-        }),
-        [],
-    ) as any
-
-    // Get current variant (enhanced revision) by selected revision id via selector atom
-    const selectedId = (displayedVariants && displayedVariants[0]) || selectedVariants[0]
-    const currentVariantAtom = useMemo(
-        () => variantByRevisionIdAtomFamily(selectedId || "__none__"),
-        [selectedId],
-    )
-    const currentVariant = useAtomValue(currentVariantAtom)
-
-    // Variants are the enhanced revisions directly (single source of truth)
-    const variants = useMemo(() => enhancedRevisions || [], [enhancedRevisions])
-
-    // Get mutation functions
-    const updateVariantProperty = useSetAtom(updateVariantPropertyEnhancedMutationAtom)
-    const setSelectedVariant = useSetAtom(setSelectedVariantMutationAtom)
-    const setDisplayedVariants = useSetAtom(setDisplayedVariantsMutationAtom)
-
-    // CRUD operations
-    const addVariant = useSetAtom(addVariantMutationAtom)
-    const saveVariant = useSetAtom(saveVariantMutationAtom)
-    const deleteVariant = useSetAtom(deleteVariantMutationAtom)
-
+export function usePlaygroundAtoms(): UsePlaygroundAtomsReturn {
     // Test execution with web worker integration
     const cancelTestsOriginal = useSetAtom(cancelTestsMutationAtom)
-    // const rerunChatOutputOriginal = useSetAtom(rerunChatOutputMutationAtom)
-    const clearTestResults = useSetAtom(clearTestResultsMutationAtom)
 
     // Enhanced cancelTests wrapper
     const cancelRunTests = useCallback(
@@ -83,99 +22,7 @@ export function usePlaygroundAtoms({
         [cancelTestsOriginal],
     )
 
-    // Enhanced parameter update handler
-    const handleParamUpdate = useCallback(
-        (e: {target: {value: any}} | any, propId?: string, vId?: string) => {
-            updateVariantProperty({
-                variantId:
-                    vId || (displayedVariants && displayedVariants[0]) || selectedVariants[0],
-                propertyId: propId || _propertyId || "",
-                value: e?.target?.value ?? e,
-                fallbackVariantId: variantId,
-                fallbackPropertyId: _propertyId,
-            })
-        },
-        [],
-    )
-
-    const prompts = usePromptsSource(variantId) || []
-    // Property getter function to access properties by ID
-    const propertyGetter = useCallback(
-        (propertyId: string) => {
-            if (prompts.length) {
-                for (const prompt of prompts) {
-                    const property = findPropertyInObject(prompt, propertyId)
-                    if (property) return property
-                }
-            }
-            // Then try to find in current variant (for config messages and other properties)
-            if (currentVariant) {
-                const property = findPropertyInObject(currentVariant, propertyId)
-                if (property) return property
-            }
-
-            // Fallback: search in all variants
-            for (const variant of variants) {
-                const property = findPropertyInObject(variant, propertyId)
-                if (property) return property
-            }
-
-            return undefined
-        },
-        [variantId, prompts, currentVariant, variants],
-    )
-
-    // Map displayedVariants IDs to actual variant objects
-    const displayedVariantObjects = displayedVariants
-        .map((id: string) => variants.find((v: any) => v.id === id))
-        .filter(Boolean) as any[]
-
     return {
-        // State selectors
-        variants,
-        selectedVariants,
-        displayedVariants: displayedVariantObjects,
-        currentVariant,
-        viewType: selectedVariants.length > 1 ? "comparison" : "single",
-        generationData: generationData as unknown as GenerationData,
-        testRunStates: {}, // TODO: implement
-
-        // Dirty state
-        isAnyVariantDirty: false, // TODO: implement
-        dirtyVariantIds: [], // TODO: implement
-        isVariantDirty: () => false, // TODO: implement
-
-        // Handlers
-        handleParamUpdate,
-
-        // UI mutations
-        setSelectedVariant,
-        setDisplayedVariants,
-
-        // Variant mutations
-        updateVariantProperty,
-        updateVariantPropertyEnhanced: updateVariantProperty,
-        // Legacy no-op: variant-wide local cache is removed in new setup
-        mutateVariant: useCallback(async (..._args: any[]) => {
-            if (process.env.NODE_ENV === "development") {
-                console.warn(
-                    "mutateVariant is deprecated in new playground state; use property mutations",
-                )
-            }
-        }, []) as any,
-
-        // CRUD operations
-        addVariant,
-        saveVariant,
-        deleteVariant,
-
-        // Test execution
-        // runTests,
         cancelRunTests,
-        // rerunChatOutput,
-        clearTestResults,
-
-        // Property access
-        propertyGetter,
     }
 }

@@ -19,8 +19,8 @@ import {recentAppIdAtom} from "@/oss/state/app"
 // removed unused transformedPromptsAtomFamily
 import {getOrgValues} from "@/oss/state/org"
 import {getProjectValues} from "@/oss/state/project"
+import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
-import {selectedVariantsAtom} from "./core"
 import {revisionListAtom} from "./variants"
 
 /**
@@ -41,7 +41,14 @@ export interface CreateAppParams {
     providerKey: LlmProvider[]
     isCustomWorkflow?: boolean
     onStatusChange?: (
-        status: "creating_app" | "starting_app" | "success" | "bad_request" | "timeout" | "error",
+        status:
+            | "creating_app"
+            | "starting_app"
+            | "success"
+            | "bad_request"
+            | "timeout"
+            | "error"
+            | "permission_denied",
         details?: any,
         appId?: string,
     ) => void
@@ -402,7 +409,7 @@ export const createAppMutationAtom = atom(
                     ? await waitForRevision(parentVariantId)
                     : undefined
                 if (revisionId) {
-                    set(selectedVariantsAtom, [revisionId])
+                    void writePlaygroundSelectionToQuery([revisionId])
                 }
             })()
 
@@ -434,35 +441,5 @@ export const createAppMutationAtom = atom(
                 error: error.message || "An unexpected error occurred during app creation",
             }
         }
-    },
-)
-
-// Convenience atom for creating app and redirecting to playground
-export const createAppAndRedirectMutationAtom = atom(
-    null,
-    async (get, set, params: CreateAppParams & {redirectCallback?: (appId: string) => void}) => {
-        const {redirectCallback, ...createParams} = params
-
-        // Use the regular atom interface
-        const result = await set(createAppMutationAtom, createParams)
-
-        if (result.success && result.appId && redirectCallback) {
-            // Prefer store subscription over timeouts to coordinate redirect
-            const store = getDefaultStore()
-            const targetAppId = result.appId
-            const maybeRedirect = () => {
-                const recent = store.get(recentAppIdAtom)
-                if (recent === targetAppId) {
-                    unsub()
-                    redirectCallback(targetAppId)
-                }
-            }
-            let unsub: () => void = () => {}
-            unsub = store.sub(recentAppIdAtom, maybeRedirect)
-            // Also try immediately in case state is already set
-            maybeRedirect()
-        }
-
-        return result
     },
 )

@@ -1,34 +1,22 @@
 import {useEffect, useState} from "react"
 
 import {Alert, Spin} from "antd"
-import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
-import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
-import {selectedOrgIdAtom} from "@/oss/state/org"
-import {useOrgData} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
-import {useProjectData} from "@/oss/state/project"
-import {waitForValidURL} from "@/oss/state/url"
+import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
 
 const Callback = () => {
-    const {reset: resetProfileData} = useProfileData()
-    const {reset: resetOrgData} = useOrgData()
-    const {reset: resetProjectData} = useProjectData()
     const router = useRouter()
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
-    const setSelectedOrgId = useSetAtom(selectedOrgIdAtom)
-
-    const [invite] = useLocalStorage("invite", {})
-    const isInvitedUser = invite && Object.keys(invite).length > 0
+    const {handleAuthSuccess} = usePostAuthRedirect()
 
     const state = router.query.state as string
     const code = router.query.code as string
@@ -55,31 +43,9 @@ const Callback = () => {
             const response = await signInAndUp()
 
             if (response.status === "OK") {
-                resetProfileData()
-                resetOrgData()
-                resetProjectData()
-                // Clear selected org via atom to keep storage in sync
-                setSelectedOrgId(null)
                 setMessage({message: "Verification successful", type: "success"})
-                const isNewUser =
-                    isDemo() &&
-                    response.createdNewRecipeUser &&
-                    response.user.loginMethods.length === 1
-
-                if (isNewUser) {
-                    if (isInvitedUser) {
-                        await router.push("/workspaces/accept?survey=true")
-                    } else {
-                        await router.push("/post-signup")
-                    }
-                } else {
-                    if (isInvitedUser) {
-                        await router.push("/workspaces/accept")
-                    } else {
-                        const url = await waitForValidURL({requireProject: true})
-                        await router.push(url.baseAppURL)
-                    }
-                }
+                const {createdNewRecipeUser, user} = response
+                await handleAuthSuccess({createdNewRecipeUser, user})
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
                 setMessage({message: response.reason, type: "error"})
                 await router.push("/auth")
@@ -100,29 +66,9 @@ const Callback = () => {
             const response = await signInAndUp()
 
             if (response.status === "OK") {
-                resetProfileData()
-                resetOrgData()
-                resetProjectData()
                 setMessage({message: "Verification successful", type: "success"})
-                const isNewUser =
-                    isDemo() &&
-                    response.createdNewRecipeUser &&
-                    response.user.loginMethods.length === 1
-
-                if (isNewUser) {
-                    if (isInvitedUser) {
-                        await router.push("/workspaces/accept?survey=true")
-                    } else {
-                        await router.push("/post-signup")
-                    }
-                } else {
-                    if (isInvitedUser) {
-                        await router.push("/workspaces/accept")
-                    } else {
-                        const url = await waitForValidURL({requireProject: true})
-                        await router.push(url.baseAppURL)
-                    }
-                }
+                const {createdNewRecipeUser, user} = response
+                await handleAuthSuccess({createdNewRecipeUser, user})
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
                 setMessage({message: response.reason, type: "error"})
                 await router.push("/auth")
@@ -141,8 +87,9 @@ const Callback = () => {
     useEffect(() => {
         if (router.isReady && !state && !code) {
             ;(async () => {
-                const url = await waitForValidURL({requireProject: true})
-                router.push(url.baseAppURL)
+                const context = await waitForWorkspaceContext()
+                const nextPath = buildPostLoginPath(context)
+                router.replace(nextPath)
             })()
         }
     }, [state, code, router.isReady])

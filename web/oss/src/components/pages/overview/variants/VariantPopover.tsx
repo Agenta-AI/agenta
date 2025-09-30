@@ -1,12 +1,10 @@
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
-import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
 import VariantNameCell from "@/oss/components/VariantNameCell"
-import useURL from "@/oss/hooks/useURL"
+import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Environment} from "@/oss/lib/Types"
@@ -24,9 +22,7 @@ const ModifiedByText = ({variant}: {variant: EnhancedVariant}) => {
 }
 
 const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopoverProps) => {
-    const router = useRouter()
-    const appId = router.query.app_id as string
-    const {baseAppURL} = useURL()
+    const {goToPlayground} = usePlaygroundNavigation()
 
     return (
         <Popover
@@ -53,14 +49,7 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
                             icon={<ArrowSquareOut size={14} />}
                             className="flex items-center justify-center"
                             onClick={() => {
-                                router.push({
-                                    pathname: `${baseAppURL}/${appId}/playground`,
-                                    query: {
-                                        revisions: buildRevisionsQueryParam([
-                                            env.deployed_app_variant_revision_id,
-                                        ]),
-                                    },
-                                })
+                                goToPlayground(env.deployed_app_variant_revision_id)
                             }}
                         />
                     </Flex>

@@ -38,7 +38,7 @@ const PasswordlessAuth = ({
     }
 
     return (
-        <Form className="w-full space-y-2" onFinish={sendOTP}>
+        <Form className="w-full space-y-2" onFinish={sendOTP} initialValues={{email}}>
             {message.type == "error" && <ShowErrorMessage info={message} />}
 
             <Form.Item

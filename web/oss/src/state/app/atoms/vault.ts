@@ -17,7 +17,7 @@ import {
 } from "@/oss/services/vault/api"
 
 import {userAtom} from "../../profile/selectors/user"
-import {DEFAULT_UUID, projectIdAtom} from "../../project"
+import {projectIdAtom} from "../../project"
 
 /**
  * Atom for tracking vault key migration status
@@ -44,7 +44,7 @@ export const vaultSecretsQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: !!user && !!projectId && projectId !== DEFAULT_UUID,
+        enabled: !!user && !!projectId,
         //  && migrationStatus.migrated, // Only fetch when user exists and migration is done
     }
 })

@@ -2,14 +2,12 @@ import {MoreOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise, GearSix, Lightning, Note} from "@phosphor-icons/react"
 import {Dropdown, Button} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {NextRouter} from "next/router"
 
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 
-import {DeploymentRevisionWithVariant} from "../../.."
 import VariantDetailsRenderer from "../../../assets/VariantDetailsRenderer"
+import {DeploymentRevisionWithVariant} from "../../../atoms"
 
 export const getColumns = ({
     setSelectedRevisionRow,
@@ -17,9 +15,9 @@ export const getColumns = ({
     setSelectedVariantRevisionIdToRevert,
     handleAssignRevisionId,
     envRevisions,
-    router,
-    appId,
-    appURL,
+    onOpenInPlayground,
+    onOpenUseApi,
+    isVariantLoading,
 }: {
     setSelectedRevisionRow: React.Dispatch<
         React.SetStateAction<DeploymentRevisionWithVariant | undefined>
@@ -28,9 +26,9 @@ export const getColumns = ({
     setSelectedVariantRevisionIdToRevert: React.Dispatch<React.SetStateAction<string>>
     handleAssignRevisionId: (record: DeploymentRevisionWithVariant) => void
     envRevisions: DeploymentRevisions | undefined
-    router: NextRouter
-    appId: string
-    appURL: string
+    onOpenInPlayground: (revisionId?: string | null) => void
+    onOpenUseApi: () => void
+    isVariantLoading?: boolean
 }): ColumnsType<DeploymentRevisionWithVariant> => {
     const columns: ColumnsType<DeploymentRevisionWithVariant> = [
         {
@@ -56,7 +54,13 @@ export const getColumns = ({
                 style: {minWidth: 280},
             }),
             render: (_, record) => {
-                return <VariantDetailsRenderer record={record} />
+                return (
+                    <VariantDetailsRenderer
+                        record={record}
+                        isLoading={Boolean(isVariantLoading)}
+                        showStable
+                    />
+                )
             },
         },
         {
@@ -127,19 +131,24 @@ export const getColumns = ({
                                 },
                             },
                             {
+                                key: "use_api",
+                                label: "Use API",
+                                icon: <Lightning size={16} />,
+                                onClick: (e) => {
+                                    e.domEvent.stopPropagation()
+                                    onOpenUseApi({
+                                        revisionId: record?.deployed_app_variant_revision,
+                                        deploymentRevisionId: record?.id,
+                                    })
+                                },
+                            },
+                            {
                                 key: "view_variant",
                                 label: "Open in playground",
                                 icon: <Lightning size={16} />,
                                 onClick: (e) => {
                                     e.domEvent.stopPropagation()
-                                    router.push({
-                                        pathname: `${appURL}/playground`,
-                                        query: {
-                                            revisions: buildRevisionsQueryParam([
-                                                record.variant?.id,
-                                            ]),
-                                        },
-                                    })
+                                    onOpenInPlayground(record.variant?.id)
                                 },
                                 disabled: !record.variant,
                             },
