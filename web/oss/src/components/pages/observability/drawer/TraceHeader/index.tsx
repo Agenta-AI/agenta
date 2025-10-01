@@ -1,11 +1,10 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useState} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, SidebarSimple} from "@phosphor-icons/react"
 import {Button, Space, Tag, Typography} from "antd"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
-import {_AgentaRootsResponse} from "@/oss/services/observability/types"
 import {useObservability} from "@/oss/state/newObservability"
 
 import DeleteTraceModal from "../../components/DeleteTraceModal"
@@ -29,7 +28,7 @@ const TraceHeader = ({
     const classes = useStyles()
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
 
-    const {pagination, count, navigateToPage, fetchTraces, traceTabs} = useObservability()
+    const {fetchMoreTraces, hasMoreTraces} = useObservability()
 
     // Derive from drawer hook when only id is given
     const {traces: hookTraces, getTraceById} = useTraceDrawer()
@@ -46,16 +45,15 @@ const TraceHeader = ({
           ? activeTraceIndex
           : Math.max(
                 0,
-                traces.findIndex((t: any) => t?.node?.id === activeTrace?.node?.id),
+                traces.findIndex((t: any) => t?.span_id === activeTrace?.span_id),
             )
 
     const isFirstItem = navIds
         ? resolvedIndex <= 0 || (navIds?.length || 0) <= 1
-        : pagination.page === 1 && resolvedIndex === 0
+        : resolvedIndex === 0
     const isLastItem = navIds
         ? resolvedIndex >= (navIds?.length || 1) - 1 || (navIds?.length || 0) <= 1
-        : pagination.page === Math.ceil(count / pagination.size) &&
-          resolvedIndex === traces.length - 1
+        : resolvedIndex === traces.length - 1 && !hasMoreTraces
 
     const handleNextTrace = useCallback(async () => {
         if (resolvedIndex === undefined) return
@@ -73,43 +71,28 @@ const TraceHeader = ({
 
         // Check if we're at the last item of the current page
         if (resolvedIndex === traces.length - 1) {
-            const nextPage = pagination.page + 1
-            const totalPages = Math.ceil(count / pagination.size)
-
-            // Check if next page exists
-            if (nextPage <= totalPages) {
+            if (hasMoreTraces) {
                 try {
-                    // First fetch the next page data
-                    await navigateToPage(nextPage)
-
-                    // Get the updated traces data
-                    const updatedData: any = await fetchTraces()
-
-                    const nextPageTraces = updatedData?.traces || []
-
-                    // Set the first item of the new page as selected
-                    if (nextPageTraces.length > 0) {
-                        const firstTrace = nextPageTraces[0]
-                        // Always select by node id to keep drawer lean and stable
-                        const id = firstTrace.node.id
+                    const newTraces = await fetchMoreTraces()
+                    const firstTrace = newTraces[0]
+                    if (firstTrace) {
+                        const id = firstTrace.span_id
                         setSelectedTraceId(id)
                         setSelectedNode?.(id)
                         setSelected?.(id)
                     }
                 } catch (error) {
-                    console.error("Error navigating to next page:", error)
+                    console.error("Error fetching more traces:", error)
                 }
             }
         } else {
-            // Regular next item within current page
             const nextTrace = traces[resolvedIndex + 1]
-            // Always select by node id to keep drawer lean and stable
-            const id = nextTrace.node.id
+            const id = nextTrace.span_id
             setSelectedTraceId(id)
             setSelectedNode?.(id)
             setSelected?.(id)
         }
-    }, [resolvedIndex, navIds, traces, pagination, count, navigateToPage, fetchTraces])
+    }, [resolvedIndex, navIds, traces, hasMoreTraces, fetchMoreTraces])
 
     const handlePrevTrace = useCallback(async () => {
         if (resolvedIndex === undefined) return
@@ -125,39 +108,14 @@ const TraceHeader = ({
         }
 
         // Check if we're at the first item of the current page
-        if (resolvedIndex === 0 && pagination.page > 1) {
-            const prevPage = pagination.page - 1
-
-            try {
-                // First fetch the previous page data
-                await navigateToPage(prevPage)
-
-                // Get the updated traces data
-                const updatedData: any = await fetchTraces()
-                const prevPageTraces = updatedData?.traces || []
-
-                // Set the last item of the previous page as selected
-                if (prevPageTraces.length > 0) {
-                    const lastTrace = prevPageTraces[prevPageTraces.length - 1]
-                    // Always select by node id to keep drawer lean and stable
-                    const id = lastTrace.node.id
-                    setSelectedTraceId(id)
-                    setSelectedNode?.(id)
-                    setSelected?.(id)
-                }
-            } catch (error) {
-                console.error("Error navigating to previous page:", error)
-            }
-        } else if (resolvedIndex > 0) {
-            // Regular previous item within current page
+        if (resolvedIndex > 0) {
             const prevTrace = traces[resolvedIndex - 1]
-            // Always select by node id to keep drawer lean and stable
-            const id = prevTrace.node.id
+            const id = prevTrace.span_id
             setSelectedTraceId(id)
             setSelectedNode?.(id)
             setSelected?.(id)
         }
-    }, [resolvedIndex, navIds, traces, pagination, navigateToPage, fetchTraces])
+    }, [resolvedIndex, navIds, traces])
 
     return (
         <>
@@ -180,10 +138,10 @@ const TraceHeader = ({
 
                     <Typography.Text className={classes.title}>Trace</Typography.Text>
                     <TooltipWithCopyAction
-                        copyText={activeTrace?.root?.id || ""}
+                        copyText={activeTrace?.trace_id || ""}
                         title="Copy trace id"
                     >
-                        <Tag className="font-normal"># {activeTrace?.root?.id || "-"}</Tag>
+                        <Tag className="font-normal"># {activeTrace?.trace_id || "-"}</Tag>
                     </TooltipWithCopyAction>
                 </Space>
 
@@ -207,7 +165,7 @@ const TraceHeader = ({
             <DeleteTraceModal
                 open={isDeleteModalOpen}
                 onCancel={() => setIsDeleteModalOpen(false)}
-                activeTraceNodeId={activeTrace?.node?.id || ""}
+                activeTraceId={activeTrace?.trace_id || ""}
                 setSelectedTraceId={setSelectedTraceId}
             />
         </>

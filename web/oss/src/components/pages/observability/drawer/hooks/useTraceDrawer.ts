@@ -36,12 +36,22 @@ export const useTraceDrawer = () => {
         const payloadTraces = (drawerState as any)?.result?.traces as
             | TracesWithAnnotations[]
             | undefined
-        if (Array.isArray(payloadTraces) && payloadTraces.length) return payloadTraces
-        if (!traceSpans) return [] as TracesWithAnnotations[]
-        const rawTraces = traceSpans.nodes
-            .flatMap((node: any) => buildNodeTree(node as AgentaNodeDTO))
-            .flatMap((item: any) => observabilityTransformer(item))
-        return attachAnnotationsToTraces(rawTraces, annotations || []) as TracesWithAnnotations[]
+
+        const baseTraces =
+            Array.isArray(payloadTraces) && payloadTraces.length
+                ? payloadTraces
+                : traceSpans
+                  ? traceSpans.nodes
+                        .flatMap((node: any) => buildNodeTree(node as AgentaNodeDTO))
+                        .flatMap((item: any) => observabilityTransformer(item))
+                  : []
+
+        // Only attach fetched annotations when they exist; otherwise preserve
+        // any annotation data already present on the traces (e.g. traces from
+        // the Observability page come pre-annotated).
+        return annotations === undefined
+            ? (baseTraces as TracesWithAnnotations[])
+            : (attachAnnotationsToTraces(baseTraces, annotations) as TracesWithAnnotations[])
     }, [drawerState, traceSpans, annotations])
 
     const getTraceById = (id?: string): TracesWithAnnotations | undefined => {

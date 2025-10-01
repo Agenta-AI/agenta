@@ -654,6 +654,42 @@ def parse_ref_slug_to_str(
     return clean_ref_slug
 
 
+def parse_ref_version_to_str(
+    ref_version: str,
+):
+    clean_ref_version = None
+
+    try:
+        clean_ref_version = str(ref_version)
+    except Exception as e:
+        log.error(
+            "ref_version must be a string, got %s [%s]",
+            type(ref_version),
+            ref_version,
+        )
+        raise TypeError() from e
+
+    return clean_ref_version
+
+
+def parse_evt_name_to_str(
+    evt_name: str,
+):
+    clean_evt_name = None
+
+    try:
+        clean_evt_name = str(evt_name)
+    except Exception as e:
+        log.error(
+            "evt_name must be a string, got %s [%s]",
+            type(evt_name),
+            evt_name,
+        )
+        raise TypeError() from e
+
+    return clean_evt_name
+
+
 def parse_trace_id_to_uuid(
     trace_id: str,
 ):
@@ -958,6 +994,7 @@ def _parse_references_condition(condition: Condition) -> None:
 
                 ref_id = v.get("id")
                 ref_slug = v.get("slug")
+                ref_version = v.get("version")
 
                 if ref_id:
                     _values.append(
@@ -970,6 +1007,13 @@ def _parse_references_condition(condition: Condition) -> None:
                     _values.append(
                         Reference(
                             slug=parse_ref_slug_to_str(ref_slug),
+                        ).model_dump(mode="json", exclude_none=True)
+                    )
+
+                if ref_version:
+                    _values.append(
+                        Reference(
+                            version=parse_ref_version_to_str(ref_version),
                         ).model_dump(mode="json", exclude_none=True)
                     )
 
@@ -988,7 +1032,68 @@ def _parse_references_condition(condition: Condition) -> None:
             ) from e
 
 
-# def _parse_events_condition(condition: Condition) -> None: ...
+def _parse_events_condition(condition: Condition) -> None:
+    if condition.operator not in _L_OPS + _D_OPS + _E_OPS:
+        raise FilteringException(
+            "'events' only supports list, dict, and existence operators.",
+        )
+
+    if condition.operator in _L_OPS + _E_OPS and condition.key is not None:
+        raise FilteringException(
+            "'events' key is only supported for dict operators.",
+        )
+
+    if condition.operator in _E_OPS and condition.value is not None:
+        raise FilteringException(
+            "'events' value is not supported for existence operators.",
+        )
+
+    if condition.operator in _L_OPS:
+        if not isinstance(condition.value, list):
+            raise FilteringException(
+                "'events' value must be one or more (possibly partial) events.",
+            )
+
+        if not all(isinstance(v, dict) for v in condition.value):
+            raise FilteringException(
+                "'events' value must be one or more (possibly partial) events.",
+            )
+
+    if condition.operator in _D_OPS:
+        if not isinstance(condition.key, str) or not condition.key.startswith(
+            "attributes."
+        ):
+            raise FilteringException(
+                "'events' key must be a string in dot notation starting with 'attributes'.",
+            )
+
+    if condition.operator in _E_OPS:
+        pass
+    elif condition.operator in _L_OPS:
+        try:
+            _values = []
+
+            for v in condition.value:
+                v: dict
+
+                name = v.get("name")
+
+                if name:
+                    _values.append(dict(name=parse_evt_name_to_str(name)))
+
+            condition.value = _values
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.error(e)
+            raise FilteringException(
+                "'events' value must be one or more (possibly partial) events.",
+            ) from e
+    elif condition.operator in _D_OPS:
+        try:
+            unmarshall({condition.key: condition.value})
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            raise FilteringException(
+                "'events' key must be a string in dot notation.",
+            ) from e
 
 
 def _parse_enum_field_condition(condition: Condition, enum: type) -> None:
@@ -1132,8 +1237,8 @@ def parse_condition(condition: Condition) -> None:
         _parse_links_condition(condition)
     elif condition.field == Fields.REFERENCES:
         _parse_references_condition(condition)
-    # elif condition.field == Fields.EVENTS:
-    #     _parse_events_condition(condition)
+    elif condition.field == Fields.EVENTS:
+        _parse_events_condition(condition)
     elif condition.field == Fields.CREATED_AT:
         _parse_timestamp_field_condition(condition)
     elif condition.field == Fields.UPDATED_AT:

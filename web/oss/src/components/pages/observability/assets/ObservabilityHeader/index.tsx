@@ -1,7 +1,9 @@
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useState, useMemo} from "react"
+import {useAtomValue} from "jotai"
+import {queryClientAtom} from "jotai-tanstack-query"
 
 import {ArrowClockwise, Database, Export} from "@phosphor-icons/react"
-import {Button, Input, Pagination, Radio, RadioChangeEvent, Space} from "antd"
+import {Button, Input, Radio, RadioChangeEvent, Space} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
@@ -15,8 +17,16 @@ import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
 import {useObservability} from "@/oss/state/newObservability"
+import {
+    getAgData,
+    getAgDataInputs,
+    getAgDataOutputs,
+    getCost,
+    getLatency,
+    getTokens,
+} from "@/oss/state/newObservability/selectors/tracing"
 
-import {FILTER_COLUMNS} from "../constants"
+import getFilterColumns from "../getFilterColumns"
 import {ObservabilityHeaderProps} from "../types"
 
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
@@ -30,7 +40,6 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
     const {
         traces,
         isLoading,
-        count,
         searchQuery,
         setSearchQuery,
         traceTabs,
@@ -39,8 +48,6 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         setFilters,
         sort,
         setSort,
-        pagination,
-        setPagination,
         fetchTraces,
         fetchAnnotations,
         selectedRowKeys,
@@ -48,6 +55,9 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         editColumns,
         setEditColumns,
     } = useObservability()
+    const queryClient = useAtomValue(queryClientAtom)
+
+    const filterColumns = useMemo(() => getFilterColumns(), [])
 
     useEffect(() => {
         const handleScroll = () => {
@@ -62,10 +72,10 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
     }, [])
 
     const updateFilter = useCallback(
-        ({key, operator, value}: {key: string; operator: FilterConditions; value: string}) => {
+        ({field, operator, value}: {field: string; operator: FilterConditions; value: string}) => {
             setFilters((prevFilters) => {
-                const otherFilters = prevFilters.filter((f) => f.key !== key)
-                return value ? [...otherFilters, {key, operator, value}] : otherFilters
+                const otherFilters = prevFilters.filter((f) => f.field !== field)
+                return value ? [...otherFilters, {field, operator, value}] : otherFilters
             })
         },
         [setFilters],
@@ -77,7 +87,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
             setSearchQuery(query)
 
             if (!query) {
-                setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "content"))
+                setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "content"))
             }
         },
         [setSearchQuery, setFilters],
@@ -85,22 +95,26 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
 
     const onSearchQueryApply = useCallback(() => {
         if (searchQuery) {
-            updateFilter({key: "content", operator: "contains", value: searchQuery})
+            updateFilter({
+                field: "content",
+                operator: "contains",
+                value: searchQuery,
+            })
         }
     }, [searchQuery, updateFilter])
 
     const onSearchClear = useCallback(() => {
-        const isSearchFilterExist = filters.some((item) => item.key === "content")
+        const isSearchFilterExist = filters.some((item) => item.field === "content")
 
         if (isSearchFilterExist) {
-            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "content"))
+            setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "content"))
         }
     }, [filters])
 
     // Sync searchQuery with filters state
     useLazyEffect(() => {
-        const dataFilter = filters.find((f) => f.key === "content")
-        setSearchQuery(dataFilter ? dataFilter.value : "")
+        const dataFilter = filters.find((f) => f.field === "content")
+        setSearchQuery(dataFilter && typeof dataFilter.value === "string" ? dataFilter.value : "")
     }, [filters])
 
     const onApplyFilter = useCallback((newFilters: Filter[]) => {
@@ -111,35 +125,40 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         setFilters(filter)
         setSearchQuery("")
         if (traceTabs === "chat") {
-            setTraceTabs("tree")
+            setTraceTabs("trace")
         }
     }, [])
 
     const onTraceTabChange = useCallback(
-        async (e: RadioChangeEvent) => {
+        (e: RadioChangeEvent) => {
             const selectedTab = e.target.value
+            queryClient.removeQueries({queryKey: ["tracing"]})
             setTraceTabs(selectedTab)
 
             if (selectedTab === "chat") {
-                updateFilter({key: "node.type", operator: "is", value: selectedTab})
+                updateFilter({
+                    field: "span_type",
+                    operator: "is",
+                    value: selectedTab,
+                })
             } else {
-                const isNodeTypeFilterExist = filters.some(
-                    (item) => item.key === "node.type" && item.value === "chat",
+                const isSpanTypeFilterExist = filters.some(
+                    (item) => item.field === "span_type" && item.value === "chat",
                 )
 
-                if (isNodeTypeFilterExist) {
-                    setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
+                if (isSpanTypeFilterExist) {
+                    setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "span_type"))
                 }
             }
         },
-        [filters, traceTabs, updateFilter],
+        [filters, updateFilter, queryClient, setTraceTabs, setFilters],
     )
 
     // Sync traceTabs with filters state
     useLazyEffect(() => {
-        const nodeTypeFilter = filters.find((f) => f.key === "node.type")?.value
+        const spanTypeFilter = filters.find((f) => f.field === "span_type")?.value
         setTraceTabs((prev) =>
-            nodeTypeFilter === "chat" ? "chat" : prev == "chat" ? "tree" : prev,
+            spanTypeFilter === "chat" ? "chat" : prev == "chat" ? "trace" : prev,
         )
     }, [filters])
 
@@ -147,22 +166,12 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         setSort({type, sorted, customRange})
     }, [])
 
-    const onPaginationChange = (current: number, pageSize: number) => {
-        setPagination({size: pageSize, page: current})
-    }
-    // reset pagination to page 1 whenever quearies get updated
-    useLazyEffect(() => {
-        if (pagination.page > 1) {
-            setPagination({...pagination, page: 1})
-        }
-    }, [filters, sort, traceTabs])
-
     const getTestsetTraceData = useCallback(() => {
         if (!traces?.length) return []
 
         const extractData = selectedRowKeys.map((key, idx) => {
             const node = getNodeById(traces, key as string)
-            return {data: node?.data as KeyValuePair, key: node?.key, id: idx + 1}
+            return {data: getAgData(node) as KeyValuePair, key: node?.key, id: idx + 1}
         })
 
         if (extractData.length > 0) {
@@ -181,22 +190,30 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                 }
 
                 // Helper function to create a trace object
-                const createTraceObject = (trace: any) => ({
-                    "Trace ID": trace.key,
-                    Name: trace.node.name,
-                    "Span type": trace.node.type || "N/A",
-                    Inputs: convertToStringOrJson(trace?.data?.inputs) || "N/A",
-                    Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
-                    Duration: formatLatency(trace?.metrics?.acc?.duration.total / 1000),
-                    Cost: formatCurrency(trace.metrics?.acc?.costs?.total),
-                    Usage: formatTokenUsage(trace.metrics?.acc?.tokens?.total),
-                    Timestamp: formatDay({
-                        date: trace.time.start,
-                        inputFormat: "YYYY-MM-DDTHH:mm:ss.SSSSSS",
-                        outputFormat: "HH:mm:ss DD MMM YYYY",
-                    }),
-                    Status: trace.status.code === "failed" ? "ERROR" : "SUCCESS",
-                })
+                const createTraceObject = (trace: any) => {
+                    const inputs = getAgDataInputs(trace)
+                    const outputs = getAgDataOutputs(trace)
+                    const duration = formatLatency(getLatency(trace))
+                    const cost = formatCurrency(getCost(trace))
+                    const usage = formatTokenUsage(getTokens(trace))
+
+                    return {
+                        "Trace ID": trace.trace_id,
+                        Name: trace.span_name || "N/A",
+                        "Span type": trace.span_type || "N/A",
+                        Inputs: convertToStringOrJson(inputs) || "N/A",
+                        Outputs: convertToStringOrJson(outputs) || "N/A",
+                        Duration: duration,
+                        Cost: cost,
+                        Usage: usage,
+                        Timestamp: formatDay({
+                            date: trace.start_time,
+                            inputFormat: "YYYY-MM-DDTHH:mm:ss.SSSSSS",
+                            outputFormat: "HH:mm:ss DD MMM YYYY",
+                        }),
+                        Status: trace.status_code === "failed" ? "ERROR" : "SUCCESS",
+                    }
+                }
 
                 const csvData = convertToCsv(
                     traces.flatMap((trace) => {
@@ -257,18 +274,18 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                         />
                         <Filters
                             filterData={filters}
-                            columns={FILTER_COLUMNS}
+                            columns={filterColumns}
                             onApplyFilter={onApplyFilter}
                             onClearFilter={onClearFilter}
                         />
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
                         {isScrolled && (
                             <>
-                                <Space className="shrink-0 hidden xl:flex">
+                                <Space>
                                     <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                                        <Radio.Button value="tree">Root</Radio.Button>
+                                        <Radio.Button value="trace">Root</Radio.Button>
                                         <Radio.Button value="chat">LLM</Radio.Button>
-                                        <Radio.Button value="node">All</Radio.Button>
+                                        <Radio.Button value="span">All</Radio.Button>
                                     </Radio.Group>
                                 </Space>
 
@@ -281,32 +298,14 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                             </>
                         )}
                     </div>
-
-                    <Pagination
-                        simple
-                        total={count}
-                        align="end"
-                        current={pagination.page}
-                        pageSize={pagination.size}
-                        onChange={onPaginationChange}
-                        className="flex items-center xl:hidden shrink-0 [&_.ant-pagination-options]:hidden lg:[&_.ant-pagination-options]:block [&_.ant-pagination-options]:!ml-2"
-                    />
-                    <Pagination
-                        total={count}
-                        align="end"
-                        current={pagination.page}
-                        pageSize={pagination.size}
-                        onChange={onPaginationChange}
-                        className="hidden xl:flex xl:items-center"
-                    />
                 </div>
                 {!isScrolled && (
                     <div className="w-full flex items-center justify-between">
                         <Space>
                             <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                                <Radio.Button value="tree">Root</Radio.Button>
+                                <Radio.Button value="trace">Root</Radio.Button>
                                 <Radio.Button value="chat">LLM</Radio.Button>
-                                <Radio.Button value="node">All</Radio.Button>
+                                <Radio.Button value="span">All</Radio.Button>
                             </Radio.Group>
                         </Space>
                         <Space>

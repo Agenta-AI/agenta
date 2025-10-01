@@ -516,6 +516,10 @@ class TracingRouter:
 
         merged_query = merge_queries(query, query_from_body)
 
+        # DEBUGGING
+        # log.trace(merged_query.model_dump(mode="json", exclude_none=True))
+        # ---------
+
         buckets = await self.service.analytics(
             project_id=UUID(request.state.project_id),
             query=merged_query,

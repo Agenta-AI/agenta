@@ -6,8 +6,7 @@ import clsx from "clsx"
 import {useLocalStorage} from "usehooks-ts"
 
 import CustomTreeComponent from "@/oss/components/ui/CustomTreeComponent"
-import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {_AgentaRootsResponse, NodeStatusCode} from "@/oss/services/observability/types"
+import {_AgentaRootsResponse} from "@/oss/services/observability/types"
 
 import {filterTree} from "../../assets/utils"
 import AvatarTreeContent from "../../components/AvatarTreeContent"
@@ -16,24 +15,36 @@ import TraceTreeSettings from "../TraceTreeSettings"
 
 import {useStyles} from "./assets/styles"
 import {TraceTreeProps} from "./assets/types"
+import {StatusCode, TraceSpanNode} from "@/oss/services/tracing/types"
+import {useAtomValue} from "jotai"
+import {
+    formattedSpanLatencyAtomFamily,
+    formattedSpanTokensAtomFamily,
+    formattedSpanCostAtomFamily,
+} from "@/oss/state/newObservability"
 
-export const TreeContent = ({value, settings}: {value: _AgentaRootsResponse; settings: any}) => {
-    const {node, metrics, status} = value || {}
+export const TreeContent = ({value, settings}: {value: TraceSpanNode; settings: any}) => {
+    const {span_name, span_id, status_code} = value || {}
+
     const classes = useStyles()
 
+    const formattedTokens = useAtomValue(formattedSpanTokensAtomFamily(value))
+    const formattedCost = useAtomValue(formattedSpanCostAtomFamily(value))
+    const formattedLatency = useAtomValue(formattedSpanLatencyAtomFamily(value))
+
     return (
-        <div className="flex flex-col gap-0.5 truncate" key={node?.id}>
+        <div className="flex flex-col gap-0.5 truncate" key={span_id}>
             <Space size={4}>
                 <AvatarTreeContent value={value} />
-                <Tooltip title={node.name} mouseEnterDelay={0.25}>
+                <Tooltip title={span_name} mouseEnterDelay={0.25}>
                     <Typography.Text
                         className={
-                            status?.code === NodeStatusCode.ERROR
+                            status_code === StatusCode.STATUS_CODE_ERROR
                                 ? `${classes.treeTitle} text-[#D61010] font-[500]`
                                 : classes.treeTitle
                         }
                     >
-                        {node?.name}
+                        {span_name}
                     </Typography.Text>
                 </Tooltip>
             </Space>
@@ -41,47 +52,42 @@ export const TreeContent = ({value, settings}: {value: _AgentaRootsResponse; set
             <Space className={classes.treeContentContainer}>
                 {settings.latency && (
                     <Tooltip
-                        title={`Latency: ${formatLatency(metrics?.acc?.duration?.total / 1000)}`}
+                        title={`Latency: ${formattedLatency}`}
                         mouseEnterDelay={0.25}
                         placement="bottom"
                     >
                         <div className={classes.treeContent}>
                             <Timer />
-                            {formatLatency(metrics?.acc?.duration?.total / 1000)}
+                            {formattedLatency}
                         </div>
                     </Tooltip>
                 )}
 
-                {settings.cost && (metrics?.unit?.costs?.total || metrics?.acc?.costs?.total) && (
+                {settings.cost && formattedCost && (
                     <Tooltip
-                        title={`Cost: ${formatCurrency(metrics?.unit?.costs?.total || metrics?.acc?.costs?.total)}`}
+                        title={`Cost: ${formattedCost}`}
                         mouseEnterDelay={0.25}
                         placement="bottom"
                     >
                         <div className={classes.treeContent}>
                             <Coins />
-                            {formatCurrency(
-                                metrics?.unit?.costs?.total || metrics?.acc?.costs?.total,
-                            )}
+                            {formattedCost}
                         </div>
                     </Tooltip>
                 )}
 
-                {settings.tokens &&
-                    !!(metrics?.unit?.tokens?.total || metrics?.acc?.tokens?.total) && (
-                        <Tooltip
-                            title={`Tokens: ${formatTokenUsage(metrics?.unit?.tokens?.total || metrics?.acc?.tokens?.total)}`}
-                            mouseEnterDelay={0.25}
-                            placement="bottom"
-                        >
-                            <div className={classes.treeContent}>
-                                <PlusCircle />
-                                {formatTokenUsage(
-                                    metrics?.unit?.tokens?.total || metrics?.acc?.tokens?.total,
-                                )}
-                            </div>
-                        </Tooltip>
-                    )}
+                {settings.tokens && !!formattedTokens && (
+                    <Tooltip
+                        title={`Tokens: ${formattedTokens}`}
+                        mouseEnterDelay={0.25}
+                        placement="bottom"
+                    >
+                        <div className={classes.treeContent}>
+                            <PlusCircle />
+                            {formattedTokens}
+                        </div>
+                    </Tooltip>
+                )}
             </Space>
         </div>
     )
@@ -103,7 +109,7 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
     // When a child node is selected, anchor the tree to its top-level parent
     const treeRoot = useMemo(() => {
         if (!activeTrace) return undefined as any
-        const root = allTraces.find((t: any) => t?.root?.id === activeTrace?.root?.id)
+        const root = allTraces.find((t: any) => t?.trace_id === activeTrace?.trace_id)
         return (root as any) || activeTrace
     }, [activeTrace, allTraces])
 

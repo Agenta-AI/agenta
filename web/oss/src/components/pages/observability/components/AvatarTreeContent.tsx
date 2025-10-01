@@ -1,12 +1,11 @@
 import {Avatar} from "antd"
 
-import {NodeType} from "@/oss/services/observability/types"
-
-import {nodeTypeStyles} from "../assets/constants"
 import {AvatarTreeContentProps} from "../assets/types"
+import {spanTypeStyles} from "../assets/constants"
+import {SpanCategory} from "@/oss/services/tracing/types"
 
-export const statusMapper = (node: NodeType | null | undefined) => {
-    const {bgColor, color, icon: Icon} = nodeTypeStyles[node ?? "default"]
+export const statusMapper = (span: SpanCategory | null | undefined) => {
+    const {bgColor, color, icon: Icon} = spanTypeStyles[span ?? "undefined"]
     return {
         bgColor,
         color,
@@ -15,8 +14,8 @@ export const statusMapper = (node: NodeType | null | undefined) => {
 }
 
 const AvatarTreeContent = ({value, ...props}: AvatarTreeContentProps) => {
-    const {node} = value || {}
-    const {icon} = statusMapper(node?.type)
+    const {span_type} = value || {}
+    const {icon} = statusMapper(span_type)
 
     return (
         <Avatar

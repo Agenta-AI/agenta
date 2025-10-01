@@ -5,7 +5,7 @@ import {Button, message, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useRouter} from "next/router"
 
-import useAnnotations from "@/oss/lib/hooks/useAnnotations"
+import {useSWRConfig} from "swr"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
@@ -34,19 +34,7 @@ const AnnotateDrawerTitle = ({
     const router = useRouter()
     const {fetchAnnotations} = useObservability()
     const [isSaving, setIsSaving] = useState(false)
-    const {mutate} = useAnnotations({
-        queries: {
-            annotation: {
-                links: [
-                    {
-                        trace_id: traceSpanIds?.traceId,
-                        span_id: traceSpanIds?.spanId,
-                    },
-                ],
-            },
-        },
-        waitUntil: !traceSpanIds,
-    })
+    const {mutate: mutateCache} = useSWRConfig()
     const {data: evaluators} = useEvaluators({
         preview: true,
         queries: {is_human: true},
@@ -136,11 +124,13 @@ const AnnotateDrawerTitle = ({
             }
             message.success("Annotations updated successfully")
 
-            // Update via observability atoms if on observability pages; otherwise mutate local hook
+            // Update via observability atoms if on observability pages; otherwise revalidate annotation caches
             if (router.asPath.includes("/observability") || router.asPath.includes("/traces")) {
                 await fetchAnnotations()
             } else {
-                await mutate()
+                await mutateCache(
+                    (key) => Array.isArray(key) && key[0]?.includes("/preview/annotations/"),
+                )
             }
             onClose()
         } catch (error: any) {

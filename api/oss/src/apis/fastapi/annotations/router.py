@@ -11,7 +11,7 @@ from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.shared.dtos import Flags, Tags, Meta, Data, Reference, Link, Windowing
-from oss.src.core.tracing.dtos import OTelLink, OTelReference
+from oss.src.core.tracing.dtos import OTelLink, OTelReference, TraceType, SpanType
 from oss.src.core.tracing.dtos import Focus, Format, Query, Formatting, Filtering
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.tracing.service import TracingService
@@ -270,6 +270,8 @@ class AnnotationsRouter:
         annotation_link: Optional[Link] = await self._create_annotation(
             request=request,
             #
+            name=evaluator.name,
+            #
             flags=annotation_flags,
             tags=annotation_create_request.annotation.tags,
             meta=annotation_create_request.annotation.meta,
@@ -518,6 +520,8 @@ class AnnotationsRouter:
         *,
         request: Request,
         #
+        name: Optional[str] = None,
+        #
         flags: AnnotationFlags,
         tags: Optional[Tags] = None,
         meta: Optional[Meta] = None,
@@ -528,7 +532,11 @@ class AnnotationsRouter:
         links: AnnotationLinks,
     ) -> Optional[Link]:
         trace_id = uuid4().hex
+        trace_type = TraceType.ANNOTATION
+
         span_id = uuid4().hex[16:]
+        span_type = SpanType.TASK
+        span_name = name or references.evaluator.slug or "annotation"
 
         _references = references.model_dump(mode="json", exclude_none=True)
 
@@ -561,7 +569,10 @@ class AnnotationsRouter:
             spans=[
                 OTelFlatSpan(
                     trace_id=trace_id,
+                    trace_type=trace_type,
                     span_id=span_id,
+                    span_type=span_type,
+                    span_name=span_name,
                     attributes=_attributes,
                     links=_links,
                 )

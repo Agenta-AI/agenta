@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {Splitter} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -34,33 +34,44 @@ const TraceDrawer = () => {
         useObservability()
 
     // Initialize selection when drawer payload changes
+    const lastPayloadActiveIdRef = useRef<string | undefined>(undefined)
+
     useEffect(() => {
-        // If payload specifies an active id, prefer it
         if (payloadActiveId) {
-            setSelected(payloadActiveId)
+            const hasChanged = lastPayloadActiveIdRef.current !== payloadActiveId
+            lastPayloadActiveIdRef.current = payloadActiveId
+
+            if (hasChanged || !selected) {
+                setSelected(payloadActiveId)
+            }
             return
         }
-        // Otherwise, default to first trace only when nothing is selected
-        if (traces.length > 0) {
-            setSelected((prev) => prev || traces[0]?.node?.id || "")
+
+        if (!selected && traces.length > 0) {
+            setSelected(traces[0]?.span_id || "")
         }
-    }, [payloadActiveId, traces])
+    }, [payloadActiveId, traces, selected])
 
     // If current selection is not found in the latest traces (e.g., user clicked a different row), re-anchor
     useEffect(() => {
         if (selected && traces.length > 0) {
             const exists = getTraceById(selected)
             if (!exists) {
-                setSelected(payloadActiveId || traces[0]?.node?.id || "")
+                setSelected(payloadActiveId || traces[0]?.span_id || "")
             }
         }
     }, [selected, traces, payloadActiveId, getTraceById])
 
     // Keep component mounted; EnhancedDrawer handles destroyOnHidden. We gate heavy work via memos.
 
-    const navigationIds = payloadNavIds ?? (traces?.length ? traces.map((t: any) => t.node.id) : [])
+    const navigationIds =
+        payloadNavIds && payloadNavIds.length > 1
+            ? payloadNavIds
+            : traces?.length
+              ? traces.map((t: any) => t.span_id)
+              : []
 
-    const activeId = selected || traces[0]?.node?.id || ""
+    const activeId = selected || traces[0]?.span_id || ""
 
     return (
         <EnhancedDrawer

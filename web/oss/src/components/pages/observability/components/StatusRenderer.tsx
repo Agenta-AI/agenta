@@ -1,12 +1,11 @@
-// @ts-nocheck
 import {CheckCircleOutlined, CloseCircleOutlined, InfoCircleOutlined} from "@ant-design/icons"
 import {Space, Tag, Tooltip} from "antd"
 
-import {NodeStatusCode, NodeStatusDTO} from "@/oss/services/observability/types"
+import {StatusCode} from "@/oss/services/tracing/types"
 
-export const statusMapper = (status: NodeStatusCode) => {
+export const statusMapper = (status: StatusCode) => {
     switch (status) {
-        case NodeStatusCode.ERROR:
+        case StatusCode.STATUS_CODE_ERROR:
             return {
                 label: "failure",
                 color: "error",
@@ -23,17 +22,19 @@ export const statusMapper = (status: NodeStatusCode) => {
 
 const StatusRenderer = ({
     status,
+    message,
     showMore = false,
 }: {
-    status?: NodeStatusDTO
+    status?: StatusCode
+    message?: string
     showMore?: boolean
 }) => {
-    const {label, color, icon} = statusMapper(status?.code)
-    const errorMsg = status?.code === NodeStatusCode.ERROR ? status?.message : null
+    const {label, color, icon} = statusMapper(status || StatusCode.STATUS_CODE_UNSET)
+    const errorMsg = status === StatusCode.STATUS_CODE_ERROR ? message : null
 
     return (
         <Space>
-            <Tag color={color} icon={icon} className="font-mono">
+            <Tag color={color === "default" ? undefined : color} icon={icon} className="font-mono">
                 {label}
             </Tag>
             {showMore && errorMsg && (

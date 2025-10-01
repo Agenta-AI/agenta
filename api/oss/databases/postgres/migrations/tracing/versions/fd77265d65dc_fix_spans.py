@@ -85,6 +85,12 @@ def upgrade() -> None:
         [sa.text("to_tsvector('simple', attributes)")],
         postgresql_using="gin",
     )
+    # op.create_index(
+    #     "ix_spans_fts_events_gin",
+    #     "spans",
+    #     [sa.text("to_tsvector('simple', events)")],
+    #     postgresql_using="gin",
+    # )
     # --------------------------------------------------------------------------
 
 
