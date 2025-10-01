@@ -4,7 +4,7 @@ from traceback import format_exc
 
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy import distinct, text
-from sqlalchemy import Select
+from sqlalchemy import Select, column
 from sqlalchemy.dialects.postgresql import dialect
 from sqlalchemy.future import select
 from sqlalchemy import func, cast, Numeric
@@ -21,6 +21,8 @@ from oss.src.core.tracing.dtos import (
     Query,
     Focus,
     Bucket,
+    Condition,
+    ListOperator,
 )
 
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
@@ -44,6 +46,7 @@ log = get_module_logger(__name__)
 
 DEBUG_ARGS = {"dialect": dialect(), "compile_kwargs": {"literal_binds": True}}
 STATEMENT_TIMEOUT = 60_000  # milliseconds
+TIMEOUT_STATEMENT = text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'")
 
 
 class TracingDAO(TracingDAOInterface):
@@ -517,98 +520,86 @@ class TracingDAO(TracingDAOInterface):
         #
         query: Query,
     ) -> List[OTelFlatSpan]:
-        _query = query
+        # DE-STRUCTURING
+        focus = query.formatting.focus if query.formatting else None
 
-        # DE-STRUCTURING ARGS
-        formatting = _query.formatting
-        windowing = _query.windowing
-        filtering = _query.filtering
+        oldest = query.windowing.oldest if query.windowing else None
+        newest = query.windowing.newest if query.windowing else None
+        limit = query.windowing.limit if query.windowing else None
 
-        focus = formatting.focus if formatting else None
-
-        oldest = windowing.oldest if windowing else None
-        newest = windowing.newest if windowing else None
-        limit = windowing.limit if windowing else None
-
-        operator = filtering.operator if filtering else None
-        conditions = filtering.conditions if filtering else None
-        # -------------------
+        operator = query.filtering.operator if query.filtering else None
+        conditions = query.filtering.conditions if query.filtering else None
+        # --------------
 
         try:
             async with engine.tracing_session() as session:
-                stmt = text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'")
-                await session.execute(stmt)
+                # TIMEOUT
+                await session.execute(TIMEOUT_STATEMENT)
+                # -------
 
-                # BASE (SUB-)QUERY
-                query: Select = select(SpanDBE)
-                # ----------------
+                # BASE (SUB-)STMT
+                base: Select = select(SpanDBE)
+                # ---------------
 
                 # GROUPING
                 if focus == Focus.TRACE:
-                    distinct_ids = distinct(SpanDBE.trace_id).label("grouping_key")
-
-                    query = select(distinct_ids, SpanDBE.start_time)
+                    base = select(
+                        SpanDBE.trace_id,
+                        SpanDBE.created_at,
+                    ).distinct(SpanDBE.trace_id)
                 # --------
 
                 # SCOPING
-                query = query.filter(SpanDBE.project_id == project_id)
+                base = base.filter(SpanDBE.project_id == project_id)
                 # -------
 
                 # WINDOWING
                 if oldest:
-                    query = query.filter(SpanDBE.start_time >= oldest)
-
+                    base = base.filter(SpanDBE.start_time >= oldest)
                 if newest:
-                    query = query.filter(SpanDBE.start_time < newest)
+                    base = base.filter(SpanDBE.start_time < newest)
                 # ---------
 
                 # DEBUGGING
-                # log.trace(_query)
+                # log.trace(query)
                 # ---------
 
                 # FILTERING
-                if filtering:
-                    query = query.filter(combine(operator, filter(conditions)))
+                if operator and conditions:
+                    base = base.filter(combine(operator, filter(conditions)))
                 # ---------
-
-                # SORTING
-                query = query.order_by(
-                    SpanDBE.start_time.desc(),
-                )
-                # -------
 
                 # GROUPING
                 if focus == Focus.TRACE:
-                    subquery = select(query.subquery().c["grouping_key"])
+                    base = base.order_by(SpanDBE.trace_id, SpanDBE.created_at.desc())
 
-                    query = select(SpanDBE)
+                    inner = base.subquery("latest_per_trace")
 
-                    query = query.filter(SpanDBE.trace_id.in_(subquery))
+                    # now order by created_at DESC globally and apply LIMIT here
+                    uniq = select(inner.c.trace_id)
+                    uniq = uniq.order_by(inner.c.created_at.desc())
+                    if limit:
+                        uniq = uniq.limit(limit)
 
-                    # SORTING
-                    query = query.order_by(
-                        SpanDBE.created_at.desc(),
-                        SpanDBE.start_time.asc(),
+                    stmt = (
+                        select(SpanDBE)
+                        .filter(SpanDBE.trace_id.in_(uniq))
+                        .order_by(SpanDBE.created_at.desc(), SpanDBE.start_time.asc())
                     )
-                    # -------
-                # else:
-                #     query = query.order_by(
-                #         SpanDBE.start_time.desc(),
-                #     )
-                # --------
+                else:
+                    stmt = base.order_by(SpanDBE.created_at.desc())
 
-                # WINDOWING
-                if limit:
-                    query = query.limit(limit)
+                    if limit:
+                        stmt = stmt.limit(limit)
                 # --------
 
                 # DEBUGGING
-                # log.trace(str(query.compile(**DEBUG_ARGS)).replace("\n", " "))
+                # log.trace(str(stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
                 # ---------
 
-                # QUERY EXECUTION
-                dbes = (await session.execute(query)).scalars().all()
-                # ---------------
+                # EXECUTION
+                dbes = (await session.execute(stmt)).scalars().all()
+                # ---------
 
                 if not dbes:
                     return []
@@ -650,6 +641,10 @@ class TracingDAO(TracingDAOInterface):
             window,
             timestamps,
         ) = parse_windowing(query.windowing)
+
+        # DEBUGGING
+        # log.trace(query.model_dump(mode="json", exclude_none=True))
+        # ---------
 
         try:
             async with engine.tracing_session() as session:
@@ -744,9 +739,6 @@ class TracingDAO(TracingDAOInterface):
                 # -------
 
                 # TOTAL vs ERRORS
-                errors_query = errors_query.filter(
-                    SpanDBE.attributes["ag.exception"].isnot(None),
-                )
                 # ----------------
 
                 # FILTERING
@@ -765,8 +757,17 @@ class TracingDAO(TracingDAOInterface):
                     errors_query = errors_query.filter(
                         combine(
                             operator,
-                            filter(conditions),
-                        )
+                            filter(
+                                conditions
+                                + [
+                                    Condition(
+                                        field="events",
+                                        operator=ListOperator.IN,
+                                        value=[{"name": "exception"}],
+                                    )
+                                ]
+                            ),
+                        ),
                     )
                 # ---------
 

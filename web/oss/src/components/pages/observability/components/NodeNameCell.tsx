@@ -5,16 +5,17 @@ import {useAtomValue} from "jotai"
 
 import {nodeDisplayNameAtomFamily} from "@/oss/state/newObservability"
 
-import {nodeTypeStyles} from "../assets/constants"
+import {spanTypeStyles} from "../assets/constants"
+import {SpanCategory} from "@/oss/services/tracing/types"
 
 interface Props {
     name: string
-    type?: string
+    type?: SpanCategory
 }
 
 const NodeNameCell = memo(({name, type}: Props) => {
     const display = useAtomValue(nodeDisplayNameAtomFamily(name))
-    const {icon: Icon} = nodeTypeStyles[type ?? "default"]
+    const {icon: Icon} = spanTypeStyles[type ?? "undefined"]
 
     return (
         <Space align="center" size={4}>

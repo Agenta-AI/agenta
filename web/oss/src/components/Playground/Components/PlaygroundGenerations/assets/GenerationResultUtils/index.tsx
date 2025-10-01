@@ -9,7 +9,7 @@ import StatusRenderer from "@/oss/components/pages/observability/components/Stat
 import {generationTraceIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {NodeStatusCode, NodeStatusDTO} from "@/oss/services/observability/types"
+import {StatusCode} from "@/oss/services/tracing/types"
 
 import TraceDrawerButton from "../../../Drawers/TraceDrawer"
 
@@ -27,11 +27,7 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
     const metricAcc = node?.metrics?.acc
     const metricUnit = node?.metrics?.unit
     const metric = metricAcc || metricUnit
-    const status = result?.error
-        ? {
-              code: NodeStatusCode.ERROR,
-          }
-        : (node?.status as NodeStatusDTO)
+    const status = result?.error ? StatusCode.STATUS_CODE_ERROR : (node?.status as StatusCode)
     const durations = metric?.duration?.total
     const tokens = metric?.tokens?.total
     const costs = metric?.costs?.total

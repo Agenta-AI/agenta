@@ -10,7 +10,7 @@ interface Props {
 
 const TimestampCell = memo(({timestamp}: Props) => {
     const formatted = useAtomValue(formattedTimestampAtomFamily(timestamp))
-    return <div>{formatted}</div>
+    return <div className="font-mono">{formatted}</div>
 })
 
 export default TimestampCell

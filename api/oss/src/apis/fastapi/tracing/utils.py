@@ -101,11 +101,11 @@ def _parse_filtering(
 
 
 def _parse_formatting(
-    focus: Optional[Focus] = Focus.TRACE,
-    format: Optional[Format] = Format.AGENTA,  # pylint: disable=redefined-builtin
+    focus: Focus = Focus.TRACE,
+    format: Format = Format.AGENTA,  # pylint: disable=redefined-builtin
 ) -> Optional[Formatting]:
     _formatting = Formatting(
-        focus=focus or Focus.SPAN,
+        focus=focus or Focus.TRACE,
         format=format or Format.AGENTA,
     )
 

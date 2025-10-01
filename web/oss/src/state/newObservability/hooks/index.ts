@@ -7,7 +7,6 @@ import {
     traceTabsAtom,
     filtersAtom,
     sortAtom,
-    paginationAtom,
     selectedTraceIdAtom,
     selectedRowKeysAtom,
     editColumnsAtom,
@@ -20,7 +19,6 @@ import {
     tracesQueryAtom,
     annotationsQueryAtom,
     tracesWithAnnotationsAtom,
-    traceCountAtom,
     observabilityLoadingAtom,
     activeTraceIndexAtom,
     activeTraceAtom,
@@ -32,7 +30,6 @@ export const useObservability = () => {
     const [traceTabs, setTraceTabs] = useAtom(traceTabsAtom)
     const [filters, setFilters] = useAtom(filtersAtom)
     const [sort, setSort] = useAtom(sortAtom)
-    const [pagination, setPagination] = useAtom(paginationAtom)
     const [selectedTraceId, setSelectedTraceId] = useAtom(selectedTraceIdAtom)
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(selectedRowKeysAtom)
     const [editColumns, setEditColumns] = useAtom(editColumnsAtom)
@@ -42,10 +39,10 @@ export const useObservability = () => {
     )
     const [selectedNode, setSelectedNode] = useAtom(selectedNodeAtom)
 
-    const [{refetch: refetchTraces}] = useAtom(tracesQueryAtom)
+    const [{refetch: refetchTraces, fetchNextPage, hasNextPage, isFetchingNextPage}] =
+        useAtom(tracesQueryAtom)
     const [{data: annotationsData, refetch: refetchAnnotations}] = useAtom(annotationsQueryAtom)
     const traces = useAtomValue(tracesWithAnnotationsAtom)
-    const count = useAtomValue(traceCountAtom)
     const isLoading = useAtomValue(observabilityLoadingAtom)
     const activeTraceIndex = useAtomValue(activeTraceIndexAtom)
     const activeTrace = useAtomValue(activeTraceAtom)
@@ -62,26 +59,27 @@ export const useObservability = () => {
         return res.data
     }, [refetchAnnotations])
 
-    const navigateToPage = useCallback(
-        async (newPage: number) => {
-            setPagination((prev) => ({...prev, page: newPage}))
-        },
-        [setPagination],
-    )
+    const fetchMoreTraces = useCallback(async () => {
+        if (!hasNextPage) return []
+        const res = await fetchNextPage()
+        const pages = res.data?.pages || []
+        return pages.length ? pages[pages.length - 1].traces : []
+    }, [fetchNextPage, hasNextPage])
 
     const clearQueryStates = useCallback(() => {
         setSearchQuery("")
-        setTraceTabs("tree")
+        setTraceTabs("trace")
         setFilters([])
         setSort(DEFAULT_SORT)
-        setPagination({page: 1, size: 50})
-    }, [setSearchQuery, setTraceTabs, setFilters, setSort, setPagination])
+    }, [setSearchQuery, setTraceTabs, setFilters, setSort])
 
     return {
         traces,
         annotations,
-        count,
         isLoading,
+        fetchMoreTraces,
+        hasMoreTraces: hasNextPage,
+        isFetchingMore: isFetchingNextPage,
         fetchTraces,
         fetchAnnotations,
         clearQueryStates,
@@ -93,9 +91,6 @@ export const useObservability = () => {
         setFilters,
         sort,
         setSort,
-        pagination,
-        setPagination,
-        navigateToPage,
         selectedTraceId,
         setSelectedTraceId,
         selectedRowKeys,

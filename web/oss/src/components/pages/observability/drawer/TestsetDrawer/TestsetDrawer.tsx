@@ -199,7 +199,14 @@ const TestsetDrawer = ({
             traceKeys.forEach((key) => uniquePaths.add(key))
         })
 
-        const mappedData = Array.from(uniquePaths).map((item) => ({value: item}))
+        const mappedData = Array.from(uniquePaths)
+            .filter(
+                (item) =>
+                    item.startsWith("data.inputs") ||
+                    item === "data.outputs" ||
+                    item.startsWith("data.outputs."),
+            )
+            .map((item) => ({value: item}))
 
         if (mappedData.length > 0 && testset.id) {
             setMappingData((prevMappingData) => {

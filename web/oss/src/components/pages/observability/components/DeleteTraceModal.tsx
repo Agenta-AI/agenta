@@ -5,19 +5,15 @@ import {Modal} from "antd"
 import {useSetAtom} from "jotai"
 
 import {closeTraceDrawerAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import {deleteTrace} from "@/oss/services/observability/core"
 import {useObservability} from "@/oss/state/newObservability"
+import {deletePreviewTrace} from "@/oss/services/tracing/api"
 
 type DeleteTraceModalProps = {
     setSelectedTraceId: (val: string) => void
-    activeTraceNodeId: string
+    activeTraceId: string
 } & React.ComponentProps<typeof Modal>
 
-const DeleteTraceModal = ({
-    setSelectedTraceId,
-    activeTraceNodeId,
-    ...props
-}: DeleteTraceModalProps) => {
+const DeleteTraceModal = ({setSelectedTraceId, activeTraceId, ...props}: DeleteTraceModalProps) => {
     const {fetchTraces, setSelectedTraceId: setGlobalSelectedTraceId} = useObservability()
     const closeDrawer = useSetAtom(closeTraceDrawerAtom)
     const [isLoading, setIsLoading] = useState(false)
@@ -25,7 +21,7 @@ const DeleteTraceModal = ({
     const handleDelete = async () => {
         try {
             setIsLoading(true)
-            await deleteTrace(activeTraceNodeId)
+            await deletePreviewTrace(activeTraceId)
             await fetchTraces()
             // Clear both local (drawer) and global (observability) selections
             setSelectedTraceId("")

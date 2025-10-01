@@ -49,7 +49,7 @@ h1 {
 }
 
 .editor-inner {
-  background: #fff;
+  background: inherit;
   position: relative;
 }
 
@@ -70,9 +70,8 @@ h1 {
   overflow: hidden;
   position: absolute;
   text-overflow: ellipsis;
-  top: 15px;
-  left: 10px;
-  font-size: 15px;
+  top: 0px;
+  left: 0px;
   user-select: none;
   display: inline-block;
   pointer-events: none;

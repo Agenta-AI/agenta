@@ -13,7 +13,6 @@ import {
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import {KeyValuePair} from "@/oss/lib/Types"
-import {TracesWithAnnotations} from "@/oss/services/observability/types"
 
 import AccordionTreePanel from "../../components/AccordionTreePanel"
 import AnnotateDrawerButton from "../AnnotateDrawer/assets/AnnotateDrawerButton"
@@ -22,11 +21,13 @@ import useTraceDrawer from "../hooks/useTraceDrawer"
 import {useStyles} from "./assets/styles"
 import AnnotationTabItem from "./components/AnnotationTabItem"
 import OverviewTabItem from "./components/OverviewTabItem"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {spanAgDataAtomFamily} from "@/oss/state/newObservability/selectors/tracing"
 
 const TestsetDrawer = dynamic(() => import("../TestsetDrawer/TestsetDrawer"), {ssr: false})
 
 interface TraceContentProps {
-    activeTrace?: TracesWithAnnotations
+    activeTrace?: TraceSpanNode
     activeTraceId?: string
 }
 
@@ -37,14 +38,21 @@ const TraceContent = ({activeTrace: active, activeTraceId}: TraceContentProps) =
     const drawerResult = useAtomValue(drawerResultAtom)
     const resetDrawer = useSetAtom(resetTraceDrawerAtom)
     const activeTrace = active || getTraceById(activeTraceId)
-    const {key, children, nodes, ...filteredTrace} = activeTrace || {}
+    const activeTraceData = useAtomValue(spanAgDataAtomFamily(activeTrace))
+    const {key, children, spans, ...filteredTrace} = activeTrace || {}
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
     const testsetData = useMemo(() => {
         if (!activeTrace?.key) return [] as {data: KeyValuePair; key: string; id: number}[]
-        return [{data: activeTrace.data as KeyValuePair, key: activeTrace.key, id: 1}]
-    }, [activeTrace?.key])
+        return [
+            {
+                data: activeTraceData as KeyValuePair,
+                key: activeTrace.key,
+                id: 1,
+            },
+        ]
+    }, [activeTrace?.key, activeTraceData])
 
     const items: TabsProps["items"] = useMemo(() => {
         // When activeTrace is missing (e.g., failed generation), show just Raw Data/Error
@@ -117,13 +125,13 @@ const TraceContent = ({activeTrace: active, activeTraceId}: TraceContentProps) =
                     <div className="p-4 flex items-center justify-between gap-2">
                         <Tooltip
                             placement="topLeft"
-                            title={activeTrace?.node?.name || (drawerResult?.error ? "Error" : "")}
+                            title={activeTrace?.span_name || (drawerResult?.error ? "Error" : "")}
                             mouseEnterDelay={0.25}
                         >
                             <Typography.Text
                                 className={clsx("truncate text-nowrap flex-1", classes.title)}
                             >
-                                {activeTrace?.node?.name || (drawerResult?.error ? "Error" : "")}
+                                {activeTrace?.span_name || (drawerResult?.error ? "Error" : "")}
                             </Typography.Text>
                         </Tooltip>
                         <TooltipWithCopyAction

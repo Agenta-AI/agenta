@@ -282,9 +282,9 @@ def _handle_list_operator(
             clauses.append(or_(*subclauses))
     elif operator == ListOperator.NOT_IN:
         if options.all:
-            clauses.extend([not_(sc) for sc in subclauses])
+            clauses.extend([or_(not_(sc), attribute.is_(None)) for sc in subclauses])
         else:
-            clauses.append(not_(or_(*subclauses)))
+            clauses.append(or_(not_(or_(*subclauses)), attribute.is_(None)))
 
     return clauses
 
@@ -454,11 +454,6 @@ def _handle_list_field(
         )
 
     return clauses
-
-
-# def _handle_events_field(
-#     condition: Condition,
-# ) -> List[ClauseElement]: ...
 
 
 def _handle_enum_field(
@@ -648,6 +643,7 @@ def _handle_uuid_field(
 def _handle_fts_field(
     condition: Condition,
 ) -> List[ClauseElement]:
+    conditions = []
     # ------------------------- #
     # field = condition.field
     # key = condition.key
@@ -660,7 +656,23 @@ def _handle_fts_field(
     ts_vector = func.to_tsvector(text("'simple'"), attribute)
     ts_query = func.websearch_to_tsquery(text("'simple'"), text(f"'{value}'"))
 
-    return [ts_vector.op("@@")(ts_query)]
+    conditions.append(ts_vector.op("@@")(ts_query))
+
+    # # ------------------------- #
+    # # field = condition.field
+    # # key = condition.key
+    # value = condition.value
+    # # options = condition.options
+    # # operator = condition.operator
+    # attribute: Column = getattr(SpanDBE, "events")
+    # # ------------------------- #
+
+    # ts_vector = func.to_tsvector(text("'simple'"), attribute)
+    # ts_query = func.websearch_to_tsquery(text("'simple'"), text(f"'{value}'"))
+
+    # conditions.append(ts_vector.op("@@")(ts_query))
+
+    return [or_(*conditions)]
 
 
 # COMBINE / FILTER
@@ -734,8 +746,8 @@ def filter(  # pylint:disable=redefined-builtin
                 clauses.extend(_handle_list_field(condition))
             elif field == Fields.REFERENCES:
                 clauses.extend(_handle_list_field(condition))
-            # elif field == Fields.EVENTS:
-            #     clauses.extend(_handle_events_field(condition))
+            elif field == Fields.EVENTS:
+                clauses.extend(_handle_list_field(condition))
             elif field == Fields.CREATED_AT:
                 clauses.extend(_handle_timestamp_field(condition))
             elif field == Fields.UPDATED_AT:

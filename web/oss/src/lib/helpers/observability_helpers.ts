@@ -4,10 +4,10 @@ import {
     _AgentaRootsResponse,
     AgentaNodeDTO,
     AgentaTreeDTO,
-    TracesWithAnnotations,
 } from "@/oss/services/observability/types"
 
 import {uuidToSpanId, uuidToTraceId} from "../hooks/useAnnotations/assets/helpers"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 const normalizeContentFields = (obj: any): void => {
     if (Array.isArray(obj)) {
@@ -43,16 +43,16 @@ export const observabilityTransformer = (
     const buildData = (node: AgentaNodeDTO) => {
         normalizeContentFields(node)
 
-        const key = node.node.id
-        const hasChildren = node.nodes && Object.keys(node.nodes).length > 0
+        const key = node?.node?.id || node?.span_id
+        const hasChildren = node?.nodes && Object.keys(node.nodes).length > 0
 
         return {
             ...node,
             key,
             // Added annotation here to make the clean up version of the annotations feature
             invocationIds: {
-                trace_id: uuidToTraceId(node.root.id),
-                span_id: uuidToSpanId(node.node.id),
+                trace_id: uuidToTraceId(node?.root?.id) || node?.trace_id,
+                span_id: uuidToSpanId(node?.node?.id) || node?.span_id,
             },
             ...(hasChildren ? {children: observabilityTransformer(node)} : undefined),
         }
@@ -79,15 +79,15 @@ export const observabilityTransformer = (
 }
 
 export const buildNodeTree = ({parent, ...node}: AgentaNodeDTO) => ({
-    tree: node.tree.id,
+    tree: node?.tree?.id || node?.trace_id,
     nodes: [{...node}],
 })
 
 export const getNodeById = (
-    nodes: TracesWithAnnotations[] | TracesWithAnnotations,
+    nodes: TraceSpanNode[] | TraceSpanNode,
     id: string,
-): TracesWithAnnotations | null => {
-    if (nodes && !Array.isArray(nodes) && nodes.key === id) {
+): TraceSpanNode | null => {
+    if (nodes && !Array.isArray(nodes) && nodes.span_id === id) {
         return nodes
     }
 
@@ -95,7 +95,7 @@ export const getNodeById = (
         for (const value of Object.values(nodes)) {
             if (Array.isArray(value)) {
                 for (const node of value) {
-                    if (node.key === id) {
+                    if (node.span_id === id) {
                         return node
                     }
 
@@ -105,7 +105,7 @@ export const getNodeById = (
                     }
                 }
             } else {
-                if (value.key === id) {
+                if (value.span_id === id) {
                     return value
                 }
 

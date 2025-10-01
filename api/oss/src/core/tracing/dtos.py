@@ -1,8 +1,7 @@
-import random
-import string
-from enum import Enum
-from datetime import datetime, timezone
 from typing import List, Dict, Any, Union, Optional
+from datetime import datetime, timezone
+from uuid import uuid4
+from enum import Enum
 
 from pydantic import BaseModel, model_validator, Field
 
@@ -212,9 +211,7 @@ class OTelFlatSpan(Lifecycle):
             self.start_time = now
             self.end_time = now
         if self.span_name is None:
-            self.span_name = "".join(
-                random.choices(string.ascii_letters + string.digits, k=8)
-            )
+            self.span_name = uuid4().hex[-12:]
         return self
 
 

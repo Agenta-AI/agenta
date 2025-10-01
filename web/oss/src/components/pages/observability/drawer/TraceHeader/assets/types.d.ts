@@ -1,11 +1,12 @@
 import {Dispatch, SetStateAction} from "react"
 
 import {_AgentaRootsResponse, TracesWithAnnotations} from "@/oss/services/observability/types"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 export interface TraceHeaderProps {
     // Original props (ObservabilityDashboard)
     activeTrace?: TracesWithAnnotations
-    traces?: _AgentaRootsResponse[]
+    traces?: TraceSpanNode[]
     // Lean alternative: pass just the active trace id (TraceDrawer)
     activeTraceId?: string
     // Optional explicit navigation id list (preferred when provided)

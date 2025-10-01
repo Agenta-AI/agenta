@@ -1,12 +1,12 @@
 import {Avatar} from "antd"
 import {ColumnsType} from "antd/es/table"
 
-import {_AgentaRootsResponse, TracesWithAnnotations} from "@/oss/services/observability/types"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 export interface ObservabilityHeaderProps {
-    columns: ColumnsType<TracesWithAnnotations>
+    columns: ColumnsType<TraceSpanNode>
 }
 
 export type AvatarTreeContentProps = {
-    value: _AgentaRootsResponse
+    value: TraceSpanNode
 } & React.ComponentProps<typeof Avatar>

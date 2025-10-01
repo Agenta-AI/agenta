@@ -3,7 +3,7 @@ import {ColumnsType} from "antd/es/table"
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {TracesWithAnnotations} from "@/oss/services/observability/types"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import CostCell from "../components/CostCell"
 import DurationCell from "../components/DurationCell"
@@ -12,16 +12,23 @@ import NodeNameCell from "../components/NodeNameCell"
 import StatusRenderer from "../components/StatusRenderer"
 import TimestampCell from "../components/TimestampCell"
 import UsageCell from "../components/UsageCell"
+import {
+    getCost,
+    getLatency,
+    getTokens,
+    getTraceInputs,
+    getTraceOutputs,
+} from "@/oss/state/newObservability"
 
 interface ObservabilityColumnsProps {
     evaluatorSlugs: string[]
 }
 
 export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsProps) => {
-    const columns: ColumnsType<TracesWithAnnotations> = [
+    const columns: ColumnsType<TraceSpanNode> = [
         {
             title: "ID",
-            dataIndex: ["node", "id"],
+            dataIndex: ["span_id"],
             key: "key",
             width: 200,
             onHeaderCell: () => ({
@@ -30,12 +37,12 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             defaultHidden: true,
             fixed: "left",
             render: (_, record) => {
-                return <ResultTag value1={`# ${record.node.id.split("-")[0]}`} />
+                return <ResultTag value1={`# ${record.span_id.split("-")[0]}`} />
             },
         },
         {
             title: "Name",
-            dataIndex: ["node", "name"],
+            dataIndex: ["span_name"],
             key: "name",
             ellipsis: true,
             width: 200,
@@ -43,19 +50,19 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 style: {minWidth: 200},
             }),
             fixed: "left",
-            render: (_, record) => <NodeNameCell name={record.node.name} type={record.node.type} />,
+            render: (_, record) => <NodeNameCell name={record.span_name} type={record.span_type} />,
         },
         {
             title: "Span type",
             key: "span_type",
-            dataIndex: ["node", "type"],
+            dataIndex: ["span_type"],
             defaultHidden: true,
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
             render: (_, record) => {
-                return <div>{record.node.type}</div>
+                return <div>{record.span_type}</div>
             },
         },
         {
@@ -64,9 +71,10 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             width: 400,
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
+                const inputs = getTraceInputs(record)
                 return (
                     <TruncatedTooltipTag
-                        children={getStringOrJson(record?.data?.inputs)}
+                        children={inputs ? getStringOrJson(inputs) : ""}
                         placement="bottom"
                     />
                 )
@@ -78,9 +86,10 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             width: 400,
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
+                const outputs = getTraceOutputs(record)
                 return (
                     <TruncatedTooltipTag
-                        children={getStringOrJson(record?.data?.outputs)}
+                        children={outputs ? getStringOrJson(outputs) : ""}
                         placement="bottom"
                     />
                 )
@@ -112,48 +121,61 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
-            render: (_, record) => <DurationCell ms={record?.metrics?.acc?.duration?.total} />,
+            render: (_, record) => {
+                const duration = getLatency(record)
+                return <DurationCell ms={duration} />
+            },
         },
         {
             title: "Cost",
             key: "cost",
-            dataIndex: ["metrics", "acc", "costs", "total"],
+            dataIndex: ["attributes", "ag", "metrics", "costs", "cumulative", "total"],
             width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
-            render: (_, record) => <CostCell cost={record.metrics?.acc?.costs?.total} />,
+            render: (_, record) => {
+                const cost = getCost(record)
+                return <CostCell cost={cost} />
+            },
         },
         {
             title: "Usage",
             key: "usage",
-            dataIndex: ["metrics", "acc", "tokens", "total"],
-            defaultHidden: true,
+            dataIndex: ["attributes", "ag", "metrics", "tokens", "cumulative", "total"],
             width: 80,
             onHeaderCell: () => ({
                 style: {minWidth: 80},
             }),
-            render: (_, record) => <UsageCell tokens={record.metrics?.acc?.tokens?.total} />,
+            render: (_, record) => {
+                const tokens = getTokens(record)
+                return <UsageCell tokens={tokens} />
+            },
         },
         {
             title: "Timestamp",
             key: "timestamp",
-            dataIndex: ["lifecycle", "created_at"],
+            dataIndex: ["created_at"],
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
-            render: (_, record) => <TimestampCell timestamp={record.lifecycle?.created_at} />,
+            render: (_, record) => <TimestampCell timestamp={record?.created_at} />,
         },
         {
             title: "Status",
             key: "status",
-            dataIndex: ["status", "code"],
+            dataIndex: ["status_code"],
             width: 160,
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
-            render: (_, record) => StatusRenderer({status: record.status, showMore: true}),
+            render: (_, record) =>
+                StatusRenderer({
+                    status: record.status_code,
+                    message: record.status_message,
+                    showMore: true,
+                }),
         },
     ]
 

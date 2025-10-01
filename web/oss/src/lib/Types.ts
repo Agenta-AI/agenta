@@ -535,10 +535,18 @@ export interface HumanEvaluationListTableDataType {
     variantNames: string[]
 }
 
+export type FilterValue =
+    | string
+    | number
+    | boolean
+    | Record<string, any>
+    | Array<string | number | boolean | Record<string, any>>
+
 export interface Filter {
-    key: string
+    field: string
+    key?: string
     operator: FilterConditions
-    value: string
+    value: FilterValue
     isPermanent?: boolean
 }
 
@@ -558,6 +566,7 @@ export type FilterConditions =
     | "lte"
     | "between"
     | "in"
+    | "not_in"
     | "is"
     | "is_not"
     | "btwn"

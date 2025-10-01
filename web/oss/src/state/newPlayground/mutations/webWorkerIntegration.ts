@@ -493,7 +493,7 @@ export const handleWebWorkerResultAtom = atom(
         console.debug("[WW] completion result", {rowId, variantId, responseHash})
         set(responseByRowRevisionAtomFamily({rowId, revisionId: variantId}), testResult as any)
         const queryClient = get(queryClientAtom)
-        queryClient.invalidateQueries({queryKey: ["traces"]})
+        queryClient.invalidateQueries({queryKey: ["tracing"]})
     },
 )
 
