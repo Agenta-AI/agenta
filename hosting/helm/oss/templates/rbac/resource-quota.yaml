@@ -1,0 +1,28 @@
+{{- if .Values.resourceQuota.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "agenta-oss.fullname" . }}-resource-quota
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "agenta-oss.labels" . | nindent 4 }}
+spec:
+  hard:
+    # CPU Limits
+    requests.cpu: {{ .Values.resourceQuota.requests.cpu | quote }}
+    limits.cpu: {{ .Values.resourceQuota.limits.cpu | quote }}
+    
+    # Memory Limits
+    requests.memory: {{ .Values.resourceQuota.requests.memory | quote }}
+    limits.memory: {{ .Values.resourceQuota.limits.memory | quote }}
+    
+    # Storage Limits
+    requests.storage: {{ .Values.resourceQuota.requests.storage | quote }}
+    
+    # Object Count Limits
+    count/pods: {{ .Values.resourceQuota.count.pods | quote }}
+    count/services: {{ .Values.resourceQuota.count.services | quote }}
+    count/secrets: {{ .Values.resourceQuota.count.secrets | quote }}
+    count/configmaps: {{ .Values.resourceQuota.count.configmaps | quote }}
+    count/persistentvolumeclaims: {{ .Values.resourceQuota.count.persistentvolumeclaims | quote }}
+{{- end }}
