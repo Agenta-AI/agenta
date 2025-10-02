@@ -56,8 +56,10 @@ const AppManagement: React.FC = () => {
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
     const [statusModalOpen, setStatusModalOpen] = useState(false)
+    const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
     const {openModal} = useCustomWorkflowConfig({
         setStatusModalOpen,
+        setFetchingTemplate: setFetchingCustomWorkflow,
         appId: "",
     })
     const posthog = usePostHogAg()
@@ -226,7 +228,7 @@ const AppManagement: React.FC = () => {
 
             <CreateAppStatusModal
                 open={statusModalOpen}
-                loading={fetchingTemplate}
+                loading={fetchingTemplate || fetchingCustomWorkflow}
                 onErrorRetry={onErrorRetry}
                 onTimeoutRetry={onTimeoutRetry}
                 onCancel={() => {

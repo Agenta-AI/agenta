@@ -2,6 +2,7 @@ import {message} from "antd"
 
 export const getErrorMessage = (error: any, fallback = "An unknown error occurred!") => {
     let message = fallback
+    if (error == null) return message
     error?.preventDefault && error.preventDefault()
     if (typeof error === "string") message = error
     else if (error.message) message = error.message
