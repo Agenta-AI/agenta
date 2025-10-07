@@ -115,3 +115,5 @@ export const waitForValidURL = (options: WaitForUrlOptions = {}): Promise<URLSta
         check()
     })
 }
+
+export {clearTraceParamAtom} from "./trace"

@@ -1,36 +1,76 @@
 import {atom} from "jotai"
 import {atomWithImmer} from "jotai-immer"
+import {atomWithQuery} from "jotai-tanstack-query"
 
-// The shape of the drawer state
+import {fetchPreviewTrace} from "@/oss/services/tracing/api"
+
 export interface TraceDrawerState {
     open: boolean
-    result: any // TODO: Replace 'any' with the correct type if available
+    traceId: string | null
+    activeSpanId: string | null
 }
 
-// Main atom for the drawer state
-export const traceDrawerAtom = atomWithImmer<TraceDrawerState>({open: false, result: null})
+export const initialTraceDrawerState: TraceDrawerState = {
+    open: false,
+    traceId: null,
+    activeSpanId: null,
+}
 
-// Optional: selectors and reset atom (if you want)
+export const traceDrawerAtom = atomWithImmer<TraceDrawerState>(initialTraceDrawerState)
+
 export const isDrawerOpenAtom = atom((get) => get(traceDrawerAtom).open)
-export const drawerResultAtom = atom((get) => get(traceDrawerAtom).result)
-export const resetTraceDrawerAtom = atom(null, (_get, set) =>
-    set(traceDrawerAtom, (draft) => {
-        draft.open = false
-        draft.result = null
-    }),
-)
+export const traceDrawerTraceIdAtom = atom((get) => get(traceDrawerAtom).traceId)
+export const traceDrawerActiveSpanIdAtom = atom((get) => get(traceDrawerAtom).activeSpanId)
 
-// Close action: only toggles visibility, preserves existing trace result
+export const resetTraceDrawerAtom = atom(null, (_get, set) => {
+    set(traceDrawerAtom, initialTraceDrawerState)
+})
+
 export const closeTraceDrawerAtom = atom(null, (_get, set) => {
     set(traceDrawerAtom, (draft) => {
         draft.open = false
     })
 })
 
-// Optional: open/update helpers using immer
-export const openTraceDrawerAtom = atom(null, (_get, set, payload: {result: any}) => {
+export const openTraceDrawerAtom = atom(
+    null,
+    (_get, set, payload: {traceId: string; activeSpanId?: string | null}) => {
+        set(traceDrawerAtom, (draft) => {
+            draft.open = true
+            draft.traceId = payload.traceId
+            draft.activeSpanId = payload.activeSpanId ?? null
+        })
+    },
+)
+
+export const setTraceDrawerActiveSpanAtom = atom(null, (_get, set, activeSpanId: string | null) => {
     set(traceDrawerAtom, (draft) => {
-        draft.open = true
-        draft.result = payload?.result ?? draft.result
+        draft.activeSpanId = activeSpanId
     })
+})
+
+export const setTraceDrawerTraceAtom = atom(
+    null,
+    (_get, set, payload: {traceId: string; activeSpanId?: string | null}) => {
+        set(traceDrawerAtom, (draft) => {
+            draft.traceId = payload.traceId
+            if (payload.activeSpanId !== undefined) {
+                draft.activeSpanId = payload.activeSpanId
+            }
+        })
+    },
+)
+
+export const traceDrawerQueryAtom = atomWithQuery((get) => {
+    const traceId = get(traceDrawerTraceIdAtom)
+
+    return {
+        queryKey: ["trace-drawer", traceId ?? "none"],
+        enabled: Boolean(traceId),
+        refetchOnWindowFocus: false,
+        queryFn: async () => {
+            if (!traceId) return null
+            return fetchPreviewTrace(traceId)
+        },
+    }
 })

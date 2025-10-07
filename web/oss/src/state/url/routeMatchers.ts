@@ -1,4 +1,9 @@
-const TRACE_ENABLED_PATH_MATCHERS = ["/observability", "/traces", "/playground"] as const
+const TRACE_ENABLED_PATH_MATCHERS = [
+    "/observability",
+    "/traces",
+    "/playground",
+    "/evaluations",
+] as const
 const VARIANT_ENABLED_PATH_MATCHERS = ["/variants", "/deployments", "/overview"] as const
 
 export const isTraceSupportedRoute = (pathname: string) =>

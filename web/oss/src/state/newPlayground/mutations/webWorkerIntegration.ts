@@ -46,6 +46,8 @@ import {variableValuesSelectorFamily} from "@/oss/state/newPlayground/selectors/
 import {getProjectValues} from "@/oss/state/project"
 import {getSpecLazy, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
+import {selectedAppIdAtom} from "../../app"
+
 // Atom to store pending web worker requests
 export const pendingWebWorkerRequestsAtom = atom<
     Record<string, {rowId: string; variantId: string; runId: string; timestamp: number}>
@@ -325,7 +327,8 @@ export const triggerWebWorkerTestAtom = atom(
         })()
 
         const {projectId} = getProjectValues() || ({} as any)
-        const {appId, appType} = get(currentAppContextAtom) || ({} as any)
+        const appId = get(selectedAppIdAtom)
+        const {appType} = get(currentAppContextAtom) || ({} as any)
         const jwt = await getJWT()
         const uri = get(appUriInfoAtom) || ({} as any)
 

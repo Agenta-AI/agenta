@@ -1,18 +1,12 @@
 import React from "react"
 
 import {Flex, Space, Typography} from "antd"
-import dayjs from "dayjs"
+import {useAtomValue} from "jotai"
 import {PlusCircle, Timer} from "lucide-react"
 
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-
-import {statusMapper} from "../../../components/AvatarTreeContent"
-import StatusRenderer from "../../../components/StatusRenderer"
-
-import {useStyles} from "./assets/styles"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {useAtom} from "jotai"
 import {
     formattedSpanLatencyAtomFamily,
     formattedSpanTokensAtomFamily,
@@ -23,16 +17,23 @@ import {
     spanEndTimeAtomFamily,
 } from "@/oss/state/newObservability"
 
+import {statusMapper} from "../../../components/AvatarTreeContent"
+import StatusRenderer from "../../../components/StatusRenderer"
+
+import {useStyles} from "./assets/styles"
+
 const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const classes = useStyles()
     const {icon, bgColor, color} = statusMapper(activeTrace?.span_type)
-    const formattedTokens = useAtom(formattedSpanTokensAtomFamily(activeTrace))
-    const formattedCost = useAtom(formattedSpanCostAtomFamily(activeTrace))
-    const formattedLatency = useAtom(formattedSpanLatencyAtomFamily(activeTrace))
-    const formattedPromptTokens = useAtom(formattedSpanPromptTokensAtomFamily(activeTrace))
-    const formattedCompletionTokens = useAtom(formattedSpanCompletionTokensAtomFamily(activeTrace))
-    const traceStartTime = useAtom(spanStartTimeAtomFamily(activeTrace))
-    const traceEndTime = useAtom(spanEndTimeAtomFamily(activeTrace))
+    const formattedTokens = useAtomValue(formattedSpanTokensAtomFamily(activeTrace))
+    const formattedCost = useAtomValue(formattedSpanCostAtomFamily(activeTrace))
+    const formattedLatency = useAtomValue(formattedSpanLatencyAtomFamily(activeTrace))
+    const formattedPromptTokens = useAtomValue(formattedSpanPromptTokensAtomFamily(activeTrace))
+    const formattedCompletionTokens = useAtomValue(
+        formattedSpanCompletionTokensAtomFamily(activeTrace),
+    )
+    const traceStartTime = useAtomValue(spanStartTimeAtomFamily(activeTrace))
+    const traceEndTime = useAtomValue(spanEndTimeAtomFamily(activeTrace))
     return (
         <Flex vertical gap={12}>
             {/* TODO: Display variant */}

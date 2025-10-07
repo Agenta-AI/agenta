@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.55.1"
+version = "0.55.2"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = ["Mahmoud Mabrouk <mahmoud@agenta.ai>"]
@@ -42,6 +42,8 @@ huggingface-hub = "<0.31.0"
 h11 = ">=0.16.0"
 decorator = "^5.2.1"
 openai = ">=1.100.0"
+tiktoken = "0.11.0"
+
 
 [tool.poetry.group.dev.dependencies]
 posthog = "^3.1.0"

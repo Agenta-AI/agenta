@@ -2,24 +2,19 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button, Table, TableColumnType, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {useAtomValue} from "jotai"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
-import {TraceDrawer} from "@/oss/components/Playground/Components/Drawers/TraceDrawer"
-import {
-    isDrawerOpenAtom,
-    openTraceDrawerAtom,
-} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import {useQueryParam} from "@/oss/hooks/useQuery"
+import {setTraceDrawerActiveSpanAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import {TracesWithAnnotations} from "@/oss/services/observability/types"
+import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {useQueryParamState} from "@/oss/state/appState"
 import {useObservability} from "@/oss/state/newObservability"
 
 import {filterColumns} from "../../Filters/EditColumns/assets/helper"
 import ResizableTitle from "../../ResizableTitle"
 
 import {getObservabilityColumns} from "./assets/getObservabilityColumns"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
@@ -34,26 +29,28 @@ const ObservabilityDashboard = () => {
         selectedTraceId,
         setSelectedTraceId,
         editColumns,
-        // setEditColumns,
         selectedRowKeys,
         setSelectedRowKeys,
         testsetDrawerData,
         setTestsetDrawerData,
-        // isAnnotationsSectionOpen,
-        // setIsAnnotationsSectionOpen,
         selectedNode,
         setSelectedNode,
         activeTrace,
-        // activeTraceIndex,
-        // selectedItem,
         fetchMoreTraces,
         hasMoreTraces,
         isFetchingMore,
     } = useObservability()
-    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const isTraceDrawerOpen = useAtomValue(isDrawerOpenAtom)
+    const setTraceDrawerActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
 
-    const [traceParam, setTraceParam] = useQueryParam("trace", "")
+    const [traceParamValue, setTraceParam] = useQueryParamState("trace")
+    const traceParam = Array.isArray(traceParamValue)
+        ? (traceParamValue[0] ?? "")
+        : ((traceParamValue as string | undefined) ?? "")
+
+    const [spanParamValue, setSpanParam] = useQueryParamState("span")
+    const spanParam = Array.isArray(spanParamValue)
+        ? (spanParamValue[0] ?? "")
+        : ((spanParamValue as string | undefined) ?? "")
 
     const evaluatorSlugs = useMemo(() => {
         const slugs = new Set<string>()
@@ -95,41 +92,29 @@ const ObservabilityDashboard = () => {
         if (traceParam && traceParam !== selectedTraceId) {
             setSelectedTraceId(traceParam)
         }
-    }, [traceParam])
+        if (!traceParam) {
+            setTraceDrawerActiveSpan(null)
+            setSpanParam(undefined, {shallow: true})
+        }
+    }, [traceParam, selectedTraceId, setSelectedTraceId, setTraceDrawerActiveSpan, setSpanParam])
 
     useEffect(() => {
-        if (selectedTraceId !== traceParam) {
-            setTraceParam(selectedTraceId)
+        if (spanParam) {
+            setTraceDrawerActiveSpan(spanParam)
+            setSelectedNode(spanParam)
         }
-    }, [selectedTraceId])
+    }, [spanParam, setTraceDrawerActiveSpan, setSelectedNode])
 
-    // Open global TraceDrawer when a trace is selected
     useEffect(() => {
-        if (selectedTraceId && traces && traces.length > 0) {
-            const navigationIds = (traces || []).map((t: any) => t?.node?.id).filter(Boolean)
-            const activeNodeId = selectedNode || activeTrace?.span_id || navigationIds[0] || ""
-            openTraceDrawer({
-                result: {
-                    traces,
-                    navigationIds,
-                    activeTraceId: activeNodeId,
-                },
-            })
-        }
-    }, [selectedTraceId, traces, selectedNode, activeTrace])
+        if (!selectedTraceId || selectedTraceId === traceParam) return
+        setTraceParam(selectedTraceId, {shallow: true})
+    }, [selectedTraceId, traceParam, setTraceParam])
 
     useEffect(() => {
         if (!selectedNode) {
             setSelectedNode(activeTrace?.span_id || "")
         }
     }, [activeTrace, selectedNode])
-
-    useEffect(() => {
-        if (!isTraceDrawerOpen && selectedTraceId) {
-            setSelectedTraceId("")
-            setTraceParam("")
-        }
-    }, [isTraceDrawerOpen, selectedTraceId, setSelectedTraceId, setTraceParam])
 
     useEffect(() => {
         const interval = setInterval(fetchTraces, 300000)
@@ -199,18 +184,38 @@ const ObservabilityDashboard = () => {
                     onRow={(record) => ({
                         onClick: () => {
                             setSelectedNode(record.span_id)
-                            const targetId = traceTabs === "span" ? record.span_id : record.trace_id
-                            setSelectedTraceId(targetId)
-                            // Open global Trace Drawer immediately with current traces payload
-                            openTraceDrawer({
-                                result: {
-                                    traces,
-                                    navigationIds: (traces || [])
-                                        .map((t: any) => t?.span_id)
-                                        .filter(Boolean),
-                                    activeTraceId: record.span_id,
-                                },
-                            })
+                            const isSpanView = traceTabs === "span"
+
+                            const targetTraceId =
+                                record.trace_id ||
+                                (record as any)?.invocationIds?.trace_id ||
+                                (record as any)?.node?.trace_id ||
+                                (record as any)?.root?.id ||
+                                (record as any)?.traceId ||
+                                (record as any)?.trace?.id ||
+                                record.span_id ||
+                                null
+
+                            const targetSpanId = isSpanView
+                                ? record.span_id || null
+                                : record.span_id || null
+
+                            if (!targetTraceId) {
+                                console.warn(
+                                    "TraceDrawer: unable to determine trace id for record",
+                                    record,
+                                )
+                                return
+                            }
+
+                            setSelectedTraceId(targetTraceId)
+                            setTraceDrawerActiveSpan(targetSpanId)
+                            setTraceParam(targetTraceId, {shallow: true})
+                            if (targetSpanId) {
+                                setSpanParam(targetSpanId, {shallow: true})
+                            } else {
+                                setSpanParam(undefined, {shallow: true})
+                            }
                         },
                     })}
                     components={{
@@ -244,8 +249,6 @@ const ObservabilityDashboard = () => {
                     setSelectedRowKeys([])
                 }}
             />
-
-            <TraceDrawer />
         </div>
     )
 }
