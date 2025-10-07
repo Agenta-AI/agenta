@@ -1,14 +1,13 @@
 import {useEffect, useMemo, useState} from "react"
 
 import {Database} from "@phosphor-icons/react"
-import {Button, Divider, Space, Tabs, TabsProps, Tag, Typography, Tooltip} from "antd"
+import {Button, Divider, Space, Tabs, TabsProps, Tag, Typography, Tooltip, Skeleton} from "antd"
 import clsx from "clsx"
 import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {
     isDrawerOpenAtom,
-    drawerResultAtom,
     resetTraceDrawerAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
@@ -16,7 +15,6 @@ import {KeyValuePair} from "@/oss/lib/Types"
 
 import AccordionTreePanel from "../../components/AccordionTreePanel"
 import AnnotateDrawerButton from "../AnnotateDrawer/assets/AnnotateDrawerButton"
-import useTraceDrawer from "../hooks/useTraceDrawer"
 
 import {useStyles} from "./assets/styles"
 import AnnotationTabItem from "./components/AnnotationTabItem"
@@ -28,18 +26,23 @@ const TestsetDrawer = dynamic(() => import("../TestsetDrawer/TestsetDrawer"), {s
 
 interface TraceContentProps {
     activeTrace?: TraceSpanNode
-    activeTraceId?: string
+    traceResponse?: any
+    error?: any
+    isLoading?: boolean
 }
 
 const store = getDefaultStore()
 
-const TraceContent = ({activeTrace: active, activeTraceId}: TraceContentProps) => {
-    const {getTraceById} = useTraceDrawer()
-    const drawerResult = useAtomValue(drawerResultAtom)
+const TraceContent = ({
+    activeTrace: active,
+    traceResponse,
+    error,
+    isLoading,
+}: TraceContentProps) => {
     const resetDrawer = useSetAtom(resetTraceDrawerAtom)
-    const activeTrace = active || getTraceById(activeTraceId)
+    const activeTrace = active
     const activeTraceData = useAtomValue(spanAgDataAtomFamily(activeTrace))
-    const {key, children, spans, ...filteredTrace} = activeTrace || {}
+    const {key, children, spans, invocationIds, ...filteredTrace} = activeTrace || {}
     const classes = useStyles()
     const [tab, setTab] = useState("overview")
     const [isTestsetDrawerOpen, setIsTestsetDrawerOpen] = useState(false)
@@ -54,11 +57,28 @@ const TraceContent = ({activeTrace: active, activeTraceId}: TraceContentProps) =
         ]
     }, [activeTrace?.key, activeTraceData])
 
+    const loadingContent = (
+        <div className="px-4 py-6">
+            <Skeleton active paragraph={{rows: 6}} title={false} />
+        </div>
+    )
+
     const items: TabsProps["items"] = useMemo(() => {
+        if (isLoading && !activeTrace) {
+            return [
+                {
+                    key: "loading",
+                    label: "Overview",
+                    children: loadingContent,
+                },
+            ]
+        }
+
         // When activeTrace is missing (e.g., failed generation), show just Raw Data/Error
         if (!activeTrace) {
-            const errorPayload = drawerResult?.error
-            const rawPayload = drawerResult?.response || (errorPayload ? {error: errorPayload} : {})
+            const errorPayload = error
+            const rawPayload =
+                traceResponse?.response || (errorPayload ? {error: errorPayload} : {})
             return [
                 {
                     key: "raw_data",
@@ -99,7 +119,7 @@ const TraceContent = ({activeTrace: active, activeTraceId}: TraceContentProps) =
                 children: <AnnotationTabItem annotations={activeTrace?.annotations || []} />,
             },
         ]
-    }, [activeTrace, drawerResult])
+    }, [activeTrace, filteredTrace, isLoading, traceResponse, error])
 
     // Ensure active tab exists in items; if not, switch to first tab
     const itemKeys = useMemo(() => (items || []).map((it) => String(it?.key)), [items])
@@ -125,13 +145,13 @@ const TraceContent = ({activeTrace: active, activeTraceId}: TraceContentProps) =
                     <div className="p-4 flex items-center justify-between gap-2">
                         <Tooltip
                             placement="topLeft"
-                            title={activeTrace?.span_name || (drawerResult?.error ? "Error" : "")}
+                            title={activeTrace?.span_name || (error ? "Error" : "")}
                             mouseEnterDelay={0.25}
                         >
                             <Typography.Text
                                 className={clsx("truncate text-nowrap flex-1", classes.title)}
                             >
-                                {activeTrace?.span_name || (drawerResult?.error ? "Error" : "")}
+                                {activeTrace?.span_name || (error ? "Error" : "")}
                             </Typography.Text>
                         </Tooltip>
                         <TooltipWithCopyAction

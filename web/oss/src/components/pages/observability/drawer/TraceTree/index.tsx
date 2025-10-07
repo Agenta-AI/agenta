@@ -106,11 +106,31 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
     const {getTraceById, traces: allTraces} = useTraceDrawer()
     const activeTrace = active || getTraceById(activeTraceId)
 
-    // When a child node is selected, anchor the tree to its top-level parent
+    // Keep the tree anchored to its original root so selecting a child node preserves context
     const treeRoot = useMemo(() => {
         if (!activeTrace) return undefined as any
-        const root = allTraces.find((t: any) => t?.trace_id === activeTrace?.trace_id)
-        return (root as any) || activeTrace
+
+        const nodes = (
+            Array.isArray(allTraces) ? allTraces : allTraces ? [allTraces] : []
+        ) as TraceSpanNode[]
+
+        const containsSpan = (node: TraceSpanNode | undefined, targetId?: string): boolean => {
+            if (!node || !targetId) return false
+            if (node.span_id === targetId) return true
+            return (node.children || []).some((child) =>
+                containsSpan(child as TraceSpanNode, targetId),
+            )
+        }
+
+        const rootWithContext = nodes.find((candidate) =>
+            containsSpan(candidate, activeTrace.span_id),
+        )
+
+        if (rootWithContext) {
+            return rootWithContext
+        }
+
+        return nodes[0] || activeTrace
     }, [activeTrace, allTraces])
 
     const filteredTree = useMemo(() => {

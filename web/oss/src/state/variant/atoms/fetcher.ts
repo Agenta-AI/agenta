@@ -34,8 +34,8 @@ export const variantsQueryAtom = atomWithQuery<Variant[]>((get) => {
     const routerAppId = get(routerAppIdAtom)
     const appId = routerAppId ?? get(recentAppIdAtom) ?? undefined
 
-    // Enable query only when router app id is known to avoid fetching stale app data during app switches
-    const enabled = !!routerAppId && routerAppId !== null && !!projectId
+    // Enable query only when we resolved an app id (router or recent) and the project is known
+    const enabled = !!appId && !!projectId
 
     return {
         queryKey: ["variants", appId, projectId],
@@ -45,8 +45,8 @@ export const variantsQueryAtom = atomWithQuery<Variant[]>((get) => {
             return data
         },
         staleTime: 1000 * 60,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
         refetchOnMount: false,
         enabled,
     }
@@ -121,9 +121,9 @@ export const variantRevisionsQueryFamily = atomFamily((variantId: string) =>
 
                 return revs
             },
-            // staleTime: 1000 * 60 * 60,
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
+            staleTime: 1000 * 60,
+            refetchOnWindowFocus: true,
+            refetchOnReconnect: true,
             refetchOnMount: false,
             placeholderData: (previousData) => {
                 const previousVariantId = previousData?.map((v) => v.variantId)

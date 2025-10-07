@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.55.1"
+version = "0.55.2"
 description = "Agenta API"
 authors = [{ name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" }]
 
@@ -68,6 +68,7 @@ googleapis-common-protos = ">=1.60.0"
 h11 = ">=0.16.0"
 ecdsa = "^0.19.1"
 gunicorn = "^23.0.0"
+tiktoken = "0.11.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"

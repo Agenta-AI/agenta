@@ -14,6 +14,7 @@ import {
     isAnnotationsSectionOpenAtom,
     selectedNodeAtom,
     DEFAULT_SORT,
+    limitAtom,
 } from "../atoms/controls"
 import {
     tracesQueryAtom,
@@ -38,6 +39,7 @@ export const useObservability = () => {
         isAnnotationsSectionOpenAtom,
     )
     const [selectedNode, setSelectedNode] = useAtom(selectedNodeAtom)
+    const [limit] = useAtom(limitAtom)
 
     const [{refetch: refetchTraces, fetchNextPage, hasNextPage, isFetchingNextPage}] =
         useAtom(tracesQueryAtom)
@@ -93,6 +95,7 @@ export const useObservability = () => {
         setSort,
         selectedTraceId,
         setSelectedTraceId,
+        limit,
         selectedRowKeys,
         setSelectedRowKeys,
         editColumns,

@@ -41,7 +41,7 @@ const GenerationComparisonRenderer = memo(() => {
 
     const sourceIds = isChat ? turnIds : rowIds
 
-    const list = (sourceIds || []).map((rowId, rowIndex) => (
+    return (sourceIds || []).map((rowId, rowIndex) => (
         <div key={rowId} className="flex flex-col">
             <div className="min-w-fit">
                 <GenerationComparisonOutput
@@ -53,8 +53,6 @@ const GenerationComparisonRenderer = memo(() => {
             </div>
         </div>
     ))
-
-    return <>{list}</>
 })
 
 const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLayoutProps) => {
@@ -229,10 +227,4 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
     )
 }
 
-// PERFORMANCE OPTIMIZATION: Memo with custom comparison
-// Only re-render if props actually change (className, isLoading, etc.)
-export default memo(PlaygroundMainView, (prevProps, nextProps) => {
-    return (
-        prevProps.className === nextProps.className && prevProps.isLoading === nextProps.isLoading
-    )
-})
+export default memo(PlaygroundMainView)

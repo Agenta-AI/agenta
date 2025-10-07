@@ -39,12 +39,12 @@ export const formatDay = ({
         : FALLBACK_FORMATS
 
     for (const format of formatsToTry) {
-        const parsed = dayjs(date, format)
+        const parsed = dayjs.utc(date, format)
         if (parsed.isValid()) {
             return parsed.format(outputFormat)
         }
     }
 
-    const direct = dayjs(date)
+    const direct = dayjs.utc(date)
     return direct.isValid() ? direct.format(outputFormat) : ""
 }

@@ -65,11 +65,11 @@ export const spanLatencyAtomFamily = atomFamily((span?: TraceSpanNode) =>
 )
 
 export const spanStartTimeAtomFamily = atomFamily((span?: TraceSpanNode) =>
-    atom(() => dayjs(span?.start_time).local().format("DD/MM/YYYY, hh:mm:ss A")),
+    atom(() => dayjs(span?.start_time).utc().format("DD/MM/YYYY, hh:mm:ss A")),
 )
 
 export const spanEndTimeAtomFamily = atomFamily((span?: TraceSpanNode) =>
-    atom(() => dayjs(span?.end_time).local().format("DD/MM/YYYY, hh:mm:ss A")),
+    atom(() => dayjs(span?.end_time).utc().format("DD/MM/YYYY, hh:mm:ss A")),
 )
 
 export const spanTraceInputsAtomFamily = atomFamily((span?: TraceSpanNode) =>
