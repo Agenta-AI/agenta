@@ -1,12 +1,19 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from uuid import UUID
 
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.tracing.interfaces import TracingDAOInterface
-from oss.src.core.tracing.dtos import OTelLink, OTelFlatSpan, Query, Bucket
 from oss.src.core.tracing.utils import parse_query, parse_ingest
+from oss.src.core.tracing.dtos import (
+    OTelLink,
+    OTelFlatSpan,
+    TracingQuery,
+    Bucket,
+    MetricSpec,
+    MetricsBucket,
+)
 
 from oss.src.core.tracing.utils import (
     parse_span_dtos_to_span_idx,
@@ -202,7 +209,7 @@ class TracingService:
         *,
         project_id: UUID,
         #
-        query: Query,
+        query: TracingQuery,
     ) -> List[OTelFlatSpan]:
         parse_query(query)
 
@@ -214,19 +221,38 @@ class TracingService:
 
         return span_dtos
 
+    async def legacy_analytics(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: TracingQuery,
+    ) -> List[Bucket]:
+        parse_query(query)
+
+        bucket_dtos = await self.tracing_dao.legacy_analytics(
+            project_id=project_id,
+            #
+            query=query,
+        )
+
+        return bucket_dtos
+
     async def analytics(
         self,
         *,
         project_id: UUID,
         #
-        query: Query,
-    ) -> List[Bucket]:
+        query: TracingQuery,
+        specs: List[MetricSpec],
+    ) -> List[MetricsBucket]:
         parse_query(query)
 
         bucket_dtos = await self.tracing_dao.analytics(
             project_id=project_id,
             #
             query=query,
+            specs=specs,
         )
 
         return bucket_dtos

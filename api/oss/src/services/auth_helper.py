@@ -55,11 +55,13 @@ _PUBLIC_ENDPOINTS = (
     "/api/openapi.json",
     # SUPERTOKENS
     "/auth",
+    "/api/auth",
     # STRIPE
     "/billing/stripe/events/",
+    "/api/billing/stripe/events/",
 )
 
-_ADMIN_ENDPOINT_PREFIX = "/admin/"
+_ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
 
 _SECRET_KEY = env.AGENTA_AUTH_KEY
 _SECRET_EXP = 15 * 60  # 15 minutes
@@ -137,7 +139,7 @@ async def _authenticate(request: Request):
         if request.url.path.startswith(_PUBLIC_ENDPOINTS):
             return
 
-        if request.url.path.startswith(_ADMIN_ENDPOINT_PREFIX):
+        if _ADMIN_ENDPOINT_IDENTIFIER in request.url.path:
             auth_header = (
                 request.headers.get("Authorization")
                 or request.headers.get("authorization")

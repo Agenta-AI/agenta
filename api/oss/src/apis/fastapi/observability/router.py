@@ -32,7 +32,7 @@ from oss.src.apis.fastapi.observability.opentelemetry.otlp import (
     parse_otlp_stream,
 )
 from oss.src.apis.fastapi.observability.utils.processing import (
-    parse_query_request,
+    parse_query_from_params_request,
     parse_analytics_dto,
     parse_from_otel_span_dto,
     parse_to_otel_span_dto,
@@ -50,7 +50,7 @@ from oss.src.apis.fastapi.observability.models import (
     AgentaTreeDTO,
     AgentaRootDTO,
     LegacyAnalyticsResponse,
-    AnalyticsResponse,
+    OldAnalyticsResponse,
 )
 
 if is_ee():
@@ -86,8 +86,6 @@ else:
 
 
 class ObservabilityRouter:
-    VERSION = "1.0.0"
-
     def __init__(
         self,
         observability_service: ObservabilityService,
@@ -161,7 +159,7 @@ class ObservabilityRouter:
             status_code=status.HTTP_200_OK,
             response_model=Union[
                 LegacyAnalyticsResponse,
-                AnalyticsResponse,
+                OldAnalyticsResponse,
             ],
             response_model_exclude_none=True,
         )
@@ -202,7 +200,7 @@ class ObservabilityRouter:
         Status of OTLP endpoint.
         """
 
-        return CollectStatusResponse(version=self.VERSION, status="ready")
+        return CollectStatusResponse(status="ready")
 
     @intercept_exceptions()
     async def otlp_receiver(
@@ -220,9 +218,9 @@ class ObservabilityRouter:
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
-                "Failed to process OTLP stream from project %s with error %s",
+                "Failed to process OTLP stream from project %s with error:",
                 request.state.project_id,
-                str(e),
+                exc_info=True,
             )
             err_status = ProtoStatus(
                 message="Invalid request body: not a valid OTLP stream."
@@ -256,9 +254,9 @@ class ObservabilityRouter:
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
-                "Failed to parse OTLP stream from project %s with error %s",
+                "Failed to parse OTLP stream from project %s with error:",
                 request.state.project_id,
-                str(e),
+                exc_info=True,
             )
             log.error(
                 "OTLP stream: %s",
@@ -323,9 +321,9 @@ class ObservabilityRouter:
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
-                "Failed to parse spans from project %s with error %s",
+                "Failed to parse spans from project %s with error:",
                 request.state.project_id,
-                str(e),
+                exc_info=True,
             )
             for otel_span in otel_spans:
                 log.error(
@@ -370,9 +368,9 @@ class ObservabilityRouter:
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
-                "Failed to ingest spans from project %s with error %s",
+                "Failed to ingest spans from project %s with error:",
                 request.state.project_id,
-                str(e),
+                exc_info=True,
             )
             for span_dto in span_dtos:
                 log.error(
@@ -398,9 +396,9 @@ class ObservabilityRouter:
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.warn(
-                "Failed to create spans from project %s with error %s",
+                "Failed to create spans from project %s with error:",
                 request.state.project_id,
-                str(e),
+                exc_info=True,
             )
             for span in tracing_spans:
                 span: OTelFlatSpan
@@ -432,7 +430,7 @@ class ObservabilityRouter:
     async def query_traces(
         self,
         request: Request,
-        query_dto: QueryDTO = Depends(parse_query_request),
+        query_dto: QueryDTO = Depends(parse_query_from_params_request),
         format: Literal[  # pylint: disable=W0622
             "opentelemetry",
             "agenta",
@@ -463,7 +461,6 @@ class ObservabilityRouter:
             spans = [parse_to_otel_span_dto(span_dto) for span_dto in span_dtos]
 
             return OTelTracingResponse(
-                version=self.VERSION,
                 count=count,
                 spans=spans,
             )
@@ -490,7 +487,6 @@ class ObservabilityRouter:
                 # focus = tree
                 if query_dto.grouping.focus.value == "tree":
                     return AgentaTreesResponse(
-                        version=self.VERSION,
                         count=count,
                         trees=[
                             AgentaTreeDTO(
@@ -518,7 +514,6 @@ class ObservabilityRouter:
 
                         _nodes_by_root[nodes[0].root.id].append(
                             AgentaTreeDTO(
-                                version=self.VERSION,
                                 tree=TreeDTO(
                                     id=tree_id,
                                     type=_types_by_tree[tree_id],
@@ -530,7 +525,6 @@ class ObservabilityRouter:
                         )
 
                     return AgentaRootsResponse(
-                        version=self.VERSION,
                         count=count,
                         roots=[
                             AgentaRootDTO(
@@ -543,7 +537,6 @@ class ObservabilityRouter:
 
             # focus = node
             return AgentaNodesResponse(
-                version=self.VERSION,
                 count=count,
                 nodes=[AgentaNodeDTO(**span.model_dump()) for span in spans],
             )
@@ -576,8 +569,7 @@ class ObservabilityRouter:
                     **summary.model_dump(),
                 )
 
-            return AnalyticsResponse(
-                version=self.VERSION,
+            return OldAnalyticsResponse(
                 count=count,
                 buckets=bucket_dtos,
             )
@@ -664,4 +656,4 @@ class ObservabilityRouter:
             node_ids=node_ids,
         )
 
-        return CollectStatusResponse(version=self.VERSION, status="deleted")
+        return CollectStatusResponse(status="deleted")

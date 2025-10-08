@@ -1,7 +1,7 @@
 """add_nodes_dbe
 
 Revision ID: 847972cfa14a
-Revises: 320a4a7ee0c7
+Revises: 58b1b61e5d6c
 Create Date: 2024-11-07 12:21:19.080345
 
 """

@@ -28,7 +28,7 @@ from oss.src.core.workflows.service import (
 )
 
 
-from oss.src.core.workflows.utils import exact_match_v1
+from oss.src.core.services.v0 import auto_exact_match_v0
 
 AGENTA_API_URL = "http://localhost/api"
 AGENTA_API_KEY = getenv("AGENTA_API_KEY")
@@ -167,7 +167,7 @@ from oss.src.core.shared.dtos import Data
 
 @ag_workflow
 @ag_instrument
-async def exact_match_v1(
+async def auto_exact_match_v0(
     *,
     inputs: Data,
     outputs: Data | str,
@@ -194,7 +194,7 @@ async def exact_match_v1(
 
 __ag_workflow_registry__ = {
     "/": {
-        "invoke": exact_match_v1,
+        "invoke": auto_exact_match_v0,
     }
 }
 
@@ -331,14 +331,14 @@ REGISTRY = {
     "agenta": {
         "function": {
             "exact_match": {
-                "latest": workflow_decorator(exact_match_v1),
-                "v1": workflow_decorator(exact_match_v1),
+                "latest": workflow_decorator(auto_exact_match_v0),
+                "v0": workflow_decorator(auto_exact_match_v0),
             },
         },
         "code": {
             "local": {
                 "latest": run_script_locally,
-                "v1": run_script_locally,
+                "v0": run_script_locally,
             }
         },
     },
@@ -349,7 +349,7 @@ app = FastAPI()
 
 app.add_api_route(
     "/agenta-function-exact_match-latest",
-    workflow_decorator(exact_match_v1),
+    workflow_decorator(auto_exact_match_v0),
     methods=["POST"],
 )
 

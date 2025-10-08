@@ -1,3 +1,4 @@
+from typing import List, Dict
 from uuid import UUID
 import os
 import sys
@@ -7,6 +8,45 @@ import re
 import click
 
 from oss.src.utils.env import env
+
+
+def get_metrics_keys_from_schema(schema=None, path=()) -> List[Dict[str, str]]:
+    metrics = []
+
+    if not isinstance(schema, dict) or "type" not in schema:
+        return metrics
+
+    metric_type = None
+
+    t = schema["type"]
+
+    if t == "object":
+        if "properties" in schema:
+            for key, prop in schema["properties"].items():
+                metrics.extend(get_metrics_keys_from_schema(prop, path + (key,)))
+        else:
+            metric_type = "json"
+
+    elif t == "array" and "items" in schema:
+        if schema["items"].get("type") == "string" and "enum" in schema["items"]:
+            metric_type = "categorical/multiple"
+
+    elif t == "boolean":
+        metric_type = "binary"
+
+    elif t == "string":
+        metric_type = "categorical/single" if "enum" in schema else "string"
+
+    elif t == "number":
+        metric_type = "numeric/continuous"
+
+    elif t == "integer":
+        metric_type = "numeric/discrete"
+
+    if metric_type:
+        metrics.append({"path": ".".join(path), "type": metric_type})
+
+    return metrics
 
 
 def get_slug_from_name_and_id(

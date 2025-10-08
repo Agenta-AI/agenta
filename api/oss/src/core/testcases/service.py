@@ -4,7 +4,7 @@ from uuid import UUID
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.blobs.interfaces import BlobsDAOInterface
-from oss.src.core.blobs.dtos import BlobCreate, BlobQuery
+from oss.src.core.blobs.dtos import BlobCreate, BlobQuery, Windowing
 from oss.src.core.testcases.dtos import Testcase
 
 log = get_module_logger(__name__)
@@ -14,11 +14,11 @@ class TestcasesService:
     def __init__(
         self,
         *,
-        blobs_dao: BlobsDAOInterface,
+        testcases_dao: BlobsDAOInterface,
     ):
-        self.blobs_dao = blobs_dao
+        self.testcases_dao = testcases_dao
 
-    async def add_testcases(
+    async def create_testcases(
         self,
         *,
         project_id: UUID,
@@ -33,7 +33,7 @@ class TestcasesService:
             for testcase in testcases
         ]
 
-        blobs = await self.blobs_dao.add_blobs(
+        blobs = await self.testcases_dao.add_blobs(
             project_id=project_id,
             user_id=user_id,
             #
@@ -61,7 +61,7 @@ class TestcasesService:
         #
         testset_id: Optional[UUID] = None,
         #
-        windowing: Optional[bool] = False,
+        windowing: Optional[Windowing] = None,
     ) -> List[Testcase]:
         _blob_query = (
             BlobQuery(
@@ -72,7 +72,7 @@ class TestcasesService:
             else BlobQuery()
         )
 
-        blobs = await self.blobs_dao.query_blobs(
+        blobs = await self.testcases_dao.query_blobs(
             project_id=project_id,
             #
             blob_query=_blob_query,

@@ -1,4 +1,4 @@
-from typing import Dict, Union, Any, List
+from typing import Dict, Union, Any, Optional, Tuple, List
 from uuid import UUID
 from datetime import datetime
 from collections import OrderedDict
@@ -8,16 +8,25 @@ from litellm import cost_calculator
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.shared.dtos import Reference, Link
+from oss.src.core.shared.dtos import (
+    Flags,
+    Tags,
+    Meta,
+    Data,
+    Reference,
+    Link,
+)
 
 from oss.src.core.tracing.dtos import (
+    Attributes,
     OTelSpanKind,
     OTelStatusCode,
     OTelSpan,
+    OTelReference,
     OTelFlatSpan,
     OTelLink,
     OTelFlatSpans,
-    Query,
+    TracingQuery,
     FilteringException,
     Filtering,
     Condition,
@@ -799,7 +808,9 @@ def parse_value_to_enum(value: str, enum: type) -> type:
         ) from e
 
 
-def parse_timestamp_to_datetime(ts):
+def parse_timestamp_to_datetime(
+    ts: Optional[Union[str, int, datetime]],
+) -> Optional[datetime]:
     if isinstance(ts, datetime):
         return ts
 
@@ -807,7 +818,7 @@ def parse_timestamp_to_datetime(ts):
         try:
             ts = int(ts)
         except ValueError:
-            return datetime.fromisoformat(ts)
+            return datetime.fromisoformat(str(ts))
 
     if isinstance(ts, int):
         digits = len(str(ts))
@@ -1196,7 +1207,12 @@ def _parse_fts_field_condition(condition: Condition) -> None:
 # FILTERING / CONDITION
 
 
-def parse_filtering(filtering: Filtering) -> None:
+def parse_filtering(
+    filtering: Optional[Filtering] = None,
+) -> None:
+    if filtering is None:
+        return
+
     for condition in filtering.conditions:
         if isinstance(condition, Filtering):
             parse_filtering(condition)
@@ -1208,7 +1224,12 @@ def parse_filtering(filtering: Filtering) -> None:
             )
 
 
-def parse_condition(condition: Condition) -> None:
+def parse_condition(
+    condition: Optional[Condition] = None,
+) -> None:
+    if condition is None:
+        return
+
     if condition.field == Fields.TRACE_ID:
         _parse_trace_id_condition(condition)
     elif condition.field == Fields.TRACE_TYPE:
@@ -1267,5 +1288,64 @@ def parse_ingest(span_dtos: OTelFlatSpans) -> None:
     pass
 
 
-def parse_query(query: Query) -> None:
+def parse_query(query: TracingQuery) -> None:
     parse_filtering(query.filtering)
+
+
+# INVOCATIONS / ANNOTATIONS
+
+
+def parse_into_attributes(
+    *,
+    type: Optional[Dict[str, str]] = None,
+    flags: Optional[Flags] = None,
+    tags: Optional[Tags] = None,
+    meta: Optional[Meta] = None,
+    data: Optional[Data] = None,
+    references: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Attributes:
+    attributes = dict(
+        ag=(
+            dict(
+                type=type,
+                flags=flags,
+                tags=tags,
+                meta=meta,
+                data=data,
+                references=references,
+            )
+            if type or flags or tags or meta or data or references
+            else None
+        )
+    )
+
+    return attributes  # type: ignore
+
+
+def parse_from_attributes(
+    attributes: Attributes,
+) -> Tuple[
+    Optional[Dict[str, str]],  # type
+    Optional[Flags],  # flags
+    Optional[Tags],  # tags
+    Optional[Meta],  # meta
+    Optional[Data],  # data
+    Optional[Dict[str, Dict[str, Any]]],  # references
+]:
+    # TODO - add error handling
+    ag: dict = attributes.get("ag", {})  # type: ignore
+    type: dict = ag.get("type", {})  # type: ignore
+    flags: dict = ag.get("flags")  # type: ignore
+    tags: dict = ag.get("tags")  # type: ignore
+    meta: dict = ag.get("meta")  # type: ignore
+    data: dict = ag.get("data")  # type: ignore
+    references = ag.get("references")  # type: ignore
+
+    return (
+        type,
+        flags,
+        tags,
+        meta,
+        data,
+        references,
+    )

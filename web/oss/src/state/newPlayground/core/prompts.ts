@@ -9,7 +9,7 @@ import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import type {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {currentAppContextAtom} from "@/oss/state/newApps/selectors/apps"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
     appSchemaAtom,
     appUriInfoAtom,

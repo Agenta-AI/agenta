@@ -43,11 +43,11 @@ class SecretsDAO(SecretsDAOInterface):
         secret_id: UUID,
     ):
         async with engine.core_session() as session:
-            query = select(SecretsDBE).filter_by(
+            stmt = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
             )
-            result = await session.execute(query)  # type: ignore
+            result = await session.execute(stmt)  # type: ignore
             secrets_dbe = result.scalar()
 
             if secrets_dbe is None:
@@ -58,9 +58,9 @@ class SecretsDAO(SecretsDAOInterface):
 
     async def list(self, project_id: UUID):
         async with engine.core_session() as session:
-            query = select(SecretsDBE).filter_by(project_id=project_id)
+            stmt = select(SecretsDBE).filter_by(project_id=project_id)
 
-            results = await session.execute(query)  # type: ignore
+            results = await session.execute(stmt)  # type: ignore
             secrets_dbes = results.scalars().all()
             vault_secret_dtos = [
                 map_secrets_dbe_to_dto(secrets_dbe=secret_dbe)
@@ -75,11 +75,11 @@ class SecretsDAO(SecretsDAOInterface):
         update_secret_dto: UpdateSecretDTO,
     ):
         async with engine.core_session() as session:
-            query = select(SecretsDBE).filter_by(
+            stmt = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
             )
-            result = await session.execute(query)
+            result = await session.execute(stmt)
             secrets_dbe = result.scalar()
 
             if secrets_dbe is None:
@@ -101,11 +101,11 @@ class SecretsDAO(SecretsDAOInterface):
         secret_id: UUID,
     ):
         async with engine.core_session() as session:
-            query = select(SecretsDBE).filter_by(
+            stmt = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
             )
-            result = await session.execute(query)  # type: ignore
+            result = await session.execute(stmt)  # type: ignore
             vault_secret_dbe = result.scalar()
             if vault_secret_dbe is None:
                 return

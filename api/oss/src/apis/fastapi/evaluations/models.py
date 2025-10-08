@@ -2,32 +2,41 @@ from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel
-
 from fastapi import HTTPException
 
-from oss.src.core.shared.dtos import Windowing
-
+from oss.src.core.shared.dtos import (
+    Windowing,
+)
 from oss.src.core.evaluations.types import (
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
     EvaluationRunQuery,
+    #
     EvaluationScenario,
     EvaluationScenarioCreate,
     EvaluationScenarioEdit,
     EvaluationScenarioQuery,
-    EvaluationStep,
-    EvaluationStepCreate,
-    EvaluationStepEdit,
-    EvaluationStepQuery,
-    EvaluationMetric,
-    EvaluationMetricCreate,
-    EvaluationMetricEdit,
-    EvaluationMetricQuery,
+    #
+    EvaluationResult,
+    EvaluationResultCreate,
+    EvaluationResultEdit,
+    EvaluationResultQuery,
+    #
+    EvaluationMetrics,
+    EvaluationMetricsCreate,
+    EvaluationMetricsEdit,
+    EvaluationMetricsQuery,
+    #
     EvaluationQueue,
     EvaluationQueueCreate,
     EvaluationQueueEdit,
     EvaluationQueueQuery,
+    #
+    SimpleEvaluation,
+    SimpleEvaluationCreate,
+    SimpleEvaluationEdit,
+    SimpleEvaluationQuery,
 )
 
 
@@ -39,8 +48,9 @@ class EvaluationClosedException(HTTPException):
         message: str = "Cannot modify a closed evaluation.",
         run_id: Optional[UUID] = None,
         scenario_id: Optional[UUID] = None,
-        step_id: Optional[UUID] = None,
-        metric_id: Optional[UUID] = None,
+        result_id: Optional[UUID] = None,
+        metrics_id: Optional[UUID] = None,
+        queue_id: Optional[UUID] = None,
     ):
         details = dict(message=message)
 
@@ -48,20 +58,23 @@ class EvaluationClosedException(HTTPException):
             details["run_id"] = str(run_id)
         if scenario_id:
             details["scenario_id"] = str(scenario_id)
-        if step_id:
-            details["step_id"] = str(step_id)
-        if metric_id:
-            details["metric_id"] = str(metric_id)
+        if result_id:
+            details["result_id"] = str(result_id)
+        if metrics_id:
+            details["metrics_id"] = str(metrics_id)
+        if queue_id:
+            details["queue_id"] = str(queue_id)
 
         super().__init__(status_code=409, detail=details)
 
         self.run_id = run_id
         self.scenario_id = scenario_id
-        self.step_id = step_id
-        self.metric_id = metric_id
+        self.result_id = result_id
+        self.metrics_id = metrics_id
+        self.queue_id = queue_id
 
 
-# - EVALUATION RUN -------------------------------------------------------------
+# EVALUATION RUNS --------------------------------------------------------------
 
 
 class EvaluationRunsCreateRequest(BaseModel):
@@ -77,8 +90,8 @@ class EvaluationRunsEditRequest(BaseModel):
 
 
 class EvaluationRunQueryRequest(BaseModel):
-    run: EvaluationRunQuery
-    include_archived: Optional[bool] = False
+    run: Optional[EvaluationRunQuery] = None
+    #
     windowing: Optional[Windowing] = None
 
 
@@ -106,7 +119,7 @@ class EvaluationRunIdsResponse(BaseModel):
     run_ids: List[UUID] = []
 
 
-# - EVALUATION SCENARIO --------------------------------------------------------
+# - EVALUATION SCENARIOS -------------------------------------------------------
 
 
 class EvaluationScenariosCreateRequest(BaseModel):
@@ -122,7 +135,8 @@ class EvaluationScenariosEditRequest(BaseModel):
 
 
 class EvaluationScenarioQueryRequest(BaseModel):
-    scenario: EvaluationScenarioQuery
+    scenario: Optional[EvaluationScenarioQuery] = None
+    #
     windowing: Optional[Windowing] = None
 
 
@@ -150,95 +164,83 @@ class EvaluationScenarioIdsResponse(BaseModel):
     scenario_ids: List[UUID] = []
 
 
-# - EVALUATION STEP ------------------------------------------------------------
+# - EVALUATION RESULTS ---------------------------------------------------------
 
 
-class EvaluationStepsCreateRequest(BaseModel):
-    steps: List[EvaluationStepCreate]
+class EvaluationResultsCreateRequest(BaseModel):
+    results: List[EvaluationResultCreate]
 
 
-class EvaluationStepEditRequest(BaseModel):
-    step: EvaluationStepEdit
+class EvaluationResultEditRequest(BaseModel):
+    result: EvaluationResultEdit
 
 
-class EvaluationStepsEditRequest(BaseModel):
-    steps: List[EvaluationStepEdit]
+class EvaluationResultsEditRequest(BaseModel):
+    results: List[EvaluationResultEdit]
 
 
-class EvaluationStepQueryRequest(BaseModel):
-    step: EvaluationStepQuery
+class EvaluationResultQueryRequest(BaseModel):
+    result: Optional[EvaluationResultQuery] = None
+    #
     windowing: Optional[Windowing] = None
 
 
-class EvaluationStepIdsRequest(BaseModel):
-    step_ids: List[UUID]
+class EvaluationResultIdsRequest(BaseModel):
+    result_ids: List[UUID]
 
 
-class EvaluationStepResponse(BaseModel):
+class EvaluationResultResponse(BaseModel):
     count: int = 0
-    step: Optional[EvaluationStep] = None
+    result: Optional[EvaluationResult] = None
 
 
-class EvaluationStepsResponse(BaseModel):
+class EvaluationResultsResponse(BaseModel):
     count: int = 0
-    steps: List[EvaluationStep] = []
+    results: List[EvaluationResult] = []
 
 
-class EvaluationStepIdResponse(BaseModel):
+class EvaluationResultIdResponse(BaseModel):
     count: int = 0
-    step_id: Optional[UUID] = None
+    result_id: Optional[UUID] = None
 
 
-class EvaluationStepIdsResponse(BaseModel):
+class EvaluationResultIdsResponse(BaseModel):
     count: int = 0
-    step_ids: List[UUID] = []
+    result_ids: List[UUID] = []
 
 
-# - EVALUATION METRIC ----------------------------------------------------------
+# - EVALUATION METRICS ---------------------------------------------------------
 
 
 class EvaluationMetricsCreateRequest(BaseModel):
-    metrics: List[EvaluationMetricCreate]
-
-
-class EvaluationMetricEditRequest(BaseModel):
-    metric: EvaluationMetricEdit
+    metrics: List[EvaluationMetricsCreate]
 
 
 class EvaluationMetricsEditRequest(BaseModel):
-    metrics: List[EvaluationMetricEdit]
+    metrics: List[EvaluationMetricsEdit]
 
 
-class EvaluationMetricQueryRequest(BaseModel):
-    metric: EvaluationMetricQuery
+class EvaluationMetricsQueryRequest(BaseModel):
+    metrics: Optional[EvaluationMetricsQuery] = None
+    #
     windowing: Optional[Windowing] = None
 
 
-class EvaluationMetricIdsRequest(BaseModel):
-    metric_ids: List[UUID]
-
-
-class EvaluationMetricResponse(BaseModel):
-    count: int = 0
-    metric: Optional[EvaluationMetric] = None
+class EvaluationMetricsIdsRequest(BaseModel):
+    metrics_ids: List[UUID]
 
 
 class EvaluationMetricsResponse(BaseModel):
     count: int = 0
-    metrics: List[EvaluationMetric] = []
+    metrics: List[EvaluationMetrics] = []
 
 
-class EvaluationMetricIdResponse(BaseModel):
+class EvaluationMetricsIdsResponse(BaseModel):
     count: int = 0
-    metric_id: Optional[UUID] = None
+    metrics_ids: List[UUID] = []
 
 
-class EvaluationMetricIdsResponse(BaseModel):
-    count: int = 0
-    metric_ids: List[UUID] = []
-
-
-# - EVALUATION QUEUE -----------------------------------------------------------
+# - EVALUATION QUEUES ----------------------------------------------------------
 
 
 class EvaluationQueuesCreateRequest(BaseModel):
@@ -254,7 +256,8 @@ class EvaluationQueuesEditRequest(BaseModel):
 
 
 class EvaluationQueueQueryRequest(BaseModel):
-    queue: EvaluationQueueQuery
+    queue: Optional[EvaluationQueueQuery] = None
+    #
     windowing: Optional[Windowing] = None
 
 
@@ -287,4 +290,33 @@ class EvaluationQueueScenarioIdsResponse(BaseModel):
     scenario_ids: List[List[UUID]] = []
 
 
-# ------------------------------------------------------------------------------
+# - SIMPLE EVALUATIONS ---------------------------------------------------------
+
+
+class SimpleEvaluationCreateRequest(BaseModel):
+    evaluation: SimpleEvaluationCreate
+
+
+class SimpleEvaluationEditRequest(BaseModel):
+    evaluation: SimpleEvaluationEdit
+
+
+class SimpleEvaluationQueryRequest(BaseModel):
+    evaluation: Optional[SimpleEvaluationQuery] = None
+    #
+    windowing: Optional[Windowing] = None
+
+
+class SimpleEvaluationResponse(BaseModel):
+    count: int = 0
+    evaluation: Optional[SimpleEvaluation] = None
+
+
+class SimpleEvaluationsResponse(BaseModel):
+    count: int = 0
+    evaluations: List[SimpleEvaluation] = []
+
+
+class SimpleEvaluationIdResponse(BaseModel):
+    count: int = 0
+    evaluation_id: Optional[UUID] = None

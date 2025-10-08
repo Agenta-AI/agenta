@@ -3,6 +3,6 @@ repos:
     hooks:
       - id: gitleaks-pre-commit
         name: gitleaks git (staged only)
-        entry: echo "aloha"
+        entry: echo "Aloha"
         language: system
         pass_filenames: false

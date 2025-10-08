@@ -26,7 +26,7 @@ if is_ee():
     from ee.src.utils.permissions import (
         check_action_access,
         check_rbac_permission,
-        check_apikey_action_access,
+        # check_apikey_action_access,
     )
     from ee.src.models.shared_models import Permission
     from ee.src.models.api.api_models import (
@@ -97,7 +97,7 @@ async def list_app_variants(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATION,
+            permission=Permission.VIEW_APPLICATIONS,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -155,7 +155,7 @@ async def get_variant_by_env(
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(app.project_id),
-                permission=Permission.VIEW_APPLICATION,
+                permission=Permission.VIEW_APPLICATIONS,
             )
             if not has_permission:
                 error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -199,16 +199,6 @@ async def create_app(
     """
 
     if is_ee():
-        auth_header = request.headers.get("Authorization", None)
-        # if auth_header is not None and auth_header.startswith("ApiKey "):
-        #     # Only check API key access if it's actually an API key, not a JWT
-        #     api_key = auth_header.split(" ")[-1]  # ["ApiKey", "xxxxx.xxxxxx"]
-        #     await check_apikey_action_access(
-        #         api_key,
-        #         request.state.user_id,
-        #         Permission.CREATE_APPLICATION,
-        #     )
-
         try:
             user_org_workspace_data = await get_user_org_and_workspace_id(
                 request.state.user_id
@@ -222,7 +212,7 @@ async def create_app(
             has_permission = await check_rbac_permission(
                 user_org_workspace_data=user_org_workspace_data,
                 project_id=request.state.project_id,
-                permission=Permission.CREATE_APPLICATION,
+                permission=Permission.EDIT_APPLICATIONS,
             )
             if not has_permission:
                 error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -301,7 +291,7 @@ async def update_app(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_id),
-            permission=Permission.EDIT_APPLICATION,
+            permission=Permission.EDIT_APPLICATIONS,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -341,7 +331,7 @@ async def list_apps(
         has_permission = await check_rbac_permission(  # type: ignore
             user_org_workspace_data=user_org_workspace_data,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATION,  # type: ignore
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
         )
         if not has_permission:
             raise HTTPException(
@@ -387,7 +377,7 @@ async def add_variant_from_url(
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(app.project_id),
-                permission=Permission.CREATE_APPLICATION,
+                permission=Permission.EDIT_APPLICATIONS,
             )
             if not has_permission:
                 error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -497,7 +487,7 @@ async def remove_app(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_id),
-            permission=Permission.DELETE_APPLICATION,
+            permission=Permission.EDIT_APPLICATIONS,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -557,7 +547,7 @@ async def list_environments(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATION,
+            permission=Permission.VIEW_APPLICATIONS,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -602,7 +592,7 @@ async def list_app_environment_revisions(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATION,
+            permission=Permission.VIEW_APPLICATIONS,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."

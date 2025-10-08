@@ -53,11 +53,11 @@ async def get_user_llm_providers_secrets(project_id: str) -> Dict[str, Any]:
     return readable_secrets
 
 
-async def get_llm_providers_secrets(provider_id: str) -> Dict[str, Any]:
+async def get_llm_providers_secrets(project_id: str) -> Dict[str, Any]:
     """
     Fetches LLM providers secrets from system and vault.
     """
 
     system_llm_secrets = await get_system_llm_providers_secrets()
-    user_llm_secrets = await get_user_llm_providers_secrets(provider_id)
+    user_llm_secrets = await get_user_llm_providers_secrets(project_id)
     return {**system_llm_secrets, **user_llm_secrets}

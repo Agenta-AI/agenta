@@ -1,10 +1,12 @@
 import {useCallback} from "react"
 
+import {useAtomValue} from "jotai"
 import useSWR, {SWRResponse} from "swr"
 
 import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import {fetchAllEvaluators} from "@/oss/services/evaluators"
 import {useOrgData} from "@/oss/state/org"
+import {userAtom} from "@/oss/state/profile"
 import {getProjectValues} from "@/oss/state/project"
 
 import axios from "../../api/assets/axiosConfig"
@@ -32,6 +34,7 @@ const useEvaluators = <Preview extends boolean = false>({
     queries?: {is_human: boolean}
 }): UseEvaluatorsReturn<Preview> => {
     const {selectedOrg} = useOrgData()
+    const user = useAtomValue(userAtom)
     const projectId = options?.projectId || getProjectValues()?.projectId || ""
     const workspace = selectedOrg?.default_workspace
     const members = workspace?.members || []
@@ -66,8 +69,8 @@ const useEvaluators = <Preview extends boolean = false>({
         }
     }, [projectId, preview, queries])
 
-    return useSWR<Preview extends true ? EvaluatorPreviewDto[] : Evaluator[]>(
-        projectId
+    const data = useSWR<Preview extends true ? EvaluatorPreviewDto[] : Evaluator[]>(
+        user?.id && projectId
             ? `/api${preview ? "/preview" : ""}/evaluators/?project_id=${projectId}&queries=${JSON.stringify(queries)}`
             : null,
         fetcher,
@@ -77,6 +80,8 @@ const useEvaluators = <Preview extends boolean = false>({
             ...options,
         },
     )
+
+    return data
 }
 
 export default useEvaluators

@@ -12,22 +12,11 @@ from oss.src.core.shared.dtos import (
     Header,
     Metadata,
     Data,
-    Reference,
+    Commit,
 )
 
 
-class Commit(BaseModel):
-    author: Optional[UUID] = None
-    date: Optional[datetime] = None
-    message: Optional[str] = None
-
-
-class CommitCreate(BaseModel):
-    message: Optional[str] = None
-
-
-class CommitFetch(BaseModel):
-    authors: Optional[List[UUID]] = None
+# artifacts --------------------------------------------------------------------
 
 
 class Artifact(Identifier, Slug, Lifecycle, Header, Metadata):
@@ -42,8 +31,11 @@ class ArtifactEdit(Identifier, Header, Metadata):
     pass
 
 
-class ArtifactQuery(Metadata):
+class ArtifactQuery(Header, Metadata):
     pass
+
+
+# variants ---------------------------------------------------------------------
 
 
 class Variant(Identifier, Slug, Lifecycle, Header, Metadata):
@@ -58,8 +50,11 @@ class VariantEdit(Identifier, Header, Metadata):
     pass
 
 
-class VariantQuery(Metadata):
+class VariantQuery(Header, Metadata):
     pass
+
+
+# revisions --------------------------------------------------------------------
 
 
 class Revision(Identifier, Slug, Version, Lifecycle, Header, Metadata, Commit):
@@ -78,32 +73,49 @@ class RevisionEdit(Identifier, Header, Metadata):
     pass
 
 
-class RevisionQuery(Metadata, CommitFetch):
-    pass
+class RevisionQuery(Header, Metadata):
+    author: Optional[UUID] = None
+    authors: Optional[List[UUID]] = None
+
+    date: Optional[datetime] = None
+    dates: Optional[List[datetime]] = None
+
+    message: Optional[str] = None
 
 
-class RevisionCommit(Slug, Header, Metadata, CommitCreate):
+class RevisionCommit(Slug, Header, Metadata):
     data: Optional[Data] = None
+
+    message: Optional[str] = None
 
     artifact_id: Optional[UUID] = None
     variant_id: Optional[UUID] = None
 
 
-class RevisionFork(Slug, Header, Metadata, CommitCreate):
-    data: Optional[Data] = None
-
-
-class VariantFork(Slug, Header, Metadata):
-    pass
-
-
-class ArtifactLog(BaseModel):
+class RevisionsLog(BaseModel):
+    artifact_id: Optional[UUID] = None
     variant_id: Optional[UUID] = None
     revision_id: Optional[UUID] = None
 
     depth: Optional[int] = None
 
 
-class ArtifactFork(ArtifactLog):
+# forks ------------------------------------------------------------------------
+
+
+class RevisionFork(Slug, Header, Metadata):
+    data: Optional[Data] = None
+
+    message: Optional[str] = None
+
+
+class VariantFork(Slug, Header, Metadata):
+    pass
+
+
+class ArtifactFork(RevisionsLog):
     variant: Optional[VariantFork] = None
     revision: Optional[RevisionFork] = None
+
+
+# ------------------------------------------------------------------------------

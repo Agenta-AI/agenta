@@ -16,13 +16,17 @@ def create_dbe_from_dto(
     DBE: Type[DBE_T],
     project_id: UUID,
     dto: DTO_T,
+    **kwargs,
 ) -> DBE_T:
     """Map a Pydantic DTO instance to a SQLAlchemy DBE, with extra project_id."""
 
-    attributes = dto.model_dump(exclude_none=True)
+    attributes = dto.model_dump(
+        # mode="json",
+        exclude_none=True,
+    )
     attributes["project_id"] = project_id
 
-    dbe = DBE(**attributes)
+    dbe = DBE(**attributes, **kwargs)
 
     return dbe
 
@@ -35,7 +39,9 @@ def edit_dbe_from_dto(
 ) -> DBE_T:
     """Edit a SQLAlchemy DBE instance with a Pydantic DTO."""
 
-    for field, value in dto.model_dump().items():
+    for field, value in dto.model_dump(
+        # mode="json",
+    ).items():
         setattr(dbe, field, value)
 
     for field, value in kwargs.items():

@@ -17,7 +17,7 @@ import {fetchSingleProfile} from "@/oss/services/api"
 import {fetchVariants as fetchAppVariants} from "@/oss/services/api"
 import {routerAppIdAtom, recentAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {environmentsAtom} from "@/oss/state/environment/atoms/fetcher"
-import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/newApps/selectors/apps"
+import {currentAppContextAtom, selectedAppIdAtom} from "@/oss/state/app/selectors/app"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 // Utility: check if a string is a canonical UUID (v1–v5)

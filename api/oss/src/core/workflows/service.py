@@ -1,11 +1,7 @@
 from typing import Optional, List, Tuple
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
-
-from oss.src.apis.fastapi.tracing.router import (
-    TracingRouter,
-)  # change to TracingRouterInterface
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing, Status
@@ -14,7 +10,6 @@ from oss.src.core.git.dtos import (
     ArtifactEdit,
     ArtifactQuery,
     ArtifactFork,
-    ArtifactLog,
     #
     VariantCreate,
     VariantEdit,
@@ -24,6 +19,7 @@ from oss.src.core.git.dtos import (
     RevisionEdit,
     RevisionQuery,
     RevisionCommit,
+    RevisionsLog,
 )
 from oss.src.core.workflows.dtos import (
     Workflow,
@@ -31,7 +27,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowEdit,
     WorkflowQuery,
     WorkflowFork,
-    WorkflowLog,
+    WorkflowRevisionsLog,
     #
     WorkflowVariant,
     WorkflowVariantCreate,
@@ -60,56 +56,11 @@ from oss.src.core.workflows.errors import (
     ErrorStatus,
 )
 
+from oss.src.core.services.registry import REGISTRY
+from oss.src.core.services.utils import parse_service_uri
 
 log = get_module_logger(__name__)
 
-# - REGISTRY -------------------------------------------------------------------
-
-from oss.src.core.workflows.utils import (
-    auto_exact_match_v0,
-    auto_regex_test_v0,
-    field_match_test_v0,
-    auto_webhook_test_v0,
-    auto_custom_code_run_v0,
-    auto_ai_critique_v0,
-    auto_starts_with_v0,
-    auto_ends_with_v0,
-    auto_contains_v0,
-    auto_contains_any_v0,
-    auto_contains_all_v0,
-    auto_contains_json_v0,
-    auto_json_diff_v0,
-    rag_faithfulness_v0,
-    rag_context_relevancy_v0,
-    auto_levenshtein_distance_v0,
-    auto_similarity_match_v0,
-    auto_semantic_similarity_v0,
-)
-
-REGISTRY = {
-    "agenta": {
-        "built-in": {
-            "auto_exact_match": {"v0": auto_exact_match_v0},
-            "auto_regex_test": {"v0": auto_regex_test_v0},
-            "field_match_test": {"v0": field_match_test_v0},
-            "auto_webhook_test": {"v0": auto_webhook_test_v0},
-            "auto_custom_code_run": {"v0": auto_custom_code_run_v0},
-            "auto_ai_critique": {"v0": auto_ai_critique_v0},
-            "auto_starts_with": {"v0": auto_starts_with_v0},
-            "auto_ends_with": {"v0": auto_ends_with_v0},
-            "auto_contains": {"v0": auto_contains_v0},
-            "auto_contains_any": {"v0": auto_contains_any_v0},
-            "auto_contains_all": {"v0": auto_contains_all_v0},
-            "auto_contains_json": {"v0": auto_contains_json_v0},
-            "auto_json_diff": {"v0": auto_json_diff_v0},
-            "rag_faithfulness": {"v0": rag_faithfulness_v0},
-            "rag_context_relevancy": {"v0": rag_context_relevancy_v0},
-            "auto_levenshtein_distance": {"v0": auto_levenshtein_distance_v0},
-            "auto_similarity_match": {"v0": auto_similarity_match_v0},
-            "auto_semantic_similarity": {"v0": auto_semantic_similarity_v0},
-        },
-    },
-}
 
 # ------------------------------------------------------------------------------
 
@@ -119,11 +70,10 @@ class WorkflowsService:
         self,
         *,
         workflows_dao: GitDAOInterface,
-        tracing_router: TracingRouter,
     ):
         self.workflows_dao = workflows_dao
 
-    ## -- artifacts ------------------------------------------------------------
+    # workflows ----------------------------------------------------------------
 
     async def create_workflow(
         self,
@@ -135,7 +85,7 @@ class WorkflowsService:
         #
         workflow_id: Optional[UUID] = None,
     ) -> Optional[Workflow]:
-        _artifact_create = ArtifactCreate(
+        artifact_create = ArtifactCreate(
             **workflow_create.model_dump(mode="json"),
         )
 
@@ -143,7 +93,7 @@ class WorkflowsService:
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_create=_artifact_create,
+            artifact_create=artifact_create,
             #
             artifact_id=workflow_id,
         )
@@ -151,9 +101,9 @@ class WorkflowsService:
         if not artifact:
             return None
 
-        _workflow = Workflow(**artifact.model_dump(mode="json"))
+        workflow = Workflow(**artifact.model_dump(mode="json"))
 
-        return _workflow
+        return workflow
 
     async def fetch_workflow(
         self,
@@ -171,9 +121,9 @@ class WorkflowsService:
         if not artifact:
             return None
 
-        _workflow = Workflow(**artifact.model_dump(mode="json"))
+        workflow = Workflow(**artifact.model_dump(mode="json"))
 
-        return _workflow
+        return workflow
 
     async def edit_workflow(
         self,
@@ -183,7 +133,7 @@ class WorkflowsService:
         #
         workflow_edit: WorkflowEdit,
     ) -> Optional[Workflow]:
-        _artifact_edit = ArtifactEdit(
+        artifact_edit = ArtifactEdit(
             **workflow_edit.model_dump(mode="json"),
         )
 
@@ -191,15 +141,57 @@ class WorkflowsService:
             project_id=project_id,
             user_id=user_id,
             #
-            artifact_edit=_artifact_edit,
+            artifact_edit=artifact_edit,
         )
 
         if not artifact:
             return None
 
-        _workflow = Workflow(**artifact.model_dump(mode="json"))
+        workflow = Workflow(**artifact.model_dump(mode="json"))
 
-        return _workflow
+        return workflow
+
+    async def query_workflows(
+        self,
+        *,
+        project_id: UUID,
+        #
+        workflow_query: Optional[WorkflowQuery] = None,
+        #
+        workflow_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Workflow]:
+        artifact_query = (
+            ArtifactQuery(
+                **workflow_query.model_dump(mode="json", exclude_none=True),
+            )
+            if workflow_query
+            else ArtifactQuery()
+        )
+
+        artifacts = await self.workflows_dao.query_artifacts(
+            project_id=project_id,
+            #
+            artifact_query=artifact_query,
+            #
+            artifact_refs=workflow_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        workflows = [
+            Workflow(
+                **artifact.model_dump(mode="json"),
+            )
+            for artifact in artifacts
+        ]
+
+        return workflows
 
     async def archive_workflow(
         self,
@@ -245,51 +237,7 @@ class WorkflowsService:
 
         return _workflow
 
-    async def query_workflows(
-        self,
-        *,
-        project_id: UUID,
-        #
-        workflow_query: Optional[WorkflowQuery] = None,
-        #
-        workflow_refs: Optional[List[Reference]] = None,
-        #
-        include_archived: Optional[bool] = None,
-        #
-        windowing: Optional[Windowing] = None,
-    ) -> List[Workflow]:
-        _artifact_query = (
-            ArtifactQuery(
-                **workflow_query.model_dump(mode="json", exclude_none=True),
-            )
-            if workflow_query
-            else ArtifactQuery()
-        )
-
-        artifacts = await self.workflows_dao.query_artifacts(
-            project_id=project_id,
-            #
-            artifact_query=_artifact_query,
-            #
-            artifact_refs=workflow_refs,
-            #
-            include_archived=include_archived,
-            #
-            windowing=windowing,
-        )
-
-        _workflows = [
-            Workflow(
-                **artifact.model_dump(mode="json"),
-            )
-            for artifact in artifacts
-        ]
-
-        return _workflows
-
-    ## -------------------------------------------------------------------------
-
-    ## -- variants -------------------------------------------------------------
+    # workflow variants --------------------------------------------------------
 
     async def create_workflow_variant(
         self,
@@ -371,6 +319,78 @@ class WorkflowsService:
 
         return _workflow_variant
 
+    async def query_workflow_variants(
+        self,
+        *,
+        project_id: UUID,
+        #
+        workflow_variant_query: Optional[WorkflowVariantQuery] = None,
+        #
+        workflow_refs: Optional[List[Reference]] = None,
+        workflow_variant_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[WorkflowVariant]:
+        _variant_query = (
+            VariantQuery(
+                **workflow_variant_query.model_dump(mode="json", exclude_none=True),
+            )
+            if workflow_variant_query
+            else VariantQuery()
+        )
+
+        variants = await self.workflows_dao.query_variants(
+            project_id=project_id,
+            #
+            variant_query=_variant_query,
+            #
+            artifact_refs=workflow_refs,
+            variant_refs=workflow_variant_refs,
+            #
+            include_archived=include_archived,
+            #
+            windowing=windowing,
+        )
+
+        _workflow_variants = [
+            WorkflowVariant(
+                **variant.model_dump(mode="json"),
+            )
+            for variant in variants
+        ]
+
+        return _workflow_variants
+
+    async def fork_workflow_variant(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        workflow_fork: WorkflowFork,
+    ) -> Optional[WorkflowVariant]:
+        _artifact_fork = ArtifactFork(
+            **workflow_fork.model_dump(mode="json"),
+        )
+
+        variant = await self.workflows_dao.fork_variant(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            artifact_fork=_artifact_fork,
+        )
+
+        if not variant:
+            return None
+
+        _workflow_variant = WorkflowVariant(
+            **variant.model_dump(mode="json"),
+        )
+
+        return _workflow_variant
+
     async def archive_workflow_variant(
         self,
         *,
@@ -419,83 +439,7 @@ class WorkflowsService:
 
         return _workdlow_variant
 
-    async def query_workflow_variants(
-        self,
-        *,
-        project_id: UUID,
-        #
-        workflow_variant_query: Optional[WorkflowVariantQuery] = None,
-        #
-        workflow_refs: Optional[List[Reference]] = None,
-        workflow_variant_refs: Optional[List[Reference]] = None,
-        #
-        include_archived: Optional[bool] = None,
-        #
-        windowing: Optional[Windowing] = None,
-    ) -> List[WorkflowVariant]:
-        _variant_query = (
-            VariantQuery(
-                **workflow_variant_query.model_dump(mode="json", exclude_none=True),
-            )
-            if workflow_variant_query
-            else VariantQuery()
-        )
-
-        variants = await self.workflows_dao.query_variants(
-            project_id=project_id,
-            #
-            variant_query=_variant_query,
-            #
-            artifact_refs=workflow_refs,
-            variant_refs=workflow_variant_refs,
-            #
-            include_archived=include_archived,
-            #
-            windowing=windowing,
-        )
-
-        _workflow_variants = [
-            WorkflowVariant(
-                **variant.model_dump(mode="json"),
-            )
-            for variant in variants
-        ]
-
-        return _workflow_variants
-
-    ## .........................................................................
-
-    async def fork_workflow_variant(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        workflow_fork: WorkflowFork,
-    ) -> Optional[WorkflowVariant]:
-        _artifact_fork = ArtifactFork(
-            **workflow_fork.model_dump(mode="json"),
-        )
-
-        variant = await self.workflows_dao.fork_variant(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            artifact_fork=_artifact_fork,
-        )
-
-        if not variant:
-            return None
-
-        _workflow_variant = WorkflowVariant(
-            **variant.model_dump(mode="json"),
-        )
-
-        return _workflow_variant
-
-    ## -------------------------------------------------------------------------
-
-    ## -- revisions ------------------------------------------------------------
+    # workflow revisions -------------------------------------------------------
 
     async def create_workflow_revision(
         self,
@@ -598,54 +542,6 @@ class WorkflowsService:
 
         return _workflow_revision
 
-    async def archive_workflow_revision(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        workflow_revision_id: UUID,
-    ) -> Optional[WorkflowRevision]:
-        revision = await self.workflows_dao.archive_revision(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            revision_id=workflow_revision_id,
-        )
-
-        if not revision:
-            return None
-
-        _workflow_revision = WorkflowRevision(
-            **revision.model_dump(mode="json"),
-        )
-
-        return _workflow_revision
-
-    async def unarchive_workflow_revision(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        workflow_revision_id: UUID,
-    ) -> Optional[WorkflowRevision]:
-        revision = await self.workflows_dao.unarchive_revision(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            revision_id=workflow_revision_id,
-        )
-
-        if not revision:
-            return None
-
-        _workflow_revision = WorkflowRevision(
-            **revision.model_dump(mode="json"),
-        )
-
-        return _workflow_revision
-
     async def query_workflow_revisions(
         self,
         *,
@@ -691,8 +587,6 @@ class WorkflowsService:
         ]
 
         return _workflow_revisions
-
-    ## .........................................................................
 
     async def commit_workflow_revision(
         self,
@@ -742,16 +636,16 @@ class WorkflowsService:
         *,
         project_id: UUID,
         #
-        workflow_log: WorkflowLog,
+        workflow_revisions_log: WorkflowRevisionsLog,
     ) -> List[WorkflowRevision]:
-        _artifact_log = ArtifactLog(
-            **workflow_log.model_dump(mode="json"),
+        _revisions_log = RevisionsLog(
+            **workflow_revisions_log.model_dump(mode="json"),
         )
 
         revisions = await self.workflows_dao.log_revisions(
             project_id=project_id,
             #
-            artifact_log=_artifact_log,
+            revisions_log=_revisions_log,
         )
 
         _workflow_revisions = [
@@ -763,7 +657,55 @@ class WorkflowsService:
 
         return _workflow_revisions
 
-    ## -------------------------------------------------------------------------
+    async def archive_workflow_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        workflow_revision_id: UUID,
+    ) -> Optional[WorkflowRevision]:
+        revision = await self.workflows_dao.archive_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            revision_id=workflow_revision_id,
+        )
+
+        if not revision:
+            return None
+
+        _workflow_revision = WorkflowRevision(
+            **revision.model_dump(mode="json"),
+        )
+
+        return _workflow_revision
+
+    async def unarchive_workflow_revision(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        workflow_revision_id: UUID,
+    ) -> Optional[WorkflowRevision]:
+        revision = await self.workflows_dao.unarchive_revision(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            revision_id=workflow_revision_id,
+        )
+
+        if not revision:
+            return None
+
+        _workflow_revision = WorkflowRevision(
+            **revision.model_dump(mode="json"),
+        )
+
+        return _workflow_revision
+
+    # workflow services --------------------------------------------------------
 
     async def invoke_workflow(
         self,
@@ -809,8 +751,9 @@ class WorkflowsService:
                 parameters=revision.data.parameters,
                 inputs=request.data.inputs,
                 #
-                trace_outputs=request.data.trace_outputs,
                 trace_parameters=request.data.trace_parameters,
+                trace_inputs=request.data.trace_inputs,
+                trace_outputs=request.data.trace_outputs,
                 #
                 trace=request.data.trace,
                 tree=request.data.tree,
@@ -859,20 +802,4 @@ class WorkflowsService:
     ) -> WorkflowServiceInterface:
         pass
 
-    ## -------------------------------------------------------------------------
-
-
-async def parse_service_uri(
-    uri: str,
-) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
-    if not uri or not uri.strip():
-        return None, None, None, None
-
-    # uri ~ [<provider>|empty|'custom']:<kind>:<key>:[<version>|'latest'|empty]
-
-    parts = uri.split(":")
-
-    if len(parts) != 4:
-        return None, None, None, None
-
-    return tuple(parts)
+    # --------------------------------------------------------------------------

@@ -9,6 +9,7 @@ from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelHash,
     OTelReference,
+    OTelFlatSpan,
     OTelSpan,
     OTelSpanKind,
     OTelStatusCode,
@@ -129,8 +130,8 @@ def map_span_dbe_to_span_dto(
 
 
 def map_span_dto_to_span_dbe(
-    project_id: str,
-    span_dto: OTelSpan,
+    project_id: UUID,
+    span_dto: OTelFlatSpan,
     user_id: Optional[UUID] = None,
 ) -> SpanDBE:
     span_dbe = SpanDBE(
@@ -195,7 +196,7 @@ def map_span_dto_to_span_dbe(
 def map_buckets(
     total_buckets: list,
     errors_buckets: list,
-    window: int,
+    interval: int,
     timestamps: Optional[List[datetime]] = None,
 ) -> List[Bucket]:
     total_metrics = {
@@ -238,7 +239,7 @@ def map_buckets(
     buckets = [
         Bucket(
             timestamp=timestamp,
-            window=window,
+            interval=interval,
             total=total_metrics.get(timestamp, Analytics()),
             errors=errors_metrics.get(timestamp, Analytics()),
         )

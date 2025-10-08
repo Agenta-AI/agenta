@@ -83,7 +83,7 @@ async def evaluator_run(
     """
 
     providers_keys_from_vault = await get_llm_providers_secrets(
-        provider_id=request.state.project_id
+        project_id=request.state.project_id
     )
 
     payload.credentials = providers_keys_from_vault

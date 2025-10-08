@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {currentAppContextAtom} from "@/oss/state/newApps/selectors/apps"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {requestSchemaMetaAtomFamily} from "@/oss/state/newPlayground/core/requestSchemaMeta"
 
 import {getEnhancedRevisionById} from "../../variant/atoms/fetcher"

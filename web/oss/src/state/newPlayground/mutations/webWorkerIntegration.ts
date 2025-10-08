@@ -28,7 +28,7 @@ import {
     messageSchemaMetadataAtom,
 } from "@/oss/state/generation/entities"
 import {inputRowAtomFamily, rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
-import {currentAppContextAtom} from "@/oss/state/newApps/selectors/apps"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {promptsAtomFamily, promptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"

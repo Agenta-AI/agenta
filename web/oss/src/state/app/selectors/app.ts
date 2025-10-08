@@ -55,3 +55,22 @@ export const shouldRenderPlaygroundAtom = eagerAtom<boolean>((get) => {
     if (isLoading) return true
     return Boolean(isUp)
 })
+
+/**
+ * Current app context - provides full context for current app
+ * Used by: Components that need current app info
+ */
+export const currentAppContextAtom = eagerAtom((get) => {
+    const currentApp = get(currentAppAtom)
+    const selectedId = get(selectedAppIdAtom)
+    const {isLoading} = get(appsQueryAtom)
+
+    return {
+        app: currentApp,
+        appId: selectedId,
+        appName: currentApp?.app_name || null,
+        appType: currentApp?.app_type || null,
+        hasApp: !!currentApp,
+        loading: isLoading,
+    }
+})

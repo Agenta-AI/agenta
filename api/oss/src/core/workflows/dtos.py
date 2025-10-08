@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Callable
 from uuid import UUID, uuid4
 from urllib.parse import urlparse
 
@@ -18,28 +18,29 @@ from jsonschema import (
 )
 from jsonschema.exceptions import SchemaError
 
-from oss.src.core.shared.dtos import sync_alias, AliasConfig
-
 from oss.src.core.git.dtos import (
     Artifact,
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
     ArtifactFork,
-    ArtifactLog,
+    #
     Variant,
     VariantCreate,
     VariantEdit,
     VariantQuery,
     VariantFork,
+    #
     Revision,
     RevisionCreate,
     RevisionEdit,
     RevisionQuery,
-    RevisionCommit,
     RevisionFork,
+    RevisionCommit,
+    RevisionsLog,
 )
 
+from oss.src.core.shared.dtos import sync_alias, AliasConfig
 from oss.src.core.shared.dtos import (
     Identifier,
     Slug,
@@ -56,14 +57,11 @@ from oss.src.core.shared.dtos import (
     # Secret,
 )
 
-from oss.src.core.tracing.dtos import (
-    Trace,
-)
+from oss.src.core.tracing.dtos import Trace
+from oss.src.apis.fastapi.observability.models import AgentaVersionedTreeDTO as Tree
 
-from oss.src.apis.fastapi.observability.models import (
-    AgentaNodesDTO as Tree,
-    AgentaVersionedTreeDTO as VersionedTree,
-)
+
+# aliases ----------------------------------------------------------------------
 
 
 class WorkflowIdAlias(AliasConfig):
@@ -93,10 +91,16 @@ class WorkflowRevisionIdAlias(AliasConfig):
     )
 
 
+# globals ----------------------------------------------------------------------
+
+
 class WorkflowFlags(BaseModel):
     is_custom: Optional[bool] = None
     is_evaluator: Optional[bool] = None
     is_human: Optional[bool] = None
+
+
+# workflows --------------------------------------------------------------------
 
 
 class Workflow(Artifact):
@@ -113,6 +117,9 @@ class WorkflowEdit(ArtifactEdit):
 
 class WorkflowQuery(ArtifactQuery):
     flags: Optional[WorkflowFlags] = None
+
+
+# workflow variants ------------------------------------------------------------
 
 
 class WorkflowVariant(
@@ -143,6 +150,9 @@ class WorkflowVariantQuery(VariantQuery):
     flags: Optional[WorkflowFlags] = None
 
 
+# workflow revisions -----------------------------------------------------------
+
+
 class WorkflowServiceVersion(BaseModel):
     version: Optional[str] = None
 
@@ -151,6 +161,7 @@ class WorkflowServiceInterface(WorkflowServiceVersion):
     uri: Optional[str] = None  # str (Enum) w/ validation
     url: Optional[str] = None  # str w/ validation
     headers: Optional[Dict[str, Reference | str]] = None  # either hardcoded or a secret
+    # handler: Optional[Callable] = None
 
     schemas: Optional[Dict[str, Schema]] = None  # json-schema instead of pydantic
     mappings: Optional[Mappings] = None  # used in the workflow interface
@@ -284,22 +295,35 @@ class WorkflowRevisionCommit(
         sync_alias("workflow_variant_id", "variant_id", self)
 
 
-class WorkflowLog(
-    ArtifactLog,
+class WorkflowRevisionsLog(
+    RevisionsLog,
+    WorkflowIdAlias,
     WorkflowVariantIdAlias,
     WorkflowRevisionIdAlias,
 ):
-    workflow_variant_id: Optional[UUID] = None
-
     def model_post_init(self, __context) -> None:
+        sync_alias("workflow_id", "artifact_id", self)
         sync_alias("workflow_variant_id", "variant_id", self)
         sync_alias("workflow_revision_id", "revision_id", self)
+
+
+# forks ------------------------------------------------------------------------
 
 
 class WorkflowRevisionFork(RevisionFork):
     flags: Optional[WorkflowFlags] = None
 
     data: Optional[WorkflowRevisionData] = None
+
+
+class WorkflowRevisionForkAlias(AliasConfig):
+    workflow_revision: Optional[WorkflowRevisionFork] = None
+
+    revision: Optional[RevisionFork] = Field(
+        default=None,
+        exclude=True,
+        alias="workflow_revision",
+    )
 
 
 class WorkflowVariantFork(VariantFork):
@@ -316,58 +340,46 @@ class WorkflowVariantForkAlias(AliasConfig):
     )
 
 
-class WorkflowRevisionForkAlias(AliasConfig):
-    workflow_revision: Optional[WorkflowRevisionFork] = None
-
-    revision: Optional[RevisionFork] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_revision",
-    )
-
-
 class WorkflowFork(
     ArtifactFork,
+    WorkflowIdAlias,
     WorkflowVariantIdAlias,
-    WorkflowRevisionIdAlias,
     WorkflowVariantForkAlias,
+    WorkflowRevisionIdAlias,
     WorkflowRevisionForkAlias,
 ):
     def model_post_init(self, __context) -> None:
-        sync_alias("workflow_variant", "variant", self)
-        sync_alias("workflow_revision", "revision", self)
+        sync_alias("workflow_id", "artifact_id", self)
         sync_alias("workflow_variant_id", "variant_id", self)
+        sync_alias("workflow_variant", "variant", self)
         sync_alias("workflow_revision_id", "revision_id", self)
+        sync_alias("workflow_revision", "revision", self)
 
 
-# WORKFLOWS --------------------------------------------------------------------
+# workflow services ------------------------------------------------------------
 
 
 class WorkflowServiceData(BaseModel):
+    parameters: Optional[Data] = None
     inputs: Optional[Data] = None
-    #
     outputs: Optional[Data | str] = None
     #
-    traces: Optional[Dict[str, Trace]] = None
-    #
-    trace: Optional[Trace] = None
+    trace_parameters: Optional[Data] = None
     trace_inputs: Optional[Data] = None
     trace_outputs: Optional[Data | str] = None
-    trace_parameters: Optional[Data] = None
-    # LEGACY
-    tree: Optional[VersionedTree] = None  # used for workflow execution traces
+    #
+    trace: Optional[Trace] = None
+    # LEGACY -- used for workflow execution traces
+    tree: Optional[Tree] = None
 
 
 class WorkflowServiceRequest(Version, Metadata):
     data: Optional[WorkflowServiceData] = None
 
-    # path: Optional[str] = "/"
-    # method: Optional[str] = "invoke"
-
     references: Optional[Dict[str, Reference]] = None
     links: Optional[Dict[str, Link]] = None
 
-    credentials: Optional[str] = None
+    credentials: Optional[str] = None  # Fix typing
     secrets: Optional[Dict[str, Any]] = None  # Fix typing
 
 
@@ -383,3 +395,6 @@ class WorkflowServiceResponse(Identifier, Version):
 
         self.id = uuid4() if not self.id else self.id
         self.version = "2025.07.14" if not self.version else self.version
+
+
+# ------------------------------------------------------------------------------

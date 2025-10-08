@@ -387,7 +387,7 @@ export const createAppMutationAtom = atom(
                 )
             }
 
-            await axios.put(`/api/variants/${targetVariantId}/parameters?project_id=${projectId}`, {
+            await axios.put(`/variants/${targetVariantId}/parameters?project_id=${projectId}`, {
                 parameters: parameters.ag_config,
             })
 

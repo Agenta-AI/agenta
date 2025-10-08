@@ -2,7 +2,8 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {TestSet, PreviewTestSet} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
-import {useTestset as useTestsetAtom} from "@/oss/state/testset"
+
+import {PreviewTestsetsQueryPayload} from "./types"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -10,28 +11,6 @@ import {useTestset as useTestsetAtom} from "@/oss/state/testset"
 //  - create: POST data to server
 //  - update: PUT data to server
 //  - delete: DELETE data from server
-
-/**
- * Hook for fetching a single testset using Jotai atoms
- * Migrated from SWR to maintain backward compatibility
- *
- * @param testsetId - ID of the testset to fetch
- * @param preview - Whether to fetch preview version (optional)
- * @returns Query result with same interface as SWR hook
- * @deprecated Use the atom-based useTestset from @/oss/state/testset instead
- */
-export function useTestset<T extends boolean = false>(
-    testsetId?: string,
-    preview?: T,
-): {
-    data: T extends true ? PreviewTestSet : TestSet
-    error: any
-    isLoading: boolean
-    mutate: () => void
-} {
-    // Use the new atom-based hook internally
-    return useTestsetAtom(testsetId, preview)
-}
 
 export const fetchTestsets = async () => {
     const {projectId} = getProjectValues()
@@ -41,11 +20,12 @@ export const fetchTestsets = async () => {
     return response.data
 }
 
-export const fetchPreviewTestsets = async () => {
+export const fetchPreviewTestsets = async (payload: PreviewTestsetsQueryPayload = {}) => {
     const {projectId} = getProjectValues()
 
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/simple/testsets/?project_id=${projectId}`,
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/preview/simple/testsets/query?project_id=${projectId}`,
+        payload,
     )
 
     return response.data

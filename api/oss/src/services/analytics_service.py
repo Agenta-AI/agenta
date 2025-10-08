@@ -139,18 +139,20 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 )
                 # --------------------------------------------------------------
 
-            # log.debug(
-            #     distinct_id=request.state.user_email,
-            #     event=event_name,
-            #     properties=properties,
-            # )
+            distinct_id = None
 
-            if env.POSTHOG_API_KEY:
+            try:
+                distinct_id = request.state.user_email
+            except:  # pylint: disable=bare-except
+                pass
+
+            if distinct_id and env.POSTHOG_API_KEY:
                 posthog.capture(
-                    distinct_id=request.state.user_email,
+                    distinct_id=distinct_id,
                     event=event_name,
                     properties=properties or {},
                 )
+
         except Exception as e:
             log.error(f"❌ Error capturing event in PostHog: {e}")
 

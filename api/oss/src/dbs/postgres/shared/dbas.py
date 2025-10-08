@@ -1,6 +1,6 @@
 import uuid_utils.compat as uuid
 
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, JSON
 from sqlalchemy import Column, String, UUID, TIMESTAMP, func, Integer
 
 
@@ -161,7 +161,7 @@ class MetaDBA:
     __abstract__ = True
 
     meta = Column(
-        JSONB(none_as_null=True),
+        JSON(none_as_null=True),
         nullable=True,
     )
 
@@ -170,7 +170,7 @@ class DataDBA:
     __abstract__ = True
 
     data = Column(
-        JSONB(none_as_null=True),
+        JSON(none_as_null=True),
         nullable=True,
     )
 

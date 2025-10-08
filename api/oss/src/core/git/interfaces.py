@@ -9,7 +9,7 @@ from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
     ArtifactQuery,
-    ArtifactLog,
+    RevisionsLog,
     ArtifactFork,
     Variant,
     VariantCreate,
@@ -297,7 +297,7 @@ class GitDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        artifact_log: ArtifactLog,
+        revisions_log: RevisionsLog,
     ) -> List[Revision]:
         raise NotImplementedError
 

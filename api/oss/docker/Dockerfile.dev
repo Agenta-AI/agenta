@@ -15,10 +15,30 @@ RUN apt-get update && \
 RUN pip install --upgrade pip \
     && pip install poetry
 
+#
 COPY ./oss /app/oss/
 COPY ./entrypoint.py ./pyproject.toml /app/
 
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
+    # && pip install -e /sdk/
+
+# ENV PYTHONPATH=/sdk:$PYTHONPATH
+
+#
+#
+#
+#
+
+#
+#
+
+#
+#
+#
+#
+
+#
+#
     
 EXPOSE 8000

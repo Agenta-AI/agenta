@@ -28,6 +28,32 @@ class ProjectScopedAppDB(DeprecatedBase):
     )
 
 
+class DeprecatedOrganizationDB(DeprecatedBase):
+    __tablename__ = "organizations"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    name = Column(String, default="agenta")
+    description = Column(
+        String,
+        default="The open-source LLM developer platform for cross-functional teams.",
+    )
+    type = Column(String, nullable=True)
+    owner = Column(String, nullable=True)  # TODO: deprecate and remove
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
 class DeprecatedAppDB(DeprecatedBase):
     __tablename__ = "app_db"
     __table_args__ = {"extend_existing": True}
@@ -42,6 +68,30 @@ class DeprecatedAppDB(DeprecatedBase):
     app_name = Column(String)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"))
     modified_by_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class DeprecatedTestSetDB(DeprecatedBase):
+    __tablename__ = "testsets"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+    name = Column(String)
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    csvdata = Column(mutable_json_type(dbtype=JSONB, nested=True))
     created_at = Column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
@@ -174,6 +224,33 @@ class DeprecatedEvaluatorConfigDBwApp(AltDeprecatedBase):
 
 class DeprecatedEvaluatorConfigDBwProject(DeprecatedBase):
     __tablename__ = "evaluators_configs"
+    __table_args__ = {"extend_existing": True}
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid7,
+        unique=True,
+        nullable=False,
+    )
+
+    name = Column(String)
+    evaluator_key = Column(String)
+    settings_values = Column(mutable_json_type(dbtype=JSONB, nested=True), default=dict)  # type: ignore
+    created_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at = Column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    project_id = Column(
+        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
+    )
+
+
+class DeprecatedAutoEvaluatorConfigDBwProject(DeprecatedBase):
+    __tablename__ = "auto_evaluator_configs"
     __table_args__ = {"extend_existing": True}
 
     id = Column(

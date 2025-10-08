@@ -77,12 +77,12 @@ span_processor = SpanProcessor(
 def _parse_windowing(
     oldest: Optional[str] = None,
     newest: Optional[str] = None,
-    window: Optional[int] = None,
+    interval: Optional[int] = None,
 ) -> Optional[WindowingDTO]:
     _windowing = None
 
     if oldest or newest:
-        _windowing = WindowingDTO(oldest=oldest, newest=newest, window=window)
+        _windowing = WindowingDTO(oldest=oldest, newest=newest, interval=interval)
 
     return _windowing
 
@@ -153,7 +153,7 @@ def _parse_pagination(
     return _pagination
 
 
-def parse_query_request(
+def parse_query_from_params_request(
     # GROUPING
     # - Option 2: Flat query parameters
     focus: Optional[str] = Query(None),
@@ -187,14 +187,14 @@ def parse_analytics_dto(
     # - Option 2: Flat query parameters
     oldest: Optional[str] = Query(None),
     newest: Optional[str] = Query(None),
-    window: Optional[int] = Query(None),
+    interval: Optional[int] = Query(None),
     # FILTERING
     # - Option 1: Single query parameter as JSON
     filtering: Optional[str] = Query(None),
 ) -> AnalyticsDTO:
     return AnalyticsDTO(
         grouping=_parse_grouping(focus=focus),
-        windowing=_parse_windowing(oldest=oldest, newest=newest, window=window),
+        windowing=_parse_windowing(oldest=oldest, newest=newest, interval=interval),
         filtering=_parse_filtering(filtering=filtering),
     )
 
@@ -466,9 +466,9 @@ def parse_to_agenta_span_dto(
 
 
 def _parse_time_range(
-    window_text: str,
+    interval_text: str,
 ) -> Tuple[datetime, datetime, int]:
-    quantity, unit = window_text.split("_")
+    quantity, unit = interval_text.split("_")
     quantity = int(quantity)
 
     today = datetime.now()
@@ -476,13 +476,13 @@ def _parse_time_range(
 
     if unit == "hours":
         oldest = newest - timedelta(hours=quantity)
-        window = 60  # 1 hour
-        return newest, oldest, window
+        interval = 60  # 1 hour
+        return newest, oldest, interval
 
     elif unit == "days":
         oldest = newest - timedelta(days=quantity)
-        window = 1440  # 1 day
-        return newest, oldest, window
+        interval = 1440  # 1 day
+        return newest, oldest, interval
 
     else:
         raise ValueError(f"Unknown time unit: {unit}")
@@ -539,8 +539,8 @@ def parse_legacy_analytics_dto(
     windowing = None
 
     if timeRange:
-        newest, oldest, window = _parse_time_range(timeRange)
-        windowing = WindowingDTO(newest=newest, oldest=oldest, window=window)
+        newest, oldest, interval = _parse_time_range(timeRange)
+        windowing = WindowingDTO(newest=newest, oldest=oldest, interval=interval)
 
     grouping = GroupingDTO(focus="tree")
 
