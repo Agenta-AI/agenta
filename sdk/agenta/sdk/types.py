@@ -21,13 +21,19 @@ def MCField(  # pylint: disable=invalid-name
     default: str,
     choices: Union[List[str], Dict[str, List[str]]],
 ) -> Field:
-    field = Field(default=default, description="ID of the model to use")
+    # Pydantic 2.12+ no longer allows post-creation mutation of field properties
     if isinstance(choices, dict):
-        field.json_schema_extra = {"choices": choices, "x-parameter": "grouped_choice"}
+        json_extra = {"choices": choices, "x-parameter": "grouped_choice"}
     elif isinstance(choices, list):
-        field.json_schema_extra = {"choices": choices, "x-parameter": "choice"}
+        json_extra = {"choices": choices, "x-parameter": "choice"}
+    else:
+        json_extra = {}
 
-    return field
+    return Field(
+        default=default,
+        description="ID of the model to use",
+        json_schema_extra=json_extra,
+    )
 
 
 class LLMTokenUsage(BaseModel):
