@@ -132,6 +132,27 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
         return app
 
 
+async def fetch_latest_app_variant(app_id: str) -> Optional[AppVariantDB]:
+    """Fetches the latest app variant for a given app ID.
+
+    Args:
+        app_id (str): The ID of the app to fetch the latest variant for.
+
+    Returns:
+        AppVariantDB: The latest app variant, or None if no app variant was found.
+    """
+
+    async with engine.core_session() as session:
+        base_query = (
+            select(AppVariantDB)
+            .filter_by(app_id=uuid.UUID(app_id))
+            .order_by(AppVariantDB.created_at.desc())
+        )
+        result = await session.execute(base_query)
+        app_variant = result.scalars().first()
+        return app_variant
+
+
 async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]:
     """
     Fetches an app variant by its ID.
@@ -600,6 +621,7 @@ async def create_app_and_envs(
     app_name: str,
     template_key: Optional[str] = None,
     project_id: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> AppDB:
     """
     Create a new app with the given name and organization ID.
@@ -616,7 +638,8 @@ async def create_app_and_envs(
     """
 
     app = await fetch_app_by_name_and_parameters(
-        app_name=app_name, project_id=project_id
+        app_name=app_name,
+        project_id=project_id,
     )
     if app is not None:
         raise ValueError("App with the same name already exists")
@@ -627,7 +650,10 @@ async def create_app_and_envs(
 
     async with engine.core_session() as session:
         app = AppDB(
-            app_name=app_name, project_id=uuid.UUID(project_id), app_type=app_type
+            project_id=uuid.UUID(project_id),
+            app_name=app_name,
+            app_type=app_type,
+            modified_by_id=uuid.UUID(user_id) if user_id else None,
         )
 
         session.add(app)
@@ -638,7 +664,7 @@ async def create_app_and_envs(
         return app
 
 
-async def update_app(app_id: str, values_to_update: dict) -> None:
+async def update_app(app_id: str, values_to_update: dict):
     """Update the app in the database.
 
     Arguments:
@@ -676,6 +702,7 @@ async def update_app(app_id: str, values_to_update: dict) -> None:
                 setattr(app, key, value)
 
         await session.commit()
+        return app
 
 
 async def get_deployment_by_id(deployment_id: str) -> DeploymentDB:
@@ -2475,14 +2502,17 @@ async def list_app_variant_revisions_by_variant(
         return app_variant_revisions
 
 
-async def fetch_app_variant_revision(app_variant: str, revision_number: int):
-    """Returns list of app variant revision for the given app variant
+async def fetch_app_variant_revision(
+    app_variant: str, revision_number: int
+) -> Optional[AppVariantRevisionsDB]:
+    """Returns a specific app variant revision for the given app variant and revision number.
 
     Args:
-        app_variant (AppVariantDB): The app variant to retrieve environments for.
+        app_variant (str): The ID of the app variant to retrieve the revision for.
+        revision_number (int): The revision number to retrieve.
 
     Returns:
-        List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
+        AppVariantRevisionsDB: The app variant revision object, or None if not found.
     """
 
     async with engine.core_session() as session:
@@ -2504,8 +2534,8 @@ async def fetch_app_variant_revision(app_variant: str, revision_number: int):
                 )  # type: ignore
             )
         result = await session.execute(query)
-        app_variant_revisions = result.scalars().first()
-        return app_variant_revisions
+        app_variant_revision = result.scalars().first()
+        return app_variant_revision
 
 
 async def remove_environment(environment_db: AppEnvironmentDB):
@@ -3095,7 +3125,8 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
     """
 
     from bson import ObjectId
-    from bson.errors import InvalidId
+
+    # from bson.errors import InvalidId
 
     try:
         # Ensure the object_id is a valid MongoDB ObjectId
@@ -3103,7 +3134,7 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
             object_uuid_as_str = await fetch_corresponding_object_uuid(
                 table_name=table_name, object_id=object_id
             )
-    except InvalidId:
+    except:
         # Use the object_id directly if it is not a valid MongoDB ObjectId
         object_uuid_as_str = object_id
 

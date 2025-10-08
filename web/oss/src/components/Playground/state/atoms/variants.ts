@@ -10,7 +10,7 @@ import {
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {currentAppAtom} from "@/oss/state/app"
-import {currentAppContextAtom} from "@/oss/state/newApps/selectors/apps"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {

@@ -1,6 +1,8 @@
 from sqlalchemy import (
     PrimaryKeyConstraint,
     Index,
+    desc,
+    text,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
@@ -53,6 +55,12 @@ class SpanDBE(
             "span_type",
         ),  # for filtering
         Index(
+            "ix_spans_project_id_trace_id_created_at",
+            "project_id",
+            "trace_id",
+            desc("created_at"),
+        ),  # for sorting and scrolling within a trace
+        Index(
             "ix_attributes_gin",
             "attributes",
             postgresql_using="gin",
@@ -79,5 +87,16 @@ class SpanDBE(
             "ix_events_gin",
             "events",
             postgresql_using="gin",
+            postgresql_ops={"events": "jsonb_path_ops"},
         ),  # for filtering
+        Index(
+            "ix_spans_fts_attributes_gin",
+            text("to_tsvector('simple', attributes)"),
+            postgresql_using="gin",
+        ),  # for full-text search on attributes
+        Index(
+            "ix_spans_fts_events_gin",
+            text("to_tsvector('simple', events)"),
+            postgresql_using="gin",
+        ),  # for full-text search on events
     )

@@ -15,7 +15,7 @@ from oss.src.core.git.dtos import (
     ArtifactEdit,
     ArtifactQuery,
     ArtifactFork,
-    ArtifactLog,
+    RevisionsLog,
     #
     Variant,
     VariantCreate,
@@ -29,6 +29,7 @@ from oss.src.core.git.dtos import (
     RevisionCommit,
 )
 
+from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
 from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.dbs.postgres.shared.engine import engine
@@ -125,18 +126,18 @@ class GitDAO(GitDAOInterface):
             return None
 
         async with engine.core_session() as session:
-            query = select(self.ArtifactDBE).filter(
+            stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
 
             if artifact_ref.id:
-                query = query.filter(self.ArtifactDBE.id == artifact_ref.id)  # type: ignore
+                stmt = stmt.filter(self.ArtifactDBE.id == artifact_ref.id)  # type: ignore
             elif artifact_ref.slug:
-                query = query.filter(self.ArtifactDBE.slug == artifact_ref.slug)  # type: ignore
+                stmt = stmt.filter(self.ArtifactDBE.slug == artifact_ref.slug)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             artifact_dbe = result.scalars().first()
 
@@ -160,15 +161,15 @@ class GitDAO(GitDAOInterface):
         artifact_edit: ArtifactEdit,
     ) -> Optional[Artifact]:
         async with engine.core_session() as session:
-            query = select(self.ArtifactDBE).filter(
+            stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.ArtifactDBE.id == artifact_edit.id)  # type: ignore
+            stmt = stmt.filter(self.ArtifactDBE.id == artifact_edit.id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             artifact_dbe = result.scalars().first()
 
@@ -207,15 +208,15 @@ class GitDAO(GitDAOInterface):
         artifact_id: UUID,
     ) -> Optional[Artifact]:
         async with engine.core_session() as session:
-            query = select(self.ArtifactDBE).filter(
+            stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.ArtifactDBE.id == artifact_id)  # type: ignore
+            stmt = stmt.filter(self.ArtifactDBE.id == artifact_id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             artifact_dbe = result.scalars().first()
 
@@ -249,15 +250,15 @@ class GitDAO(GitDAOInterface):
         artifact_id: UUID,
     ) -> Optional[Artifact]:
         async with engine.core_session() as session:
-            query = select(self.ArtifactDBE).filter(
+            stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.ArtifactDBE.id == artifact_id)  # type: ignore
+            stmt = stmt.filter(self.ArtifactDBE.id == artifact_id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             artifact_dbe = result.scalars().first()
 
@@ -296,7 +297,7 @@ class GitDAO(GitDAOInterface):
         windowing: Optional[Windowing] = None,
     ) -> List[Artifact]:
         async with engine.core_session() as session:
-            query = select(self.ArtifactDBE).filter(
+            stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
             )
 
@@ -306,7 +307,7 @@ class GitDAO(GitDAOInterface):
                 ]
 
                 if artifact_ids:
-                    query = query.filter(
+                    stmt = stmt.filter(
                         self.ArtifactDBE.id.in_(artifact_ids)  # type: ignore
                     )
 
@@ -315,63 +316,50 @@ class GitDAO(GitDAOInterface):
                 ]
 
                 if artifact_slugs:
-                    query = query.filter(
+                    stmt = stmt.filter(
                         self.ArtifactDBE.slug.in_(artifact_slugs)  # type: ignore
                     )
 
             if artifact_query.flags:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.ArtifactDBE.flags.contains(artifact_query.flags)  # type: ignore
                 )
 
             if artifact_query.tags:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.ArtifactDBE.tags.contains(artifact_query.tags)  # type: ignore
                 )
 
             if artifact_query.meta:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.ArtifactDBE.meta.contains(artifact_query.meta)  # type: ignore
                 )
 
+            if artifact_query.name:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.name.ilike(f"%{artifact_query.name}%"),  # type: ignore
+                )
+
+            if artifact_query.description:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.description.ilike(f"%{artifact_query.description}%"),  # type: ignore
+                )
+
             if include_archived is not True:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.ArtifactDBE.deleted_at.is_(None)  # type: ignore
                 )
 
             if windowing:
-                if windowing.next is not None:
-                    query = query.filter(
-                        self.ArtifactDBE.id > windowing.next,  # type: ignore
-                    )
-                if windowing.start:
-                    query = query.filter(
-                        self.ArtifactDBE.created_at > windowing.start,  # type: ignore
-                    )
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=self.ArtifactDBE,
+                    attribute="id",  # UUID7
+                    order="descending",  # jobs-style
+                    windowing=windowing,
+                )
 
-                if windowing.stop:
-                    query = query.filter(
-                        self.ArtifactDBE.created_at <= windowing.stop,  # type: ignore
-                    )
-
-            if windowing is not None:
-                if windowing.order:
-                    if windowing.order.lower() == "ascending":
-                        query = query.order_by(self.ArtifactDBE.created_at.asc())
-                    elif windowing.order.lower() == "descending":
-                        query = query.order_by(self.ArtifactDBE.created_at.desc())
-                    else:
-                        query = query.order_by(self.ArtifactDBE.created_at.desc())
-                else:
-                    query = query.order_by(self.ArtifactDBE.created_at.desc())
-            else:
-                query = query.order_by(self.ArtifactDBE.created_at.desc())
-
-            if windowing is not None:
-                if windowing.limit is not None:
-                    query = query.limit(windowing.limit)
-
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             artifact_dbes = result.scalars().all()
 
@@ -456,22 +444,22 @@ class GitDAO(GitDAOInterface):
             return None
 
         async with engine.core_session() as session:
-            query = select(self.VariantDBE).filter(
+            stmt = select(self.VariantDBE).filter(
                 self.VariantDBE.project_id == project_id,  # type: ignore
             )
 
             if variant_ref:
                 if variant_ref.id:
-                    query = query.filter(self.VariantDBE.id == variant_ref.id)  # type: ignore
+                    stmt = stmt.filter(self.VariantDBE.id == variant_ref.id)  # type: ignore
                 elif variant_ref.slug:
-                    query = query.filter(self.VariantDBE.slug == variant_ref.slug)  # type: ignore
+                    stmt = stmt.filter(self.VariantDBE.slug == variant_ref.slug)  # type: ignore
             elif artifact_ref:
                 if artifact_ref.id:
-                    query = query.filter(self.VariantDBE.artifact_id == artifact_ref.id)  # type: ignore
+                    stmt = stmt.filter(self.VariantDBE.artifact_id == artifact_ref.id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             variant_dbe = result.scalars().first()
 
@@ -495,15 +483,15 @@ class GitDAO(GitDAOInterface):
         variant_edit: VariantEdit,
     ) -> Optional[Variant]:
         async with engine.core_session() as session:
-            query = select(self.VariantDBE).filter(
+            stmt = select(self.VariantDBE).filter(
                 self.VariantDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.VariantDBE.id == variant_edit.id)  # type: ignore
+            stmt = stmt.filter(self.VariantDBE.id == variant_edit.id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             variant_dbe = result.scalars().first()
 
@@ -542,15 +530,15 @@ class GitDAO(GitDAOInterface):
         variant_id: UUID,
     ) -> Optional[Variant]:
         async with engine.core_session() as session:
-            query = select(self.VariantDBE).filter(
+            stmt = select(self.VariantDBE).filter(
                 self.VariantDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.VariantDBE.id == variant_id)  # type: ignore
+            stmt = stmt.filter(self.VariantDBE.id == variant_id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             variant_dbe = result.scalars().first()
 
@@ -584,15 +572,15 @@ class GitDAO(GitDAOInterface):
         variant_id: UUID,
     ) -> Optional[Variant]:
         async with engine.core_session() as session:
-            query = select(self.VariantDBE).filter(
+            stmt = select(self.VariantDBE).filter(
                 self.VariantDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.VariantDBE.id == variant_id)  # type: ignore
+            stmt = stmt.filter(self.VariantDBE.id == variant_id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             variant_dbe = result.scalars().first()
 
@@ -632,7 +620,7 @@ class GitDAO(GitDAOInterface):
         windowing: Optional[Windowing] = None,
     ) -> List[Variant]:
         async with engine.core_session() as session:
-            query = select(self.VariantDBE).filter(
+            stmt = select(self.VariantDBE).filter(
                 self.VariantDBE.project_id == project_id,  # type: ignore
             )
 
@@ -642,7 +630,7 @@ class GitDAO(GitDAOInterface):
                 ]
 
                 if artifact_ids:
-                    query = query.filter(
+                    stmt = stmt.filter(
                         self.VariantDBE.artifact_id.in_(artifact_ids)  # type: ignore
                     )
 
@@ -650,7 +638,7 @@ class GitDAO(GitDAOInterface):
                 variant_ids = [variant.id for variant in variant_refs if variant.id]
 
                 if variant_ids:
-                    query = query.filter(
+                    stmt = stmt.filter(
                         self.VariantDBE.id.in_(variant_ids)  # type: ignore
                     )
 
@@ -659,61 +647,50 @@ class GitDAO(GitDAOInterface):
                 ]
 
                 if variant_slugs:
-                    query = query.filter(
+                    stmt = stmt.filter(
                         self.VariantDBE.slug.in_(variant_slugs)  # type: ignore
                     )
 
             if variant_query.flags:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.VariantDBE.flags.contains(variant_query.flags)  # type: ignore
                 )
 
             if variant_query.tags:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.VariantDBE.tags.contains(variant_query.tags)  # type: ignore
                 )
 
             if variant_query.meta:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.VariantDBE.meta.contains(variant_query.meta)  # type: ignore
                 )
 
+            if variant_query.name:
+                stmt = stmt.filter(
+                    self.VariantDBE.name.ilike(f"%{variant_query.name}%"),  # type: ignore
+                )
+
+            if variant_query.description:
+                stmt = stmt.filter(
+                    self.VariantDBE.description.ilike(f"%{variant_query.description}%"),  # type: ignore
+                )
+
             if include_archived is not True:
-                query = query.filter(self.VariantDBE.deleted_at.is_(None))  # type: ignore
+                stmt = stmt.filter(
+                    self.VariantDBE.deleted_at.is_(None),  # type: ignore
+                )
 
             if windowing:
-                if windowing.next is not None:
-                    query = query.filter(
-                        self.VariantDBE.id > windowing.next,  # type: ignore
-                    )
-                if windowing.start:
-                    query = query.filter(
-                        self.VariantDBE.created_at > windowing.start,  # type: ignore
-                    )
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=self.VariantDBE,
+                    attribute="id",  # UUID7
+                    order="descending",  # jobs-style
+                    windowing=windowing,
+                )
 
-                if windowing.stop:
-                    query = query.filter(
-                        self.VariantDBE.created_at <= windowing.stop,  # type: ignore
-                    )
-
-            if windowing is not None:
-                if windowing.order:
-                    if windowing.order.lower() == "ascending":
-                        query = query.order_by(self.VariantDBE.created_at.asc())
-                    elif windowing.order.lower() == "descending":
-                        query = query.order_by(self.VariantDBE.created_at.desc())
-                    else:
-                        query = query.order_by(self.VariantDBE.created_at.desc())
-                else:
-                    query = query.order_by(self.VariantDBE.created_at.desc())
-            else:
-                query = query.order_by(self.VariantDBE.created_at.desc())
-
-            if windowing is not None:
-                if windowing.limit is not None:
-                    query = query.limit(windowing.limit)
-
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             variant_dbes = result.scalars().all()
 
@@ -741,7 +718,7 @@ class GitDAO(GitDAOInterface):
         source_revisions = await self.log_revisions(
             project_id=project_id,
             #
-            artifact_log=ArtifactLog(
+            revisions_log=RevisionsLog(
                 variant_id=artifact_fork.variant_id,
                 revision_id=artifact_fork.revision_id,
                 depth=artifact_fork.depth,
@@ -925,28 +902,28 @@ class GitDAO(GitDAOInterface):
             return None
 
         async with engine.core_session() as session:
-            query = select(self.RevisionDBE).filter(
+            stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
             if revision_ref and not revision_ref.version:
                 if revision_ref.id:
-                    query = query.filter(self.RevisionDBE.id == revision_ref.id)  # type: ignore
+                    stmt = stmt.filter(self.RevisionDBE.id == revision_ref.id)  # type: ignore
                 elif revision_ref.slug:
-                    query = query.filter(self.RevisionDBE.slug == revision_ref.slug)  # type: ignore
+                    stmt = stmt.filter(self.RevisionDBE.slug == revision_ref.slug)  # type: ignore
             elif variant_ref:
                 if variant_ref.id:
-                    query = query.filter(self.RevisionDBE.variant_id == variant_ref.id)  # type: ignore
+                    stmt = stmt.filter(self.RevisionDBE.variant_id == variant_ref.id)  # type: ignore
 
                 if revision_ref and revision_ref.version:
-                    query = query.filter(self.RevisionDBE.version == revision_ref.version)  # type: ignore
+                    stmt = stmt.filter(self.RevisionDBE.version == revision_ref.version)  # type: ignore
                 else:
-                    query = query.order_by(self.RevisionDBE.created_at.desc())  # type: ignore
-                    query = query.offset(0)
+                    stmt = stmt.order_by(self.RevisionDBE.created_at.desc())  # type: ignore
+                    stmt = stmt.offset(0)
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             revision_dbe = result.scalars().first()
 
@@ -970,15 +947,15 @@ class GitDAO(GitDAOInterface):
         revision_edit: RevisionEdit,
     ) -> Optional[Revision]:
         async with engine.core_session() as session:
-            query = select(self.RevisionDBE).filter(
+            stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.RevisionDBE.id == revision_edit.id)  # type: ignore
+            stmt = stmt.filter(self.RevisionDBE.id == revision_edit.id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             revision_dbe = result.scalars().first()
 
@@ -1017,15 +994,15 @@ class GitDAO(GitDAOInterface):
         revision_id: UUID,
     ) -> Optional[Revision]:
         async with engine.core_session() as session:
-            query = select(self.RevisionDBE).filter(
+            stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.RevisionDBE.id == revision_id)  # type: ignore
+            stmt = stmt.filter(self.RevisionDBE.id == revision_id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             revision_dbe = result.scalars().first()
 
@@ -1059,15 +1036,15 @@ class GitDAO(GitDAOInterface):
         revision_id: UUID,
     ) -> Optional[Revision]:
         async with engine.core_session() as session:
-            query = select(self.RevisionDBE).filter(
+            stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.RevisionDBE.id == revision_id)  # type: ignore
+            stmt = stmt.filter(self.RevisionDBE.id == revision_id)  # type: ignore
 
-            query = query.limit(1)
+            stmt = stmt.limit(1)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             revision_dbe = result.scalars().first()
 
@@ -1108,7 +1085,7 @@ class GitDAO(GitDAOInterface):
         windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
         async with engine.core_session() as session:
-            query = select(self.RevisionDBE).filter(
+            stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
@@ -1118,7 +1095,7 @@ class GitDAO(GitDAOInterface):
                 ]
 
                 if artifact_ids:
-                    query = query.filter(
+                    stmt = stmt.filter(
                         self.RevisionDBE.artifact_id.in_(artifact_ids)  # type: ignore
                     )
 
@@ -1126,7 +1103,7 @@ class GitDAO(GitDAOInterface):
                 variant_ids = [variant.id for variant in variant_refs if variant.id]
 
                 if variant_ids:
-                    query = query.filter(
+                    stmt = stmt.filter(
                         self.RevisionDBE.variant_id.in_(variant_ids)  # type: ignore
                     )
 
@@ -1136,7 +1113,7 @@ class GitDAO(GitDAOInterface):
                 ]
 
                 if revision_ids:
-                    query = query.filter(
+                    stmt = stmt.filter(
                         self.RevisionDBE.id.in_(revision_ids)  # type: ignore
                     )
 
@@ -1145,68 +1122,75 @@ class GitDAO(GitDAOInterface):
                 ]
 
                 if revision_slugs:
-                    query = query.filter(
+                    stmt = stmt.filter(
                         self.RevisionDBE.slug.in_(revision_slugs)  # type: ignore
                     )
 
-            if revision_query.authors:
-                query = query.filter(
-                    self.RevisionDBE.author.in_(revision_query.authors)  # type: ignore
-                )
-
             if revision_query.flags:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.RevisionDBE.flags.contains(revision_query.flags)  # type: ignore
                 )
 
             if revision_query.tags:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.RevisionDBE.tags.contains(revision_query.tags)  # type: ignore
                 )
 
             if revision_query.meta:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.RevisionDBE.meta.contains(revision_query.meta)  # type: ignore
                 )
 
+            if revision_query.author:
+                stmt = stmt.filter(
+                    self.RevisionDBE.author == revision_query.author  # type: ignore
+                )
+
+            if revision_query.authors:
+                stmt = stmt.filter(
+                    self.RevisionDBE.author.in_(revision_query.authors)  # type: ignore
+                )
+
+            if revision_query.date:
+                stmt = stmt.filter(
+                    self.RevisionDBE.date == revision_query.date  # type: ignore
+                )
+
+            if revision_query.dates:
+                stmt = stmt.filter(
+                    self.RevisionDBE.date.in_(revision_query.dates)  # type: ignore
+                )
+
+            if revision_query.message:
+                stmt = stmt.filter(
+                    self.RevisionDBE.message.ilike(f"%{revision_query.message}%")  # type: ignore
+                )
+
+            if revision_query.name:
+                stmt = stmt.filter(
+                    self.RevisionDBE.name.ilike(f"%{revision_query.name}%")  # type: ignore
+                )
+
+            if revision_query.description:
+                stmt = stmt.filter(
+                    self.RevisionDBE.description.ilike(f"%{revision_query.description}%")  # type: ignore
+                )
+
             if include_archived is not True:
-                query = query.filter(
+                stmt = stmt.filter(
                     self.RevisionDBE.deleted_at.is_(None),  # type: ignore
                 )
 
             if windowing:
-                if windowing.next is not None:
-                    query = query.filter(
-                        self.RevisionDBE.id > windowing.next,  # type: ignore
-                    )
-                if windowing.start:
-                    query = query.filter(
-                        self.RevisionDBE.created_at > windowing.start,  # type: ignore
-                    )
+                stmt = apply_windowing(
+                    stmt=stmt,
+                    DBE=self.RevisionDBE,
+                    attribute="id",  # UUID7
+                    order="descending",  # jobs-style
+                    windowing=windowing,
+                )
 
-                if windowing.stop:
-                    query = query.filter(
-                        self.RevisionDBE.created_at <= windowing.stop,  # type: ignore
-                    )
-
-            if windowing is not None:
-                if windowing.order:
-                    if windowing.order.lower() == "ascending":
-                        query = query.order_by(self.RevisionDBE.created_at.asc())
-                    elif windowing.order.lower() == "descending":
-                        query = query.order_by(self.RevisionDBE.created_at.desc())
-                    else:
-                        query = query.order_by(self.RevisionDBE.created_at.desc())
-                else:
-                    query = query.order_by(self.RevisionDBE.created_at.desc())
-            else:
-                query = query.order_by(self.RevisionDBE.created_at.desc())
-
-            if windowing is not None:
-                if windowing.limit is not None:
-                    query = query.limit(windowing.limit)
-
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             revision_dbes = result.scalars().all()
 
@@ -1303,23 +1287,23 @@ class GitDAO(GitDAOInterface):
         *,
         project_id: UUID,
         #
-        artifact_log: ArtifactLog,
+        revisions_log: RevisionsLog,
     ) -> List[Revision]:
         revision = await self.fetch_revision(  # type: ignore
             project_id=project_id,
             #
             variant_ref=(
                 Reference(
-                    id=artifact_log.variant_id,
+                    id=revisions_log.variant_id,
                 )
-                if artifact_log.variant_id
+                if revisions_log.variant_id
                 else None
             ),
             revision_ref=(
                 Reference(
-                    id=artifact_log.revision_id,
+                    id=revisions_log.revision_id,
                 )
-                if artifact_log.revision_id
+                if revisions_log.revision_id
                 else None
             ),
         )
@@ -1327,7 +1311,7 @@ class GitDAO(GitDAOInterface):
         if not revision:
             return []
 
-        depth = artifact_log.depth
+        depth = revisions_log.depth
         version = int(revision.version) if revision.version else 0
 
         if depth is not None:
@@ -1339,31 +1323,31 @@ class GitDAO(GitDAOInterface):
 
         offset = None
         limit = None
-        order_by = self.RevisionDBE.created_at.desc()  # type: ignore
+        order_by = self.RevisionDBE.id.desc()  # type: ignore
 
         if depth is None:
             offset = 0
             limit = version + 1
-            order_by = self.RevisionDBE.created_at.asc()  # type: ignore
+            order_by = self.RevisionDBE.id.asc()  # type: ignore
         elif depth is not None:
             offset = max(version - depth + 1, 0)
             limit = min(depth, version + 1)
-            order_by = self.RevisionDBE.created_at.asc()  # type: ignore
+            order_by = self.RevisionDBE.id.asc()  # type: ignore
 
         async with engine.core_session() as session:
-            query = select(self.RevisionDBE).filter(
+            stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(
+            stmt = stmt.filter(
                 self.RevisionDBE.variant_id == revision.variant_id,  # type: ignore
             )
 
-            query = query.order_by(order_by)
-            query = query.offset(offset)
-            query = query.limit(limit)
+            stmt = stmt.order_by(order_by)
+            stmt = stmt.offset(offset)
+            stmt = stmt.limit(limit)
 
-            result = await session.execute(query)
+            result = await session.execute(stmt)
 
             revision_dbes = result.scalars().all()
 
@@ -1378,7 +1362,7 @@ class GitDAO(GitDAOInterface):
                 for revision_dbe in revision_dbes
             ]
 
-            if order_by == self.RevisionDBE.created_at.asc():  # type: ignore
+            if order_by == self.RevisionDBE.id.asc():  # type: ignore
                 revisions.reverse()
 
             return revisions
@@ -1419,15 +1403,15 @@ class GitDAO(GitDAOInterface):
         version: str,
     ) -> None:
         async with engine.core_session() as session:
-            query = update(self.RevisionDBE).filter(
+            stmt = update(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
-            query = query.filter(self.RevisionDBE.id == revision_id)  # type: ignore
+            stmt = stmt.filter(self.RevisionDBE.id == revision_id)  # type: ignore
 
-            query = query.values(version=version)  # type: ignore
+            stmt = stmt.values(version=version)  # type: ignore
 
-            await session.execute(query)
+            await session.execute(stmt)
 
             await session.commit()
 

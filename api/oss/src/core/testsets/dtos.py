@@ -3,8 +3,17 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-# from oss.src.core.shared.dtos import Link
-from oss.src.core.shared.dtos import sync_alias, AliasConfig
+from oss.src.core.shared.dtos import (
+    sync_alias,
+    AliasConfig,
+)
+from oss.src.core.shared.dtos import (
+    Identifier,
+    Slug,
+    Lifecycle,
+    Header,
+    Metadata,
+)
 from oss.src.core.git.dtos import (
     Artifact,
     ArtifactCreate,
@@ -17,13 +26,15 @@ from oss.src.core.git.dtos import (
     VariantQuery,
     #
     Revision,
+    RevisionsLog,
     RevisionCreate,
     RevisionEdit,
     RevisionQuery,
     RevisionCommit,
 )
-
-from oss.src.core.testcases.dtos import Testcase
+from oss.src.core.testcases.dtos import (
+    Testcase,
+)
 
 
 class TestsetIdAlias(AliasConfig):
@@ -51,6 +62,18 @@ class TestsetRevisionIdAlias(AliasConfig):
         exclude=True,
         alias="testset_revision_id",
     )
+
+
+class TestsetLog(
+    RevisionsLog,
+    TestsetVariantIdAlias,
+    TestsetRevisionIdAlias,
+):
+    testset_variant_id: Optional[UUID] = None
+
+    def model_post_init(self, _context) -> None:
+        sync_alias("testset_variant_id", "variant_id", self)
+        sync_alias("testset_revision_id", "revision_id", self)
 
 
 class TestsetFlags(BaseModel):
@@ -157,3 +180,25 @@ class TestsetRevisionCommit(
     def model_post_init(self, __context) -> None:
         sync_alias("testset_id", "artifact_id", self)
         sync_alias("testset_variant_id", "variant_id", self)
+
+
+class SimpleTestset(Identifier, Slug, Lifecycle, Header, Metadata):
+    flags: Optional[TestsetFlags] = None  # type: ignore
+
+    data: Optional[TestsetRevisionData] = None
+
+
+class SimpleTestsetCreate(Slug, Header, Metadata):
+    flags: Optional[TestsetFlags] = None  # type: ignore
+
+    data: Optional[TestsetRevisionData] = None
+
+
+class SimpleTestsetEdit(Identifier, Header, Metadata):
+    flags: Optional[TestsetFlags] = None  # type: ignore
+
+    data: Optional[TestsetRevisionData] = None
+
+
+class SimpleTestsetQuery(Metadata):
+    flags: Optional[TestsetFlags] = None  # type: ignore

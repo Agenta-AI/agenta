@@ -85,7 +85,7 @@ def _decode_value(any_value):
     elif which is None:
         return None
     else:
-        log.warning(f"Unknown value type at _decode_value: {which}")
+        log.warn(f"Unknown value type at _decode_value: {which}")
         return str(any_value)
 
 

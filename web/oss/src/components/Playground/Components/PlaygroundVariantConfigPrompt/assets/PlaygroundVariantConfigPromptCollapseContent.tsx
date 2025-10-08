@@ -6,7 +6,7 @@ import deepEqual from "fast-deep-equal"
 import {useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 
-import {currentAppContextAtom} from "@/oss/state/newApps"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
     promptsAtomFamily,
     promptVariablesByPromptAtomFamily,

@@ -38,11 +38,11 @@ def rename_and_update_secrets_data_schema(session: Connection):
         while True:
             with set_data_encryption_key(data_encryption_key=encryption_key):
                 # Fetch a batch of records using keyset pagination (ID-based)
-                query = select(SecretsDBE).order_by(SecretsDBE.id).limit(BATCH_SIZE)
+                stmt = select(SecretsDBE).order_by(SecretsDBE.id).limit(BATCH_SIZE)
                 if last_processed_id:
-                    query = query.where(SecretsDBE.id > last_processed_id)
+                    stmt = stmt.where(SecretsDBE.id > last_processed_id)
 
-                secrets_dbes = session.execute(query).fetchall()
+                secrets_dbes = session.execute(stmt).fetchall()
                 if not secrets_dbes:
                     break  # No more records to process
 
@@ -124,11 +124,11 @@ def revert_rename_and_update_secrets_data_schema(session: Connection):
         while True:
             with set_data_encryption_key(data_encryption_key=encryption_key):
                 # Fetch a batch of records using keyset pagination
-                query = select(SecretsDBE).order_by(SecretsDBE.id).limit(BATCH_SIZE)
+                stmt = select(SecretsDBE).order_by(SecretsDBE.id).limit(BATCH_SIZE)
                 if last_processed_id:
-                    query = query.where(SecretsDBE.id > last_processed_id)
+                    stmt = stmt.where(SecretsDBE.id > last_processed_id)
 
-                secrets_dbes = session.execute(query).fetchall()
+                secrets_dbes = session.execute(stmt).fetchall()
                 if not secrets_dbes:
                     break  # No more records to process
 

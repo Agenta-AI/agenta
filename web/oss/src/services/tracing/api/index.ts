@@ -5,21 +5,32 @@ export const fetchAllPreviewTraces = async (params: Record<string, any> = {}, ap
     const projectId = ensureProjectId()
     const applicationId = ensureAppId(appId)
 
-    const url = new URL(`${base}/preview/tracing/spans/`)
+    // New query endpoint expects POST with JSON body
+    const url = new URL(`${base}/preview/tracing/spans/query`)
     if (projectId) url.searchParams.set("project_id", projectId)
     if (applicationId) url.searchParams.set("application_id", applicationId)
 
+    const payload: Record<string, any> = {}
     Object.entries(params).forEach(([key, value]) => {
         if (value === undefined || value === null) return
         if (key === "size") {
-            url.searchParams.set("limit", String(value))
+            payload.limit = Number(value)
+        } else if (key === "filter" && typeof value === "string") {
+            try {
+                payload.filter = JSON.parse(value)
+            } catch {
+                payload.filter = value
+            }
         } else {
-            const encoded = typeof value === "object" ? JSON.stringify(value) : String(value)
-            url.searchParams.set(key, encoded)
+            payload[key] = value
         }
     })
 
-    return fetchJson(url)
+    return fetchJson(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload),
+    })
 }
 
 export const fetchPreviewTrace = async (traceId: string) => {

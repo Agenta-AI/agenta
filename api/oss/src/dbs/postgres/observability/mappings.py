@@ -140,7 +140,7 @@ def map_span_dto_to_span_dbe(
 def map_bucket_dbes_to_dtos(
     total_bucket_dbes: List[NodesDBE],
     error_bucket_dbes: List[NodesDBE],
-    window: int,
+    interval: int,
     timestamps: Optional[List[datetime]] = None,
 ) -> Tuple[List[BucketDTO], int]:
     total_metrics = {
@@ -178,7 +178,7 @@ def map_bucket_dbes_to_dtos(
     bucket_dtos = [
         BucketDTO(
             timestamp=timestamp,
-            window=window,
+            interval=interval,
             total=total_metrics.get(timestamp, MetricsDTO()),
             error=error_metrics.get(timestamp, MetricsDTO()),
         )

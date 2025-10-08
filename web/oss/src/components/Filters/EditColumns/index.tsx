@@ -40,6 +40,9 @@ const collectKeys = <T,>(cols: ColumnsType<T>): string[] => {
 
 const getSafeName = (col: ColumnGroupType<RecordType> | ColumnType<RecordType>) => {
     try {
+        if ((col as any).__editLabel && typeof (col as any).__editLabel === "string") {
+            return (col as any).__editLabel
+        }
         if ("title" in col && typeof col.title === "string") return col.title
         if ("dataIndex" in col && typeof col.dataIndex === "string") return col.dataIndex
         if ("key" in col && typeof col.key === "string") return col.key

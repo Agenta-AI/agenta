@@ -28,7 +28,7 @@ const useEvaluatorConfigs = <Preview extends boolean = false>({
 
     return useSWR<EvaluatorConfigResult<Preview>, any>(
         !preview && appId && !!projectId
-            ? `/api/preview/evaluator_configs/?project_id=${projectId}&app_id=${appId}`
+            ? `/preview/evaluator_configs/?project_id=${projectId}&app_id=${appId}`
             : null,
         fetcher,
         {

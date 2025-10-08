@@ -48,7 +48,7 @@ class Normalizer:
                 except ValueError:
                     # Fallback or error handling for non-ISO timestamps if necessary
                     # For now, let's assume UTC now as a fallback, or log an error
-                    # log.warning(f"Could not parse event timestamp: {event_dto.timestamp}")
+                    # log.warn(f"Could not parse event timestamp: {event_dto.timestamp}")
                     dt_timestamp = datetime.now(timezone.utc)
 
                 events_data.append(

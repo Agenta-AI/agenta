@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from uuid import UUID
 from abc import ABC, abstractmethod
 
@@ -12,14 +12,14 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioCreate,
     EvaluationScenarioEdit,
     EvaluationScenarioQuery,
-    EvaluationStep,
-    EvaluationStepCreate,
-    EvaluationStepEdit,
-    EvaluationStepQuery,
-    EvaluationMetric,
-    EvaluationMetricCreate,
-    EvaluationMetricEdit,
-    EvaluationMetricQuery,
+    EvaluationResult,
+    EvaluationResultCreate,
+    EvaluationResultEdit,
+    EvaluationResultQuery,
+    EvaluationMetrics,
+    EvaluationMetricsCreate,
+    EvaluationMetricsEdit,
+    EvaluationMetricsQuery,
     EvaluationQueue,
     EvaluationQueueCreate,
     EvaluationQueueEdit,
@@ -120,50 +120,6 @@ class EvaluationsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def archive_run(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        run_id: UUID,
-    ) -> Optional[EvaluationRun]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def archive_runs(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        run_ids: Optional[List[UUID]] = None,
-    ) -> List[EvaluationRun]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def unarchive_run(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        run_id: UUID,
-    ) -> Optional[EvaluationRun]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def unarchive_runs(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        run_ids: Optional[List[UUID]] = None,
-    ) -> List[EvaluationRun]:
-        raise NotImplementedError
-
-    @abstractmethod
     async def close_run(
         self,
         *,
@@ -182,7 +138,29 @@ class EvaluationsDAOInterface(ABC):
         user_id: UUID,
         #
         run_ids: List[UUID],
-    ) -> List[UUID]:
+    ) -> List[EvaluationRun]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def open_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+    ) -> Optional[EvaluationRun]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def open_runs(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_ids: List[UUID],
+    ) -> List[EvaluationRun]:
         raise NotImplementedError
 
     @abstractmethod
@@ -191,12 +169,18 @@ class EvaluationsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        run: EvaluationRunQuery,
-        #
-        include_archived: Optional[bool] = None,
+        run: Optional[EvaluationRunQuery] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationRun]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def fetch_live_runs(
+        self,
+        *,
+        windowing: Optional[Windowing] = None,
+    ) -> List[Tuple[UUID, EvaluationRun]]:
         raise NotImplementedError
 
     # - EVALUATION SCENARIO ----------------------------------------------------
@@ -291,124 +275,111 @@ class EvaluationsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        scenario: EvaluationScenarioQuery,
-        #
-        include_archived: Optional[bool] = None,
+        scenario: Optional[EvaluationScenarioQuery] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationScenario]:
         raise NotImplementedError
 
-    # - EVALUATION STEP --------------------------------------------------------
+    # - EVALUATION RESULT ------------------------------------------------------
 
     @abstractmethod
-    async def create_step(
+    async def create_result(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        step: EvaluationStepCreate,
-    ) -> Optional[EvaluationStep]:
+        result: EvaluationResultCreate,
+    ) -> Optional[EvaluationResult]:
         raise NotImplementedError
 
     @abstractmethod
-    async def create_steps(
+    async def create_results(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        steps: List[EvaluationStepCreate],
-    ) -> List[EvaluationStep]:
+        results: List[EvaluationResultCreate],
+    ) -> List[EvaluationResult]:
         raise NotImplementedError
 
     @abstractmethod
-    async def fetch_step(
+    async def fetch_result(
         self,
         *,
         project_id: UUID,
         #
-        step_id: UUID,
-    ) -> Optional[EvaluationStep]:
+        result_id: UUID,
+    ) -> Optional[EvaluationResult]:
         raise NotImplementedError
 
     @abstractmethod
-    async def fetch_steps(
+    async def fetch_results(
         self,
         *,
         project_id: UUID,
         #
-        step_ids: List[UUID],
-    ) -> List[EvaluationStep]:
+        result_ids: List[UUID],
+    ) -> List[EvaluationResult]:
         raise NotImplementedError
 
     @abstractmethod
-    async def edit_step(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        step: EvaluationStepEdit,
-    ) -> Optional[EvaluationStep]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def edit_steps(
+    async def edit_result(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        steps: List[EvaluationStepEdit],
-    ) -> List[EvaluationStep]:
+        result: EvaluationResultEdit,
+    ) -> Optional[EvaluationResult]:
         raise NotImplementedError
 
     @abstractmethod
-    async def delete_step(
+    async def edit_results(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        results: List[EvaluationResultEdit],
+    ) -> List[EvaluationResult]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete_result(
         self,
         *,
         project_id: UUID,
         #
-        step_id: UUID,
+        result_id: UUID,
     ) -> Optional[UUID]:
         raise NotImplementedError
 
     @abstractmethod
-    async def delete_steps(
+    async def delete_results(
         self,
         *,
         project_id: UUID,
         #
-        step_ids: List[UUID],
+        result_ids: List[UUID],
     ) -> List[UUID]:
         raise NotImplementedError
 
     @abstractmethod
-    async def query_steps(
+    async def query_results(
         self,
         *,
         project_id: UUID,
         #
-        step: EvaluationStepQuery,
+        result: Optional[EvaluationResultQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[EvaluationStep]:
+    ) -> List[EvaluationResult]:
         raise NotImplementedError
 
-    # - EVALUATION METRIC ------------------------------------------------------
-
-    @abstractmethod
-    async def create_metric(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        metric: EvaluationMetricCreate,
-    ) -> Optional[EvaluationMetric]:
-        raise NotImplementedError
+    # - EVALUATION METRICS -----------------------------------------------------
 
     @abstractmethod
     async def create_metrics(
@@ -417,18 +388,8 @@ class EvaluationsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         #
-        metrics: List[EvaluationMetricCreate],
-    ) -> List[EvaluationMetric]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def fetch_metric(
-        self,
-        *,
-        project_id: UUID,
-        #
-        metric_id: UUID,
-    ) -> Optional[EvaluationMetric]:
+        metrics: List[EvaluationMetricsCreate],
+    ) -> List[EvaluationMetrics]:
         raise NotImplementedError
 
     @abstractmethod
@@ -437,19 +398,8 @@ class EvaluationsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        metric_ids: List[UUID],
-    ) -> List[EvaluationMetric]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def edit_metric(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        metric: EvaluationMetricEdit,
-    ) -> Optional[EvaluationMetric]:
+        metrics_ids: List[UUID],
+    ) -> List[EvaluationMetrics]:
         raise NotImplementedError
 
     @abstractmethod
@@ -459,18 +409,8 @@ class EvaluationsDAOInterface(ABC):
         project_id: UUID,
         user_id: UUID,
         #
-        metrics: List[EvaluationMetricEdit],
-    ) -> List[EvaluationMetric]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def delete_metric(
-        self,
-        *,
-        project_id: UUID,
-        #
-        metric_id: UUID,
-    ) -> Optional[UUID]:
+        metrics: List[EvaluationMetricsEdit],
+    ) -> List[EvaluationMetrics]:
         raise NotImplementedError
 
     @abstractmethod
@@ -479,7 +419,7 @@ class EvaluationsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        metric_ids: Optional[List[UUID]] = None,
+        metrics_ids: Optional[List[UUID]] = None,
     ) -> List[UUID]:
         raise NotImplementedError
 
@@ -489,10 +429,10 @@ class EvaluationsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        metric: EvaluationMetricQuery,
+        metric: Optional[EvaluationMetricsQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[EvaluationMetric]:
+    ) -> List[EvaluationMetrics]:
         raise NotImplementedError
 
     # - EVALUATION QUEUE -------------------------------------------------------
@@ -587,7 +527,7 @@ class EvaluationsDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        queue: EvaluationQueueQuery,
+        queue: Optional[EvaluationQueueQuery] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationQueue]:

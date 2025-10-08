@@ -59,13 +59,13 @@ const CustomWorkflowModalFooter = ({
                     {testConnectionStatus.success && (
                         <>
                             <CheckCircleOutlined style={{color: "green"}} />
-                            <Typography.Text type="secondary">Successful</Typography.Text>
+                            <Typography.Text type="secondary">Success</Typography.Text>
                         </>
                     )}
                     {testConnectionStatus.error && (
                         <>
                             <ExclamationCircleOutlined style={{color: "red"}} />
-                            <Typography.Text type="secondary">Failed</Typography.Text>
+                            <Typography.Text type="secondary">Failure</Typography.Text>
                         </>
                     )}
                 </div>

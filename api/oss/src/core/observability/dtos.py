@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Union, Optional
 
 from pydantic import BaseModel
 
-from oss.src.core.shared.dtos import LegacyLifecycleDTO
+from oss.src.core.shared.dtos import LegacyLifecycleDTO, Windowing
 
 
 ## --- SUB-ENTITIES --- ##
@@ -16,10 +16,10 @@ class RootDTO(BaseModel):
 
 
 class TreeType(Enum):
-    # --- VARIANTS --- #
     INVOCATION = "invocation"
     ANNOTATION = "annotation"
-    # --- VARIANTS --- #
+    #
+    UNKNOWN = "unknown"
 
 
 class TreeDTO(BaseModel):
@@ -233,10 +233,8 @@ class OTelSpanDTO(BaseModel):
 ## --- QUERY --- ##
 
 
-class WindowingDTO(BaseModel):
-    oldest: Optional[datetime] = None
-    newest: Optional[datetime] = None
-    window: Optional[int] = None
+class WindowingDTO(Windowing):
+    pass
 
 
 class LogicalOperator(Enum):
@@ -361,6 +359,6 @@ class MetricsDTO(BaseModel):
 
 class BucketDTO(BaseModel):
     timestamp: datetime
-    window: int
+    interval: int
     total: MetricsDTO
     error: MetricsDTO

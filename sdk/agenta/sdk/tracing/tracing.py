@@ -52,8 +52,6 @@ class Link(BaseModel):
 
 
 class Tracing(metaclass=Singleton):
-    VERSION = "0.1.0"
-
     Status = Status
     StatusCode = StatusCode
 

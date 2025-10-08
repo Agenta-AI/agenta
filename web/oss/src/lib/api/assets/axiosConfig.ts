@@ -16,7 +16,7 @@ import {isDemo} from "../../helpers/utils"
 export const PERMISSION_ERR_MSG =
     "You don't have permission to perform this action. Please contact your organization admin."
 
-const ENDPOINTS_PROJECT_ID_WHITELIST = ["/api/projects", "/api/profile", "/api/organizations"]
+const ENDPOINTS_PROJECT_ID_WHITELIST = ["/projects", "/profile", "/organizations"]
 const axios = axiosApi.create({
     baseURL: getAgentaApiUrl(),
     headers: {
@@ -56,6 +56,12 @@ axios.interceptors.request.use(async (config) => {
         const controller = new AbortController()
         const configuredUri = axios.getUri(config)
         if (!ENDPOINTS_PROJECT_ID_WHITELIST.some((endpoint) => configuredUri.includes(endpoint))) {
+            console.log("ABORTING REQUEST", {
+                configuredUri,
+                projectId,
+                jwt,
+                user,
+            })
             controller.abort()
         }
 

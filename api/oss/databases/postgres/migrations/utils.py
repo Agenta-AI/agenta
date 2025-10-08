@@ -1,8 +1,10 @@
 import os
-import tempfile
 import subprocess
+import tempfile
 
 from sqlalchemy import create_engine, text
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from sqlalchemy.exc import ProgrammingError
 
 from oss.src.utils.env import env
@@ -13,9 +15,9 @@ POSTGRES_URI = (
     os.getenv("POSTGRES_URI")
     or env.POSTGRES_URI_CORE
     or env.POSTGRES_URI_TRACING
-    or "postgresql://username:password@localhost:5432/agenta_oss"
+    or "postgresql+asyncpg://username:password@localhost:5432/agenta_oss"
 )
-DB_PROTOCOL = POSTGRES_URI.split("://")[0].replace("+asyncpg", "")
+DB_PROTOCOL = POSTGRES_URI.split("://")[0]  # .replace("+asyncpg", "")
 DB_USER = POSTGRES_URI.split("://")[1].split(":")[0]
 DB_PASS = POSTGRES_URI.split("://")[1].split(":")[1].split("@")[0]
 DB_HOST = POSTGRES_URI.split("@")[1].split(":")[0]
@@ -33,36 +35,43 @@ RENAME_MAP = {
     "agenta_oss_tracing": "agenta_oss_tracing",
 }
 
+
 NODES_TF = {
     "agenta_oss_core": "agenta_oss_tracing",
 }
 
 
-def copy_nodes_from_core_to_tracing():
-    engine = create_engine(
+async def copy_nodes_from_core_to_tracing():
+    engine = create_async_engine(
         POSTGRES_URI_POSTGRES,
         isolation_level="AUTOCOMMIT",
     )
 
-    with engine.connect() as conn:
+    async with engine.begin() as conn:
         for old_name, new_name in NODES_TF.items():
-            old_exists = conn.execute(
-                text("SELECT 1 FROM pg_database WHERE datname = :name"),
-                {"name": old_name},
+            old_exists = (
+                await conn.execute(
+                    text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                    {"name": old_name},
+                )
             ).scalar()
 
-            new_exists = conn.execute(
-                text("SELECT 1 FROM pg_database WHERE datname = :name"),
-                {"name": new_name},
+            new_exists = (
+                await conn.execute(
+                    text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                    {"name": new_name},
+                )
             ).scalar()
 
             if old_exists and new_exists:
                 # Check if the nodes table exists in old_name database
                 check_url = f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{old_name}"
-                check_engine = create_engine(check_url)
-                with check_engine.connect() as conn:
-                    result = conn.execute(
-                        text("SELECT to_regclass('public.nodes')")
+                check_engine = create_async_engine(check_url)
+                async with check_engine.begin() as conn:
+                    result = (
+                        await conn.execute(
+                            text("SELECT to_regclass('public.nodes')"),
+                        )
                     ).scalar()
                     if result is None:
                         print(
@@ -70,8 +79,10 @@ def copy_nodes_from_core_to_tracing():
                         )
                         return
 
-                    count = conn.execute(
-                        text("SELECT COUNT(*) FROM public.nodes")
+                    count = (
+                        await conn.execute(
+                            text("SELECT COUNT(*) FROM public.nodes"),
+                        )
                     ).scalar()
 
                     if count == 0:
@@ -81,14 +92,18 @@ def copy_nodes_from_core_to_tracing():
                         return
 
                 check_url = f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{new_name}"
-                check_engine = create_engine(check_url)
+                check_engine = create_async_engine(check_url)
 
-                with check_engine.connect() as conn:
-                    count = conn.execute(
-                        text("SELECT COUNT(*) FROM public.nodes")
+                async with check_engine.begin() as conn:
+                    count = (
+                        await conn.execute(
+                            text(
+                                "SELECT COUNT(*) FROM public.nodes",
+                            )
+                        )
                     ).scalar()
 
-                    if count > 0:
+                    if (count or 0) > 0:
                         print(
                             f"⚠️ Table 'nodes' already exists in '{new_name}' with {count} rows. Skipping copy."
                         )
@@ -148,21 +163,26 @@ def copy_nodes_from_core_to_tracing():
                     print(f"✔ Restored 'nodes' table into '{new_name}'")
 
                     # Step 3: Verify 'nodes' exists in both DBs, then drop from old
-                    source_engine = create_engine(
+                    source_engine = create_async_engine(
                         f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{old_name}"
                     )
-                    dest_engine = create_engine(
+                    dest_engine = create_async_engine(
                         f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{new_name}"
                     )
 
-                    with source_engine.connect().execution_options(
-                        autocommit=True
-                    ) as src, dest_engine.connect() as dst:
-                        src_exists = src.execute(
-                            text("SELECT to_regclass('public.nodes')")
+                    async with source_engine.begin() as src, dest_engine.begin() as dst:
+                        src = await src.execution_options(isolation_level="AUTOCOMMIT")
+                        dst = await dst.execution_options(isolation_level="AUTOCOMMIT")
+
+                        src_exists = (
+                            await src.execute(
+                                text("SELECT to_regclass('public.nodes')")
+                            )
                         ).scalar()
-                        dst_exists = dst.execute(
-                            text("SELECT to_regclass('public.nodes')")
+                        dst_exists = (
+                            await dst.execute(
+                                text("SELECT to_regclass('public.nodes')"),
+                            )
                         ).scalar()
 
                         if src_exists and dst_exists:
@@ -184,8 +204,10 @@ def copy_nodes_from_core_to_tracing():
                                 env={**os.environ, "PGPASSWORD": DB_PASS},
                             )
 
-                            count = src.execute(
-                                text("SELECT COUNT(*) FROM public.nodes")
+                            count = (
+                                await src.execute(
+                                    text("SELECT COUNT(*) FROM public.nodes"),
+                                )
                             ).scalar()
 
                             print(f"✅ Remaining rows: {count}")
@@ -197,28 +219,32 @@ def copy_nodes_from_core_to_tracing():
                         os.remove(dump_file)
 
 
-def split_core_and_tracing():
-    engine = create_engine(
+async def split_core_and_tracing():
+    engine = create_async_engine(
         POSTGRES_URI_POSTGRES,
         isolation_level="AUTOCOMMIT",
     )
 
-    with engine.connect() as conn:
+    async with engine.begin() as conn:
         for old_name, new_name in RENAME_MAP.items():
-            old_exists = conn.execute(
-                text("SELECT 1 FROM pg_database WHERE datname = :name"),
-                {"name": old_name},
+            old_exists = (
+                await conn.execute(
+                    text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                    {"name": old_name},
+                )
             ).scalar()
 
-            new_exists = conn.execute(
-                text("SELECT 1 FROM pg_database WHERE datname = :name"),
-                {"name": new_name},
+            new_exists = (
+                await conn.execute(
+                    text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                    {"name": new_name},
+                )
             ).scalar()
 
             if old_exists and not new_exists:
                 print(f"Renaming database '{old_name}' → '{new_name}'...")
                 try:
-                    conn.execute(
+                    await conn.execute(
                         text(f"ALTER DATABASE {old_name} RENAME TO {new_name}")
                     )
                     print(f"✔ Renamed '{old_name}' to '{new_name}'")
@@ -236,7 +262,7 @@ def split_core_and_tracing():
                 )
                 try:
                     # Ensure the role exists
-                    conn.execute(
+                    await conn.execute(
                         text(
                             f"""
                             DO $$
@@ -252,11 +278,11 @@ def split_core_and_tracing():
                     print(f"✔ Ensured role '{DB_USER}' exists")
 
                     # Create the new database
-                    conn.execute(text(f"CREATE DATABASE {new_name}"))
+                    await conn.execute(text(f"CREATE DATABASE {new_name}"))
                     print(f"✔ Created database '{new_name}'")
 
                     # Grant privileges on the database to the role
-                    conn.execute(
+                    await conn.execute(
                         text(
                             f"GRANT ALL PRIVILEGES ON DATABASE {new_name} TO {DB_USER}"
                         )
@@ -266,12 +292,12 @@ def split_core_and_tracing():
                     )
 
                     # Connect to the new database to grant schema permissions
-                    new_db_url = f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{new_name}"
+                    new_db_url = f"{DB_PROTOCOL}://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{new_name}"
 
-                    with create_engine(
+                    async with create_async_engine(
                         new_db_url, isolation_level="AUTOCOMMIT"
-                    ).connect() as new_db_conn:
-                        new_db_conn.execute(
+                    ).begin() as new_db_conn:
+                        await new_db_conn.execute(
                             text(f"GRANT ALL ON SCHEMA public TO {DB_USER}")
                         )
                         print(

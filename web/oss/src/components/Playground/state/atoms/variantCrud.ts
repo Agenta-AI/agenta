@@ -9,7 +9,7 @@ import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
 import {duplicateChatHistoryForRevision} from "@/oss/state/generation/utils"
-import {currentAppContextAtom} from "@/oss/state/newApps/selectors/apps"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     promptsAtomFamily,

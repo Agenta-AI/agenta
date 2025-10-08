@@ -37,6 +37,7 @@ services:
         volumes:
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
+            # - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -83,6 +84,7 @@ services:
         volumes:
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
+            # - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -109,6 +111,7 @@ services:
         volumes:
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
+            # - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -119,7 +122,7 @@ services:
         networks:
             - agenta-network
 
-        command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import split_core_and_tracing as split; split(); from oss.databases.postgres.migrations.core.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.tracing.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.utils import copy_nodes_from_core_to_tracing as copy; copy();'"
+        command: sh -c "python -m oss.databases.postgres.migrations.runner"
 
     completion:
         build: 
