@@ -61,4 +61,6 @@ export interface EnhancedTableProps<RecordType> extends Omit<TableProps<RecordTy
     virtualized?: boolean
     /** Unique key for the table */
     uniqueKey: string
+    /** Whether to show horizontal scrollbar */
+    showHorizontalScrollBar?: boolean
 }

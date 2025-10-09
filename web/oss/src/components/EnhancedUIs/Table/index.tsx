@@ -16,6 +16,7 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
         skeletonRowCount = 5,
         addNotAvailableCell = true,
         virtualized = false,
+        showHorizontalScrollBar = false,
         uniqueKey,
         ...rest
     }: EnhancedTableProps<RecordType>,
@@ -262,11 +263,10 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
                     cell: ResizableTitle,
                 },
             }}
-            className={clsx(
-                rest.className,
-                "enhanced-table",
-                "[&_.ant-table-tbody-virtual]:!border-0 [&_.ant-table-tbody-virtual-scrollbar]:!h-0",
-            )}
+            className={clsx(rest.className, "enhanced-table", {
+                "[&_.ant-table-tbody-virtual]:!border-0 [&_.ant-table-tbody-virtual-scrollbar]:!h-0":
+                    !showHorizontalScrollBar,
+            })}
             ref={ref as any}
             scroll={{x: rest.scroll?.x || "max-content", y: rest.scroll?.y || containerHeight}}
             sticky={virtualizationActive || rest.sticky}

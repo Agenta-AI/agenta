@@ -74,6 +74,10 @@ class UpdateAppOutput(CreateAppOutput):
     pass
 
 
+class ReadAppOutput(CreateAppOutput):
+    pass
+
+
 class AppOutput(CreateAppOutput):
     pass
 

@@ -1,8 +1,10 @@
-import {useCallback, useEffect, useState} from "react"
+import {type ReactElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {FloppyDiskBack} from "@phosphor-icons/react"
+import {message} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {Resizable} from "react-resizable"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {
@@ -13,6 +15,7 @@ import {
 } from "@/oss/components/Playground/state/atoms"
 
 import {createVariantMutationAtom} from "../../../state/atoms/variantCrudMutations"
+import {publishMutationAtom} from "@/oss/state/deployment/atoms/publish"
 
 import {CommitVariantChangesModalProps, SelectedCommitType} from "./assets/types"
 const CommitVariantChangesModalContent = dynamic(
@@ -26,6 +29,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     commitType,
     ...props
 }) => {
+    const {onCancel, ...modalProps} = props
     // Get variant metadata from revision list
     const revisions = useAtomValue(revisionListAtom)
     const variant = revisions?.find((rev: any) => rev.id === variantId)
@@ -36,6 +40,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     // Get mutation functions
     const saveVariant = useSetAtom(saveVariantMutationAtom)
     const createVariant = useSetAtom(createVariantMutationAtom)
+    const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
 
     // Track loading state for mutations
     const [isMutating, setIsMutating] = useState(false)
@@ -47,14 +52,20 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         type: "version",
     })
     const [note, setNote] = useState("")
+    const [shouldDeploy, setShouldDeploy] = useState(false)
+    const [selectedEnvironment, setSelectedEnvironment] = useState<string | null>(null)
+    const [modalSize, setModalSize] = useState({width: 960, height: 640})
+    const [viewport, setViewport] = useState({width: 0, height: 0})
 
     const onClose = useCallback(() => {
-        props.onCancel?.({} as any)
+        onCancel?.({} as any)
         setSelectedCommitType({
             type: "version",
         })
         setNote("")
-    }, [])
+        setShouldDeploy(false)
+        setSelectedEnvironment(null)
+    }, [onCancel])
 
     // Observe current selected revision(s) to know when swap completes
     const selectedRevisionIds = useAtomValue(selectedVariantsAtom)
@@ -62,6 +73,45 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
     const currentSelectedVariant = useAtomValue(
         variantByRevisionIdAtomFamily(currentSelectedRevisionId),
     )
+
+    // Track viewport to clamp the resizable modal
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const updateViewport = () =>
+            setViewport({width: window.innerWidth, height: window.innerHeight})
+        updateViewport()
+        window.addEventListener("resize", updateViewport)
+        return () => window.removeEventListener("resize", updateViewport)
+    }, [])
+
+    const computedMaxWidth = useMemo(() => {
+        if (!viewport.width) return 960
+        return Math.min(Math.max(viewport.width - 48, 480), 1200)
+    }, [viewport.width])
+
+    const computedMaxHeight = useMemo(() => {
+        if (!viewport.height) return 640
+        return Math.min(Math.max(viewport.height - 160, 400), 900)
+    }, [viewport.height])
+
+    const minConstraints = useMemo(() => {
+        return [Math.min(720, computedMaxWidth), Math.min(480, computedMaxHeight)] as [
+            number,
+            number,
+        ]
+    }, [computedMaxWidth, computedMaxHeight])
+
+    const maxConstraints = useMemo(() => {
+        return [computedMaxWidth, computedMaxHeight] as [number, number]
+    }, [computedMaxWidth, computedMaxHeight])
+
+    useEffect(() => {
+        if (!viewport.width || !viewport.height) return
+        setModalSize((previous) => ({
+            width: Math.min(Math.max(previous.width, minConstraints[0]), computedMaxWidth),
+            height: Math.min(Math.max(previous.height, minConstraints[1]), computedMaxHeight),
+        }))
+    }, [viewport, minConstraints, computedMaxWidth, computedMaxHeight])
 
     // Close when the swap we wait for is satisfied
     useEffect(() => {
@@ -83,7 +133,64 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
         currentSelectedVariant?._parentVariant?.id,
         waitForRevisionId,
         waitForVariantId,
+        onClose,
     ])
+
+    const handleDeployAfterCommit = useCallback(
+        async (resultVariant?: any) => {
+            if (!shouldDeploy || !selectedEnvironment) {
+                return
+            }
+
+            try {
+                const variantLike = resultVariant || currentSelectedVariant || {}
+                const variantIdForDeployment =
+                    variantLike?.variant_id ||
+                    variantLike?.variantId ||
+                    variantLike?._parentVariant ||
+                    variant?.variantId ||
+                    currentSelectedVariant?._parentVariant ||
+                    currentSelectedVariant?.variantId
+
+                const revisionIdForDeployment =
+                    resultVariant?.id ||
+                    resultVariant?.revision_id ||
+                    waitForRevisionId ||
+                    waitForVariantId ||
+                    currentSelectedVariant?.id ||
+                    variantId
+
+                if (!variantIdForDeployment) {
+                    message.error("Unable to deploy because the variant identifier is missing.")
+                    return
+                }
+
+                await publish({
+                    type: "variant",
+                    variant_id: variantIdForDeployment,
+                    revision_id: revisionIdForDeployment ?? undefined,
+                    environment_name: selectedEnvironment,
+                    note,
+                })
+
+                message.success(`Deployment to ${selectedEnvironment} started`)
+            } catch (error) {
+                console.error("Failed to deploy after commit", error)
+                message.error("Failed to deploy to the selected environment.")
+            }
+        },
+        [
+            shouldDeploy,
+            selectedEnvironment,
+            publish,
+            note,
+            currentSelectedVariant,
+            variant,
+            waitForRevisionId,
+            waitForVariantId,
+            variantId,
+        ],
+    )
 
     const onSaveVariantChanges = useCallback(async () => {
         try {
@@ -102,6 +209,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         revisionId: result.variant?.id,
                         variantId: result.variant?.variantId,
                     })
+
+                    await handleDeployAfterCommit(result.variant)
 
                     // Wait for the selected revision to reflect the new revision id
                     if (result.variant?.id) {
@@ -135,6 +244,8 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                         variantId: newVariantId,
                     })
 
+                    await handleDeployAfterCommit(result.variant)
+
                     // Wait for the selected revision to belong to the newly created variant id
                     if (newVariantId) {
                         setWaitForVariantId(newVariantId)
@@ -143,7 +254,7 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
             }
         } catch (error) {
             console.error("Failed to commit variant changes:", error)
-            // TODO: Show error message to user
+            message.error("We couldn't save your changes. Please try again.")
         } finally {
             // Only close immediately if we're not waiting for the UI to reflect the swap
             // (Keep isMutating true while waiting to prevent interactions)
@@ -152,30 +263,101 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 onClose()
             }
         }
+    }, [
+        selectedCommitType,
+        saveVariant,
+        createVariant,
+        note,
+        variantName,
+        onSuccess,
+        variantId,
+        commitType,
+        handleDeployAfterCommit,
+        waitForRevisionId,
+        waitForVariantId,
+        onClose,
+    ])
 
-        onClose()
-    }, [selectedCommitType, saveVariant, createVariant, note, variantName, onSuccess])
+    const isOkDisabled =
+        !selectedCommitType?.type ||
+        (selectedCommitType?.type === "variant" && !selectedCommitType?.name) ||
+        (shouldDeploy && !selectedEnvironment)
+
+    const modalRender = useCallback(
+        (modalNode: ReactElement) => (
+            <Resizable
+                width={modalSize.width}
+                height={modalSize.height}
+                minConstraints={minConstraints}
+                maxConstraints={maxConstraints}
+                onResize={(_, data) =>
+                    setModalSize({width: data.size.width, height: data.size.height})
+                }
+                handle={
+                    <span
+                        className="absolute bottom-2 right-2 h-4 w-4 cursor-se-resize rounded-sm border border-[#CBD5F5] bg-white"
+                        onClick={(event) => event.stopPropagation()}
+                    />
+                }
+                resizeHandles={["se"]}
+                handleSize={[18, 18]}
+                draggableOpts={{enableUserSelectHack: false}}
+            >
+                <div
+                    style={{width: modalSize.width, height: modalSize.height}}
+                    className="relative flex min-h-0 flex-col"
+                >
+                    {modalNode}
+                </div>
+            </Resizable>
+        ),
+        [modalSize, minConstraints, maxConstraints],
+    )
+
+    const isDeploymentPending = isMutating || (shouldDeploy && isPublishing)
 
     return (
         <EnhancedModal
             title="Commit changes"
             onCancel={onClose}
             okText="Commit"
-            confirmLoading={isMutating}
+            confirmLoading={isDeploymentPending}
             onOk={onSaveVariantChanges}
             okButtonProps={{
                 icon: <FloppyDiskBack size={14} />,
-                disabled:
-                    !selectedCommitType?.type ||
-                    (selectedCommitType?.type == "variant" && !selectedCommitType?.name),
+                disabled: isOkDisabled,
             }}
             classNames={{footer: "flex items-center justify-end"}}
-            afterClose={() => onClose()}
-            width="100%"
+            width={modalSize.width}
             style={{
-                maxWidth: "calc(250px + 65ch)",
+                maxWidth: maxConstraints[0],
             }}
-            {...props}
+            styles={{
+                content: {
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "100%",
+                    maxHeight: maxConstraints[1],
+                },
+                body: {
+                    display: "flex",
+                    flexDirection: "column",
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: "auto",
+                },
+                footer: {
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                    flexShrink: 0,
+                    position: "sticky",
+                    bottom: 0,
+                    background: "#fff",
+                },
+            }}
+            modalRender={modalRender}
+            {...modalProps}
         >
             <CommitVariantChangesModalContent
                 variantId={variantId}
@@ -184,6 +366,11 @@ const CommitVariantChangesModal: React.FC<CommitVariantChangesModalProps> = ({
                 setSelectedCommitType={setSelectedCommitType}
                 selectedCommitType={selectedCommitType}
                 commitType={commitType}
+                shouldDeploy={shouldDeploy}
+                onToggleDeploy={setShouldDeploy}
+                selectedEnvironment={selectedEnvironment}
+                onSelectEnvironment={setSelectedEnvironment}
+                isDeploymentPending={isDeploymentPending}
             />
         </EnhancedModal>
     )

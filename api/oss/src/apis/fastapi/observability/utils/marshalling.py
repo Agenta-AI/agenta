@@ -76,7 +76,7 @@ def unmarshall_attributes(
     marshalled: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Unmarshals a dictionary of marshalled attributes into a nested dictionary
+    Unmarshalls a dictionary of marshalled attributes into a nested dictionary
 
     Example:
     marshalled = {

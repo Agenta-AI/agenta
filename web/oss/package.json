@@ -1,6 +1,6 @@
 {
     "name": "@agenta/oss",
-    "version": "0.56.2",
+    "version": "0.56.3",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -76,7 +76,7 @@
         "ajv": "^8.17.1",
         "antd": "^5.26.1",
         "autoprefixer": "10.4.20",
-        "axios": "^1.11.0",
+        "axios": "^1.12.2",
         "blakejs": "^1.2.1",
         "classnames": "^2.3.2",
         "clsx": "^2.1.1",

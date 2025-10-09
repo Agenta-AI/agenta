@@ -61,17 +61,20 @@ const AnnotateDrawerTitle = ({
         [setSteps],
     )
 
-    const displayErrorMessage = useCallback((requiredMetrics: Record<string, any>) => {
-        const errorMessages: string[] = []
+    const displayErrorMessage = useCallback(
+        (requiredMetrics: Record<string, any>) => {
+            const errorMessages: string[] = []
 
-        for (const [key, data] of Object.entries(requiredMetrics || {})) {
-            errorMessages.push(
-                `Value ${data?.value === "" ? "empty string" : data?.value} is not assignable to type ${data?.type} in ${key}`,
-            )
-        }
-        onCaptureError?.(errorMessages, false)
-        setIsSaving(false)
-    }, [])
+            for (const [key, data] of Object.entries(requiredMetrics || {})) {
+                errorMessages.push(
+                    `Value ${data?.value === "" ? "empty string" : data?.value} is not assignable to type ${data?.type} in ${key}`,
+                )
+            }
+            onCaptureError?.(errorMessages, false)
+            setIsSaving(false)
+        },
+        [onCaptureError],
+    )
 
     const onSaveChanges = useCallback(async () => {
         try {
@@ -122,16 +125,27 @@ const AnnotateDrawerTitle = ({
                     await Promise.all(payload.map((evaluator) => createAnnotation(evaluator)))
                 }
             }
-            message.success("Annotations updated successfully")
-
-            // Update via observability atoms if on observability pages; otherwise revalidate annotation caches
+            // Invalidate ALL annotation caches (both Jotai atoms and SWR)
+            // 1. Refetch annotations for observability atoms (Jotai)
             if (router.asPath.includes("/observability") || router.asPath.includes("/traces")) {
                 await fetchAnnotations()
-            } else {
-                await mutateCache(
-                    (key) => Array.isArray(key) && key[0]?.includes("/preview/annotations/"),
-                )
             }
+
+            // 2. Invalidate SWR cache for useAnnotations hook (used by TraceDrawer)
+            await mutateCache(
+                (key) => Array.isArray(key) && key[0]?.includes("/preview/annotations/"),
+                undefined,
+                {revalidate: true},
+            )
+
+            // 3. Also invalidate evaluators cache
+            await mutateCache(
+                (key) => Array.isArray(key) && key[0]?.includes("/evaluators"),
+                undefined,
+                {revalidate: true},
+            )
+
+            message.success("Annotations updated successfully")
             onClose()
         } catch (error: any) {
             console.error("Error saving changes", error)
@@ -140,7 +154,19 @@ const AnnotateDrawerTitle = ({
         } finally {
             setIsSaving(false)
         }
-    }, [updatedMetrics, annotations, evaluators, selectedEvaluators, traceSpanIds])
+    }, [
+        annotations,
+        updatedMetrics,
+        evaluators,
+        selectedEvaluators,
+        traceSpanIds,
+        router.asPath,
+        fetchAnnotations,
+        mutateCache,
+        displayErrorMessage,
+        onClose,
+        onCaptureError,
+    ])
 
     const initialAnnotationMetrics = useMemo(
         () => getInitialMetricsFromAnnotations({annotations, evaluators}),
@@ -149,7 +175,7 @@ const AnnotateDrawerTitle = ({
 
     const initialSelectedEvalMetrics = useMemo(
         () => getInitialSelectedEvalMetrics({evaluators, selectedEvaluators}) || {},
-        [selectedEvaluators],
+        [evaluators, selectedEvaluators],
     )
 
     const isChangedMetricData = useMemo(() => {
@@ -162,7 +188,7 @@ const AnnotateDrawerTitle = ({
             Object.entries(updatedMetrics).filter(([slug]) => annotationSlugs.includes(slug)),
         )
         return deepEqual(filteredUpdatedMetrics, initialAnnotationMetrics)
-    }, [initialAnnotationMetrics, updatedMetrics])
+    }, [initialAnnotationMetrics, updatedMetrics, annotations])
 
     const isChangedSelectedEvalMetrics = useMemo(() => {
         const filteredUpdatedMetrics = Object.fromEntries(
@@ -170,14 +196,14 @@ const AnnotateDrawerTitle = ({
         )
 
         return deepEqual(filteredUpdatedMetrics, initialSelectedEvalMetrics)
-    }, [initialSelectedEvalMetrics, updatedMetrics])
+    }, [initialSelectedEvalMetrics, updatedMetrics, selectedEvaluators])
 
     // Reset error messages
     useEffect(() => {
         if (isChangedMetricData && isChangedSelectedEvalMetrics) {
             onCaptureError?.([])
         }
-    }, [isChangedMetricData, isChangedSelectedEvalMetrics])
+    }, [isChangedMetricData, isChangedSelectedEvalMetrics, onCaptureError])
 
     return (
         <section className="w-full flex items-center justify-between">
