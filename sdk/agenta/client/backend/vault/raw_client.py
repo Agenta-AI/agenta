@@ -39,7 +39,7 @@ class RawVaultClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "vault/v1/secrets",
+            "vault/v1/secrets/",
             method="GET",
             request_options=request_options,
         )
@@ -89,7 +89,7 @@ class RawVaultClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            "vault/v1/secrets",
+            "vault/v1/secrets/",
             method="POST",
             json={
                 "header": convert_and_respect_annotation_metadata(
@@ -337,7 +337,7 @@ class AsyncRawVaultClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "vault/v1/secrets",
+            "vault/v1/secrets/",
             method="GET",
             request_options=request_options,
         )
@@ -387,7 +387,7 @@ class AsyncRawVaultClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            "vault/v1/secrets",
+            "vault/v1/secrets/",
             method="POST",
             json={
                 "header": convert_and_respect_annotation_metadata(
