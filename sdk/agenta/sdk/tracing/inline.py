@@ -532,11 +532,11 @@ from json import loads, JSONDecodeError, dumps
 from copy import copy
 
 
-def _unmarshal_attributes(
+def _unmarshall_attributes(
     marshalled: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Unmarshals a dictionary of marshalled attributes into a nested dictionary
+    Unmarshalls a dictionary of marshalled attributes into a nested dictionary
 
     Example:
     marshalled = {
@@ -566,42 +566,34 @@ def _unmarshal_attributes(
 
     for key, value in marshalled.items():
         keys = key.split(".")
+        current = unmarshalled
 
-        level = unmarshalled
+        for i, key in enumerate(keys):
+            is_last = i == len(keys) - 1
+            next_key = keys[i + 1] if not is_last else None
+            is_index = key.isdigit()
+            key = int(key) if is_index else key
 
-        for i, part in enumerate(keys[:-1]):
-            if part.isdigit():
-                part = int(part)
-
-                if not isinstance(level, list):
-                    level = []
-
-                while len(level) <= part:
-                    level.append({})
-
-                level = level[part]
-
+            if is_last:
+                if isinstance(current, list) and isinstance(key, int):
+                    while len(current) <= key:
+                        current.append(None)
+                    current[key] = value
+                elif isinstance(current, dict):
+                    current[key] = value
             else:
-                if part not in level:
-                    level[part] = {} if not keys[i + 1].isdigit() else []
+                next_is_index = next_key.isdigit() if next_key else False
 
-                level = level[part]
-
-        last_key = keys[-1]
-
-        if last_key.isdigit():
-            last_key = int(last_key)
-
-            if not isinstance(level, list):
-                level = []
-
-            while len(level) <= last_key:
-                level.append(None)
-
-            level[last_key] = value
-
-        else:
-            level[last_key] = value
+                if isinstance(current, list) and isinstance(key, int):
+                    while len(current) <= key:
+                        current.append([] if next_is_index else {})
+                    if current[key] is None:
+                        current[key] = [] if next_is_index else {}
+                    current = current[key]
+                elif isinstance(current, dict):
+                    if key not in current:
+                        current[key] = [] if next_is_index else {}
+                    current = current[key]
 
     return unmarshalled
 
@@ -750,7 +742,7 @@ def _parse_from_attributes(
     for key in _data.keys():
         del otel_span_dto.attributes[_encode_key("data", key)]
 
-    # _data = _unmarshal_attributes(_data)
+    # _data = _unmarshall_attributes(_data)
     _data = _data if _data else None
 
     # METRICS
@@ -759,7 +751,7 @@ def _parse_from_attributes(
     for key in _metrics.keys():
         del otel_span_dto.attributes[_encode_key("metrics", key)]
 
-    # _metrics = _unmarshal_attributes(_metrics)
+    # _metrics = _unmarshall_attributes(_metrics)
     _metrics = _metrics if _metrics else None
 
     # META
@@ -768,7 +760,7 @@ def _parse_from_attributes(
     for key in _meta.keys():
         del otel_span_dto.attributes[_encode_key("meta", key)]
 
-    # _meta = _unmarshal_attributes(_meta)
+    # _meta = _unmarshall_attributes(_meta)
     _meta = _meta if _meta else None
 
     # TAGS
@@ -904,7 +896,7 @@ def parse_to_agenta_span_dto(
 ) -> SpanDTO:
     # DATA
     if span_dto.data:
-        span_dto.data = _unmarshal_attributes(span_dto.data)
+        span_dto.data = _unmarshall_attributes(span_dto.data)
 
         if "outputs" in span_dto.data:
             if "__default__" in span_dto.data["outputs"]:
@@ -912,19 +904,19 @@ def parse_to_agenta_span_dto(
 
     # METRICS
     if span_dto.metrics:
-        span_dto.metrics = _unmarshal_attributes(span_dto.metrics)
+        span_dto.metrics = _unmarshall_attributes(span_dto.metrics)
 
     # META
     if span_dto.meta:
-        span_dto.meta = _unmarshal_attributes(span_dto.meta)
+        span_dto.meta = _unmarshall_attributes(span_dto.meta)
 
     # TAGS
     if span_dto.tags:
-        span_dto.tags = _unmarshal_attributes(span_dto.tags)
+        span_dto.tags = _unmarshall_attributes(span_dto.tags)
 
     # REFS
     if span_dto.refs:
-        span_dto.refs = _unmarshal_attributes(span_dto.refs)
+        span_dto.refs = _unmarshall_attributes(span_dto.refs)
 
     if isinstance(span_dto.links, list):
         for link in span_dto.links:

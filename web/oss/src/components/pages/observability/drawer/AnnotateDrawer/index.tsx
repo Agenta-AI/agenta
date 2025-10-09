@@ -83,9 +83,10 @@ const AnnotateDrawer = ({
             (ann) => !isAnnotationCreatedByCurrentUser(ann),
         )
 
-        // 5. Get unique slugs and update tempSelectedEvaluators
+        // 5. Get unique slugs - only from HUMAN annotations (not automatic evaluations)
         if (filteredAnnForEval.length > 0) {
             const evalSlugs = filteredAnnForEval
+                .filter((ann) => ann.origin === 'human' || ann.channel === 'web') // Only human annotations from other users
                 .map((ann) => ann.references?.evaluator?.slug)
                 .filter(Boolean) as string[]
 
@@ -102,9 +103,7 @@ const AnnotateDrawer = ({
     }, [annotations])
 
     const _selectedEvaluators = useMemo(() => {
-        if (data && data?.length > 0 && !annotations?.length) {
-            return []
-        } else if (selectedEvaluators.length > 0) {
+        if (selectedEvaluators.length > 0) {
             const selectedEval = selectedEvaluators.filter(
                 (evaluator) => !annEvalSlugs.includes(evaluator),
             )
@@ -119,7 +118,7 @@ const AnnotateDrawer = ({
         } else {
             return []
         }
-    }, [selectedEvaluators, tempSelectedEvaluators, annEvalSlugs, evalSlugs])
+    }, [selectedEvaluators, tempSelectedEvaluators, annEvalSlugs, evalSlugs, data, annotations])
 
     const onClose = useCallback(() => {
         props?.onClose?.({} as any)

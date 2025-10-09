@@ -185,12 +185,13 @@ h1 {
 }
 
 .editor-heading-h1 {
-  font-size: 24px;
+  font-size: 18px;
   color: rgb(5, 5, 5);
   font-weight: 400;
   margin: 0;
   margin-bottom: 12px;
   padding: 0;
+  line-height: 1.5;
 }
 
 .editor-heading-h2 {
@@ -201,6 +202,7 @@ h1 {
   margin-top: 10px;
   padding: 0;
   text-transform: uppercase;
+  line-height: 1.35;
 }
 
 .editor-quote {
@@ -227,7 +229,7 @@ h1 {
 }
 
 .editor-list-item {
-  margin: 8px 32px 8px 32px;
+  margin: 8px 20px 8px 20px;
 }
 
 .editor-list-item-checked,

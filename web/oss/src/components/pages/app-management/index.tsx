@@ -19,7 +19,6 @@ import {useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
-import {useProjectData} from "@/oss/state/project"
 
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
@@ -45,10 +44,6 @@ const SetupTracingModal: any = dynamic(
 const ObservabilityDashboardSection: any = dynamic(
     () => import("@/oss/components/pages/app-management/components/ObservabilityDashboardSection"),
 )
-const DemoApplicationsSection: any = dynamic(
-    () => import("@/oss/components/pages/app-management/components/DemoApplicationsSection"),
-)
-
 const {Title} = Typography
 
 const AppManagement: React.FC = () => {
@@ -75,7 +70,6 @@ const AppManagement: React.FC = () => {
     const {apps, error, mutate} = useAppsData()
 
     const {secrets} = useVaultSecret()
-    const {project} = useProjectData()
     const {selectedOrg} = useOrgData()
 
     const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
@@ -181,8 +175,6 @@ const AppManagement: React.FC = () => {
                             filteredApps={filteredApps}
                             setSearchTerm={setSearchTerm}
                         />
-
-                        {!project?.is_demo && <DemoApplicationsSection />}
 
                         <HelpAndSupportSection />
                     </>

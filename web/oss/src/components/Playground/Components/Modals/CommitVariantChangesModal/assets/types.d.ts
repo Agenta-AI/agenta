@@ -30,4 +30,9 @@ export interface CommitVariantChangesModalContentProps {
     selectedCommitType: SelectedCommitType | null
     setSelectedCommitType: React.Dispatch<React.SetStateAction<SelectedCommitType | null>>
     commitType?: CommitType
+    shouldDeploy: boolean
+    onToggleDeploy: (value: boolean) => void
+    selectedEnvironment: string | null
+    onSelectEnvironment: (value: string | null) => void
+    isDeploymentPending: boolean
 }

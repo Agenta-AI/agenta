@@ -13,8 +13,9 @@ from oss.src.services import db_manager, app_manager
 from oss.src.models.api.api_models import (
     App,
     UpdateApp,
-    UpdateAppOutput,
     CreateAppOutput,
+    ReadAppOutput,
+    UpdateAppOutput,
     AddVariantFromURLPayload,
     AddVariantFromKeyPayload,
 )
@@ -258,6 +259,47 @@ async def create_app(
     )
 
     return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
+
+
+@router.get("/{app_id}/", response_model=ReadAppOutput, operation_id="create_app")
+async def read_app(
+    request: Request,
+    app_id: str,
+) -> ReadAppOutput:
+    """
+    Retrieve an app by its ID.
+
+    Args:
+        app_id (str): The ID of the app to retrieve.
+
+    Returns:
+        ReadAppOutput: The output containing the app's ID and name.
+
+    Raises:
+        HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
+    """
+
+    try:
+        app = await db_manager.fetch_app_by_id(app_id)
+    except db_manager.NoResultFound:
+        raise HTTPException(
+            status_code=404, detail=f"No application with ID '{app_id}' found"
+        )
+
+    if is_ee():
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=str(app.project_id),
+            permission=Permission.VIEW_APPLICATIONS,
+        )
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
+    return ReadAppOutput(app_id=str(app.id), app_name=str(app.app_name))
 
 
 @router.patch("/{app_id}/", response_model=UpdateAppOutput, operation_id="update_app")

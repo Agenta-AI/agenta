@@ -15,7 +15,6 @@ ag.init()
 
 openai = OpenAI()
 
-
 OpenAIInstrumentor().instrument()
 
 
