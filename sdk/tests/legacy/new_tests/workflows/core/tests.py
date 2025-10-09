@@ -179,7 +179,7 @@ class TestServiceCore:
 
         # ACT
         response = await http_client.post(
-            "vault/v1/secrets",
+            "vault/v1/secrets/",
             json={
                 "header": {"name": "OpenAI", "description": ""},
                 "secret": {
@@ -223,7 +223,7 @@ class TestServiceCore:
         list_of_status_codes = []
         for llm_api_key_name in llm_api_keys_names:
             response = await http_client.post(
-                "vault/v1/secrets",
+                "vault/v1/secrets/",
                 json={
                     "header": {"name": llm_api_key_name, "description": ""},
                     "secret": {

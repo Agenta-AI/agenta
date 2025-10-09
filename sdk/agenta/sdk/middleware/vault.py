@@ -101,7 +101,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.host}/api/vault/v1/secrets",
+                    f"{self.host}/api/vault/v1/secrets/",
                     headers=headers,
                 )
 
