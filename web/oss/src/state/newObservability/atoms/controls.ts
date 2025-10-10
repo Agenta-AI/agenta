@@ -51,9 +51,14 @@ export const filtersAtom = atom(
             ? [
                   {
                       field: "references",
-                      key: "id",
+                      key: "application.id",
                       operator: "in",
-                      value: appId,
+                      value: [
+                          {
+                              id: String(appId),
+                              "attributes.key": "application",
+                          },
+                      ],
                       isPermanent: true,
                   },
               ]

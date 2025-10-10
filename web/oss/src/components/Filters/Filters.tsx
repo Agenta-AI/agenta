@@ -1,4 +1,4 @@
-import {ComponentType, useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 import {ArrowClockwiseIcon, CaretDown, Funnel, Plus, Trash} from "@phosphor-icons/react"
 import {
     Button,
@@ -8,151 +8,120 @@ import {
     Select,
     Space,
     Typography,
-    ButtonProps,
     Dropdown,
     MenuProps,
+    TreeSelect,
 } from "antd"
+import type {TreeSelectProps} from "antd"
 import isEqual from "lodash/isEqual"
-import {createUseStyles} from "react-jss"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {Filter, FilterConditions, JSSTheme} from "@/oss/lib/Types"
+import {Filter} from "@/oss/lib/Types"
 import CustomAntdBadge from "../ui/CustomAntdBadge"
-import {coerceNumericValue} from "@/oss/state/newObservability"
 
-type FilterItem = Filter & {
-    selectedField?: string
-    fieldType?: string
-    isCustomField?: boolean
-    baseField?: string
-    selectedLabel?: string
-}
+import {
+    fieldConfigByOptionKey,
+    FieldConfig,
+} from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
+import {
+    getOperator,
+    valueShapeFor,
+} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
+import {planInputs} from "@/oss/components/pages/observability/assets/filters/rulesEngine"
+import {
+    normalizeFilter,
+    toUIValue,
+} from "@/oss/components/pages/observability/assets/filters/valueCodec"
+import {
+    FilterMenuNode,
+    FilterLeaf,
+    FilterGroup,
+    SelectOption,
+    Props,
+    FilterItem,
+    FieldMenuItem,
+    RowValidation,
+} from "./types"
+import {useStyles} from "./assets/styles"
+import {
+    buildCustomTreeNode,
+    collectOptionValues,
+    collectTreeKeys,
+    createEmptyFilter,
+    CUSTOM_FIELD_VALUE,
+    effectiveFieldForRow,
+    getGroupDefaultValue,
+    getOptionKey,
+    isBooleanLike,
+    isNumberLike,
+    mapToTreeData,
+    noopTreeExpand,
+    normalizeAttributeSearch,
+    operatorOptionsFromIds,
+    valueToPathLabel,
+} from "./helpers/utils"
 
-export type IconType = ComponentType<{size?: number}>
-
-type InputKind = "text" | "select" | "none"
-type InputConfig =
-    | {kind: "text"; placeholder?: string}
-    | {
-          kind: "select"
-          options: Array<{label: string; value: string | number}>
-          placeholder?: string
-      }
-    | {kind: "none"; display?: string}
-
-export type FilterLeaf = {
-    kind: "leaf"
-    field: string
-    value: string
-    label: string
-    type: "string" | "number" | "exists"
-    icon?: IconType
-    operatorOptions?: Array<{value: FilterConditions; label: string}>
-    defaultValue?: Filter["value"]
-    keyInput?: InputConfig
-    valueInput?: InputConfig
-    disableValueInput?: boolean
-    valueDisplayText?: string
-    displayLabel?: string
-}
-
-export interface FilterGroup {
-    kind: "group"
-    label: string
-    children: Array<FilterLeaf | FilterGroup>
-    icon?: IconType
-    defaultValue?: string
-    titleClickDisplayLabel?: string
-    leafDisplayLabel?: string
-}
-
-export type FilterMenuNode = FilterLeaf | FilterGroup
-
-const CUSTOM_FIELD_VALUE = "__custom__"
-
-const useStyles = createUseStyles((theme: JSSTheme) => ({
-    popover: {"& .ant-popover-inner": {minWidth: "400px !important", padding: 0}},
-    filterHeading: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: `${theme.paddingXS}px ${theme.paddingXS}px ${theme.paddingXS}px ${theme.padding}px`,
-        gap: theme.marginSM,
-        "& .ant-typography": {
-            fontSize: theme.fontSizeHeading5,
-            lineHeight: theme.lineHeightHeading5,
-            fontWeight: theme.fontWeightMedium,
-        },
-    },
-    filterContainer: {
-        display: "flex",
-        gap: theme.marginXS,
-        flexDirection: "column",
-        padding: theme.paddingXS,
-    },
-}))
-
-interface Props {
-    filterData?: Filter[]
-    columns: FilterMenuNode[]
-    onApplyFilter: (filters: Filter[]) => void
-    onClearFilter: (filters: Filter[]) => void
-    buttonProps?: ButtonProps
-}
-
-const isListOperator = (op?: string) => op === "in" || op === "not_in"
-const isBetweenOperator = (op?: string) => op === "btwn"
-const operatorHidesValue = (op?: string) => op === "exists" || op === "not_exists"
-
-const toStringArray = (v: unknown): string[] => {
-    if (Array.isArray(v)) return v.map(String)
-    if (v === undefined || v === null) return []
-    const s = String(v).trim()
-    if (!s) return []
-    if (s.startsWith("[") && s.endsWith("]")) {
-        try {
-            const parsed = JSON.parse(s)
-            if (Array.isArray(parsed)) return parsed.map(String)
-        } catch {}
-    }
-    return s
-        .split(/[\s,;\n\r\t]+/g)
-        .map((t) => t.trim())
-        .filter(Boolean)
-}
-
-const toBetweenNumberPair = (v: unknown): number[] => {
-    const nums: number[] = []
-    const pushNum = (x: any) => {
-        const n = coerceNumericValue(x) as any
-        if (typeof n === "number" && Number.isFinite(n)) nums.push(n)
-    }
-
-    if (Array.isArray(v)) {
-        v.slice(0, 2).forEach(pushNum)
-        return nums.length === 2 ? nums : []
-    }
-
-    if (typeof v === "string") {
-        const s = v.trim()
-        if (!s) return []
-        if (s.startsWith("[") && s.endsWith("]")) {
-            try {
-                const parsed = JSON.parse(s)
-                if (Array.isArray(parsed)) {
-                    parsed.slice(0, 2).forEach(pushNum)
-                    return nums.length === 2 ? nums : []
-                }
-            } catch {}
+const buildFieldMenuItems = (
+    nodes: FilterMenuNode[],
+    onSelect: (value: string, displayLabel?: string) => void,
+    parentKey = "root",
+    ancestors: FilterGroup[] = [],
+    submenuPopupClassName?: string,
+): MenuProps["items"] => {
+    const items: MenuProps["items"] = []
+    nodes.forEach((node, index) => {
+        if (node.kind === "group") {
+            const group = node as FilterGroup
+            const groupKey = `group:${parentKey}:${index}`
+            const defaultValue = getGroupDefaultValue(group)
+            items.push({
+                key: groupKey,
+                label: (
+                    <div
+                        className={
+                            defaultValue
+                                ? "flex items-center gap-2 cursor-pointer"
+                                : "flex items-center gap-2"
+                        }
+                    >
+                        {group.icon ? <group.icon size={16} /> : null}
+                        <span>{group.label}</span>
+                    </div>
+                ),
+                children: buildFieldMenuItems(
+                    group.children,
+                    onSelect,
+                    groupKey,
+                    [...ancestors, group],
+                    submenuPopupClassName,
+                ),
+                onTitleClick: defaultValue
+                    ? ({domEvent}) => {
+                          domEvent.preventDefault()
+                          domEvent.stopPropagation()
+                          onSelect(
+                              defaultValue,
+                              group.titleClickDisplayLabel ?? group.leafDisplayLabel,
+                          )
+                      }
+                    : undefined,
+                popupClassName: submenuPopupClassName,
+            } as FieldMenuItem)
+        } else {
+            const leaf = node as FilterLeaf
+            const optionKey = getOptionKey(leaf)
+            items.push({
+                key: optionKey,
+                label: (
+                    <div className="flex items-center gap-2">
+                        {leaf.icon ? <leaf.icon size={16} /> : null}
+                        <span>{leaf.label}</span>
+                    </div>
+                ),
+            } as FieldMenuItem)
         }
-        s.split(/[\s,;,\n\r\t]+/g)
-            .filter(Boolean)
-            .slice(0, 2)
-            .forEach(pushNum)
-        return nums.length === 2 ? nums : []
-    }
-
-    return []
+    })
+    return items
 }
 
 const Filters: React.FC<Props> = ({
@@ -164,242 +133,62 @@ const Filters: React.FC<Props> = ({
 }) => {
     const classes = useStyles()
 
-    const cloneFilterValue = (value?: Filter["value"]): Filter["value"] => {
-        if (value === undefined) return ""
-        if (typeof value === "object" && value !== null) return JSON.parse(JSON.stringify(value))
-        return value
-    }
-
-    const createEmptyFilter = (): FilterItem => ({
-        field: "",
-        key: "",
-        operator: "",
-        value: "",
-        isPermanent: false,
-        selectedField: undefined,
-        fieldType: undefined,
-        isCustomField: false,
-        baseField: undefined,
-        selectedLabel: undefined,
-    })
-
-    type ValueShape = "string" | "string[]" | "object[]"
-
-    type OptionMeta = {
-        label: string
-        type?: string
-        baseField?: string
-        displayLabel?: string
-        operatorOptions?: Array<{value: FilterConditions; label: string}>
-        defaultValue?: Filter["value"]
-        keyInputType?: InputKind
-        keyOptions?: Array<{label: string; value: string | number}>
-        keyPlaceholder?: string
-        valueInputType?: InputKind
-        valueOptions?: Array<{label: string; value: string | number}>
-        valuePlaceholder?: string
-        disableValueInput?: boolean
-        valueDisplayText?: string
-        valueShape?: ValueShape
-    }
-
-    const optionMetaByValue = useMemo(() => {
-        const metaByValue = new Map<string, OptionMeta>()
-        const walk = (nodes: FilterMenuNode[], ancestors: FilterGroup[] = []) => {
-            nodes.forEach((node) => {
-                if (node.kind === "group") {
-                    walk((node as FilterGroup).children, [...ancestors, node as FilterGroup])
-                    return
-                }
-                const leaf = node as FilterLeaf
-                const controlling = [...ancestors].reverse().find((g) => g.leafDisplayLabel)
-
-                const keyCfg = leaf.keyInput
-                const valCfg = leaf.valueInput
-                const legacyNone = leaf.disableValueInput ? "none" : undefined
-
-                let valueShape: ValueShape
-                if (
-                    leaf.disableValueInput &&
-                    Array.isArray(leaf.defaultValue) &&
-                    leaf.defaultValue.length > 0 &&
-                    typeof (leaf.defaultValue as any[])[0] === "object"
-                ) {
-                    valueShape = "object[]"
-                } else if (valCfg?.kind === "select") {
-                    valueShape = "string"
-                } else {
-                    valueShape = "string"
-                }
-
-                metaByValue.set(leaf.value, {
-                    label: leaf.displayLabel ?? leaf.label,
-                    type: leaf.type,
-                    baseField: leaf.field,
-                    displayLabel: leaf.displayLabel ?? controlling?.leafDisplayLabel,
-                    operatorOptions: leaf.operatorOptions,
-                    defaultValue: leaf.defaultValue,
-                    keyInputType: keyCfg?.kind,
-                    keyOptions: keyCfg && "options" in keyCfg ? (keyCfg as any).options : undefined,
-                    keyPlaceholder: keyCfg?.kind === "text" ? keyCfg.placeholder : undefined,
-                    valueInputType: valCfg?.kind ?? (legacyNone as InputKind | undefined) ?? "text",
-                    valueOptions:
-                        valCfg && "options" in valCfg ? (valCfg as any).options : undefined,
-                    valuePlaceholder: valCfg?.kind === "text" ? valCfg.placeholder : undefined,
-                    disableValueInput: leaf.disableValueInput,
-                    valueDisplayText: leaf.valueDisplayText,
-                    valueShape,
-                })
-            })
-        }
-        walk(columns)
-        return metaByValue
-    }, [columns])
-
-    const normalizeFilterValue = (
-        value: FilterItem["value"],
-        operator: FilterConditions,
-        fieldType: string | undefined,
-        meta?: OptionMeta,
-    ): Filter["value"] => {
-        if (isBetweenOperator(operator)) {
-            return toBetweenNumberPair(value)
-        }
-        if (isListOperator(operator)) {
-            if (meta?.valueShape === "object[]") {
-                if (Array.isArray(value)) return value as any
-                if (value === "" || value === undefined || value === null)
-                    return (meta?.defaultValue as any) ?? []
-                if (typeof value === "string" && value.trim().startsWith("[")) {
-                    try {
-                        const parsed = JSON.parse(value)
-                        if (Array.isArray(parsed)) return parsed as any
-                    } catch {}
-                }
-                return (meta?.defaultValue as any) ?? []
-            }
-            const arr = toStringArray(value)
-            if (fieldType === "number") return arr.map((v) => coerceNumericValue(v)) as any
-            return arr
-        }
-        if (Array.isArray(value)) return (value[0] ?? "") as any
-        if (fieldType === "number") return coerceNumericValue(value as any) as any
-        return value as any
-    }
-
-    const findFirstLeafValue = (nodes: FilterMenuNode[]): string | undefined => {
-        for (const child of nodes) {
-            if (child.kind === "leaf") return (child as FilterLeaf).value
-            const nested = findFirstLeafValue((child as FilterGroup).children)
-            if (nested) return nested
-        }
-        return undefined
-    }
-
-    const hasLeafWithValue = (nodes: FilterMenuNode[], v: string): boolean =>
-        nodes.some((n) =>
-            n.kind === "leaf"
-                ? (n as FilterLeaf).value === v
-                : hasLeafWithValue((n as FilterGroup).children, v),
-        )
-
-    const getGroupDefaultValue = (group: FilterGroup): string | undefined =>
-        group.defaultValue && hasLeafWithValue(group.children, group.defaultValue)
-            ? group.defaultValue
-            : findFirstLeafValue(group.children)
-
-    type FieldMenuItem = Required<MenuProps>["items"][number]
-
-    const buildFieldMenuItems = (
-        nodes: FilterMenuNode[],
-        onSelect: (value: string, displayLabel?: string) => void,
-        parentKey = "root",
-    ): MenuProps["items"] => {
-        const items: MenuProps["items"] = []
-        nodes.forEach((node, index) => {
-            if (node.kind === "group") {
-                const group = node as FilterGroup
-                const groupKey = `group:${parentKey}:${index}`
-                const defaultValue = getGroupDefaultValue(group)
-                items.push({
-                    key: groupKey,
-                    label: (
-                        <div
-                            className={
-                                defaultValue
-                                    ? "flex items-center gap-2 cursor-pointer"
-                                    : "flex items-center gap-2"
-                            }
-                        >
-                            {group.icon ? <group.icon size={16} /> : null}
-                            <span>{group.label}</span>
-                        </div>
-                    ),
-                    children: buildFieldMenuItems(group.children, onSelect, groupKey),
-                    onTitleClick: defaultValue
-                        ? ({domEvent}) => {
-                              domEvent.preventDefault()
-                              domEvent.stopPropagation()
-                              onSelect(
-                                  defaultValue,
-                                  group.titleClickDisplayLabel ?? group.leafDisplayLabel,
-                              )
-                          }
-                        : undefined,
-                } as FieldMenuItem)
-            } else {
-                const leaf = node as FilterLeaf
-                items.push({
-                    key: leaf.value,
-                    label: (
-                        <div className="flex items-center gap-2">
-                            {leaf.icon ? <leaf.icon size={16} /> : null}
-                            <span>{leaf.label}</span>
-                        </div>
-                    ),
-                } as FieldMenuItem)
-            }
-        })
-        return items
-    }
+    const fieldMap = useMemo(() => fieldConfigByOptionKey(columns), [columns])
+    const getField = (uiKey?: string): FieldConfig | undefined =>
+        uiKey ? fieldMap.get(uiKey) : undefined
 
     const mapFilterData = (data: Filter[]): FilterItem[] =>
         data.map((item) => {
-            const lookupCandidates = [item.field, item.key].filter(Boolean) as string[]
-            let meta: OptionMeta | undefined
-            let uiKey: string | undefined
-
-            for (const cand of lookupCandidates) {
-                const hit = optionMetaByValue.get(cand)
-                if (hit) {
-                    meta = hit
-                    uiKey = cand
-                    break
-                }
-            }
-            if (!meta) {
-                for (const [candidateUIKey, m] of optionMetaByValue.entries()) {
-                    if (lookupCandidates.includes(m.baseField || "")) {
-                        meta = m
-                        uiKey = candidateUIKey
-                        break
+            const byOptionKey = getField(item.field)
+            const field =
+                byOptionKey ??
+                (() => {
+                    if (item.key) {
+                        for (const fc of fieldMap.values()) if (fc.queryKey === item.key) return fc
                     }
-                }
-            }
+                    const matches: FieldConfig[] = []
+                    for (const fc of fieldMap.values())
+                        if (fc.baseField === item.field || (item.key && fc.baseField === item.key))
+                            matches.push(fc)
+                    if (matches.length > 1) {
+                        const valuesArray = Array.isArray(item.value)
+                            ? item.value
+                            : item.value == null
+                              ? []
+                              : [item.value]
+                        for (const candidate of matches) {
+                            if (!candidate.referenceProperty) continue
+                            const hasMatch = valuesArray.some(
+                                (entry) =>
+                                    entry &&
+                                    typeof entry === "object" &&
+                                    candidate.referenceProperty! in entry,
+                            )
+                            if (hasMatch) return candidate
+                        }
+                    }
+                    return matches[0]
+                })()
 
-            if (meta && uiKey) {
+            if (field) {
+                const pre = field.toUI ? field.toUI(item.value) : item.value
+                const shape = item.operator
+                    ? valueShapeFor(item.operator as any, field.type)
+                    : "single"
+                const valueUI = toUIValue(pre, shape)
                 return {
                     ...item,
-                    field: uiKey,
-                    key: item.key || "",
-                    selectedField: uiKey,
-                    fieldType: meta.type,
+                    field: field.optionKey,
+                    key: item.key ?? "",
+                    selectedField: field.optionKey,
+                    fieldType: field.type,
                     isCustomField: false,
-                    baseField: meta.baseField || item.field,
-                    selectedLabel: meta.displayLabel,
+                    baseField: field.baseField,
+                    selectedLabel: field.label,
+                    value: valueUI,
+                    customValueType: field.optionKey === "custom" ? "string" : undefined,
                 }
             }
-
             const customKey = item.key || item.field || ""
             return {
                 ...item,
@@ -413,27 +202,117 @@ const Filters: React.FC<Props> = ({
             }
         })
 
+    const sanitizeFilterItems = (items: FilterItem[]): Filter[] =>
+        items.map(
+            ({
+                field,
+                key,
+                operator,
+                value,
+                isPermanent,
+                baseField,
+                selectedField,
+                customValueType,
+            }) => {
+                const fc = getField(selectedField || field || "")
+                if (!fc) {
+                    const raw: Filter = {field, key, operator, value}
+                    return isPermanent ? {...raw, isPermanent} : raw
+                }
+
+                const isException =
+                    fc.baseField === "events" &&
+                    (operator === "exists" || operator === "not_exists")
+
+                let valueToSend = value
+                if (fc.optionKey === "custom") {
+                    const vt = customValueType ?? "string"
+                    const effType = vt === "number" ? "number" : "string"
+                    const shape = operator
+                        ? valueShapeFor(operator as any, effType as any)
+                        : "single"
+
+                    const toBool = (raw: unknown) => {
+                        const s = String(Array.isArray(raw) ? raw[0] : raw)
+                            .trim()
+                            .toLowerCase()
+                        return s === "true" ? true : s === "false" ? false : undefined
+                    }
+                    const toNum = (raw: unknown) => {
+                        const n = Number(Array.isArray(raw) ? raw[0] : (raw as any))
+                        return Number.isFinite(n) ? n : undefined
+                    }
+
+                    if (vt === "number") {
+                        if (shape === "list") {
+                            const arr = Array.isArray(value) ? value : [value]
+                            valueToSend = arr
+                                .map((v) => Number(v))
+                                .filter((n) => Number.isFinite(n))
+                        } else if (shape === "range") {
+                            const arr = Array.isArray(value) ? value : []
+                            const a = Number(arr[0]),
+                                b = Number(arr[1])
+                            valueToSend =
+                                Number.isFinite(a) && Number.isFinite(b) ? [a, b] : undefined
+                        } else {
+                            valueToSend = toNum(value)
+                        }
+                    } else if (vt === "boolean") {
+                        if (shape === "list") {
+                            const arr = Array.isArray(value) ? value : [value]
+                            const mapped = arr.map((v) => {
+                                const s = String(v).trim().toLowerCase()
+                                return s === "true" ? true : s === "false" ? false : undefined
+                            })
+                            // Keep only parsed booleans; if none parsed, send undefined to fail validation upstream
+                            valueToSend = mapped.filter((v) => v !== undefined)
+                            if ((valueToSend as unknown[]).length === 0) valueToSend = undefined
+                        } else {
+                            valueToSend = toBool(value)
+                        }
+                    } else {
+                        // string
+                        if (shape === "list") {
+                            valueToSend = Array.isArray(value) ? value : [value].filter(Boolean)
+                        } else if (shape === "range") {
+                            // Rare for strings; pass through as-is and let existing validation catch issues
+                            valueToSend = Array.isArray(value) ? value : value
+                        } else {
+                            valueToSend = Array.isArray(value) ? (value[0] ?? "") : (value ?? "")
+                        }
+                    }
+                }
+
+                if (isException) valueToSend = fc.defaultValue ?? valueToSend
+
+                const keyForFilter = key && key !== "" ? key : fc.queryKey
+                const filterForNormalization: Filter = {
+                    field: fc.baseField,
+                    operator,
+                    value: valueToSend,
+                }
+                if (keyForFilter) filterForNormalization.key = keyForFilter
+                const normalized = normalizeFilter(filterForNormalization, {
+                    fieldType:
+                        fc.optionKey === "custom"
+                            ? customValueType === "number"
+                                ? "number"
+                                : "string"
+                            : fc.type,
+                    opId: operator,
+                    toExternal: fc.toExternal,
+                })
+                return isPermanent ? {...normalized, isPermanent} : normalized
+            },
+        )
+
     const [filter, setFilter] = useState<FilterItem[]>(() =>
         !filterData?.length ? [createEmptyFilter()] : mapFilterData(filterData),
     )
     const [activeFieldDropdown, setActiveFieldDropdown] = useState<number | null>(null)
-
-    const sanitizeFilterItems = (items: FilterItem[]): Filter[] =>
-        items.map(
-            ({field, key, operator, value, isPermanent, fieldType, baseField, selectedField}) => {
-                const meta = optionMetaByValue.get(selectedField || field || "")
-                const normalizedValue = normalizeFilterValue(value, operator, fieldType, meta)
-                const sanitizedField = baseField || field
-                const out: Filter = {
-                    field: sanitizedField,
-                    operator,
-                    value: normalizedValue,
-                    ...(isPermanent ? {isPermanent} : {}),
-                }
-                if (key !== undefined && key !== "") out.key = key
-                return out
-            },
-        )
+    const [isFilterOpen, setIsFilterOpen] = useState(false)
+    const [keySearchTerms, setKeySearchTerms] = useState<Record<number, string>>({})
 
     const sanitizedFilters = useMemo(() => {
         return sanitizeFilterItems(
@@ -446,64 +325,10 @@ const Filters: React.FC<Props> = ({
         )
     }, [filter])
 
-    const isApplyDisabled = useMemo(() => {
-        return filter.some((f) => {
-            if (f.isPermanent) return false
-            if (!f.operator) return true
-
-            const meta = optionMetaByValue.get(f.selectedField || f.field || "")
-            const needsKey = Boolean(meta?.keyInputType && meta.keyInputType !== "none")
-            const hideVal = operatorHidesValue(f.operator) || meta?.valueInputType === "none"
-
-            if (needsKey && (!f.key || f.key === "")) return true
-
-            if (!hideVal) {
-                if (isBetweenOperator(f.operator)) {
-                    const pair = toBetweenNumberPair(f.value)
-                    if (pair.length !== 2) return true
-                } else {
-                    const hasValue =
-                        (Array.isArray(f.value) && f.value.length > 0) ||
-                        (!!f.value && String(f.value).length > 0)
-                    if (!hasValue) return true
-                }
-            }
-            return false
-        })
-    }, [filter, optionMetaByValue])
-
-    const activeFilterCount = useMemo(
-        () => sanitizedFilters.filter(({field, operator}) => field && operator).length,
-        [sanitizedFilters],
-    )
-
-    const [isFilterOpen, setIsFilterOpen] = useState(false)
-
     useLazyEffect(() => {
         if (filterData && filterData.length > 0) setFilter(mapFilterData(filterData))
-        else setFilter([createEmptyFilter()])
+        else setFilter([])
     }, [filterData, columns])
-
-    const operators = [
-        {type: "string", value: "contains", label: "contains"},
-        {type: "string", value: "matches", label: "matches"},
-        {type: "string", value: "like", label: "like"},
-        {type: "string", value: "startswith", label: "startswith"},
-        {type: "string", value: "endswith", label: "endswith"},
-        {type: "exists", value: "exists", label: "exists"},
-        {type: "exists", value: "not_exists", label: "not exists"},
-        {type: "exists", value: "in", label: "in"},
-        {type: "exists", value: "not_in", label: "not in"},
-        {type: "exists", value: "is", label: "is"},
-        {type: "exists", value: "is_not", label: "is not"},
-        {type: "number", value: "eq", label: "="},
-        {type: "number", value: "neq", label: "!="},
-        {type: "number", value: "gt", label: ">"},
-        {type: "number", value: "lt", label: "<"},
-        {type: "number", value: "gte", label: ">="},
-        {type: "number", value: "lte", label: "<="},
-        {type: "number", value: "btwn", label: "between"},
-    ]
 
     const handleFieldSelection = (uiValue: string, idx: number, selectedLabel?: string) => {
         setFilter((prev) => {
@@ -520,21 +345,42 @@ const Filters: React.FC<Props> = ({
                     isCustomField: true,
                     baseField: undefined,
                     selectedLabel: undefined,
+                    customValueType: undefined,
                 })
             } else {
-                const meta = optionMetaByValue.get(uiValue)
-                current.selectedField = uiValue
-                current.field = uiValue
-                const usesKey = Boolean(meta?.keyInputType && meta.keyInputType !== "none")
-                if (usesKey) current.key = ""
-                current.operator = meta?.operatorOptions?.[0]?.value ?? ""
-                current.value = cloneFilterValue(meta?.defaultValue)
-                current.fieldType = meta?.type
+                const field = getField(uiValue)!
+                current.selectedField = field.optionKey
+                current.field = field.optionKey
+                current.key = field.keyInput?.kind === "none" ? (field.queryKey ?? "") : ""
+                current.operator = field.operatorIds[0] ?? ""
+                const effType = field.optionKey === "custom" ? "string" : field.type
+                const shape = current.operator
+                    ? valueShapeFor(current.operator as any, effType as any)
+                    : "single"
+                let defaultValue = toUIValue(field.defaultValue, shape)
+                if (
+                    shape === "list" &&
+                    current.operator &&
+                    planInputs(field, current.operator as any).valueAs === "text" &&
+                    (defaultValue == null ||
+                        (Array.isArray(defaultValue) && defaultValue.length === 0))
+                ) {
+                    defaultValue = ""
+                }
+                current.value = defaultValue
+                current.fieldType = field.type
                 current.isCustomField = false
-                current.baseField = meta?.baseField
-                current.selectedLabel = selectedLabel ?? meta?.displayLabel
+                current.baseField = field.baseField
+                current.selectedLabel = selectedLabel ?? field.label
+                current.customValueType = field.optionKey === "custom" ? "string" : undefined
             }
             next[idx] = current
+            return next
+        })
+        setKeySearchTerms((prev) => {
+            if (!(idx in prev)) return prev
+            const next = {...prev}
+            delete next[idx]
             return next
         })
         setActiveFieldDropdown(null)
@@ -552,25 +398,17 @@ const Filters: React.FC<Props> = ({
         setFilter((prev) => {
             const next = [...prev]
             const current = {...next[idx]}
+            const field = getField(current.selectedField || current.field || "")
 
-            if (columnName === "operator") {
-                const prevOp = current.operator
-                const willMulti = isListOperator(value) || isBetweenOperator(value)
-                const wasMulti = isListOperator(prevOp) || isBetweenOperator(prevOp)
-
-                const uiKey = current.selectedField || current.field || ""
-                const meta = optionMetaByValue.get(uiKey)
-                const hasSelectOptions =
-                    meta?.valueInputType === "select" &&
-                    !!meta?.valueOptions &&
-                    meta.valueOptions.length > 0
-
-                if (willMulti && !wasMulti) {
-                    if (hasSelectOptions) current.value = toStringArray(current.value)
-                } else if (!willMulti && wasMulti) {
-                    if (Array.isArray(current.value)) current.value = current.value[0] ?? ""
-                }
-
+            if (columnName === "operator" && field) {
+                const effType =
+                    field.optionKey === "custom"
+                        ? current.customValueType === "number"
+                            ? "number"
+                            : "string"
+                        : field.type
+                const shape = valueShapeFor(value as any, effType as any)
+                current.value = toUIValue(current.value, shape)
                 current.operator = value
                 next[idx] = current
                 return next
@@ -579,25 +417,131 @@ const Filters: React.FC<Props> = ({
             next[idx] = {...current, [columnName]: value}
             return next
         })
+        if (columnName === "key") {
+            setKeySearchTerms((prev) => {
+                if (!(idx in prev)) return prev
+                const next = {...prev}
+                delete next[idx]
+                return next
+            })
+        }
     }
 
-    const onDeleteFilter = (index: number) => setFilter(filter.filter((_, idx) => idx !== index))
-    const addNestedFilter = () => setFilter([...filter, createEmptyFilter()])
+    const rowValidations: RowValidation[] = filter.map((item) => {
+        if (item.isPermanent) return {isValid: true}
 
+        const uiKey = item.selectedField || item.field || ""
+        const baseFieldCfg = getField(uiKey)
+        const field = effectiveFieldForRow(baseFieldCfg, item)
+
+        if (!field) return {isValid: false}
+
+        const operatorValue =
+            item.operator || (field.operatorIds.length === 1 ? field.operatorIds[0] : "")
+        if (!operatorValue) return {isValid: false}
+
+        const needsKey = !!field.keyInput && field.keyInput.kind !== "none"
+        if (needsKey && (!item.key || item.key === "")) return {isValid: false}
+
+        const hidesValue =
+            getOperator(operatorValue as any).hidesValue || field.valueInput?.kind === "none"
+        if (hidesValue) return {isValid: true}
+
+        const effType =
+            field.optionKey === "custom"
+                ? item.customValueType === "number"
+                    ? "number"
+                    : "string"
+                : field.type
+        const wantsBooleanValidation =
+            field.optionKey === "custom" && item.customValueType === "boolean"
+        const wantsNumberValidation = effType === "number"
+
+        const shape = valueShapeFor(operatorValue as any, effType as any)
+        const value = item.value
+
+        if (shape === "range") {
+            let parsed: unknown[] | null = null
+            if (Array.isArray(value)) parsed = value
+            else if (typeof value === "string") {
+                const trimmed = value.trim()
+                if (!trimmed) return {isValid: false}
+                try {
+                    const json = JSON.parse(value)
+                    if (Array.isArray(json)) parsed = json
+                } catch {
+                    parsed = null
+                }
+            } else if (value == null) {
+                return {isValid: false}
+            }
+
+            if (!parsed || parsed.length !== 2) {
+                return {isValid: false, valueInvalid: true}
+            }
+
+            if (wantsNumberValidation && parsed.some((entry) => !isNumberLike(entry))) {
+                return {isValid: false, valueInvalid: true}
+            }
+
+            return {isValid: true}
+        }
+
+        if (shape === "list") {
+            if (Array.isArray(value)) {
+                if (value.length === 0) return {isValid: false}
+                if (wantsBooleanValidation && value.some((entry) => !isBooleanLike(entry)))
+                    return {isValid: false, valueInvalid: true}
+                if (wantsNumberValidation && value.some((entry) => !isNumberLike(entry)))
+                    return {isValid: false, valueInvalid: true}
+                return {isValid: true}
+            }
+
+            const trimmed = String(value ?? "").trim()
+            if (!trimmed) return {isValid: false}
+            return {isValid: true}
+        }
+
+        const normalized = Array.isArray(value) ? value[0] : value
+        if (normalized == null) return {isValid: false}
+        const asString = typeof normalized === "string" ? normalized.trim() : String(normalized)
+        if (!asString) return {isValid: false}
+
+        if (wantsBooleanValidation && !isBooleanLike(normalized))
+            return {isValid: false, valueInvalid: true}
+
+        if (wantsNumberValidation && !isNumberLike(normalized))
+            return {isValid: false, valueInvalid: true}
+
+        return {isValid: true}
+    })
+
+    const isApplyDisabled = rowValidations.some(({isValid}) => !isValid)
+
+    const onDeleteFilter = (index: number) =>
+        setFilter((prev) => prev.filter((_, idx) => idx !== index))
     const clearFilter = () => {
         const kept = filter.filter((f) => f.isPermanent)
         const sanitizedKept = sanitizeFilterItems(kept)
         if (!isEqual(sanitizedKept, filterData)) onClearFilter(sanitizedKept)
         setActiveFieldDropdown(null)
-        setFilter(!kept.length ? [createEmptyFilter()] : kept)
+        setFilter(kept.length ? kept : [])
     }
-
     const applyFilter = () => {
         const out = sanitizeFilterItems(filter)
         if (!isEqual(out, filterData)) onApplyFilter(out)
         setActiveFieldDropdown(null)
         setIsFilterOpen(false)
     }
+
+    const getWithinPopover = (trigger: HTMLElement | null) =>
+        (trigger && (trigger.closest(".ant-popover") as HTMLElement)) || document.body
+
+    const dropdownPanelStyle = {
+        maxWidth: "calc(100vw - 32px)",
+        maxHeight: "60vh",
+        overflow: "auto",
+    } as const
 
     return (
         <Popover
@@ -611,6 +555,9 @@ const Filters: React.FC<Props> = ({
             }}
             open={isFilterOpen}
             placement="bottomLeft"
+            autoAdjustOverflow
+            overlayStyle={{maxWidth: "100vw"}}
+            overlayInnerStyle={{maxHeight: "70vh"}}
             destroyTooltipOnHide
             content={
                 <section>
@@ -624,38 +571,42 @@ const Filters: React.FC<Props> = ({
                     <div className={classes.filterContainer}>
                         {filter.map((item, idx) => {
                             const uiKey = item.selectedField || item.field || ""
-                            const meta = optionMetaByValue.get(uiKey)
+                            const baseFieldCfg = getField(uiKey)
+                            const field = effectiveFieldForRow(baseFieldCfg, item)
 
-                            const operatorOptions = meta?.operatorOptions
-                                ? meta.operatorOptions
-                                : item.isCustomField || !item.fieldType
-                                  ? operators
-                                  : operators.filter((op) => op.type === item.fieldType)
+                            const operatorOptions = field
+                                ? (field.operatorOptions ??
+                                  operatorOptionsFromIds(field.operatorIds))
+                                : []
+
+                            const singleOperator = operatorOptions.length === 1
+                            const operatorValue =
+                                item.operator ||
+                                (singleOperator ? operatorOptions[0]?.value : undefined)
+
+                            const plan =
+                                field && operatorValue
+                                    ? planInputs(field, operatorValue as any)
+                                    : undefined
+                            const showKey = Boolean(plan?.needsKey)
+                            const showValue = Boolean(plan?.showValue)
+                            const valueAs = plan?.valueAs
+                            const valueOptions = plan?.valueOptions
+                            const keyPlaceholder = plan?.placeholders?.key ?? "Key"
+                            const valuePlaceholder = plan?.placeholders?.value ?? "Value"
 
                             const rawValue = Array.isArray(item.value) ? "" : (item.value as any)
-                            const displayValue = meta?.valueDisplayText || rawValue
-
-                            const keyInputType: InputKind | undefined = meta?.keyInputType
-                            const keyOptions = meta?.keyOptions
-                            const keyPlaceholder = meta?.keyPlaceholder ?? "Key"
-
-                            const valueInputType: InputKind =
-                                meta?.valueInputType ?? (meta?.disableValueInput ? "none" : "text")
-                            const valueOptions = meta?.valueOptions
-                            const valuePlaceholder = isBetweenOperator(item.operator)
-                                ? "[min, max]"
-                                : (meta?.valuePlaceholder ?? "Value")
-
-                            const hideValue =
-                                operatorHidesValue(item.operator) || valueInputType === "none"
-                            const listOp = isListOperator(item.operator)
-                            const hasSelectOptions =
-                                valueInputType === "select" &&
-                                !!valueOptions &&
-                                valueOptions.length > 0
+                            const displayValue = (field as any)?.valueDisplayText || rawValue
+                            const validation = rowValidations[idx] ?? {isValid: true}
+                            const valueHasError = Boolean(validation.valueInvalid)
 
                             return (
-                                <Space direction="vertical" size={0} key={idx}>
+                                <Space
+                                    direction="vertical"
+                                    className={`overflow-x-auto [&::-webkit-scrollbar]:!w-0 [&::-webkit-scrollbar]:!h-0`}
+                                    size={0}
+                                    key={idx}
+                                >
                                     <Typography.Text type="secondary">
                                         {idx === 0 ? "Where" : "And"}
                                     </Typography.Text>
@@ -677,17 +628,14 @@ const Filters: React.FC<Props> = ({
                                                             idx,
                                                             labelFromGroup,
                                                         ),
+                                                    "root",
+                                                    [],
+                                                    classes.fieldDropdownSubmenu,
                                                 ),
                                                 onClick: ({key}) =>
                                                     handleFieldSelection(String(key), idx),
                                             }}
-                                            getPopupContainer={(trigger) =>
-                                                (trigger &&
-                                                    (trigger.closest(
-                                                        ".ant-popover",
-                                                    ) as HTMLElement)) ||
-                                                document.body
-                                            }
+                                            getPopupContainer={(t) => getWithinPopover(t)}
                                         >
                                             <Button
                                                 className="w-[180px] flex items-center justify-between"
@@ -697,34 +645,154 @@ const Filters: React.FC<Props> = ({
                                                     {item.isCustomField
                                                         ? "Custom"
                                                         : (item.selectedLabel ??
-                                                          optionMetaByValue.get(uiKey)?.label ??
+                                                          field?.label ??
                                                           "Field")}
                                                 </span>
                                                 <CaretDown size={14} />
                                             </Button>
                                         </Dropdown>
 
-                                        {keyInputType &&
-                                            keyInputType !== "none" &&
-                                            (keyInputType === "select" ? (
-                                                <Select
-                                                    className="w-[160px]"
-                                                    options={keyOptions}
-                                                    value={item.key || undefined}
-                                                    onChange={(v) =>
-                                                        onFilterChange({
-                                                            columnName: "key",
-                                                            value: v,
-                                                            idx,
-                                                        })
+                                        {showKey &&
+                                            (field!.keyInput!.kind === "select" ? (
+                                                (() => {
+                                                    const options = field!.keyInput!
+                                                        .options as SelectOption[]
+                                                    const optionValues =
+                                                        collectOptionValues(options)
+                                                    const currentSearch = keySearchTerms[idx] ?? ""
+                                                    const normalizedSearch =
+                                                        normalizeAttributeSearch(currentSearch)
+                                                    const additionalNodes: NonNullable<
+                                                        TreeSelectProps["treeData"]
+                                                    > = []
+                                                    const keyValue =
+                                                        item.key === undefined || item.key === null
+                                                            ? undefined
+                                                            : String(item.key)
+                                                    if (
+                                                        normalizedSearch &&
+                                                        !optionValues.has(normalizedSearch.value)
+                                                    ) {
+                                                        additionalNodes.push(
+                                                            buildCustomTreeNode(
+                                                                normalizedSearch.value,
+                                                                normalizedSearch.pathLabel,
+                                                            ),
+                                                        )
                                                     }
-                                                    placeholder={keyPlaceholder}
-                                                    suffixIcon={<CaretDown size={14} />}
-                                                    popupMatchSelectWidth
-                                                    disabled={item.isPermanent}
-                                                />
+                                                    if (
+                                                        keyValue &&
+                                                        !optionValues.has(keyValue) &&
+                                                        !additionalNodes.some(
+                                                            (node) => node.value === keyValue,
+                                                        )
+                                                    ) {
+                                                        additionalNodes.push(
+                                                            buildCustomTreeNode(
+                                                                keyValue,
+                                                                valueToPathLabel(keyValue),
+                                                            ),
+                                                        )
+                                                    }
+                                                    const baseTreeData = mapToTreeData(options)
+                                                    const treeData =
+                                                        additionalNodes.length > 0
+                                                            ? [...additionalNodes, ...baseTreeData]
+                                                            : baseTreeData
+                                                    const expandedKeys = collectTreeKeys(treeData)
+                                                    return (
+                                                        <TreeSelect
+                                                            className="w-[260px]"
+                                                            treeData={treeData}
+                                                            treeNodeLabelProp="pathLabel"
+                                                            dropdownMatchSelectWidth={false}
+                                                            dropdownStyle={{
+                                                                minWidth: 260,
+                                                                ...dropdownPanelStyle,
+                                                            }}
+                                                            getPopupContainer={(t) =>
+                                                                getWithinPopover(t)
+                                                            }
+                                                            value={
+                                                                item.key && item.key !== ""
+                                                                    ? (item.key as string | number)
+                                                                    : undefined
+                                                            }
+                                                            onChange={(v) =>
+                                                                onFilterChange({
+                                                                    columnName: "key",
+                                                                    value: v == null ? "" : v,
+                                                                    idx,
+                                                                })
+                                                            }
+                                                            onSearch={(searchValue) =>
+                                                                setKeySearchTerms((prev) => {
+                                                                    const trimmed =
+                                                                        searchValue.trim()
+                                                                    if (!trimmed) {
+                                                                        if (!(idx in prev))
+                                                                            return prev
+                                                                        const next = {...prev}
+                                                                        delete next[idx]
+                                                                        return next
+                                                                    }
+                                                                    return {...prev, [idx]: trimmed}
+                                                                })
+                                                            }
+                                                            onDropdownVisibleChange={(open) => {
+                                                                if (!open) {
+                                                                    setKeySearchTerms((prev) => {
+                                                                        if (!(idx in prev))
+                                                                            return prev
+                                                                        const next = {...prev}
+                                                                        delete next[idx]
+                                                                        return next
+                                                                    })
+                                                                }
+                                                            }}
+                                                            placeholder={keyPlaceholder}
+                                                            showSearch
+                                                            treeNodeFilterProp="title"
+                                                            treeDefaultExpandAll
+                                                            treeExpandedKeys={expandedKeys}
+                                                            onTreeExpand={noopTreeExpand}
+                                                            treeLine={{showLeafIcon: false}}
+                                                            disabled={item.isPermanent}
+                                                            filterTreeNode={(input, node) => {
+                                                                const title =
+                                                                    typeof node?.title === "string"
+                                                                        ? node.title
+                                                                        : String(node?.title ?? "")
+                                                                const value = String(
+                                                                    node?.value ?? "",
+                                                                )
+                                                                const pathLabel =
+                                                                    typeof (node as any)
+                                                                        ?.pathLabel === "string"
+                                                                        ? ((node as any)
+                                                                              .pathLabel as string)
+                                                                        : ""
+                                                                const search = input
+                                                                    .trim()
+                                                                    .toLowerCase()
+                                                                return (
+                                                                    title
+                                                                        .toLowerCase()
+                                                                        .includes(search) ||
+                                                                    value
+                                                                        .toLowerCase()
+                                                                        .includes(search) ||
+                                                                    pathLabel
+                                                                        .toLowerCase()
+                                                                        .includes(search)
+                                                                )
+                                                            }}
+                                                        />
+                                                    )
+                                                })()
                                             ) : (
                                                 <Input
+                                                    className="w-[200px]"
                                                     placeholder={keyPlaceholder}
                                                     value={
                                                         typeof item.key === "string" ||
@@ -732,8 +800,6 @@ const Filters: React.FC<Props> = ({
                                                             ? (item.key as string)
                                                             : ""
                                                     }
-                                                    disabled={item.isPermanent}
-                                                    className="w-[160px]"
                                                     onChange={(e) =>
                                                         onFilterChange({
                                                             columnName: "key",
@@ -741,28 +807,35 @@ const Filters: React.FC<Props> = ({
                                                             idx,
                                                         })
                                                     }
+                                                    disabled={item.isPermanent}
                                                 />
                                             ))}
 
-                                        <Select
-                                            placeholder="Operator"
-                                            labelRender={(label) =>
-                                                !label.value ? "Condition" : label.label
-                                            }
-                                            suffixIcon={<CaretDown size={14} />}
-                                            onChange={(value) =>
-                                                onFilterChange({columnName: "operator", value, idx})
-                                            }
-                                            className={
-                                                !item.isCustomField ? "w-[120px]" : "w-[90px]"
-                                            }
-                                            popupMatchSelectWidth={120}
-                                            value={item.operator || undefined}
-                                            options={operatorOptions}
-                                            disabled={item.isPermanent}
-                                        />
+                                        {!singleOperator && (
+                                            <Select
+                                                placeholder="Operator"
+                                                labelRender={(label) =>
+                                                    !label.value ? "Condition" : label.label
+                                                }
+                                                suffixIcon={<CaretDown size={14} />}
+                                                onChange={(value) =>
+                                                    onFilterChange({
+                                                        columnName: "operator",
+                                                        value,
+                                                        idx,
+                                                    })
+                                                }
+                                                className="w-[140px]"
+                                                popupMatchSelectWidth={140}
+                                                value={operatorValue}
+                                                options={operatorOptions}
+                                                disabled={item.isPermanent}
+                                                getPopupContainer={(t) => getWithinPopover(t)}
+                                                dropdownStyle={dropdownPanelStyle}
+                                            />
+                                        )}
 
-                                        {hideValue ? (
+                                        {!showValue ? (
                                             <Input
                                                 placeholder="Value"
                                                 value={displayValue}
@@ -770,16 +843,16 @@ const Filters: React.FC<Props> = ({
                                                 readOnly
                                                 className="flex-1 min-w-[120px] w-full"
                                             />
-                                        ) : listOp && hasSelectOptions ? (
+                                        ) : valueAs === "tags" ? (
                                             <Select
                                                 mode="tags"
-                                                className="flex-1 min-w-[120px] w-full"
+                                                className="flex-1 min-w-[160px] w-full"
                                                 options={valueOptions}
                                                 tokenSeparators={[",", " ", "\n", "\t", ";"]}
                                                 value={
                                                     Array.isArray(item.value)
                                                         ? (item.value as any)
-                                                        : (toStringArray(item.value) as any)
+                                                        : [item.value as any].filter(Boolean)
                                                 }
                                                 onChange={(vals) =>
                                                     onFilterChange({
@@ -792,28 +865,13 @@ const Filters: React.FC<Props> = ({
                                                 suffixIcon={<CaretDown size={14} />}
                                                 popupMatchSelectWidth
                                                 disabled={item.isPermanent}
+                                                status={valueHasError ? "error" : undefined}
+                                                getPopupContainer={(t) => getWithinPopover(t)}
+                                                dropdownStyle={dropdownPanelStyle}
                                             />
-                                        ) : listOp ? (
-                                            <Input
-                                                placeholder={valuePlaceholder}
-                                                value={
-                                                    typeof item.value === "object"
-                                                        ? JSON.stringify(item.value)
-                                                        : (item.value as any)
-                                                }
-                                                disabled={item.isPermanent}
-                                                className="flex-1 min-w-[120px] w-full"
-                                                onChange={(e) =>
-                                                    onFilterChange({
-                                                        columnName: "value",
-                                                        value: e.target.value,
-                                                        idx,
-                                                    })
-                                                }
-                                            />
-                                        ) : valueInputType === "select" ? (
+                                        ) : valueAs === "select" ? (
                                             <Select
-                                                className="flex-1 min-w-[120px] w-full"
+                                                className="flex-1 min-w-[160px] w-full"
                                                 options={valueOptions}
                                                 value={item.value as any}
                                                 onChange={(v) =>
@@ -827,6 +885,28 @@ const Filters: React.FC<Props> = ({
                                                 suffixIcon={<CaretDown size={14} />}
                                                 popupMatchSelectWidth
                                                 disabled={item.isPermanent}
+                                                status={valueHasError ? "error" : undefined}
+                                                getPopupContainer={(t) => getWithinPopover(t)}
+                                                dropdownStyle={dropdownPanelStyle}
+                                            />
+                                        ) : valueAs === "range" ? (
+                                            <Input
+                                                placeholder={valuePlaceholder}
+                                                value={
+                                                    Array.isArray(item.value)
+                                                        ? JSON.stringify(item.value)
+                                                        : (item.value as any)
+                                                }
+                                                onChange={(e) =>
+                                                    onFilterChange({
+                                                        columnName: "value",
+                                                        value: e.target.value,
+                                                        idx,
+                                                    })
+                                                }
+                                                disabled={item.isPermanent}
+                                                className="flex-1 min-w-[160px] w-full"
+                                                status={valueHasError ? "error" : undefined}
                                             />
                                         ) : (
                                             <Input
@@ -836,8 +916,6 @@ const Filters: React.FC<Props> = ({
                                                         ? JSON.stringify(item.value)
                                                         : (item.value as any)
                                                 }
-                                                disabled={item.isPermanent}
-                                                className="flex-1 min-w-[120px] w-full"
                                                 onChange={(e) =>
                                                     onFilterChange({
                                                         columnName: "value",
@@ -845,14 +923,40 @@ const Filters: React.FC<Props> = ({
                                                         idx,
                                                     })
                                                 }
+                                                disabled={item.isPermanent}
+                                                className="flex-1 min-w-[160px] w-full"
+                                                status={valueHasError ? "error" : undefined}
                                             />
                                         )}
 
-                                        {filter.length > 1 && (
+                                        {field?.optionKey === "custom" && (
+                                            <Select
+                                                className="w-[130px]"
+                                                value={item.customValueType ?? "string"}
+                                                onChange={(v: "string" | "number" | "boolean") =>
+                                                    onFilterChange({
+                                                        columnName: "customValueType" as any,
+                                                        value: v,
+                                                        idx,
+                                                    })
+                                                }
+                                                options={[
+                                                    {label: "String", value: "string"},
+                                                    {label: "Number", value: "number"},
+                                                    {label: "Boolean", value: "boolean"},
+                                                ]}
+                                                suffixIcon={<CaretDown size={14} />}
+                                                popupMatchSelectWidth
+                                                disabled={item.isPermanent}
+                                                getPopupContainer={(t) => getWithinPopover(t)}
+                                                dropdownStyle={dropdownPanelStyle}
+                                            />
+                                        )}
+
+                                        {!item.isPermanent && (
                                             <Button
                                                 type="link"
                                                 icon={<Trash size={14} />}
-                                                disabled={item.isPermanent}
                                                 onClick={() => onDeleteFilter(idx)}
                                             />
                                         )}
@@ -913,7 +1017,13 @@ const Filters: React.FC<Props> = ({
                 {...buttonProps}
             >
                 Filters
-                {activeFilterCount > 0 && <CustomAntdBadge count={activeFilterCount} />}
+                {sanitizedFilters.filter(({field, operator}) => field && operator).length > 0 && (
+                    <CustomAntdBadge
+                        count={
+                            sanitizedFilters.filter(({field, operator}) => field && operator).length
+                        }
+                    />
+                )}
             </Button>
         </Popover>
     )

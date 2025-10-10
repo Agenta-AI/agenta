@@ -110,7 +110,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
     }, [computedText, msg])
 
     const {addUploadSlot, updateTextContent, removeUploadItem} = useMessageContentHandlers()
-    const effectiveDisabled = disabled || isToolKind
+    const effectiveDisabled = Boolean(disabled)
 
     const deleteMessage = useCallback(() => {
         if (isToolKind) return
@@ -307,7 +307,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
         if (placeholder) return placeholder
         return kind === "user"
             ? "Type your message…"
-            : "Assistant response will appear here after run."
+            : "Assistant response will appear below after run."
     }, [placeholder, kind])
 
     // TODO: IMPROVE THIS
