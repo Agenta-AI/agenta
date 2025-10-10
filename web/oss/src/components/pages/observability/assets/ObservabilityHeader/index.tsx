@@ -27,6 +27,7 @@ import {
 } from "@/oss/state/newObservability/selectors/tracing"
 
 import getFilterColumns from "../getFilterColumns"
+import {buildAttributeKeyTreeOptions} from "../filters/attributeKeyOptions"
 import {ObservabilityHeaderProps} from "../types"
 
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
@@ -57,7 +58,11 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
     } = useObservability()
     const queryClient = useAtomValue(queryClientAtom)
 
-    const filterColumns = useMemo(() => getFilterColumns(), [])
+    const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
+    const filterColumns = useMemo(
+        () => getFilterColumns(attributeKeyOptions),
+        [attributeKeyOptions],
+    )
 
     useEffect(() => {
         const handleScroll = () => {

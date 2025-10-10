@@ -77,46 +77,137 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
         const n = toNum(v)
         return n === undefined ? [] : [n]
     }
-    const toBetweenPair = (v: any): number[] => {
-        const arr = toNumArray(v).slice(0, 2)
-        return arr.length === 2 ? arr : []
+
+    const parseReferenceKey = (rawKey?: string, rawValue?: any) => {
+        let category: "reference" | "application" | "evaluator" | "application_variant" =
+            "reference"
+        let property = rawKey && rawKey !== "" ? rawKey : "id"
+
+        if (rawKey) {
+            const [categoryPart, propertyPart] = rawKey.split(".")
+            if (
+                propertyPart &&
+                ["reference", "application", "evaluator", "application_variant"].includes(
+                    categoryPart,
+                )
+            ) {
+                return {
+                    category: categoryPart as
+                        | "reference"
+                        | "application"
+                        | "evaluator"
+                        | "application_variant",
+                    property: propertyPart,
+                }
+            }
+        }
+
+        const candidates = Array.isArray(rawValue)
+            ? rawValue
+            : rawValue === undefined || rawValue === null
+              ? []
+              : [rawValue]
+
+        for (const entry of candidates) {
+            if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+                const obj = entry as Record<string, unknown>
+                const attrKey = obj["attributes.key"] as string | undefined
+                if (
+                    attrKey === "application" ||
+                    attrKey === "evaluator" ||
+                    attrKey === "application_variant"
+                ) {
+                    category = attrKey
+                }
+                if (obj["version"] !== undefined) {
+                    property = "version"
+                    break
+                }
+                if (obj["slug"] !== undefined) {
+                    property = "slug"
+                } else if (obj["id"] !== undefined) {
+                    property = "id"
+                }
+            }
+        }
+
+        return {category, property}
     }
-    const isListOp = (op?: string) => op === "in" || op === "not_in"
-    const isBetween = (op?: string) => op === "btwn"
+
+    const normalizeReferenceValue = (
+        rawValue: any,
+        property: string,
+        category: "reference" | "application" | "evaluator" | "application_variant",
+    ): Record<string, string>[] => {
+        const extras: Record<string, string> | undefined =
+            category === "application"
+                ? {"attributes.key": "application"}
+                : category === "evaluator"
+                  ? {"attributes.key": "evaluator"}
+                  : category === "application_variant"
+                    ? {"attributes.key": "application_variant"}
+                    : undefined
+
+        const entries = Array.isArray(rawValue)
+            ? rawValue
+            : rawValue === undefined || rawValue === null || rawValue === ""
+              ? []
+              : [rawValue]
+
+        return entries
+            .map((entry) => {
+                if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+                    const obj: Record<string, any> = {...entry}
+                    const propValue = obj[property]
+                    const normalized =
+                        propValue === undefined || propValue === null
+                            ? ""
+                            : String(propValue).trim()
+                    if (!normalized) return undefined
+                    obj[property] = normalized
+                    if (extras) obj["attributes.key"] = extras["attributes.key"]
+                    else if (obj["attributes.key"] && category === "reference")
+                        delete obj["attributes.key"]
+                    return Object.entries(obj).reduce<Record<string, string>>((acc, [k, v]) => {
+                        if (v === undefined || v === null) return acc
+                        acc[k] = typeof v === "string" ? v : String(v)
+                        return acc
+                    }, {})
+                }
+
+                const str = entry === undefined || entry === null ? "" : String(entry).trim()
+                if (!str) return undefined
+                return {
+                    [property]: str,
+                    ...(extras ?? {}),
+                }
+            })
+            .filter((entry): entry is Record<string, string> => Boolean(entry))
+    }
 
     if (filters.length > 0) {
         const sanitized = filters.map(({field, key, operator, value}) => {
-            // Pack references into array of objects using chosen key
             if (field === "references") {
-                const refKey = key || "id"
-                const arrayValue = Array.isArray(value)
-                    ? value.map((v: any) => (typeof v === "object" ? v : {[refKey]: v}))
-                    : [{[refKey]: value}]
+                const {category, property} = parseReferenceKey(key, value)
+                const arrayValue = normalizeReferenceValue(value, property, category)
                 return {field, operator, value: arrayValue}
             }
 
-            // Attributes.* : numeric metrics; coerce by operator
+            if (field === "custom" || field === "io_keys") {
+                const attributeKey = key?.slice("attributes.".length)
+                return {field: "attributes", key: attributeKey, operator, value}
+            }
+
             if (field?.startsWith("attributes.")) {
                 const attributeKey = field.slice("attributes.".length)
 
-                let outValue: any = value
-                if (isBetween(operator)) {
-                    outValue = toBetweenPair(value) // [min, max]
-                } else if (isListOp(operator)) {
-                    outValue = toNumArray(value) // [n, n, ...]
-                } else {
-                    const n = toNum(value) // single number
-                    outValue = n === undefined ? undefined : n
-                }
-
-                return {field: "attributes", key: attributeKey, operator, value: outValue}
+                return {field: "attributes", key: attributeKey, operator, value}
             }
 
             if (field === "status_code" && value === "STATUS_CODE_OK") {
                 return {field, operator: "is_not", value: "STATUS_CODE_ERROR"}
             }
 
-            // passthrough for everything else
             return {field, operator, value}
         })
 
@@ -134,6 +225,84 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
         if (endTime) params.newest = endTime
     }
 
+    type FilterCondition = {
+        field: string
+        operator: string
+        value: string[]
+    }
+
+    const buildTraceAndSpanFilters = (data: any): FilterCondition[] => {
+        const traceIds = new Set<string>()
+        const spanIds = new Set<string>()
+
+        if (data?.traces) {
+            for (const trace of Object.values<any>(data.traces)) {
+                if (trace?.spans) {
+                    for (const span of Object.values<any>(trace.spans)) {
+                        const links = Array.isArray(span?.links)
+                            ? span.links
+                            : span?.links && typeof span.links === "object"
+                              ? Object.values(span.links)
+                              : []
+                        for (const l of links) {
+                            if (l?.trace_id) traceIds.add(String(l.trace_id))
+                            if (l?.span_id) spanIds.add(String(l.span_id))
+                        }
+                    }
+                }
+            }
+        }
+
+        return [
+            {field: "trace_id", operator: "in", value: [...traceIds]},
+            {field: "span_id", operator: "in", value: [...spanIds]},
+        ]
+    }
+
+    type Condition = {field: string; operator: string; value: any}
+
+    const toFilterString = (conditions?: Condition[]) =>
+        conditions && conditions.length ? JSON.stringify({conditions}) : undefined
+
+    // Build both filters once, right after you compute/sanitize UI filters
+    const buildFilterVariants = (params: Record<string, any>) => {
+        const parsed = params.filter ? JSON.parse(params.filter) : {conditions: [] as Condition[]}
+        const baseConditions: Condition[] = Array.isArray(parsed.conditions)
+            ? parsed.conditions
+            : []
+
+        // original (NO annotation enforcement)
+        const originalFilter = toFilterString(baseConditions)
+
+        // annotation-enforced (for the first request)
+        const withoutTraceType = baseConditions.filter((c) => c.field !== "trace_type")
+        const annotationConditions = [
+            ...withoutTraceType,
+            {field: "trace_type", operator: "is", value: "annotation"} as Condition,
+        ]
+        const annotationFilter = toFilterString(annotationConditions)
+
+        return {originalFilter, annotationFilter}
+    }
+
+    const mergeFilterConditionsInto = (baseFilterJSON: string | undefined, extra: Condition[]) => {
+        const parsed = baseFilterJSON ? JSON.parse(baseFilterJSON) : {conditions: [] as Condition[]}
+        const baseConds: Condition[] = Array.isArray(parsed.conditions) ? parsed.conditions : []
+
+        // keep only valid non-empty IN clauses
+        const cleaned = extra.filter(
+            (c) => c.operator !== "in" || (Array.isArray(c.value) && c.value.length > 0),
+        )
+
+        // dedupe
+        const key = (c: Condition) => `${c.field}|${c.operator}|${JSON.stringify(c.value)}`
+        const seen = new Set(baseConds.map(key))
+        const merged = [...baseConds]
+        for (const c of cleaned) if (!seen.has(key(c))) merged.push(c)
+
+        return toFilterString(merged)
+    }
+
     const sessionExists = get(sessionExistsAtom)
 
     return {
@@ -142,7 +311,22 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
 
         queryFn: async ({pageParam}: {pageParam?: {newest?: string}}) => {
             const windowParams = {...params}
+            // Build both variants **before** first fetch
+            // const {originalFilter, annotationFilter} = buildFilterVariants(windowParams)
+
+            // FIRST request → force annotation filter
+            // windowParams.filter = annotationFilter
             if (pageParam?.newest) windowParams.newest = pageParam.newest
+
+            // const data = await fetchAllPreviewTraces(windowParams, appId as string)
+
+            // Build IDs from first response
+            // const idFilters = buildTraceAndSpanFilters(data) // [{trace_id in [...]}, {span_id in [...]}]
+
+            // SECOND request → start from the *original* filter, NOT the annotation-enforced one
+            // const windowParams2 = {...params}
+            // windowParams2.filter = mergeFilterConditionsInto(originalFilter, idFilters)
+            // if (pageParam?.newest) windowParams2.newest = pageParam.newest // keep pagination consistent
 
             const data = await fetchAllPreviewTraces(windowParams, appId as string)
 

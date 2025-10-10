@@ -1,99 +1,118 @@
 import {
-    MagnifyingGlass,
-    Timer,
-    TreeStructure,
-    HashStraight,
-    IdentificationBadge,
-    TextT,
-    CurrencyDollarSimple,
-    Coins,
-    WarningCircle,
-    WarningOctagon,
-    BracketsCurly,
-    PencilSimple,
-    TagSimple,
-    Lightning,
-    BookmarkSimple,
-    StackSimple,
     Download,
     Gear,
     LineSegments,
     Sparkle,
-    TreeView,
-    ChatText,
-    Gauge,
-    CirclesFour,
-    PlusCircle,
+    ArrowBendRightDownIcon,
+    MagnifyingGlassIcon,
+    LightningIcon,
+    ArrowBendRightUpIcon,
+    GearFineIcon,
+    SpinnerIcon,
+    TreeViewIcon,
+    TreeStructureIcon,
+    CoinsIcon,
+    TimerIcon,
+    PlusCircleIcon,
+    WarningOctagonIcon,
 } from "@phosphor-icons/react"
 import {SpanCategory} from "@/oss/services/tracing/types"
-import {FilterMenuNode} from "@/oss/components/Filters/Filters"
-import {FilterConditions} from "@/oss/lib/Types"
-
-const COLLECTION_MEMBERSHIP_OPS: Array<{value: FilterConditions; label: string}> = [
-    {value: "in", label: "in"},
-    {value: "not_in", label: "not in"},
-]
-
-const STRING_EQU_OPS: Array<{value: FilterConditions; label: string}> = [
-    {value: "is", label: "is"},
-    {value: "is_not", label: "is not"},
-]
-
-const STRING_EQU_AND_CONTAINS_OPS: Array<{value: FilterConditions; label: string}> = [
-    ...STRING_EQU_OPS,
-    ...COLLECTION_MEMBERSHIP_OPS,
-]
-
-const EXISTS_OPS: Array<{value: FilterConditions; label: string}> = [
-    {value: "exists", label: "exists"},
-    {value: "not_exists", label: "not exists"},
-]
-
-const STRING_SEARCH_OPS: Array<{value: FilterConditions; label: string}> = [
-    {value: "contains", label: "contains"},
-    {value: "startswith", label: "starts with"},
-    {value: "endswith", label: "ends with"},
-    // {value: "matches", label: "matches"},
-    // {value: "like", label: "like"},
-]
-
-const NUM_OPS: Array<{value: FilterConditions; label: string}> = [
-    {value: "eq", label: "="},
-    {value: "neq", label: "!="},
-    {value: "gt", label: ">"},
-    {value: "lt", label: "<"},
-    {value: "gte", label: ">="},
-    {value: "lte", label: "<="},
-    {value: "btwn", label: "between"},
-]
+import {FilterMenuNode} from "@/oss/components/Filters/types"
+import {STRING_EQU_AND_CONTAINS_OPS, STRING_SEARCH_OPS, NUM_OPS, STRING_EQU_OPS} from "./utils"
 
 export const FILTER_COLUMNS: FilterMenuNode[] = [
     {
+        kind: "leaf",
+        label: "Text search",
+        displayLabel: "Text search",
+        icon: MagnifyingGlassIcon,
+        field: "content",
+        value: "content",
+        type: "string",
+        operatorOptions: [{value: "contains", label: "contains"}],
+        valueInput: {kind: "text", placeholder: "Text"},
+    },
+    // {
+    //     kind: "leaf",
+    //     label: "Input",
+    //     icon: ArrowBendRightDownIcon,
+    //     field: "attributes.ag.data.inputs",
+    //     type: "string",
+    //     value: "attributes.ag.data.inputs",
+    //     operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
+    //     valueInput: {kind: "text", placeholder: "Value"},
+    // },
+    // {
+    //     kind: "leaf",
+    //     label: "Output",
+    //     icon: ArrowBendRightUpIcon,
+    //     field: "attributes.ag.data.outputs",
+    //     type: "string",
+    //     value: "attributes.ag.data.outputs",
+    //     operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
+    //     valueInput: {kind: "text", placeholder: "Value"},
+    // },
+    {
+        kind: "leaf",
+        label: "Input Key",
+        icon: ArrowBendRightDownIcon,
+        field: "io_keys",
+        type: "string",
+        value: "ag.data.inputs",
+        operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
+        valueInput: {kind: "text", placeholder: "Value"},
+        keyInput: {
+            kind: "select",
+            placeholder: "Search or enter key",
+            options: [],
+            usesAttributeKeyTree: true,
+            treePath: "ag.data.inputs",
+        },
+    },
+    {
+        kind: "leaf",
+        label: "Output Key",
+        icon: ArrowBendRightUpIcon,
+        field: "io_keys",
+        type: "string",
+        value: "ag.data.outputs",
+        operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
+        valueInput: {kind: "text", placeholder: "Value"},
+        keyInput: {
+            kind: "select",
+            placeholder: "Search or enter key",
+            options: [],
+            usesAttributeKeyTree: true,
+            treePath: "ag.data.outputs",
+        },
+    },
+    {
         kind: "group",
         label: "Trace",
-        icon: TreeView,
+        icon: TreeStructureIcon,
         children: [
             {
                 kind: "leaf",
+                label: "Trace ID",
                 field: "trace_id",
-                type: "exists",
+                type: "string",
                 value: "trace_id",
-                label: "ID",
-                displayLabel: "Trace ID",
-                icon: HashStraight,
                 operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
+                valueInput: {
+                    kind: "text",
+                    placeholder: "Search or enter value",
+                },
             },
             {
                 kind: "leaf",
+                label: "Trace Type",
                 field: "trace_type",
-                type: "exists",
+                type: "string",
                 value: "trace_type",
-                label: "Type",
-                displayLabel: "Trace Type",
-                icon: TagSimple,
                 operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
                 valueInput: {
                     kind: "select",
+                    placeholder: "Search or enter value",
                     options: [
                         {label: "Invocation", value: "invocation"},
                         {label: "Annotation", value: "annotation"},
@@ -105,30 +124,30 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
     {
         kind: "group",
         label: "Span",
-        icon: Sparkle,
-        defaultValue: "span_id",
+        icon: TreeViewIcon,
         children: [
             {
                 kind: "leaf",
+                label: "Span ID",
                 field: "span_id",
-                type: "exists",
+                type: "string",
                 value: "span_id",
-                label: "ID",
-                displayLabel: "Span ID",
-                icon: HashStraight,
                 operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
+                valueInput: {
+                    kind: "text",
+                    placeholder: "Search or enter value",
+                },
             },
             {
                 kind: "leaf",
+                label: "Span Type",
                 field: "span_type",
-                type: "exists",
+                type: "string",
                 value: "span_type",
-                label: "Type",
-                displayLabel: "Span Type",
-                icon: TagSimple,
                 operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
                 valueInput: {
                     kind: "select",
+                    placeholder: "Search or enter value",
                     options: [
                         {label: "chat", value: "chat"},
                         {label: "agent", value: "agent"},
@@ -145,29 +164,35 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
             },
             {
                 kind: "leaf",
+                label: "Span Name",
                 field: "span_name",
-                type: "exists",
+                type: "string",
                 value: "span_name",
-                label: "Name",
-                displayLabel: "Span Name",
-                icon: IdentificationBadge,
                 operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
+                valueInput: {
+                    kind: "text",
+                    placeholder: "Search or enter value",
+                },
             },
         ],
     },
     {
         kind: "leaf",
         label: "Duration (ms)",
-        icon: Timer,
+        icon: TimerIcon,
         field: "attributes.ag.metrics.duration.cumulative",
         type: "number",
         value: "attributes.ag.metrics.duration.cumulative",
         operatorOptions: NUM_OPS,
+        valueInput: {
+            kind: "text",
+            placeholder: "Value",
+        },
     },
     {
         kind: "group",
         label: "Cost ($)",
-        icon: Coins,
+        icon: CoinsIcon,
         defaultValue: "attributes.ag.metrics.costs.cumulative.total",
         titleClickDisplayLabel: "Total Cost",
         children: [
@@ -185,6 +210,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Aggregate",
                         displayLabel: "Total Completion Cost",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                     {
                         kind: "leaf",
@@ -194,6 +223,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Span",
                         displayLabel: "Total Completion Cost (Span)",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                 ],
             },
@@ -211,6 +244,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Aggregate",
                         displayLabel: "Total Prompt Cost",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                     {
                         kind: "leaf",
@@ -220,6 +257,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Span",
                         displayLabel: "Total Prompt Cost (Span)",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                 ],
             },
@@ -237,6 +278,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Aggregate",
                         displayLabel: "Total Cost",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                     {
                         kind: "leaf",
@@ -246,6 +291,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Span",
                         displayLabel: "Total Cost (Span)",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                 ],
             },
@@ -254,7 +303,7 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
     {
         kind: "group",
         label: "Tokens",
-        icon: PlusCircle,
+        icon: PlusCircleIcon,
         defaultValue: "attributes.ag.metrics.tokens.cumulative.total",
         titleClickDisplayLabel: "Total Tokens",
         children: [
@@ -272,6 +321,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Aggregate",
                         displayLabel: "Total Completion Tokens",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                     {
                         kind: "leaf",
@@ -281,6 +334,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Span",
                         displayLabel: "Total Completion Tokens (Span)",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                 ],
             },
@@ -298,6 +355,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Aggregate",
                         displayLabel: "Total Prompt Tokens",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                     {
                         kind: "leaf",
@@ -307,6 +368,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Span",
                         displayLabel: "Total Prompt Tokens (Span)",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                 ],
             },
@@ -324,6 +389,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Aggregate",
                         displayLabel: "Total Tokens",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                     {
                         kind: "leaf",
@@ -333,6 +402,10 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
                         label: "Span",
                         displayLabel: "Total Tokens (Span)",
                         operatorOptions: NUM_OPS,
+                        valueInput: {
+                            kind: "text",
+                            placeholder: "Value",
+                        },
                     },
                 ],
             },
@@ -341,19 +414,18 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
     {
         kind: "group",
         label: "Status",
-        icon: Gauge,
+        icon: SpinnerIcon,
         children: [
             {
                 kind: "leaf",
+                label: "Status Code",
                 field: "status_code",
                 type: "string",
                 value: "status_code",
-                label: "Code",
-                displayLabel: "Status Code",
-                icon: BracketsCurly,
                 operatorOptions: STRING_EQU_OPS,
                 valueInput: {
                     kind: "select",
+                    placeholder: "Status",
                     options: [
                         {label: "Success", value: "STATUS_CODE_OK"},
                         {label: "Failure", value: "STATUS_CODE_ERROR"},
@@ -362,89 +434,192 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
             },
             {
                 kind: "leaf",
+                label: "Status Message",
                 field: "status_message",
                 type: "string",
                 value: "status_message",
-                label: "Message",
-                displayLabel: "Status Message",
-                icon: ChatText,
                 operatorOptions: STRING_SEARCH_OPS,
-                valueInput: {kind: "text", placeholder: "Enter message…"},
+                valueInput: {
+                    kind: "text",
+                    placeholder: "Message",
+                },
             },
         ],
     },
     {
         kind: "leaf",
         label: "Exception",
-        icon: WarningOctagon,
+        icon: WarningOctagonIcon,
         type: "exists",
         value: "events",
         field: "events",
         operatorOptions: [
-            {value: "in", label: "exists"},
+            {value: "in", label: "exist"},
             {value: "not_in", label: "not exists"},
         ],
         defaultValue: [{name: "exception"}],
         disableValueInput: true,
         valueDisplayText: "exception",
     },
-    // {
-    //     kind: "leaf",
-    //     field: "annotation",
-    //     type: "exists",
-    //     value: "annotation",
-    //     label: "Annotation",
-    //     icon: PencilSimple,
-    // },
-    // Tags -> my_tag + IS + blue
-    // attributes + ag.tags.my_tag + IS + blue
-    // {kind: "leaf", field: "tags", type: "exists", value: "tags", label: "Tags", icon: TagSimple},
     {
         kind: "group",
         label: "Reference",
-        icon: Lightning,
+        icon: GearFineIcon,
         children: [
             {
-                kind: "leaf",
-                field: "references",
-                type: "exists",
-                value: "id",
-                label: "ID",
-                displayLabel: "Reference ID",
-                icon: HashStraight,
-                operatorOptions: [
-                    {value: "in", label: "is"},
-                    {value: "not_in", label: "is not"},
+                kind: "group",
+                label: "Application",
+                children: [
+                    {
+                        kind: "leaf",
+                        field: "references",
+                        type: "exists",
+                        value: "id",
+                        optionKey: "application.id",
+                        queryKey: "application.id",
+                        referenceCategory: "application",
+                        referenceProperty: "id",
+                        label: "ID",
+                        displayLabel: "Application ID",
+                        operatorOptions: [
+                            {value: "in", label: "is"},
+                            {value: "not_in", label: "is not"},
+                        ],
+                    },
+                    {
+                        kind: "leaf",
+                        field: "references",
+                        type: "exists",
+                        value: "slug",
+                        optionKey: "application.slug",
+                        queryKey: "application.slug",
+                        referenceCategory: "application",
+                        referenceProperty: "slug",
+                        label: "Slug",
+                        displayLabel: "Application Slug",
+                        operatorOptions: [
+                            {value: "in", label: "is"},
+                            {value: "not_in", label: "is not"},
+                        ],
+                    },
                 ],
             },
-            // {
-            //     kind: "leaf",
-            //     field: "references",
-            //     type: "exists",
-            //     value: "slug",
-            //     label: "Slug",
-            //     displayLabel: "Reference Slug",
-            //     icon: BookmarkSimple,
-            //     operatorOptions: [
-            //         {value: "in", label: "is"},
-            //         {value: "not_in", label: "is not"},
-            //     ],
-            // },
             {
-                kind: "leaf",
-                field: "references",
-                type: "exists",
-                value: "version",
-                label: "Version",
-                displayLabel: "Reference Version",
-                icon: StackSimple,
-                operatorOptions: [
-                    {value: "in", label: "is"},
-                    {value: "not_in", label: "is not"},
+                kind: "group",
+                label: "Environment",
+                children: [
+                    {
+                        kind: "leaf",
+                        field: "references",
+                        type: "exists",
+                        value: "id",
+                        optionKey: "environment.id",
+                        queryKey: "environment.id",
+                        referenceCategory: "environment",
+                        referenceProperty: "id",
+                        label: "ID",
+                        displayLabel: "Environment ID",
+                        operatorOptions: [
+                            {value: "in", label: "is"},
+                            {value: "not_in", label: "is not"},
+                        ],
+                    },
+                    {
+                        kind: "leaf",
+                        field: "references",
+                        type: "exists",
+                        value: "slug",
+                        optionKey: "environment.slug",
+                        queryKey: "environment.slug",
+                        referenceCategory: "environment",
+                        referenceProperty: "slug",
+                        label: "Slug",
+                        displayLabel: "Environment Slug",
+                        operatorOptions: [
+                            {value: "in", label: "is"},
+                            {value: "not_in", label: "is not"},
+                        ],
+                    },
                 ],
             },
         ],
     },
+    {
+        kind: "leaf",
+        label: "Custom",
+        displayLabel: "Custom",
+        icon: LightningIcon,
+        field: "custom",
+        value: "custom",
+        type: "string",
+        keyInput: {
+            kind: "select",
+            placeholder: "Search key",
+            options: [],
+            usesAttributeKeyTree: true,
+        },
+        operatorOptions: [
+            {value: "is", label: "is"},
+            {value: "is_not", label: "is not"},
+            {value: "contains", label: "contains"},
+            {value: "startswith", label: "starts with"},
+            {value: "endswith", label: "ends with"},
+            {value: "in", label: "in"},
+            {value: "not_in", label: "not in"},
+        ],
+        valueInput: {kind: "text", placeholder: "Value"},
+    },
+    // Tags -> my_tag + IS + blue
+    // attributes + ag.tags.my_tag + IS + blue
+    // {kind: "leaf", field: "tags", type: "exists", value: "tags", label: "Tags", icon: TagSimple},
+    // {
+    //     kind: "group",
+    //     label: "Annotation",
+    //     icon: PencilIcon,
+    //     children: [
+    //         {
+    //             kind: "leaf",
+    //             label: "Has Annotation",
+    //             field: "annotation",
+    //             type: "string",
+    //             value: "annotation",
+    //             operatorOptions: COLLECTION_MEMBERSHIP_OPS,
+    //             valueInput: {
+    //                 kind: "text",
+    //                 placeholder: "Search or enter value",
+    //             },
+    //         },
+    //         {
+    //             kind: "leaf",
+    //             label: "Is Annotation",
+    //             field: "annotation",
+    //             type: "string",
+    //             value: "annotation",
+    //             operatorOptions: COLLECTION_MEMBERSHIP_OPS,
+    //             valueInput: {
+    //                 kind: "text",
+    //                 placeholder: "Search or enter value",
+    //             },
+    //         },
+    //     ],
+    // },
+    // {
+    //     kind: "leaf",
+    //     label: "Tags",
+    //     icon: TagSimpleIcon,
+    //     field: "attributes",
+    //     type: "string",
+    //     value: "attributes",
+    //     operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
+    //     valueInput: {
+    //         kind: "select",
+    //         placeholder: "Search or enter value",
+    //         options: [
+    //             {label: "env1", value: "env1"},
+    //             {label: "env2", value: "env2"},
+    //         ],
+    //     },
+    // },
 ]
 
 export const spanTypeStyles = {
@@ -456,7 +631,7 @@ export const spanTypeStyles = {
     [SpanCategory.WORKFLOW]: {
         color: "#586673",
         bgColor: "#F5F7FA",
-        icon: TreeStructure,
+        icon: TreeStructureIcon,
     },
     [SpanCategory.CHAIN]: {
         bgColor: "#E6F4FF",
@@ -466,7 +641,7 @@ export const spanTypeStyles = {
     [SpanCategory.TASK]: {
         bgColor: "#EAEFF5",
         color: "#586673",
-        icon: TreeStructure,
+        icon: TreeStructureIcon,
     },
     [SpanCategory.TOOL]: {
         bgColor: "#F9F0FF",
@@ -506,6 +681,6 @@ export const spanTypeStyles = {
     [SpanCategory.UNDEFINED]: {
         bgColor: "#F5F7FA",
         color: "#586673",
-        icon: TreeStructure,
+        icon: TreeStructureIcon,
     },
 }
