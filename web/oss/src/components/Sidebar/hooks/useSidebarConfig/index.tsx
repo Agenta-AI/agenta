@@ -51,7 +51,13 @@ export const useSidebarConfig = () => {
             title: "Observability",
             link: `${projectURL}/observability`,
             icon: <ChartLineUp size={16} />,
-            divider: appId || recentlyVisitedAppId ? true : false,
+        },
+        {
+            key: "project-evaluations-link",
+            title: "Evaluations",
+            link: `${projectURL}/evaluations`,
+            isHidden: !isDemo(),
+            icon: <ChartDonut size={16} />,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,

@@ -20,7 +20,11 @@ interface EvaluatorsData<Preview extends boolean> {
 }
 
 const useFetchEvaluatorsData = <Preview extends boolean = false>(
-    {preview, queries}: {preview?: Preview; queries?: {is_human: boolean}} = {
+    {
+        preview,
+        queries,
+        appId,
+    }: {preview?: Preview; queries?: {is_human: boolean}; appId?: string | null} = {
         preview: false as Preview,
     },
 ): EvaluatorsData<Preview> => {
@@ -40,6 +44,7 @@ const useFetchEvaluatorsData = <Preview extends boolean = false>(
             setEvaluatorConfigs(data)
         },
         preview,
+        appId,
     })
 
     const refetchAll = useCallback(async () => {

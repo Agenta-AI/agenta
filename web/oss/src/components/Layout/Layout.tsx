@@ -131,6 +131,7 @@ const AppWithVariants = memo(
                                     className={clsx(classes.content, {
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
                                             isPlayground,
+                                        "flex flex-col min-h-0 grow": isHumanEval,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>

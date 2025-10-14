@@ -23,17 +23,30 @@ interface VariantNameCellProps {
     revisionId?: string
     showBadges?: boolean
     showStable?: boolean
+    revision?: Rev
+    revisionName?: string | null
 }
 
 const VariantNameCell = memo(
-    ({revisionId, showBadges = false, showStable = false}: VariantNameCellProps) => {
-        // Resolve revision and derive stable keys; keep hooks unconditional
-        const rev = useAtomValue(variantByRevisionIdAtomFamily(revisionId || "")) as Rev
+    ({
+        revisionId,
+        revision,
+        revisionName,
+        showBadges = false,
+        showStable = false,
+    }: VariantNameCellProps) => {
+        const resolvedRevision = useAtomValue(
+            variantByRevisionIdAtomFamily(revisionId || (revision?.id ?? "")),
+        ) as Rev
 
+        const rev = revision ?? resolvedRevision
         const variantId = (rev && rev.variantId) || ""
-        const name = useAtomValue(variantDisplayNameByIdAtomFamily(variantId))
+
+        const nameFromStore = useAtomValue(variantDisplayNameByIdAtomFamily(variantId))
         const latestIdForVariant = useAtomValue(latestAppRevisionIdAtom)
-        const deployedIn = useAtomValue(revisionDeploymentAtomFamily((rev && rev.id) || ""))
+        const deployedInFromStore = useAtomValue(
+            revisionDeploymentAtomFamily((rev && rev.id) || ""),
+        )
 
         if (!rev) {
             return (
@@ -43,17 +56,32 @@ const VariantNameCell = memo(
             )
         }
 
-        const isLatestRevision = rev.id === latestIdForVariant
+        const resolvedName =
+            (nameFromStore && nameFromStore !== "-" ? nameFromStore : null) ||
+            revisionName ||
+            (rev as any)?.variantName ||
+            "-"
+
+        const deployedIn =
+            deployedInFromStore && deployedInFromStore.length > 0
+                ? deployedInFromStore
+                : ((rev as any)?.deployedIn as Variant["deployedIn"]) || []
+
+        const isLatestRevision =
+            typeof (rev as any)?.isLatestRevision === "boolean"
+                ? (rev as any).isLatestRevision
+                : rev.id === latestIdForVariant
+
         const variantMin: Pick<Variant, "deployedIn" | "isLatestRevision" | "id"> = {
             id: rev.id,
-            deployedIn: deployedIn || [],
+            deployedIn,
             isLatestRevision,
         }
 
         return (
             <VariantDetailsWithStatus
                 variant={variantMin}
-                variantName={name}
+                variantName={resolvedName}
                 revision={rev.revision ?? rev.revisionNumber}
                 showBadges={showBadges}
                 showRevisionAsTag

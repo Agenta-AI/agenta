@@ -18,17 +18,43 @@ const VariantDropdown = dynamic(() => import("../../Dropdown/VariantDropdown"), 
 
 const store = getDefaultStore()
 
-const CreatedByCell = memo(({record}: {record: EnhancedVariant}) => (
-    <UserAvatarTag variantId={record.id} />
-))
+const CreatedByCell = memo(({record}: {record: EnhancedVariant}) => {
+    const fallbackName =
+        [
+            (record as any)?.modifiedByDisplayName,
+            (record as any)?.modifiedBy,
+            (record as any)?.modifiedById,
+            (record as any)?.createdByDisplayName,
+            (record as any)?.createdBy,
+            (record as any)?.createdById,
+        ].find((value) => typeof value === "string" && value.trim().length > 0) ?? undefined
+
+    return (
+        <UserAvatarTag
+            variantId={record.id}
+            nameOverride={fallbackName}
+            modifiedBy={fallbackName}
+        />
+    )
+})
 
 const CreatedOnCell = memo(({record}: {record: EnhancedVariant}) => {
     return <div>{record.createdAt}</div>
 })
 
 const ModelCell = memo(({record}: {record: EnhancedVariant}) => {
-    // const model = useAtomValue(modelNameByRevisionIdAtomFamily(record.id))
-    const name = record.modelName || store.get(modelNameByRevisionIdAtomFamily(record.id))
+    const modelFromStore = store.get(modelNameByRevisionIdAtomFamily(record.id))
+    const inlineConfig = (record.parameters as any)?.prompt?.llm_config || record.parameters || {}
+    const inlineModel =
+        (record.modelName as string | undefined) ||
+        (inlineConfig && typeof inlineConfig === "object"
+            ? (inlineConfig as any)?.model
+            : undefined)
+
+    const name = [modelFromStore, inlineModel].find(
+        (value) => typeof value === "string" && value.trim().length > 0 && value !== "-",
+    )
+
     return <div>{name || "-"}</div>
 })
 
@@ -115,6 +141,8 @@ export const getColumns = ({
             render: (_, record) => (
                 <VariantNameCell
                     revisionId={record.id}
+                    revision={record}
+                    revisionName={record.variantName ?? record.name ?? null}
                     showBadges={showEnvBadges}
                     // Avoid showing draft tag for selection tables when requested
                     // (uses stable name display)
