@@ -15,10 +15,17 @@ import {
     TimerIcon,
     PlusCircleIcon,
     WarningOctagonIcon,
+    PencilIcon,
 } from "@phosphor-icons/react"
 import {SpanCategory} from "@/oss/services/tracing/types"
 import {FilterMenuNode} from "@/oss/components/Filters/types"
-import {STRING_EQU_AND_CONTAINS_OPS, STRING_SEARCH_OPS, NUM_OPS, STRING_EQU_OPS} from "./utils"
+import {
+    STRING_EQU_AND_CONTAINS_OPS,
+    STRING_SEARCH_OPS,
+    NUM_OPS,
+    STRING_EQU_OPS,
+    COLLECTION_MEMBERSHIP_OPS,
+} from "./utils"
 
 export const FILTER_COLUMNS: FilterMenuNode[] = [
     {
@@ -56,7 +63,7 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
         kind: "leaf",
         label: "Input Key",
         icon: ArrowBendRightDownIcon,
-        field: "io_keys",
+        field: "input_keys",
         type: "string",
         value: "ag.data.inputs",
         operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
@@ -73,7 +80,7 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
         kind: "leaf",
         label: "Output Key",
         icon: ArrowBendRightUpIcon,
-        field: "io_keys",
+        field: "output_keys",
         type: "string",
         value: "ag.data.outputs",
         operatorOptions: STRING_EQU_AND_CONTAINS_OPS,
@@ -93,7 +100,8 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
         children: [
             {
                 kind: "leaf",
-                label: "Trace ID",
+                label: "ID",
+                displayLabel: "Trace ID",
                 field: "trace_id",
                 type: "string",
                 value: "trace_id",
@@ -105,7 +113,8 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
             },
             {
                 kind: "leaf",
-                label: "Trace Type",
+                label: "Type",
+                displayLabel: "Trace Type",
                 field: "trace_type",
                 type: "string",
                 value: "trace_type",
@@ -128,7 +137,8 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
         children: [
             {
                 kind: "leaf",
-                label: "Span ID",
+                label: "ID",
+                displayLabel: "Span ID",
                 field: "span_id",
                 type: "string",
                 value: "span_id",
@@ -140,7 +150,8 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
             },
             {
                 kind: "leaf",
-                label: "Span Type",
+                label: "Type",
+                displayLabel: "Span Type",
                 field: "span_type",
                 type: "string",
                 value: "span_type",
@@ -164,7 +175,8 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
             },
             {
                 kind: "leaf",
-                label: "Span Name",
+                label: "Name",
+                displayLabel: "Span Name",
                 field: "span_name",
                 type: "string",
                 value: "span_name",
@@ -413,12 +425,44 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
     },
     {
         kind: "group",
+        label: "Annotation",
+        icon: PencilIcon,
+        children: [
+            {
+                kind: "leaf",
+                label: "Has Annotation",
+                field: "has_annotation",
+                type: "string",
+                value: "has_annotation",
+                operatorOptions: COLLECTION_MEMBERSHIP_OPS,
+                valueInput: {
+                    kind: "text",
+                    placeholder: "Search or enter value",
+                },
+            },
+            {
+                kind: "leaf",
+                label: "Is Annotation",
+                field: "is_annotation",
+                type: "string",
+                value: "is_annotation",
+                operatorOptions: COLLECTION_MEMBERSHIP_OPS,
+                valueInput: {
+                    kind: "text",
+                    placeholder: "Search or enter value",
+                },
+            },
+        ],
+    },
+    {
+        kind: "group",
         label: "Status",
         icon: SpinnerIcon,
         children: [
             {
                 kind: "leaf",
-                label: "Status Code",
+                label: "Code",
+                displayLabel: "Status Code",
                 field: "status_code",
                 type: "string",
                 value: "status_code",
@@ -434,7 +478,8 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
             },
             {
                 kind: "leaf",
-                label: "Status Message",
+                label: "Message",
+                displayLabel: "Status Message",
                 field: "status_message",
                 type: "string",
                 value: "status_message",
@@ -572,37 +617,6 @@ export const FILTER_COLUMNS: FilterMenuNode[] = [
     // Tags -> my_tag + IS + blue
     // attributes + ag.tags.my_tag + IS + blue
     // {kind: "leaf", field: "tags", type: "exists", value: "tags", label: "Tags", icon: TagSimple},
-    // {
-    //     kind: "group",
-    //     label: "Annotation",
-    //     icon: PencilIcon,
-    //     children: [
-    //         {
-    //             kind: "leaf",
-    //             label: "Has Annotation",
-    //             field: "annotation",
-    //             type: "string",
-    //             value: "annotation",
-    //             operatorOptions: COLLECTION_MEMBERSHIP_OPS,
-    //             valueInput: {
-    //                 kind: "text",
-    //                 placeholder: "Search or enter value",
-    //             },
-    //         },
-    //         {
-    //             kind: "leaf",
-    //             label: "Is Annotation",
-    //             field: "annotation",
-    //             type: "string",
-    //             value: "annotation",
-    //             operatorOptions: COLLECTION_MEMBERSHIP_OPS,
-    //             valueInput: {
-    //                 kind: "text",
-    //                 placeholder: "Search or enter value",
-    //             },
-    //         },
-    //     ],
-    // },
     // {
     //     kind: "leaf",
     //     label: "Tags",

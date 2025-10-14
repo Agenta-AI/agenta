@@ -2,14 +2,13 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {Button, Table, TableColumnType, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {setTraceDrawerActiveSpanAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import {TracesWithAnnotations} from "@/oss/services/observability/types"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {useQueryParamState} from "@/oss/state/appState"
-import {useObservability} from "@/oss/state/newObservability"
+import {annotationEvaluatorSlugsAtom, useObservability} from "@/oss/state/newObservability"
 
 import {filterColumns} from "../../Filters/EditColumns/assets/helper"
 import ResizableTitle from "../../ResizableTitle"
@@ -19,6 +18,33 @@ import {getObservabilityColumns} from "./assets/getObservabilityColumns"
 const ObservabilityHeader = dynamic(() => import("./assets/ObservabilityHeader"), {ssr: false})
 const EmptyObservability = dynamic(() => import("./assets/EmptyObservability"), {ssr: false})
 const TestsetDrawer = dynamic(() => import("./drawer/TestsetDrawer/TestsetDrawer"), {ssr: false})
+
+const collectEvaluatorSlugsFromTraces = (traces: TraceSpanNode[]) => {
+    const slugs = new Set<string>()
+
+    const visit = (node?: TraceSpanNode) => {
+        if (!node) return
+
+        const metrics = (node as TraceSpanNode & {aggregatedEvaluatorMetrics?: Record<string, any>})
+            ?.aggregatedEvaluatorMetrics
+        if (metrics && typeof metrics === "object") {
+            Object.keys(metrics).forEach((slug) => {
+                if (slug) {
+                    slugs.add(slug)
+                }
+            })
+        }
+
+        const children = (node as TraceSpanNode & {children?: TraceSpanNode[]})?.children
+        if (Array.isArray(children)) {
+            children.forEach((child) => visit(child as TraceSpanNode))
+        }
+    }
+
+    traces.forEach((trace) => visit(trace))
+
+    return Array.from(slugs)
+}
 
 const ObservabilityDashboard = () => {
     const {
@@ -52,31 +78,26 @@ const ObservabilityDashboard = () => {
         ? (spanParamValue[0] ?? "")
         : ((spanParamValue as string | undefined) ?? "")
 
+    const annotationEvaluatorSlugs = useAtomValue(annotationEvaluatorSlugsAtom)
+
+    const traceEvaluatorSlugs = useMemo(() => collectEvaluatorSlugsFromTraces(traces), [traces])
+
     const evaluatorSlugs = useMemo(() => {
-        const slugs = new Set<string>()
+        if (!annotationEvaluatorSlugs.length && !traceEvaluatorSlugs.length) return []
 
-        const visit = (node?: TraceSpanNode) => {
-            if (!node) return
+        const present = new Set(traceEvaluatorSlugs)
+        const ordered: string[] = []
 
-            const metrics = (node as any)?.aggregatedEvaluatorMetrics as
-                | Record<string, unknown>
-                | undefined
-
-            if (metrics) {
-                Object.keys(metrics).forEach((slug) => {
-                    if (slug) {
-                        slugs.add(slug)
-                    }
-                })
+        annotationEvaluatorSlugs.forEach((slug) => {
+            if (present.has(slug)) {
+                ordered.push(slug)
+                present.delete(slug)
             }
+        })
 
-            node.children?.forEach((child) => visit(child as TraceSpanNode))
-        }
-
-        traces.forEach((trace) => visit(trace as TraceSpanNode))
-
-        return Array.from(slugs)
-    }, [traces])
+        const remaining = Array.from(present).sort()
+        return [...ordered, ...remaining]
+    }, [annotationEvaluatorSlugs, traceEvaluatorSlugs])
 
     const initialColumns = useMemo(
         () => getObservabilityColumns({evaluatorSlugs}),
@@ -151,7 +172,7 @@ const ObservabilityDashboard = () => {
         return filterColumns(columns, editColumns).map((col) => ({
             ...col,
             width: col.width || 200,
-            onHeaderCell: (column: TableColumnType<TracesWithAnnotations[]>) => ({
+            onHeaderCell: (column: TableColumnType<TraceSpanNode[]>) => ({
                 width: column.width,
                 onResize: handleResize(column.key?.toString()!),
             }),

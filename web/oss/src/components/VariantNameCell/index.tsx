@@ -39,7 +39,7 @@ const VariantNameCell = memo(
             variantByRevisionIdAtomFamily(revisionId || (revision?.id ?? "")),
         ) as Rev
 
-        const rev = revision ?? resolvedRevision
+        const rev = resolvedRevision ?? revision
         const variantId = (rev && rev.variantId) || ""
 
         const nameFromStore = useAtomValue(variantDisplayNameByIdAtomFamily(variantId))
