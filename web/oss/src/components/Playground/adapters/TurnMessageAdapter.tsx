@@ -307,7 +307,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
         if (placeholder) return placeholder
         return kind === "user"
             ? "Type your message…"
-            : "Assistant response will appear below after run."
+            : "Enter tool call result here and hit run"
     }, [placeholder, kind])
 
     // TODO: IMPROVE THIS
