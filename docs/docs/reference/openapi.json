@@ -12706,10 +12706,6 @@
       },
       "NewEvaluation": {
         "properties": {
-          "app_id": {
-            "type": "string",
-            "title": "App Id"
-          },
           "revisions_ids": {
             "items": {
               "type": "string"
@@ -12744,15 +12740,11 @@
           }
         },
         "type": "object",
-        "required": ["app_id", "revisions_ids", "evaluators_configs", "testset_id", "rate_limit"],
+        "required": ["revisions_ids", "evaluators_configs", "testset_id", "rate_limit"],
         "title": "NewEvaluation"
       },
       "NewEvaluatorConfig": {
         "properties": {
-          "app_id": {
-            "type": "string",
-            "title": "App Id"
-          },
           "name": {
             "type": "string",
             "title": "Name"
@@ -12768,7 +12760,7 @@
           }
         },
         "type": "object",
-        "required": ["app_id", "name", "evaluator_key", "settings_values"],
+        "required": ["name", "evaluator_key", "settings_values"],
         "title": "NewEvaluatorConfig"
       },
       "NewHumanEvaluation": {

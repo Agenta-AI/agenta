@@ -1,8 +1,10 @@
-import {useMemo, useEffect} from "react"
+import {useEffect, useMemo} from "react"
 
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
+import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 
 import {revisionListAtom, variantByRevisionIdAtomFamily} from "../../state/atoms"
 
@@ -14,8 +16,17 @@ import {revisionListAtom, variantByRevisionIdAtomFamily} from "../../state/atoms
 export function useVariantPrompts(variantId: string | undefined): {
     promptIds: string[]
     hasPrompts: boolean
+    variantExists: boolean
+    debug: {
+        revisionCount: number
+        promptCount: number
+        variantId?: string
+    }
 } {
     const revisions = useAtomValue(revisionListAtom)
+    const revisionCount = revisions?.length ?? 0
+    const spec = useAtomValue(appSchemaAtom)
+    const routePath = useAtomValue(appUriInfoAtom)?.routePath
 
     // No playground clone needed: prompts are stored per-revision locally
     useEffect(() => {
@@ -26,6 +37,11 @@ export function useVariantPrompts(variantId: string | undefined): {
             }
         }
     }, [variantId, revisions])
+
+    const variantAtom = useMemo(() => {
+        if (!variantId) return atom(null)
+        return variantByRevisionIdAtomFamily(variantId)
+    }, [variantId])
 
     const variantPromptIdsAtom = useMemo(() => {
         if (!variantId) return atom<string[]>([])
@@ -52,11 +68,42 @@ export function useVariantPrompts(variantId: string | undefined): {
         })
     }, [variantId])
 
-    // Subscribe only to the prompt IDs, not the entire variant
+    const variant = useAtomValue(variantAtom)
     const promptIds = useAtomValue(variantPromptIdsAtom)
+    const setPrompts = useSetAtom(variantId ? promptsAtomFamily(variantId) : atom([]))
+
+    useEffect(() => {
+        if (!variantId || !variant || !spec) return
+        if (promptIds.length > 0) return
+        const derived = derivePromptsFromSpec(variant as any, spec as any, routePath)
+        if (Array.isArray(derived) && derived.length > 0) {
+            setPrompts(derived as any)
+        }
+    }, [variantId, promptIds.length, variant, spec, routePath, setPrompts])
+
+    const debug = useMemo(
+        () => ({
+            revisionCount,
+            promptCount: promptIds.length,
+            variantId,
+        }),
+        [promptIds.length, revisionCount, variantId],
+    )
+
+    useEffect(() => {
+        if (process.env.NODE_ENV !== "production") {
+            console.info("[useVariantPrompts]", {
+                variantId,
+                variantExists: Boolean(variant),
+                ...debug,
+            })
+        }
+    }, [variantId, variant, debug])
 
     return {
         promptIds,
         hasPrompts: promptIds.length > 0,
+        variantExists: Boolean(variant),
+        debug,
     }
 }
