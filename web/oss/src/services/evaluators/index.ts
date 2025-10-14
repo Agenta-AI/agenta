@@ -64,12 +64,23 @@ export const fetchAllEvaluators = async () => {
 }
 
 // Evaluator Configs
-export const fetchAllEvaluatorConfigs = async (appId: string) => {
+export const fetchAllEvaluatorConfigs = async (
+    appId?: string | null,
+    projectIdOverride?: string | null,
+) => {
     const tagColors = getTagColors()
-    const {projectId} = getProjectValues()
+    const {projectId: projectIdFromStore} = getProjectValues()
+    const projectId = projectIdOverride ?? projectIdFromStore
 
-    const response = await axios.get(`/evaluators/configs?project_id=${projectId}`, {
-        params: {app_id: appId},
+    if (!projectId) {
+        return [] as EvaluatorConfig[]
+    }
+
+    const response = await axios.get("/evaluators/configs", {
+        params: {
+            project_id: projectId,
+            ...(appId ? {app_id: appId} : {}),
+        },
     })
     const evaluatorConfigs = (response.data || []).map((item: EvaluatorConfig) => ({
         ...item,
@@ -80,12 +91,15 @@ export const fetchAllEvaluatorConfigs = async (appId: string) => {
 }
 
 export type CreateEvaluationConfigData = Omit<EvaluatorConfig, "id" | "created_at">
-export const createEvaluatorConfig = async (appId: string, config: CreateEvaluationConfigData) => {
+export const createEvaluatorConfig = async (
+    _appId: string | null | undefined,
+    config: CreateEvaluationConfigData,
+) => {
     const {projectId} = getProjectValues()
+    void _appId
 
     return axios.post(`/evaluators/configs?project_id=${projectId}`, {
         ...config,
-        app_id: appId,
     })
 }
 

@@ -10,6 +10,11 @@ import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {
+    projectScopedVariantsAtom,
+    projectVariantConfigQueryKey,
+    projectVariantReferenceCountAtom,
+} from "@/oss/state/projectVariantConfig"
+import {
     appSchemaAtom,
     appUriInfoAtom,
     variantsAtom,
@@ -29,6 +34,7 @@ export interface VariantsBundle {
     uriMap: Record<string, {runtimePrefix: string; routePath?: string} | undefined>
     isLoading: boolean
     refetch: () => Promise<void>
+    revisions: EnhancedVariant[]
 }
 
 export interface UseStatelessVariantsOptions {
@@ -58,6 +64,11 @@ function useStatelessVariants(options: UseStatelessVariantsOptions = {}): Varian
         | null
         | undefined
     const enabled = !!routerAppId && routerAppId !== null && !!projectId
+    const isProjectScope = !enabled
+    const projectReferenceCount = useAtomValue(projectVariantReferenceCountAtom, {
+        store: rootStore,
+    })
+    const projectScoped = useAtomValue(projectScopedVariantsAtom, {store: rootStore})
 
     // If there are no variants and we're not actively loading variants, do not block on revisions
     const noVariants = useAtomValue(variantsAtom, {store: rootStore}).length === 0
@@ -70,8 +81,20 @@ function useStatelessVariants(options: UseStatelessVariantsOptions = {}): Varian
     const lightLoadingState = variantsLoadingEff || effectiveRevisionsPending || enhancedPendingEff
 
     const refetch = useGlobalVariantsRefetch()
-
+    const projectRefetch = useProjectScopedVariantsRefetch()
     const vars = useAtomValue(sortedEnhancedRevisionsAtom, {store: rootStore})
+
+    if (isProjectScope || projectReferenceCount > 0) {
+        return {
+            variants: projectScoped.variants,
+            revisionMap: projectScoped.revisionMap,
+            specMap: projectScoped.specMap,
+            uriMap: projectScoped.uriMap,
+            isLoading: projectScoped.isLoading,
+            revisions: projectScoped.revisions,
+            refetch: projectRefetch,
+        }
+    }
 
     // Synthesize per-variant maps from app-level atoms to preserve API shape
     const variantIds = Array.from(new Set(vars.map((v: EnhancedVariant) => v.variantId)))
@@ -103,4 +126,9 @@ export default useStatelessVariants
 export const useGlobalVariantsRefetch = () => {
     const queryClient = useQueryClient()
     return () => queryClient.invalidateQueries({queryKey: ["variants"]})
+}
+
+export const useProjectScopedVariantsRefetch = () => {
+    const queryClient = useQueryClient()
+    return () => queryClient.invalidateQueries({queryKey: [projectVariantConfigQueryKey]})
 }

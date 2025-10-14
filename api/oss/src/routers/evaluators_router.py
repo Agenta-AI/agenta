@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
@@ -102,8 +102,8 @@ async def evaluator_run(
 
 @router.get("/configs/", response_model=List[EvaluatorConfig])
 async def get_evaluator_configs(
-    app_id: str,
     request: Request,
+    app_id: Optional[str] = None,
 ):
     """Endpoint to fetch evaluator configurations for a specific app.
 
@@ -113,25 +113,33 @@ async def get_evaluator_configs(
     Returns:
         List[EvaluatorConfigDB]: A list of evaluator configuration objects.
     """
+    project_id: Optional[str] = None
+    if app_id:
+        app_db = await db_manager.fetch_app_by_id(app_id=app_id)
+        project_id = str(app_db.project_id)
+    else:
+        project_id = getattr(request.state, "project_id", None)
+        if project_id is None:
+            raise HTTPException(status_code=400, detail="project_id is required")
 
-    app_db = await db_manager.fetch_app_by_id(app_id=app_id)
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app_db.project_id),
+            project_id=project_id,
             permission=Permission.VIEW_EVALUATION,
         )
         if not has_permission:
-            error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+            error_msg = (
+                "You do not have permission to perform this action. "
+                "Please contact your organization admin."
+            )
             log.error(error_msg)
             return JSONResponse(
                 {"detail": error_msg},
                 status_code=403,
             )
 
-    evaluators_configs = await evaluator_manager.get_evaluators_configs(
-        str(app_db.project_id)
-    )
+    evaluators_configs = await evaluator_manager.get_evaluators_configs(project_id)
     return evaluators_configs
 
 
@@ -181,14 +189,10 @@ async def create_new_evaluator_config(
         EvaluatorConfigDB: Evaluator configuration api model.
     """
 
-    app_db = await db_manager.get_app_instance_by_id(
-        project_id=request.state.project_id,
-        app_id=payload.app_id,
-    )
     if is_ee():
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
-            project_id=str(app_db.project_id),
+            project_id=request.state.project_id,
             permission=Permission.CREATE_EVALUATION,
         )
         if not has_permission:
@@ -200,8 +204,7 @@ async def create_new_evaluator_config(
             )
 
     evaluator_config = await evaluator_manager.create_evaluator_config(
-        project_id=str(app_db.project_id),
-        app_name=app_db.app_name,
+        project_id=request.state.project_id,
         name=payload.name,
         evaluator_key=payload.evaluator_key,
         settings_values=payload.settings_values,

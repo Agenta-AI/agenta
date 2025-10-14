@@ -103,6 +103,7 @@ export interface ListAppsItem {
     app_id: string
     app_name: string
     app_type?: string
+    created_at?: string
     updated_at: string
 }
 

@@ -81,21 +81,24 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
         }
     }, [variantId, promptId, propertyIds])
 
-    const displayModel = resolvedModelName ?? rawModelName ?? "Choose a model"
+    const displayModel = resolvedModelName ?? "Choose a model"
     const canOpen = (propertyIds?.length || 0) > 0
-
-    const handleOpenChange = useCallback(
-        (open: boolean) => {
-            setIsModalOpen(open)
-        },
-        [variantId, promptId, viewOnly, propertyIds, modelPropertyId, resolvedModelName],
-    )
 
     return (
         <Popover
             {...popoverProps} // Pass through Popover props
-            open={canOpen ? isModalOpen : false}
-            onOpenChange={canOpen ? handleOpenChange : undefined}
+            open={canOpen && !viewOnly ? isModalOpen : false}
+            onOpenChange={
+                canOpen
+                    ? (open) => {
+                          if (viewOnly) {
+                              setIsModalOpen(false)
+                              return
+                          }
+                          setIsModalOpen(open)
+                      }
+                    : undefined
+            }
             classNames={{
                 root: "w-full max-w-[300px]",
             }}
@@ -119,7 +122,7 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
             }
             className={className}
         >
-            <Button onClick={handleModalOpen} disabled={!canOpen}>
+            <Button onClick={handleModalOpen} disabled={!canOpen || viewOnly}>
                 {displayModel} <CaretDown size={14} />
             </Button>
         </Popover>
