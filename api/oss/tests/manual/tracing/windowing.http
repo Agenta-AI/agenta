@@ -1,6 +1,6 @@
 @host = http://localhost
 @base_url = {{host}}/api/preview/tracing
-@api_key = UGZaImq8.a94d2c99eab827b1cd27678358016a61f2e92c2cdea8f33b1cf3cc2afb7065e8
+@api_key = ...
 
 
 ###

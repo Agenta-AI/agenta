@@ -1,0 +1,131 @@
+@auth_key = {{$dotenv.AGENTA_AUTH_KEY}} || change-me
+@api_url = {{$dotenv AGENTA_API_URL}}
+@api_key = {{$dotenv AGENTA_API_KEY}}
+
+
+###
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{auth_key}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+# @authorization = {{create_account.response.body.scopes[0].credentials}}
+@authorization = ApiKey {{api_key}}
+
+###
+# @name list_queries
+POST {{api_url}}/preview/simple/queries/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# @name create_query
+POST {{api_url}}/preview/simple/queries/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "query": {
+        "slug": "{{$guid}}",
+        "name": "Test Query",
+        "description": "This is a test query",
+        "tags": {
+            "my_key": "my_value"
+        },
+        "data": {
+            "filtering": {
+                "conditions": [
+                    {
+                        "field": "attributes",
+                        "key": "ag.type.trace",
+                        "operator": "is",
+                        "value": "invocation"
+                    }
+                ]
+            }
+        }
+    }
+}
+
+###
+# @name fetch_query_revision
+POST {{api_url}}/preview/queries/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "query_ref": {
+        "id": "{{create_query.response.body.query.id}}"
+    }
+}
+
+###
+# @name list_evaluators
+POST {{api_url}}/preview/simple/evaluators/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# @name fetch_evaluator_revision
+POST {{api_url}}/preview/evaluators/revisions/retrieve
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluator_ref": {
+        "id": "{{list_evaluators.response.body.evaluators[2].id}}"
+    }
+}
+
+###
+# @name list_evaluations
+POST {{api_url}}/preview/simple/evaluations/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{}
+
+###
+# @name create_evaluation
+POST {{api_url}}/preview/simple/evaluations/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+    "evaluation": {
+        "name": "Test JIT Evaluation",
+        "description": "This is a test jit evaluation",
+        "tags": {
+            "my_key": "my_value"
+        },
+        "flags": {
+            "is_live": true
+        },
+        "data": {
+            "query_steps": [
+                "{{fetch_query_revision.response.body.query_revision.id}}"
+            ],
+            "evaluator_steps": [
+                "{{fetch_evaluator_revision.response.body.evaluator_revision.evaluator_id}}"  
+            ]
+        }
+    }
+}
+
+###
+# @name stop_evaluation
+POST {{api_url}}/preview/simple/evaluations/{{create_evaluation.response.body.evaluation.id}}/stop
+Content-Type: application/json
+Authorization: {{authorization}}
+
+###
+# @name start_evaluation
+POST {{api_url}}/preview/simple/evaluations/{{create_evaluation.response.body.evaluation.id}}/start
+Content-Type: application/json
+Authorization: {{authorization}}

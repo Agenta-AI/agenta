@@ -3,6 +3,12 @@ repos:
     hooks:
       - id: gitleaks-pre-commit
         name: gitleaks git (staged only)
-        entry: echo "Aloha"
+        entry: bash -c 'gitleaks --config .gitleaks.toml --exit-code 1 --verbose git --staged'
         language: system
+        pass_filenames: false
+      - id: gitleaks-pre-push
+        name: gitleaks git (pre-push, scan diff)
+        entry: bash -c 'gitleaks --config .gitleaks.toml --exit-code 1 --verbose git --log-opts "$(git merge-base HEAD "origin/$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || git merge-base HEAD origin/main)..HEAD"'
+        language: system
+        stages: [pre-push]
         pass_filenames: false

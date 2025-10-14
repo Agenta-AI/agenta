@@ -1,0 +1,32 @@
+title = "Agenta Gitleaks Configuration"
+version = 2
+
+[extend]
+useDefault = true
+
+[allowlist]
+paths = [
+  # ---------------------------------------------------------------- PUBLIC DOCS
+  '''^website/docs/reference/api/.*\.mdx''',
+  '''^core/docs/docs/reference/api/.*\.mdx''',
+  '''^docs/docs/reference/api/.*\.mdx''',
+  '''^docs/.docusaurus/.*''',
+  # -------------------------------------------------------------- WEB ARTIFACTS
+  '''^.*/\.pnpm-store/.*''',
+  '''^.*/public/__env\.js$''',
+  '''^.*/\.next/.*''',
+  # -------------------------------------------------------------- ALL ENV FILES
+  '''^.*\.env.*$''',
+  # ----------------------------------------------------------------------------
+]
+regexes = [
+  # ------------------------------------------------------------ FALSE POSITIVES
+  '''is_completion=True''',
+  '''YOUR_API_KEY''',
+  '''_SECRET_KEY''',
+  # ----------------------------------------------------------------------------
+]
+
+# USEFUL GITLEAKS COMMANDS
+# gitleaks --config .gitleaks.toml --exit-code 1 --verbose git
+# gitleaks --config .gitleaks.toml --exit-code 1 --verbose detect --no-git
