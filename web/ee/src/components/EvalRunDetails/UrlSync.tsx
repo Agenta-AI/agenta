@@ -3,10 +3,11 @@ import {useEffect} from "react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {useRunId} from "@/oss/contexts/RunIdContext"
+
 import {evalAtomStore} from "../../lib/hooks/useEvaluationRunData/assets/atoms/store"
 
 import {EvalRunUrlState, runViewTypeAtom, urlStateAtom} from "./state/urlState"
-import {useRunId} from "@/oss/contexts/RunIdContext"
 
 const UrlSync = ({evalType}: {evalType: "auto" | "human"}) => {
     const router = useRouter()

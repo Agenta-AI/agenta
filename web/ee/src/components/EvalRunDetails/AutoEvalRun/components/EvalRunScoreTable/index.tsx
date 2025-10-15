@@ -61,7 +61,7 @@ const DURATION_METRIC_KEY = INVOCATION_METRIC_KEYS[1]
 const TOKEN_METRIC_KEY = INVOCATION_METRIC_KEYS[2]
 const ERRORS_METRIC_KEY = INVOCATION_METRIC_KEYS[3]
 
-const INVOCATION_METRIC_COLUMNS: Array<{key: string; label: string}> = [
+const INVOCATION_METRIC_COLUMNS: {key: string; label: string}[] = [
     {key: COST_METRIC_KEY, label: "Cost (Total)"},
     {key: DURATION_METRIC_KEY, label: "Duration (Total)"},
     {key: TOKEN_METRIC_KEY, label: "Total tokens"},

@@ -12,7 +12,6 @@ import EditColumns from "@/oss/components/Filters/EditColumns"
 import {formatColumnTitle} from "@/oss/components/Filters/EditColumns/assets/helper"
 import {formatMetricValue} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
 import {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
-import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {formatDate24, formatDay} from "@/oss/lib/helpers/dateTimeHelper"
@@ -27,10 +26,9 @@ import {EvaluationStatus} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
 
 import {statusMapper} from "../../../evaluations/cellRenderers/cellRenderers"
+import {buildEvaluationNavigationUrl} from "../../utils"
 import {useStyles} from "../assets/styles"
-import EvaluatorsModal from "../EvaluatorsModal/EvaluatorsModal"
 
-import {buildAppScopedUrl, buildEvaluationNavigationUrl} from "../../utils"
 import {AutoEvaluationHeaderProps} from "./types"
 
 const isLegacyEvaluation = (evaluation: any): boolean => "aggregated_results" in evaluation
@@ -78,11 +76,6 @@ const AutoEvaluationHeader = ({
     // local states
     const [searchTerm, setSearchTerm] = useState("")
     const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
-    const [current, setCurrent] = useState(0)
-    const [isConfigEvaluatorModalOpen, setIsConfigEvaluatorModalOpen] = useQueryParam(
-        "configureEvaluatorModal",
-        "",
-    )
 
     const onExport = useCallback(() => {
         try {
@@ -534,32 +527,14 @@ const AutoEvaluationHeader = ({
                                         icon={<Gauge size={14} className="mt-0.5" />}
                                         className={classes.button}
                                         onClick={() => {
-                                            setIsConfigEvaluatorModalOpen("open")
-                                            setCurrent(0)
+                                            router.push(`${projectURL}/evaluators?tab=automatic`)
                                         }}
                                     >
-                                        Configure evaluators
+                                        Configure evaluator
                                     </Button>
                                 </>
                             ) : null}
                         </Space>
-                        {/* <div className="flex items-center gap-2">
-                            <Pagination
-                                simple
-                                total={evaluations.length}
-                                current={pagination.page}
-                                pageSize={pagination.size}
-                                onChange={(p, s) => setPagination({page: p, size: s})}
-                                className="flex items-center xl:hidden shrink-0 [&_.ant-pagination-options]:hidden lg:[&_.ant-pagination-options]:block [&_.ant-pagination-options]:!ml-2"
-                            />
-                            <Pagination
-                                total={evaluations.length}
-                                current={pagination.page}
-                                pageSize={pagination.size}
-                                onChange={(p, s) => setPagination({page: p, size: s})}
-                                className="hidden xl:flex xl:items-center"
-                            />
-                        </div> */}
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -620,13 +595,6 @@ const AutoEvaluationHeader = ({
                             />
                         </div>
                     </div>
-
-                    <EvaluatorsModal
-                        open={isConfigEvaluatorModalOpen === "open"}
-                        onCancel={() => setIsConfigEvaluatorModalOpen("")}
-                        current={current}
-                        setCurrent={setCurrent}
-                    />
                 </>
             )}
 

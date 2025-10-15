@@ -10,6 +10,27 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
+### [Filtering Traces by Annotation](/changelog/filtering-traces-by-annotation)
+
+_14 October 2025_
+
+**v0.58.0**
+<Image img={require('/static/images/changelog/changelog-annotation-filter.png')} alt="Annotation filtering interface" style={{display: 'block', margin: '20px auto', textAlign: 'center'}} />
+
+
+You can now filter and search traces based on their annotations. This helps you find traces with low scores or bad feedback quickly.
+
+We rebuilt the filtering system in observability with a simpler dropdown and more options. You can now filter by span status, input keys, app or environment references, and any key within your span.
+
+The new annotation filtering lets you find:
+- Spans evaluated by a specific evaluator
+- Spans with user feedback like `success=True`
+
+
+This enables powerful workflows: [capture user feedback](/tutorials/cookbooks/capture-user-feedback) from your app, filter to find traces with bad feedback, add them to test sets, and improve your prompts based on real user data.
+
+---
+
 ### [New Evaluation Results Dashboard](/changelog/new-evaluation-results-dashboard)
 
 _26 September 2025_

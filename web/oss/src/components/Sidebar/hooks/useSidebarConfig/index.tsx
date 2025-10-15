@@ -14,6 +14,7 @@ import {
     Rocket,
     CloudArrowUp,
     ChatCircle,
+    Gauge,
 } from "@phosphor-icons/react"
 
 import {useAppId} from "@/oss/hooks/useAppId"
@@ -51,6 +52,12 @@ export const useSidebarConfig = () => {
             title: "Observability",
             link: `${projectURL}/observability`,
             icon: <ChartLineUp size={16} />,
+        },
+        {
+            key: "project-evaluators-link",
+            title: "Evaluators",
+            link: `${projectURL}/evaluators`,
+            icon: <Gauge size={16} />,
         },
         {
             key: "project-evaluations-link",

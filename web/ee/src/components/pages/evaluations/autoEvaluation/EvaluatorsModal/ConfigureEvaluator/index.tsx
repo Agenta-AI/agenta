@@ -1,19 +1,18 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {CloseOutlined} from "@ant-design/icons"
-import {ArrowLeft, CaretDoubleRight} from "@phosphor-icons/react"
-import {Button, Flex, Form, Input, message, Space, Tooltip, Typography} from "antd"
+import {ArrowLeft} from "@phosphor-icons/react"
+import {Button, Flex, Form, Input, message, Space, Typography, Splitter, Divider} from "antd"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import {useAppId} from "@/oss/hooks/useAppId"
-import {isDemo} from "@/oss/lib/helpers/utils"
 import {Evaluator, EvaluatorConfig, JSSTheme, testset, Variant} from "@/oss/lib/Types"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
     updateEvaluatorConfig,
 } from "@/oss/services/evaluations/api"
+import {useAppList} from "@/oss/state/app"
 
 import AdvancedSettings from "./AdvancedSettings"
 import {DynamicFormField} from "./DynamicFormField"
@@ -23,6 +22,7 @@ const DebugSection: any = dynamic(
         import(
             "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection"
         ),
+    {ssr: false},
 )
 
 interface ConfigureEvaluatorProps {
@@ -48,8 +48,6 @@ interface ConfigureEvaluatorProps {
             testcase: Record<string, any> | null
         }>
     >
-    setDebugEvaluator: React.Dispatch<React.SetStateAction<boolean>>
-    debugEvaluator: boolean
     setSelectedTestset: React.Dispatch<React.SetStateAction<string>>
     selectedTestset: string
     appId?: string | null
@@ -74,13 +72,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         gap: theme.padding,
         height: "100%",
         width: "100%",
-        maxWidth: "100%",
-        overflow: "hidden",
         "& .ant-form-item": {
-            marginBottom: 0,
-        },
-        "& .ant-form-item-label": {
-            paddingBottom: theme.paddingXXS,
+            marginBottom: 10,
         },
     },
     formTitleText: {
@@ -107,14 +100,13 @@ const ConfigureEvaluator = ({
     cloneConfig,
     setCloneConfig,
     setSelectedTestcase,
-    debugEvaluator,
-    setDebugEvaluator,
     selectedTestset,
     setSelectedTestset,
     appId: appIdOverride,
 }: ConfigureEvaluatorProps) => {
     const routeAppId = useAppId()
-    const appId = appIdOverride ?? routeAppId
+    const apps = useAppList()
+    const appId = appIdOverride ?? routeAppId ?? apps?.[0].app_id
     const classes = useStyles()
     const [form] = Form.useForm()
     const [submitLoading, setSubmitLoading] = useState(false)
@@ -150,6 +142,7 @@ const ConfigureEvaluator = ({
                 evaluator_key: selectedEvaluator.key,
                 settings_values: settingsValues,
             }
+
             ;(editMode
                 ? updateEvaluatorConfig(editEvalEditValues?.id!, data)
                 : createEvaluatorConfig(appId, data)
@@ -174,85 +167,49 @@ const ConfigureEvaluator = ({
     }, [editMode, cloneConfig])
 
     return (
-        <div className="flex flex-col gap-6 h-full">
-            <div className="flex items-center justify-between">
-                <Space className={classes.headerText}>
-                    {editMode ? (
-                        <>
-                            <Button
-                                icon={<ArrowLeft size={14} />}
-                                className="flex items-center justify-center"
-                                onClick={() => {
-                                    setCurrent(0)
-                                    setEditMode(false)
-                                    setCloneConfig(false)
-                                    setEditEvalEditValues(null)
-                                }}
-                            />
-                            <Typography.Text>Configure evaluator</Typography.Text>
-                        </>
-                    ) : (
-                        <>
-                            <Button
-                                icon={<ArrowLeft size={14} />}
-                                className="flex items-center justify-center"
-                                onClick={() => {
-                                    setCurrent(1)
-                                    setEditMode(false)
-                                    setCloneConfig(false)
-                                    setEditEvalEditValues(null)
-                                }}
-                            />
-                            <Typography.Text>Step 2/2:</Typography.Text>
-                            <Typography.Text>Configure new evaluator</Typography.Text>
-                        </>
-                    )}
-                </Space>
+        <section className="flex flex-col w-full h-[calc(100vh-84px)] gap-2">
+            <div className="flex items-center justify-between border-0 border-b border-solid border-gray-200 py-2 px-4 sticky top-0 z-20 bg-white">
+                <div className="flex items-center gap-2">
+                    <Button
+                        icon={<ArrowLeft size={14} />}
+                        className="flex items-center justify-center"
+                        size="small"
+                        onClick={() => {
+                            setCurrent(0)
+                            setEditMode(false)
+                            setCloneConfig(false)
+                            setEditEvalEditValues(null)
+                        }}
+                    />
+                    <Typography.Text className={classes.title}>
+                        {editMode ? "Edit evaluator" : "Configure evaluator"}
+                    </Typography.Text>
+                </div>
 
-                <Button onClick={handleOnCancel} type="text" icon={<CloseOutlined />} />
+                <Flex gap={8} justify="end">
+                    <Button type="text" onClick={() => form.resetFields()}>
+                        Reset
+                    </Button>
+                    <Button type="primary" loading={submitLoading} onClick={form.submit}>
+                        Commit
+                    </Button>
+                </Flex>
             </div>
 
-            <Flex gap={16} className="h-full overflow-y-hidden w-full max-w-full">
-                <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-hidden">
+            <div className="flex gap-4 w-full h-full px-4 overflow-auto">
+                <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-0 h-full w-[50%]">
                     <Space direction="vertical">
                         <Flex justify="space-between">
                             <Typography.Text className={classes.title}>
                                 {selectedEvaluator.name}
                             </Typography.Text>
-
-                            <Tooltip
-                                title={
-                                    isDemo()
-                                        ? ""
-                                        : "Test evaluator feature available in Cloud/Enterprise editions only"
-                                }
-                                placement="bottom"
-                            >
-                                <Button
-                                    size="small"
-                                    onClick={() => setDebugEvaluator(!debugEvaluator)}
-                                    disabled={!isDemo()}
-                                >
-                                    {debugEvaluator ? (
-                                        <div className="flex items-center gap-2">
-                                            <CloseOutlined />
-                                            Test
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2">
-                                            Test
-                                            <CaretDoubleRight />
-                                        </div>
-                                    )}
-                                </Button>
-                            </Tooltip>
                         </Flex>
                         <Typography.Text type="secondary">
                             {selectedEvaluator.description}
                         </Typography.Text>
                     </Space>
 
-                    <div className="flex-1 overflow-y-hidden">
+                    <div>
                         <Form
                             requiredMark={false}
                             form={form}
@@ -261,27 +218,24 @@ const ConfigureEvaluator = ({
                             layout="vertical"
                             className={classes.formContainer}
                         >
-                            <Space direction="vertical" size={4}>
-                                <div className="flex gap-4">
-                                    <Form.Item
-                                        name="name"
-                                        label="Name"
-                                        rules={[
-                                            {required: true, message: "This field is required"},
-                                        ]}
-                                        className="flex-1"
-                                    >
-                                        <Input />
-                                    </Form.Item>
-                                </div>
-                            </Space>
+                            <div className="flex gap-4">
+                                <Form.Item
+                                    name="name"
+                                    label="Name"
+                                    rules={[
+                                        {
+                                            required: true,
+                                            message: "This field is required",
+                                        },
+                                    ]}
+                                    className="w-full"
+                                >
+                                    <Input />
+                                </Form.Item>
+                            </div>
 
                             {basicSettingsFields.length ? (
-                                <Space
-                                    direction="vertical"
-                                    size={4}
-                                    className="flex-1 overflow-y-auto w-full max-w-full"
-                                >
+                                <div className="h-full w-full max-w-full flex flex-col gap-2">
                                     <Typography.Text className={classes.formTitleText}>
                                         Parameters
                                     </Typography.Text>
@@ -293,36 +247,31 @@ const ConfigureEvaluator = ({
                                             name={["settings_values", field.key]}
                                         />
                                     ))}
-                                </Space>
+                                </div>
                             ) : (
                                 ""
                             )}
 
                             {advancedSettingsFields.length > 0 && (
-                                <AdvancedSettings
-                                    settings={advancedSettingsFields}
-                                    selectedTestcase={selectedTestcase}
-                                />
+                                <div className="h-fit">
+                                    <AdvancedSettings
+                                        settings={advancedSettingsFields}
+                                        selectedTestcase={selectedTestcase}
+                                    />
+                                </div>
                             )}
                         </Form>
                     </div>
-
-                    <Flex gap={8} justify="end">
-                        <Button type="text" onClick={() => form.resetFields()}>
-                            Reset
-                        </Button>
-                        <Button type="primary" loading={submitLoading} onClick={form.submit}>
-                            Save configuration
-                        </Button>
-                    </Flex>
                 </div>
+
+                <Divider type="vertical" className="h-full sticky" />
 
                 <DebugSection
                     selectedEvaluator={selectedEvaluator}
                     selectedTestcase={selectedTestcase}
                     selectedVariant={selectedVariant}
                     setTraceTree={setTraceTree}
-                    debugEvaluator={debugEvaluator}
+                    debugEvaluator={true}
                     form={form}
                     testsets={testsets}
                     traceTree={traceTree}
@@ -332,8 +281,8 @@ const ConfigureEvaluator = ({
                     selectedTestset={selectedTestset}
                     setSelectedTestset={setSelectedTestset}
                 />
-            </Flex>
-        </div>
+            </div>
+        </section>
     )
 }
 

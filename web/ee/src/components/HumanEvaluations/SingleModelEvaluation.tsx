@@ -13,15 +13,16 @@ import useEvaluations from "@/oss/lib/hooks/useEvaluations"
 import useRunMetricsMap from "@/oss/lib/hooks/useRunMetricsMap"
 import {useAppsData} from "@/oss/state/app"
 
-import SingleModelEvaluationHeader from "./assets/SingleModelEvaluationHeader"
-import {useStyles} from "./assets/styles"
-import {getColumns} from "./assets/utils"
-import {EvaluationRow} from "./types"
 import {
     buildAppScopedUrl,
     buildEvaluationNavigationUrl,
     extractEvaluationAppId,
 } from "../pages/evaluations/utils"
+
+import SingleModelEvaluationHeader from "./assets/SingleModelEvaluationHeader"
+import {useStyles} from "./assets/styles"
+import {getColumns} from "./assets/utils"
+import {EvaluationRow} from "./types"
 
 interface SingleModelEvaluationProps {
     viewType: "evaluation" | "overview"
@@ -64,7 +65,7 @@ const SingleModelEvaluation = ({viewType, scope = "app"}: SingleModelEvaluationP
 
     const knownAppIds = useMemo(() => {
         return new Set(
-            (availableApps as Array<{app_id?: string}>)
+            (availableApps as {app_id?: string}[])
                 .map((app) => app?.app_id)
                 .filter(Boolean) as string[],
         )

@@ -2,6 +2,7 @@ import {DrawerProps} from "antd"
 
 import {TooltipButtonProps} from "@/oss/components/Playground/assets/EnhancedButton"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 
 import {AnnotateDrawerSteps} from "./enum"
 
@@ -27,6 +28,9 @@ export interface AnnotateDrawerProps extends DrawerProps {
     traceSpanIds?: AnnotateDrawerIdsType
     showOnly?: ShowOnlyType
     evalSlugs?: string[]
+    initialStep?: AnnotateDrawerStepsType
+    createEvaluatorProps?: Partial<CreateEvaluatorProps>
+    closeOnLayoutClick?: boolean
 }
 
 export interface AnnotateDrawerTitleProps {
@@ -71,4 +75,13 @@ export interface SelectEvaluatorsProps {
 export interface CreateEvaluatorProps {
     setSteps?: React.Dispatch<React.SetStateAction<AnnotateDrawerStepsType>>
     setSelectedEvaluators?: React.Dispatch<React.SetStateAction<string[]>>
+    mode?: "create" | "edit"
+    evaluator?: EvaluatorPreviewDto & {
+        id?: string
+        flags?: Record<string, any>
+        meta?: Record<string, any>
+        tags?: Record<string, any>
+    }
+    onSuccess?: (slug: string) => void | Promise<void>
+    skipPostCreateStepChange?: boolean
 }

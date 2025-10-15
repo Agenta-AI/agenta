@@ -29,9 +29,10 @@ import {
     setProjectVariantReferencesAtom,
 } from "@/oss/state/projectVariantConfig"
 
+import {collectProjectVariantReferences} from "../usePreviewEvaluations/projectVariantConfigs"
+
 import {evalAtomStore, evaluationRunStateFamily, loadingStateAtom} from "./assets/atoms"
 import {buildRunIndex} from "./assets/helpers/buildRunIndex"
-import {collectProjectVariantReferences} from "../usePreviewEvaluations/projectVariantConfigs"
 
 const fetchLegacyScenariosData = async (
     evaluationId: string,

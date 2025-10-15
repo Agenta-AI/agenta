@@ -1,9 +1,9 @@
 import {RefObject, useEffect, useMemo} from "react"
-import dynamic from "next/dynamic"
 
 import {DownOutlined} from "@ant-design/icons"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
 import {useResizeObserver} from "usehooks-ts"
 
 import {useRunId} from "@/oss/contexts/RunIdContext"

@@ -43,7 +43,7 @@ const SingleModelEvaluation = dynamic(
     {ssr: false},
 )
 
-const {Title} = Typography
+const {Title, Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
@@ -66,7 +66,7 @@ const AppDetailsSection = memo(() => {
     return (
         <>
             <Space className="justify-between">
-                <Title className="!m-0">{currentApp?.app_name || ""}</Title>
+                <Text className="!m-0 text-[16px] font-medium">{currentApp?.app_name || ""}</Text>
 
                 <Dropdown
                     trigger={["click"]}

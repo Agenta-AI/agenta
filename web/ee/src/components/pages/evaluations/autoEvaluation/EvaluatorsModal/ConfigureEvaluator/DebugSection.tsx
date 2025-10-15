@@ -1,5 +1,5 @@
 // @ts-nocheck
-import {Dispatch, SetStateAction, useMemo, useRef, useState} from "react"
+import {Dispatch, SetStateAction, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     CheckCircleOutlined,
@@ -39,6 +39,7 @@ import {
     safeJson5Parse,
 } from "@/oss/lib/helpers/utils"
 import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
+import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
 import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
@@ -65,6 +66,7 @@ import {
     createEvaluatorRunExecution,
 } from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
+import {useAppsData} from "@/oss/state/app/hooks"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     stablePromptVariablesAtomFamily,
@@ -75,6 +77,7 @@ import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
+import {buildVariantFromRevision} from "./variantUtils"
 interface DebugSectionProps {
     selectedTestcase: {
         testcase: Record<string, any> | null
@@ -119,6 +122,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         border: `1px solid ${theme.colorBorder}`,
         borderRadius: theme.borderRadius,
         overflow: "hidden",
+        minHeight: "180px",
     },
     variantTab: {
         flex: 1,
@@ -161,6 +165,7 @@ const DebugSection = ({
     const {appTheme} = useAppTheme()
     const uriObject = useAtomValue(appUriInfoAtom)
     const appSchema = useAtomValue(appSchemaAtom)
+    const {apps: availableApps = []} = useAppsData()
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
@@ -179,19 +184,52 @@ const DebugSection = ({
     })
     const {secrets} = useVaultSecret()
 
+    const defaultAppId = useMemo(() => {
+        if (_selectedVariant?.appId) return _selectedVariant.appId
+        if (appId) return appId
+        const firstApp = availableApps?.[0]
+        return firstApp?.app_id ?? ""
+    }, [_selectedVariant?.appId, appId, availableApps])
+
+    const {revisionMap: defaultRevisionMap} = useAppVariantRevisions(defaultAppId || null)
+
     const selectedVariant = useMemo(() => {
         const revs = _selectedVariant?.revisions || []
         // find the most recent revision by looking at the updatedAtTimestamp
-        const variant = revs.sort((a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
+        const variant = revs?.sort((a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
         return variant
     }, [_selectedVariant])
+    const fallbackVariant = useMemo(() => {
+        if (_selectedVariant || !defaultAppId) return null
+        const revisionLists = Object.values(defaultRevisionMap || {})
+        if (!revisionLists.length) return null
+        const revisions = revisionLists[0]
+        if (!revisions || revisions.length === 0) return null
+        const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
+        baseVariant.revisions = [...revisions]
+        return baseVariant
+    }, [_selectedVariant, defaultAppId, defaultRevisionMap])
+
+    const derivedVariants = useMemo(() => {
+        if (variants && variants.length > 0) return variants
+        if (fallbackVariant) return [fallbackVariant]
+        return []
+    }, [variants, fallbackVariant])
+
+    useEffect(() => {
+        if (_selectedVariant) return
+        if (derivedVariants.length > 0) {
+            setSelectedVariant(derivedVariants[0])
+            return
+        }
+    }, [_selectedVariant, derivedVariants, setSelectedVariant])
 
     // Variant flags (custom/chat) from global atoms for the selected revision
     const flags = useAtomValue(
         useMemo(
             () =>
                 (selectedVariant?.id
-                    ? variantFlagsAtomFamily({revisionId: selectedVariant.id})
+                    ? variantFlagsAtomFamily({revisionId: selectedVariant?.id})
                     : (atom(null) as any)) as any,
             [selectedVariant?.id],
         ),
@@ -202,7 +240,7 @@ const DebugSection = ({
         useMemo(
             () =>
                 (selectedVariant?.id
-                    ? (stablePromptVariablesAtomFamily(selectedVariant.id) as any)
+                    ? (stablePromptVariablesAtomFamily(selectedVariant?.id) as any)
                     : (atom([]) as any)) as any,
             [selectedVariant?.id],
         ),
@@ -214,7 +252,7 @@ const DebugSection = ({
             () =>
                 (selectedVariant?.id
                     ? (transformedPromptsAtomFamily({
-                          revisionId: selectedVariant.id,
+                          revisionId: selectedVariant?.id,
                           useStableParams: true,
                       }) as any)
                     : (atom(null) as any)) as any,
@@ -227,7 +265,7 @@ const DebugSection = ({
         useMemo(
             () =>
                 (selectedVariant?.id
-                    ? (customPropertiesByRevisionAtomFamily(selectedVariant.id) as any)
+                    ? (customPropertiesByRevisionAtomFamily(selectedVariant?.id) as any)
                     : (atom({}) as any)) as any,
             [selectedVariant?.id],
         ),
@@ -236,6 +274,9 @@ const DebugSection = ({
     const activeTestset = useMemo(() => {
         return testsets?.find((item) => item._id === selectedTestset)
     }, [selectedTestset, testsets])
+
+    const isPlainObject = (value: unknown): value is Record<string, any> =>
+        Boolean(value) && typeof value === "object" && !Array.isArray(value)
 
     const fetchEvalMapper = async () => {
         if (!baseResponseData || !selectedTestcase.testcase) return
@@ -339,6 +380,10 @@ const DebugSection = ({
     }
 
     const handleRunVariant = async () => {
+        if (availableApps.length === 0 && derivedVariants.length === 0) {
+            message.info("Create an app first to run a variant.")
+            return
+        }
         if (!selectedTestcase.testcase || !selectedVariant) return
         const controller = new AbortController()
         abortControllersRef.current = controller
@@ -355,7 +400,7 @@ const DebugSection = ({
                 messages: ChatMessage[]
             }
 
-            if (selectedVariant.parameters) {
+            if (selectedVariant?.parameters) {
                 const routePath = uriObject?.routePath || ""
                 const spec = appSchema as any
                 const req = spec ? (getRequestSchema as any)(spec, {routePath}) : undefined
@@ -396,24 +441,52 @@ const DebugSection = ({
                 params.inputs = (effectiveKeys || []).map((name) => ({name, input: false}))
 
                 // Optional parameters/body extras: prefer stable transform snapshot
-                params.parameters =
-                    stableTransformedParams ||
-                    transformToRequestBody({
-                        variant: selectedVariant,
-                        allMetadata: getAllMetadata(),
-                        prompts:
-                            spec && selectedVariant
-                                ? derivePromptsFromSpec(
-                                      selectedVariant as any,
-                                      spec as any,
-                                      routePath,
-                                  ) || []
-                                : [],
-                        // Keep request shape aligned with OpenAPI schema
-                        isChat: hasMessagesProp,
-                        isCustom,
-                        customProperties: isCustom ? customProps : undefined,
-                    })
+                const baseParameters = isPlainObject(stableTransformedParams)
+                    ? {...stableTransformedParams}
+                    : transformToRequestBody({
+                          variant: selectedVariant,
+                          allMetadata: getAllMetadata(),
+                          prompts:
+                              spec && selectedVariant
+                                  ? derivePromptsFromSpec(
+                                        selectedVariant as any,
+                                        spec as any,
+                                        routePath,
+                                    ) || []
+                                  : [],
+                          // Keep request shape aligned with OpenAPI schema
+                          isChat: hasMessagesProp,
+                          isCustom,
+                          customProperties: isCustom ? customProps : undefined,
+                      })
+
+                const variantParameters = isPlainObject(selectedVariant?.parameters)
+                    ? (selectedVariant?.parameters as Record<string, any>)
+                    : undefined
+
+                if (isPlainObject(baseParameters)) {
+                    const hasAgConfig =
+                        isPlainObject(baseParameters.ag_config) &&
+                        Object.keys(baseParameters.ag_config).length > 0
+
+                    if (!hasAgConfig && variantParameters) {
+                        const variantAgConfig = isPlainObject(variantParameters.ag_config)
+                            ? variantParameters.ag_config
+                            : Object.keys(variantParameters).length > 0
+                              ? variantParameters
+                              : undefined
+
+                        if (variantAgConfig) {
+                            baseParameters.ag_config = variantAgConfig
+                        }
+                    }
+
+                    params.parameters = baseParameters
+                } else if (!baseParameters && variantParameters) {
+                    params.parameters = {...variantParameters}
+                } else {
+                    params.parameters = baseParameters
+                }
                 params.isChatVariant = hasMessagesProp
                 params.messages = hasMessagesProp
                     ? extractChatMessages(selectedTestcase.testcase)
@@ -428,7 +501,7 @@ const DebugSection = ({
                 params.messages = hasMessagesInput
                     ? extractChatMessages(selectedTestcase.testcase)
                     : []
-                params.isCustom = selectedVariant.isCustom
+                params.isCustom = selectedVariant?.isCustom
             }
 
             // Filter testcase down to allowed keys only (exclude chat)
@@ -445,14 +518,14 @@ const DebugSection = ({
                 params.inputs || [],
                 params.parameters || [],
                 appId,
-                selectedVariant.baseId,
+                selectedVariant?.baseId,
                 params.messages,
                 controller.signal,
                 true,
-                selectedVariant.parameters && !!selectedVariant._parentVariant,
+                selectedVariant?.parameters && !!selectedVariant?._parentVariant,
                 params.isCustom,
                 uriObject,
-                selectedVariant.variantId,
+                selectedVariant?.variantId,
             )
 
             if (typeof result === "string") {
@@ -545,289 +618,272 @@ const DebugSection = ({
     }
 
     return (
-        <>
-            {debugEvaluator && (
-                <>
-                    <Divider type="vertical" className="h-full" />
+        <section className="flex flex-col gap-4 h-full pb-10 w-[50%]">
+            <div className="flex flex-col gap-4 min-w-0">
+                <Space direction="vertical" size={0}>
+                    <Typography.Text className={classes.title}>Test evaluator</Typography.Text>
+                    <Typography.Text type="secondary">
+                        Test your evaluator by generating a test data
+                    </Typography.Text>
+                </Space>
 
-                    <div className="flex-1 flex flex-col gap-4 min-w-0 overflow-hidden">
-                        <Space direction="vertical" size={0}>
-                            <Typography.Text className={classes.title}>
-                                Test evaluator
+                <div className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between">
+                        <Space size={5}>
+                            <Typography.Text className={classes.formTitleText}>
+                                Testcase
                             </Typography.Text>
-                            <Typography.Text type="secondary">
-                                Test your evaluator by generating a test data
-                            </Typography.Text>
+
+                            {activeTestset && selectedTestcase.testcase && (
+                                <>
+                                    <CheckCircleOutlined style={{color: "green"}} />
+                                    <Typography.Text type="secondary">
+                                        loaded from {activeTestset.name}
+                                    </Typography.Text>
+                                </>
+                            )}
                         </Space>
 
-                        <div className="flex-[0.3] flex flex-col gap-1 min-h-0">
-                            <div className="flex items-center justify-between">
-                                <Space size={5}>
-                                    <Typography.Text className={classes.formTitleText}>
-                                        Testcase
-                                    </Typography.Text>
-
-                                    {activeTestset && selectedTestcase.testcase && (
-                                        <>
-                                            <CheckCircleOutlined style={{color: "green"}} />
-                                            <Typography.Text type="secondary">
-                                                loaded from {activeTestset.name}
-                                            </Typography.Text>
-                                        </>
-                                    )}
-                                </Space>
-
-                                <Tooltip
-                                    title={testsets?.length === 0 ? "No testset" : ""}
-                                    placement="bottom"
-                                >
-                                    <Button
-                                        size="small"
-                                        className="flex items-center gap-2"
-                                        onClick={() => setOpenTestcaseModal(true)}
-                                        disabled={testsets?.length === 0}
-                                    >
-                                        <Database />
-                                        Load testcase
-                                    </Button>
-                                </Tooltip>
-                            </div>
-
-                            <div className="flex-1 w-full overflow-hidden">
-                                <Editor
-                                    className={classes.editor}
-                                    width="100%"
-                                    height="100%"
-                                    language="json"
-                                    theme={`vs-${appTheme}`}
-                                    value={getStringOrJson(
-                                        selectedTestcase.testcase
-                                            ? formatJson(selectedTestcase)
-                                            : "",
-                                    )}
-                                    onChange={(value) => {
-                                        try {
-                                            if (value) {
-                                                const parsedValue = JSON.parse(value)
-                                                setSelectedTestcase(parsedValue)
-                                            }
-                                        } catch (error) {
-                                            console.error("Failed to parse test case JSON", error)
-                                        }
-                                    }}
-                                    options={{
-                                        wordWrap: "on",
-                                        minimap: {enabled: false},
-                                        lineNumbers: "off",
-                                        scrollBeyondLastLine: false,
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex-[0.45] flex flex-col min-h-0 overflow-hidden">
-                            <div className="flex items-center justify-between">
-                                <Space size={5}>
-                                    <Typography.Text className={classes.formTitleText}>
-                                        Application
-                                    </Typography.Text>
-                                    {variantStatus.success && (
-                                        <>
-                                            <CheckCircleOutlined style={{color: "green"}} />
-                                            <Typography.Text type="secondary">
-                                                Success
-                                            </Typography.Text>
-                                        </>
-                                    )}
-                                    {variantStatus.error && (
-                                        <ExclamationCircleOutlined style={{color: "red"}} />
-                                    )}
-                                </Space>
-
-                                {isRunningVariant ? (
-                                    <Button
-                                        size="small"
-                                        className="w-[120px]"
-                                        danger
-                                        onClick={() => {
-                                            if (abortControllersRef.current) {
-                                                abortControllersRef.current.abort()
-                                            }
-                                        }}
-                                    >
-                                        <CloseCircleOutlined />
-                                        Cancel
-                                    </Button>
-                                ) : (
-                                    <Dropdown.Button
-                                        className="w-fit"
-                                        disabled={!selectedTestcase.testcase}
-                                        size="small"
-                                        onClick={handleRunVariant}
-                                        loading={isRunningVariant}
-                                        icon={<MoreOutlined />}
-                                        menu={{
-                                            items: [
-                                                {
-                                                    key: "change_variant",
-                                                    icon: <Lightning />,
-                                                    label: "Change Variant",
-                                                    onClick: () => setOpenVariantModal(true),
-                                                },
-                                            ],
-                                        }}
-                                    >
-                                        <div
-                                            className="flex items-center gap-2"
-                                            key={
-                                                selectedVariant?.variantId ||
-                                                selectedVariant?.variantName ||
-                                                "default"
-                                            }
-                                        >
-                                            <Play />
-                                            {/* Adding key above ensures React re-renders this label when variant changes */}
-                                            Run {selectedVariant?.variantName || "variant"}
-                                        </div>
-                                    </Dropdown.Button>
-                                )}
-                            </div>
-
-                            <Tabs
-                                defaultActiveKey="output"
-                                className={classes.variantTab}
-                                items={[
-                                    {
-                                        key: "output",
-                                        label: "Output",
-                                        children: (
-                                            <div className="w-full h-full overflow-hidden">
-                                                <Editor
-                                                    className={classes.editor}
-                                                    width="100%"
-                                                    height="100%"
-                                                    language="markdown"
-                                                    theme={`vs-${appTheme}`}
-                                                    value={variantResult}
-                                                    options={{
-                                                        wordWrap: "on",
-                                                        minimap: {enabled: false},
-                                                        lineNumbers: "off",
-                                                        lineDecorationsWidth: 0,
-                                                        scrollBeyondLastLine: false,
-                                                    }}
-                                                    onChange={(value) => {
-                                                        if (value) {
-                                                            setVariantResult(value)
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
-                                        ),
-                                    },
-                                    {
-                                        key: "trace",
-                                        label: "Trace",
-                                        children: (
-                                            <div className="w-full h-full overflow-hidden">
-                                                <Editor
-                                                    className={classes.editor}
-                                                    width="100%"
-                                                    height="100%"
-                                                    language="json"
-                                                    theme={`vs-${appTheme}`}
-                                                    value={
-                                                        traceTree.trace
-                                                            ? getStringOrJson(traceTree)
-                                                            : ""
-                                                    }
-                                                    options={{
-                                                        wordWrap: "on",
-                                                        minimap: {enabled: false},
-                                                        lineNumbers: "off",
-                                                        scrollBeyondLastLine: false,
-                                                    }}
-                                                    onChange={(value) => {
-                                                        try {
-                                                            if (value) {
-                                                                const parsedValue =
-                                                                    JSON.parse(value)
-                                                                setTraceTree(parsedValue)
-                                                            }
-                                                        } catch (error) {
-                                                            console.error(
-                                                                "Failed to parse trace tree JSON",
-                                                                error,
-                                                            )
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
-                                        ),
-                                    },
-                                ]}
-                            />
-                        </div>
-
-                        <div className="flex flex-col gap-1 flex-[0.25] min-h-0 overflow-hidden">
-                            <Flex justify="space-between">
-                                <Space size={5}>
-                                    <Typography.Text className={classes.formTitleText}>
-                                        Evaluator Output
-                                    </Typography.Text>
-                                    {evalOutputStatus.success && (
-                                        <>
-                                            <CheckCircleOutlined style={{color: "green"}} />
-                                            <Typography.Text type="secondary">
-                                                Successful
-                                            </Typography.Text>
-                                        </>
-                                    )}
-                                    {evalOutputStatus.error && (
-                                        <ExclamationCircleOutlined style={{color: "red"}} />
-                                    )}
-                                </Space>
-                                <Tooltip
-                                    title={baseResponseData ? "" : "BaseResponse feature"}
-                                    placement="bottom"
-                                >
-                                    <Button
-                                        className="flex items-center gap-2"
-                                        size="small"
-                                        onClick={fetchEvalMapper}
-                                        disabled={!baseResponseData}
-                                        loading={isLoadingResult}
-                                    >
-                                        <Play /> Run evaluator
-                                    </Button>
-                                </Tooltip>
-                            </Flex>
-
-                            <div className="w-full h-full overflow-hidden">
-                                <Editor
-                                    className={classes.editor}
-                                    width="100%"
-                                    height="100%"
-                                    language="yaml"
-                                    theme={`vs-${appTheme}`}
-                                    options={{
-                                        wordWrap: "on",
-                                        minimap: {enabled: false},
-                                        readOnly: true,
-                                        lineNumbers: "off",
-                                        lineDecorationsWidth: 0,
-                                        scrollBeyondLastLine: false,
-                                    }}
-                                    value={formatOutput(outputResult)}
-                                />
-                            </div>
-                        </div>
+                        <Tooltip
+                            title={testsets?.length === 0 ? "No testset" : ""}
+                            placement="bottom"
+                        >
+                            <Button
+                                size="small"
+                                className="flex items-center gap-2"
+                                onClick={() => setOpenTestcaseModal(true)}
+                                disabled={testsets?.length === 0}
+                            >
+                                <Database />
+                                Load testcase
+                            </Button>
+                        </Tooltip>
                     </div>
-                </>
-            )}
+
+                    <div className="flex-1 w-full overflow-hidden">
+                        <Editor
+                            className={classes.editor}
+                            width="100%"
+                            height="100%"
+                            language="json"
+                            theme={`vs-${appTheme}`}
+                            value={getStringOrJson(
+                                selectedTestcase.testcase ? formatJson(selectedTestcase) : "",
+                            )}
+                            onChange={(value) => {
+                                try {
+                                    if (value) {
+                                        const parsedValue = JSON.parse(value)
+                                        setSelectedTestcase(parsedValue)
+                                    }
+                                } catch (error) {
+                                    console.error("Failed to parse test case JSON", error)
+                                }
+                            }}
+                            options={{
+                                wordWrap: "on",
+                                minimap: {enabled: false},
+                                lineNumbers: "off",
+                                scrollBeyondLastLine: false,
+                            }}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex flex-col">
+                    <div className="flex items-center justify-between">
+                        <Space size={5}>
+                            <Typography.Text className={classes.formTitleText}>
+                                Application
+                            </Typography.Text>
+                            {variantStatus.success && (
+                                <>
+                                    <CheckCircleOutlined style={{color: "green"}} />
+                                    <Typography.Text type="secondary">Success</Typography.Text>
+                                </>
+                            )}
+                            {variantStatus.error && (
+                                <ExclamationCircleOutlined style={{color: "red"}} />
+                            )}
+                        </Space>
+
+                        {isRunningVariant ? (
+                            <Button
+                                size="small"
+                                className="w-[120px]"
+                                danger
+                                onClick={() => {
+                                    if (abortControllersRef.current) {
+                                        abortControllersRef.current.abort()
+                                    }
+                                }}
+                            >
+                                <CloseCircleOutlined />
+                                Cancel
+                            </Button>
+                        ) : (
+                            <Dropdown.Button
+                                className="w-fit"
+                                disabled={!selectedTestcase.testcase}
+                                size="small"
+                                onClick={handleRunVariant}
+                                loading={isRunningVariant}
+                                icon={<MoreOutlined />}
+                                menu={{
+                                    items: [
+                                        {
+                                            key: "change_variant",
+                                            icon: <Lightning />,
+                                            label: "Change Variant",
+                                            onClick: () => setOpenVariantModal(true),
+                                        },
+                                    ],
+                                }}
+                            >
+                                <div
+                                    className="flex items-center gap-2"
+                                    key={
+                                        selectedVariant?.variantId ||
+                                        selectedVariant?.variantName ||
+                                        "default"
+                                    }
+                                >
+                                    <Play />
+                                    {/* Adding key above ensures React re-renders this label when variant changes */}
+                                    Run {selectedVariant?.variantName || "variant"}
+                                </div>
+                            </Dropdown.Button>
+                        )}
+                    </div>
+
+                    <Tabs
+                        defaultActiveKey="output"
+                        className={classes.variantTab}
+                        items={[
+                            {
+                                key: "output",
+                                label: "Output",
+                                children: (
+                                    <div className="w-full h-full overflow-hidden">
+                                        <Editor
+                                            className={classes.editor}
+                                            width="100%"
+                                            height="100%"
+                                            language="markdown"
+                                            theme={`vs-${appTheme}`}
+                                            value={variantResult}
+                                            options={{
+                                                wordWrap: "on",
+                                                minimap: {enabled: false},
+                                                lineNumbers: "off",
+                                                lineDecorationsWidth: 0,
+                                                scrollBeyondLastLine: false,
+                                            }}
+                                            onChange={(value) => {
+                                                if (value) {
+                                                    setVariantResult(value)
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                ),
+                            },
+                            {
+                                key: "trace",
+                                label: "Trace",
+                                children: (
+                                    <div className="w-full h-full overflow-hidden">
+                                        <Editor
+                                            className={classes.editor}
+                                            width="100%"
+                                            height="100%"
+                                            language="json"
+                                            theme={`vs-${appTheme}`}
+                                            value={
+                                                traceTree.trace ? getStringOrJson(traceTree) : ""
+                                            }
+                                            options={{
+                                                wordWrap: "on",
+                                                minimap: {enabled: false},
+                                                lineNumbers: "off",
+                                                scrollBeyondLastLine: false,
+                                            }}
+                                            onChange={(value) => {
+                                                try {
+                                                    if (value) {
+                                                        const parsedValue = JSON.parse(value)
+                                                        setTraceTree(parsedValue)
+                                                    }
+                                                } catch (error) {
+                                                    console.error(
+                                                        "Failed to parse trace tree JSON",
+                                                        error,
+                                                    )
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                ),
+                            },
+                        ]}
+                    />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <Flex justify="space-between">
+                        <Space size={5}>
+                            <Typography.Text className={classes.formTitleText}>
+                                Evaluator Output
+                            </Typography.Text>
+                            {evalOutputStatus.success && (
+                                <>
+                                    <CheckCircleOutlined style={{color: "green"}} />
+                                    <Typography.Text type="secondary">Successful</Typography.Text>
+                                </>
+                            )}
+                            {evalOutputStatus.error && (
+                                <ExclamationCircleOutlined style={{color: "red"}} />
+                            )}
+                        </Space>
+                        <Tooltip
+                            title={baseResponseData ? "" : "BaseResponse feature"}
+                            placement="bottom"
+                        >
+                            <Button
+                                className="flex items-center gap-2"
+                                size="small"
+                                onClick={fetchEvalMapper}
+                                disabled={!baseResponseData}
+                                loading={isLoadingResult}
+                            >
+                                <Play /> Run evaluator
+                            </Button>
+                        </Tooltip>
+                    </Flex>
+
+                    <div className="w-full h-full overflow-hidden">
+                        <Editor
+                            className={classes.editor}
+                            width="100%"
+                            height="100%"
+                            language="yaml"
+                            theme={`vs-${appTheme}`}
+                            options={{
+                                wordWrap: "on",
+                                minimap: {enabled: false},
+                                readOnly: true,
+                                lineNumbers: "off",
+                                lineDecorationsWidth: 0,
+                                scrollBeyondLastLine: false,
+                            }}
+                            value={formatOutput(outputResult)}
+                        />
+                    </div>
+                </div>
+            </div>
 
             <EvaluatorVariantModal
-                variants={variants}
+                variants={derivedVariants}
                 open={openVariantModal}
                 onCancel={() => setOpenVariantModal(false)}
                 setSelectedVariant={setSelectedVariant}
@@ -844,7 +900,7 @@ const DebugSection = ({
                     setSelectedTestset={setSelectedTestset}
                 />
             )}
-        </>
+        </section>
     )
 }
 

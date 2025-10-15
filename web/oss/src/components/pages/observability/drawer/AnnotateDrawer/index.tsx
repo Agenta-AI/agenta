@@ -22,6 +22,8 @@ const AnnotateDrawer = ({
     traceSpanIds,
     showOnly,
     evalSlugs,
+    initialStep = AnnotateDrawerSteps.ANNOTATE,
+    createEvaluatorProps,
     ...props
 }: AnnotateDrawerProps) => {
     const {projectId} = getProjectValues()
@@ -32,7 +34,7 @@ const AnnotateDrawer = ({
     const evalLSKey = `${projectId}-evaluator`
 
     const [annotations, setAnnotations] = useState<AnnotationDto[]>([])
-    const [steps, setSteps] = useState<AnnotateDrawerStepsType>(AnnotateDrawerSteps.ANNOTATE)
+    const [steps, setSteps] = useState<AnnotateDrawerStepsType>(initialStep)
     const [updatedMetrics, setUpdatedMetrics] = useState<UpdatedMetricsType>({})
     const [selectedEvaluators, setSelectedEvaluators] = useLocalStorage<string[]>(evalLSKey, [])
     const [errorMessage, setErrorMessage] = useState<string[]>([])
@@ -94,6 +96,12 @@ const AnnotateDrawer = ({
         }
     }, [data, props.open])
 
+    useEffect(() => {
+        if (props.open) {
+            setSteps(initialStep)
+        }
+    }, [props.open, initialStep])
+
     const annEvalSlugs = useMemo(() => {
         return (
             (annotations
@@ -127,14 +135,14 @@ const AnnotateDrawer = ({
     const onAfterClose = useCallback(
         (open: boolean) => {
             if (!open) {
-                setSteps(AnnotateDrawerSteps.ANNOTATE)
+                setSteps(initialStep)
                 setTempSelectedEvaluators([])
                 setAnnotations([])
                 setErrorMessage([])
                 setUpdatedMetrics({})
             }
         },
-        [props.afterOpenChange],
+        [props.afterOpenChange, initialStep],
     )
 
     const onCaptureError = useCallback(
@@ -149,6 +157,12 @@ const AnnotateDrawer = ({
     )
 
     const renderContent = useMemo(() => {
+        const {
+            setSteps: _ignoredSetSteps,
+            setSelectedEvaluators: _ignoredSetSelectedEvaluators,
+            ...restCreateEvaluatorProps
+        } = createEvaluatorProps || {}
+
         switch (steps) {
             case AnnotateDrawerSteps.ANNOTATE:
                 return (
@@ -176,6 +190,7 @@ const AnnotateDrawer = ({
                     <CreateEvaluator
                         setSteps={setSteps}
                         setSelectedEvaluators={setSelectedEvaluators}
+                        {...restCreateEvaluatorProps}
                     />
                 )
             default:
@@ -188,6 +203,7 @@ const AnnotateDrawer = ({
         _selectedEvaluators,
         tempSelectedEvaluators,
         errorMessage,
+        createEvaluatorProps,
     ])
 
     return (

@@ -25,6 +25,19 @@ export const shippedFeatures: ShippedFeature[] = [
     // Observability: DE74FF
     // Evaluation: 86B7FF
     {
+        id: "filtering-by-annotation",
+        title: "Filtering Traces by Annotation",
+        description: "Filter and search for traces based on their annotations. Find traces with low scores or feedback quickly using the rebuilt filtering system.",
+        changelogPath: "/changelog/filtering-traces-by-annotation",
+        shippedAt: "2025-10-14",
+        labels: [
+            {
+                name: "Observability",
+                color: "DE74FF",
+            },
+        ],
+    },
+    {
         id: "evaluation-results-dashboard",
         title: "New Evaluation Results Dashboard",
         description: "Completely redesigned evaluation results dashboard with performance plots, side-by-side comparison, improved test cases view, focused detail view, configuration visibility, and run naming.",
@@ -173,19 +186,7 @@ export const inProgressFeatures: PlannedFeature[] = [
             },
         ],
     },
-
     {
-        id: "filtering-by-annotation",
-        title: "Filtering Traces by Annotation",
-        description: "We are adding the ability to filter traces by annotation. This is useful for finding traces with low scores or feedback.",
-        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2729",
-        labels: [
-            {
-                name: "Observability",
-                color: "DE74FF",
-            },
-        ],
-    }, {
         id: "date-range-filtering",
         title: "Date Range Filtering in Metrics Dashboard",
         description: "We are adding the ability to filter traces by date range in the metrics dashboard.",

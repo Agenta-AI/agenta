@@ -1,0 +1,40 @@
+---
+title: "Filtering Traces by Annotation"
+slug: filtering-traces-by-annotation
+date: 2025-10-14
+tags: [v0.58.0]
+---
+
+import Image from "@theme/IdealImage";
+
+
+We rebuilt the filtering system in observability. We added a new dropdown with more options. Additionally, we added a new annotation filtering. You can now filter and search traces based on their annotations. This feature helps you find traces with low scores or bad feedback quickly.
+
+### New Filter Options
+
+The new dropdown is simpler and gives you more options. You can now filter by:
+- **Span status**: Find successful or failed spans
+- **Input keys**: Search for specific inputs in your spans
+- **App or environment**: Filter traces from specific apps or environments
+- **Any key within your span**: Search custom data in your trace structure
+
+<Image img={require('/static/images/changelog/changelog-filters-observability.png')} alt="Complete observability filters" style={{display: 'block', margin: '20px auto', textAlign: 'center', width: '20%'}} />
+
+### Annotation Filtering
+
+Filter traces based on evaluations and feedback:
+- **Evaluator results**: Find spans evaluated by a specific evaluator
+- **User feedback**: Search for spans with feedback like `success=True`
+
+<Image img={require('/static/images/changelog/changelog-annotation-filter.png')} alt="Annotation filtering interface" style={{display: 'block', margin: '20px auto', textAlign: 'center'}} />
+
+This feature enables powerful workflows:
+
+1. **Capture user feedback** from your application using our API ([see tutorial](/tutorials/cookbooks/capture-user-feedback))
+2. **Filter traces** to find those with bad feedback or low scores
+3. **Add them to test sets** to track problematic cases
+4. **Improve your prompts** based on real user feedback
+
+The filtering system makes it easy to turn production issues into test cases.
+
+---

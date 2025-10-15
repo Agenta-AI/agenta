@@ -7,15 +7,15 @@ import {atomFamily} from "jotai/utils"
 
 import {useRunId} from "@/oss/contexts/RunIdContext"
 import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {
     clearProjectVariantReferencesAtom,
     prefetchProjectVariantConfigs,
     setProjectVariantReferencesAtom,
 } from "@/oss/state/projectVariantConfig"
-import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
-import {urlStateAtom} from "../../../state/urlState"
 import {collectProjectVariantReferences} from "../../../../../lib/hooks/usePreviewEvaluations/projectVariantConfigs"
+import {urlStateAtom} from "../../../state/urlState"
 
 import PromptConfigCard from "./assets/PromptConfigCard"
 

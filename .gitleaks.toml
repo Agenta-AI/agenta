@@ -11,6 +11,7 @@ paths = [
   '''^core/docs/docs/reference/api/.*\.mdx''',
   '''^docs/docs/reference/api/.*\.mdx''',
   '''^docs/.docusaurus/.*''',
+  '''^docs/build/.*''',
   # -------------------------------------------------------------- WEB ARTIFACTS
   '''^.*/\.pnpm-store/.*''',
   '''^.*/public/__env\.js$''',
@@ -24,6 +25,8 @@ regexes = [
   '''is_completion=True''',
   '''YOUR_API_KEY''',
   '''_SECRET_KEY''',
+  # ------------------------------------------------------------ PUBLIC KEYS
+  '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',
   # ----------------------------------------------------------------------------
 ]
 

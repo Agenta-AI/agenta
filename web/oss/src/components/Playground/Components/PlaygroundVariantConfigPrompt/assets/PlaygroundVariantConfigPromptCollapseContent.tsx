@@ -72,7 +72,7 @@ const PlaygroundVariantConfigPromptCollapseContent: React.FC<PromptCollapseConte
                     closable
                     message={
                         <>
-                            Insert a <span className="font-semibold">{"{{ variable }}"}</span> in
+                            Insert a <span className="font-semibold">{"{{variable}}"}</span> in
                             your template to create an input.
                         </>
                     }

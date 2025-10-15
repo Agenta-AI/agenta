@@ -30,6 +30,24 @@ export const createEvaluator = async (evaluatorPayload: EvaluatorResponseDto<"pa
     }
 }
 
+export const updateEvaluator = async (
+    evaluatorId: string,
+    evaluatorPayload: EvaluatorResponseDto<"payload">,
+) => {
+    const {projectId} = getProjectValues()
+
+    try {
+        const data = await axios.put(
+            `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
+            evaluatorPayload,
+        )
+
+        return data
+    } catch (error) {
+        throw error
+    }
+}
+
 const evaluatorIconsMap = {
     auto_exact_match: exactMatchImg,
     auto_similarity_match: similarityImg,
@@ -116,4 +134,12 @@ export const deleteEvaluatorConfig = async (configId: string) => {
     const {projectId} = getProjectValues()
 
     return axios.delete(`/evaluators/configs/${configId}?project_id=${projectId}`)
+}
+
+export const deleteHumanEvaluator = async (evaluatorId: string) => {
+    const {projectId} = getProjectValues()
+
+    return axios.post(
+        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}/archive?project_id=${projectId}`,
+    )
 }

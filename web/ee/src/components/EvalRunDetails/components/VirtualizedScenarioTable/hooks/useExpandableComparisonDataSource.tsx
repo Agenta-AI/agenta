@@ -4,12 +4,12 @@ import deepEqual from "fast-deep-equal"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
+import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
 import {
     evalAtomStore,
     evaluationRunStateFamily,
     runIndexFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
 import type {RunIndex} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
 
 import {
@@ -17,9 +17,10 @@ import {
     scenarioStepsFamily,
 } from "../../../../../lib/hooks/useEvaluationRunData/assets/atoms/runScopedScenarios"
 import {buildScenarioTableData} from "../assets/dataSourceBuilder"
+import type {TableColumn} from "../assets/types"
 import {buildAntdColumns} from "../assets/utils"
 import {expendedRowAtom} from "../ComparisonScenarioTable"
-import type {TableColumn} from "../assets/types"
+
 import {editColumnsFamily} from "./useTableDataSource"
 
 export interface GroupedScenario {
