@@ -1,0 +1,52 @@
+
+@host = http://localhost
+@base_url = {{host}}/api/billing
+@api_key = xxx.xxx
+###
+
+# @name open_portal
+POST {{base_url}}/stripe/portals/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name open_checkout
+POST {{base_url}}/stripe/checkouts/?plan=cloud_v0_pro&success_url=http://localhost/
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name fetch_plans
+GET {{base_url}}/plans
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name switch_plans
+POST {{base_url}}/plans/switch?plan=cloud_v0_pro
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name fetch_subscription
+GET {{base_url}}/subscription
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name cancel_subscription
+POST {{base_url}}/subscription/cancel
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}
+
+###
+
+# @name fetch_usage
+GET {{base_url}}/usage
+Content-Type: application/json
+Authorization: ApiKey {{api_key}}

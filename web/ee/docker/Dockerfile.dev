@@ -1,0 +1,43 @@
+FROM node:20.18-slim
+
+ENV TURBO_TELEMETRY_DISABLED=1
+
+WORKDIR /app
+
+# Install jq for JSON parsing
+RUN apt-get update && apt-get install -y jq
+    
+# Install dependencies based on the preferred package manager
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
+
+# Extract PNPM version and install it
+RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') && \
+    npm install -g pnpm@${PNPM_VERSION}
+
+COPY ee/package.json ./ee/yarn.lock* ./ee/package-lock.json* ./ee/pnpm-lock.yaml* ./ee/.npmrc* ./ee/
+COPY oss/package.json ./oss/yarn.lock* ./oss/package-lock.json* ./oss/pnpm-lock.yaml* ./oss/.npmrc* ./oss/
+COPY ./pnpm-workspace.yaml ./turbo.json ./
+
+COPY ./entrypoint.sh /app/entrypoint.sh   
+
+RUN pnpm i
+
+COPY ee/src ./ee/src
+COPY ee/public ./ee/public
+COPY oss/src ./oss/src
+COPY oss/public ./oss/public
+COPY tsconfig.json .
+COPY ee/tsconfig.json ./ee
+COPY oss/tsconfig.json ./oss
+
+COPY ee/postcss.config.mjs ./ee/postcss.config.mjs
+COPY oss/postcss.config.mjs ./oss/postcss.config.mjs
+
+COPY ee/next.config.ts ./ee/next.config.ts
+COPY oss/next.config.ts ./oss/next.config.ts
+
+COPY ee/tailwind.config.ts ./ee/tailwind.config.ts
+COPY oss/tailwind.config.ts ./oss/tailwind.config.ts
+
+ENTRYPOINT ["./entrypoint.sh"]
+EXPOSE 3000

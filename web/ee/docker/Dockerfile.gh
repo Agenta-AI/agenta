@@ -1,0 +1,43 @@
+FROM node:20.18.0-slim AS base
+
+ENV TURBO_TELEMETRY_DISABLED=1
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+
+RUN apt-get update && apt-get install -y jq
+
+COPY . .
+RUN PNPM_VERSION=$(cat package.json | jq -r '.packageManager | split("@")[1]') && \
+    npm install -g pnpm@${PNPM_VERSION}
+
+RUN pnpm add -g turbo
+RUN turbo prune @agenta/ee --docker
+
+# BUILDER ---------------------------------------------------------------------
+
+FROM base AS builder
+
+WORKDIR /app
+
+COPY --from=base ./out/json/ .
+COPY ./.husky /app/.husky
+
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store yes | pnpm install --frozen-lockfile --filter=@agenta/ee
+COPY --from=base /out/full/ .
+
+RUN npx next telemetry disable
+
+RUN pnpm turbo run build --filter=@agenta/ee
+
+# RUNNER ----------------------------------------------------------------------
+
+FROM base AS runner
+
+WORKDIR /app
+
+COPY --from=builder /app/ee/.next/standalone /app
+COPY ../entrypoint.sh /app/entrypoint.sh
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+EXPOSE 3000

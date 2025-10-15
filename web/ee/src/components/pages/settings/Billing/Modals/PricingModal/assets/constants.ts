@@ -1,0 +1,45 @@
+export const PRICING_PLANS_INFO = [
+    {
+        key: "free",
+        title: "Free",
+        price: "Free",
+        description: "Great for hobby projects",
+        priceDescription: "2 users and 5k traces per month included",
+        bulletPoints: [
+            "2 prompts",
+            "2 users included",
+            "5k traces per month included",
+            "20 evaluations / month included",
+        ],
+    },
+    {
+        key: "pro",
+        title: "Pro",
+        price: "$49/month",
+        description: "For production projects",
+        priceDescription: "2 users and 5k traces per month included",
+        bulletPoints: [
+            "Unlimited prompts",
+            "3 seats included then $20 per seat",
+            "Up to 10 seats",
+            "Unlimited evaluations",
+            "10k traces / month included",
+        ],
+    },
+    {
+        key: "business",
+        title: "Business",
+        price: "$49/month",
+        description: "For teams with security and support needs",
+        priceDescription: "2 users and 5k traces per month included",
+        bulletPoints: ["2 prompts", "2 seats", "5k traces", "20 evaluations / month included"],
+    },
+    {
+        key: "enterprise",
+        title: "Enterprise",
+        price: "$49/month",
+        description: "For teams with security and support needs",
+        priceDescription: "2 users and 5k traces per month included",
+        bulletPoints: ["2 prompts", "2 seats", "5k traces", "20 evaluations / month included"],
+    },
+]
