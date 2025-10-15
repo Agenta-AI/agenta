@@ -32,6 +32,7 @@ import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
+import {isValidId} from "@/oss/lib/helpers/serviceValidations"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {
@@ -79,7 +80,9 @@ const EvaluationCompareMode: FC<Props> = () => {
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const [evaluationIdsStr = ""] = useQueryParam("evaluations")
-    const evaluationIdsArray = evaluationIdsStr.split(",").filter((item) => !!item)
+    const evaluationIdsArray = evaluationIdsStr
+        .split(",")
+        .filter((item) => !!item && isValidId(item))
     const [evalIds, setEvalIds] = useState(evaluationIdsArray)
     const [hiddenVariants, setHiddenVariants] = useState<string[]>([])
     const [fetching, setFetching] = useState(false)
@@ -151,7 +154,7 @@ const EvaluationCompareMode: FC<Props> = () => {
     }, [variants])
 
     const evaluationIds = useMemo(
-        () => evaluationIdsStr.split(",").filter((item) => !!item),
+        () => evaluationIdsStr.split(",").filter((item) => !!item && isValidId(item)),
         [evaluationIdsStr],
     )
 

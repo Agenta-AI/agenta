@@ -25,6 +25,7 @@ import exactMatchImg from "@/oss/media/target.png"
 import similarityImg from "@/oss/media/transparency.png"
 import {fetchTestset} from "@/oss/services/testsets/api"
 import {getProjectValues} from "@/oss/state/project"
+import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -159,16 +160,28 @@ export const fetchAllEvaluations = async (appId: string) => {
 }
 
 export const fetchEvaluation = async (evaluationId: string) => {
+    if (!isValidId(evaluationId)) {
+        throw new Error("Invalid evaluationId parameter")
+    }
     const {projectId} = getProjectValues()
+    const id = assertValidId(evaluationId)
 
-    const response = await axios.get(`/evaluations/${evaluationId}?project_id=${projectId}`)
+    const response = await axios.get(`/evaluations/${encodeURIComponent(id)}`, {
+        params: {project_id: projectId},
+    })
     return evaluationTransformer(response.data) as _Evaluation
 }
 
 export const fetchEvaluationStatus = async (evaluationId: string) => {
+    if (!isValidId(evaluationId)) {
+        throw new Error("Invalid evaluationId parameter")
+    }
     const {projectId} = getProjectValues()
+    const id = assertValidId(evaluationId)
 
-    const response = await axios.get(`/evaluations/${evaluationId}/status?project_id=${projectId}`)
+    const response = await axios.get(`/evaluations/${encodeURIComponent(id)}/status`, {
+        params: {project_id: projectId},
+    })
     return response.data as {status: _Evaluation["status"]}
 }
 
@@ -211,11 +224,17 @@ export const deleteEvaluations = async (evaluationsIds: string[]) => {
 
 // Evaluation Scenarios
 export const fetchAllEvaluationScenarios = async (evaluationId: string) => {
+    if (!isValidId(evaluationId)) {
+        throw new Error("Invalid evaluationId parameter")
+    }
     const {projectId} = getProjectValues()
+    const id = assertValidId(evaluationId)
 
     const [{data: evaluationScenarios}, evaluation] = await Promise.all([
-        axios.get(`/evaluations/${evaluationId}/evaluation_scenarios?project_id=${projectId}`),
-        fetchEvaluation(evaluationId),
+        axios.get(`/evaluations/${encodeURIComponent(id)}/evaluation_scenarios`, {
+            params: {project_id: projectId},
+        }),
+        fetchEvaluation(id),
     ])
 
     evaluationScenarios.forEach((scenario: _EvaluationScenario) => {
@@ -239,7 +258,12 @@ export const updateScenarioStatus = async (
 
 // Comparison
 export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
-    const scenarioGroups = await Promise.all(evaluationIds.map(fetchAllEvaluationScenarios))
+    // Defensive check: Only accept valid UUIDs
+    const validIds = evaluationIds.filter((id) => isValidId(id))
+    if (validIds.length === 0) {
+        throw new Error("No valid evaluation IDs provided")
+    }
+    const scenarioGroups = await Promise.all(validIds.map(fetchAllEvaluationScenarios))
     const testset: TestSet = await fetchTestset(scenarioGroups[0][0].evaluation?.testset?.id)
 
     const inputsNameSet = new Set<string>()
