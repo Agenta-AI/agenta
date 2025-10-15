@@ -5,8 +5,8 @@ import {MinusCircle} from "@phosphor-icons/react"
 import {Button, Form, Input} from "antd"
 import isEqual from "lodash/isEqual"
 
-import MessageEditor from "@/oss/components/Playground/Components/ChatCommon/MessageEditor"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
+import MessageEditor from "@/oss/components/Playground/Components/ChatCommon/MessageEditor"
 
 interface Message {
     role: string

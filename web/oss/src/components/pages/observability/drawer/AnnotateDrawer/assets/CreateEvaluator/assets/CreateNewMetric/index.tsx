@@ -35,10 +35,13 @@ const CreateNewMetric = ({
 
     // it will add a empty field for enum when user select label option
     useEffect(() => {
-        if (metricType === "label" || metricType === "class") {
+        if (metricType !== "label" && metricType !== "class") return
+
+        const existingEnum = form.getFieldValue(["metrics", field.name, "enum"])
+        if (!Array.isArray(existingEnum) || existingEnum.length === 0) {
             form.setFieldValue(["metrics", field.name, "enum"], [""])
         }
-    }, [metricType])
+    }, [metricType, field.name, form])
 
     const getCurrentEnumValues = useCallback(
         (currentIndex: number) => {

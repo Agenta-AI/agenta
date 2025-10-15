@@ -42,16 +42,25 @@ const AnnotateDrawerTitle = ({
 
     const onClickPrev = useCallback(
         (step: AnnotateDrawerStepsType) => {
-            if (step === AnnotateDrawerSteps.ANNOTATE) {
+            const hasSingleView = Boolean(
+                showOnly?.annotateUi || showOnly?.selectEvaluatorsUi || showOnly?.createEvaluatorUi,
+            )
+
+            if (
+                hasSingleView ||
+                step === AnnotateDrawerSteps.ANNOTATE ||
+                !Object.values(AnnotateDrawerSteps).includes(step)
+            ) {
                 onClose()
-            } else {
-                setSteps((prev) => {
-                    const prevIndex = Object.values(AnnotateDrawerSteps).indexOf(prev)
-                    return Object.values(AnnotateDrawerSteps)[prevIndex - 1]
-                })
+                return
             }
+
+            setSteps((prev) => {
+                const prevIndex = Object.values(AnnotateDrawerSteps).indexOf(prev)
+                return Object.values(AnnotateDrawerSteps)[prevIndex - 1]
+            })
         },
-        [onClose, setSteps],
+        [onClose, setSteps, showOnly],
     )
 
     const onClickNext = useCallback(

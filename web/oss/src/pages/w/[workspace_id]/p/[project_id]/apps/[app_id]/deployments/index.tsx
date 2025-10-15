@@ -78,7 +78,7 @@ const DeploymentsPage = () => {
 
     return (
         <div className={classes.container}>
-            <Typography.Text className={classes.title}>Deployment</Typography.Text>
+            <Typography.Text className="text-[16px] font-medium">Deployment</Typography.Text>
 
             <Flex align="center" gap={16}>
                 <EnvironmentCardRow

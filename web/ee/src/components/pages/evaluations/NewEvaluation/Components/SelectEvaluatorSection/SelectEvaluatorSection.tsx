@@ -6,24 +6,15 @@ import {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
-import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import AnnotateDrawerTitle from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/AnnotateDrawerTitle"
-import CreateEvaluator from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/CreateEvaluator"
-import {AnnotateDrawerSteps} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/enum"
 import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
 
 import type {SelectEvaluatorSectionProps} from "../../types"
+import router from "next/router"
+import useURL from "@/oss/hooks/useURL"
 
-const EvaluatorsModal = dynamic(
-    () => import("../../../autoEvaluation/EvaluatorsModal/EvaluatorsModal"),
-    {
-        ssr: false,
-        loading: () => null, // Prevent flash by not rendering until loaded
-    },
-)
 const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
     ssr: false,
 })
@@ -55,11 +46,16 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     selectedAppId,
     ...props
 }: SelectEvaluatorSectionProps & {preview?: Preview}) => {
+    const {projectURL} = useURL()
     const fetchData = useFetchEvaluatorsData({
         preview: preview as boolean,
         queries: {is_human: preview},
         appId: selectedAppId || "",
     })
+    const evaluatorsRegistryUrl = useMemo(
+        () => `${projectURL}/evaluators?tab=${preview ? "human" : "automatic"}`,
+        [projectURL, preview],
+    )
 
     const evaluationData = useMemo(() => {
         if (preview) {
@@ -87,8 +83,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         evaluationData
 
     const [searchTerm, setSearchTerm] = useState("")
-    const [isEvaluatorsModalOpen, setIsEvaluatorsModalOpen] = useState(false)
-    const [current, setCurrent] = useState(0)
+
     const prevSelectedAppIdRef = useRef<string | undefined>()
     const {refetchEvaluatorConfigs} = fetchData
 
@@ -237,10 +232,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                     <Space>
                         <Button
                             icon={<PlusOutlined />}
-                            onClick={() => {
-                                setCurrent(1)
-                                setIsEvaluatorsModalOpen(true)
-                            }}
+                            onClick={() => router.push(evaluatorsRegistryUrl)}
                         >
                             Create new
                         </Button>
@@ -253,10 +245,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                         title="No evaluators yet"
                         description="Evaluators help you measure and analyze your model's responses."
                         primaryActionLabel="Create your first evaluator"
-                        onPrimaryAction={() => {
-                            setCurrent(1)
-                            setIsEvaluatorsModalOpen(true)
-                        }}
+                        onPrimaryAction={() => router.push(evaluatorsRegistryUrl)}
                     />
                 ) : preview ? (
                     <Table<EvaluatorDto<"response">>
@@ -320,39 +309,6 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                     />
                 )}
             </div>
-
-            {preview ? (
-                <EnhancedDrawer
-                    open={isEvaluatorsModalOpen}
-                    title={
-                        <AnnotateDrawerTitle
-                            steps={AnnotateDrawerSteps.CREATE_EVALUATOR}
-                            setSteps={() => setIsEvaluatorsModalOpen(false)}
-                            onClose={() => setIsEvaluatorsModalOpen(false)}
-                        />
-                    }
-                    closeIcon={null}
-                    width={400}
-                    onClose={() => setIsEvaluatorsModalOpen(false)}
-                    classNames={{body: "!p-0", header: "!p-4"}}
-                >
-                    <CreateEvaluator
-                        setSelectedEvaluators={(updater) => {
-                            setSelectedEvalConfigs(updater)
-                            setIsEvaluatorsModalOpen(false)
-                        }}
-                    />
-                </EnhancedDrawer>
-            ) : (
-                <EvaluatorsModal
-                    open={isEvaluatorsModalOpen}
-                    onCancel={() => setIsEvaluatorsModalOpen(false)}
-                    current={current}
-                    setCurrent={setCurrent}
-                    appId={selectedAppId || null}
-                    openedFromNewEvaluation={true}
-                />
-            )}
         </>
     )
 }

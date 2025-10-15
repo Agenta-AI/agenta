@@ -46,7 +46,7 @@ interface EvaluationsViewProps {
     scope?: EvaluationScope
 }
 
-const allowedOptionsByScope: Record<EvaluationScope, Array<{value: string; label: string}>> = {
+const allowedOptionsByScope: Record<EvaluationScope, {value: string; label: string}[]> = {
     app: [
         {value: "auto_evaluation", label: "Automatic"},
         {value: "human_annotation", label: "Human annotation"},
@@ -138,7 +138,7 @@ const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
     return (
         <div className={clsx(classes.container, "grow flex flex-col min-h-0")}>
             <div className="flex items-center gap-4">
-                <Typography.Text className={classes.title}>Evaluations</Typography.Text>
+                <Typography.Text className="text-[16px] font-medium">Evaluations</Typography.Text>
                 <Radio.Group
                     optionType="button"
                     value={selectedEvaluation}

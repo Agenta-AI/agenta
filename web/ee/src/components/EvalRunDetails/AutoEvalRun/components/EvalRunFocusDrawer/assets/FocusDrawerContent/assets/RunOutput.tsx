@@ -1,6 +1,7 @@
+import clsx from "clsx"
+
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
-import clsx from "clsx"
 
 const RunOutput = ({
     runId,

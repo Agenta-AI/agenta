@@ -4,6 +4,7 @@ import {Button, message, Spin, Typography} from "antd"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
 
+import useURL from "@/oss/hooks/useURL"
 import {Plan} from "@/oss/lib/Types"
 import {editSubscriptionInfo, useSubscriptionData, useUsageData} from "@/oss/services/billing"
 
@@ -11,7 +12,6 @@ import UsageProgressBar from "./assets/UsageProgressBar"
 import AutoRenewalCancelModal from "./Modals/AutoRenewalCancelModal"
 import PricingModal from "./Modals/PricingModal"
 import SubscriptionPlanDetails from "./Modals/PricingModal/assets/SubscriptionPlanDetails"
-import useURL from "@/oss/hooks/useURL"
 
 const {Link} = Typography
 

@@ -1,7 +1,7 @@
 import groupBy from "lodash/groupBy"
 
-import {formatColumnTitle} from "@/oss/components/Filters/EditColumns/assets/helper"
 import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
+import {formatColumnTitle} from "@/oss/components/Filters/EditColumns/assets/helper"
 import {
     evalAtomStore,
     evaluationEvaluatorsFamily,

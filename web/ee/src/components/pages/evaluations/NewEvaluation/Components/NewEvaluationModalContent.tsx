@@ -1,4 +1,4 @@
-import {type FC, memo, useMemo} from "react"
+import {type FC, memo, useCallback, useMemo} from "react"
 
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Input, Typography, Tabs, Tag} from "antd"
@@ -6,6 +6,7 @@ import clsx from "clsx"
 import dynamic from "next/dynamic"
 
 import useFocusInput from "@/oss/hooks/useFocusInput"
+import useURL from "@/oss/hooks/useURL"
 
 import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
@@ -27,6 +28,10 @@ const SelectVariantSection = dynamic(() => import("./SelectVariantSection"), {
 })
 
 const AdvancedSettings = dynamic(() => import("./AdvancedSettings"), {
+    ssr: false,
+})
+
+const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
     ssr: false,
 })
 
@@ -59,7 +64,13 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
 }) => {
     const classes = useStyles()
     const {inputRef} = useFocusInput({isOpen: props.isOpen || false})
+    const {redirectUrl} = useURL()
     const appSelectionComplete = Boolean(selectedAppId)
+    const hasAppOptions = appOptions.length > 0
+
+    const handleCreateApp = useCallback(() => {
+        redirectUrl()
+    }, [redirectUrl])
 
     const selectedTestset = useMemo(
         () => testSets.find((ts) => ts._id === selectedTestsetId) || null,
@@ -103,17 +114,29 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 ),
                 children: (
                     <div className="flex flex-col gap-2">
-                        <SelectAppSection
-                            apps={appOptions}
-                            selectedAppId={selectedAppId}
-                            onSelectApp={onSelectApp}
-                            disabled={appSelectionDisabled}
-                        />
-                        {!appSelectionComplete && !appSelectionDisabled ? (
-                            <Typography.Text type="secondary">
-                                Please select an application to continue configuring the evaluation.
-                            </Typography.Text>
-                        ) : null}
+                        {hasAppOptions ? (
+                            <>
+                                <SelectAppSection
+                                    apps={appOptions}
+                                    selectedAppId={selectedAppId}
+                                    onSelectApp={onSelectApp}
+                                    disabled={appSelectionDisabled}
+                                />
+                                {!appSelectionComplete && !appSelectionDisabled ? (
+                                    <Typography.Text type="secondary">
+                                        Please select an application to continue configuring the
+                                        evaluation.
+                                    </Typography.Text>
+                                ) : null}
+                            </>
+                        ) : (
+                            <NoResultsFound
+                                title="No applications found"
+                                description="You need at least one application to configure an evaluation. Head to App Management to create one."
+                                primaryActionLabel="Create an app"
+                                onPrimaryAction={handleCreateApp}
+                            />
+                        )}
                     </div>
                 ),
             },
@@ -260,6 +283,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         selectedAppId,
         onSelectApp,
         appSelectionDisabled,
+        hasAppOptions,
+        handleCreateApp,
     ])
 
     return (

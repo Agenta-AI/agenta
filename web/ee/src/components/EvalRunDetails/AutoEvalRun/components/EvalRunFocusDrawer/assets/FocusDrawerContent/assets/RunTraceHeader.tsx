@@ -1,3 +1,10 @@
+import {memo} from "react"
+
+import clsx from "clsx"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
+
+import EvalNameTag from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/EvalNameTag"
 import {EVAL_TAG_COLOR} from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/utils"
 import {useRunId} from "@/oss/contexts/RunIdContext"
 import {
@@ -5,11 +12,6 @@ import {
     evaluationRunStateFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
-import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {memo} from "react"
-import dynamic from "next/dynamic"
-import EvalNameTag from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/EvalNameTag"
 
 const GenerationResultUtils = dynamic(
     () =>

@@ -26,8 +26,11 @@ if ! command -v gitleaks >/dev/null 2>&1; then
     brew install gitleaks
   else
     # fallback: go install (requires Go installed)
-    go install github.com/gitleaks/gitleaks/v8@latest
+    go install github.com/zricethezav/gitleaks/v8@latest
     export PATH="$PATH:$(go env GOPATH)/bin"
+    echo "----------------------------------------------------------------------"
+    echo "⚠️⚠️ PLEASE ADD $(go env GOPATH)/bin TO YOUR PATH IN YOUR .bashrc OR .zshrc ⚠️⚠️"
+    echo "----------------------------------------------------------------------"
   fi
 fi
 

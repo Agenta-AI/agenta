@@ -1,4 +1,4 @@
-import {HTMLProps, useMemo} from "react"
+import {HTMLProps, ReactNode, useMemo} from "react"
 
 import {Table, Tag, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
@@ -18,6 +18,7 @@ interface SelectAppSectionProps extends HTMLProps<HTMLDivElement> {
     selectedAppId: string
     onSelectApp: (value: string) => void
     disabled?: boolean
+    emptyText?: ReactNode
 }
 
 const SelectAppSection = ({
@@ -26,6 +27,7 @@ const SelectAppSection = ({
     onSelectApp,
     disabled,
     className,
+    emptyText,
 }: SelectAppSectionProps) => {
     const columns: ColumnsType<NewEvaluationAppOption & {key: string}> = useMemo(() => {
         return [
@@ -106,9 +108,11 @@ const SelectAppSection = ({
                     getCheckboxProps: () => ({disabled}),
                 }}
                 locale={{
-                    emptyText: disabled
-                        ? "Application selection is locked in app scope"
-                        : "No applications available",
+                    emptyText:
+                        emptyText ??
+                        (disabled
+                            ? "Application selection is locked in app scope"
+                            : "No applications available"),
                 }}
             />
         </div>

@@ -1,12 +1,11 @@
 import {useCallback} from "react"
 
 import {useSetAtom} from "jotai"
-import {SWRResponse} from "swr"
 
 import {evaluatorConfigsAtom, evaluatorsAtom} from "../../atoms/evaluation"
 import {Evaluator, EvaluatorConfig} from "../../Types"
-import useEvaluatorConfigs from "../useEvaluatorConfigs"
-import useEvaluators from "../useEvaluators"
+import useEvaluatorConfigs, {UseEvaluatorConfigsReturn} from "../useEvaluatorConfigs"
+import useEvaluators, {UseEvaluatorsReturn} from "../useEvaluators"
 import {EvaluatorPreviewDto} from "../useEvaluators/types"
 
 interface EvaluatorsData<Preview extends boolean> {
@@ -15,8 +14,8 @@ interface EvaluatorsData<Preview extends boolean> {
     refetchEvaluators: () => Promise<any>
     refetchEvaluatorConfigs: () => Promise<any>
     refetchAll: () => Promise<void>
-    evaluatorsSwr: SWRResponse<Preview extends true ? EvaluatorPreviewDto[] : Evaluator[], any>
-    evaluatorConfigsSwr: SWRResponse<Preview extends true ? undefined : EvaluatorConfig[], any>
+    evaluatorsSwr: UseEvaluatorsReturn<Preview>
+    evaluatorConfigsSwr: UseEvaluatorConfigsReturn<Preview>
 }
 
 const useFetchEvaluatorsData = <Preview extends boolean = false>(

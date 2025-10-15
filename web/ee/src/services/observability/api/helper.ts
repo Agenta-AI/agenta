@@ -1,5 +1,6 @@
-import {GenerationDashboardData, TracingDashboardData} from "@/oss/lib/types_ee"
 import dayjs from "dayjs"
+
+import {GenerationDashboardData, TracingDashboardData} from "@/oss/lib/types_ee"
 
 export const normalizeDurationSeconds = (d = 0) => d / 1_000
 
