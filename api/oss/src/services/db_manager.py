@@ -58,7 +58,7 @@ PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 async def fetch_project_by_id(
     project_id: str,
-) -> ProjectDB:
+) -> Optional[ProjectDB]:
     async with engine.core_session() as session:
         project = (
             (
@@ -73,6 +73,44 @@ async def fetch_project_by_id(
         )
 
         return project
+
+
+async def fetch_workspace_by_id(
+    workspace_id: str,
+) -> Optional[WorkspaceDB]:
+    async with engine.core_session() as session:
+        workspace = (
+            (
+                await session.execute(
+                    select(WorkspaceDB).filter_by(
+                        id=uuid.UUID(workspace_id),
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+        return workspace
+
+
+async def fetch_organization_by_id(
+    organization_id: str,
+) -> Optional[OrganizationDB]:
+    async with engine.core_session() as session:
+        organization = (
+            (
+                await session.execute(
+                    select(OrganizationDB).filter_by(
+                        id=uuid.UUID(organization_id),
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+
+        return organization
 
 
 async def add_testset_to_app_variant(

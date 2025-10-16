@@ -49,10 +49,39 @@ async def get_projects(
                 project_id=request.state.project_id
             )
 
+            if not _project:
+                raise HTTPException(status_code=404, detail="Project not found")
+
+            _workspace = await db_manager.fetch_workspace_by_id(
+                workspace_id=str(_project.workspace_id)
+            )
+
+            if not _workspace:
+                raise HTTPException(status_code=404, detail="Workspace not found")
+
+            _organization = await db_manager.fetch_organization_by_id(
+                organization_id=str(_workspace.organization_id)
+            )
+
+            if not _organization:
+                raise HTTPException(status_code=404, detail="Organization not found")
+
+            user_role = (
+                "owner"
+                if str(_organization.owner) == str(request.state.user_id)
+                else "editor"
+            )
+
             projects = [
                 ProjectsResponse(
-                    project_id=_project.id,
-                    project_name=_project.project_name,
+                    organization_id=UUID(str(_organization.id)),
+                    organization_name=str(_organization.name),
+                    workspace_id=UUID(str(_workspace.id)),
+                    workspace_name=str(_workspace.name),
+                    project_id=UUID(str(_project.id)),
+                    project_name=str(_project.project_name),
+                    user_role=user_role,
+                    is_demo=False,
                 )
             ]
 

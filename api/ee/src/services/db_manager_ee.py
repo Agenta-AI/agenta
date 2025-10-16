@@ -105,7 +105,9 @@ async def get_organizations_by_list_ids(organization_ids: List) -> List[Organiza
     """
 
     async with engine.core_session() as session:
-        organization_uuids = [uuid.UUID(org_id) for org_id in organization_ids]
+        organization_uuids = [
+            uuid.UUID(organization_id) for organization_id in organization_ids
+        ]
         query = select(OrganizationDB).where(OrganizationDB.id.in_(organization_uuids))
         result = await session.execute(query)
         organizations = result.scalars().all()

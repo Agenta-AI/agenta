@@ -33,7 +33,7 @@ import TabItem from "@theme/TabItem";
 
 <MethodEndpoint
   method={"post"}
-  path={"/organizations/{org_id}/workspaces"}
+  path={"/organizations/{organization_id}/workspaces"}
 ></MethodEndpoint>
 
 Create Workspace
@@ -61,7 +61,7 @@ Create Workspace
       <ParamsItem
         className={"paramsItem"}
         param={{
-          name: "org_id",
+          name: "organization_id",
           in: "path",
           required: true,
           schema: { type: "string", title: "Org Id" },

@@ -36,7 +36,7 @@ const Auth = () => {
     }
 
     const token = firstString(router.query.token)
-    const orgId = firstString(router.query.org_id)
+    const organizationId = firstString(router.query.organization_id)
     const projectId = firstString(router.query.project_id)
     const workspaceId = firstString(router.query.workspace_id)
     const emailFromQuery = firstString(router.query.email)
@@ -49,13 +49,13 @@ const Auth = () => {
         if (isInvitedUser && Object.keys(invite).length === 0) {
             setInvite({
                 token,
-                org_id: orgId,
+                organization_id: organizationId,
                 project_id: projectId,
                 workspace_id: workspaceId,
                 email: emailFromQuery,
             })
         }
-    }, [isInvitedUser, invite, setInvite, token, orgId, projectId, workspaceId, emailFromQuery])
+    }, [isInvitedUser, invite, setInvite, token, organizationId, projectId, workspaceId, emailFromQuery])
 
     const authErrorMsg = (error: any) => {
         if (error.isSuperTokensGeneralError === true) {

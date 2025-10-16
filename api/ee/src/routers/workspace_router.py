@@ -110,7 +110,7 @@ async def assign_role_to_user(
 @router.delete("/{workspace_id}/roles/", operation_id="unassign_role_from_user")
 async def unassign_role_from_user(
     email: str,
-    org_id: str,
+    organization_id: str,
     role: str,
     workspace_id: str,
     request: Request,
@@ -121,7 +121,7 @@ async def unassign_role_from_user(
     Args:
         workspace_id (str): The ID of the workspace.
         email (str): The email of the user to remove the role from.
-        org_id (str): The ID of the organization.
+        organization_id (str): The ID of the organization.
         role (str): The role to remove from the user.
         request (Request): The FastAPI request object.
 
@@ -153,7 +153,7 @@ async def unassign_role_from_user(
 
         payload = UserRole(
             email=email,
-            organization_id=org_id,
+            organization_id=organization_id,
             role=role,
         )
 

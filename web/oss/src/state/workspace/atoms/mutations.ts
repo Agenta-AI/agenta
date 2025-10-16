@@ -15,17 +15,17 @@ import {userAtom} from "../../profile/selectors/user"
  */
 export const updateWorkspaceNameAtom = atomWithMutation<
     void,
-    {orgId: string; workspaceId: string; name: string}
+    {organizationId: string; workspaceId: string; name: string}
 >((get) => ({
     mutationKey: ["updateWorkspaceName"],
-    mutationFn: async ({orgId, workspaceId, name}) => {
+    mutationFn: async ({organizationId, workspaceId, name}) => {
         // Update both workspace and organization in parallel
         await Promise.all([
-            updateWorkspace({orgId, workspaceId, name}),
-            updateOrganization(orgId, name),
+            updateWorkspace({organizationId, workspaceId, name}),
+            updateOrganization(organizationId, name),
         ])
     },
-    onSuccess: (_, {name, orgId}) => {
+    onSuccess: (_, {name, organizationId}) => {
         // Show success message
         message.success("Workspace renamed")
 
@@ -59,12 +59,12 @@ export const updateWorkspaceNameActionAtom = atom(
         get,
         _set,
         {
-            orgId,
+            organizationId,
             workspaceId,
             name,
             onSuccess,
         }: {
-            orgId: string
+            organizationId: string
             workspaceId: string
             name: string
             onSuccess?: () => void
@@ -73,7 +73,7 @@ export const updateWorkspaceNameActionAtom = atom(
         try {
             // Execute the mutation using mutateAsync from the mutation atom
             const {mutateAsync} = get(updateWorkspaceNameAtom)
-            await mutateAsync({orgId, workspaceId, name})
+            await mutateAsync({organizationId, workspaceId, name})
 
             // Call success callback if provided
             if (onSuccess) {

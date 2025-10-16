@@ -50,10 +50,10 @@ export const subscriptionQueryAtom = atomWithQuery((get) => {
     const profileQuery = get(profileQueryAtom)
     const user = profileQuery.data as User | undefined
     const projectId = get(projectIdAtom)
-    const orgId = get(selectedOrgIdAtom)
+    const organizationId = get(selectedOrgIdAtom)
 
     return {
-        queryKey: ["billing", "subscription", projectId, user?.id, orgId],
+        queryKey: ["billing", "subscription", projectId, user?.id, organizationId],
         queryFn: async () => {
             const response = await axios.get(
                 `${getAgentaApiUrl()}/billing/subscription?project_id=${projectId}`,
@@ -64,7 +64,7 @@ export const subscriptionQueryAtom = atomWithQuery((get) => {
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: true,
-        enabled: !!orgId && !!user && !!projectId,
+        enabled: !!organizationId && !!user && !!projectId,
         retry: (failureCount, error) => {
             // Don't retry on client errors
             if ((error as any)?.response?.status >= 400 && (error as any)?.response?.status < 500) {

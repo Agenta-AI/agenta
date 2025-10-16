@@ -43,32 +43,32 @@ export const useOrgData = () => {
 
     const resolveWorkspaceForOrg = useCallback(
         async (
-            orgId: string,
+            organizationId: string,
         ): Promise<{workspaceId: string | null; preferredProject: ProjectsResponse | null}> => {
             const matchingProject = projects.find((project) =>
-                projectMatchesWorkspace(project, orgId),
+                projectMatchesWorkspace(project, organizationId),
             )
 
             if (matchingProject) {
                 return {
-                    workspaceId: matchingProject.workspace_id || orgId,
+                    workspaceId: matchingProject.workspace_id || organizationId,
                     preferredProject: matchingProject,
                 }
             }
 
             const cachedDetails = queryClient.getQueryData<OrgDetails | null>([
                 "selectedOrg",
-                orgId,
+                organizationId,
             ])
 
             const resolvedDetails =
                 cachedDetails ??
                 (await queryClient.fetchQuery({
-                    queryKey: ["selectedOrg", orgId],
-                    queryFn: () => fetchSingleOrg({orgId}),
+                    queryKey: ["selectedOrg", organizationId],
+                    queryFn: () => fetchSingleOrg({organizationId}),
                 }))
 
-            const workspaceId = resolvedDetails?.default_workspace?.id ?? orgId
+            const workspaceId = resolvedDetails?.default_workspace?.id ?? organizationId
 
             if (resolvedDetails?.default_workspace?.id) {
                 cacheWorkspaceOrgPair(resolvedDetails.default_workspace.id, resolvedDetails.id)
@@ -83,14 +83,14 @@ export const useOrgData = () => {
     )
 
     const changeSelectedOrg = useCallback(
-        async (orgId: string, onSuccess?: () => void) => {
+        async (organizationId: string, onSuccess?: () => void) => {
             if (loadingOrgs) return
-            if (!orgId) {
+            if (!organizationId) {
                 navigate({type: "href", href: "/w", method: "replace"})
                 return
             }
 
-            if (orgId === selectedOrgId) {
+            if (organizationId === selectedOrgId) {
                 onSuccess?.()
                 return
             }
@@ -98,7 +98,7 @@ export const useOrgData = () => {
             queryClient.removeQueries({queryKey: ["selectedOrg", selectedOrgId]})
 
             try {
-                const {workspaceId, preferredProject} = await resolveWorkspaceForOrg(orgId)
+                const {workspaceId, preferredProject} = await resolveWorkspaceForOrg(organizationId)
                 if (!workspaceId) return
 
                 if (preferredProject?.organization_id) {

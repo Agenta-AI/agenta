@@ -6,7 +6,7 @@ import Router from "next/router"
 
 import {setLocationAtom, parseRouterState} from "@/oss/state/appState"
 import {sessionLoadingAtom} from "@/oss/state/session"
-import {syncFocusDrawerStateFromUrl} from "@/oss/state/url/focusDrawer"
+import focusDrawerState from "@/oss/state/url/focusDrawer"
 
 import {syncAuthStateFromUrl} from "./auth"
 import {syncPlaygroundStateFromUrl} from "./playground"
@@ -65,7 +65,10 @@ const syncUrlState = (nextUrl?: string) => {
     syncAppLocation(store, nextUrl)
     syncTraceStateFromUrl(nextUrl)
     syncVariantStateFromUrl(nextUrl)
-    syncFocusDrawerStateFromUrl(nextUrl)
+
+    if (typeof focusDrawerState?.syncFocusDrawerStateFromUrl === "function") {
+        focusDrawerState.syncFocusDrawerStateFromUrl(nextUrl)
+    }
     syncPlaygroundStateFromUrl(nextUrl)
     syncAuthStateFromUrl(nextUrl)
 }
