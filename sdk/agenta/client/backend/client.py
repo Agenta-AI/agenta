@@ -91,20 +91,22 @@ class AgentaApi:
         _defaulted_timeout = (
             timeout
             if timeout is not None
-            else 60
-            if httpx_client is None
-            else httpx_client.timeout.read
+            else 60 if httpx_client is None else httpx_client.timeout.read
         )
         self._client_wrapper = SyncClientWrapper(
             base_url=_get_base_url(base_url=base_url, environment=environment),
             api_key=api_key,
-            httpx_client=httpx_client
-            if httpx_client is not None
-            else httpx.Client(
-                timeout=_defaulted_timeout, follow_redirects=follow_redirects
-            )
-            if follow_redirects is not None
-            else httpx.Client(timeout=_defaulted_timeout),
+            httpx_client=(
+                httpx_client
+                if httpx_client is not None
+                else (
+                    httpx.Client(
+                        timeout=_defaulted_timeout, follow_redirects=follow_redirects
+                    )
+                    if follow_redirects is not None
+                    else httpx.Client(timeout=_defaulted_timeout)
+                )
+            ),
             timeout=_defaulted_timeout,
         )
         self._raw_client = RawAgentaApi(client_wrapper=self._client_wrapper)
@@ -172,7 +174,7 @@ class AgentaApi:
 
     def update_organization(
         self,
-        org_id: str,
+        organization_id: str,
         *,
         name: typing.Optional[str] = OMIT,
         description: typing.Optional[str] = OMIT,
@@ -182,7 +184,7 @@ class AgentaApi:
         """
         Parameters
         ----------
-        org_id : str
+        organization_id : str
 
         name : typing.Optional[str]
 
@@ -206,11 +208,11 @@ class AgentaApi:
             api_key="YOUR_API_KEY",
         )
         client.update_organization(
-            org_id="org_id",
+            organization_id="organization_id",
         )
         """
         _response = self._raw_client.update_organization(
-            org_id,
+            organization_id,
             name=name,
             description=description,
             updated_at=updated_at,
@@ -220,7 +222,7 @@ class AgentaApi:
 
     def create_workspace(
         self,
-        org_id: str,
+        organization_id: str,
         *,
         name: str,
         description: typing.Optional[str] = OMIT,
@@ -230,7 +232,7 @@ class AgentaApi:
         """
         Parameters
         ----------
-        org_id : str
+        organization_id : str
 
         name : str
 
@@ -254,12 +256,12 @@ class AgentaApi:
             api_key="YOUR_API_KEY",
         )
         client.create_workspace(
-            org_id="org_id",
+            organization_id="organization_id",
             name="name",
         )
         """
         _response = self._raw_client.create_workspace(
-            org_id,
+            organization_id,
             name=name,
             description=description,
             type=type,
@@ -269,7 +271,7 @@ class AgentaApi:
 
     def update_workspace(
         self,
-        org_id: str,
+        organization_id: str,
         workspace_id: str,
         *,
         name: typing.Optional[str] = OMIT,
@@ -280,7 +282,7 @@ class AgentaApi:
         """
         Parameters
         ----------
-        org_id : str
+        organization_id : str
 
         workspace_id : str
 
@@ -306,12 +308,12 @@ class AgentaApi:
             api_key="YOUR_API_KEY",
         )
         client.update_workspace(
-            org_id="org_id",
+            organization_id="organization_id",
             workspace_id="workspace_id",
         )
         """
         _response = self._raw_client.update_workspace(
-            org_id,
+            organization_id,
             workspace_id,
             name=name,
             description=description,
@@ -427,7 +429,7 @@ class AgentaApi:
         workspace_id: str,
         *,
         email: str,
-        org_id: str,
+        organization_id: str,
         role: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
@@ -437,7 +439,7 @@ class AgentaApi:
         Args:
             workspace_id (str): The ID of the workspace.
             email (str): The email of the user to remove the role from.
-            org_id (str): The ID of the organization.
+            organization_id (str): The ID of the organization.
             role (str): The role to remove from the user.
             request (Request): The FastAPI request object.
 
@@ -454,7 +456,7 @@ class AgentaApi:
 
         email : str
 
-        org_id : str
+        organization_id : str
 
         role : str
 
@@ -476,14 +478,14 @@ class AgentaApi:
         client.unassign_role_from_user(
             workspace_id="workspace_id",
             email="email",
-            org_id="org_id",
+            organization_id="organization_id",
             role="role",
         )
         """
         _response = self._raw_client.unassign_role_from_user(
             workspace_id,
             email=email,
-            org_id=org_id,
+            organization_id=organization_id,
             role=role,
             request_options=request_options,
         )
@@ -650,20 +652,22 @@ class AsyncAgentaApi:
         _defaulted_timeout = (
             timeout
             if timeout is not None
-            else 60
-            if httpx_client is None
-            else httpx_client.timeout.read
+            else 60 if httpx_client is None else httpx_client.timeout.read
         )
         self._client_wrapper = AsyncClientWrapper(
             base_url=_get_base_url(base_url=base_url, environment=environment),
             api_key=api_key,
-            httpx_client=httpx_client
-            if httpx_client is not None
-            else httpx.AsyncClient(
-                timeout=_defaulted_timeout, follow_redirects=follow_redirects
-            )
-            if follow_redirects is not None
-            else httpx.AsyncClient(timeout=_defaulted_timeout),
+            httpx_client=(
+                httpx_client
+                if httpx_client is not None
+                else (
+                    httpx.AsyncClient(
+                        timeout=_defaulted_timeout, follow_redirects=follow_redirects
+                    )
+                    if follow_redirects is not None
+                    else httpx.AsyncClient(timeout=_defaulted_timeout)
+                )
+            ),
             timeout=_defaulted_timeout,
         )
         self._raw_client = AsyncRawAgentaApi(client_wrapper=self._client_wrapper)
@@ -743,7 +747,7 @@ class AsyncAgentaApi:
 
     async def update_organization(
         self,
-        org_id: str,
+        organization_id: str,
         *,
         name: typing.Optional[str] = OMIT,
         description: typing.Optional[str] = OMIT,
@@ -753,7 +757,7 @@ class AsyncAgentaApi:
         """
         Parameters
         ----------
-        org_id : str
+        organization_id : str
 
         name : typing.Optional[str]
 
@@ -782,14 +786,14 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.update_organization(
-                org_id="org_id",
+                organization_id="organization_id",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._raw_client.update_organization(
-            org_id,
+            organization_id,
             name=name,
             description=description,
             updated_at=updated_at,
@@ -799,7 +803,7 @@ class AsyncAgentaApi:
 
     async def create_workspace(
         self,
-        org_id: str,
+        organization_id: str,
         *,
         name: str,
         description: typing.Optional[str] = OMIT,
@@ -809,7 +813,7 @@ class AsyncAgentaApi:
         """
         Parameters
         ----------
-        org_id : str
+        organization_id : str
 
         name : str
 
@@ -838,7 +842,7 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.create_workspace(
-                org_id="org_id",
+                organization_id="organization_id",
                 name="name",
             )
 
@@ -846,7 +850,7 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._raw_client.create_workspace(
-            org_id,
+            organization_id,
             name=name,
             description=description,
             type=type,
@@ -856,7 +860,7 @@ class AsyncAgentaApi:
 
     async def update_workspace(
         self,
-        org_id: str,
+        organization_id: str,
         workspace_id: str,
         *,
         name: typing.Optional[str] = OMIT,
@@ -867,7 +871,7 @@ class AsyncAgentaApi:
         """
         Parameters
         ----------
-        org_id : str
+        organization_id : str
 
         workspace_id : str
 
@@ -898,7 +902,7 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.update_workspace(
-                org_id="org_id",
+                organization_id="organization_id",
                 workspace_id="workspace_id",
             )
 
@@ -906,7 +910,7 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._raw_client.update_workspace(
-            org_id,
+            organization_id,
             workspace_id,
             name=name,
             description=description,
@@ -1038,7 +1042,7 @@ class AsyncAgentaApi:
         workspace_id: str,
         *,
         email: str,
-        org_id: str,
+        organization_id: str,
         role: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
@@ -1048,7 +1052,7 @@ class AsyncAgentaApi:
         Args:
             workspace_id (str): The ID of the workspace.
             email (str): The email of the user to remove the role from.
-            org_id (str): The ID of the organization.
+            organization_id (str): The ID of the organization.
             role (str): The role to remove from the user.
             request (Request): The FastAPI request object.
 
@@ -1065,7 +1069,7 @@ class AsyncAgentaApi:
 
         email : str
 
-        org_id : str
+        organization_id : str
 
         role : str
 
@@ -1092,7 +1096,7 @@ class AsyncAgentaApi:
             await client.unassign_role_from_user(
                 workspace_id="workspace_id",
                 email="email",
-                org_id="org_id",
+                organization_id="organization_id",
                 role="role",
             )
 
@@ -1102,7 +1106,7 @@ class AsyncAgentaApi:
         _response = await self._raw_client.unassign_role_from_user(
             workspace_id,
             email=email,
-            org_id=org_id,
+            organization_id=organization_id,
             role=role,
             request_options=request_options,
         )

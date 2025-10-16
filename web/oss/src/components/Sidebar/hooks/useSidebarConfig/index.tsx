@@ -57,6 +57,7 @@ export const useSidebarConfig = () => {
             key: "project-evaluators-link",
             title: "Evaluators",
             link: `${projectURL}/evaluators`,
+            isHidden: !isDemo(),
             icon: <Gauge size={16} />,
         },
         {

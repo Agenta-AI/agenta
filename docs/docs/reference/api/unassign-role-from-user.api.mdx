@@ -41,7 +41,7 @@ Delete a role assignment from a user in a workspace.
 Args:
 workspace_id (str): The ID of the workspace.
 email (str): The email of the user to remove the role from.
-org_id (str): The ID of the organization.
+organization_id (str): The ID of the organization.
 role (str): The role to remove from the user.
 request (Request): The FastAPI request object.
 
@@ -109,7 +109,7 @@ HTTPException: If there is an error in updating the user's roles.
       <ParamsItem
         className={"paramsItem"}
         param={{
-          name: "org_id",
+          name: "organization_id",
           in: "query",
           required: true,
           schema: { type: "string", title: "Org Id" },

@@ -25,11 +25,14 @@ const readWorkspaceOrgMap = (): Record<string, string> => {
     }
 }
 
-export const cacheWorkspaceOrgPair = (workspaceId: string | null, orgId: string | null) => {
+export const cacheWorkspaceOrgPair = (
+    workspaceId: string | null,
+    organizationId: string | null,
+) => {
     if (typeof window === "undefined") return
-    if (!workspaceId || !orgId) return
+    if (!workspaceId || !organizationId) return
     const map = readWorkspaceOrgMap()
-    map[workspaceId] = orgId
+    map[workspaceId] = organizationId
     try {
         window.localStorage.setItem(WORKSPACE_ORG_MAP_KEY, JSON.stringify(map))
     } catch {
@@ -67,7 +70,7 @@ export const orgsAtom = eagerAtom<Org[]>((get) => {
 
 export const selectedOrgIdAtom = atom((get) => {
     const snapshot = get(appStateSnapshotAtom)
-    const queryOrgId = snapshot.query["org_id"]
+    const queryOrgId = snapshot.query["organization_id"]
     if (typeof queryOrgId === "string" && queryOrgId) return queryOrgId
     const {workspaceId} = get(appIdentifiersAtom)
     return resolveOrgId(workspaceId) ?? workspaceId
@@ -124,7 +127,7 @@ export const resolvePreferredWorkspaceId = (userId: string | null, orgs?: Org[])
 
 export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
     const snapshot = get(appStateSnapshotAtom)
-    const queryOrgId = snapshot.query["org_id"]
+    const queryOrgId = snapshot.query["organization_id"]
     const id = (typeof queryOrgId === "string" && queryOrgId) || get(selectedOrgIdAtom)
     const userId = (get(userAtom) as User | null)?.id
     const isWorkspaceRoute =
@@ -144,7 +147,7 @@ export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
         queryKey: ["selectedOrg", id],
         queryFn: async () => {
             if (!id) return null
-            const org = await fetchSingleOrg({orgId: id})
+            const org = await fetchSingleOrg({organizationId: id})
             return org
         },
         staleTime: 60_000,

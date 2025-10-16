@@ -64,7 +64,7 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
     const user = get(userAtom) as User | null
     const isProj = !!projectId
     const jwtReady = get(jwtReadyAtom).data ?? false
-    const orgId = get(selectedOrgIdAtom)
+    const organizationId = get(selectedOrgIdAtom)
     const activeInvite = get(activeInviteAtom)
     const enabled =
         profileState.isSuccess &&
@@ -72,7 +72,7 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
         !!user?.id &&
         isProj &&
         !!projectId &&
-        !!orgId &&
+        !!organizationId &&
         !activeInvite
 
     return {

@@ -21,10 +21,10 @@ import {useWorkspaceRoles} from "@/oss/state/workspace"
 export const Actions: React.FC<{
     member: WorkspaceMember
     hidden?: boolean
-    orgId: string
+    organizationId: string
     workspaceId: string
     onResendInvite: any
-}> = ({member, hidden, orgId, workspaceId, onResendInvite}) => {
+}> = ({member, hidden, organizationId, workspaceId, onResendInvite}) => {
     const {user} = member
     const isMember = user.status === "member"
 
@@ -34,9 +34,9 @@ export const Actions: React.FC<{
     if (hidden) return null
 
     const handleResendInvite = () => {
-        if (!orgId || !user.email || !workspaceId) return
+        if (!organizationId || !user.email || !workspaceId) return
         setResendLoading(true)
-        resendInviteToWorkspace({orgId, workspaceId, email: user.email})
+        resendInviteToWorkspace({organizationId, workspaceId, email: user.email})
             .then((res) => {
                 if (!isDemo() && typeof res.url === "string") {
                     onResendInvite({email: user.email, uri: res.url})
@@ -50,12 +50,12 @@ export const Actions: React.FC<{
     }
 
     const handleRemove = () => {
-        if (!orgId || !user.email || !workspaceId) return
+        if (!organizationId || !user.email || !workspaceId) return
         AlertPopup({
             title: "Remove member",
             message: `Are you sure you want to remove ${user.username} from this workspace?`,
             onOk: () =>
-                removeFromWorkspace({orgId, workspaceId, email: user.email}, true).then(() =>
+                removeFromWorkspace({organizationId, workspaceId, email: user.email}, true).then(() =>
                     refetch(),
                 ),
             okText: "Remove",
@@ -109,9 +109,9 @@ export const Actions: React.FC<{
 export const Roles: React.FC<{
     member: WorkspaceMember
     signedInUser: User
-    orgId: string
+    organizationId: string
     workspaceId: string
-}> = ({member, signedInUser, orgId, workspaceId}) => {
+}> = ({member, signedInUser, organizationId, workspaceId}) => {
     const [loading, setLoading] = useState(false)
     const {roles} = useWorkspaceRoles()
     const {selectedOrg, refetch} = useOrgData()
@@ -127,13 +127,13 @@ export const Roles: React.FC<{
     const handleChangeRole = async (roleName: string) => {
         setLoading(true)
         try {
-            await assignWorkspaceRole({orgId, workspaceId, email: user.email, role: roleName})
+            await assignWorkspaceRole({organizationId, workspaceId, email: user.email, role: roleName})
             await Promise.all(
                 member.roles
                     .filter((item) => item.role_name !== roleName)
                     .map((item) =>
                         unAssignWorkspaceRole({
-                            orgId,
+                            organizationId,
                             workspaceId,
                             email: user.email,
                             role: item.role_name,

@@ -17,7 +17,7 @@ const isBrowser = typeof window !== "undefined"
 export interface InvitePayload {
     token: string
     email?: string
-    org_id?: string
+    organization_id?: string
     workspace_id?: string
     project_id?: string
     survey?: string
@@ -35,7 +35,7 @@ export const parseInviteFromUrl = (url: URL): InvitePayload | null => {
     const invite: InvitePayload = {token}
     const fields: (keyof InvitePayload)[] = [
         "email",
-        "org_id",
+        "organization_id",
         "workspace_id",
         "project_id",
         "survey",
@@ -61,7 +61,8 @@ export const readInviteFromStorage = (): InvitePayload | null => {
             return {
                 token: parsed.token.trim(),
                 email: typeof parsed.email === "string" ? parsed.email.toLowerCase() : undefined,
-                org_id: typeof parsed.org_id === "string" ? parsed.org_id : undefined,
+                organization_id:
+                    typeof parsed.organization_id === "string" ? parsed.organization_id : undefined,
                 workspace_id:
                     typeof parsed.workspace_id === "string" ? parsed.workspace_id : undefined,
                 project_id: typeof parsed.project_id === "string" ? parsed.project_id : undefined,
@@ -106,10 +107,10 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         const user = store.get(userAtom)
         const urlState = store.get(urlAtom)
 
-        const resolvedPath = nextUrl ? url.pathname : (appState.pathname ?? url.pathname)
+        const resolvedPath = nextUrl ? url.pathname : appState.pathname ?? url.pathname
         const resolvedAsPath = nextUrl
             ? `${url.pathname}${url.search}${url.hash}`
-            : (appState.asPath ?? `${url.pathname}${url.search}${url.hash}`)
+            : appState.asPath ?? `${url.pathname}${url.search}${url.hash}`
         const path = resolvedPath
         const asPath = resolvedAsPath
         const isAuthRoute = path.startsWith("/auth")

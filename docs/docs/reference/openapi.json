@@ -120,7 +120,7 @@
         }
       }
     },
-    "/organizations/{org_id}": {
+    "/organizations/{organization_id}": {
       "get": {
         "tags": ["Organization"],
         "summary": "Fetch Organization Details",
@@ -128,7 +128,7 @@
         "operationId": "fetch_organization_details",
         "parameters": [
           {
-            "name": "org_id",
+            "name": "organization_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -165,7 +165,7 @@
         "operationId": "update_organization",
         "parameters": [
           {
-            "name": "org_id",
+            "name": "organization_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -206,13 +206,13 @@
         }
       }
     },
-    "/organizations/{org_id}/workspaces": {
+    "/organizations/{organization_id}/workspaces": {
       "post": {
         "summary": "Create Workspace",
         "operationId": "create_workspace",
         "parameters": [
           {
-            "name": "org_id",
+            "name": "organization_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -255,13 +255,13 @@
         }
       }
     },
-    "/organizations/{org_id}/workspaces/{workspace_id}": {
+    "/organizations/{organization_id}/workspaces/{workspace_id}": {
       "put": {
         "summary": "Update Workspace",
         "operationId": "update_workspace",
         "parameters": [
           {
-            "name": "org_id",
+            "name": "organization_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -385,7 +385,7 @@
       },
       "delete": {
         "summary": "Unassign Role From User",
-        "description": "Delete a role assignment from a user in a workspace.\n\nArgs:\n    workspace_id (str): The ID of the workspace.\n    email (str): The email of the user to remove the role from.\n    org_id (str): The ID of the organization.\n    role (str): The role to remove from the user.\n    request (Request): The FastAPI request object.\n\nReturns:\n    bool: True if the role assignment was successfully deleted.\n\nRaises:\n    HTTPException: If there is an error in the request or the user does not have permission to perform the action.\n    HTTPException: If there is an error in updating the user's roles.",
+        "description": "Delete a role assignment from a user in a workspace.\n\nArgs:\n    workspace_id (str): The ID of the workspace.\n    email (str): The email of the user to remove the role from.\n    organization_id (str): The ID of the organization.\n    role (str): The role to remove from the user.\n    request (Request): The FastAPI request object.\n\nReturns:\n    bool: True if the role assignment was successfully deleted.\n\nRaises:\n    HTTPException: If there is an error in the request or the user does not have permission to perform the action.\n    HTTPException: If there is an error in updating the user's roles.",
         "operationId": "unassign_role_from_user",
         "parameters": [
           {
@@ -407,7 +407,7 @@
             }
           },
           {
-            "name": "org_id",
+            "name": "organization_id",
             "in": "query",
             "required": true,
             "schema": {
@@ -3998,15 +3998,15 @@
         }
       }
     },
-    "/organizations/{org_id}/workspaces/{workspace_id}/invite": {
+    "/organizations/{organization_id}/workspaces/{workspace_id}/invite": {
       "post": {
         "tags": ["Organization"],
         "summary": "Invite User To Organization",
-        "description": "Assigns a role to a user in an organization.\n\nArgs:\n    org_id (str): The ID of the organization.\n    payload (InviteRequest): The payload containing the organization id, user email, and role to assign.\n    workspace_id (str): The ID of the workspace.\n\nReturns:\n    bool: True if the role was successfully assigned, False otherwise.\n\nRaises:\n    HTTPException: If the user does not have permission to perform this action.\n    HTTPException: If there is an error assigning the role to the user.",
+        "description": "Assigns a role to a user in an organization.\n\nArgs:\n    organization_id (str): The ID of the organization.\n    payload (InviteRequest): The payload containing the organization id, user email, and role to assign.\n    workspace_id (str): The ID of the workspace.\n\nReturns:\n    bool: True if the role was successfully assigned, False otherwise.\n\nRaises:\n    HTTPException: If the user does not have permission to perform this action.\n    HTTPException: If there is an error assigning the role to the user.",
         "operationId": "invite_user_to_workspace",
         "parameters": [
           {
-            "name": "org_id",
+            "name": "organization_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -4060,7 +4060,7 @@
         }
       }
     },
-    "/organizations/{org_id}/workspaces/{workspace_id}/invite/resend": {
+    "/organizations/{organization_id}/workspaces/{workspace_id}/invite/resend": {
       "post": {
         "tags": ["Organization"],
         "summary": "Resend User Invitation To Organization",
@@ -4068,7 +4068,7 @@
         "operationId": "resend_invitation",
         "parameters": [
           {
-            "name": "org_id",
+            "name": "organization_id",
             "in": "path",
             "required": true,
             "schema": {
@@ -4118,7 +4118,7 @@
         }
       }
     },
-    "/organizations/{org_id}/workspaces/{workspace_id}/invite/accept": {
+    "/organizations/{organization_id}/workspaces/{workspace_id}/invite/accept": {
       "post": {
         "tags": ["Organization"],
         "summary": "Accept Organization Invitation",
@@ -4126,7 +4126,7 @@
         "operationId": "accept_invitation",
         "parameters": [
           {
-            "name": "org_id",
+            "name": "organization_id",
             "in": "path",
             "required": true,
             "schema": {

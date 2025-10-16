@@ -129,3 +129,13 @@ export const clearFocusDrawerQueryParams = () => {
         console.error("Failed to clear focus drawer query params:", err)
     }
 }
+
+export type FocusDrawerPublicApi = {
+    syncFocusDrawerStateFromUrl: (nextUrl?: string) => void;
+    clearFocusDrawerQueryParams: () => void;
+};
+
+export default {
+    syncFocusDrawerStateFromUrl,
+    clearFocusDrawerQueryParams,
+} satisfies FocusDrawerPublicApi;

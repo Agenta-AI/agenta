@@ -23,7 +23,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
     const {selectedOrg, refetch} = useOrgData()
     const [roles] = useAtom(workspaceRolesAtom)
     const {token} = theme.useToken()
-    const orgId = selectedOrg?.id
+    const organizationId = selectedOrg?.id
 
     const filteredRoles = useMemo(() => {
         if (!isDemo()) {
@@ -34,7 +34,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
 
     const onSubmit = useCallback(
         ({emails, role}: {emails: string[]; role: string | null}) => {
-            if (!orgId) return
+            if (!organizationId) return
 
             setLoading(true)
 
@@ -43,7 +43,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     email,
                     ...(role ? {roles: [role]} : {}),
                 })),
-                orgId,
+                organizationId,
                 workspaceId,
             })
                 .then((responses) => {
@@ -63,7 +63,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                 .catch(console.error)
                 .finally(() => setLoading(false))
         },
-        [orgId],
+        [organizationId],
     )
 
     return (
