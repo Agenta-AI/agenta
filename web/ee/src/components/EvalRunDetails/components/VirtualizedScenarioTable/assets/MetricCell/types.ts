@@ -32,6 +32,7 @@ export interface AnnotationValueCellProps {
     metricType?: SchemaMetricType
     stepKey?: string
     name?: string
+    runId?: string
 }
 
 export interface CollapsedAnnotationValueCellProps {

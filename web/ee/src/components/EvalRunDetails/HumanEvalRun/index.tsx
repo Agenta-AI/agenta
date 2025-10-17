@@ -31,8 +31,8 @@ const EvalRunDetails = ({name, description, id}: EvalRunProps) => {
                 </div>
             </section>
 
-            <section className="w-full flex items-center justify-between flex-wrap gap-4 mb-4">
-                <EvalRunScenarioFilters />
+            <section className="w-full flex items-center justify-between flex-wrap gap-4">
+                {viewType !== "results" ? <EvalRunScenarioFilters /> : <div></div>}
                 <EvalRunScenariosViewSelector />
             </section>
 

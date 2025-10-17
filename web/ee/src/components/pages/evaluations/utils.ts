@@ -2,6 +2,16 @@ import {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
 
 type Nullable<T> = T | null | undefined
 
+const pickString = (...values: unknown[]): string | undefined => {
+    for (const value of values) {
+        if (typeof value !== "string") continue
+        const trimmed = value.trim()
+        if (trimmed.length === 0) continue
+        return trimmed
+    }
+    return undefined
+}
+
 const parseInvocationMetadata = (
     evaluation: EvaluationRow,
 ): {
@@ -12,7 +22,18 @@ const parseInvocationMetadata = (
     revisionLabel?: string | number
 } | null => {
     const dataSteps: any[] = (evaluation as any)?.data?.steps || []
-    const invocationStep = dataSteps.find((step) => step?.type === "invocation")
+    const invocationStep = dataSteps.find((step) => {
+        if (!step) return false
+        if (step?.type === "invocation") return true
+        const refs = step.references ?? step ?? {}
+        return Boolean(
+            refs?.application ||
+                refs?.applicationRevision ||
+                refs?.application_revision ||
+                refs?.applicationRef ||
+                refs?.application_ref,
+        )
+    })
     if (!invocationStep) return null
 
     const references = invocationStep.references ?? invocationStep ?? {}
@@ -23,58 +44,71 @@ const parseInvocationMetadata = (
         applicationRevision?.application ||
         references.applicationRef ||
         references.application_ref
-    const variantRef = references.variant || references.variantRef || references.variant_ref
+    const variantRef =
+        references.variant ||
+        references.variantRef ||
+        references.variant_ref ||
+        references.applicationVariant ||
+        references.application_variant ||
+        applicationRevision?.variant ||
+        applicationRef?.variant
 
-    const rawAppId =
-        applicationRef?.id ||
-        applicationRef?.app_id ||
-        applicationRef?.appId ||
-        references.application?.id ||
-        references.application?.app_id ||
-        applicationRevision?.application_id ||
-        applicationRevision?.applicationId
+    const rawAppId = pickString(
+        applicationRef?.id,
+        applicationRef?.app_id,
+        applicationRef?.appId,
+        applicationRevision?.application_id,
+        applicationRevision?.applicationId,
+        references.application?.id,
+        references.application?.app_id,
+        references.application?.appId,
+    )
 
-    const rawAppName =
-        applicationRef?.name ||
-        applicationRef?.slug ||
-        references.application?.name ||
-        references.application?.slug
+    const rawAppName = pickString(
+        applicationRef?.name,
+        applicationRef?.slug,
+        references.application?.name,
+        references.application?.slug,
+    )
 
-    const rawVariantName =
-        variantRef?.name ||
-        variantRef?.slug ||
-        variantRef?.variantName ||
-        variantRef?.variant_name ||
-        applicationRef?.name ||
-        applicationRef?.slug ||
-        references.application?.name ||
-        references.application?.slug ||
-        invocationStep.key
+    const rawVariantName = pickString(
+        variantRef?.name,
+        variantRef?.slug,
+        variantRef?.variantName,
+        variantRef?.variant_name,
+        applicationRef?.variantName,
+        applicationRef?.variant_name,
+        references.application?.variantName,
+        references.application?.variant_name,
+        invocationStep.key,
+    )
 
-    const rawRevisionId =
-        variantRef?.id ||
-        variantRef?.revisionId ||
-        variantRef?.revision_id ||
-        applicationRevision?.id ||
-        applicationRevision?.revisionId ||
-        applicationRevision?.revision_id
+    const rawRevisionId = pickString(
+        variantRef?.id,
+        variantRef?.revisionId,
+        variantRef?.revision_id,
+        applicationRevision?.id,
+        applicationRevision?.revisionId,
+        applicationRevision?.revision_id,
+    )
 
     const revisionLabel =
-        variantRef?.version ??
-        variantRef?.revision ??
-        variantRef?.revisionLabel ??
-        applicationRevision?.revision ??
-        applicationRevision?.version ??
-        applicationRevision?.name ??
-        null
+        pickString(
+            variantRef?.version,
+            variantRef?.revision,
+            variantRef?.revisionLabel,
+            applicationRevision?.revision,
+            applicationRevision?.version,
+            applicationRevision?.name,
+        ) ?? null
 
     if (!rawAppId && !rawRevisionId && !rawVariantName) return null
 
     return {
-        appId: typeof rawAppId === "string" ? rawAppId : undefined,
-        appName: typeof rawAppName === "string" ? rawAppName : undefined,
-        revisionId: typeof rawRevisionId === "string" ? rawRevisionId : undefined,
-        variantName: typeof rawVariantName === "string" ? rawVariantName : undefined,
+        appId: rawAppId,
+        appName: rawAppName,
+        revisionId: rawRevisionId,
+        variantName: rawVariantName,
         revisionLabel: revisionLabel ?? undefined,
     }
 }
@@ -91,27 +125,39 @@ export const extractPrimaryInvocation = (
     if (!evaluation) return null
 
     const variants = (evaluation as any)?.variants
-    if (Array.isArray(variants) && variants.length) {
-        const variant = variants[0]
-        return {
-            appId:
-                variant?.appId ||
-                (typeof variant?.app_id === "string" ? variant.app_id : undefined) ||
-                (typeof variant?.applicationId === "string" ? variant.applicationId : undefined),
-            appName: (variant as any)?.appName || (variant as any)?.appSlug,
-            revisionId:
-                (variant as any)?.id ||
-                (typeof variant?.revisionId === "string" ? variant.revisionId : undefined) ||
-                (typeof variant?.revision_id === "string" ? variant.revision_id : undefined),
-            variantName: variant?.variantName || variant?.name || (variant as any)?.slug,
-            revisionLabel:
-                (variant as any)?.revisionLabel ||
-                (variant as any)?.revision ||
-                (variant as any)?.version,
-        }
+    const variant = Array.isArray(variants) && variants.length ? variants[0] : undefined
+    const metadataFromSteps = parseInvocationMetadata(evaluation)
+
+    if (!variant && !metadataFromSteps) return null
+
+    const variantDetails = variant
+        ? {
+              appId:
+                  variant?.appId ||
+                  (typeof variant?.app_id === "string" ? variant.app_id : undefined) ||
+                  (typeof variant?.applicationId === "string" ? variant.applicationId : undefined),
+              appName: (variant as any)?.appName || (variant as any)?.appSlug,
+              revisionId:
+                  (variant as any)?.id ||
+                  (typeof variant?.revisionId === "string" ? variant.revisionId : undefined) ||
+                  (typeof variant?.revision_id === "string" ? variant.revision_id : undefined),
+              variantName: variant?.variantName || variant?.name || (variant as any)?.slug,
+              revisionLabel:
+                  (variant as any)?.revisionLabel ||
+                  (variant as any)?.revision ||
+                  (variant as any)?.version,
+          }
+        : undefined
+
+    const resolved = {
+        appId: metadataFromSteps?.appId ?? variantDetails?.appId,
+        appName: metadataFromSteps?.appName ?? variantDetails?.appName,
+        revisionId: variantDetails?.revisionId ?? metadataFromSteps?.revisionId,
+        variantName: variantDetails?.variantName ?? metadataFromSteps?.variantName,
+        revisionLabel: variantDetails?.revisionLabel ?? metadataFromSteps?.revisionLabel,
     }
 
-    return parseInvocationMetadata(evaluation)
+    return resolved
 }
 
 export const extractEvaluationAppId = (evaluation: EvaluationRow): string | undefined => {

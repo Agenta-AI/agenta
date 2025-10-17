@@ -55,7 +55,16 @@ const Auth = () => {
                 email: emailFromQuery,
             })
         }
-    }, [isInvitedUser, invite, setInvite, token, organizationId, projectId, workspaceId, emailFromQuery])
+    }, [
+        isInvitedUser,
+        invite,
+        setInvite,
+        token,
+        organizationId,
+        projectId,
+        workspaceId,
+        emailFromQuery,
+    ])
 
     const authErrorMsg = (error: any) => {
         if (error.isSuperTokensGeneralError === true) {

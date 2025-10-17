@@ -9,7 +9,6 @@ import {readInvocationResponse} from "@/oss/lib/helpers/traceUtils"
 
 import {getCurrentRunId} from "../useEvaluationRunData/assets/atoms/migrationHelper"
 import {scenarioStatusAtomFamily} from "../useEvaluationRunData/assets/atoms/progress"
-import {evalAtomStore} from "../useEvaluationRunData/assets/atoms/store"
 import useEvalRunScenarioData from "../useEvaluationRunData/useEvalRunScenarioData"
 
 import type {UseInvocationResult, UseInvocationResultArgs} from "./types"
@@ -21,8 +20,6 @@ export function useInvocationResult({
     editorType = "shared",
     viewType = "single",
 }: UseInvocationResultArgs): UseInvocationResult {
-    const store = evalAtomStore()
-
     // Use provided runId or fallback to current run context (memoized to prevent infinite loops)
     const contextRunId = useRunId()
     const runId = useMemo(() => {
@@ -45,7 +42,6 @@ export function useInvocationResult({
             () => scenarioStatusAtomFamily({scenarioId, runId: runId || ""}),
             [scenarioId, runId],
         ),
-        {store},
     ) as any
 
     // Early return if no runId is available

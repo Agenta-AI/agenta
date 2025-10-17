@@ -10,15 +10,12 @@ import {useEvalScenarioQueue} from "@/oss/lib/hooks/useEvalScenarioQueue"
 import {
     getCurrentRunId,
     scenarioStepFamily,
-    evalAtomStore,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import {RunEvalScenarioButtonProps} from "./types"
 
 const RunEvalScenarioButton = memo(
     ({scenarioId, stepKey, label = "Run Scenario", runId}: RunEvalScenarioButtonProps) => {
-        const store = evalAtomStore()
-
         // Use effective runId with fallback using useMemo
         const effectiveRunId = useMemo(() => {
             if (runId) return runId
@@ -35,7 +32,6 @@ const RunEvalScenarioButton = memo(
         // Derive invocationParameters via scenario step loadable (run-scoped) - use global store
         const stepLoadable = useAtomValue(
             loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId})),
-            {store},
         )
 
         // derive running flag directly from run-scoped scenario step data

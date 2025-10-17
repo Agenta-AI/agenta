@@ -170,10 +170,8 @@ const EvaluatorMetricsChart = ({
         }
         return []
     }, [metric, isBooleanMetric, hasDistribution, isNumeric])
-    console.log("chartData", chartData)
 
     const showHistogram = !isCompare || selectedItem === "histogram"
-    const showAverageBars = isCompare && selectedItem === "average"
 
     const formatYAxisTick = useCallback(
         (value: number) => {
