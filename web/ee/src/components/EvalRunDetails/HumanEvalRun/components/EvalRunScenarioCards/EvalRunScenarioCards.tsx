@@ -6,10 +6,7 @@ import {useAtomValue} from "jotai"
 import {FixedSizeList as List} from "react-window"
 import {useResizeObserver} from "usehooks-ts"
 
-import {
-    displayedScenarioIdsFamily,
-    evalAtomStore,
-} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {displayedScenarioIdsFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import EvalRunScenario from "../EvalRunScenario"
 import ScenarioLoadingIndicator from "../ScenarioLoadingIndicator/ScenarioLoadingIndicator"
@@ -21,8 +18,7 @@ import {ITEM_GAP, ITEM_SIZE, ITEM_WIDTH} from "./assets/constants"
  * Extracted clean version after refactor. No duplicated legacy code.
  */
 const EvalRunScenarioCards = ({runId}: {runId: string}) => {
-    const store = evalAtomStore()
-    const scenarioIds = useAtomValue(displayedScenarioIdsFamily(runId), {store}) || []
+    const scenarioIds = useAtomValue(displayedScenarioIdsFamily(runId)) || []
 
     const containerRef = useRef<HTMLDivElement | null>(null)
     const {width = 0, height = 0} = useResizeObserver({

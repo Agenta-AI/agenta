@@ -7,11 +7,8 @@ import {UseEvaluationRunScenarioStepsFetcherResult} from "../useEvaluationRunSce
 
 import {getCurrentRunId} from "./assets/atoms/migrationHelper"
 import {scenarioStepFamily} from "./assets/atoms/runScopedScenarios"
-import {evalAtomStore} from "./assets/atoms/store"
 
 const useEvalRunScenarioData = (scenarioId: string, runId?: string) => {
-    const store = evalAtomStore()
-
     // Memoize runId calculation to prevent infinite loops
     const effectiveRunId = useMemo(() => {
         if (runId) return runId
@@ -26,7 +23,6 @@ const useEvalRunScenarioData = (scenarioId: string, runId?: string) => {
     // Read from the same global store that writes are going to
     const stepLoadable = useAtomValue(
         loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId || ""})),
-        {store},
     )
 
     return useMemo(() => {

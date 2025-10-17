@@ -23,6 +23,96 @@ import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlag
 import {useOrgData} from "@/oss/state/org"
 import {getProjectValues} from "@/oss/state/project"
 
+const pickString = (...values: unknown[]): string | undefined => {
+    for (const value of values) {
+        if (typeof value !== "string") continue
+        const trimmed = value.trim()
+        if (!trimmed) continue
+        return trimmed
+    }
+    return undefined
+}
+
+const deriveInvocationMetadata = (runIndex?: RunIndex) => {
+    if (!runIndex) return null
+    const [firstInvocationKey] = Array.from(runIndex.invocationKeys)
+    if (!firstInvocationKey) return null
+    const meta = runIndex.steps[firstInvocationKey]
+    if (!meta) return null
+    const refs = meta.refs ?? {}
+
+    const applicationRevision =
+        refs.applicationRevision || refs.application_revision || refs.revision
+    const applicationRef =
+        refs.application ||
+        applicationRevision?.application ||
+        refs.applicationRef ||
+        refs.application_ref
+    const variantRef =
+        refs.variant ||
+        refs.variantRef ||
+        refs.variant_ref ||
+        refs.applicationVariant ||
+        refs.application_variant
+
+    const appId = pickString(
+        applicationRef?.id,
+        applicationRef?.app_id,
+        applicationRef?.appId,
+        applicationRevision?.application_id,
+        applicationRevision?.applicationId,
+        refs.application?.id,
+        refs.application?.app_id,
+        refs.application?.appId,
+    )
+
+    const appName = pickString(
+        applicationRef?.name,
+        applicationRef?.slug,
+        refs.application?.name,
+        refs.application?.slug,
+    )
+
+    const variantName = pickString(
+        variantRef?.name,
+        variantRef?.slug,
+        variantRef?.variantName,
+        variantRef?.variant_name,
+        applicationRef?.name,
+        applicationRef?.slug,
+        refs.application?.name,
+        refs.application?.slug,
+        meta.key,
+    )
+
+    const revisionId = pickString(
+        variantRef?.id,
+        variantRef?.revisionId,
+        variantRef?.revision_id,
+        applicationRevision?.id,
+        applicationRevision?.revisionId,
+        applicationRevision?.revision_id,
+    )
+
+    const revisionLabel =
+        pickString(
+            variantRef?.version,
+            variantRef?.revision,
+            variantRef?.revisionLabel,
+            applicationRevision?.revision,
+            applicationRevision?.version,
+            applicationRevision?.name,
+        ) ?? null
+
+    return {
+        appId,
+        appName,
+        variantName,
+        revisionId,
+        revisionLabel: revisionLabel ?? undefined,
+    }
+}
+
 export const enrichEvaluationRun = ({
     run: _run,
     testsets,
@@ -31,7 +121,7 @@ export const enrichEvaluationRun = ({
     members,
     runIndex,
     extras,
-    appNameById,
+    appNameById: _appNameById,
     projectScope = false,
 }: {
     run: SnakeToCamelCaseKeys<EvaluationRun>
@@ -49,6 +139,7 @@ export const enrichEvaluationRun = ({
     projectScope?: boolean
 }) => {
     const run: Partial<EnrichedEvaluationRun> = _run
+    const appNameById = _appNameById ?? new Map<string, string>()
     // Convert snake_case keys to camelCase recursively
     run.createdAtTimestamp = dayjs(run.createdAt, "YYYY/MM/DD H:mm:ssAZ").valueOf()
     // Format creation date for display
@@ -163,6 +254,8 @@ export const enrichEvaluationRun = ({
 
     const filteredVariants = combinedVariantList.filter((v) => uniqueRevisionIds.includes(v.id))
 
+    const invocationMetadata = deriveInvocationMetadata(runIndex)
+
     const fallbackVariants =
         filteredVariants.length || !runIndex
             ? []
@@ -208,18 +301,7 @@ export const enrichEvaluationRun = ({
     const projectId = getProjectValues().projectId
 
     const baseVariants = filteredVariants.length ? filteredVariants : []
-    const combinedVariants = (baseVariants.length ? baseVariants : fallbackVariants).map(
-        (variant) => {
-            const mappedName = variant.appId ? appNameById?.get(variant.appId) : undefined
-            if (mappedName && (!variant.appName || variant.appName === variant.appId)) {
-                return {
-                    ...variant,
-                    appName: mappedName,
-                }
-            }
-            return variant
-        },
-    ) as typeof fallbackVariants
+    const combinedVariants = (baseVariants.length ? baseVariants : fallbackVariants) as typeof fallbackVariants
 
     const normalizedVariants = combinedVariants
         .map((variant) => {
@@ -242,12 +324,76 @@ export const enrichEvaluationRun = ({
         })
         .filter((variant) => Boolean(variant.id))
 
-    const primaryVariant = normalizedVariants[0]
+    const originalVariants = Array.isArray((run as any)?.variants)
+        ? ((run as any)?.variants as any[])
+        : []
+    const originalPrimaryVariant = originalVariants.length ? originalVariants[0] : undefined
+
+    const invocationAppId =
+        typeof invocationMetadata?.appId === "string" && invocationMetadata.appId
+            ? invocationMetadata.appId
+            : undefined
+    const invocationAppName =
+        invocationAppId && invocationMetadata?.appName ? invocationMetadata.appName : undefined
+
+    const runAppId =
+        typeof (run as any)?.appId === "string" && (run as any).appId.trim()
+            ? (run as any).appId.trim()
+            : undefined
+    const runAppName =
+        typeof (run as any)?.appName === "string" && (run as any).appName.trim()
+            ? (run as any).appName.trim()
+            : undefined
+
+    const originalVariantAppIds = originalVariants
+        .map(
+            (variant: any) =>
+                (typeof variant?.appId === "string" && variant.appId.trim()) ||
+                (typeof variant?.app_id === "string" && variant.app_id.trim()) ||
+                undefined,
+        )
+        .filter((value): value is string => Boolean(value))
+
+    const normalizedVariantAppIds = normalizedVariants
+        .map(
+            (variant: any) =>
+                (typeof variant?.appId === "string" && variant.appId.trim()) ||
+                (typeof variant?.applicationId === "string" && variant.applicationId.trim()) ||
+                undefined,
+        )
+        .filter((value): value is string => Boolean(value))
+
+    const finalAppId = pickString(
+        invocationAppId,
+        runAppId,
+        ...originalVariantAppIds,
+        ...normalizedVariantAppIds,
+    )
+
+    const variantForFinalApp =
+        finalAppId &&
+        (normalizedVariants.find((variant: any) => variant?.appId === finalAppId) ||
+            originalVariants.find(
+                (variant: any) =>
+                    variant?.appId === finalAppId || variant?.app_id === finalAppId,
+            ))
+
+    const finalAppName = pickString(
+        invocationAppId && invocationAppId === finalAppId ? invocationAppName : undefined,
+        finalAppId ? appNameById.get(finalAppId) : undefined,
+        runAppId && runAppId === finalAppId ? runAppName : undefined,
+        variantForFinalApp?.appName,
+        variantForFinalApp?.appSlug,
+        originalPrimaryVariant?.variantName,
+        invocationMetadata?.variantName,
+        runAppName,
+        ((run as any)?.name as string) || undefined,
+    )
 
     const returnValue = {
         ...run,
-        appId: (run as any).appId || primaryVariant?.appId,
-        appName: (run as any).appName || primaryVariant?.appName,
+        appId: finalAppId,
+        appName: finalAppName,
         variants: normalizedVariants,
         testsets: resolvedTestsets,
         createdBy: members.find((member) => member.user.id === run.createdById),
@@ -265,11 +411,15 @@ export const enrichEvaluationRun = ({
         if (!returnValue.appId && variant.appId) {
             returnValue.appId = variant.appId
         }
-        if (!returnValue.appName && variant.appName) {
+        if (
+            !returnValue.appName &&
+            variant.appName &&
+            (!returnValue.appId || variant.appId === returnValue.appId)
+        ) {
             returnValue.appName = variant.appName
         }
     })
-    if (!returnValue.appName && returnValue.appId && appNameById) {
+    if (!returnValue.appName && returnValue.appId) {
         const mappedName = appNameById.get(returnValue.appId)
         if (mappedName) {
             returnValue.appName = mappedName

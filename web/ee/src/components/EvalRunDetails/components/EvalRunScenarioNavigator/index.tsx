@@ -23,7 +23,6 @@ import {
     displayedScenarioIdsFamily,
     scenarioStepFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedScenarios"
-import {evalAtomStore as getGlobalStore} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/store"
 
 import {statusColorMap} from "../../HumanEvalRun/assets/helpers"
 import EvalRunScenarioStatusTag from "../EvalRunScenarioStatusTag"
@@ -47,7 +46,6 @@ const EvalRunScenarioNavigator = ({
 }) => {
     const router = useRouter()
     const runId = useRunId()
-    const store = getGlobalStore()
 
     // Get effective runId - use provided runId or fallback to current run context
     const effectiveRunId = useMemo(() => {
@@ -62,11 +60,10 @@ const EvalRunScenarioNavigator = ({
 
     // Get full scenario objects so we can access stable scenarioIndex
     // Read from the same global store that writes are going to
-    const allScenarios = useAtomValue(scenariosFamily(effectiveRunId), {store}) ?? []
+    const allScenarios = useAtomValue(scenariosFamily(effectiveRunId)) ?? []
 
     // Get filtered scenario IDs from the displayedScenarioIdsFamily atom
-    const filteredScenarioIds =
-        useAtomValue(displayedScenarioIdsFamily(effectiveRunId), {store}) ?? []
+    const filteredScenarioIds = useAtomValue(displayedScenarioIdsFamily(effectiveRunId)) ?? []
 
     // states for select dropdown
     const [searchTerm, setSearchTerm] = useState("")
@@ -130,7 +127,6 @@ const EvalRunScenarioNavigator = ({
     const {enqueueScenario} = useEvalScenarioQueue({concurrency: 5})
     const status = useAtomValue(
         useMemo(() => scenarioStatusAtomFamily(activeId), [activeId]),
-        {store},
     ) as any
     const rawStatus = status?.status
     const isRunning = ["running", "EVALUATION_STARTED"].includes(rawStatus as string)

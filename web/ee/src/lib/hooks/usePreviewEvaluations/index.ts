@@ -10,7 +10,6 @@ import {useAppId} from "@/oss/hooks/useAppId"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationType} from "@/oss/lib/enums"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluationStatus, SnakeToCamelCaseKeys, TestSet} from "@/oss/lib/Types"
 import {slugify} from "@/oss/lib/utils/slugify"
 import {createEvaluationRunConfig} from "@/oss/services/evaluationRuns/api"
@@ -154,13 +153,6 @@ const usePreviewEvaluations = ({
     const routeAppId = useAppId()
     const appId = (appIdOverride ?? routeAppId) || undefined
 
-    const {data: humanEvaluators} = useEvaluators({
-        preview: true,
-        queries: {
-            is_human: !types.includes(EvaluationType.automatic),
-        },
-    })
-
     const referenceFilters = useMemo(() => {
         const filters: any[] = []
         if (appId) {
@@ -168,21 +160,8 @@ const usePreviewEvaluations = ({
                 application: {id: appId},
             })
         }
-        if (types.includes(EvaluationType.human)) {
-            if (Array.isArray(humanEvaluators) && humanEvaluators.length > 0) {
-                humanEvaluators.forEach((ev) => {
-                    filters.push({
-                        evaluator: {id: ev.id},
-                    })
-                })
-            } else {
-                filters.push({
-                    evaluator: {},
-                })
-            }
-        }
         return filters
-    }, [appId, humanEvaluators, types])
+    }, [appId])
 
     const typesKey = useMemo(() => types.slice().sort().join("|"), [types])
     const queryEnabled = !skip && Boolean(projectId)

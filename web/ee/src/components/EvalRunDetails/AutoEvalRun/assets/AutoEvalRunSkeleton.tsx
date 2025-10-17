@@ -2,8 +2,8 @@ import {memo} from "react"
 
 import {useRouter} from "next/router"
 
+import EvalRunOverviewViewerSkeleton from "../../components/EvalRunOverviewViewer/assets/EvalRunOverviewViewerSkeleton"
 import EvalRunHeaderSkeleton from "../components/EvalRunHeader/assets/EvalRunHeaderSkeleton"
-import EvalRunOverviewViewerSkeleton from "../components/EvalRunOverviewViewer/assets/EvalRunOverviewViewerSkeleton"
 import EvalRunPromptConfigViewerSkeleton from "../components/EvalRunPromptConfigViewer/assets/EvalRunPromptConfigViewerSkeleton"
 import EvalRunTestCaseViewerSkeleton from "../components/EvalRunTestCaseViewer/assets/EvalRunTestCaseViewerSkeleton"
 
@@ -19,7 +19,7 @@ const AutoEvalRunSkeleton = () => {
             ) : viewType === "prompt" ? (
                 <EvalRunPromptConfigViewerSkeleton />
             ) : (
-                <EvalRunOverviewViewerSkeleton />
+                <EvalRunOverviewViewerSkeleton className="px-6" />
             )}
         </section>
     )

@@ -361,6 +361,9 @@ export const fetchAppContainerURL = async (
         // Retrieve container URL from backend
         const {data} = await axios.get(
             `${getAgentaApiUrl()}/variants/${variantId}?project_id=${projectId}`,
+            {
+                _ignoreError: true,
+            } as any,
         )
         const uriObject = await findCustomWorkflowPath(data.uri)
         if (uriObject) {

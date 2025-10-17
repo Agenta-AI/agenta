@@ -131,11 +131,11 @@ export const clearFocusDrawerQueryParams = () => {
 }
 
 export type FocusDrawerPublicApi = {
-    syncFocusDrawerStateFromUrl: (nextUrl?: string) => void;
-    clearFocusDrawerQueryParams: () => void;
-};
+    syncFocusDrawerStateFromUrl: (nextUrl?: string) => void
+    clearFocusDrawerQueryParams: () => void
+}
 
 export default {
     syncFocusDrawerStateFromUrl,
     clearFocusDrawerQueryParams,
-} satisfies FocusDrawerPublicApi;
+} satisfies FocusDrawerPublicApi

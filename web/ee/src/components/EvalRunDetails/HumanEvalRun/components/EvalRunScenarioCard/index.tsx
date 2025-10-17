@@ -5,10 +5,7 @@ import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
 
-import {
-    evaluationRunStateFamily,
-    evalAtomStore,
-} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {EvaluationRunState} from "@/oss/lib/hooks/useEvaluationRunData/types"
 
 import EvalRunScenarioCardTitle from "../EvalRunScenarioCardTitle"
@@ -28,8 +25,6 @@ import {EvalRunScenarioCardProps} from "./types"
  *                                       either as a "list" (card format) or "single" (full-width).
  */
 const EvalRunScenarioCard = ({scenarioId, runId, viewType = "list"}: EvalRunScenarioCardProps) => {
-    const store = evalAtomStore()
-
     /* scenario index for card title */
     // Read from the same global store that writes are going to
     const scenarioIndex = useAtomValue(
@@ -43,7 +38,6 @@ const EvalRunScenarioCard = ({scenarioId, runId, viewType = "list"}: EvalRunScen
                 ),
             [scenarioId, runId], // Include runId in dependencies
         ),
-        {store},
     )
 
     if (scenarioIndex === undefined) return null

@@ -1,12 +1,11 @@
 import {useMemo} from "react"
 
 import deepEqual from "fast-deep-equal"
-import {atom, useAtomValue} from "jotai"
+import {atom, getDefaultStore, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
 import {
-    evalAtomStore,
     evaluationRunStateFamily,
     runIndexFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
@@ -157,20 +156,17 @@ const useExpandableComparisonDataSource = ({
     baseRunId,
     comparisonRunIds,
 }: UseExpandableComparisonDataSourceProps) => {
-    const store = evalAtomStore()
+    const store = getDefaultStore()
     // const fetchMultipleRuns = useSetAtom(multiRunDataFetcherAtom)
 
-    const comparisonRunsSteps = useAtomValue(comparisonRunsStepsAtom(comparisonRunIds), {store})
-    const baseTestcases = useAtomValue(testcaseForScenarios(baseRunId), {store})
-    const comparisonRunIndexes = useAtomValue(comparisonRunIndexesAtom(comparisonRunIds), {store})
+    const comparisonRunsSteps = useAtomValue(comparisonRunsStepsAtom(comparisonRunIds))
+    const baseTestcases = useAtomValue(testcaseForScenarios(baseRunId))
+    const comparisonRunIndexes = useAtomValue(comparisonRunIndexesAtom(comparisonRunIds))
 
-    const comparisonRunsEvaluators = useAtomValue(comparisonRunsEvaluatorsAtom(comparisonRunIds), {
-        store,
-    })
+    const comparisonRunsEvaluators = useAtomValue(comparisonRunsEvaluatorsAtom(comparisonRunIds))
 
     const metricsFromEvaluators = useAtomValue(
         metricsFromEvaluatorsFamily([baseRunId, ...comparisonRunIds]),
-        {store},
     )
 
     // Match scenarios by content rather than IDs
@@ -223,8 +219,8 @@ const useExpandableComparisonDataSource = ({
     }, [baseTestcases, comparisonRunsSteps, comparisonRunIds.join(",")])
 
     // Build columns using EXACT same approach as regular table (useTableDataSource)
-    const runIndex = useAtomValue(runIndexFamily(baseRunId), {store})
-    const evaluationRunState = useAtomValue(evaluationRunStateFamily(baseRunId), {store})
+    const runIndex = useAtomValue(runIndexFamily(baseRunId))
+    const evaluationRunState = useAtomValue(evaluationRunStateFamily(baseRunId))
     const expendedRows = useAtomValue(expendedRowAtom)
     const evaluators = evaluationRunState?.enrichedRun?.evaluators || []
     const baseEvaluators = Array.isArray(evaluators) ? evaluators : Object.values(evaluators)
@@ -327,7 +323,7 @@ const useExpandableComparisonDataSource = ({
         [columnsWithRunSpecificSteps, baseRunId, expendedRows],
     )
 
-    const hiddenColumns = useAtomValue(editColumnsFamily(baseRunId), {store})
+    const hiddenColumns = useAtomValue(editColumnsFamily(baseRunId))
 
     const antColumns = useMemo(
         () => filterColumns(baseAntColumns, hiddenColumns),
@@ -343,7 +339,7 @@ const useExpandableComparisonDataSource = ({
     const loading = false
 
     // Build rows with actual scenario data - use the SAME approach as regular table
-    const scenarioIds = useAtomValue(displayedScenarioIdsFamily(baseRunId), {store}) || []
+    const scenarioIds = useAtomValue(displayedScenarioIdsFamily(baseRunId)) || []
 
     const rows = useMemo(() => {
         const builtRows = scenarioIds.map((scenarioId, idx) => {

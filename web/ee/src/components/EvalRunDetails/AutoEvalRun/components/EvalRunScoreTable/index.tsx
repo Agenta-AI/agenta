@@ -410,7 +410,13 @@ const EvalRunScoreTable = ({className}: {className?: string}) => {
                     {"h-[calc(100%-60px)]": !isComparison},
                 ])}
             >
-                <div className={clsx(["overflow-y-auto", {"w-[50%]": !isComparison}])}>
+                <div
+                    className={clsx([
+                        "overflow-y-auto",
+                        {"w-[50%]": !isComparison},
+                        {"w-full": chartMetrics.length < 3},
+                    ])}
+                >
                     <Table
                         dataSource={dataSource}
                         columns={useMemo(() => {
@@ -484,24 +490,26 @@ const EvalRunScoreTable = ({className}: {className?: string}) => {
                         rowKey={(r) => r.key}
                     />
                 </div>
-                <EvaluatorMetricsSpiderChart
-                    className={clsx([
-                        "min-h-[400px] h-[400px]",
-                        {"w-[50%] !h-full": !isComparison},
-                    ])}
-                    metrics={chartMetrics}
-                    series={useMemo(() => {
-                        return allRunIds.map((id, idx) => {
-                            const state = evalById[id]
-                            const compareIdx = state?.compareIndex || idx + 1
-                            return {
-                                key: idx === 0 ? "value" : `value-${idx + 1}`,
-                                color: (EVAL_COLOR as any)[compareIdx] || "#3B82F6",
-                                name: state?.enrichedRun?.name || `Eval ${compareIdx}`,
-                            }
-                        })
-                    }, [allRunIds, evalById])}
-                />
+                {chartMetrics.length < 3 ? null : (
+                    <EvaluatorMetricsSpiderChart
+                        className={clsx([
+                            "min-h-[400px] h-[400px]",
+                            {"w-[50%] !h-full": !isComparison},
+                        ])}
+                        metrics={chartMetrics}
+                        series={useMemo(() => {
+                            return allRunIds.map((id, idx) => {
+                                const state = evalById[id]
+                                const compareIdx = state?.compareIndex || idx + 1
+                                return {
+                                    key: idx === 0 ? "value" : `value-${idx + 1}`,
+                                    color: (EVAL_COLOR as any)[compareIdx] || "#3B82F6",
+                                    name: state?.enrichedRun?.name || `Eval ${compareIdx}`,
+                                }
+                            })
+                        }, [allRunIds, evalById])}
+                    />
+                )}
             </div>
         </div>
     )

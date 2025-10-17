@@ -8,7 +8,6 @@ import {
     loadableScenarioStepFamily,
     bulkStepsCacheFamily,
     getCurrentRunId,
-    evalAtomStore,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import {renderSkeleton} from "./assets/utils"
@@ -20,8 +19,6 @@ interface EvalRunScenarioCardBodyProps {
 }
 
 const EvalRunScenarioCardBody: FC<EvalRunScenarioCardBodyProps> = ({scenarioId, runId}) => {
-    const store = evalAtomStore()
-
     // Get effective runId - use provided runId or fallback to current run context
     const effectiveRunId = useMemo(() => {
         if (runId) return runId
@@ -62,7 +59,6 @@ const EvalRunScenarioCardBody: FC<EvalRunScenarioCardBodyProps> = ({scenarioId, 
                 }),
             [scenarioId, effectiveRunId],
         ),
-        {store},
     )
 
     // Use the same atom for load state as we use for data to ensure consistency
@@ -75,7 +71,6 @@ const EvalRunScenarioCardBody: FC<EvalRunScenarioCardBodyProps> = ({scenarioId, 
                 }),
             [scenarioId, effectiveRunId],
         ),
-        {store},
     )
 
     /* --- render content --- */
@@ -103,7 +98,6 @@ const EvalRunScenarioCardBody: FC<EvalRunScenarioCardBodyProps> = ({scenarioId, 
                 ),
             [scenarioId, effectiveRunId],
         ),
-        {store},
     )
 
     // Check scenario status to determine if we're in execution/revalidation state
@@ -125,7 +119,6 @@ const EvalRunScenarioCardBody: FC<EvalRunScenarioCardBodyProps> = ({scenarioId, 
                 }),
             [scenarioId, effectiveRunId],
         ),
-        {store},
     )
 
     // Only show loading skeleton when we're actually fetching data from server AND have no cached data

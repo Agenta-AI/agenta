@@ -1,12 +1,5 @@
-import {memo, useCallback, useMemo} from "react"
-
-import deepEqual from "fast-deep-equal"
-import {useAtomValue} from "jotai"
-import {selectAtom} from "jotai/utils"
-
-import {evaluationEvaluatorsFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-
-import EvaluatorMetricsCard from "./EvaluatorMetricsCard"
+import {memo} from "react"
+import EvalRunOverviewViewer from "../../../components/EvalRunOverviewViewer"
 
 /**
  * Displays run-level evaluation results grouped by evaluator.
@@ -15,23 +8,9 @@ import EvaluatorMetricsCard from "./EvaluatorMetricsCard"
  * are handled inside each card.
  */
 const EvalResultsView = ({runId}: {runId: string}) => {
-    const slugSelector = useCallback(
-        (list: any[] | undefined): string[] =>
-            (list || []).map((ev) => ev.slug || ev.id || ev.name),
-        [],
-    )
-
-    const slugsAtom = useMemo(
-        () => selectAtom(evaluationEvaluatorsFamily(runId), slugSelector, deepEqual),
-        [runId],
-    )
-    const evaluatorSlugs = useAtomValue(slugsAtom)
-
     return (
-        <section className="flex flex-wrap gap-2 overflow-y-auto p-1">
-            {evaluatorSlugs.map((slug) => (
-                <EvaluatorMetricsCard key={slug} runId={runId} evaluatorSlug={slug} />
-            ))}
+        <section className="overflow-y-auto flex flex-col gap-4">
+            <EvalRunOverviewViewer />
         </section>
     )
 }

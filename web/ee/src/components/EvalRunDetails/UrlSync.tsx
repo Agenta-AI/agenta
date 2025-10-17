@@ -1,21 +1,16 @@
 import {useEffect} from "react"
 
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
-
-import {useRunId} from "@/oss/contexts/RunIdContext"
-
-import {evalAtomStore} from "../../lib/hooks/useEvaluationRunData/assets/atoms/store"
 
 import {EvalRunUrlState, runViewTypeAtom, urlStateAtom} from "./state/urlState"
 
 const UrlSync = ({evalType}: {evalType: "auto" | "human"}) => {
     const router = useRouter()
-    const store = evalAtomStore()
 
     // Use global store for all atom reads/writes to ensure consistency
-    const [urlState, setUrlState] = useAtom(urlStateAtom, {store})
-    const viewType = useAtomValue(runViewTypeAtom, {store})
+    const [urlState, setUrlState] = useAtom(urlStateAtom)
+    const viewType = useAtomValue(runViewTypeAtom)
 
     // Router -> Atom (sync whenever relevant query params change)
     useEffect(() => {

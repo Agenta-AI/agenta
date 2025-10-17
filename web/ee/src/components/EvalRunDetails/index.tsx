@@ -1,9 +1,9 @@
-import {memo, useCallback, useEffect, useMemo} from "react"
+import {memo, useCallback, useEffect} from "react"
 
 import {Spin, Typography} from "antd"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
-import {createStore, getDefaultStore, Provider, useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {useRouter} from "next/router"
 
@@ -16,7 +16,6 @@ import {appendBreadcrumbAtom, breadcrumbAtom, setBreadcrumbsAtom} from "@/oss/li
 import {isUuid} from "@/oss/lib/helpers/utils"
 import useEvaluationRunData from "@/oss/lib/hooks/useEvaluationRunData"
 import {
-    evalAtomStore,
     evaluationRunStateFamily,
     initializeRun,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"

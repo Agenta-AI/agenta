@@ -6,10 +6,7 @@ import {useAtomValue} from "jotai"
 import {loadable} from "jotai/utils"
 
 import {getStatusLabel} from "@/oss/lib/constants/statusLabels"
-import {
-    scenarioStatusFamily,
-    evalAtomStore,
-} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {scenarioStatusFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import {STATUS_COLOR, STATUS_COLOR_TEXT} from "./assets"
 /**
@@ -35,8 +32,6 @@ const EvalRunScenarioStatusTag = ({
     className,
     showAsTag = true,
 }: EvalRunScenarioStatusTagProps) => {
-    const store = evalAtomStore()
-
     /**
      * Loadable atom wrapping scenarioStatusFamily, which provides the most
      * up-to-date status for the given scenarioId. This can be either a status
@@ -47,7 +42,6 @@ const EvalRunScenarioStatusTag = ({
      */
     const statusLoadable = useAtomValue(
         useMemo(() => loadable(scenarioStatusFamily({scenarioId, runId})), [scenarioId, runId]),
-        {store},
     )
     const scenarioStatus = statusLoadable.state === "hasData" ? statusLoadable.data : undefined
     const status = (scenarioStatus?.status as string) || "pending"

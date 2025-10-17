@@ -70,8 +70,6 @@ export const InputCell = memo(
         disableExpand?: boolean
         runId?: string
     }) => {
-        const store = evalAtomStore()
-
         // Use effective runId with proper fallback logic
         const contextRunId = useRunId()
         const effectiveRunId = useMemo(() => {
@@ -87,7 +85,6 @@ export const InputCell = memo(
             effectiveRunId
                 ? loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId}))
                 : atom({state: "loading" as const}),
-            {store},
         )
         if (stepLoadable.state !== "hasData" || !stepLoadable.data)
             return (

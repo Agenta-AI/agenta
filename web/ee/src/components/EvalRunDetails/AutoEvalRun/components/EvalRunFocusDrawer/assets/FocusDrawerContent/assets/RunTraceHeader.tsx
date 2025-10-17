@@ -7,10 +7,7 @@ import dynamic from "next/dynamic"
 import EvalNameTag from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/EvalNameTag"
 import {EVAL_TAG_COLOR} from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/utils"
 import {useRunId} from "@/oss/contexts/RunIdContext"
-import {
-    evalAtomStore,
-    evaluationRunStateFamily,
-} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
 
 const GenerationResultUtils = dynamic(
@@ -35,8 +32,7 @@ const RunTraceHeader = ({
     showComparisons?: boolean
 }) => {
     const baseRunId = useRunId()
-    const store = evalAtomStore()
-    const state = useAtomValue(evaluationRunStateFamily(rId), {store})
+    const state = useAtomValue(evaluationRunStateFamily(rId))
     const enriched = state?.enrichedRun
     const {trace: runTrace} = useInvocationResult({
         scenarioId: scId,

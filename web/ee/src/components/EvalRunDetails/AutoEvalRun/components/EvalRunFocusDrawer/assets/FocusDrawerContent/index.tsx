@@ -35,9 +35,8 @@ const failureRunTypes = [EvaluationStatus.FAILED, EvaluationStatus.FAILURE, Eval
 const EMPTY_COMPARISON_RUN_IDS: string[] = []
 
 const FocusDrawerContent = () => {
-    const appState = useAppState()
-    const store = evalAtomStore()
     const router = useRouter()
+    const appState = useAppState()
 
     const [windowHight, setWindowHight] = useState(0)
     const [activeKeys, setActiveKeys] = useState<(string | number)[]>([
@@ -92,7 +91,7 @@ const FocusDrawerContent = () => {
         () => comparisonRunsStepsAtom(comparisonRunIds),
         [comparisonRunIds],
     )
-    const comparisonRunsSteps = useAtomValue(comparisonRunsStepsAtomInstance, {store})
+    const comparisonRunsSteps = useAtomValue(comparisonRunsStepsAtomInstance)
     // // Derive whether to show comparison mode
     const showComparisons = useMemo(
         () => Boolean(isBaseRun && comparisonRunIds.length > 0),

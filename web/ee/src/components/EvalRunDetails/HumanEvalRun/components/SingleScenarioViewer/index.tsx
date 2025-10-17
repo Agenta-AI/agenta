@@ -10,7 +10,6 @@ import {useRunId} from "@/oss/contexts/RunIdContext"
 import {
     displayedScenarioIdsFamily,
     scenariosFamily,
-    evalAtomStore,
     scenarioStepProgressFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
@@ -25,11 +24,10 @@ import {SingleScenarioViewerProps} from "./types"
 const SingleScenarioViewer = ({runId}: SingleScenarioViewerProps) => {
     // Use run-scoped atoms with the provided runId
     const effectiveRunId = useRunId() || runId
-    const store = evalAtomStore()
 
     // Read from the same global store that writes are going to
-    const scenariosLoadable = useAtomValue(loadable(scenariosFamily(effectiveRunId)), {store})
-    const scenarioIdsFromFamily = useAtomValue(displayedScenarioIdsFamily(effectiveRunId), {store})
+    const scenariosLoadable = useAtomValue(loadable(scenariosFamily(effectiveRunId)))
+    const scenarioIdsFromFamily = useAtomValue(displayedScenarioIdsFamily(effectiveRunId))
 
     // Fallback: if displayedScenarioIdsFamily is empty but scenariosLoadable has data, use that
     const scenarioIds =
@@ -38,7 +36,7 @@ const SingleScenarioViewer = ({runId}: SingleScenarioViewerProps) => {
             : scenariosLoadable.state === "hasData"
               ? scenariosLoadable.data?.map((s) => s.id) || []
               : []
-    const scenarioStepProgress = useAtomValue(scenarioStepProgressFamily(effectiveRunId), {store})
+    const scenarioStepProgress = useAtomValue(scenarioStepProgressFamily(effectiveRunId))
 
     // Access URL state atom
     const router = useRouter()

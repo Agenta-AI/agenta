@@ -412,6 +412,7 @@ export function buildAntdColumns(
                                     distInfo={distMap[c.path]}
                                     stepKey={annotationStepKey}
                                     name={c.name}
+                                    runId={effectiveRunId}
                                 />
                             )
                         }

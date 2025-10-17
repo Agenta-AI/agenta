@@ -123,7 +123,7 @@ export function buildScenarioTableData({
                         ...data,
                         name: metricName || data.name,
                         title: formattedMetricName,
-                        kind: "metric",
+                        kind: "annotation",
                         path: data.name,
                         stepKey: "metric",
                         metricType: metricsFromEvaluators[evaluatorSlug]?.find(

@@ -11,13 +11,12 @@ import {runViewTypeAtom, urlStateAtom} from "../../state/urlState"
 import {ENABLE_CARD_VIEW, VIEW_HUMAN_OPTIONS, VIEW_AUTO_OPTIONS} from "./assets/constants"
 
 const EvalRunScenariosViewSelector = () => {
-    const store = evalAtomStore()
     const evalType = useAtomValue(evalTypeAtom)
     // Read from the same global store that writes are going to
-    const viewType = useAtomValue(runViewTypeAtom, {store})
+    const viewType = useAtomValue(runViewTypeAtom)
     const [_isPending, startTransition] = useTransition()
 
-    const setUrlState = useSetAtom(urlStateAtom, {store})
+    const setUrlState = useSetAtom(urlStateAtom)
 
     // Sync local atom from urlStateAtom changes
     return (

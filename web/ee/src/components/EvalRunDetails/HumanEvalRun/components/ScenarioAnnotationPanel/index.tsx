@@ -17,7 +17,6 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {
     getCurrentRunId,
     scenarioStepFamily,
-    evalAtomStore,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {UseEvaluationRunScenarioStepsFetcherResult} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
@@ -195,8 +194,6 @@ const ScenarioAnnotationPanel: FC<ScenarioAnnotationPanelProps> = ({
     buttonClassName,
     onAnnotate,
 }) => {
-    const store = evalAtomStore()
-
     // Use effective runId with fallback using useMemo
     const effectiveRunId = useMemo(() => {
         if (runId) return runId
@@ -217,13 +214,12 @@ const ScenarioAnnotationPanel: FC<ScenarioAnnotationPanelProps> = ({
         () => selectAtom(evaluationRunStateFamily(effectiveRunId), evaluatorsSelector, deepEqual),
         [effectiveRunId, evaluatorsSelector],
     )
-    const evaluators = useAtomValue(evaluatorsAtom, {store})
+    const evaluators = useAtomValue(evaluatorsAtom)
 
     // Loadable step data for this scenario (always eager) - now run-scoped
     // Read from the same global store that writes are going to
     const stepDataLoadable = useAtomValue(
         loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId})),
-        {store},
     )
 
     // Preserve last known data so we can still show tool-tips / fields while revalidating
