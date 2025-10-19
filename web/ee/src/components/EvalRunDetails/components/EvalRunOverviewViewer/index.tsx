@@ -1,26 +1,26 @@
 import {memo, useMemo} from "react"
 
 import deepEqual from "fast-deep-equal"
-import {useAtomValue} from "jotai"
-import {atom} from "jotai"
+import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {useRunId} from "@/oss/contexts/RunIdContext"
 import {
     evaluationEvaluatorsFamily,
+    evaluationRunStateFamily,
     loadingStateAtom,
     loadingStateFamily,
-    evaluationRunStateFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {runMetricStatsFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
 import {canonicalizeMetricKey, getMetricValueWithAliases} from "@/oss/lib/metricUtils"
 
-import {urlStateAtom} from "../../../state/urlState"
-import {formatMetricName} from "../../assets/utils"
-import {EVAL_COLOR} from "../../assets/utils"
-import EvalRunScoreTable from "../EvalRunScoreTable"
-import EvaluatorMetricsChart from "../EvaluatorMetricsChart"
+import {EVAL_COLOR, formatMetricName} from "../../AutoEvalRun/assets/utils"
+import EvalRunScoreTable from "../../AutoEvalRun/components/EvalRunScoreTable"
+import EvaluatorMetricsChart from "../../AutoEvalRun/components/EvaluatorMetricsChart"
+import {urlStateAtom} from "../../state/urlState"
 
+import clsx from "clsx"
+import {evalTypeAtom} from "../../state/evalType"
 import EvalRunOverviewViewerSkeleton from "./assets/EvalRunOverviewViewerSkeleton"
 
 // Only evaluator metrics (slug-prefixed) should render in overview charts; skip invocation metrics.
@@ -40,6 +40,7 @@ const runsMetricsFamily = atomFamily(
 const EvalRunOverviewViewer = () => {
     const runId = useRunId()
     const urlState = useAtomValue(urlStateAtom)
+    const evalType = useAtomValue(evalTypeAtom)
     const compareRunIds = urlState.compare
     const isCompare = !!compareRunIds?.length
 
@@ -111,7 +112,7 @@ const EvalRunOverviewViewer = () => {
         })
 
         return entries
-    }, [metrics, metricsByRun])
+    }, [metrics, metricsByRun, evaluatorsBySlug])
 
     const evalById = useMemo(() => {
         const map: Record<string, any> = {}
@@ -136,15 +137,15 @@ const EvalRunOverviewViewer = () => {
     }, [metricsByRun])
 
     if (loadingState.isLoadingMetrics || loadingStateFamilyData.isLoadingMetrics) {
-        return <EvalRunOverviewViewerSkeleton />
+        return <EvalRunOverviewViewerSkeleton className={clsx({"px-6": evalType === "auto"})} />
     }
     return (
         <>
-            <div className="px-6">
+            <div className={clsx({"px-6": evalType === "auto"})}>
                 <EvalRunScoreTable />
             </div>
 
-            <div className="px-6 w-full flex flex-wrap gap-2">
+            <div className={clsx("w-full flex flex-wrap gap-2", {"px-6": evalType === "auto"})}>
                 {combinedMetricEntries.map(({fullKey, metric, evaluatorSlug, metricKey}, idx) => {
                     if (!metric || !Object.keys(metric || {}).length) return null
 

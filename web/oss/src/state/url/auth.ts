@@ -107,10 +107,10 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
         const user = store.get(userAtom)
         const urlState = store.get(urlAtom)
 
-        const resolvedPath = nextUrl ? url.pathname : appState.pathname ?? url.pathname
+        const resolvedPath = nextUrl ? url.pathname : (appState.pathname ?? url.pathname)
         const resolvedAsPath = nextUrl
             ? `${url.pathname}${url.search}${url.hash}`
-            : appState.asPath ?? `${url.pathname}${url.search}${url.hash}`
+            : (appState.asPath ?? `${url.pathname}${url.search}${url.hash}`)
         const path = resolvedPath
         const asPath = resolvedAsPath
         const isAuthRoute = path.startsWith("/auth")

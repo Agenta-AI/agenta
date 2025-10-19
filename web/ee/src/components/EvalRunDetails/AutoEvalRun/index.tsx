@@ -10,7 +10,7 @@ import AutoEvalRunSkeleton from "./assets/AutoEvalRunSkeleton"
 import {AutoEvalRunDetailsProps} from "./assets/types"
 import EvalRunHeader from "./components/EvalRunHeader"
 
-const EvalRunOverviewViewer = dynamic(() => import("./components/EvalRunOverviewViewer"), {
+const EvalRunOverviewViewer = dynamic(() => import("../components/EvalRunOverviewViewer"), {
     ssr: false,
 })
 const EvalRunPromptConfigViewer = dynamic(() => import("./components/EvalRunPromptConfigViewer"), {

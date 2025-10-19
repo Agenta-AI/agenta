@@ -5,10 +5,7 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
-import {
-    evalAtomStore,
-    runMetricsStatsCacheFamily,
-} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {runMetricsStatsCacheFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {extractPrimitive, inferMetricType} from "@/oss/lib/metricUtils"
 
@@ -270,10 +267,8 @@ export const MetricDetailsPopoverWrapper = memo(
             [evaluatorSlug, evaluatorMetricKey],
         )
 
-        const store = evalAtomStore()
-
         // Use run-scoped stats cache instead of global cache
-        const runStatsCache = useAtomValue(runMetricsStatsCacheFamily(runId), {store})
+        const runStatsCache = useAtomValue(runMetricsStatsCacheFamily(runId))
         const stats = statsOverride ?? runStatsCache?.[metricKey]
 
         const rawPrimitive = useMemo(() => extractPrimitive(stats), [stats])

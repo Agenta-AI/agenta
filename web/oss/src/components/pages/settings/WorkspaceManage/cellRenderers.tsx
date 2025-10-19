@@ -55,8 +55,8 @@ export const Actions: React.FC<{
             title: "Remove member",
             message: `Are you sure you want to remove ${user.username} from this workspace?`,
             onOk: () =>
-                removeFromWorkspace({organizationId, workspaceId, email: user.email}, true).then(() =>
-                    refetch(),
+                removeFromWorkspace({organizationId, workspaceId, email: user.email}, true).then(
+                    () => refetch(),
                 ),
             okText: "Remove",
         })
@@ -127,7 +127,12 @@ export const Roles: React.FC<{
     const handleChangeRole = async (roleName: string) => {
         setLoading(true)
         try {
-            await assignWorkspaceRole({organizationId, workspaceId, email: user.email, role: roleName})
+            await assignWorkspaceRole({
+                organizationId,
+                workspaceId,
+                email: user.email,
+                role: roleName,
+            })
             await Promise.all(
                 member.roles
                     .filter((item) => item.role_name !== roleName)

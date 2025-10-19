@@ -22,7 +22,7 @@ function createGlobalStore() {
 }
 
 // Global singleton store that persists across HMR
-const globalStore: ReturnType<typeof createStore> =
+const globalStore: ReturnType<typeof getDefaultStore> =
     (globalThis as any)[globalStoreKey] || createGlobalStore()
 ;(globalThis as any)[globalStoreKey] = globalStore
 

@@ -1,7 +1,7 @@
 import {memo, useCallback, useState} from "react"
 
 import RunButton from "@agenta/oss/src/components/Playground/assets/RunButton"
-import {useAtomValue} from "jotai"
+import {getDefaultStore, useAtomValue} from "jotai"
 import {loadable} from "jotai/utils"
 
 // agenta hooks & utils
@@ -11,7 +11,6 @@ import {useEvalScenarioQueue} from "@/oss/lib/hooks/useEvalScenarioQueue"
 import {
     scenarioStepFamily,
     scenariosFamily,
-    evalAtomStore,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {scenarioMetricsMapFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
 
@@ -35,19 +34,18 @@ const EMPTY_ROWS: any[] = []
 const EvalRunBatchActions = ({name}: {name: string}) => {
     const [rows, setRows] = useState<any[]>(EMPTY_ROWS)
     const runId = useRunId()
-    const store = evalAtomStore()
 
     const {enqueueScenario} = useEvalScenarioQueue({concurrency: 5, runId})
 
     // Lightweight subscription: only track the count of runnable scenarios - use global store
-    const hasRunnable = useAtomValue(hasRunnableScenarioFamily(runId), {store})
+    const hasRunnable = useAtomValue(hasRunnableScenarioFamily(runId))
     const isRunAllDisabled = !hasRunnable
 
     const handleRunAll = useCallback(async () => {
         if (!runId) return
 
         try {
-            const store = evalAtomStore()
+            const store = getDefaultStore()
 
             // Get all scenarios for this run (same as single run approach)
             const scenarios = store.get(scenariosFamily(runId))
@@ -132,7 +130,7 @@ const EvalRunBatchActions = ({name}: {name: string}) => {
         if (!runId) return []
 
         // 1. Gather the scenario IDs present in the current evaluation (sync)
-        const store = evalAtomStore()
+        const store = getDefaultStore()
         const scenarios = store.get(scenariosFamily(runId))
         const ids = scenarios.map((s: any) => s.id)
 

@@ -4,7 +4,6 @@ import {Button} from "antd"
 import {useAtomValue} from "jotai"
 
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {evalAtomStore} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {scenarioUiFlagsFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/progress"
 import {getProjectValues} from "@/oss/state/project"
 
@@ -27,8 +26,7 @@ const AnnotateScenarioButton = ({
     className,
 }: AnnotateScenarioButtonProps) => {
     const [annotating, setAnnotating] = useState(false)
-    const store = evalAtomStore()
-    const uiFlags = useAtomValue(scenarioUiFlagsFamily({scenarioId, runId}), {store})
+    const uiFlags = useAtomValue(scenarioUiFlagsFamily({scenarioId, runId}))
     const isLoading = annotating || uiFlags.isAnnotating || uiFlags.isRevalidating
 
     const onAnnotate = useCallback(async () => {

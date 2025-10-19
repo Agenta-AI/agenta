@@ -1,4 +1,4 @@
-import {type ReactNode, memo, useMemo} from "react"
+import {type ReactNode, memo, useCallback, useMemo} from "react"
 
 import {Tag, Tooltip} from "antd"
 import clsx from "clsx"
@@ -8,11 +8,12 @@ import {urlStateAtom} from "@/oss/components/EvalRunDetails/state/urlState"
 import MetricDetailsPopover from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover" // adjust path if necessary
 import {formatMetricValue} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils" // same util used elsewhere
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
-import {useRunId} from "@/oss/contexts/RunIdContext"
 import {getStatusLabel} from "@/oss/lib/constants/statusLabels"
 import {
-    evalAtomStore,
+    evaluationRunStateFamily,
+    getCurrentRunId,
     loadableScenarioStepFamily,
+    scenarioStepFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {runScopedMetricDataFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
 import {EvaluationStatus} from "@/oss/lib/Types"
@@ -21,6 +22,10 @@ import {STATUS_COLOR_TEXT} from "../../../EvalRunScenarioStatusTag/assets"
 import {CellWrapper} from "../CellComponents" // CellWrapper is default export? need to check.
 
 import {AnnotationValueCellProps, MetricCellProps, MetricValueCellProps} from "./types"
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {loadable, selectAtom} from "jotai/utils"
+import {UseEvaluationRunScenarioStepsFetcherResult} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
+import deepEqual from "fast-deep-equal"
 
 /*
  * MetricCell – common renderer for metric columns (scenario-level or evaluator-level).
@@ -200,16 +205,12 @@ export const MetricValueCell = memo<MetricValueCellProps>(
             [fallbackKey, metricKey, param, runId, scenarioId],
         )
 
-        const store = evalAtomStore()
-
         const urlState = useAtomValue(urlStateAtom)
         const isComparisonMode = Boolean(urlState.compare && urlState.compare.length > 0)
 
         let value, distInfo
-        const result = useAtomValue(runScopedMetricDataFamily(param as any), {store})
-        const fallbackResult = useAtomValue(runScopedMetricDataFamily(fallbackParam as any), {
-            store,
-        })
+        const result = useAtomValue(runScopedMetricDataFamily(param as any))
+        const fallbackResult = useAtomValue(runScopedMetricDataFamily(fallbackParam as any))
 
         value = result.value
         distInfo = result.distInfo
@@ -287,6 +288,118 @@ export const MetricValueCell = memo<MetricValueCellProps>(
 )
 
 // --- Annotation value cell -----------------------------------------------
+// It's a hot fix until we fix the backend issue for annotation metrics
+// In the backend the metrics endpoint is not returning all the type of annotation metrics
+const OUTPUTS_PREFIX = "data.outputs."
+const OUTPUT_SECTION_KEYS = ["metrics", "notes", "extra"] as const
+
+const getNestedValue = (source: any, path?: string): any => {
+    if (!source || !path) return undefined
+    const segments = path.split(".").filter(Boolean)
+    if (!segments.length) return undefined
+    return segments.reduce<any>((acc, segment) => {
+        if (acc === undefined || acc === null) return undefined
+        return acc[segment]
+    }, source)
+}
+
+const normalizeOutputsPath = (path?: string): string | undefined => {
+    if (!path) return undefined
+    if (path.startsWith(OUTPUTS_PREFIX)) {
+        return path.slice(OUTPUTS_PREFIX.length)
+    }
+    if (path.startsWith("outputs.")) {
+        return path.slice("outputs.".length)
+    }
+    return path
+}
+
+// Extract annotation metric/notes/extra values straight from the invocation payload.
+const resolveAnnotationMetricValue = ({
+    annotations,
+    fieldPath,
+    metricKey,
+    name,
+}: {
+    annotations: AnnotationDto[]
+    fieldPath?: string
+    metricKey?: string
+    name?: string
+}) => {
+    if (!annotations?.length) return undefined
+
+    const fieldSegments = fieldPath?.split(".").filter(Boolean) ?? []
+
+    const annotationsBySlug = new Map<string, AnnotationDto>()
+    annotations.forEach((ann) => {
+        const slug = ann?.references?.evaluator?.slug
+        if (slug) annotationsBySlug.set(slug, ann)
+    })
+
+    const slugIndex = fieldSegments.findIndex((segment) => annotationsBySlug.has(segment))
+    const slug = slugIndex >= 0 ? fieldSegments[slugIndex] : undefined
+    const remainderSegments = slugIndex >= 0 ? fieldSegments.slice(slugIndex + 1) : fieldSegments
+    const remainderPath = remainderSegments.length ? remainderSegments.join(".") : undefined
+
+    const keyCandidates = Array.from(
+        new Set(
+            [metricKey, name, remainderSegments.at(-1), fieldSegments.at(-1)]
+                .filter((key): key is string => Boolean(key))
+                .map((key) => key),
+        ),
+    )
+
+    const outputPathCandidates = Array.from(
+        new Set(
+            [
+                normalizeOutputsPath(fieldPath),
+                normalizeOutputsPath(remainderPath),
+                ...keyCandidates.flatMap((key) =>
+                    OUTPUT_SECTION_KEYS.map((section) => `${section}.${key}`),
+                ),
+            ].filter((path): path is string => Boolean(path)),
+        ),
+    )
+
+    const rootPathCandidates = Array.from(
+        new Set([fieldPath, remainderPath, ...keyCandidates].filter(Boolean) as string[]),
+    )
+
+    const prioritizedAnnotations = (() => {
+        if (slug) {
+            const matched = annotationsBySlug.get(slug)
+            if (matched) return [matched]
+        }
+
+        const matchedByKey = annotations.filter((ann) => {
+            const outputs = ann?.data?.outputs
+            if (!outputs) return false
+            return keyCandidates.some((key) =>
+                OUTPUT_SECTION_KEYS.some(
+                    (section) => getNestedValue(outputs[section], key) !== undefined,
+                ),
+            )
+        })
+
+        if (matchedByKey.length) return matchedByKey
+        return annotations
+    })()
+
+    for (const ann of prioritizedAnnotations) {
+        const outputs = ann?.data?.outputs ?? {}
+        for (const path of outputPathCandidates) {
+            const val = getNestedValue(outputs, path)
+            if (val !== undefined) return val
+        }
+
+        for (const path of rootPathCandidates) {
+            const val = getNestedValue(ann, path)
+            if (val !== undefined) return val
+        }
+    }
+
+    return undefined
+}
 
 export const AnnotationValueCell = memo<AnnotationValueCellProps>(
     ({
@@ -298,14 +411,153 @@ export const AnnotationValueCell = memo<AnnotationValueCellProps>(
         metricType,
         fullKey,
         distInfo: propsDistInfo,
+        runId,
     }) => {
-        const stepSlug = stepKey?.includes(".") ? stepKey.split(".")[1] : undefined
-        const param = useMemo(
-            () => ({scenarioId, stepSlug, metricKey: metricKey || ""}),
-            [scenarioId, stepSlug, metricKey],
+        // Use effective runId with fallback using useMemo
+        const effectiveRunId = useMemo(() => {
+            if (runId) return runId
+            try {
+                return getCurrentRunId()
+            } catch (error) {
+                return ""
+            }
+        }, [runId])
+        // Get evaluators from run-scoped state instead of global atom
+        const evaluatorsSelector = useCallback((state: any) => {
+            return state?.enrichedRun?.evaluators ? Object.values(state.enrichedRun.evaluators) : []
+        }, [])
+        const evaluatorsAtom = useMemo(
+            () =>
+                selectAtom(evaluationRunStateFamily(effectiveRunId), evaluatorsSelector, deepEqual),
+            [effectiveRunId, evaluatorsSelector],
         )
-        const {value: metricVal, distInfo} = useAtomValue(metricDataFamily(param))
+        const evaluators = useAtomValue(evaluatorsAtom)
+        const stepDataLoadable = useAtomValue(
+            loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId})),
+        )
 
+        let stepData: UseEvaluationRunScenarioStepsFetcherResult | undefined = undefined
+        if (stepDataLoadable.state === "hasData") {
+            stepData = stepDataLoadable.data
+        } else if (stepDataLoadable.state === "loading") {
+            // stepData = prevDataRef.current
+        }
+
+        // Memoize annotation steps for best performance (multi-step)
+        const _annotationSteps = useMemo(
+            () =>
+                (stepData?.annotationSteps ??
+                    []) as UseEvaluationRunScenarioStepsFetcherResult["annotationSteps"],
+            [stepData],
+        )
+        // Build annotations per step key / slug
+        const annotationsByStep = useMemo(() => {
+            type AnnStep = UseEvaluationRunScenarioStepsFetcherResult["annotationSteps"][number]
+            const map: Record<string, AnnStep[]> = {}
+            if (!_annotationSteps.length) return map
+
+            _annotationSteps.forEach((step) => {
+                const annotation = step.annotation
+                const fullKey = step.stepKey ?? (step as any).key
+                const evaluatorSlug = annotation?.references?.evaluator?.slug
+                const linkKeys = annotation?.links ? Object.keys(annotation.links) : []
+
+                const possibleKeys = new Set<string>()
+                linkKeys.forEach((key) => {
+                    if (key) possibleKeys.add(key)
+                })
+                if (fullKey) {
+                    possibleKeys.add(fullKey)
+                    const invocationKey = fullKey.includes(".") ? fullKey.split(".")[0] : fullKey
+                    if (invocationKey) possibleKeys.add(invocationKey)
+                }
+                if (evaluatorSlug) {
+                    possibleKeys.add(evaluatorSlug)
+                }
+
+                if (!possibleKeys.size) {
+                    possibleKeys.add("__default__")
+                }
+
+                possibleKeys.forEach((key) => {
+                    if (!map[key]) map[key] = []
+                    map[key].push(step)
+                })
+            })
+            return map
+        }, [_annotationSteps])
+        const buildAnnotateData = useCallback(
+            (lookupKey?: string) => {
+                const fallbackSteps = _annotationSteps || []
+                const _steps = (lookupKey && annotationsByStep?.[lookupKey]) || fallbackSteps
+                const _annotations = _steps
+                    .map((s) => s.annotation)
+                    .filter(Boolean) as AnnotationDto[]
+                const annotationEvaluatorSlugs = _annotations
+                    .map((annotation) => annotation?.references?.evaluator?.slug)
+                    .filter(Boolean)
+
+                return {
+                    annotations: _annotations,
+                    evaluatorSlugs:
+                        evaluators
+                            ?.map((e) => e.slug)
+                            .filter((slug) => !annotationEvaluatorSlugs.includes(slug)) || [],
+                    evaluators:
+                        evaluators?.filter((e) => !annotationEvaluatorSlugs.includes(e.slug)) || [],
+                }
+            },
+            [annotationsByStep, evaluators, _annotationSteps],
+        )
+        const annotationKeys = useMemo(
+            () => Object.keys(annotationsByStep).filter((key) => key !== "__default__"),
+            [annotationsByStep],
+        )
+        const resolvedAnnotationKey = useMemo(() => {
+            if (!annotationKeys.length) {
+                return annotationsByStep.__default__ ? "__default__" : undefined
+            }
+
+            if (stepKey && stepKey !== "metric") {
+                if (annotationsByStep[stepKey]) return stepKey
+
+                const suffixMatch = annotationKeys.find((key) => key.endsWith(stepKey))
+                if (suffixMatch) return suffixMatch
+            }
+
+            const slugCandidates = [metricKey, name, fieldPath]
+                .map((candidate) => candidate?.split(".")[0])
+                .filter((slug): slug is string => Boolean(slug))
+
+            for (const slug of slugCandidates) {
+                const slugMatch = annotationKeys.find(
+                    (key) => key === slug || key.endsWith(`.${slug}`),
+                )
+                if (slugMatch) return slugMatch
+            }
+
+            if (annotationsByStep.__default__) {
+                return "__default__"
+            }
+
+            return annotationKeys[0]
+        }, [annotationKeys, annotationsByStep, fieldPath, metricKey, name, stepKey])
+        const annotationsForStep = useMemo(() => {
+            const annotateData = buildAnnotateData(resolvedAnnotationKey)
+            return annotateData.annotations
+        }, [buildAnnotateData, resolvedAnnotationKey])
+
+        const metricVal = useMemo(
+            () =>
+                resolveAnnotationMetricValue({
+                    annotations: annotationsForStep,
+                    fieldPath,
+                    metricKey,
+                    name,
+                }),
+            [annotationsForStep, fieldPath, metricKey, name],
+        )
+        const distInfo = propsDistInfo
         return (
             <MetricCell
                 scenarioId={scenarioId}

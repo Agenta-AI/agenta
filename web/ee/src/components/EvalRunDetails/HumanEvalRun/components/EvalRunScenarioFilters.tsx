@@ -5,7 +5,6 @@ import {useSetAtom, useAtomValue} from "jotai"
 
 import {useRunId} from "@/oss/contexts/RunIdContext"
 import {
-    evalAtomStore,
     totalCountFamily,
     evalScenarioFilterAtom,
     pendingCountFamily,
@@ -15,15 +14,14 @@ import {
 
 const EvalRunScenarioFilters = () => {
     const runId = useRunId()
-    const store = evalAtomStore()
 
     // Read from the same global store that writes are going to
-    const setFilterAtom = useSetAtom(evalScenarioFilterAtom, {store})
-    const filter = useAtomValue(evalScenarioFilterAtom, {store})
-    const totalCount = useAtomValue(totalCountFamily(runId), {store})
-    const pendingCount = useAtomValue(pendingCountFamily(runId), {store})
-    const unannotatedCount = useAtomValue(unannotatedCountFamily(runId), {store})
-    const failedCount = useAtomValue(failedCountFamily(runId), {store})
+    const setFilterAtom = useSetAtom(evalScenarioFilterAtom)
+    const filter = useAtomValue(evalScenarioFilterAtom)
+    const totalCount = useAtomValue(totalCountFamily(runId))
+    const pendingCount = useAtomValue(pendingCountFamily(runId))
+    const unannotatedCount = useAtomValue(unannotatedCountFamily(runId))
+    const failedCount = useAtomValue(failedCountFamily(runId))
 
     const handleChange = useCallback((val: string) => {
         setFilterAtom(val as any)

@@ -1,16 +1,17 @@
 import {memo} from "react"
 
-import EvalRunScoreTableSkeleton from "../../EvalRunScoreTable/assets/EvalRunScoreTableSkeleton"
-import EvaluatorMetricsChartSkeleton from "../../EvaluatorMetricsChart/assets/EvaluatorMetricsChartSkeleton"
+import EvalRunScoreTableSkeleton from "../../../AutoEvalRun/components/EvalRunScoreTable/assets/EvalRunScoreTableSkeleton"
+import EvaluatorMetricsChartSkeleton from "../../../AutoEvalRun/components/EvaluatorMetricsChart/assets/EvaluatorMetricsChartSkeleton"
+import clsx from "clsx"
 
-const EvalRunOverviewViewerSkeleton = () => {
+const EvalRunOverviewViewerSkeleton = ({className}: {className?: string}) => {
     return (
         <>
-            <div className="px-6 w-full h-full">
+            <div className={clsx("px-6 w-full h-full", className)}>
                 <EvalRunScoreTableSkeleton />
             </div>
 
-            <div className="px-6 w-full flex flex-wrap gap-2">
+            <div className={clsx("w-full flex flex-wrap gap-2", className)}>
                 {Array.from({length: 3}).map((_, index) => (
                     <EvaluatorMetricsChartSkeleton
                         key={index}

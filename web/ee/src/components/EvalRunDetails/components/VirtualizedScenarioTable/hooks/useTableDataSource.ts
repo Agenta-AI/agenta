@@ -18,7 +18,6 @@ import {
     displayedScenarioIdsFamily,
     loadableScenarioStepFamily,
 } from "../../../../../lib/hooks/useEvaluationRunData/assets/atoms/runScopedScenarios"
-import {evalAtomStore} from "../../../../../lib/hooks/useEvaluationRunData/assets/atoms/store"
 import {buildScenarioTableData, buildScenarioTableRows} from "../assets/dataSourceBuilder"
 import {buildAntdColumns} from "../assets/utils"
 
@@ -78,14 +77,13 @@ export const metricsFromEvaluatorsFamily = atomFamily(
 
 const useTableDataSource = () => {
     const runId = useRunId()
-    const store = evalAtomStore()
 
     // states
-    const [editColumns, setEditColumns] = useAtom(editColumnsFamily(runId), {store})
+    const [editColumns, setEditColumns] = useAtom(editColumnsFamily(runId))
 
     // Read from the same global store that writes are going to
-    const scenarioIds = useAtomValue(displayedScenarioIdsFamily(runId), {store}) || EMPTY_SCENARIOS
-    const allScenariosLoaded = useAtomValue(allScenariosLoadedFamily(runId), {store})
+    const scenarioIds = useAtomValue(displayedScenarioIdsFamily(runId)) || EMPTY_SCENARIOS
+    const allScenariosLoaded = useAtomValue(allScenariosLoadedFamily(runId))
 
     // const metricDistributions = useAtomValue(runMetricsStatsAtom)
     const runIndex = useAtomValue(runIndexFamily(runId))
@@ -93,7 +91,7 @@ const useTableDataSource = () => {
         useAtomValue(metricsFromEvaluatorsFamily(runId)) || EMPTY_SCENARIOS
     // temporary implementation to implement loading state for auto eval
     const loadable = useAtomValue(loadableScenarioStepFamily({runId, scenarioId: scenarioIds?.[0]}))
-    const evaluationRunState = useAtomValue(evaluationRunStateFamily(runId), {store})
+    const evaluationRunState = useAtomValue(evaluationRunStateFamily(runId))
     const evaluators = evaluationRunState?.enrichedRun?.evaluators || []
 
     const isLoadingSteps = useMemo(
