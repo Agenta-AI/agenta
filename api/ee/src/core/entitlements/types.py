@@ -61,8 +61,8 @@ CATALOG = [
         },
         "features": [
             "2 prompts",
-            "5k traces/month",
             "20 evaluations/month",
+            "5k traces/month",
             "2 seats",
         ],
     },
@@ -109,44 +109,66 @@ CATALOG = [
         },
         "features": [
             "Unlimited prompts",
-            "10k traces/month",
             "Unlimited evaluations",
-            "3 seats included",
+            "10k free traces/month",
+            "3 free seats",
             "Up to 10 seats",
         ],
     },
-    # {
-    #     "title": "Business",
-    #     "description": "For scale, security, and support.",
-    #     "type": "standard",
-    #     "price": {
-    #         "base": {
-    #             "type": "flat",
-    #             "currency": "USD",
-    #             "amount": 399.00,
-    #             "starting_at": True,
-    #         },
-    #     },
-    #     "features": [
-    #         "Unlimited prompts",
-    #         "Unlimited traces",
-    #         "Unlimited evaluations",
-    #         "Unlimited seats",
-    #     ],
-    # },
+    {
+        "title": "Business",
+        "description": "For scale, security, and support.",
+        "type": "standard",
+        "plan": Plan.CLOUD_V0_BUSINESS.value,
+        "price": {
+            "base": {
+                "type": "flat",
+                "currency": "USD",
+                "amount": 399.00,
+            },
+            "traces": {
+                "type": "tiered",
+                "currency": "USD",
+                "tiers": [
+                    {
+                        "limit": 1_000_000,
+                        "amount": 0.00,
+                    },
+                    {
+                        "amount": 5.00,
+                        "rate": 10_000,
+                    },
+                ],
+            },
+        },
+        "features": [
+            "Everything in Pro",
+            "Unlimited seats",
+            "1M free traces/month",
+            "Multiple workspaces [soon]",
+            "Roles and RBAC",
+            "SSO and MFA [soon]",
+            "SOC 2 reports",
+            "HIPAA BAA [soon]",
+            "Private Slack Channel",
+            "Business SLA",
+        ],
+    },
     {
         "title": "Enterprise",
         "description": "For large organizations or custom needs.",
         "type": "standard",
         "features": [
-            "Everything in Pro",
-            "Unlimited seats",
-            "SOC 2 reports",
+            "Everything in Business",
+            "Custom roles",
+            "Enterprise SSO",
+            "Audit logs",
+            "Self-hosting options",
+            "Bring Your Own Cloud (BYOC)",
             "Security reviews",
             "Dedicated support",
-            "Custom SLAs",
+            "Custom SLA",
             "Custom terms",
-            "Self-hosted deployment options",
         ],
     },
     {
@@ -204,6 +226,20 @@ ENTITLEMENTS = {
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(limit=10, strict=True, free=3),
+            Gauge.APPLICATIONS: Quota(strict=True),
+        },
+    },
+    Plan.CLOUD_V0_BUSINESS: {
+        Tracker.FLAGS: {
+            Flag.HOOKS: True,
+            Flag.RBAC: True,
+        },
+        Tracker.COUNTERS: {
+            Counter.TRACES: Quota(monthly=True, free=1_000_000),
+            Counter.EVALUATIONS: Quota(monthly=True, strict=True),
+        },
+        Tracker.GAUGES: {
+            Gauge.USERS: Quota(strict=True),
             Gauge.APPLICATIONS: Quota(strict=True),
         },
     },

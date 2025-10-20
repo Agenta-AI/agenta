@@ -74,15 +74,14 @@ const Billing = () => {
                         </Typography.Text>
                     )}
 
-                    {subscription?.plan === Plan.Enterprise ||
-                    subscription?.plan === Plan.Business ? (
+                    {subscription?.plan === Plan.Enterprise ? (
                         <Typography.Text className="text-[#586673]">
                             For queries regarding your plan,{" "}
                             <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo" target="_blank">
                                 click here to contact us
                             </a>
                         </Typography.Text>
-                    ) : subscription?.plan === Plan.Pro ? (
+                    ) : subscription?.plan === Plan.Pro || subscription?.plan === Plan.Business ? (
                         <div className="flex items-center gap-2">
                             <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
                                 Upgrade plan

@@ -1,3 +1,5 @@
+import {sortSpansByStartTime} from "@/oss/lib/helpers/tracing"
+
 import {TraceSpanNode, TracesResponse, SpansResponse} from "../types"
 
 export const isTracesResponse = (data: any): data is TracesResponse => {
@@ -14,7 +16,7 @@ export const transformTracesResponseToTree = (data: TracesResponse): TraceSpanNo
             return []
         }
 
-        return Object.values(spans).flatMap((span: any) => {
+        const spanArray = Object.values(spans).flatMap((span: any) => {
             if (Array.isArray(span)) {
                 return buildTree(span)
             }
@@ -29,6 +31,9 @@ export const transformTracesResponseToTree = (data: TracesResponse): TraceSpanNo
 
             return node
         })
+
+        // Sort spans at this hierarchy level by start_time
+        return sortSpansByStartTime(spanArray)
     }
 
     return Object.values(data.traces).flatMap((trace: any) => buildTree(trace.spans))

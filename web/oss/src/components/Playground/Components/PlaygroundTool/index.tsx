@@ -21,29 +21,32 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
     const editorIdRef = useRef(uuidv4())
     const isReadOnly = Boolean(disabled)
     const [minimized, setMinimized] = useState(false)
-    const [toolString, setToolString] = useState(() => {
+    const [toolString, setToolString] = useState<string | null>(() => {
         try {
-            return typeof value === "string" ? value : JSON5.stringify(value)
+            if (!value) {
+                return ""
+            }
+            return typeof value === "string" ? value : JSON5.stringify(value, null, 2)
         } catch (e) {
-            return null
+            return ""
         }
     })
     const [functionName, setFunctionName] = useState(() => {
         try {
             return typeof value === "string"
-                ? JSON5.parse(value)?.function?.name
-                : value?.function?.name
+                ? (JSON5.parse(value)?.function?.name ?? "")
+                : (value?.function?.name ?? "")
         } catch (err) {
-            return null
+            return ""
         }
     })
     const [functionDescription, setFunctionDescription] = useState(() => {
         try {
             return typeof value === "string"
-                ? JSON5.parse(value)?.function?.description
-                : value?.function?.description
+                ? (JSON5.parse(value)?.function?.description ?? "")
+                : (value?.function?.description ?? "")
         } catch (err) {
-            return null
+            return ""
         }
     })
 
@@ -56,79 +59,85 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
         }
     }, [toolString])
 
-    useEffect(() => {
-        if (isReadOnly || !toolString) {
-            return
-        }
+    const syncToolFunctionField = useCallback(
+        (updater: (toolFunction: any) => any) => {
+            if (isReadOnly) return
 
-        try {
-            const toolObj = JSON5.parse(toolString)
-            if (toolObj && toolObj.function) {
-                toolObj.function.name = functionName
-            }
-            setToolString(JSON.stringify(toolObj))
-        } catch (err) {
-            console.error(err)
-        }
-    }, [functionName, isReadOnly, toolString])
+            setToolString((currentString) => {
+                if (!currentString) return currentString
 
-    useEffect(() => {
-        if (isReadOnly || !toolString) {
-            return
-        }
+                try {
+                    const parsedTool = JSON5.parse(currentString)
+                    const currentFunction = parsedTool.function ?? {}
+                    const nextFunction = updater(currentFunction)
+                    const isSameReference =
+                        (parsedTool.function && nextFunction === parsedTool.function) ||
+                        nextFunction === currentFunction
+                    const nextFunctionIsObject =
+                        typeof nextFunction === "object" && nextFunction !== null
+                    const isEmptyNoop =
+                        !parsedTool.function &&
+                        nextFunction === currentFunction &&
+                        (!nextFunctionIsObject || Object.keys(nextFunction).length === 0)
 
-        try {
-            const toolObj = JSON5.parse(toolString)
-            if (toolObj && toolObj.function) {
-                toolObj.function.description = functionDescription
-            }
+                    if (isSameReference || isEmptyNoop) {
+                        return currentString
+                    }
 
-            setToolString(JSON.stringify(toolObj))
-        } catch (err) {
-            console.error(err)
-        }
-    }, [functionDescription, isReadOnly, toolString])
+                    const updatedTool = {
+                        ...parsedTool,
+                        function: nextFunction,
+                    }
+
+                    const nextString = JSON.stringify(updatedTool, null, 2)
+                    return nextString === currentString ? currentString : nextString
+                } catch (err) {
+                    console.error(err)
+                    return currentString
+                }
+            })
+        },
+        [isReadOnly],
+    )
 
     useEffect(() => {
         if (isReadOnly) return
-
         try {
             const parsedTool = JSON5.parse(toolString)
             editorProps?.handleChange?.(parsedTool)
             setFunctionName((currentName) => {
-                if (currentName !== parsedTool?.function?.name) {
-                    return parsedTool?.function?.name
+                const nextName = parsedTool?.function?.name ?? ""
+                if (currentName !== nextName) {
+                    return nextName
                 }
                 return currentName
             })
             setFunctionDescription((currentDescription) => {
-                if (currentDescription !== parsedTool?.function?.description) {
-                    return parsedTool?.function?.description
+                const nextDescription = parsedTool?.function?.description ?? ""
+                if (currentDescription !== nextDescription) {
+                    return nextDescription
                 }
                 return currentDescription
             })
         } catch (e) {
             if (!toolString) {
-                setFunctionName(null)
-                setFunctionDescription(null)
+                setFunctionName("")
+                setFunctionDescription("")
             }
         }
     }, [toolString, isReadOnly])
-
     // Use atom-based state management for direct prompt updates via derived prompts
     const variant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
     const appUriInfo = useAtomValue(appUriInfoAtom)
     const setPrompts = useSetAtom(
         useMemo(() => promptsAtomFamily(variantId), [variant, variantId, appUriInfo?.routePath]),
     )
-
     const deleteMessage = useCallback(() => {
         if (isReadOnly) return
         if (!baseProperty?.__id) {
             console.warn("Cannot delete tool: tool property ID not found")
             return
         }
-
         setPrompts((prevPrompts: any[] = []) => {
             return prevPrompts.map((prompt: any) => {
                 const toolsArr = prompt?.llmConfig?.tools?.value
@@ -153,7 +162,6 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
             })
         })
     }, [isReadOnly, variantId, baseProperty?.__id, setPrompts])
-
     return (
         <PlaygroundVariantPropertyControlWrapper
             className={clsx(
@@ -171,7 +179,7 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                 id={editorIdRef.current}
             >
                 <SharedEditor
-                    initialValue={toolString}
+                    initialValue={toolString ?? ""}
                     editorProps={{
                         codeOnly: true,
                         noProvider: true,
@@ -181,6 +189,7 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                         if (isReadOnly) return
                         setToolString(e)
                     }}
+                    syncWithInitialValueChanges
                     editorType="border"
                     className={clsx([
                         "mt-2",
@@ -209,10 +218,21 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                                             variant="borderless"
                                             placeholder="Function Name"
                                             disabled={isReadOnly || !parsed}
-                                            // onChange={handleNameChange}
                                             onChange={(e) => {
                                                 if (isReadOnly) return
-                                                setFunctionName(e.target.value)
+
+                                                const nextName = e.target.value
+                                                setFunctionName(nextName)
+                                                syncToolFunctionField((toolFunction) => {
+                                                    if (toolFunction?.name === nextName) {
+                                                        return toolFunction
+                                                    }
+
+                                                    return {
+                                                        ...toolFunction,
+                                                        name: nextName,
+                                                    }
+                                                })
                                             }}
                                         />
                                     </Tooltip>
@@ -230,10 +250,24 @@ const PlaygroundTool = ({value, disabled, variantId, baseProperty, ...editorProp
                                             variant="borderless"
                                             placeholder="Function Description"
                                             disabled={isReadOnly || !parsed}
-                                            // onChange={handleDescriptionChange}
                                             onChange={(e) => {
                                                 if (isReadOnly) return
-                                                setFunctionDescription(e.target.value)
+
+                                                const nextDescription = e.target.value
+                                                setFunctionDescription(nextDescription)
+                                                syncToolFunctionField((toolFunction) => {
+                                                    if (
+                                                        toolFunction?.description ===
+                                                        nextDescription
+                                                    ) {
+                                                        return toolFunction
+                                                    }
+
+                                                    return {
+                                                        ...toolFunction,
+                                                        description: nextDescription,
+                                                    }
+                                                })
                                             }}
                                         />
                                     </Tooltip>

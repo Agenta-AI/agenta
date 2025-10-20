@@ -21,4 +21,6 @@ export interface SharedEditorProps extends BaseContainerProps {
     debug?: boolean
     isTool?: boolean
     handleChange?: (value: string) => void
+
+    syncWithInitialValueChanges?: boolean
 }
