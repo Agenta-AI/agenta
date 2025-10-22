@@ -8,7 +8,7 @@ import {getDefaultStore, useAtomValue} from "jotai"
 import debounce from "lodash/debounce"
 import {useRouter} from "next/router"
 
-import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useQueryParamState} from "@/oss/state/appState"
 import {EvaluationFlow} from "@/oss/lib/enums"
 import {exportABTestingEvaluationData} from "@/oss/lib/helpers/evaluate"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
@@ -102,7 +102,22 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
-    const [viewMode, setViewMode] = useQueryParam("viewMode", "card")
+    const [viewModeParam, setViewModeParam] = useQueryParamState("viewMode")
+    const viewMode = useMemo(() => {
+        if (Array.isArray(viewModeParam)) {
+            return viewModeParam[0] ?? "card"
+        }
+        if (typeof viewModeParam === "string" && viewModeParam) {
+            return viewModeParam
+        }
+        return "card"
+    }, [viewModeParam])
+    const setViewMode = useCallback(
+        (nextMode: string) => {
+            setViewModeParam(nextMode, {method: "replace", shallow: true})
+        },
+        [setViewModeParam],
+    )
     const {data: evaluationResults, mutate} = useEvaluationResults({
         evaluationId: evaluation.id,
         onSuccess: () => {

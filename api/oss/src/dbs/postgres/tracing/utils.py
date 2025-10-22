@@ -1935,7 +1935,11 @@ def compute_cqvs(
 
     for k, v in PSC_ITEMS:
         if v[0] in pcts and v[1] in pcts:
-            pscs[k] = (pcts[v[1]] - pcts[v[0]]) / (pcts[v[1]] + pcts[v[0]])
+            pscs[k] = (
+                (pcts[v[1]] - pcts[v[0]]) / (pcts[v[1]] + pcts[v[0]])
+                if (pcts[v[1]] + pcts[v[0]]) != 0
+                else 0.0
+            )
 
     value["pscs"] = pscs
 
@@ -1961,7 +1965,9 @@ def compute_pscs(
 
     for k, v in PSC_ITEMS:
         if v[0] in pcts and v[1] in pcts:
-            pscs[k] = (pcts[v[1]] - pcts[v[0]]) / pcts["p50"]
+            pscs[k] = (
+                (pcts[v[1]] - pcts[v[0]]) / pcts["p50"] if pcts["p50"] != 0 else 0.0
+            )
 
     value["pscs"] = pscs
 

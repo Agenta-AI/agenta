@@ -20,7 +20,7 @@ import debounce from "lodash/debounce"
 import {useRouter} from "next/router"
 
 import SecondaryButton from "@/oss/components/SecondaryButton/SecondaryButton"
-import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useQueryParamState} from "@/oss/state/appState"
 import {EvaluationFlow} from "@/oss/lib/enums"
 import {exportSingleModelEvaluationData} from "@/oss/lib/helpers/evaluate"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
@@ -112,7 +112,22 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
 
     const [rows, setRows] = useState<SingleModelEvaluationRow[]>([])
     const [evaluationStatus, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
-    const [viewMode, setViewMode] = useQueryParam("viewMode", "card")
+    const [viewModeParam, setViewModeParam] = useQueryParamState("viewMode")
+    const viewMode = useMemo(() => {
+        if (Array.isArray(viewModeParam)) {
+            return viewModeParam[0] ?? "card"
+        }
+        if (typeof viewModeParam === "string" && viewModeParam) {
+            return viewModeParam
+        }
+        return "card"
+    }, [viewModeParam])
+    const setViewMode = useCallback(
+        (nextMode: string) => {
+            setViewModeParam(nextMode, {method: "replace", shallow: true})
+        },
+        [setViewModeParam],
+    )
     const [accuracy, setAccuracy] = useState<number>(0)
     const [isTestsetModalOpen, setIsTestsetModalOpen] = useState(false)
 

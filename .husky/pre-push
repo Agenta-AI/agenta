@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+ 
+# Delegate to pre-commit which runs pre-push hooks (e.g. gitleaks) from .pre-commit-config.yaml
+if command -v pre-commit >/dev/null 2>&1; then
+  pre-commit run --hook-stage pre-push
+else
+  echo "pre-commit not found. Install with one of the following methods:"
+  echo "  pip install pre-commit gitleaks"
+  echo "  brew install pre-commit gitleaks"
+  echo "  (see https://pre-commit.com/#installation and https://github.com/gitleaks/gitleaks#installation for more options)"
+  exit 1
+fi

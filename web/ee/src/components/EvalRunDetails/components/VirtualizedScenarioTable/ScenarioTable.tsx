@@ -9,11 +9,8 @@ import {EvalRunTestCaseTableSkeleton} from "../../AutoEvalRun/components/EvalRun
 
 import useScrollToScenario from "./hooks/useScrollToScenario"
 import useTableDataSource from "./hooks/useTableDataSource"
+import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 
-const EnhancedTable = dynamic(() => import("@/oss/components/EnhancedUIs/Table"), {
-    ssr: false,
-    loading: () => <EvalRunTestCaseTableSkeleton />,
-})
 const VirtualizedScenarioTableAnnotateDrawer = dynamic(
     () => import("./assets/VirtualizedScenarioTableAnnotateDrawer"),
     {ssr: false},
@@ -34,33 +31,33 @@ const ScenarioTable = ({runId: propRunId}: {runId?: string}) => {
         box: "border-box",
     })
 
+    if (isLoadingSteps || !EnhancedTable) {
+        return <EvalRunTestCaseTableSkeleton />
+    }
+
     return (
         <div ref={tableContainerRef} className="grow flex flex-col w-full min-h-0">
-            {isLoadingSteps ? (
-                <EvalRunTestCaseTableSkeleton />
-            ) : (
-                <div className="relative w-full flex-1 min-h-0">
-                    {!scrollY ? null : (
-                        <EnhancedTable
-                            uniqueKey="scenario-table"
-                            columns={antColumns as any}
-                            dataSource={rows}
-                            scroll={{x: "max-content", y: scrollY - 45}}
-                            size="small"
-                            virtualized
-                            rowKey={(record: any) => record.key || record.scenarioId}
-                            className="agenta-scenario-table"
-                            rowClassName="scenario-row"
-                            tableLayout="fixed"
-                            skeletonRowCount={0}
-                            loading={false}
-                            ref={tableInstance}
-                        />
-                    )}
+            <div className="relative w-full flex-1 min-h-0">
+                {!scrollY ? null : (
+                    <EnhancedTable
+                        uniqueKey="scenario-table"
+                        columns={antColumns as any}
+                        dataSource={rows}
+                        scroll={{x: "max-content", y: scrollY - 45}}
+                        size="small"
+                        virtualized
+                        rowKey={(record: any) => record.key || record.scenarioId}
+                        className="agenta-scenario-table"
+                        rowClassName="scenario-row"
+                        tableLayout="fixed"
+                        skeletonRowCount={0}
+                        loading={false}
+                        ref={tableInstance}
+                    />
+                )}
 
-                    <VirtualizedScenarioTableAnnotateDrawer runId={runId} />
-                </div>
-            )}
+                <VirtualizedScenarioTableAnnotateDrawer runId={runId} />
+            </div>
         </div>
     )
 }

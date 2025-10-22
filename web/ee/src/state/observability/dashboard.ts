@@ -3,9 +3,9 @@ import {eagerAtom} from "jotai-eager"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {GenerationDashboardData} from "@/oss/lib/types_ee"
-import {fetchGenerationsDashboardData} from "@/oss/services/observability/api"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {projectIdAtom} from "@/oss/state/project"
+import {fetchGenerationsDashboardData} from "@/oss/services/tracing/api"
 
 const DEFAULT_RANGE = "30_days"
 

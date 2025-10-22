@@ -144,7 +144,7 @@ const EvaluationPage = memo(({evalType, runId}: {evalType: "auto" | "human"; run
     const breadcrumbs = useAtomValue(breadcrumbAtom, {store: rootStore})
     const appendBreadcrumb = useSetAtom(appendBreadcrumbAtom, {store: rootStore})
     const setEvalType = useSetAtom(setEvalTypeAtom)
-    const appId = useAppId()
+    const router = useRouter()
 
     const {isPreview, name, description, id} = useAtomValue(
         selectAtom(
@@ -263,8 +263,9 @@ const EvaluationPage = memo(({evalType, runId}: {evalType: "auto" | "human"; run
     return (
         <div
             className={clsx([
-                "evaluationContainer human-eval grow",
-                {"flex flex-col min-h-0": isPreview},
+                "min-h-0",
+                {"evaluationContainer human-eval grow": evalType === "human"},
+                {"flex flex-col min-h-0": isPreview && evalType === "human"},
             ])}
         >
             {/** TODO: improve the component state specially AutoEvalRunDetails */}
@@ -272,7 +273,7 @@ const EvaluationPage = memo(({evalType, runId}: {evalType: "auto" | "human"; run
                 <LoadingState
                     evalType={evalType}
                     name={name as string}
-                    description={description}
+                    description={description!}
                     id={runId}
                 />
             ) : isPreview && id ? (
@@ -281,14 +282,14 @@ const EvaluationPage = memo(({evalType, runId}: {evalType: "auto" | "human"; run
                     <PreviewEvaluationPage
                         evalType={evalType}
                         name={name as string}
-                        description={description}
+                        description={description!}
                         id={runId}
                         runId={runId}
                         isLoading={false}
                     />
                 </>
             ) : (
-                <LegacyEvaluationPage id={id} />
+                <LegacyEvaluationPage id={id!} />
             )}
         </div>
     )
