@@ -31,7 +31,7 @@ const AutoEvalRunDetails = ({name, description, id, isLoading}: AutoEvalRunDetai
     return (
         <section
             className={clsx([
-                "flex flex-col w-full h-[calc(100vh-84px)] gap-2 overflow-auto",
+                "flex flex-col w-full !h-[calc(100vh-84px)] gap-2 overflow-auto",
                 {"!overflow-hidden": viewType === "test-cases"},
             ])}
         >

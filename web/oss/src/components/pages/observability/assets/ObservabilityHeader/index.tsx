@@ -267,7 +267,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                             />
                         )}
                         <Input.Search
-                            placeholder="Search"
+                            placeholder="Full-text search"
                             value={searchQuery}
                             onChange={onSearchChange}
                             onPressEnter={onSearchQueryApply}

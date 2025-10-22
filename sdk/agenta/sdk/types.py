@@ -521,13 +521,26 @@ class PromptTemplate(BaseModel):
             elif self.template_format == "curly":
                 import re
 
+                # Extract variables that exist in the original template before replacement
+                # This allows us to distinguish template variables from {{}} in user input values
+                original_variables = set(re.findall(r"\{\{(.*?)\}\}", content))
+
                 result = content
                 for key, value in kwargs.items():
-                    result = re.sub(r"\{\{" + key + r"\}\}", str(value), result)
-                if re.search(r"\{\{.*?\}\}", result):
-                    unreplaced = re.findall(r"\{\{(.*?)\}\}", result)
+                    # Escape backslashes in the replacement string to prevent regex interpretation
+                    escaped_value = str(value).replace("\\", "\\\\")
+                    result = re.sub(
+                        r"\{\{" + re.escape(key) + r"\}\}", escaped_value, result
+                    )
+
+                # Only check if ORIGINAL template variables remain unreplaced
+                # Don't error on {{}} that came from user input values
+                unreplaced_matches = set(re.findall(r"\{\{(.*?)\}\}", result))
+                truly_unreplaced = original_variables & unreplaced_matches
+
+                if truly_unreplaced:
                     raise TemplateFormatError(
-                        f"Unreplaced variables in curly template: {unreplaced}"
+                        f"Unreplaced variables in curly template: {sorted(truly_unreplaced)}"
                     )
                 return result
             else:

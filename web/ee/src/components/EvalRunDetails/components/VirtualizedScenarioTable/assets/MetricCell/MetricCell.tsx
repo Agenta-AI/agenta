@@ -81,7 +81,6 @@ const MetricCell = memo<MetricCellProps>(
 
         // Non-numeric arrays rendered as Tag list
         let formatted: ReactNode = formatMetricValue(metricKey, value)
-
         if (metricType === "boolean" && Array.isArray(value as any)) {
             const trueEntry = (distInfo as any).frequency.find((f: any) => f.value === true)
             const total = (distInfo as any).count ?? 0

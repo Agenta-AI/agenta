@@ -119,3 +119,46 @@ export type SpansResponse = {
     count: number
     spans: TraceSpan[]
 }
+
+export interface TracingDashboardData {
+    buckets: {
+        errors: {
+            costs: number
+            count: number
+            duration: number
+            tokens: number
+        }
+        timestamp: string
+        total: {
+            costs: number
+            count: number
+            duration: number
+            tokens: number
+        }
+        window: number
+    }[]
+    count: number
+    version: string
+}
+
+export interface GenerationDashboardData {
+    data: {
+        timestamp: number | string
+        success_count: number
+        failure_count: number
+        cost: number
+        latency: number
+        total_tokens: number
+        prompt_tokens: number
+        completion_tokens: number
+        enviornment: string
+        variant: string
+    }[]
+    total_count: number
+    failure_rate: number
+    total_cost: number
+    avg_cost: number
+    avg_latency: number
+    total_tokens: number
+    avg_tokens: number
+}

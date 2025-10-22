@@ -15,7 +15,7 @@ import {useLocalStorage} from "usehooks-ts"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import ParamsForm from "@/oss/components/ParamsForm"
-import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useQueryParamState} from "@/oss/state/appState"
 import {EvaluationType} from "@/oss/lib/enums"
 import {testsetRowToChatMessages} from "@/oss/lib/helpers/testset"
 import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
@@ -47,10 +47,29 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
         Record<string, {lastVisitedScenario: string}>
     >("evaluationsState", {})
 
-    const [scenarioId, setScenarioId] = useQueryParam(
-        "evaluationScenario",
-        evaluationsState[evaluation.id]?.lastVisitedScenario || evaluationScenarios[0]?.id || "",
+    const [scenarioParam, setScenarioParam] = useQueryParamState("evaluationScenario")
+    const fallbackScenarioId = useMemo(() => {
+        return (
+            evaluationsState[evaluation.id]?.lastVisitedScenario || evaluationScenarios[0]?.id || ""
+        )
+    }, [evaluation.id, evaluationScenarios, evaluationsState])
+    const scenarioId = useMemo(() => {
+        if (Array.isArray(scenarioParam)) {
+            return scenarioParam[0] || fallbackScenarioId
+        }
+        if (typeof scenarioParam === "string" && scenarioParam) {
+            return scenarioParam
+        }
+        return fallbackScenarioId
+    }, [scenarioParam, fallbackScenarioId])
+    const setScenarioId = useCallback(
+        (nextId: string) => {
+            if (!nextId) return
+            setScenarioParam(nextId, {method: "replace", shallow: true})
+        },
+        [setScenarioParam],
     )
+
     const [instructionsShown, setInstructionsShown] = useLocalStorage(
         "evalInstructionsShown",
         false,

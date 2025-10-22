@@ -157,6 +157,7 @@ const CommitVariantChangesModalContent = ({
                                     placeholder="A unique variant name"
                                     className="w-full max-w-xs"
                                     value={selectedCommitType?.name}
+                                    disabled={selectedCommitType?.type !== "variant"}
                                     onChange={(e) =>
                                         setSelectedCommitType((prev) => {
                                             const prevType = prev?.type

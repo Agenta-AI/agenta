@@ -4,7 +4,7 @@ import SimpleSharedEditor from "@agenta/oss/src/components/EditorViews/SimpleSha
 import VirtualizedSharedEditors from "@agenta/oss/src/components/EditorViews/VirtualizedSharedEditors"
 import {Collapse, CollapseProps, Tag, Tooltip} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
+import {getDefaultStore, useAtomValue} from "jotai"
 import {loadable} from "jotai/utils"
 import {useRouter} from "next/router"
 
@@ -17,7 +17,6 @@ import {urlStateAtom} from "@/oss/components/EvalRunDetails/state/urlState"
 import {formatMetricValue} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
 import {getStatusLabel} from "@/oss/lib/constants/statusLabels"
 import {
-    evalAtomStore,
     scenarioStepFamily,
     evaluationRunStateFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
@@ -519,7 +518,7 @@ const FocusDrawerContent = () => {
 
                               // Helper: collect evaluator list for a run
                               const getRunEvaluators = (rId: string) => {
-                                  const rState = evalAtomStore().get(evaluationRunStateFamily(rId))
+                                  const rState = getDefaultStore().get(evaluationRunStateFamily(rId))
                                   const evaluators = rState?.enrichedRun?.evaluators || []
                                   return Array.isArray(evaluators)
                                       ? evaluators
@@ -555,7 +554,7 @@ const FocusDrawerContent = () => {
                                       )
                                   }
 
-                                  const metricData = evalAtomStore().get(
+                                  const metricData = getDefaultStore().get(
                                       runScopedMetricDataFamily({
                                           runId: rId,
                                           scenarioId: scId,
@@ -566,7 +565,7 @@ const FocusDrawerContent = () => {
 
                                   // Run-scoped error fallback
                                   let errorStep: any = null
-                                  const stepLoadableR = evalAtomStore().get(
+                                  const stepLoadableR = getDefaultStore().get(
                                       loadable(scenarioStepFamily({runId: rId, scenarioId: scId})),
                                   ) as any
                                   if (stepLoadableR?.state === "hasData") {
@@ -793,7 +792,8 @@ const FocusDrawerContent = () => {
                               },
                           ),
                           children: Object.keys(metrics || {})?.map((metricKey) => {
-                              const metricData = evalAtomStore().get(
+
+                              const metricData = getDefaultStore().get(
                                   runScopedMetricDataFamily({
                                       runId: runId!,
                                       scenarioId: scenarioId!,
@@ -802,10 +802,10 @@ const FocusDrawerContent = () => {
                                   }),
                               )
 
-                              const errorStep =
-                                  !metricData?.distInfo || hasError
-                                      ? getErrorStep(`${evaluator.slug}.${metricKey}`, scenarioId)
-                                      : null
+                              const errorStep = getErrorStep(
+                                  `${evaluator.slug}.${metricKey}`,
+                                  scenarioId,
+                              )
 
                               let value
                               if (
@@ -825,7 +825,6 @@ const FocusDrawerContent = () => {
                               }
 
                               const formatted = formatMetricValue(metricKey, value || "")
-
                               return (
                                   <div
                                       key={metricKey}
@@ -881,6 +880,7 @@ const FocusDrawerContent = () => {
         matchedComparisonScenarios,
         baseRunId,
         invocationStep?.stepkey,
+        getErrorStep,
     ])
 
     if (stepLoadable.state !== "hasData" || !enricedRun) {

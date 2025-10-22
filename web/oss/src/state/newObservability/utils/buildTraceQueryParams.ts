@@ -95,7 +95,13 @@ export const buildTraceQueryParams = ({
             }
 
             if (field === "status_code" && value === "STATUS_CODE_OK") {
-                return {field, operator: "is_not", value: "STATUS_CODE_ERROR"}
+                if (operator === "is") {
+                    return {field, operator: "is_not", value: "STATUS_CODE_ERROR"}
+                }
+
+                if (operator === "is_not") {
+                    return {field, operator: "is", value: "STATUS_CODE_ERROR"}
+                }
             }
 
             return {field, operator, value}
