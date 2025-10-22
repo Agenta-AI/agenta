@@ -1,0 +1,11 @@
+# Kubernetes temporary files
+*.tmp
+*.log
+
+# Local configuration overrides
+*-local.yml
+local-*
+
+# Backup files
+*.bak
+*~
