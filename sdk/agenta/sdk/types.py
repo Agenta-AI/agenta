@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Union, Optional, Dict, Literal, Any
 
 from pydantic import ConfigDict, BaseModel, HttpUrl
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, AliasChoices
 
 from starlette.responses import StreamingResponse
 
@@ -335,7 +335,27 @@ class ContentPartImage(BaseModel):
     image_url: ImageURL
 
 
-ContentPart = Union[ContentPartText, ContentPartImage]
+class FileInput(BaseModel):
+    file_id: str = Field(
+        alias="file_id",
+        validation_alias=AliasChoices("file_id", "fileId"),
+    )
+    name: Optional[str] = None
+    mime_type: Optional[str] = Field(
+        default=None,
+        alias="mime_type",
+        validation_alias=AliasChoices("mime_type", "mimeType"),
+    )
+
+    model_config = {"populate_by_name": True}
+
+
+class ContentPartFile(BaseModel):
+    type: Literal["file"] = "file"
+    file: FileInput
+
+
+ContentPart = Union[ContentPartText, ContentPartImage, ContentPartFile]
 
 
 class Message(BaseModel):
