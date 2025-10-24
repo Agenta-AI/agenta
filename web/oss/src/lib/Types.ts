@@ -1037,7 +1037,18 @@ export interface ChatMessageContentImage {
     image_url: ChatImageURL
 }
 
-export type ChatMessageContent = string | (ChatMessageContentText | ChatMessageContentImage)[]
+export interface ChatMessageContentFile {
+    type: "file"
+    file: {
+        file_id: string
+        name?: string
+        mime_type?: string
+    }
+}
+
+export type ChatMessageContent =
+    | string
+    | (ChatMessageContentText | ChatMessageContentImage | ChatMessageContentFile)[]
 
 export interface ChatMessage {
     role: ChatRole
