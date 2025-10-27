@@ -461,6 +461,9 @@ interface VaultProvider {
         aws_secret_access_key?: string
         aws_session_token?: string
         aws_region_name?: string
+        vertex_ai_project?: string
+        vertex_ai_location?: string
+        vertex_ai_credentials?: string
         api_key?: string
     }
 }

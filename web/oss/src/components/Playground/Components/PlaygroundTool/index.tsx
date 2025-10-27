@@ -87,12 +87,11 @@ function toToolObj(value: unknown): ToolObj {
 }
 
 /**
- * Two-way state that keeps editor JSON, parsed object, and header inputs in sync.
- * - Debounces write backs into the editor to avoid stealing focus while typing in headers
+ * Manages the tool JSON editor state and parsed object snapshot.
  * - Emits onChange only when the canonical object actually changes (deep compare)
  * - Reacts to external prop changes to `initialValue`
  */
-function useTwoWayToolState(
+function useToolState(
     initialValue: unknown,
     isReadOnly: boolean,
     onChange?: (obj: ToolObj) => void,
@@ -101,20 +100,8 @@ function useTwoWayToolState(
     const [editorText, setEditorText] = useState<string>(() => safeStringify(toolObj ?? {}))
     const [editorValid, setEditorValid] = useState(true)
 
-    // Header drafts and focus guards
-    const [isEditingName, setIsEditingName] = useState(false)
-    const [isEditingDesc, setIsEditingDesc] = useState(false)
-    const [nameDraft, setNameDraft] = useState<string>(() => toolObj?.function?.name ?? "")
-    const [descDraft, setDescDraft] = useState<string>(() => toolObj?.function?.description ?? "")
-
     // Last sent payload to avoid duplicate onChange calls
     const lastSentSerializedRef = useRef<string>(stableStringify(toolObj))
-
-    // Keep drafts synced when not being edited
-    useEffect(() => {
-        if (!isEditingName) setNameDraft(toolObj?.function?.name ?? "")
-        if (!isEditingDesc) setDescDraft(toolObj?.function?.description ?? "")
-    }, [toolObj, isEditingName, isEditingDesc])
 
     // Emit to parent when canonical state changes
     useEffect(() => {
@@ -126,21 +113,6 @@ function useTwoWayToolState(
         }
     }, [toolObj, onChange, isReadOnly])
 
-    // Debounced serializer for pushing toolObj changes back into editorText
-    const serTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-    const scheduleSerialize = useCallback((nextObj: ToolObj) => {
-        // Immediate update to avoid dropped first-change issues
-        setEditorText(safeStringify(nextObj ?? {}))
-        setEditorValid(true)
-    }, [])
-
-    useEffect(
-        () => () => {
-            if (serTimerRef.current) clearTimeout(serTimerRef.current)
-        },
-        [],
-    )
-
     // React to external initialValue changes
     const lastPropValueRef = useRef<string>(stableStringify(toToolObj(initialValue)))
     useEffect(() => {
@@ -151,8 +123,6 @@ function useTwoWayToolState(
             setToolObj(nextParsed)
             setEditorText(safeStringify(nextParsed ?? {}))
             setEditorValid(true)
-            if (!isEditingName) setNameDraft(nextParsed?.function?.name ?? "")
-            if (!isEditingDesc) setDescDraft(nextParsed?.function?.description ?? "")
         }
     }, [initialValue])
 
@@ -164,66 +134,18 @@ function useTwoWayToolState(
                 const parsed = text ? (JSON5.parse(text) as ToolObj) : {}
                 setEditorValid(true)
                 setToolObj((prev) => (deepEqual(prev, parsed) ? prev : parsed))
-                if (!isEditingName) setNameDraft(parsed?.function?.name ?? "")
-                if (!isEditingDesc) setDescDraft(parsed?.function?.description ?? "")
             } catch {
                 setEditorValid(false)
             }
         },
-        [isReadOnly, isEditingName, isEditingDesc],
-    )
-
-    const setFunctionName = useCallback(
-        (nextName: string) => {
-            if (isReadOnly) return
-            setNameDraft(nextName)
-            setToolObj((prev) => {
-                const base = prev ?? {}
-                const nextObj = {
-                    ...base,
-                    function: {
-                        ...(base.function ?? {}),
-                        name: nextName,
-                    },
-                }
-                scheduleSerialize(nextObj)
-                return nextObj
-            })
-        },
-        [isReadOnly, scheduleSerialize],
-    )
-
-    const setFunctionDescription = useCallback(
-        (nextDesc: string) => {
-            if (isReadOnly) return
-            setDescDraft(nextDesc)
-            setToolObj((prev) => {
-                const base = prev ?? {}
-                const nextObj = {
-                    ...base,
-                    function: {
-                        ...(base.function ?? {}),
-                        description: nextDesc,
-                    },
-                }
-                scheduleSerialize(nextObj)
-                return nextObj
-            })
-        },
-        [isReadOnly, scheduleSerialize],
+        [isReadOnly],
     )
 
     return {
         toolObj,
         editorText,
         editorValid,
-        nameDraft,
-        descDraft,
-        setFunctionName,
-        setFunctionDescription,
         onEditorChange,
-        setIsEditingName,
-        setIsEditingDesc,
     }
 }
 
@@ -237,30 +159,10 @@ function ToolHeader(props: {
     editorValid: boolean
     isReadOnly: boolean
     minimized: boolean
-    onNameFocus: () => void
-    onNameBlur: () => void
-    onDescFocus: () => void
-    onDescBlur: () => void
-    onNameChange: (v: string) => void
-    onDescChange: (v: string) => void
     onToggleMinimize: () => void
     onDelete?: () => void
 }) {
-    const {
-        name,
-        desc,
-        editorValid,
-        isReadOnly,
-        minimized,
-        onNameFocus,
-        onNameBlur,
-        onDescFocus,
-        onDescBlur,
-        onNameChange,
-        onDescChange,
-        onToggleMinimize,
-        onDelete,
-    } = props
+    const {name, desc, editorValid, isReadOnly, minimized, onToggleMinimize, onDelete} = props
 
     return (
         <div className={clsx("w-full flex items-center justify-between", "py-1")}>
@@ -275,10 +177,8 @@ function ToolHeader(props: {
                             value={name}
                             variant="borderless"
                             placeholder="Function Name"
-                            disabled={isReadOnly || !editorValid}
-                            onFocus={onNameFocus}
-                            onBlur={onNameBlur}
-                            onChange={(e) => onNameChange(e.target.value)}
+                            readOnly
+                            disabled={!editorValid}
                         />
                     </Tooltip>
 
@@ -291,10 +191,8 @@ function ToolHeader(props: {
                             value={desc}
                             variant="borderless"
                             placeholder="Function Description"
-                            disabled={isReadOnly || !editorValid}
-                            onFocus={onDescFocus}
-                            onBlur={onDescBlur}
-                            onChange={(e) => onDescChange(e.target.value)}
+                            readOnly
+                            disabled={!editorValid}
                         />
                     </Tooltip>
                 </div>
@@ -331,18 +229,11 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
     const isReadOnly = Boolean(disabled)
     const [minimized, setMinimized] = useState(false)
 
-    const {
-        toolObj,
-        editorText,
-        editorValid,
-        nameDraft,
-        descDraft,
-        setFunctionName,
-        setFunctionDescription,
-        onEditorChange,
-        setIsEditingName,
-        setIsEditingDesc,
-    } = useTwoWayToolState(value, isReadOnly, editorProps?.handleChange)
+    const {toolObj, editorText, editorValid, onEditorChange} = useToolState(
+        value,
+        isReadOnly,
+        editorProps?.handleChange,
+    )
 
     useAtomValue(variantByRevisionIdAtomFamily(variantId))
     const appUriInfo = useAtomValue(appUriInfoAtom)
@@ -396,7 +287,11 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
             >
                 <SharedEditor
                     initialValue={editorText}
-                    editorProps={{codeOnly: true, noProvider: true, validationSchema: TOOL_SCHEMA}}
+                    editorProps={{
+                        codeOnly: true,
+                        noProvider: true,
+                        validationSchema: TOOL_SCHEMA,
+                    }}
                     handleChange={(e) => {
                         if (isReadOnly) return
                         onEditorChange(e)
@@ -413,17 +308,11 @@ const PlaygroundTool: React.FC<PlaygroundToolProps> = ({
                     header={
                         <ToolHeader
                             idForActions={editorIdRef.current}
-                            name={nameDraft}
-                            desc={descDraft}
+                            name={toolObj?.function?.name ?? ""}
+                            desc={toolObj?.function?.description ?? ""}
                             editorValid={editorValid}
                             isReadOnly={isReadOnly}
                             minimized={minimized}
-                            onNameFocus={() => setIsEditingName(true)}
-                            onNameBlur={() => setIsEditingName(false)}
-                            onDescFocus={() => setIsEditingDesc(true)}
-                            onDescBlur={() => setIsEditingDesc(false)}
-                            onNameChange={setFunctionName}
-                            onDescChange={setFunctionDescription}
                             onToggleMinimize={() => setMinimized((v) => !v)}
                             onDelete={deleteMessage}
                         />

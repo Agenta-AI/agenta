@@ -21,6 +21,7 @@ import {getColorPairFromStr, getRandomColors} from "@/oss/lib/helpers/colors"
 import {getFilterParams, getTypedValue, removeCorrectAnswerPrefix} from "@/oss/lib/helpers/evaluate"
 import {escapeNewlines} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
+import {isValidId} from "@/oss/lib/helpers/serviceValidations"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
@@ -32,7 +33,6 @@ import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
-import {isValidId} from "@/oss/lib/helpers/serviceValidations"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     table: {

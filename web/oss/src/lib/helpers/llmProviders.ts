@@ -10,9 +10,12 @@ export interface LlmProvider {
     apiKey?: string
     apiBaseUrl?: string
     version?: string
+    region?: string
+    vertexProject?: string
+    vertexLocation?: string
+    vertexCredentials?: string
     accessKeyId?: string
     accessKey?: string
-    region?: string
     sessionToken?: string
     models?: string[]
     modelKeys?: string[]
@@ -62,10 +65,13 @@ export const transformSecret = (secrets: CustomSecretDTO[] | StandardSecretDTO[]
                 provider: secret.data?.kind,
                 apiKey: secret.data.provider.extras?.api_key || "",
                 apiBaseUrl: secret.data.provider.url || "",
+                region: secret.data.provider.extras?.aws_region_name || "",
+                vertexProject: secret.data.provider.extras?.vertex_ai_project || "",
+                vertexLocation: secret.data.provider.extras?.vertex_ai_location || "",
+                vertexCredentials: secret.data.provider.extras?.vertex_ai_credentials || "",
                 accessKeyId: secret.data.provider.extras?.aws_access_key_id || "",
                 accessKey: secret.data.provider.extras?.aws_secret_access_key || "",
                 sessionToken: secret.data.provider.extras?.aws_session_token || "",
-                region: secret.data.provider.extras?.aws_region_name || "",
                 models: secret?.data.models.map((model) => model.slug),
                 modelKeys: secret?.data.model_keys,
                 version: secret.data.provider?.version || "",
@@ -105,11 +111,14 @@ export const transformCustomProviderPayloadData = (values: LlmProvider) => {
                     url: values.apiBaseUrl,
                     version: values.version,
                     extras: {
+                        api_key: values.apiKey,
+                        vertex_ai_location: values.vertexLocation,
+                        vertex_ai_project: values.vertexProject,
+                        vertex_ai_credentials: values.vertexCredentials,
+                        aws_region_name: values.region,
                         aws_access_key_id: values.accessKeyId,
                         aws_secret_access_key: values.accessKey,
                         aws_session_token: values.sessionToken,
-                        api_key: values.apiKey,
-                        aws_region_name: values.region,
                     },
                 },
                 models: values.models?.map((slug) => ({slug})),

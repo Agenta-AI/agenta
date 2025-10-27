@@ -150,7 +150,8 @@ const orderRank = (def: EnhancedColumnType<TableRow>): number => {
     if (def.key === "annotation" || def.key?.includes("metrics")) return 4
     if (def.key?.includes("evaluators")) return 5
     if (def.key === "__metrics_group__") return 6
-    return 7
+    if (def.key === "errors") return 9 // ensure errors column stays at the end of metrics group
+    return 8
 }
 
 export function buildAntdColumns(

@@ -50,7 +50,7 @@ const SelectLLMProvider = ({
     const icons = useMemo(() => [OpenAi, Gemini, Anthropic, Mistral, Together], [])
 
     const extendedProviders = useMemo(
-        () => [...Object.values(SecretDTOProvider), "bedrock", "azure", "custom"],
+        () => [...Object.values(SecretDTOProvider), "bedrock", "azure", "vertex_ai", "custom"],
         [],
     )
 

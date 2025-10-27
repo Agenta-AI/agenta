@@ -53,7 +53,14 @@ const RunTraceHeader = ({
             {enriched ? (
                 <EvalNameTag
                     run={enriched}
-                    color={EVAL_TAG_COLOR?.[state?.compareIndex] || 1}
+                    color={
+                        EVAL_TAG_COLOR?.[
+                            state?.colorIndex ||
+                                (state?.isBase ? 1 : undefined) ||
+                                state?.compareIndex ||
+                                1
+                        ]
+                    }
                     onlyShowBasePin
                     isBaseEval={enriched?.id === baseRunId}
                     className={showComparisons ? "max-w-[220px]" : ""}

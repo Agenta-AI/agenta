@@ -7,6 +7,7 @@ export const initialState: EvaluationRunState = {
     isComparison: false,
     isBase: false,
     compareIndex: undefined,
+    colorIndex: undefined,
     scenarios: undefined,
     statusMeta: {} as IStatusMeta,
     steps: undefined,

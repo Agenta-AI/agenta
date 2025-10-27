@@ -60,6 +60,7 @@ export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
     setSelectedVariantRevisionIds: Dispatch<SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
     evaluationType: "auto" | "human"
+    selectedTestsetId?: string
 }
 
 export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
@@ -68,6 +69,7 @@ export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
     setSelectedTestsetId: Dispatch<SetStateAction<string>>
     handlePanelChange: (key: string | string[]) => void
     preview?: boolean
+    selectedVariantRevisionIds: string[]
 }
 
 export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {

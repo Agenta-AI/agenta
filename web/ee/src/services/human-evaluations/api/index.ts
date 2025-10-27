@@ -129,7 +129,7 @@ export const createNewEvaluation = async (
     const data = {
         variant_ids,
         inputs: inputs,
-        app_id: app,
+        app_id: appId,
         evaluation_type: evaluationType,
         evaluation_type_settings: {
             ...evaluationTypeSettings,

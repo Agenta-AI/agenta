@@ -1,17 +1,21 @@
 import {
+    isValidElement,
     useCallback,
     useEffect,
     useMemo,
     useState,
     type ComponentProps,
     type Dispatch,
+    type ReactNode,
     type SetStateAction,
 } from "react"
 
+import {testsetCsvDataQueryAtomFamily} from "@agenta/oss/src/components/Playground/Components/Modals/LoadTestsetModal/assets/testsetCsvData"
 import {CloseCircleOutlined, CloseOutlined} from "@ant-design/icons"
 import {Play} from "@phosphor-icons/react"
-import {Button, Input, Modal, Tabs, Tag, Typography} from "antd"
+import {Button, Input, Modal, Tabs, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
@@ -22,6 +26,8 @@ import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import type {JSSTheme, ListAppsItem, Variant} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app/hooks"
+import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
+import {useTestsetsData} from "@/oss/state/testset"
 
 import TabLabel from "../../../NewEvaluation/assets/TabLabel"
 import SelectAppSection from "../../../NewEvaluation/Components/SelectAppSection"
@@ -33,7 +39,14 @@ type EvaluatorVariantModalProps = {
     variants: Variant[] | null
     setSelectedVariant: Dispatch<SetStateAction<Variant | null>>
     selectedVariant: Variant | null
+    selectedTestsetId?: string
 } & ComponentProps<typeof Modal>
+
+interface VariantDiagnostics {
+    hasWarning: boolean
+    message?: string
+    columnsKnown: boolean
+}
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -99,6 +112,7 @@ const EvaluatorVariantModal = ({
     variants: _variants,
     setSelectedVariant,
     selectedVariant,
+    selectedTestsetId,
     ...props
 }: EvaluatorVariantModalProps) => {
     const classes = useStyles()
@@ -114,6 +128,7 @@ const EvaluatorVariantModal = ({
     const [appSearchTerm, setAppSearchTerm] = useState("")
     const [selectedAppId, setSelectedAppId] = useState<string>("")
     const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
+    const [rowDiagnostics, setRowDiagnostics] = useState<Record<string, VariantDiagnostics>>({})
 
     const appOptions: NewEvaluationAppOption[] = useMemo(() => {
         const options =
@@ -148,6 +163,70 @@ const EvaluatorVariantModal = ({
             option.label.toLowerCase().includes(appSearchTerm.toLowerCase()),
         )
     }, [appOptions, appSearchTerm])
+
+    const {columnsByTestsetId} = useTestsetsData({enabled: Boolean(props.open)})
+
+    const testsetCsvQuery = useAtomValue(
+        useMemo(
+            () =>
+                testsetCsvDataQueryAtomFamily({
+                    testsetId: selectedTestsetId || "",
+                    enabled: Boolean(selectedTestsetId && props.open),
+                }),
+            [selectedTestsetId, props.open],
+        ),
+    ) as any
+    const testsetCsvData = useMemo(
+        () => (Array.isArray(testsetCsvQuery?.data) ? (testsetCsvQuery.data as any[]) : []),
+        [testsetCsvQuery],
+    )
+
+    const derivedTestsetColumns = useMemo(() => {
+        const fromColumns =
+            selectedTestsetId && columnsByTestsetId?.[selectedTestsetId]?.length
+                ? (columnsByTestsetId[selectedTestsetId] as string[])
+                : []
+
+        const firstRow =
+            Array.isArray(testsetCsvData) && testsetCsvData.length > 0
+                ? (testsetCsvData[0] as Record<string, unknown>)
+                : undefined
+
+        let normalizedSource: Record<string, unknown> | undefined
+        if (firstRow && typeof firstRow === "object") {
+            const candidate =
+                "data" in firstRow && firstRow.data && typeof firstRow.data === "object"
+                    ? (firstRow.data as Record<string, unknown>)
+                    : firstRow
+            normalizedSource = candidate
+        }
+
+        const fromCsv = normalizedSource ? Object.keys(normalizedSource) : []
+
+        const merged = new Map<string, string>()
+
+        const addValue = (value?: string) => {
+            if (!value) return
+            const trimmed = value.trim()
+            if (!trimmed) return
+            if (!merged.has(trimmed.toLowerCase())) {
+                merged.set(trimmed.toLowerCase(), trimmed)
+            }
+        }
+
+        fromColumns.forEach((col) => addValue(typeof col === "string" ? col : String(col)))
+        fromCsv.forEach((col) => addValue(typeof col === "string" ? col : String(col)))
+
+        return Array.from(merged.values())
+    }, [columnsByTestsetId, selectedTestsetId, testsetCsvData])
+
+    const normalizedTestsetColumns = useMemo(
+        () =>
+            derivedTestsetColumns
+                .map((col) => (typeof col === "string" ? col.trim().toLowerCase() : ""))
+                .filter(Boolean),
+        [derivedTestsetColumns],
+    )
 
     const {variants: appVariantRevisions, isLoading: variantsLoading} = useAppVariantRevisions(
         selectedAppId || null,
@@ -287,6 +366,25 @@ const EvaluatorVariantModal = ({
         )
     }, [searchTerm, latestRevisions])
 
+    useEffect(() => {
+        setRowDiagnostics((prev) => {
+            if (!prev || Object.keys(prev).length === 0) return prev
+            const allowed = new Set(
+                (filteredRevisions || []).map((revision) => String(revision.id)),
+            )
+            let changed = false
+            const next: Record<string, VariantDiagnostics> = {}
+            Object.entries(prev).forEach(([key, meta]) => {
+                if (allowed.has(key)) {
+                    next[key] = meta
+                } else {
+                    changed = true
+                }
+            })
+            return changed ? next : prev
+        })
+    }, [filteredRevisions])
+
     const selectedRevisionTags = useMemo(() => {
         if (!selectedRowKeys.length) return []
         return selectedRowKeys
@@ -300,6 +398,128 @@ const EvaluatorVariantModal = ({
             })
             .filter(Boolean) as {revisionId: string; label: string}[]
     }, [selectedRowKeys, revisionById])
+
+    const selectedVariantDiagnostics = useMemo(() => {
+        const [activeRevisionId] = selectedRowKeys
+        if (!activeRevisionId) return undefined
+        return rowDiagnostics[String(activeRevisionId)]
+    }, [rowDiagnostics, selectedRowKeys])
+
+    const selectedVariantMessage = selectedVariantDiagnostics?.message
+    const selectedVariantHasWarning = Boolean(selectedVariantDiagnostics?.hasWarning)
+
+    const loadWarningMessage = selectedVariantMessage
+
+    const modalFooter = (
+        <div className="flex items-center justify-end gap-2">
+            <Button onClick={() => props.onCancel?.({} as any)}>Cancel</Button>
+            <Tooltip title={loadWarningMessage}>
+                <span style={{display: "inline-block"}}>
+                    <Button
+                        type="primary"
+                        danger={selectedVariantHasWarning}
+                        icon={<Play />}
+                        iconPosition="end"
+                        disabled={!selectedRowKeys.length}
+                        loading={variantsLoading}
+                        onClick={loadVariant}
+                    >
+                        Load variant
+                    </Button>
+                </span>
+            </Tooltip>
+        </div>
+    )
+
+    const handleRowDiagnostics = useCallback((id: string, meta: VariantDiagnostics) => {
+        if (!id) return
+        setRowDiagnostics((prev) => {
+            const existing = prev[id]
+            if (
+                existing &&
+                existing.hasWarning === meta.hasWarning &&
+                existing.message === meta.message &&
+                existing.columnsKnown === meta.columnsKnown
+            ) {
+                return prev
+            }
+            return {...prev, [id]: meta}
+        })
+    }, [])
+
+    const SelectionCell = ({
+        record,
+        node,
+        onMetaChange,
+    }: {
+        record: EnhancedVariant
+        node: ReactNode
+        onMetaChange: (id: string, meta: VariantDiagnostics) => void
+    }) => {
+        const revisionId = record?.id ? String(record.id) : ""
+        const stableVariablesAtom = useMemo(
+            () => stablePromptVariablesAtomFamily(revisionId || ""),
+            [revisionId],
+        )
+        const variables = useAtomValue(stableVariablesAtom) as string[]
+
+        const expectedVariables = useMemo(
+            () =>
+                Array.isArray(variables)
+                    ? variables
+                          .map((value) => (typeof value === "string" ? value.trim() : ""))
+                          .filter(Boolean)
+                    : [],
+            [variables],
+        )
+
+        const columnsKnown = Boolean(selectedTestsetId) && normalizedTestsetColumns.length > 0
+
+        const missingVariables = useMemo(
+            () =>
+                columnsKnown
+                    ? expectedVariables.filter(
+                          (value) => !normalizedTestsetColumns.includes(value.toLowerCase()),
+                      )
+                    : [],
+            [columnsKnown, expectedVariables, normalizedTestsetColumns],
+        )
+
+        const hasWarning =
+            Boolean(selectedTestsetId) &&
+            columnsKnown &&
+            expectedVariables.length > 0 &&
+            missingVariables.length > 0
+
+        const message = useMemo(() => {
+            if (!selectedTestsetId || !expectedVariables.length) return undefined
+            if (!columnsKnown) return "Analyzing testset columns..."
+            if (missingVariables.length > 0) {
+                const missingList = missingVariables.join(", ")
+                return `The selected testset is missing required inputs for this variant: {{${missingList}}}`
+            }
+            return undefined
+        }, [columnsKnown, expectedVariables.length, missingVariables, selectedTestsetId])
+
+        useEffect(() => {
+            if (!revisionId) return
+            onMetaChange(revisionId, {hasWarning, message, columnsKnown})
+        }, [revisionId, hasWarning, message, columnsKnown, onMetaChange])
+
+        if (!isValidElement(node)) {
+            return message ? (
+                <Tooltip title={message}>
+                    <span style={{display: "inline-block"}}>{node}</span>
+                </Tooltip>
+            ) : (
+                <span style={{display: "inline-block"}}>{node}</span>
+            )
+        }
+
+        const wrappedNode = <span style={{display: "inline-block"}}>{node}</span>
+
+        return message ? <Tooltip title={message}>{wrappedNode}</Tooltip> : wrappedNode
+    }
 
     const variantTabContent = (
         <div className="flex flex-col flex-1 min-h-0 gap-3">
@@ -320,9 +540,15 @@ const EvaluatorVariantModal = ({
                     rowSelection={{
                         selectedRowKeys,
                         onChange: (value) => {
-                            const normalized = value.map((id) => id.toString())
-                            setSelectedRowKeys(normalized)
+                            setSelectedRowKeys(value.map((id) => id.toString()))
                         },
+                        renderCell: (_: any, record: any, __: number, originNode: ReactNode) => (
+                            <SelectionCell
+                                record={record as EnhancedVariant}
+                                node={originNode}
+                                onMetaChange={handleRowDiagnostics}
+                            />
+                        ),
                         type: "radio",
                     }}
                     isLoading={variantsLoading}
@@ -330,10 +556,21 @@ const EvaluatorVariantModal = ({
                     rowKey={"id"}
                     showStableName
                     showActionsDropdown={false}
+                    rowClassName={(record) =>
+                        clsx(
+                            rowDiagnostics[String((record as EnhancedVariant).id)]?.hasWarning &&
+                                "opacity-70",
+                        )
+                    }
                     onRow={(record) => {
                         const revision = record as EnhancedVariant
+                        const diag = rowDiagnostics[String(revision.id)]
                         return {
-                            style: {cursor: "pointer"},
+                            className: "variant-table-row",
+                            style: diag?.hasWarning
+                                ? {cursor: "pointer", opacity: 0.7}
+                                : {cursor: "pointer"},
+                            title: diag?.message,
                             onClick: () => {
                                 if (revision.id) {
                                     setSelectedRowKeys([String(revision.id)])
@@ -421,17 +658,21 @@ const EvaluatorVariantModal = ({
             {
                 key: "variantPanel",
                 label: (
-                    <TabLabel tabTitle="Variant" completed={selectedRowKeys.length > 0}>
-                        {selectedRevisionTags.map(({revisionId, label}) => (
-                            <Tag
-                                key={revisionId}
-                                closeIcon={<CloseCircleOutlined />}
-                                onClose={() => setSelectedRowKeys([])}
-                            >
-                                {label}
-                            </Tag>
-                        ))}
-                    </TabLabel>
+                    <Tooltip title={selectedVariantMessage}>
+                        <span>
+                            <TabLabel tabTitle="Variant" completed={selectedRowKeys.length > 0}>
+                                {selectedRevisionTags.map(({revisionId, label}) => (
+                                    <Tag
+                                        key={revisionId}
+                                        closeIcon={<CloseCircleOutlined />}
+                                        onClose={() => setSelectedRowKeys([])}
+                                    >
+                                        {label}
+                                    </Tag>
+                                ))}
+                            </TabLabel>
+                        </span>
+                    </Tooltip>
                 ),
                 children: variantTabContent,
             },
@@ -450,6 +691,8 @@ const EvaluatorVariantModal = ({
         filteredAppOptions,
         variantTabContent,
         handleCreateApp,
+        selectedVariantHasWarning,
+        selectedVariantMessage,
     ])
 
     return (
@@ -457,14 +700,6 @@ const EvaluatorVariantModal = ({
             closeIcon={null}
             width={1150}
             className={classes.container}
-            okText="Load variant"
-            okButtonProps={{
-                icon: <Play />,
-                iconPosition: "end",
-                disabled: !selectedRowKeys.length,
-                loading: variantsLoading,
-                onClick: loadVariant,
-            }}
             title={
                 <div className="flex items-center justify-between">
                     <Typography.Text className={classes.title}>
@@ -479,6 +714,7 @@ const EvaluatorVariantModal = ({
             }
             centered
             {...props}
+            footer={modalFooter}
         >
             <Tabs
                 activeKey={activePanel}

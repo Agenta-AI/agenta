@@ -175,7 +175,7 @@ const PromptConfigCard = ({
     variantId,
     evaluation,
     isComparison,
-    compareIndex,
+    colorIndex,
     isFirstPrompt,
     isMiddlePrompt,
     isLastPrompt,
@@ -184,7 +184,7 @@ const PromptConfigCard = ({
     variantId: string
     evaluation: EnrichedEvaluationRun
     isComparison: boolean
-    compareIndex: number
+    colorIndex: number
     isFirstPrompt: boolean
     isMiddlePrompt: boolean
     isLastPrompt: boolean
@@ -570,7 +570,7 @@ const PromptConfigCard = ({
             <div className="h-[48px] flex items-center justify-between py-2 px-2 border-0 border-b border-solid border-[#EAEFF5]">
                 <div className="w-[80%] flex items-center gap-2">
                     <EvalNameTag
-                        color={EVAL_TAG_COLOR?.[compareIndex || 1]}
+                        color={EVAL_TAG_COLOR?.[colorIndex || 1]}
                         run={evaluation}
                         className={isComparison ? "!max-w-[60%]" : ""}
                         allowVariantNavigation={canNavigateToVariant}

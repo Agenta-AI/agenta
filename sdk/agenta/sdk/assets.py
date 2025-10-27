@@ -1,6 +1,8 @@
 supported_llm_models = {
     "Anthropic": [
         "anthropic/claude-sonnet-4-5",
+        "anthropic/claude-haiku-4-5",
+        "anthropic/claude-opus-4-1",
         "anthropic/claude-sonnet-4-20250514",
         "anthropic/claude-opus-4-20250514",
         "anthropic/claude-3-7-sonnet-20250219",
@@ -25,15 +27,18 @@ supported_llm_models = {
         "deepinfra/mistralai/Mistral-7B-Instruct-v0.1",
     ],
     "Gemini": [
+        "gemini/gemini-2.5-pro",
+        "gemini/gemini-2.5-pro-preview-05-06",
+        "gemini/gemini-2.5-flash",
+        "gemini/gemini-2.5-flash-preview-09-2025",
         "gemini/gemini-2.5-flash-preview-05-20",
         "gemini/gemini-2.5-flash-preview-04-17",
+        "gemini/gemini-2.5-flash-lite",
+        "gemini/gemini-2.5-flash-lite-preview-09-2025",
+        "gemini/gemini-2.0-flash",
         "gemini/gemini-2.0-flash-001",
-        "gemini/gemini-2.5-pro-preview-05-06",
-        "gemini/gemini-2.0-flash-lite-preview-02-05",
-        "gemini/gemini-1.5-pro-latest",
         "gemini/gemini-2.0-flash-lite",
-        "gemini/gemini-1.5-flash",
-        "gemini/gemini-1.5-flash-8b",
+        "gemini/gemini-2.0-flash-lite-preview-02-05",
     ],
     "Groq": [
         "groq/deepseek-r1-distill-llama-70b",

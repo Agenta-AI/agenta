@@ -41,7 +41,7 @@ const IconMap: Record<string, React.FC<{className?: string}>> = {
     bedrock: Bedrock,
     deepinfra: DeepInfra,
     sagemaker: Sagemaker,
-    vertex: Vertex,
+    vertex_ai: Vertex,
 }
 
 export default IconMap

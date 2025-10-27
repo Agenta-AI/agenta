@@ -518,7 +518,9 @@ const FocusDrawerContent = () => {
 
                               // Helper: collect evaluator list for a run
                               const getRunEvaluators = (rId: string) => {
-                                  const rState = getDefaultStore().get(evaluationRunStateFamily(rId))
+                                  const rState = getDefaultStore().get(
+                                      evaluationRunStateFamily(rId),
+                                  )
                                   const evaluators = rState?.enrichedRun?.evaluators || []
                                   return Array.isArray(evaluators)
                                       ? evaluators
@@ -792,7 +794,6 @@ const FocusDrawerContent = () => {
                               },
                           ),
                           children: Object.keys(metrics || {})?.map((metricKey) => {
-
                               const metricData = getDefaultStore().get(
                                   runScopedMetricDataFamily({
                                       runId: runId!,

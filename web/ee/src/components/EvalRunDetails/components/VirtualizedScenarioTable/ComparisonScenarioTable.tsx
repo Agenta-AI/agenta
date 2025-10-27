@@ -109,9 +109,13 @@ const ComparisonTable = () => {
                     loading={false}
                     tableLayout="fixed"
                     onRow={(record) => ({
-                        style: record?.compareIndex
-                            ? {background: EVAL_BG_COLOR[record.compareIndex]}
-                            : undefined,
+                        style:
+                            (record?.colorIndex ?? record?.compareIndex)
+                                ? {
+                                      background:
+                                          EVAL_BG_COLOR[record.colorIndex || record.compareIndex],
+                                  }
+                                : undefined,
                         onClick: (event) => {
                             const target = event.target as HTMLElement
                             const isFirstCell = target.closest(".scenario-index-row-cell")
