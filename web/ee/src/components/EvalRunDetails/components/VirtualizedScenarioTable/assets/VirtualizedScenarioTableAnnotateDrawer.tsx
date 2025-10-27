@@ -6,6 +6,7 @@ import {getDefaultStore, useAtomValue} from "jotai"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
+
 import ScenarioAnnotationPanel from "../../../HumanEvalRun/components/ScenarioAnnotationPanel"
 
 interface VirtualizedScenarioTableAnnotateDrawerProps extends DrawerProps {

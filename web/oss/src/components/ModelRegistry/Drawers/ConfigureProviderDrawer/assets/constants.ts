@@ -8,8 +8,14 @@ export const PROVIDER_FIELDS: {
     note?: string
     required?: boolean
     model?: string[]
+    attributes?: Record<string, any>
 }[] = [
-    {key: "name", label: "Name", placeholder: "Enter unique name", required: true},
+    {
+        key: "name",
+        label: "Name",
+        placeholder: "Enter unique name",
+        required: true,
+    },
     {
         key: "apiKey",
         label: "API key",
@@ -21,9 +27,9 @@ export const PROVIDER_FIELDS: {
     {
         key: "apiBaseUrl",
         label: "API base URL",
-        placeholder: "https://api.openai.com/v1",
-        note: "Include /v1 in the base URL (e.g. https://api.openai.com/v1)",
-        model: ["azure", "custom"],
+        placeholder: "Enter API base URL",
+        note: "Include version (e.g. /v1) in the base URL (e.g. https://api.openai.com/v1)",
+        model: ["azure", "vertex_ai", "custom"],
         required: false,
     },
     {
@@ -34,9 +40,40 @@ export const PROVIDER_FIELDS: {
         required: false,
     },
     {
+        key: "region",
+        label: "AWS region",
+        placeholder: "Enter AWS region",
+        model: ["bedrock", "sagemaker"],
+        required: false,
+    },
+    {
+        key: "vertexProject",
+        label: "Vertex project",
+        placeholder: "Enter Vertex project",
+        model: ["vertex_ai"],
+        required: false,
+    },
+    {
+        key: "vertexLocation",
+        label: "Vertex location",
+        placeholder: "Enter Vertex location",
+        model: ["vertex_ai"],
+        required: false,
+    },
+    {
+        key: "vertexCredentials",
+        label: "Vertex credentials",
+        placeholder: "Enter Vertex credentials",
+        note: "This secret will be encrypted in transit and at rest.",
+        model: ["vertex_ai"],
+        required: false,
+        attributes: {kind: "json", rows: 10, monospace: true, strict: true},
+    },
+    {
         key: "accessKeyId",
         label: "Access key ID",
         placeholder: "Enter access key ID",
+        note: "This secret will be encrypted in transit and at rest.",
         model: ["bedrock", "sagemaker"],
         required: false,
     },
@@ -44,13 +81,7 @@ export const PROVIDER_FIELDS: {
         key: "accessKey",
         label: "Secret Access Key",
         placeholder: "Enter secret access key",
-        model: ["bedrock", "sagemaker"],
-        required: false,
-    },
-    {
-        key: "region",
-        label: "AWS region",
-        placeholder: "Enter aws region",
+        note: "This secret will be encrypted in transit and at rest.",
         model: ["bedrock", "sagemaker"],
         required: false,
     },
@@ -58,6 +89,7 @@ export const PROVIDER_FIELDS: {
         key: "sessionToken",
         label: "Session token",
         placeholder: "Enter session token",
+        note: "This secret will be encrypted in transit and at rest.",
         model: [],
         required: false,
     },

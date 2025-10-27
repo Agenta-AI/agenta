@@ -21,6 +21,7 @@ const comparisonRunsAtom = atomFamily(
                     runId,
                     run: state?.enrichedRun,
                     compareIndex: state?.compareIndex,
+                    colorIndex: state?.colorIndex,
                     isBase: state?.isBase,
                     isComparison: state?.isComparison,
                 }
@@ -50,7 +51,7 @@ const EvalRunSelectedEvaluations = ({runIds, baseRunId}: {runIds: string[]; base
                     {runs
                         ?.filter((r) => Boolean(r?.run))
                         .map((r) => {
-                            const idx = r?.compareIndex ?? (r?.isBase ? 1 : undefined)
+                            const idx = r?.colorIndex ?? (r?.isBase ? 1 : undefined)
                             const color = idx ? (EVAL_TAG_COLOR as any)[idx] : undefined
                             return (
                                 <EvalNameTag

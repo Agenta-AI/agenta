@@ -37,6 +37,24 @@ Write a blog post about {{subject}} that focuses on {{key_aspect}}
 
 Agenta uses curly brackets `{{variable}}` for template variables, automatically creating corresponding input fields in the playground interface.
 
+### Switching Template Formats
+
+Agenta lets you control how it processes variables in prompts through different template formats. The playground supports two main formats:
+
+The default Curly format uses simple `{{variable}}` placeholders. The Jinja2 format provides more control with conditional statements like `{% if variable %}...{% endif %}` and filters.
+
+:::warning
+The playground does not support loops in Jinja2 prompts because prompt variables must be strings.
+:::
+
+:::tip
+To use a variable only for filtering in Jinja2 without including it in the prompt text, wrap it in a false condition: `{% if False %} {{variable}} {% endif %}`. This makes the variable available to the playground while keeping it out of the final prompt.
+:::
+
+The format selector in the prompt configuration panel makes it easy to switch between formats. Click the current format name and select your preferred option from the dropdown menu.
+
+Agenta stores your chosen format with the prompt variant's messages and model settings. When you use the SDK to retrieve and format the prompt, it automatically applies the correct format.
+
 ### Dynamic JSON Schema Variables
 
 When using the **JSON Schema** response format, you can reference variables directly inside the schema definition. Placeholders using `{{variable}}` work in both keys and values, and any variables you add will appear as inputs in the playground. These dynamic schemas are stored in the registry when you commit a variant. The editor does not yet highlight variables inside the schema, but they will still be replaced when executing your prompt.

@@ -1,8 +1,9 @@
 import {memo} from "react"
 
+import clsx from "clsx"
+
 import EvalRunScoreTableSkeleton from "../../../AutoEvalRun/components/EvalRunScoreTable/assets/EvalRunScoreTableSkeleton"
 import EvaluatorMetricsChartSkeleton from "../../../AutoEvalRun/components/EvaluatorMetricsChart/assets/EvaluatorMetricsChartSkeleton"
-import clsx from "clsx"
 
 const EvalRunOverviewViewerSkeleton = ({className}: {className?: string}) => {
     return (

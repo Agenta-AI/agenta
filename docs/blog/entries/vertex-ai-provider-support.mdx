@@ -1,0 +1,38 @@
+---
+title: "Vertex AI Provider Support"
+slug: vertex-ai-provider-support
+date: 2025-10-24
+tags: [v0.58.1]
+---
+
+import Image from "@theme/IdealImage";
+
+We've added support for Google Cloud's Vertex AI platform. You can now use Gemini models and other Vertex AI partner models directly in Agenta.
+
+### What's New
+
+Vertex AI is now available as a provider across the platform:
+
+- **Playground**: Configure and test Gemini models and other Vertex AI models
+- **Model Hub**: Add your Vertex AI credentials and manage available models
+- **Gateway**: Access Vertex AI models through the InVoke endpoints
+
+You can use any model available through Vertex AI, including:
+- **Gemini models**: Google's most capable AI models (gemini-2.5-pro, gemini-2.5-flash, etc.)
+- **Partner models**: Claude, Llama, Mistral, and other models available through Vertex AI Model Garden
+
+### Configuration
+
+To get started with Vertex AI, go to Settings → Model Hub and add your Vertex AI credentials:
+
+- **Vertex Project**: Your Google Cloud project ID
+- **Vertex Location**: The region for your models (e.g., `us-central1`, `europe-west4`)
+- **Vertex Credentials**: Your service account key in JSON format
+
+For detailed setup instructions, see our [documentation on adding custom providers](/prompt-engineering/playground/adding-custom-providers#configuring-vertex-ai).
+
+### Security
+
+All API keys and credentials are encrypted both in transit and at rest, ensuring your sensitive information stays secure.
+
+---

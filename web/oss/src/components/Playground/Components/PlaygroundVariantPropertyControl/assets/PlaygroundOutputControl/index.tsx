@@ -278,9 +278,22 @@ const PlaygroundOutputControl = ({
     )
 }
 
-const PlaygroundOutputControlWrapper = (props: {className?: string; children: React.ReactNode}) => {
+const PlaygroundOutputControlWrapper = (props: {
+    className?: string
+    children: React.ReactNode
+    withTooltip: boolean
+    promptName: string
+    metadata: CompoundMetadata
+    handleChange: (v: any, event?: any, propertyId?: string | undefined) => void
+    value: any
+}) => {
     return (
-        <EditorProvider className="!border-none" codeOnly showToolbar={false} enableTokens={false}>
+        <EditorProvider
+            className={clsx("!border-none", props.className)}
+            codeOnly
+            showToolbar={false}
+            enableTokens={false}
+        >
             <PlaygroundOutputControl {...props} />
         </EditorProvider>
     )

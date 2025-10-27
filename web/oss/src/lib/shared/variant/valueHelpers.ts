@@ -178,6 +178,29 @@ export function extractValueByMetadata(
                 if (obj.role === "tool") {
                     if (!obj.content) {
                         obj.content = ""
+                    } else if (Array.isArray(obj.content)) {
+                        obj.content = obj.content.map((item: any) => {
+                            if (!item) return item
+                            const typeValue =
+                                typeof item.type === "object" && item.type
+                                    ? item.type.value ?? item.type
+                                    : item.type
+                            const textValue =
+                                typeof item.text === "object" && item.text
+                                    ? item.text.value ?? item.text
+                                    : item.text ?? item.content ?? ""
+                            return {
+                                type: typeValue || "text",
+                                text: typeof textValue === "string" ? textValue : String(textValue ?? ""),
+                            }
+                        })
+                    }
+
+                    if ((obj as any).toolCallId && typeof (obj as any).toolCallId === "string") {
+                        obj.tool_call_id = (obj as any).toolCallId
+                        delete (obj as any).toolCallId
+                    } else if ((obj as any).tool_call_id && typeof (obj as any).tool_call_id !== "string") {
+                        obj.tool_call_id = String((obj as any).tool_call_id ?? "")
                     }
                 }
 

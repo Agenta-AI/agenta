@@ -188,7 +188,7 @@ class SecretsManager:
                 continue
 
             # ii). Extract Credentials if present
-            # (for custom providers -- aws bedrock/sagemaker, vertexai, etc)
+            # (for custom providers -- aws bedrock/sagemaker, vertex_ai, etc)
             elif secret.get("kind") == "custom_provider":
                 provider_kind = provider_info.get("kind", "").lower().replace(" ", "")
                 provider_slug = secret_data.get("provider_slug", "")

@@ -126,7 +126,7 @@ const GenerationChatTurnNormalized = ({
                     onAddMessage={() => setAddTurn()}
                 />
             ) : null}
-            {isRunning ? (
+            {isRunning && !hasAssistantContent ? (
                 // While running, suppress any previous assistant message/error to avoid stale content
                 <TypingIndicator />
             ) : hasAssistantContent ? (

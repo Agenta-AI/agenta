@@ -4,6 +4,7 @@ import {v4 as uuidv4} from "uuid"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getTagColors} from "@/oss/lib/helpers/colors"
 import {calcEvalDuration} from "@/oss/lib/helpers/evaluate"
+import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
 import {isDemo, stringToNumberInRange} from "@/oss/lib/helpers/utils"
 import {
     ComparisonResultRow,
@@ -25,7 +26,6 @@ import exactMatchImg from "@/oss/media/target.png"
 import similarityImg from "@/oss/media/transparency.png"
 import {fetchTestset} from "@/oss/services/testsets/api"
 import {getProjectValues} from "@/oss/state/project"
-import {assertValidId, isValidId} from "@/oss/lib/helpers/serviceValidations"
 
 //Prefix convention:
 //  - fetch: GET single entity from server

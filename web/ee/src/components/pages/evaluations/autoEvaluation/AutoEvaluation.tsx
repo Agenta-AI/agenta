@@ -87,8 +87,11 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
     const evaluatorSlugs = useMemo(() => {
         const evaSlugs = new Set<string>()
         previewAutoEvals.forEach((e) => {
-            const key = e?.data.steps?.find((step) => step.type === "annotation")?.key
-            if (key) evaSlugs.add(key)
+            e?.data.steps?.forEach((step) => {
+                if (step.type === "annotation") {
+                    evaSlugs.add(step.key)
+                }
+            })
         })
         return evaSlugs
     }, [previewAutoEvals])

@@ -12,6 +12,8 @@ import {
 } from "../../../lib/hooks/useEvaluationRunData/assets/atoms"
 import {urlStateAtom} from "../state/urlState"
 
+const COLOR_SEQUENCE = [1, 2, 3, 4, 5]
+
 /**
  * Individual comparison run data fetcher component
  * Mounts the same data fetching logic as EvaluationPageData for a specific comparison run
@@ -39,6 +41,8 @@ ComparisonRunDataFetcher.displayName = "ComparisonRunDataFetcher"
  * This leverages the existing EvaluationPageData pattern without reimplementing anything
  */
 export const ComparisonDataFetcher = memo(() => {
+    const runColorRegistryRef = useRef(new Map<string, number>())
+
     const urlState = useAtomValue(urlStateAtom)
     const comparisonRunIds = urlState.compare || []
     const baseRunId = useRunId()
@@ -47,6 +51,18 @@ export const ComparisonDataFetcher = memo(() => {
 
     // Keep run flags in sync with compare list
     useEffect(() => {
+        const ensureColorIndex = (runId: string | undefined) => {
+            if (!runId) return undefined
+            const registry = runColorRegistryRef.current
+            if (registry.has(runId)) return registry.get(runId)
+
+            const used = new Set(registry.values())
+            const available = COLOR_SEQUENCE.find((idx) => !used.has(idx))
+            const nextIndex = available ?? (registry.size % COLOR_SEQUENCE.length) + 1
+            registry.set(runId, nextIndex)
+            return nextIndex
+        }
+
         if (!baseRunId) return
 
         // Base run is always index 1 and not a comparison
@@ -54,6 +70,7 @@ export const ComparisonDataFetcher = memo(() => {
             draft.isBase = true
             draft.isComparison = false
             draft.compareIndex = 1
+            draft.colorIndex = draft.colorIndex ?? ensureColorIndex(baseRunId)
         })
 
         // Reset flags for runs removed from compare
@@ -67,6 +84,7 @@ export const ComparisonDataFetcher = memo(() => {
                 draft.isBase = false
                 draft.isComparison = false
                 draft.compareIndex = undefined
+                draft.colorIndex = draft.colorIndex ?? ensureColorIndex(id)
             })
         })
 
@@ -78,6 +96,7 @@ export const ComparisonDataFetcher = memo(() => {
                 draft.isBase = false
                 draft.isComparison = true
                 draft.compareIndex = idx + 2 // start from 2 for comparisons
+                draft.colorIndex = draft.colorIndex ?? ensureColorIndex(id)
             })
         })
 

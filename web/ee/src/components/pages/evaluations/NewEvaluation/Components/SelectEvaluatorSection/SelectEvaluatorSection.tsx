@@ -5,15 +5,15 @@ import {Button, Input, Table, Tag, Space} from "antd"
 import {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
+import router from "next/router"
 
 import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
+import useURL from "@/oss/hooks/useURL"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
 
 import type {SelectEvaluatorSectionProps} from "../../types"
-import router from "next/router"
-import useURL from "@/oss/hooks/useURL"
 
 const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
     ssr: false,
@@ -83,7 +83,6 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         evaluationData
 
     const [searchTerm, setSearchTerm] = useState("")
-
     const prevSelectedAppIdRef = useRef<string | undefined>()
     const {refetchEvaluatorConfigs} = fetchData
 

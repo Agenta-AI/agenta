@@ -24,6 +24,24 @@ export const shippedFeatures: ShippedFeature[] = [
     // Playground: BCFF78
     // Observability: DE74FF
     // Evaluation: 86B7FF
+    // Integration: FFA500
+    {
+        id: "vertex-ai-provider-support",
+        title: "Vertex AI Provider Support",
+        description: "Use Google Cloud's Vertex AI models including Gemini and partner models in the playground, Model Hub, and through Gateway endpoints.",
+        changelogPath: "/changelog/vertex-ai-provider-support",
+        shippedAt: "2025-10-24",
+        labels: [
+            {
+                name: "Integration",
+                color: "FFA500",
+            },
+            {
+                name: "Playground",
+                color: "BCFF78",
+            },
+        ],
+    },
     {
         id: "filtering-by-annotation",
         title: "Filtering Traces by Annotation",

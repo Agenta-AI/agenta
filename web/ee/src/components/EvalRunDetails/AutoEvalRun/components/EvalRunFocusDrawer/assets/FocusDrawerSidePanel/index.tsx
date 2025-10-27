@@ -126,18 +126,23 @@ const FocusDrawerSidePanel = () => {
 
     const onSelect = useCallback(
         async (selectedKeys: Key[]) => {
-            if (selectedKeys.length > 0) {
-                const key = selectedKeys[0].toString()
-
-                await router.replace(
-                    {
-                        pathname: router.pathname,
-                        query: router.query,
-                        hash: key,
-                    },
-                    undefined,
-                    {scroll: false, shallow: true},
-                )
+            try {
+                if (selectedKeys.length > 0) {
+                    const key = selectedKeys[0].toString()
+                    const currentHash = router.asPath.split("#")[1]
+                    if (currentHash == key) return
+                    await router.replace(
+                        {
+                            pathname: router.pathname,
+                            query: router.query,
+                            hash: key,
+                        },
+                        undefined,
+                        {scroll: false, shallow: true},
+                    )
+                }
+            } catch (error) {
+                return ""
             }
         },
         [router],

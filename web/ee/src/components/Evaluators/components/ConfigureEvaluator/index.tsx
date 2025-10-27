@@ -2,11 +2,11 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowLeftOutlined} from "@ant-design/icons"
 import {Button, Result} from "antd"
-import {message} from "@/oss/components/AppMessageContext"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
 import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"

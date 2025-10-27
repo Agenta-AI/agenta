@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -17,10 +18,9 @@ import {canonicalizeMetricKey, getMetricValueWithAliases} from "@/oss/lib/metric
 import {EVAL_COLOR, formatMetricName} from "../../AutoEvalRun/assets/utils"
 import EvalRunScoreTable from "../../AutoEvalRun/components/EvalRunScoreTable"
 import EvaluatorMetricsChart from "../../AutoEvalRun/components/EvaluatorMetricsChart"
+import {evalTypeAtom} from "../../state/evalType"
 import {urlStateAtom} from "../../state/urlState"
 
-import clsx from "clsx"
-import {evalTypeAtom} from "../../state/evalType"
 import EvalRunOverviewViewerSkeleton from "./assets/EvalRunOverviewViewerSkeleton"
 
 // Only evaluator metrics (slug-prefixed) should render in overview charts; skip invocation metrics.
@@ -154,6 +154,8 @@ const EvalRunOverviewViewer = () => {
                         ? allRunIds.map((id, i) => {
                               const state = evalById[id]
                               const compareIdx = state?.compareIndex || i + 1
+                              const colorIdx =
+                                  state?.colorIndex || (state?.isBase ? 1 : undefined) || compareIdx
                               const stats = metricsLookup[id] || {}
                               const m: any = getMetricValueWithAliases(stats, fullKey)
                               const hasMetric = !!m
@@ -174,7 +176,7 @@ const EvalRunOverviewViewer = () => {
                                   x: state?.enrichedRun?.name || `Eval ${compareIdx}`,
                                   y,
                                   hasMetric,
-                                  color: (EVAL_COLOR as any)[compareIdx] || "#3B82F6",
+                                  color: (EVAL_COLOR as any)[colorIdx] || "#3B82F6",
                               }
                           })
                         : undefined

@@ -2,7 +2,10 @@
 
 import JSON5 from "json5"
 
-export type NormalizedMessage = {role: string; content: any}
+export interface NormalizedMessage {
+    role: string
+    content: any
+}
 
 // Try to parse a JSON array or object string into an array. Returns null if not an array.
 export function tryParseArrayFromString(s: string): any[] | null {
@@ -28,7 +31,46 @@ export function normalizeMessagesFromField(raw: any): NormalizedMessage[] {
             : rc && typeof rc === "object" && "value" in rc
               ? (rc as any).value
               : rc
-        out.push({role, content})
+
+        const toolCalls =
+            m?.tool_calls ??
+            m?.toolCalls ??
+            m?.toolCalls?.value ??
+            m?.tool_calls?.value ??
+            undefined
+
+        const functionCall =
+            m?.function_call ??
+            m?.functionCall ??
+            m?.function_call?.value ??
+            m?.functionCall?.value ??
+            undefined
+
+        const toolCallId =
+            m?.tool_call_id ??
+            m?.toolCallId ??
+            m?.toolCallId?.value ??
+            m?.tool_call_id?.value ??
+            undefined
+
+        const toolName =
+            m?.name ?? m?.tool_name ?? m?.name?.value ?? m?.tool_name?.value ?? undefined
+
+        const payload: any = {role, content}
+        if (toolCalls !== undefined) payload.tool_calls = toolCalls
+        if (functionCall !== undefined) payload.function_call = functionCall
+        if (toolCallId !== undefined)
+            payload.tool_call_id =
+                typeof toolCallId === "object" && toolCallId !== null
+                    ? (toolCallId.value ?? toolCallId)
+                    : toolCallId
+        if (toolName !== undefined)
+            payload.name =
+                typeof toolName === "object" && toolName !== null
+                    ? (toolName.value ?? toolName)
+                    : toolName
+
+        out.push(payload)
     }
     if (Array.isArray(raw)) {
         for (const m of raw) pushFrom(m)
@@ -46,7 +88,7 @@ export function normalizeMessagesFromField(raw: any): NormalizedMessage[] {
 // Aggregate normalized messages across many rows (using a field accessor)
 export function extractAllMessagesFromRows(
     rows: Record<string, any>[],
-    field: string = "messages",
+    field = "messages",
 ): NormalizedMessage[] {
     const result: NormalizedMessage[] = []
     for (const row of rows || []) {

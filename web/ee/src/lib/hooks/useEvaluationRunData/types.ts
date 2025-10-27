@@ -67,6 +67,8 @@ export interface EvaluationRunState {
     isBase?: boolean
     /** Position in comparison view (1 for base, 2+ for comparisons) */
     compareIndex?: number
+    /** Stable color index used for UI styling independent of baseline swaps */
+    colorIndex?: number
     scenarios?: IScenario[]
     /** Summary of scenario statuses and timings */
     statusMeta: IStatusMeta

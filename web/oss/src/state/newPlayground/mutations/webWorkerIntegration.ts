@@ -16,6 +16,7 @@ import {extractInputKeysFromSchema, extractVariables} from "@/oss/lib/shared/var
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
 import {getJWT} from "@/oss/services/api"
+import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {
     rowIdIndexAtom,
     runStatusByRowRevisionAtom,
@@ -28,7 +29,6 @@ import {
     messageSchemaMetadataAtom,
 } from "@/oss/state/generation/entities"
 import {inputRowAtomFamily, rowVariablesAtomFamily} from "@/oss/state/generation/selectors"
-import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {promptsAtomFamily, promptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
@@ -50,10 +50,29 @@ import {selectedAppIdAtom} from "../../app"
 
 // Atom to store pending web worker requests
 export const pendingWebWorkerRequestsAtom = atom<
-    Record<string, {rowId: string; variantId: string; runId: string; timestamp: number}>
+    Record<
+        string,
+        {
+            rowId: string
+            variantId: string
+            runId: string
+            timestamp: number
+            preserveExistingAssistant?: boolean
+            previousStatus?: {isRunning?: string | false; resultHash?: string | null}
+        }
+    >
 >({})
 
 export const ignoredWebWorkerRunIdsAtom = atom<Record<string, true>>({})
+
+const cloneNodeDeep = (value: any) => {
+    if (value === null || value === undefined) return value
+    try {
+        return JSON.parse(JSON.stringify(value))
+    } catch {
+        return value
+    }
+}
 
 function resolveEffectiveRevisionId(
     get: any,
@@ -83,11 +102,14 @@ function detectIsChatVariant(get: any, rowId: string): boolean {
     return false
 }
 
+type ResolvedVariableKeys = {ordered: string[]; set: Set<string>}
+
 function computeVariableValues(
     get: any,
     isChatVariant: boolean,
     rowId: string,
     effectiveId: string,
+    resolvedKeys?: ResolvedVariableKeys,
 ): Record<string, string> {
     let variableValues: Record<string, string> = {}
     if (!isChatVariant) {
@@ -140,45 +162,104 @@ function computeVariableValues(
         }
     }
     try {
-        const allowed = resolveAllowedVariableKeys(get, effectiveId)
-        variableValues = Object.fromEntries(
-            Object.entries(variableValues || {}).filter(([k]) => allowed.has(k)),
+        const allowed = resolvedKeys ?? resolveAllowedVariableKeys(get, effectiveId)
+        if (allowed.ordered.length > 0) {
+            const filtered: Record<string, string> = {}
+            for (const key of allowed.ordered) {
+                const value = variableValues[key]
+                filtered[key] = value !== undefined && value !== null ? String(value) : ""
+            }
+            return filtered
+        }
+
+        return Object.fromEntries(
+            Object.entries(variableValues || {}).filter(([k]) => allowed.set.has(k)),
         ) as Record<string, string>
     } catch {}
     return variableValues
 }
 
 // Resolve the set of allowed variable keys for a given revision
-function resolveAllowedVariableKeys(get: any, revisionId: string): Set<string> {
+function resolveAllowedVariableKeys(get: any, revisionId: string): ResolvedVariableKeys {
+    const ordered: string[] = []
+    const seen = new Set<string>()
+    const trimmedToKey = new Map<string, string>()
+    const addKey = (rawKey: unknown, preferNew: boolean) => {
+        if (typeof rawKey !== "string" || rawKey.length === 0) return
+        const key = rawKey
+        const trimmed = key.trim()
+        let insertionIndex = ordered.length
+        if (trimmed.length > 0) {
+            const existing = trimmedToKey.get(trimmed)
+            if (existing && existing !== key) {
+                if (!preferNew) return
+                if (seen.has(existing)) {
+                    seen.delete(existing)
+                    const idx = ordered.indexOf(existing)
+                    if (idx >= 0) {
+                        ordered.splice(idx, 1)
+                        insertionIndex = idx
+                    }
+                }
+            } else if (existing === key) {
+                return
+            }
+        }
+        if (seen.has(key)) return
+        if (insertionIndex < ordered.length) {
+            ordered.splice(insertionIndex, 0, key)
+        } else {
+            ordered.push(key)
+        }
+        seen.add(key)
+        if (trimmed.length > 0) trimmedToKey.set(trimmed, key)
+    }
+
     const flags = get(variantFlagsAtomFamily({revisionId})) as any
     const isCustom = !!flags?.isCustom
     if (isCustom) {
         const spec = getSpecLazy()
         const routePath = get(appUriInfoAtom)?.routePath
         const keys = extractInputKeysFromSchema(spec, routePath) || []
-        return new Set(keys as string[])
+        keys.forEach((key) => addKey(key, true))
+        return {ordered, set: new Set(ordered)}
     }
     const promptVars = (get(promptVariablesAtomFamily(revisionId)) || []) as string[]
     const livePrompts = (get(promptsAtomFamily(revisionId)) || []) as any[]
-    const scanned = new Set<string>()
+    const scanned: string[] = []
+    const scannedSeen = new Set<string>()
+    const recordScanned = (value: string) => {
+        if (!scannedSeen.has(value)) {
+            scannedSeen.add(value)
+            scanned.push(value)
+        }
+    }
     try {
         for (const p of livePrompts || []) {
             const msgs = (p as any)?.messages?.value || []
             for (const m of msgs) {
                 const content = m?.content?.value
                 if (typeof content === "string") {
-                    extractVariables(content).forEach((v) => scanned.add(v))
+                    extractVariables(content).forEach((v) => recordScanned(v))
                 } else if (Array.isArray(content)) {
                     for (const part of content) {
                         const text = part?.text?.value ?? part?.text ?? ""
                         if (typeof text === "string")
-                            extractVariables(text).forEach((v) => scanned.add(v))
+                            extractVariables(text).forEach((v) => recordScanned(v))
                     }
                 }
             }
         }
     } catch {}
-    return new Set([...(promptVars || []), ...Array.from(scanned)])
+    if (scanned.length > 0) {
+        scanned.forEach((value) => addKey(value, true))
+    }
+    if (ordered.length === 0) {
+        ;(promptVars || []).forEach((value) => addKey(value, true))
+    } else {
+        ;(promptVars || []).forEach((value) => addKey(value, false))
+    }
+    return {ordered, set: new Set(ordered)}
 }
 
 export const triggerWebWorkerTestAtom = atom(
@@ -233,18 +314,43 @@ export const triggerWebWorkerTestAtom = atom(
         }))
 
         // Mark loading + running for UI feedback (chat and completion)
+        const currentStatusMap = get(runStatusByRowRevisionAtom) as Record<
+            string,
+            {isRunning?: string | false; resultHash?: string | null}
+        >
+        const previousStatusEntry = currentStatusMap?.[`${rowId}:${effectiveId}`]
+
         set(runStatusByRowRevisionAtom, (prev) => ({
             ...prev,
             [`${rowId}:${effectiveId}`]: {isRunning: runId, resultHash: null},
         }))
         set(loadingByRowRevisionAtomFamily({rowId, revisionId: effectiveId}), true)
 
+        const turnsMap = get(chatTurnsByIdAtom) as Record<string, any>
+        const sourceTurn = turnsMap?.[rowId]
+        const existingAssistantNode = sourceTurn?.assistantMessageByRevision?.[effectiveId] ?? null
+        const existingToolResponses = sourceTurn?.toolResponsesByRevision?.[effectiveId]
+        const preserveExistingAssistant =
+            !messageId &&
+            (existingAssistantNode !== null && existingAssistantNode !== undefined
+                ? true
+                : Array.isArray(existingToolResponses) && existingToolResponses.length > 0)
+
         set(pendingWebWorkerRequestsAtom, (prev) => ({
             ...prev,
-            [runId]: {rowId, variantId: effectiveId, runId, timestamp: Date.now()},
+            [runId]: {
+                rowId,
+                variantId: effectiveId,
+                runId,
+                timestamp: Date.now(),
+                preserveExistingAssistant,
+                previousStatus: previousStatusEntry,
+            },
         }))
 
         const allMetadata = getAllMetadata()
+
+        const allowedKeys = resolveAllowedVariableKeys(get, effectiveId)
 
         let inputRow, chatHistory: any
         if (isChatVariant) {
@@ -316,11 +422,13 @@ export const triggerWebWorkerTestAtom = atom(
                 mergedByKey.set(k, node)
             }
             // Filter to allowed keys for the active revision
-            const allowed = resolveAllowedVariableKeys(get, effectiveId)
             const enhanced: Record<string, any> = {__id: rid}
-            for (const [name, node] of mergedByKey.entries()) {
-                if (!allowed.has(name)) continue
-                const v = (node as any)?.content?.value ?? (node as any)?.value
+            const allowedNames = allowedKeys.ordered.length
+                ? allowedKeys.ordered
+                : Array.from(allowedKeys.set)
+            for (const name of allowedNames) {
+                const node = mergedByKey.get(name)
+                const v = node?.content?.value ?? node?.value
                 enhanced[name] = {value: v !== undefined && v !== null ? String(v) : ""}
             }
             return enhanced
@@ -356,7 +464,14 @@ export const triggerWebWorkerTestAtom = atom(
             runId,
             prompts,
             // variables: promptVars,
-            variableValues: computeVariableValues(get, isChatVariant, rowId, effectiveId),
+            variables: allowedKeys.ordered,
+            variableValues: computeVariableValues(
+                get,
+                isChatVariant,
+                rowId,
+                effectiveId,
+                allowedKeys,
+            ),
             revisionId: effectiveId,
             variantId: effectiveId,
             isChat: isChatVariant,
@@ -389,6 +504,8 @@ export const handleWebWorkerResultAtom = atom(
     ) => {
         const {rowId, variantId, runId, result: testResult, error, messageId} = payload
 
+        const pendingRequests = get(pendingWebWorkerRequestsAtom)
+        const pendingEntry = pendingRequests?.[runId]
         set(pendingWebWorkerRequestsAtom, (prev) => {
             const {[runId]: _removed, ...rest} = prev
             return rest
@@ -404,19 +521,19 @@ export const handleWebWorkerResultAtom = atom(
             return
         }
 
-        const updateStatus = (responseHash: string | null) =>
+        if (error && !testResult) {
             set(runStatusByRowRevisionAtom, (prev) => ({
                 ...prev,
-                [`${rowId}:${variantId}`]: {isRunning: false, resultHash: responseHash},
+                [`${rowId}:${variantId}`]: {isRunning: false, resultHash: null},
             }))
-
-        if (error && !testResult) {
-            updateStatus(null)
             set(loadingByRowRevisionAtomFamily({rowId, revisionId: variantId}), false)
             return
         }
 
         const isChat = detectIsChatVariant(get, rowId)
+        const preserveExistingAssistant =
+            Boolean(pendingEntry?.preserveExistingAssistant) && !messageId
+        const previousStatus = pendingEntry?.previousStatus
 
         if (isChat) {
             let normalizedResult = testResult
@@ -431,15 +548,66 @@ export const handleWebWorkerResultAtom = atom(
                 }
             }
             const responseHash = hashResponse(normalizedResult)
-            updateStatus(responseHash)
-            set(loadingByRowRevisionAtomFamily({rowId, revisionId: variantId}), false)
-            set(
-                responseByRowRevisionAtomFamily({rowId, revisionId: variantId}),
-                normalizedResult as any,
-            )
             const writeKey = String(rowId)
+            let targetRowId = writeKey
+
+            if (preserveExistingAssistant) {
+                const turnsMap = get(chatTurnsByIdAtom) as Record<string, any>
+                const baseTurn = turnsMap?.[writeKey]
+                if (baseTurn) {
+                    const forkId = `lt-${generateId()}`
+                    const sessionId =
+                        baseTurn.sessionId || (variantId ? `session-${variantId}` : `session-`)
+
+                    const assistantClone = (() => {
+                        const existing = cloneNodeDeep(
+                            baseTurn.assistantMessageByRevision,
+                        ) as Record<string, any>
+                        const map = existing && typeof existing === "object" ? existing : {}
+                        map[variantId] = null
+                        return map
+                    })()
+
+                    let toolResponsesClone: Record<string, any[] | null> | undefined
+                    if (baseTurn.toolResponsesByRevision) {
+                        toolResponsesClone = {}
+                        for (const [revId, nodes] of Object.entries(
+                            baseTurn.toolResponsesByRevision,
+                        )) {
+                            if (revId === variantId) continue
+                            if (Array.isArray(nodes)) {
+                                toolResponsesClone[revId] = nodes.map((n) => cloneNodeDeep(n))
+                            } else if (nodes) {
+                                toolResponsesClone[revId] = cloneNodeDeep(nodes) as any
+                            }
+                        }
+                        if (toolResponsesClone && Object.keys(toolResponsesClone).length === 0)
+                            toolResponsesClone = undefined
+                    }
+
+                    const forkTurn: any = {
+                        id: forkId,
+                        sessionId,
+                        userMessage: null,
+                        assistantMessageByRevision: assistantClone,
+                        meta: cloneNodeDeep(baseTurn.meta) || {},
+                    }
+                    if (toolResponsesClone) forkTurn.toolResponsesByRevision = toolResponsesClone
+
+                    set(chatTurnsByIdAtom, (prev) => ({...(prev || {}), [forkId]: forkTurn}))
+                    set(chatTurnIdsAtom, (prev) => {
+                        const list = prev || []
+                        const position = list.indexOf(writeKey)
+                        if (position === -1) return [...list, forkId]
+                        return [...list.slice(0, position + 1), forkId, ...list.slice(position + 1)]
+                    })
+
+                    targetRowId = forkId
+                }
+            }
+
             let hasToolCalls = false
-            set(chatTurnsByIdFamilyAtom(writeKey), (draft: any) => {
+            set(chatTurnsByIdFamilyAtom(targetRowId), (draft: any) => {
                 if (!draft) return
                 if (!draft.assistantMessageByRevision) draft.assistantMessageByRevision = {}
                 // const metaId = draft?.userMessage?.__metadata as string | undefined
@@ -447,23 +615,58 @@ export const handleWebWorkerResultAtom = atom(
                 // metaId ? getMetadataLazy(metaId) : undefined
                 const incoming = buildAssistantMessage(messageSchema, testResult) || {}
                 const toolMessages = buildToolMessages(messageSchema, testResult)
-                hasToolCalls = Array.isArray(toolMessages) && toolMessages.length > 0
+                const existingToolMessages = draft?.toolResponsesByRevision?.[variantId] ?? null
+                const hasExistingToolResponses =
+                    Array.isArray(existingToolMessages) && existingToolMessages.length > 0
+                const hasNewToolCalls = Array.isArray(toolMessages) && toolMessages.length > 0
                 draft.assistantMessageByRevision[variantId] = incoming
 
-                if (hasToolCalls) {
+                if (hasNewToolCalls) {
                     if (!draft.toolResponsesByRevision) draft.toolResponsesByRevision = {}
                     draft.toolResponsesByRevision[variantId] = toolMessages
-                } else if (draft?.toolResponsesByRevision) {
-                    if (variantId in draft.toolResponsesByRevision)
+                } else if (!hasExistingToolResponses && draft?.toolResponsesByRevision) {
+                    if (variantId in draft.toolResponsesByRevision) {
                         delete draft.toolResponsesByRevision[variantId]
-                    if (Object.keys(draft.toolResponsesByRevision).length === 0)
+                    }
+                    if (Object.keys(draft.toolResponsesByRevision).length === 0) {
                         delete draft.toolResponsesByRevision
+                    }
                 }
+
+                hasToolCalls = hasNewToolCalls
             })
+
+            set(loadingByRowRevisionAtomFamily({rowId, revisionId: variantId}), false)
+            if (targetRowId !== writeKey) {
+                set(
+                    loadingByRowRevisionAtomFamily({rowId: targetRowId, revisionId: variantId}),
+                    false,
+                )
+            }
+
+            set(runStatusByRowRevisionAtom, (prev) => {
+                const next = {...prev}
+                next[`${targetRowId}:${variantId}`] = {isRunning: false, resultHash: responseHash}
+                if (preserveExistingAssistant && targetRowId !== writeKey) {
+                    next[`${writeKey}:${variantId}`] = {
+                        isRunning: false,
+                        resultHash:
+                            previousStatus && previousStatus.resultHash !== undefined
+                                ? previousStatus.resultHash
+                                : null,
+                    }
+                }
+                return next
+            })
+
+            set(
+                responseByRowRevisionAtomFamily({rowId: targetRowId, revisionId: variantId}),
+                normalizedResult as any,
+            )
 
             // Append a new turn id once when the handled rowId is currently last in chatTurnIdsAtom
             const ids = (get(chatTurnIdsAtom) || []) as string[]
-            const idx = ids.indexOf(String(rowId))
+            const idx = ids.indexOf(String(targetRowId))
             const isLast = idx >= 0 && idx === ids.length - 1
             if (isLast && !hasToolCalls) {
                 set(chatTurnIdsAtom, (prev) => [...(prev || []), `lt-${generateId()}`])
@@ -491,7 +694,10 @@ export const handleWebWorkerResultAtom = atom(
                 row.responsesByRevision[variantId] = arr
             }),
         )
-        updateStatus(responseHash)
+        set(runStatusByRowRevisionAtom, (prev) => ({
+            ...prev,
+            [`${rowId}:${variantId}`]: {isRunning: false, resultHash: responseHash},
+        }))
         set(loadingByRowRevisionAtomFamily({rowId, revisionId: variantId}), false)
         console.debug("[WW] completion result", {rowId, variantId, responseHash})
         set(responseByRowRevisionAtomFamily({rowId, revisionId: variantId}), testResult as any)

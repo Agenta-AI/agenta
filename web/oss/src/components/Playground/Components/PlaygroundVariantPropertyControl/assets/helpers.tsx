@@ -4,6 +4,8 @@ import dynamic from "next/dynamic"
 import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {EnhancedConfigValue} from "@/oss/lib/shared/variant/genericTransformer/types"
 
+import {findPropertyInObject} from "../../../hooks/usePlayground/assets/helpers"
+
 import PlaygroundTool from "../../PlaygroundTool"
 import {ArrayItemValue, RenderFunctions} from "../types"
 
@@ -20,18 +22,81 @@ import TextControl from "./TextControl"
 
 const SelectLLMProvider = dynamic(() => import("@/oss/components/SelectLLMProvider"), {ssr: false})
 
+const derivePlainValue = (node: any): any => {
+    if (node === null || node === undefined) return node
+    if (Array.isArray(node)) {
+        return node.map((item) => derivePlainValue(item))
+    }
+
+    if (typeof node !== "object") {
+        return node
+    }
+
+    const rawValue = (node as any).value
+
+    if (Array.isArray(rawValue)) {
+        return rawValue.map((item: any) => derivePlainValue(item))
+    }
+
+    const plainChildren: Record<string, any> = {}
+    for (const [key, value] of Object.entries(node)) {
+        if (key === "value" || key.startsWith("__")) continue
+        plainChildren[key] = derivePlainValue(value)
+    }
+
+    if (Object.keys(plainChildren).length > 0) {
+        return plainChildren
+    }
+
+    if (rawValue !== undefined) {
+        return rawValue
+    }
+
+    return node
+}
+
+const cloneEnhanced = <T,>(value: T): T => {
+    if (typeof structuredClone === "function") {
+        return structuredClone(value)
+    }
+
+    return JSON.parse(JSON.stringify(value))
+}
+
 const updateArrayItem = (
     array: EnhancedConfigValue<ArrayItemValue>[],
     id: string,
     newValue: any,
-    handleChange: (v: any) => void,
+    handleChange: (v: any, event?: any, propertyId?: string) => void,
+    targetPropertyId?: string,
 ) => {
     const newArray = [...array]
     const index = array.findIndex((v) => v.__id === id)
-    if (index !== -1) {
-        newArray[index] = {...newArray[index], value: newValue}
-        handleChange({value: newArray})
+    if (index === -1) return
+
+    if (targetPropertyId) {
+        const itemClone = cloneEnhanced(newArray[index])
+        const targetNode = findPropertyInObject(itemClone, targetPropertyId)
+
+        if (targetNode && typeof targetNode === "object") {
+            if ("content" in targetNode && targetNode.content && "value" in targetNode.content) {
+                ;(targetNode.content as any).value = newValue
+            } else if ("value" in targetNode) {
+                ;(targetNode as any).value = newValue
+            }
+
+            if ("value" in itemClone) {
+                ;(itemClone as any).value = derivePlainValue(itemClone)
+            }
+
+            newArray[index] = itemClone
+            handleChange({value: newArray}, undefined, targetPropertyId)
+            return
+        }
     }
+
+    newArray[index] = {...newArray[index], value: newValue}
+    handleChange({value: newArray})
 }
 
 export const renderMap: RenderFunctions = {
@@ -228,7 +293,8 @@ export const renderMap: RenderFunctions = {
         )
     },
 
-    array: ({disabled, withTooltip, metadata, value, handleChange}) => {
+    array: (props) => {
+        const {disabled, withTooltip, metadata, value, handleChange} = props
         if (!Array.isArray(value?.value)) {
             return null
         }
@@ -297,6 +363,30 @@ export const renderMap: RenderFunctions = {
                                     })}
                                 </div>
                             )
+                        case "object":
+                            return (
+                                <div key={item.__id}>
+                                    {renderMap.object({
+                                        ...props,
+                                        metadata,
+                                        value: item.value,
+                                        baseProperty: item,
+                                        handleChange: (
+                                            newValue: any,
+                                            event?: any,
+                                            targetPropertyId?: string,
+                                        ) => {
+                                            updateArrayItem(
+                                                value.value,
+                                                item.__id,
+                                                newValue,
+                                                handleChange,
+                                                targetPropertyId,
+                                            )
+                                        },
+                                    })}
+                                </div>
+                            )
                         default:
                             return null
                     }
@@ -310,9 +400,24 @@ export const renderMap: RenderFunctions = {
         const objectProperties = metadata.properties
         const withTooltip = props.withTooltip
         const baseProperty = props.baseProperty
-        return metadata.name === "ToolConfiguration" ? (
-            <PlaygroundTool {...props} />
-        ) : (
+        if (metadata.name === "ToolConfiguration") {
+            const {handleChange, editorProps, variantId, baseProperty, disabled, value} =
+                props as any
+            return (
+                <PlaygroundTool
+                    value={value}
+                    variantId={variantId}
+                    baseProperty={baseProperty}
+                    disabled={disabled}
+                    editorProps={{
+                        ...(editorProps || {}),
+                        handleChange,
+                    }}
+                />
+            )
+        }
+
+        return (
             <PlaygroundVariantPropertyControlWrapper>
                 <div className="border-0 border-t border-solid border-t-[rgba(5,23,41,0.06)] py-3">
                     {withTooltip ? (

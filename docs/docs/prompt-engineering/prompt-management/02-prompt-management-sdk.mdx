@@ -320,6 +320,58 @@ Deployed variant to environment:
 
 You can fetch the configurations from a variant reference (`app_slug`, `variant_slug`, `variant_version`) or an environment reference (`app_slug`, `environment_slug`). The default behavior when fetching is to fetch the latest configuration from the `production` environment. If you don't provide a `_version` parameter but only a `variant_slug` or an `environment_slug`, the SDK will fetch the latest version of the variant from the specified **environment/variant**.
 
+### Understanding the PromptTemplate
+
+When you fetch a prompt configuration, you receive a `PromptTemplate` object. This object contains all the information needed to format and send your prompt to an LLM provider.
+
+The `PromptTemplate` includes:
+
+- **messages**: An ordered list of chat messages with roles and content
+- **llm_config**: Model parameters like temperature, max tokens, and the model name
+- **template_format**: The syntax used for variable placeholders in your prompt
+- **input_keys**: An optional list of required variables for input validation
+
+Here's what a fetched configuration looks like:
+
+```python
+config = ag.ConfigManager.get_from_registry(
+    app_slug="my-app-slug"
+)
+
+print(config)
+# Output:
+# {
+#   "prompt": {
+#     "messages": [
+#       {"role": "system", "content": "You are a helpful assistant"},
+#       {"role": "user", "content": "Explain {{topic}} in simple terms"}
+#     ],
+#     "llm_config": {
+#       "model": "gpt-3.5-turbo",
+#       "temperature": 0.7,
+#       "max_tokens": 150
+#     },
+#     "template_format": "curly"
+#   }
+# }
+```
+
+#### Template Format
+
+The `template_format` field determines how Agenta replaces variable placeholders in your prompts. Agenta supports three formats:
+
+**Curly format (default)**: Uses double curly braces like `{{variable}}`. This format is simple and safe. It only replaces variables that were defined in your original template, which helps catch missing inputs early.
+
+```python
+"Explain {{topic}} in {{language}}"
+```
+
+**Jinja2 format**: Uses Jinja2 syntax like `{{ variable }}` and supports advanced features like loops and filters. Choose this format when you need conditional logic or want to transform variables.
+
+```python
+"{% if variable %}...{% endif %}"
+```
+
 :::tip
 Check the [reference](/reference/sdk/configuration-management#prompt-configuration-schema) section for more details on the data format used for prompts.
 :::

@@ -19,7 +19,9 @@ import {usePromptMessageConfig} from "../../hooks/usePromptMessageConfig"
 import {
     // updateGenerationDataPropertyMutationAtom,
     promptPropertyAtomFamily,
+    promptTemplateFormatAtomFamily,
 } from "../../state/atoms"
+import {useAtomValue} from "jotai"
 import {updateVariantPropertyEnhancedMutationAtom} from "../../state/atoms/propertyMutations"
 import SharedEditor from "../SharedEditor"
 
@@ -131,6 +133,11 @@ const PromptMessageConfig = ({
 
     // Use optimized variables data (already retrieved above)
     const variables = optimizedVariables
+
+    // Template format for token highlighting (curly | fstring | jinja2)
+    const templateFormat = useAtomValue(
+        useMemo(() => promptTemplateFormatAtomFamily(revisionId), [revisionId]),
+    )
 
     const getProperty = useCallback(
         (property: any) => {
@@ -340,6 +347,7 @@ const PromptMessageConfig = ({
                 noProvider: true,
                 enableTokens: !(isJSON || isTool),
                 tokens: variables,
+                templateFormat,
                 showToolbar: false,
                 ...(editorProps || {}),
             }}

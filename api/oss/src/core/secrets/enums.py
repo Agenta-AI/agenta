@@ -26,7 +26,7 @@ class CustomProviderKind(str, Enum):
     AZURE = "azure"
     BEDROCK = "bedrock"
     SAGEMAKER = "sagemaker"
-    VERTEX = "vertex"
+    VERTEX = "vertex_ai"
     OPENAI = "openai"
     COHERE = "cohere"
     ANYSCALE = "anyscale"

@@ -84,7 +84,7 @@ const ListOfOrgs = ({
                     </span>
                 )}
             </div>
-            {interactive && (
+            {!collapsed && interactive && (
                 <CaretDown
                     size={14}
                     className={clsx("transition-transform", dropdownOpen ? "rotate-180" : "")}
