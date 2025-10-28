@@ -7,15 +7,14 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {TestSet} from "@/oss/lib/Types"
 
-import {previewTestsetsQueryAtom, testsetsQueryAtomFamily} from "./atoms/fetcher"
+import {previewTestsetsQueryAtom, testsetsQueryAtom} from "./atoms/fetcher"
 import {useTestset} from "./hooks/useTestset"
 
 /**
  * Hook for regular/legacy testsets
  */
 export const useTestsetsData = ({enabled = true} = {}) => {
-    const stableAtom = useMemo(() => testsetsQueryAtomFamily({enabled}), [enabled])
-    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(stableAtom)
+    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(testsetsQueryAtom)
     const queryClient = useQueryClient()
     const [columnsFallback, setColumnsFallback] = useState<Record<string, string[]>>({})
     const [csvVersion, setCsvVersion] = useState(0)
@@ -114,7 +113,7 @@ export const useTestsetsData = ({enabled = true} = {}) => {
         return () => controller.abort()
     }, [testsets, columnsByTestsetId, columnsFallback])
 
-    // When any testsetCsvData query updates, bump csvVersion and optionally refetch testsets
+    // When any testsetCsvData query updates, bump csvVersion
     useEffect(() => {
         const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
             // Only react to updates of our csv data queries
@@ -122,12 +121,10 @@ export const useTestsetsData = ({enabled = true} = {}) => {
             const key0 = q?.queryKey?.[0]
             if (key0 === "testsetCsvData") {
                 setCsvVersion((v) => v + 1)
-                // Optionally refetch to propagate other derived server info
-                refetch()
             }
         })
         return unsubscribe
-    }, [queryClient, refetch])
+    }, [queryClient])
 
     return {
         testsets: testsets ?? [],
