@@ -77,7 +77,12 @@ async function fetchPage({
     })
     if (!res.ok) throw new Error(`fetch ${res.status}`)
     const json = (await res.json()) as {scenarios?: IScenario[]; next?: string}
-    return {scenarios: json.scenarios ?? [], next: json.next}
+
+    const scenarios = json.scenarios ?? []
+    const nextCursor =
+        json.next ??
+        (scenarios.length === limit ? (scenarios[scenarios.length - 1]?.id ?? null) : null)
+    return {scenarios, next: nextCursor}
 }
 
 self.onmessage = async (e: MessageEvent<WorkerRequest>) => {

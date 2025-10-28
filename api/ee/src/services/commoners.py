@@ -133,7 +133,7 @@ async def create_accounts(payload: dict):
         # Prepare payload to create organization
         create_org_payload = CreateOrganization(
             name=user_dict["username"],
-            description="My Default Organization",
+            description="Default Organization",
             owner=str(user.id),
             type="default",
         )

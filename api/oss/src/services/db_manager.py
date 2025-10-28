@@ -1214,7 +1214,7 @@ async def create_workspace(name: str, organization_id: str):
         workspace_db = WorkspaceDB(
             name=name,
             organization_id=uuid.UUID(organization_id),
-            description="My Default Workspace",
+            description="Default Workspace",
             type="default",
         )
 
