@@ -1,5 +1,3 @@
-import {useMemo} from "react"
-
 import {useAtom} from "jotai"
 
 import {PreviewTestsetsQueryPayload} from "@/oss/services/testsets/api/types"
@@ -7,7 +5,7 @@ import {PreviewTestsetsQueryPayload} from "@/oss/services/testsets/api/types"
 import {
     previewTestsetsQueryAtom,
     previewTestsetsQueryAtomFamily,
-    testsetsQueryAtomFamily,
+    testsetsQueryAtom,
 } from "../atoms/fetcher"
 
 export {useTestset, testsetQueryAtomFamily} from "./useTestset"
@@ -19,8 +17,7 @@ export {useTestset, testsetQueryAtomFamily} from "./useTestset"
  * @returns Object with `testsets`, `isError`, `error`, `isLoading`, `mutate`
  */
 export const useTestsetsData = ({enabled = true} = {}) => {
-    const stableAtom = useMemo(() => testsetsQueryAtomFamily({enabled}), [enabled])
-    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(stableAtom)
+    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(testsetsQueryAtom)
 
     return {
         testsets: testsets ?? [],
@@ -61,11 +58,9 @@ export const usePreviewTestsetsDataWithFilters = (
     payload: PreviewTestsetsQueryPayload = {},
     {enabled = true}: {enabled?: boolean} = {},
 ) => {
-    const stableAtom = useMemo(
-        () => previewTestsetsQueryAtomFamily({payload, enabled}),
-        [payload, enabled],
+    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(
+        previewTestsetsQueryAtomFamily({payload, enabled}),
     )
-    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(stableAtom)
 
     return {
         testsets: testsets ?? [],

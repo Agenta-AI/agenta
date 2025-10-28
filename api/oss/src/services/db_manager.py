@@ -2608,8 +2608,18 @@ async def remove_testsets(testset_ids: List[str]):
         query = select(TestSetDB).where(TestSetDB.id.in_(testset_ids))
         result = await session.execute(query)
         testsets = result.scalars().all()
-        for testset in testsets:
+
+        for i, testset in enumerate(testsets):
+            log.info(
+                f"[TESTSET] DELETE ({i}):",
+                project_id=testset.project_id,
+                testset_id=testset.id,
+                count=len(testset.csvdata),
+                size=len(dumps(testset.csvdata).encode("utf-8")),
+            )
+
             await session.delete(testset)
+
         await session.commit()
 
 
@@ -2772,8 +2782,18 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
     async with engine.core_session() as session:
         result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
         testset = result.scalars().first()
+
         if not testset:
             raise NoResultFound(f"Testset with id {testset_id} not found")
+
+        log.info(
+            "[TESTSET] READ:",
+            project_id=testset.project_id,
+            testset_id=testset.id,
+            count=len(testset.csvdata),
+            size=len(dumps(testset.csvdata).encode("utf-8")),
+        )
+
         return testset
 
 
@@ -2791,21 +2811,21 @@ async def create_testset(project_id: str, testset_data: Dict[str, Any]):
     """
 
     async with engine.core_session() as session:
-        testset_db = TestSetDB(**testset_data, project_id=uuid.UUID(project_id))
+        testset = TestSetDB(**testset_data, project_id=uuid.UUID(project_id))
 
         log.info(
-            "Saving testset:",
-            project_id=testset_db.project_id,
-            testset_id=testset_db.id,
-            count=len(testset_db.csvdata),
-            size=len(dumps(testset_db.csvdata).encode("utf-8")),
+            "[TESTSET] CREATE:",
+            project_id=testset.project_id,
+            testset_id=testset.id,
+            count=len(testset.csvdata),
+            size=len(dumps(testset.csvdata).encode("utf-8")),
         )
 
-        session.add(testset_db)
+        session.add(testset)
         await session.commit()
-        await session.refresh(testset_db)
+        await session.refresh(testset)
 
-        return testset_db
+        return testset
 
 
 async def update_testset(testset_id: str, values_to_update: dict) -> None:
@@ -2824,11 +2844,12 @@ async def update_testset(testset_id: str, values_to_update: dict) -> None:
 
         # Validate keys in values_to_update and update attributes
         valid_keys = [key for key in values_to_update.keys() if hasattr(testset, key)]
+
         for key in valid_keys:
             setattr(testset, key, values_to_update[key])
 
         log.info(
-            "Saving testset:",
+            "[TESTSET] UPDATE:",
             project_id=testset.project_id,
             testset_id=testset.id,
             count=len(testset.csvdata),
@@ -2854,6 +2875,16 @@ async def fetch_testsets_by_project_id(project_id: str):
             select(TestSetDB).filter_by(project_id=uuid.UUID(project_id))
         )
         testsets = result.scalars().all()
+
+        for i, testset in enumerate(testsets):
+            log.info(
+                f"[TESTSET] READ ({i}):",
+                project_id=testset.project_id,
+                testset_id=testset.id,
+                count=len(testset.csvdata),
+                size=len(dumps(testset.csvdata).encode("utf-8")),
+            )
+
         return testsets
 
 

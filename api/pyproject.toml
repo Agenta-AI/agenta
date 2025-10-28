@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.59.6"
+version = "0.59.7"
 description = "Agenta API"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
