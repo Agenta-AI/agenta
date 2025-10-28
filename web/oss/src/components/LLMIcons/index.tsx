@@ -1,5 +1,3 @@
-import {SecretDTOProvider} from "@/oss/lib/Types"
-
 import AlephAlpha from "./assets/AlephAlpha"
 import Anthropic from "./assets/Anthropic"
 import AnyScale from "./assets/AnyScale"
@@ -22,26 +20,22 @@ import Vertex from "./assets/Vertex"
 import XAI from "./assets/XAI"
 
 const IconMap: Record<string, React.FC<{className?: string}>> = {
-    [SecretDTOProvider.OPENAI]: OpenAi,
-    [SecretDTOProvider.MISTRALAI]: Mistral,
-    [SecretDTOProvider.COHERE]: Cerebus,
-    [SecretDTOProvider.ANTHROPIC]: Anthropic,
-    [SecretDTOProvider.PERPLEXITYAI]: Perplexity,
-    [SecretDTOProvider.TOGETHERAI]: Together,
-    [SecretDTOProvider.GROQ]: Groq,
-    [SecretDTOProvider.GEMINI]: Gemini,
-    [SecretDTOProvider.OPENROUTER]: OpenRouter,
-    replicate: Replicate,
-    lepton: Lepton,
-    xai: XAI,
-    fireworks: Fireworks,
-    alephalpha: AlephAlpha,
-    anyscale: AnyScale,
-    azure: Azure,
-    bedrock: Bedrock,
-    deepinfra: DeepInfra,
-    sagemaker: Sagemaker,
-    vertex_ai: Vertex,
+    OpenAI: OpenAi,
+    Cohere: Cerebus,
+    Anyscale: AnyScale,
+    DeepInfra: DeepInfra,
+    "Aleph Alpha": AlephAlpha,
+    Groq: Groq,
+    "Mistral AI": Mistral,
+    Anthropic: Anthropic,
+    "Perplexity AI": Perplexity,
+    "Together AI": Together,
+    OpenRouter: OpenRouter,
+    "Google Gemini": Gemini,
+    "Google Vertex AI": Vertex,
+    "AWS Bedrock": Bedrock,
+    // "AWS SageMaker": Sagemaker,
+    "Azure OpenAI": Azure,
 }
 
 export default IconMap

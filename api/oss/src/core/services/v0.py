@@ -518,7 +518,6 @@ async def auto_custom_code_run_v0(
         )
     except Exception as e:
         raise CustomCodeServerV0Error(
-            code=500,
             message=str(e),
             stacktrace=traceback.format_exc(),
         ) from e

@@ -227,7 +227,7 @@ async def create_default_project(
     """
 
     project_db = await create_project(
-        "Default",
+        "Default Project",
         workspace_id=workspace_id,
         organization_id=organization_id,
         session=session,
@@ -836,7 +836,7 @@ async def create_organization(
             name=payload.name,
             type=payload.type if payload.type else "",
             description=(
-                "My Default Workspace"
+                "Default Workspace"
                 if payload.type == "default"
                 else payload.description
                 if payload.description

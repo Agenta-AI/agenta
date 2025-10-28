@@ -450,6 +450,26 @@ export enum SecretDTOProvider {
     GEMINI = "gemini",
 }
 
+export const PROVIDER_LABELS: Record<string, string> = {
+    openai: "OpenAI",
+    cohere: "Cohere",
+    anyscale: "Anyscale",
+    deepinfra: "DeepInfra",
+    alephalpha: "Aleph Alpha",
+    groq: "Groq",
+    mistralai: "Mistral AI",
+    anthropic: "Anthropic",
+    perplexityai: "Perplexity AI",
+    together_ai: "Together AI",
+    openrouter: "OpenRouter",
+    gemini: "Google Gemini",
+    vertex_ai: "Google Vertex AI",
+    bedrock: "AWS Bedrock",
+    // sagemaker: "AWS SageMaker",
+    azure: "Azure OpenAI",
+    custom: "Custom Provider",
+}
+
 interface VaultModels {
     slug: string
 }
