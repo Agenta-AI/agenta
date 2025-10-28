@@ -1,5 +1,5 @@
 supported_llm_models = {
-    "Anthropic": [
+    "anthropic": [
         "anthropic/claude-sonnet-4-5",
         "anthropic/claude-haiku-4-5",
         "anthropic/claude-opus-4-1",
@@ -15,18 +15,18 @@ supported_llm_models = {
         "anthropic/claude-2.1",
         "anthropic/claude-2",
     ],
-    "Cohere": [
+    "cohere": [
         "cohere/command-light",
         "cohere/command-r-plus",
         "cohere/command-nightly",
     ],
-    "DeepInfra": [
+    "deepinfra": [
         "deepinfra/meta-llama/Llama-2-70b-chat-hf",
         "deepinfra/meta-llama/Llama-2-13b-chat-hf",
         "deepinfra/codellama/CodeLlama-34b-Instruct-hf",
         "deepinfra/mistralai/Mistral-7B-Instruct-v0.1",
     ],
-    "Gemini": [
+    "gemini": [
         "gemini/gemini-2.5-pro",
         "gemini/gemini-2.5-pro-preview-05-06",
         "gemini/gemini-2.5-flash",
@@ -40,7 +40,7 @@ supported_llm_models = {
         "gemini/gemini-2.0-flash-lite",
         "gemini/gemini-2.0-flash-lite-preview-02-05",
     ],
-    "Groq": [
+    "groq": [
         "groq/deepseek-r1-distill-llama-70b",
         "groq/deepseek-r1-distill-llama-70b-specdec",
         "groq/gemma2-9b-it",
@@ -56,13 +56,13 @@ supported_llm_models = {
         "groq/llama3-8b-8192",
         "groq/mixtral-8x7b-32768",
     ],
-    "Mistral": [
+    "mistral": [
         "mistral/mistral-tiny",
         "mistral/mistral-small",
         "mistral/mistral-medium",
         "mistral/mistral-large-latest",
     ],
-    "OpenAI": [
+    "openai": [
         "gpt-5",
         "gpt-5-mini",
         "gpt-5-nano",
@@ -78,7 +78,7 @@ supported_llm_models = {
         "gpt-4.1-nano",
         "o4-mini",
     ],
-    "OpenRouter": [
+    "openrouter": [
         "openrouter/qwen/qwen3-235b-a22b",
         "openrouter/qwen/qwen3-32b",
         "openrouter/qwen/qwen3-30b-a3b",
@@ -148,13 +148,13 @@ supported_llm_models = {
         "openrouter/google/gemini-2.0-flash-001",
         "openrouter/perplexity/sonar-reasoning",
     ],
-    "Perplexity AI": [
+    "perplexity": [
         "perplexity/sonar",
         "perplexity/sonar-pro",
         "perplexity/sonar-reasoning",
         "perplexity/sonar-reasoning-pro",
     ],
-    "togetherai": [
+    "together_ai": [
         "together_ai/deepseek-ai/DeepSeek-R1",
         "together_ai/deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
         "together_ai/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",

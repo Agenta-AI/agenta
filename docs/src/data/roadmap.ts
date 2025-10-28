@@ -181,6 +181,54 @@ export const shippedFeatures: ShippedFeature[] = [
 ];
 export const inProgressFeatures: PlannedFeature[] = [
     {
+        id: "llm-judge-structured-output",
+        title: "Structured Output and Multiple Outputs in LLM-as-a-Judge Evaluators",
+        description: "Use structured output formats and generate multiple output fields (explanation, confidence, suggestions, issue categories) in LLM-as-a-judge evaluators.",
+        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2855",
+        labels: [
+            {
+                name: "Evaluation",
+                color: "86B7FF",
+            },
+        ],
+    },
+    {
+        id: "jinja2-playground",
+        title: "Jinja2 Template Support in the Playground",
+        description: "Add Jinja2 template support to enable conditional logic, filters, and template blocks in prompts. The prompt type will be stored in the schema, and the SDK will handle rendering.",
+        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2856",
+        labels: [
+            {
+                name: "Playground",
+                color: "BCFF78",
+            },
+        ],
+    },
+    {
+        id: "pdf-support-playground",
+        title: "PDF Support in the Playground",
+        description: "Add PDF support for models that support it (OpenAI, Gemini, etc.) through base64 encoding, URLs, or file IDs. Support extends to human evaluation for reviewing model responses on PDF inputs.",
+        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2857",
+        labels: [
+            {
+                name: "Playground",
+                color: "BCFF78",
+            },
+        ],
+    },
+    {
+        id: "prompt-snippets",
+        title: "Prompt Snippets",
+        description: "Create reusable prompt snippets that can be referenced across multiple prompts. Reference specific versions or always use the latest version to maintain consistency across prompt variants.",
+        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2858",
+        labels: [
+            {
+                name: "Playground",
+                color: "BCFF78",
+            },
+        ],
+    },
+    {
         id: "online-evaluation",
         title: "Online Evaluation",
         description: "Adding the ability to configure evaluators (llm-as-a-judge or custom) and run them automatically on new traces.",
@@ -220,6 +268,58 @@ export const inProgressFeatures: PlannedFeature[] = [
 ];
 
 export const plannedFeatures: PlannedFeature[] = [
+    {
+        id: "prompt-folders",
+        title: "Folders for Prompt Organization",
+        description: "Create folders and subfolders to organize prompts in the playground. Move prompts between folders and search within specific folders to structure prompt libraries.",
+        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2859",
+        labels: [
+            {
+                name: "Playground",
+                color: "BCFF78",
+            },
+        ],
+    },
+    {
+        id: "projects-workspaces",
+        title: "Projects and Workspaces",
+        description: "Improve organization structure by adding projects and workspaces. Create projects for different products, set up workspaces for different environments or teams, and scope resources to specific workspaces.",
+        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2860",
+        labels: [
+            {
+                name: "Misc",
+                color: "000000",
+            },
+        ],
+    },
+    {
+        id: "ai-prompt-refinement",
+        title: "AI-Powered Prompt Refinement in the Playground",
+        description: "Analyze prompts and suggest improvements based on best practices. Identify issues, propose refined versions, and allow users to accept, modify, or reject suggestions.",
+        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2861",
+        labels: [
+            {
+                name: "Playground",
+                color: "BCFF78",
+            },
+        ],
+    },
+    {
+        id: "open-spans-playground",
+        title: "Open Observability Spans Directly in the Playground",
+        description: "Add a button in observability to open any chat span directly in the playground. Creates a stateless playground session pre-filled with the exact prompt, configuration, and inputs for immediate iteration.",
+        githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2862",
+        labels: [
+            {
+                name: "Playground",
+                color: "BCFF78",
+            },
+            {
+                name: "Observability",
+                color: "DE74FF",
+            },
+        ],
+    },
     {
         id: "navigation-in-the-playground",
         title: "Improving Navigation between Test Sets in the Playground",
