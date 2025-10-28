@@ -126,7 +126,8 @@ class SecretsManager:
                 f"{provider_slug}/custom/", "openai/"
             )
 
-        modified_model = modified_model.replace(f"{provider_slug}/", "")
+        if provider_slug:
+            modified_model = modified_model.replace(f"{provider_slug}/", "")
 
         return modified_model
 

@@ -85,7 +85,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     continue
 
                 secret = SecretDTO(
-                    kind="provider_kind",  # type: ignore
+                    kind="provider_key",  # type: ignore
                     data=StandardProviderDTO(
                         kind=provider,
                         provider=StandardProviderSettingsDTO(key=key),
