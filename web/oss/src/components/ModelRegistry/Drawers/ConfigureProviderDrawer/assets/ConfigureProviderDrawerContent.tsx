@@ -8,7 +8,7 @@ import SelectLLMProvider from "@/oss/components/SelectLLMProvider"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {SecretDTOProvider} from "@/oss/lib/Types"
+import {PROVIDER_KINDS, PROVIDER_LABELS, SecretDTOProvider} from "@/oss/lib/Types"
 
 import LabelInput from "../../../assets/LabelInput"
 
@@ -109,12 +109,28 @@ const ConfigureProviderDrawerContent = ({
         [standardProviders, customProviders],
     )
 
-    const providerValue = useWatch("provider", form)?.toLowerCase() || ""
-    const shouldFilter = validProviders.includes(providerValue)
+    const providerValue = useWatch("provider", form) || ""
+    const normalizedProviderKind = useMemo(() => {
+        if (!providerValue || typeof providerValue !== "string") {
+            return ""
+        }
+
+        const trimmedValue = providerValue.trim()
+        const lowerCaseValue = trimmedValue.toLowerCase()
+
+        return PROVIDER_KINDS[trimmedValue] ?? PROVIDER_KINDS[lowerCaseValue] ?? lowerCaseValue
+    }, [providerValue])
+
+    const shouldFilter = validProviders.includes(normalizedProviderKind)
 
     useEffect(() => {
         if (selectedProvider) {
-            form.setFieldsValue(selectedProvider)
+            form.setFieldsValue({
+                ...selectedProvider,
+                provider: selectedProvider.provider
+                    ? (PROVIDER_LABELS[selectedProvider.provider] ?? selectedProvider.provider)
+                    : selectedProvider.provider,
+            })
         } else {
             form.resetFields()
         }
@@ -177,7 +193,7 @@ const ConfigureProviderDrawerContent = ({
 
                 {PROVIDER_FIELDS.filter((field) => {
                     if (shouldFilter) {
-                        return !field.model || field.model.includes(providerValue)
+                        return !field.model || field.model.includes(normalizedProviderKind)
                     }
                     return true
                 }).map((rawField) => {
