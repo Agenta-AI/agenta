@@ -1,4 +1,4 @@
-import {StandardSecretDTO, CustomSecretDTO, SecretDTOKind} from "../Types"
+import {StandardSecretDTO, CustomSecretDTO, SecretDTOKind, PROVIDER_KINDS} from "../Types"
 
 export const llmAvailableProvidersToken = "llmAvailableProvidersToken"
 
@@ -98,6 +98,13 @@ export const llmAvailableProviders: LlmProvider[] = [
 ]
 
 export const transformCustomProviderPayloadData = (values: LlmProvider) => {
+    const providerInput = values.provider?.trim() ?? ""
+    const providerKind = providerInput
+        ? (PROVIDER_KINDS[providerInput] ??
+          PROVIDER_KINDS[providerInput.toLowerCase()] ??
+          providerInput.toLowerCase())
+        : ""
+
     return {
         header: {
             name: values.name,
@@ -106,7 +113,7 @@ export const transformCustomProviderPayloadData = (values: LlmProvider) => {
         secret: {
             kind: SecretDTOKind.CUSTOM_PROVIDER_KEY,
             data: {
-                kind: values.provider?.toLowerCase(),
+                kind: providerKind,
                 provider: {
                     url: values.apiBaseUrl,
                     version: values.version,

@@ -470,6 +470,15 @@ export const PROVIDER_LABELS: Record<string, string> = {
     custom: "Custom Provider",
 }
 
+export const PROVIDER_KINDS: Record<string, string> = Object.entries(PROVIDER_LABELS).reduce(
+    (acc, [kind, label]) => {
+        acc[kind] = kind
+        acc[label.toLowerCase()] = kind
+        return acc
+    },
+    {} as Record<string, string>,
+)
+
 interface VaultModels {
     slug: string
 }
