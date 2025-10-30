@@ -24,10 +24,7 @@ regexes = [
   # ------------------------------------------------------------ FALSE POSITIVES
   '''is_completion=True''',
   '''YOUR_API_KEY''',
-  '''_SECRET_KEY''',
-  # ------------------------------------------------------------ PUBLIC KEYS
-  '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',
-  # ----------------------------------------------------------------------------
+  '''_SECRET_KEY'''
 ]
 
 # USEFUL GITLEAKS COMMANDS

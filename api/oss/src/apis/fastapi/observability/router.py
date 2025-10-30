@@ -269,40 +269,13 @@ class ObservabilityRouter:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # -------------------------------------------------------------------- #
-        feature_flag = "create-spans-from-nodes"
-
-        cache_key = {
-            "feature_flag": feature_flag,
-        }
-
-        flag_create_spans_from_nodes = await get_cache(
-            namespace="posthog:flags",
-            key=cache_key,
-            retry=False,
-        )
-
-        if flag_create_spans_from_nodes is None:
-            if env.POSTHOG_API_KEY:
-                flag_create_spans_from_nodes = posthog.feature_enabled(
-                    feature_flag,
-                    "user distinct id",
-                )
-
-                await set_cache(
-                    namespace="posthog:flags",
-                    key=cache_key,
-                    value=flag_create_spans_from_nodes,
-                )
-        # -------------------------------------------------------------------- #
-
         span_dtos = None
         try:
             # ---------------------------------------------------------------- #
             parsed_spans = [
                 parse_from_otel_span_dto(
                     otel_span,
-                    flag_create_spans_from_nodes,
+                    True,  # Always create spans in spans table
                 )
                 for otel_span in otel_spans
             ]
@@ -387,12 +360,12 @@ class ObservabilityRouter:
 
         try:
             # ---------------------------------------------------------------- #
-            if flag_create_spans_from_nodes:
-                await self.tracing.create(
-                    project_id=UUID(request.state.project_id),
-                    user_id=UUID(request.state.user_id),
-                    span_dtos=tracing_spans,
-                )
+            # Always create spans in the spans table (removed feature flag check)
+            await self.tracing.create(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                span_dtos=tracing_spans,
+            )
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.warn(

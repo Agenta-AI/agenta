@@ -19,7 +19,7 @@ certificatesResolvers:
   myResolver:
     acme:
       tlschallenge: true
-      email: "youremailaddress@prodivder.com"
+      email: "edgar@bravetech.io"
       storage: "acme.json"
       httpChallenge: # Using HTTP challenge for non-standard HTTPS port
         entryPoint: "web" # Validates domain ownership via port 80

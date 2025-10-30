@@ -48,3 +48,10 @@ web/ee/public/__env.js
 web/oss/public/__env.js
 
 web/oss/tests/datalayer/results
+# SSL certificates and ACME data (sensitive)
+ssl_certificates/
+**/acme.json
+
+# Production-specific docker-compose overrides
+**/docker-compose.override.yml
+

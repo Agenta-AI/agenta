@@ -1,0 +1,19 @@
+{
+  "app_id": "019a0b13-7dac-7190-affa-e54d3a5a40d6",
+  "environment": "production",
+  "variant": {
+    "app_id": "019a0b13-7dac-7190-affa-e54d3a5a40d6",
+    "app_name": "indemnity-lol-review-clause",
+    "variant_id": "019a0b45-cd43-7f70-9b96-42c03171c639",
+    "variant_name": "gpt-5",
+    "project_id": "019a0b03-cfcb-7af3-97ca-9deb6fc43328",
+    "base_name": "app",
+    "base_id": "019a0b13-7e6a-7c23-9183-db2c8bfb83ee",
+    "config_name": "gpt-5",
+    "uri": "https://agenta.bravetech.io/services/completion",
+    "revision": 1,
+    "created_at": "2025-10-22 09:35:15.268102+00:00",
+    "updated_at": "2025-10-22 09:35:15.267781+00:00",
+    "modified_by_id": "019a0b12-c4a1-7c43-80be-449b839187a1"
+  }
+}
