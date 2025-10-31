@@ -158,10 +158,19 @@ async def _get_blocked_emails() -> Set[str]:
 
 async def _is_blocked(email: str) -> bool:
     email = email.lower()
-    if email in await _get_blocked_emails():
+    domain = email.split("@")[-1] if "@" in email else ""
+    allowed_domains = env.AGENTA_ALLOWED_DOMAINS
+    is_domain_allowed = allowed_domains and domain in allowed_domains
+
+    if allowed_domains and not is_domain_allowed:
         return True
-    if "@" in email and email.split("@")[-1] in await _get_blocked_domains():
+
+    if email and email in await _get_blocked_emails():
         return True
+
+    if domain and domain in await _get_blocked_domains() and not is_domain_allowed:
+        return True
+
     return False
 
 

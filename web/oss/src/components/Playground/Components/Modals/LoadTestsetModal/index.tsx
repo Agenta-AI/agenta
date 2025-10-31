@@ -55,7 +55,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
     return (
         <EnhancedModal
             width={1150}
-            className={"[&_.ant-modal-body]:h-[600px] [&_.ant-modal-body]:overflow-y-auto"}
+            className={"[&_.ant-modal-body]:h-[600px]"}
             afterClose={() => {
                 setSelectedRowKeys([])
                 afterClose?.()

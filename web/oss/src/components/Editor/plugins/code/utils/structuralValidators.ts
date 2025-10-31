@@ -1,10 +1,13 @@
 /**
  * Check if content appears to be incomplete (user is still typing)
  */
-export function isContentIncomplete(text: string, language: "json" | "yaml" = "json"): boolean {
+export function isContentIncomplete(
+    text: string,
+    language: "json" | "yaml" | "code" = "json",
+): boolean {
     const trimmed = text.trim()
 
-    if (language === "json") {
+    if (language === "json" || language === "code") {
         // JSON incomplete patterns
         return (
             trimmed.endsWith(":") || // "key":

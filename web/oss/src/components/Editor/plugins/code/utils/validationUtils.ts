@@ -1,6 +1,8 @@
 import yaml from "js-yaml"
 import JSON5 from "json5"
 
+import type {CodeLanguage} from "../types"
+
 // Enhanced validation functions for irregular and chaotic input detection
 
 /**
@@ -247,7 +249,7 @@ export interface ErrorInfo {
 export function validateAll(
     textContent: string,
     schema?: any,
-    language: "json" | "yaml" = "json",
+    language: CodeLanguage = "json",
     _editedLineContent?: string,
     cleanedToOriginalLineMap?: Map<number, number>,
 ): {
@@ -262,6 +264,16 @@ export function validateAll(
 
     // Handle empty input
     if (!textContent || textContent.trim() === "") {
+        return {
+            allErrors: [],
+            errorsByLine: new Map(),
+            structuralErrors: [],
+            bracketErrors: [],
+            schemaErrors: [],
+        }
+    }
+
+    if (language === "code") {
         return {
             allErrors: [],
             errorsByLine: new Map(),
@@ -1019,9 +1031,13 @@ function validateSchema(
     textContent: string,
     schema: any,
     lines: string[],
-    language: "json" | "yaml" = "json",
+    language: CodeLanguage = "json",
 ): ErrorInfo[] {
     const errors: ErrorInfo[] = []
+
+    if (language === "code") {
+        return errors
+    }
 
     try {
         // For schema validation, we'll use a simple approach:
@@ -1140,7 +1156,7 @@ function validateSchema(
 function findPropertyLine(
     lines: string[],
     propertyName: string,
-    language: "json" | "yaml" = "json",
+    language: CodeLanguage = "json",
 ): number {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
@@ -1149,7 +1165,7 @@ function findPropertyLine(
             if (line.includes(`"${propertyName}"`)) {
                 return i + 1
             }
-        } else {
+        } else if (language === "yaml") {
             // YAML can use both quoted and unquoted property names
             if (line.includes(`"${propertyName}"`) || line.includes(`${propertyName}:`)) {
                 return i + 1
