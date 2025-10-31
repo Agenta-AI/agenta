@@ -604,6 +604,65 @@ docker run --rm \
 
 ## Security
 
+### Secrets Management
+
+**IMPORTANT: All secrets must be kept local and never committed to git.**
+
+**Environment Files (Contains Secrets):**
+```
+/opt/agenta/hosting/docker-compose/oss/.env.oss.gh   (Production server)
+./hosting/docker-compose/oss/.env.oss.gh              (Local development)
+./scripts/.env                                         (Local scripts)
+```
+
+**Protected by .gitignore:**
+```
+**/*.env*                    # All environment files
+ssl_certificates/            # SSL certificates and ACME data
+**/acme.json                # Let's Encrypt certificate data
+**/docker-compose.override.yml  # Production-specific overrides
+```
+
+**Deploying Secrets to Production:**
+
+1. **Never commit secrets to git** - Use the example file as a template:
+   ```bash
+   # On local machine, copy example to .env.oss.gh
+   cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
+   # Fill in actual secrets locally
+   ```
+
+2. **Transfer secrets to production securely:**
+   ```bash
+   # Option 1: Copy via SCP (recommended)
+   scp hosting/docker-compose/oss/.env.oss.gh root@91.98.229.196:/opt/agenta/hosting/docker-compose/oss/
+
+   # Option 2: Edit directly on server
+   ssh root@91.98.229.196
+   cd /opt/agenta/hosting/docker-compose/oss
+   vim .env.oss.gh
+   ```
+
+3. **Verify secrets are not tracked:**
+   ```bash
+   # Should show .env files as ignored
+   git status --ignored
+   ```
+
+**Key Secrets in .env.oss.gh:**
+- `AGENTA_AUTH_KEY` - Authentication key for Agenta API
+- `AGENTA_CRYPT_KEY` - Encryption key for sensitive data
+- Database passwords (PostgreSQL, Redis)
+- API keys (OpenAI, Anthropic, etc.)
+- SuperTokens connection URI
+
+**Security Best Practices:**
+1. Use strong, unique passwords for all services
+2. Rotate credentials regularly
+3. Keep local .env files backed up securely (encrypted)
+4. Never share secrets via Slack, email, or other channels
+5. Use environment-specific secrets (dev vs prod)
+
 ### Firewall Configuration
 
 **Current UFW rules:**
