@@ -7,20 +7,24 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {TestSet} from "@/oss/lib/Types"
 
-import {previewTestsetsQueryAtom, testsetsQueryAtom} from "./atoms/fetcher"
+import {previewTestsetsQueryAtom, testsetsQueryAtomFamily} from "./atoms/fetcher"
 import {useTestset} from "./hooks/useTestset"
 
 /**
  * Hook for regular/legacy testsets
  */
 export const useTestsetsData = ({enabled = true} = {}) => {
-    const [{data: testsets, isPending, refetch, error, isError}] = useAtom(testsetsQueryAtom)
+    const [{data: testsets, isPending, isLoading, refetch, error, isError}] = useAtom(
+        testsetsQueryAtomFamily({enabled}),
+    )
     const queryClient = useQueryClient()
     const [columnsFallback, setColumnsFallback] = useState<Record<string, string[]>>({})
     const [csvVersion, setCsvVersion] = useState(0)
+    const [isValidating, setIsValidating] = useState(false)
 
     // Extract CSV columns from the TanStack Query cache for any testset
     const cachedColumnsByTestsetId = useMemo(() => {
+        if (!enabled) return {}
         const result: Record<string, string[] | undefined> = {}
         ;(testsets ?? []).forEach((ts: any) => {
             const csv = queryClient.getQueryData<TestSet["csvdata"]>(["testsetCsvData", ts?._id])
@@ -43,6 +47,7 @@ export const useTestsetsData = ({enabled = true} = {}) => {
 
     // Merge cache with fallback (from preview single testcase query)
     const columnsByTestsetId = useMemo(() => {
+        if (!enabled) return {}
         const merged: Record<string, string[] | undefined> = {...cachedColumnsByTestsetId}
         Object.entries(columnsFallback).forEach(([id, cols]) => {
             if (!merged[id] || (merged[id]?.length ?? 0) === 0) {
@@ -55,6 +60,9 @@ export const useTestsetsData = ({enabled = true} = {}) => {
     // Background fill: for testsets without cached columns, fetch a single testcase to infer columns
     const triedRef = useRef<Set<string>>(new Set())
     useEffect(() => {
+        if (!enabled) return
+        if (isPending || isLoading) return
+
         const controller = new AbortController()
         const tried = triedRef.current
         const run = async () => {
@@ -74,6 +82,8 @@ export const useTestsetsData = ({enabled = true} = {}) => {
             await Promise.all(
                 toFetch.map(async (ts: any) => {
                     try {
+                        setIsValidating(true)
+
                         const url = `${getAgentaApiUrl()}/preview/testcases/query`
                         const {data} = await axios.post(
                             url,
@@ -97,7 +107,7 @@ export const useTestsetsData = ({enabled = true} = {}) => {
                         if (cols.length) {
                             setColumnsFallback((prev) => ({...prev, [ts._id]: cols}))
                             // Also hydrate the primary cache so all consumers see columns immediately
-                            queryClient.setQueryData(["testsetCsvData", ts._id], [dataObj])
+                            // queryClient.setQueryData(["testsetCsvData", ts._id], [dataObj])
                         } else {
                             tried.add(ts._id)
                         }
@@ -105,13 +115,16 @@ export const useTestsetsData = ({enabled = true} = {}) => {
                         // swallow; keep fallback empty for this id
                         tried.add(ts._id)
                         // console.warn("Failed to infer columns for testset", ts?._id, e)
+                    } finally {
+                        setIsValidating(false)
                     }
                 }),
             )
+     
         }
         run()
         return () => controller.abort()
-    }, [testsets, columnsByTestsetId, columnsFallback])
+    }, [testsets, columnsByTestsetId, columnsFallback, isPending, isLoading])
 
     // When any testsetCsvData query updates, bump csvVersion
     useEffect(() => {
@@ -130,7 +143,7 @@ export const useTestsetsData = ({enabled = true} = {}) => {
         testsets: testsets ?? [],
         isError,
         error,
-        isLoading: isPending,
+        isLoading: isPending || isLoading || isValidating,
         mutate: refetch,
         // New helpers (non-breaking):
         columnsByTestsetId,

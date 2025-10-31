@@ -1,6 +1,6 @@
 ---
 title: "Tracing and Observability for LangChain with Agenta"
-sidebar_label: LangChain
+sidebar_label: Tracing for LangChain
 description: Learn how to instrument LangChain traces with Agenta for enhanced LLM observability. This guide covers setup, configuration, and best practices for monitoring LLM applications using LangChain and OpenAI models.
 ---
 
@@ -104,7 +104,7 @@ prompt_template = ChatPromptTemplate([
 llm = ChatOpenAI(model="gpt-4o-mini")
 
 loader = WebBaseLoader(
-    web_paths=("https://docs.agenta.ai/prompt-management/prompt-management-sdk",),
+    web_paths=("https://docs.agenta.ai/prompt-engineering/managing-prompts-programatically/create-and-commit",),
     bs_kwargs=dict(
         parse_only=bs4.SoupStrainer('article')  # Only parse the core
     ),

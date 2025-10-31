@@ -103,8 +103,7 @@ const ConfigureEvaluatorPage = ({evaluatorId}: {evaluatorId?: string | null}) =>
     const handleSuccess = useCallback(async () => {
         message.success("Evaluator configuration saved")
         await refetchAll()
-        await navigateBack()
-    }, [navigateBack, refetchAll])
+    }, [refetchAll])
 
     if (!router.isReady || isLoading) {
         return <ConfigureEvaluatorSkeleton />

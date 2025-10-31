@@ -1,0 +1,72 @@
+---
+title: "Comparing Evaluation Runs"
+sidebar_label: "Comparing Runs"
+description: "Learn how to compare multiple evaluation runs to find the best performing variant"
+sidebar_position: 4
+---
+
+import Image from "@theme/IdealImage";
+
+## Overview
+
+Compare evaluations to understand which variant performs better. This helps you make data-driven decisions about your LLM application.
+
+## Prerequisites
+
+To compare evaluations, you need:
+
+- Two or more completed evaluations
+- All evaluations must use the same test set
+
+## Starting a comparison
+
+After your evaluations complete, you can compare two or more of them:
+
+1. Go to the Evaluations page
+2. Click the compare button in the top right corner of the evaluation results page
+3. Select the evaluations you want to compare 
+
+
+## Overview comparison tab
+
+The overview comparison tab shows aggregated results for all evaluators. The figures let you compare results between evaluations.
+
+<Image
+  img={require("/images/evaluation/comparing-evaluations.png")}
+  style={{ width: "100%" }}
+  alt="Animation showing how to compare evaluations in Agenta"
+/>
+
+## Test set comparison tab
+
+The test set comparison tab shows results for each test case. The figures let you compare results between evaluations.
+
+<Image
+  img={require("/images/evaluation/comparison-view-testset.png")}
+  style={{ width: "100%" }}
+  alt="Comparison view test set"
+/>
+
+Click on a row to see a drawer with the full output and evaluator results side by side.
+
+<Image
+  img={require("/images/evaluation/comparison-view-drawer.png")}
+  style={{ width: "100%" }}
+  alt="Comparison view test set"
+/>
+
+## Prompt configuration comparison tab
+
+The prompt configuration comparison tab shows the prompt configuration used for each evaluation. The figures let you compare prompt configurations between evaluations.
+
+<Image
+  img={require("/images/evaluation/comparison-view-configuration.png")}
+  style={{ width: "100%" }}
+  alt="Comparison view prompt configuration"
+/>
+
+## Next steps
+
+- Learn about [human evaluation](/evaluation/human-evaluation/quick-start) for qualitative feedback
+- Explore [evaluation from SDK](/tutorials/sdk/evaluate-with-SDK) for automated testing
+- Understand [evaluator types](/evaluation/configure-evaluators/overview) to choose the right metrics

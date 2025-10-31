@@ -1,0 +1,163 @@
+---
+title: "Concepts of LLM Observability in Agenta"
+sidebar_label: "Concepts"
+description: "Understand key observability concepts in Agenta including traces, spans, and how OpenTelemetry powers our observability features"
+sidebar_position: 3
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+## Tracing in Agenta
+
+Agenta uses OpenTelemetry to track what happens in your LLM applications. OpenTelemetry is a free, open-source tool that makes monitoring applications easy. You write the monitoring code once, and it works with any observability platform. Read more about OpenTelemetry in [this guide we wrote for AI engineers](https://agenta.ai/blog/the-ai-engineer-s-guide-to-llm-observability-with-opentelemetry).
+
+<details>
+  <summary>⏯️ Watch a video about OpenTelemetry and tracing in Agenta.</summary>
+
+  <iframe
+    width="100%"
+    height="400"
+    src="https://www.youtube.com/embed/crEyMDJ4Bp0"
+    title="OpenTelemetry and Tracing in Agenta"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</details>
+
+## Getting Started: Basic Concepts
+
+### Traces
+
+A trace represents the complete journey of a request through your application. In our context, a trace corresponds to a single request to your LLM application.
+
+For example, when a user asks your chatbot a question, that entire interaction is captured as one trace. The trace includes receiving the query, processing it, and returning the response.
+
+### Spans
+
+A span is a unit of work within a trace. Spans can be nested, forming a tree-like structure.
+
+The **root span** represents the overall operation (like "handle user query"). **Child spans** represent sub-operations (like "retrieve context", "call LLM", or "format response").
+
+Agenta enriches each span with cost information for LLM calls, latency measurements, input/output data, and custom metadata you add.
+
+### Span Kinds
+
+Agenta categorizes spans using span kinds. These help you understand different types of operations in your LLM workflow.
+
+Available span kinds:
+- `agent` for autonomous agent operations
+- `chain` for sequential operations
+- `workflow` for complex multi-step processes
+- `tool` for tool or function calls
+- `embedding` for vector embedding generation
+- `query` for database or search queries
+- `completion` for LLM completions
+- `chat` for chat-based LLM interactions
+- `rerank` for re-ranking operations
+
+### Events
+
+Spans can contain events. These are timestamped records of things that happen during span execution. Agenta automatically logs exceptions as events, which helps you debug errors in your traces.
+
+## Working with OpenTelemetry
+
+### Direct OpenTelemetry Integration
+
+You can instrument your application using standard OpenTelemetry SDKs. Agenta accepts any OpenTelemetry span that follows the specification. For Agenta-specific features (like cost tracking and formatted messages), use attributes in our semantic conventions. See the [semantic conventions guide](/observability/trace-with-opentelemetry/semantic-conventions) for details.
+
+### Auto-Instrumentation Compatibility
+
+Agenta works with auto-instrumentation from popular libraries, even if they are not listed in our integrations. We support semantic conventions from [OpenInference](https://github.com/Arize-ai/openinference), [OpenLLMetry](https://github.com/traceloop/openllmetry), and [PydanticAI](/observability/integrations/pydanticai).
+
+When these libraries send spans to Agenta, we automatically translate their conventions to our format. No extra configuration is needed. This means that if you have any package that auto-instruments using these conventions, it will work with Agenta.
+
+## Understanding Span Types
+
+Agenta distinguishes between two types of spans. This separation helps you analyze application behavior independently from evaluation results.
+
+### Invocation Spans
+
+Invocation spans capture your application's actual work. They record what your LLM application does when it executes.
+
+Examples include LLM calls and completions, retrieval operations, tool executions, and agent reasoning steps.
+
+### Annotation Spans
+
+Annotation spans capture evaluations and feedback about invocations. They include automatic evaluations (like LLM-as-a-judge or custom metrics), human feedback and ratings, and evaluation results from test runs.
+
+When you evaluate a span or add feedback, Agenta creates an annotation span. The annotation span links to the original invocation span (explained in the Links section below). This keeps application traces clean while still capturing evaluation data.
+
+## Organizing and Filtering Traces
+
+### Attributes: Adding Metadata
+
+Attributes add information to spans. They are key-value pairs attached to each span. Agenta treats certain attributes specially for better UI experience.
+
+**Special attributes** use the `ag.` namespace. Cost and tokens get displayed prominently with user-friendly filtering. Model and system information appears in span details. Data attributes (inputs and outputs) are formatted based on span kind.
+
+**Custom attributes** can be any key-value pair you add. They are searchable and filterable, but they do not get special UI treatment.
+
+See all available attributes in our [semantic conventions guide](/observability/trace-with-opentelemetry/semantic-conventions).
+
+### References: Linking to Agenta Entities
+
+References connect spans to entities you have created in Agenta. They use a structured format and enable powerful organization.
+
+You can reference applications and their variants, environments (production, staging, development), test sets and test cases, and evaluators.
+
+Common use cases include filtering traces by application (like "show all traces from my chatbot-v2 variant"), comparing performance, and tracking prompt versions.
+
+Each reference can point to a specific variant and version. This gives you precise control over trace organization. References are especially useful for teams managing multiple applications and configurations.
+
+Learn more about using references in the [reference prompt versions guide](/observability/trace-with-python-sdk/reference-prompt-versions).
+
+### Links: Connecting Related Spans
+
+Links connect spans across different traces. Agenta uses them to connect annotations to invocations.
+
+When you evaluate a span, we cannot modify it because spans are immutable in OpenTelemetry. Instead, we create a new annotation span and link it to the original invocation span. This preserves the original trace while connecting evaluation results to the spans they evaluate.
+
+Links enable several features. You can view all evaluations for a specific application run. You can see feedback attached to the relevant invocation. You can filter traces by evaluation results.
+
+Links happen automatically when you use Agenta's evaluation features.
+
+## Applications, Variants, and Environments
+
+Agenta organizes your observability data around three key concepts:
+
+**Applications** are top-level containers for your LLM applications. An application could be a chatbot, a summarization tool, or any other LLM-powered feature.
+
+**Variants** are different versions or configurations of your application. You might have a "gpt-4-turbo" variant and a "claude-opus" variant. Or you might have variants for different prompts or parameters.
+
+**Environments** are deployment stages. Common environments include development, staging, and production.
+
+This organization helps you compare performance across different configurations and track behavior in different environments.
+
+## How Agenta Enhances OpenTelemetry
+
+Agenta uses standard OpenTelemetry for tracing. We add LLM-specific enhancements on top of it.
+
+### Automatic Cost Tracking and Token Counting
+
+We calculate costs for LLM calls based on model pricing. We track token usage (prompt tokens, completion tokens, and total) for each interaction. These metrics appear prominently in the UI and support user-friendly filtering.
+
+### Prompt Versioning Integration
+
+You can link traces to specific prompt versions in your registry. This helps you understand which prompt configuration generated each trace.
+
+### Test Set Integration
+
+You can convert production traces into test cases with one click. This makes it easy to build test sets from real user interactions.
+
+### LLM-Aware UI
+
+The Agenta UI understands LLM-specific data. Chat messages are formatted nicely. You can filter by cost, tokens, model, and other LLM-specific attributes. The UI shows parent-child relationships in your agent workflows clearly.
+
+## Next Steps
+
+- [Get started with Python SDK](/observability/quickstart-python)
+- [Learn about tracing with OpenTelemetry](/observability/trace-with-opentelemetry/getting-started)
+- [Explore integrations](/observability/integrations/openai) for popular LLM frameworks

@@ -1,0 +1,34 @@
+---
+title: "Create Test Sets from Playground"
+sidebar_label: "Create from Playground"
+description: "Learn how to create test sets directly from the playground while experimenting"
+sidebar_position: 5
+---
+
+```mdx-code-block
+import { Stream } from '@cloudflare/stream-react';
+```
+
+## Overview
+
+The playground offers a convenient way to create and add data to a test set. This workflow is useful when you discover interesting cases or edge cases while experimenting with your LLM application.
+
+<Stream controls src="27668e5d4c08c8211d4d808af16090bd" height="400px" />
+<br />
+
+## Adding data points from the playground
+
+To add a data point to a test set from the playground:
+
+1. Work with your application in the playground
+2. When you find an interesting case, click the `Add to test set` button located near the `Run` button
+3. A drawer will display showing the inputs and outputs from the playground
+4. You can modify inputs and correct answers if needed
+5. Select an existing test set to add to, or choose `+Add new` to create a new one
+6. Once you're satisfied, click `Add` to finalize
+
+## Next steps
+
+- [Upload test sets as CSVs](/evaluation/managing-test-sets/upload-csv) for bulk imports
+- [Create test sets from traces](/evaluation/managing-test-sets/create-from-traces) to capture production data
+- Learn about [running evaluations](/evaluation/evaluation-from-ui/running-evaluations) with your test sets

@@ -1,0 +1,85 @@
+---
+title: "Distributed Tracing"
+sidebar_label: "Distributed Tracing"
+description: "Learn how to implement distributed tracing across services with OpenTelemetry and Agenta"
+sidebar_position: 4
+---
+
+## OpenTelemetry Tracing without Agenta SDK
+
+
+If you're working with systems that don't use the Agenta SDK, you can still integrate with Agenta's tracing infrastructure using standard OpenTelemetry.
+
+### 1. Setup Requirements
+
+Install dependencies:
+
+```bash
+pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp
+```
+
+### 2. Configure Environment Variables
+
+```bash
+# OTEL_PROPAGATORS = unset or "tracecontext,baggage"
+# OTEL_EXPORTER_OTLP_COMPRESSION = unset or "gzip"
+# OTEL_EXPORTER_OTLP_ENDPOINT = "https://cloud.agenta.ai/api/otlp"
+# OTEL_EXPORTER_OTLP_HEADERS = "authorization=ApiKey xxx"
+# OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = "https://cloud.agenta.ai/api/otlp/v1/traces"
+# OTEL_EXPORTER_OTLP_TRACES_HEADERS = "authorization=ApiKey xxx"
+```
+
+### 3. Setup in Code
+
+```python
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+from opentelemetry.baggage.propagation import W3CBaggagePropagator
+from opentelemetry.sdk.trace import TracerProvider, Span
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter, Compression
+
+# Configuration
+endpoint = "https://cloud.agenta.ai/api/otlp/v1/traces"
+compression = Compression.Gzip
+headers = {
+    "traceparent": "00-xxx-xxx-01",
+    "baggage": "ag.refs.application.id=xxx",
+    "authorization": "ApiKey xxx",
+}
+
+# Set up provider, processor, and tracer
+provider = TracerProvider()
+
+processor = BatchSpanProcessor(
+    OTLPSpanExporter(
+        endpoint=endpoint,
+        headers={"authorization": headers["authorization"]},
+        compression=compression,
+    )
+)
+
+provider.add_span_processor(processor)
+
+tracer = provider.get_tracer("agenta.tracer")
+
+# Extract incoming trace context
+carrier = {"traceparent": headers["traceparent"]}
+context = TraceContextTextMapPropagator().extract(carrier=carrier, context=None)
+
+carrier = {"baggage": headers["baggage"]}
+context = W3CBaggagePropagator().extract(carrier=carrier, context=context)
+
+# Create and use spans
+with tracer.start_as_current_span(name="agenta", context=context) as span:
+    span: Span
+
+    print(hex(span.get_span_context().trace_id))
+    print(hex(span.get_span_context().span_id))
+    print(span.name)
+```
+
+## Next steps
+
+- Learn about [semantic conventions](/observability/trace-with-opentelemetry/semantic-conventions)
+- Explore [collector configuration](/observability/trace-with-opentelemetry/otel-collector-configuration)
+- See [Python SDK distributed tracing](/observability/trace-with-python-sdk/distributed-tracing) for Agenta SDK approach

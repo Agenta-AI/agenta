@@ -1,0 +1,78 @@
+---
+title: "Viewing Evaluation Results"
+sidebar_label: "Viewing Results"
+description: "Learn how to view and analyze evaluation results in Agenta"
+sidebar_position: 3
+---
+
+import Image from "@theme/IdealImage";
+
+## Overview
+
+Once your evaluation completes, Agenta provides comprehensive views to analyze the results and understand your LLM application's performance.
+
+## Overview evaluation tab
+
+The main view offers an aggregated summary of results.
+
+<Image
+  img={require("/images/evaluation/overview-results.png")}
+  alt="Overview evaluation results"
+  style={{ width: "100%" }}
+/>
+
+- Average score per evaluator for each variant/test set combination
+- Average latency 
+- Total cost 
+- Creation date
+
+## Test cases evaluation tab
+
+The test cases evaluation tab provides a detailed view of each test case.
+
+<Image
+  img={require("/images/evaluation/detailed-evaluation-results.png")}
+  alt="Detailed evaluation results"
+  style={{ width: "100%" }}
+/>
+
+The evaluation table columns show:
+
+- **Inputs**: The input data from your test set
+- **Reference Answers**: The expected/correct answers used by evaluators
+- **LLM Output**: The actual output from your application
+- **Evaluator Results**: Scores or boolean values from each evaluator
+- **Cost**: The cost of running this test case
+- **Latency**: How long the test case took to execute
+
+If you click on a test case, you will see a drawer with the full output and the evaluator results.
+
+<Image
+  img={require("/images/evaluation/detailed-evaluation-drawer.png")}
+  alt="Detailed evaluation drawer"
+  style={{ width: "100%" }}
+/>
+
+## Prompt configuration tab
+
+The prompt configuration tab shows the prompt configuration used for this evaluation.
+
+<Image
+  img={require("/images/evaluation/evaluation-prompt-config.png")}
+  alt="Prompt configuration"
+  style={{ width: "100%" }}
+/>
+
+## Exporting results
+
+Export your evaluation results for further analysis:
+
+1. Click the **Export** button on the evaluation detail page
+2. Choose CSV format
+3. Open in your preferred analysis tool (Excel, Python, R, etc.)
+
+## Next steps
+
+- Learn how to [compare multiple evaluations](/evaluation/evaluation-from-ui/comparing-runs)
+- Try [human evaluation](/evaluation/human-evaluation/quick-start) for qualitative assessment
+- Explore [evaluation from SDK](/tutorials/sdk/evaluate-with-SDK) for CI/CD integration

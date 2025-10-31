@@ -308,7 +308,7 @@ const config: Config = {
           },
           {
             from: "/prompt-management/overview",
-            to: "/prompt-engineering/overview",
+            to: "/prompt-engineering/concepts",
           },
           {
             from: "/prompt-management/quick-start",
@@ -316,27 +316,27 @@ const config: Config = {
           },
           {
             from: "/prompt-management/prompt-management-sdk",
-            to: "/prompt-engineering/prompt-management/prompt-management-sdk",
+            to: "/prompt-engineering/managing-prompts-programatically/create-and-commit",
           },
           {
             from: "/prompt-management/adding-custom-providers",
-            to: "/prompt-engineering/playground/adding-custom-providers",
+            to: "/prompt-engineering/playground/custom-providers",
           },
           {
             from: "/prompt-management/using-the-playground",
-            to: "/prompt-engineering/playground/using-the-playground",
+            to: "/prompt-engineering/playground/using-playground",
           },
           {
             from: "/prompt-management/integration/how-to-integrate-with-agenta",
-            to: "/prompt-engineering/prompt-management/how-to-integrate-with-agenta",
+            to: "/prompt-engineering/integrating-prompts/integrating-with-agenta",
           },
           {
             from: "/prompt-management/integration/fetch-prompts",
-            to: "/prompt-engineering/prompt-management/how-to-integrate-with-agenta",
+            to: "/prompt-engineering/integrating-prompts/fetch-prompt-programatically",
           },
           {
             from: "/prompt-management/integration/proxy-calls",
-            to: "/prompt-engineering/prompt-management/proxy-calls",
+            to: "/prompt-engineering/integrating-prompts/proxy-calls",
           },
           {
             from: "/self-host/host-locally",
@@ -353,6 +353,161 @@ const config: Config = {
           {
             from: "/self-host/applying-schema-migration",
             to: "/self-host/upgrading",
+          },
+          // Prompt Engineering restructure redirects
+          {
+            from: "/prompt-engineering/overview",
+            to: "/prompt-engineering/concepts",
+          },
+          {
+            from: "/prompt-engineering/prompt-management/how-to-integrate-with-agenta",
+            to: "/prompt-engineering/integrating-prompts/integrating-with-agenta",
+          },
+          {
+            from: "/prompt-engineering/prompt-management/prompt-management-sdk",
+            to: "/prompt-engineering/managing-prompts-programatically/create-and-commit",
+          },
+          {
+            from: "/prompt-engineering/prompt-management/proxy-calls",
+            to: "/prompt-engineering/integrating-prompts/proxy-calls",
+          },
+          {
+            from: "/prompt-engineering/playground/using-the-playground",
+            to: "/prompt-engineering/playground/using-playground",
+          },
+          {
+            from: "/prompt-engineering/playground/adding-custom-providers",
+            to: "/prompt-engineering/playground/custom-providers",
+          },
+          // Evaluation restructure redirects
+          {
+            from: "/evaluation/create-test-sets",
+            to: "/evaluation/managing-test-sets/upload-csv",
+          },
+          {
+            from: "/evaluation/no-code-evaluation",
+            to: "/evaluation/evaluation-from-ui/running-evaluations",
+          },
+          {
+            from: "/evaluation/sdk-evaluation",
+            to: "/tutorials/sdk/evaluate-with-SDK",
+          },
+          {
+            from: "/evaluation/configure-evaluators",
+            to: "/evaluation/configure-evaluators/overview",
+          },
+          {
+            from: "/evaluation/human_evaluation",
+            to: "/evaluation/human-evaluation/quick-start",
+          },
+          {
+            from: "/evaluation/annotate-api",
+            to: "/observability/trace-with-python-sdk/annotate-traces",
+          },
+          {
+            from: "/evaluation/evaluators/classification-entiry-extraction",
+            to: "/evaluation/configure-evaluators/classification-entity-extraction",
+          },
+          {
+            from: "/evaluation/evaluators/pattern-matching",
+            to: "/evaluation/configure-evaluators/regex-evaluator",
+          },
+          {
+            from: "/evaluation/configure-evaluators/pattern-matching",
+            to: "/evaluation/configure-evaluators/regex-evaluator",
+          },
+          {
+            from: "/evaluation/evaluators/semantic-similarity",
+            to: "/evaluation/configure-evaluators/semantic-similarity",
+          },
+          {
+            from: "/evaluation/evaluators/llm-as-a-judge",
+            to: "/evaluation/configure-evaluators/llm-as-a-judge",
+          },
+          {
+            from: "/evaluation/evaluators/rag-evaluators",
+            to: "/evaluation/configure-evaluators/rag-evaluators",
+          },
+          {
+            from: "/evaluation/evaluators/custom-evaluator",
+            to: "/evaluation/configure-evaluators/custom-evaluator",
+          },
+          {
+            from: "/evaluation/evaluators/webhook-evaluator",
+            to: "/evaluation/configure-evaluators/webhook-evaluator",
+          },
+          {
+            from: "/evaluation/quick-start-ui",
+            to: "/evaluation/evaluation-from-ui/quick-start",
+          },
+          {
+            from: "/evaluation/quick-start-sdk",
+            to: "/tutorials/sdk/evaluate-with-SDK",
+          },
+          {
+            from: "/evaluation/overview",
+            to: "/evaluation/concepts",
+          },
+          {
+            from: "/evaluation/evaluation-from-sdk/quick-start",
+            to: "/tutorials/sdk/evaluate-with-SDK",
+          },
+          {
+            from: "/evaluation/evaluation-from-sdk/setup-configuration",
+            to: "/tutorials/sdk/evaluate-with-SDK",
+          },
+          {
+            from: "/evaluation/evaluation-from-sdk/managing-test-sets",
+            to: "/tutorials/sdk/evaluate-with-SDK",
+          },
+          {
+            from: "/evaluation/evaluation-from-sdk/configuring-evaluators",
+            to: "/tutorials/sdk/evaluate-with-SDK",
+          },
+          {
+            from: "/evaluation/evaluation-from-sdk/running-evaluations",
+            to: "/tutorials/sdk/evaluate-with-SDK",
+          },
+          {
+            from: "/evaluation/evaluation-from-sdk/viewing-results",
+            to: "/tutorials/sdk/evaluate-with-SDK",
+          },
+          // Observability restructure redirects
+          {
+            from: "/observability/observability-sdk",
+            to: "/observability/trace-with-python-sdk/setup-tracing",
+          },
+          {
+            from: "/observability/opentelemetry",
+            to: "/observability/trace-with-opentelemetry/distributed-tracing",
+          },
+          {
+            from: "/observability/otel-semconv",
+            to: "/observability/trace-with-opentelemetry/semantic-conventions",
+          },
+          {
+            from: "/observability/overview",
+            to: "/observability/concepts",
+          },
+          {
+            from: "/observability/quickstart",
+            to: "/observability/quickstart-python",
+          },
+          {
+            from: "/observability/trace-with-opentelemetry/setup-tracing",
+            to: "/observability/trace-with-opentelemetry/getting-started",
+          },
+          {
+            from: "/observability/using-the-ui/filtering-traces",
+            to: "/observability/concepts",
+          },
+          {
+            from: "/observability/concepts/semantic-conventions",
+            to: "/observability/trace-with-opentelemetry/semantic-conventions",
+          },
+          {
+            from: "/reference/api",
+            to: "/reference/api/category",
           }
         ],
         createRedirects(existingPath) {
@@ -387,4 +542,3 @@ const config: Config = {
 export default async function createConfig() {
   return config;
 }
-

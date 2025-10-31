@@ -5,6 +5,7 @@ import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {createPortal} from "react-dom"
 
 import {$getActiveLanguage} from "../utils/language"
+import type {CodeLanguage} from "../types"
 import {validateAll} from "../utils/validationUtils"
 
 import {$getEditorCodeAsString} from "./RealTimeValidationPlugin"
@@ -64,7 +65,7 @@ class ValidationManager {
     validateContent(
         content: string,
         schema?: any,
-        language: "json" | "yaml" = "json",
+        language: CodeLanguage = "json",
     ): ValidationState {
         // Skip if content hasn't changed
         if (content === this.state.lastValidatedContent) {

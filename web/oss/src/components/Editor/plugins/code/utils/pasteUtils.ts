@@ -3,6 +3,7 @@ import {$createRangeSelection, $setSelection} from "lexical"
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
 import {$createCodeTabNode} from "../nodes/CodeTabNode"
+import type {CodeLanguage} from "../types"
 
 import {normalizePastedLinesIndentation} from "./indentationUtils"
 import {tokenizeCodeLine} from "./tokenizer"
@@ -207,7 +208,7 @@ export function $insertLinesWithSelectionAndIndent({
     }
 }
 
-export function $createNodeForLineWithTabs(line: string, language: "json" | "yaml") {
+export function $createNodeForLineWithTabs(line: string, language: CodeLanguage) {
     const codeLine = $createCodeLineNode()
     // Extract leading spaces/tabs
     const indentMatch = line.match(/^[ \t]+/)

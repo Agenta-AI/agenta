@@ -82,7 +82,7 @@ Once you have a test set, you can use it in several ways:
    - Compare your application's output against ground truth answers
    - Measure performance across different variants
 
-For more information on evaluations, see our [Evaluation documentation](/evaluation/overview).
+For more information on evaluations, see our [Evaluation documentation](/evaluation/concepts).
 
 ## Test Set Best Practices
 
@@ -102,8 +102,8 @@ For more information on evaluations, see our [Evaluation documentation](/evaluat
 
 Even with just inputs (no ground truth), you can evaluate your application using:
 
-1. **[Human evaluation](/evaluation/human_evaluation)**: Have people review the outputs for quality
-2. **[LLM as a judge](/evaluation/evaluators/llm-as-a-judge)**: Use a prompt that assesses outputs based on criteria like relevance or accuracy
+1. **[Human evaluation](/evaluation/human-evaluation/quick-start)**: Have people review the outputs for quality
+2. **[LLM as a judge](/evaluation/configure-evaluators/llm-as-a-judge)**: Use a prompt that assesses outputs based on criteria like relevance or accuracy
 
 Adding ground truth expands your evaluation options, allowing you to:
 - Compare outputs against expected answers
@@ -112,6 +112,6 @@ Adding ground truth expands your evaluation options, allowing you to:
 
 ## Related Resources
 
-- [Creating Test Sets](/evaluation/create-test-sets)
-- [Configuring Evaluators](/evaluation/configure-evaluators)
-- [Running Evaluations](/evaluation/no-code-evaluation)
+- [Creating Test Sets](/evaluation/managing-test-sets/upload-csv)
+- [Configuring Evaluators](/evaluation/configure-evaluators/overview)
+- [Running Evaluations](/evaluation/evaluation-from-ui/running-evaluations)

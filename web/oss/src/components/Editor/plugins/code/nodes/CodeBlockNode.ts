@@ -11,13 +11,15 @@
 
 import {ElementNode, LexicalNode, SerializedElementNode, Spread, EditorConfig} from "lexical"
 
+import type {CodeLanguage} from "../types"
+
 /**
  * Represents the serialized form of a CodeBlockNode.
  * Extends SerializedElementNode with a language property.
  */
 export type SerializedCodeBlockNode = Spread<
     {
-        language: "json" | "yaml"
+        language: CodeLanguage
         hasValidationError: boolean
     },
     SerializedElementNode
@@ -29,7 +31,7 @@ export type SerializedCodeBlockNode = Spread<
  */
 export class CodeBlockNode extends ElementNode {
     /** The programming language for syntax highlighting */
-    __language: "json" | "yaml"
+    __language: CodeLanguage
     __hasValidationError: boolean
 
     /**
@@ -54,7 +56,7 @@ export class CodeBlockNode extends ElementNode {
      * @param language - The programming language for the code block (defaults to "json")
      * @param key - Optional unique identifier for the node
      */
-    constructor(language: "json" | "yaml" = "json", hasValidationError?: boolean, key?: string) {
+    constructor(language: CodeLanguage = "json", hasValidationError?: boolean, key?: string) {
         super(key)
         this.__language = language
         this.__hasValidationError = hasValidationError ?? false
@@ -111,11 +113,11 @@ export class CodeBlockNode extends ElementNode {
         return false
     }
 
-    getLanguage(): "json" | "yaml" {
+    getLanguage(): CodeLanguage {
         return this.getLatest().__language
     }
 
-    setLanguage(language: "json" | "yaml") {
+    setLanguage(language: CodeLanguage) {
         const writable = this.getWritable()
         writable.__language = language
     }
@@ -139,7 +141,7 @@ export class CodeBlockNode extends ElementNode {
  * @returns A new CodeBlockNode instance
  */
 export function $createCodeBlockNode(
-    language: "json" | "yaml",
+    language: CodeLanguage,
     hasValidationError?: boolean,
 ): CodeBlockNode {
     return new CodeBlockNode(language, hasValidationError)

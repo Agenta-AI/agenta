@@ -1,0 +1,69 @@
+---
+title: "OpenTelemetry Collector Configuration"
+sidebar_label: "OTEL Collector Configuration"
+description: "Configure the OpenTelemetry Collector to forward traces to Agenta"
+sidebar_position: 5
+---
+
+The [OpenTelemetry Collector](https://opentelemetry.io/docs/collector) is a vendor-agnostic service that receives, processes, and exports telemetry data. You can use it to collect traces from multiple sources and forward them to Agenta.
+
+## Configuration
+
+Here's a configuration file (`otel-collector-config.yml`) that receives traces via OTLP/HTTP and forwards them to Agenta:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+exporters:
+  otlphttp/agenta:
+    endpoint: "https://cloud.agenta.ai/api/otlp/v1/traces"
+    headers:
+      Authorization: "ApiKey ${AGENTA_API_KEY}"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/agenta]
+```
+
+### Configuration Details
+
+**Receivers**: The collector receives traces via OTLP/HTTP on port `4318`.
+
+**Processors**: The `batch` processor collects spans and sends them in batches:
+- `timeout`: Maximum time to wait before sending a batch (default: 5s)
+- `send_batch_size`: Number of spans to collect before sending (default: 512)
+
+**Exporters**: The `otlphttp/agenta` exporter forwards traces to Agenta using HTTP/protobuf:
+- Endpoint: `https://cloud.agenta.ai/api/otlp/v1/traces`
+- Authentication: Uses `ApiKey` authentication header
+
+:::warning
+Agenta only supports **HTTP/protobuf** for the OpenTelemetry endpoint. gRPC is not supported.
+:::
+
+For self-hosted Agenta deployments, replace the endpoint in the exporter configuration:
+
+```yaml
+exporters:
+  otlphttp/agenta:
+    endpoint: "http://your-agenta-instance:port/api/otlp/v1/traces"
+    headers:
+      Authorization: "ApiKey ${AGENTA_API_KEY}"
+```
+
+## Next Steps
+
+- Learn about [semantic conventions](/observability/trace-with-opentelemetry/semantic-conventions) for proper trace formatting
+- Explore [distributed tracing](/observability/trace-with-opentelemetry/distributed-tracing) without the Agenta SDK

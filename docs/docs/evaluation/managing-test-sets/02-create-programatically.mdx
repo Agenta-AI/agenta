@@ -1,0 +1,87 @@
+---
+title: "Create Test Sets Programmatically"
+sidebar_label: "Create Programmatically"
+description: "Learn how to create test sets using the API or SDK"
+sidebar_position: 2
+---
+
+## Overview
+
+Creating test sets programmatically allows you to automate test set generation, integrate with your CI/CD pipeline, or dynamically generate test cases from existing data sources.
+
+## Creating via API
+
+You can upload a test set using our API. Find the [API endpoint reference here](/reference/api/upload-file).
+
+Here's an example of such a call:
+
+**HTTP Request:**
+
+```
+POST /testsets
+
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "testsetname",
+  "csvdata": [
+    { "column1": "row1col1", "column2": "row1col2" },
+    { "column1": "row2col1", "column2": "row2col2" }
+  ]
+}
+```
+
+### Example with curl
+
+```bash
+curl -X POST "https://cloud.agenta.ai/api/testsets" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: ApiKey YOUR_API_KEY" \
+  -d '{
+    "name": "my_test_set",
+    "csvdata": [
+      {"input": "Hello", "expected": "Hi there!"},
+      {"input": "How are you?", "expected": "I am doing well!"}
+    ]
+  }'
+```
+
+## Creating via SDK
+
+```python
+from agenta.client.api import AgentaApi
+from agenta.client.types.new_testset import NewTestset
+
+# Initialize the client
+client = AgentaApi(
+    base_url="https://cloud.agenta.ai/api",
+    api_key="your-api-key"
+)
+
+# Create test set data
+csvdata = [
+    {"country": "France", "capital": "Paris"},
+    {"country": "Germany", "capital": "Berlin"},
+    {"country": "Spain", "capital": "Madrid"}
+]
+
+# Create the test set
+response = client.testsets.create_testset(
+    request=NewTestset(
+        name="countries_capitals",
+        csvdata=csvdata
+    )
+)
+
+test_set_id = response.id
+print(f"Created test set with ID: {test_set_id}")
+```
+
+## Next steps
+
+- [Create test sets from UI](/evaluation/managing-test-sets/create-from-ui) for manual creation
+- [Create test sets from traces](/evaluation/managing-test-sets/create-from-traces) to capture production data
+- [Create test sets from playground](/evaluation/managing-test-sets/create-from-playground) during experimentation

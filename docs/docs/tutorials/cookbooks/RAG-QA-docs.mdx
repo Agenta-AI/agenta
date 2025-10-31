@@ -18,7 +18,7 @@ At the end, we will have:
 - A **playground** for testing different embeddings, adjusting top_k values (number of context chunks to include), and experimenting with various prompts and models
 - **LLM-as-a-judge** and **RAG context relevancy** evaluations for our Q&A application
 - **Observability** with Agenta to debug and monitor our application
-- A **deployment** that we can either [directly invoke](/prompt-engineering/prompt-management/proxy-calls) **or** [fetch the configuration](/reference/sdk/configuration-management#get_from_registry) to run elsewhere
+- A **deployment** that we can either [directly invoke](/prompt-engineering/integrating-prompts/proxy-calls) **or** [fetch the configuration](/reference/sdk/configuration-management#get_from_registry) to run elsewhere
 
 You can try our playground by creating a free account at [https://cloud.agenta.ai](https://cloud.agenta.ai) and opening the demo.
 
@@ -536,7 +536,7 @@ To ensure our assistant provides accurate and relevant answers, we'll use evalua
 1. RAG Relevancy Evaluator: Measures how relevant the assistant's answers are with respect to the retrieved context.
 2. LLM-as-a-Judge Evaluator: Rates the quality of the assistant's responses.
 
-For the first, we use the RAG Relevancy evaluator as described in [Agenta's evaluation documentation](/evaluation/evaluators/rag-evaluators).
+For the first, we use the RAG Relevancy evaluator as described in [Agenta's evaluation documentation](/evaluation/configure-evaluators/rag-evaluators).
 
 **Configuration:**
 
@@ -555,7 +555,7 @@ You can use the evaluator playground to configure the evaluator and identify the
   loading="lazy"
 />
 
-We set and test an LLM-as-a-Judge evaluator to rate the quality of the assistant's responses the same way. More details on setting up LLM-as-a-Judge evaluators can be found [here](/evaluation/evaluators/llm-as-a-judge).
+We set and test an LLM-as-a-Judge evaluator to rate the quality of the assistant's responses the same way. More details on setting up LLM-as-a-Judge evaluators can be found [here](/evaluation/configure-evaluators/llm-as-a-judge).
 
 ## Deploying the assistant
 
@@ -563,7 +563,7 @@ After iterating through various prompts and parameters and evaluating their perf
 
 Simply click the `Deploy` button in the playground to accomplish this.
 
-Agenta provides us with [two endpoints](/prompt-engineering/prompt-management/how-to-integrate-with-agenta) to interact with our deployed application:
+Agenta provides us with [two endpoints](/prompt-engineering/integrating-prompts/integrating-with-agenta) to interact with our deployed application:
 
 - The first allows us to directly invoke the deployed application with the production configuration.
 - The second allows us to fetch the deployed configuration as a JSON and use it in our self-deployed application.

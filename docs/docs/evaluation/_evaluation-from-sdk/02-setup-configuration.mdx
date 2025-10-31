@@ -1,0 +1,60 @@
+---
+title: "Setup and Configuration"
+sidebar_label: "Setup & Configuration"
+description: "Learn how to set up and configure the Agenta SDK for evaluation"
+sidebar_position: 2
+---
+
+<!-- TODO: Replace with new SDK evaluation content -->
+
+## Setup
+
+First, install the Agenta SDK:
+
+```bash
+pip install -U agenta
+```
+
+## Initialize the SDK client
+
+```python
+from agenta.client.api import AgentaApi
+
+app_id = "667d8cfad1812781f7e375d9"
+
+# You can create the API key under the settings page.
+# If you are using the OSS version, you should keep this as an empty string
+api_key = "EUqJGOUu.xxxx"
+
+# Host
+host = "https://cloud.agenta.ai"
+
+# Initialize the client
+client = AgentaApi(base_url=host + "/api", api_key=api_key)
+```
+
+## Configuration options
+
+<!-- TODO: Add new SDK configuration options -->
+
+## Environment variables
+
+You can also configure the SDK using environment variables:
+
+```bash
+export AGENTA_API_KEY="your-api-key"
+export AGENTA_HOST="https://cloud.agenta.ai"
+```
+
+```python
+import agenta as ag
+
+# Initialize will read from environment variables
+ag.init()
+```
+
+## Next steps
+
+- Learn about [managing test sets](/evaluation/evaluation-from-sdk/managing-test-sets)
+- Explore [configuring evaluators](/evaluation/evaluation-from-sdk/configuring-evaluators)
+- Start [running evaluations](/evaluation/evaluation-from-sdk/running-evaluations)
