@@ -1,0 +1,67 @@
+---
+title: "Distributed Tracing"
+sidebar_label: "Distributed Tracing"
+description: "Learn how to implement distributed tracing across services with the Agenta SDK"
+sidebar_position: 7
+---
+
+When using the Agenta SDK, distributed tracing is handled automatically with the provided SDK functions. This guide shows you how to propagate trace context across services and extract it when receiving requests.
+
+## Using OpenTelemetry with Agenta SDK
+
+Agenta supports distributed tracing out of the box when using the provided SDK functions:
+
+### 1. Sending Requests (Propagation)
+
+When making requests to other services or sub-systems, use `agenta.tracing.inject()` to inject necessary headers:
+
+```python
+import agenta as ag
+
+method = "POST"
+url = "https://example-service/api"
+params = {}
+headers = agenta.tracing.inject()  # automatically injects 'Authorization', 'Traceparent', 'Baggage'
+body = {"key": "value"}
+
+response = requests.request(
+    method=method,
+    url=url,
+    params=params,
+    headers=headers,
+    json=body,
+)
+```
+
+The `agenta.tracing.inject()` function returns headers containing:
+
+- `Authorization`: Authentication information
+- `Traceparent`: Identifies the current trace and span
+- `Baggage`: Contains application-specific context
+
+These headers can be modified before sending them as part of the request if needed.
+
+### 2. Receiving Requests (Extraction)
+
+Agenta simplifies receiving and handling incoming trace contexts:
+
+- If you're using `ag.route()` and `ag.instrument()`, extraction is automatic.
+- For manual extraction, use `agenta.tracing.extract()`:
+
+```python
+traceparent, baggage = agenta.tracing.extract()  # includes 'Traceparent', 'Baggage'
+
+# Use traceparent and baggage to set up your OpenTelemetry context
+# (Implementation depends on your specific use case)
+```
+
+:::note
+`extract()` does not provide `Authorization` because there are many authentication methods (apikey, bearer, secret, access tokens), each requiring different handling. The middlewares and decorators in the Agenta SDK handle this automatically when you use `ag.route()` and `ag.instrument()`.
+:::
+
+## Next Steps
+
+- Learn about [tracing without the Agenta SDK](/observability/trace-with-opentelemetry/distributed-tracing) for raw OpenTelemetry setup
+- Explore [semantic conventions](/observability/trace-with-opentelemetry/semantic-conventions) for better trace formatting
+- See [instrumenting functions](/observability/trace-with-python-sdk/instrument-functions) for automatic instrumentation
+

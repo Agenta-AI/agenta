@@ -1,0 +1,55 @@
+---
+title: "Instrument Your Functions"
+sidebar_label: "Instrument Functions"
+description: "Learn how to instrument functions for LLM observability and tracing using the Agenta Python SDK decorator"
+sidebar_position: 2
+---
+
+```mdx-code-block
+import GoogleColabButton from "@site/src/components/GoogleColabButton";
+```
+
+<GoogleColabButton notebookPath="examples/jupyter/observability/trace-with-python-sdk-tutorial.ipynb">
+  Open in Google Colaboratory
+</GoogleColabButton>
+
+To instrument a function, add the `@ag.instrument()` decorator. This automatically captures all input and output data.
+
+The decorator has a `spankind` argument to categorize each span in the UI. Available types are:
+
+`agent`, `chain`, `workflow`, `tool`, `embedding`, `query`, `completion`, `chat`, `rerank`
+
+:::info
+The default span kind is `workflow`.
+:::
+
+:::caution
+The instrument decorator should be the top-most decorator on a function (i.e. the last decorator before the function call).
+:::
+
+```python
+import agenta as ag
+
+@ag.instrument(spankind="task")
+def my_llm_call(country: str):
+    prompt = f"What is the capital of {country}"
+    response = client.chat.completions.create(
+        model='gpt-4',
+        messages=[
+            {'role': 'user', 'content': prompt},
+        ],
+    )
+    return response.choices[0].text
+
+@ag.instrument(spankind="workflow")
+def generate(country: str):
+    return my_llm_call(country)
+```
+
+Agenta automatically determines the parent span based on the function call and nests the spans accordingly.
+
+## Next steps
+
+- Learn how to [add metadata and internals](/observability/trace-with-python-sdk/adding-metadata)
+- Link traces to [prompt versions](/observability/trace-with-python-sdk/reference-prompt-versions)
+- Understand how to [redact sensitive data](/observability/trace-with-python-sdk/redact-sensitive-data)

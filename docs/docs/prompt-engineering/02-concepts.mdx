@@ -1,0 +1,75 @@
+---
+title: "Prompt Management Concepts"
+sidebar_label: "Concepts"
+description: "Learn how to effectively manage, version, and deploy LLM prompts and configurations. Discover how prompt management helps teams collaborate, track changes, and maintain consistency across development and production environments"
+sidebar_position: 2
+---
+
+<!-- TODO: Improve this concepts page to better explain:
+- The relationship between applications, variants, environments, and versions
+- The Git-like workflow model (branches, commits, deployments)
+- When to create new variants vs. new versions
+- Best practices for organizing prompts and configurations
+- The difference between prompts and full application configurations
+- Consider adding more diagrams and examples
+-->
+
+```mdx-code-block
+import CustomDocCard from '@site/src/components/CustomDocCard';
+import clsx from 'clsx';
+import Image from "@theme/IdealImage";
+
+```
+
+
+## Why do I need a prompt management system?
+
+A prompt management system lets everyone on your team collaborate on prompts. This includes product owners, developers, and subject matter experts. The system organizes your prompts so that:
+- Product teams can change prompts without going through developers each time
+- You can version prompts and roll back to a previous version if needed
+- You can link LLM application spans to prompt versions
+- You can run evaluations on prompts and compare them to each other
+
+You can read more about the benefits of prompt management in our [blog post](https://agenta.ai/blog/the-definitive-guide-to-prompt-management-systems).
+
+
+:::info
+Agenta allows you to version not only prompts, but **any configuration**. For instance, for a RAG pipeline, you can version a configuration with the parameters `chunk_size` or `embedding_model`. You can read more about this in [custom workflows](/custom-workflows/overview).
+:::
+
+## Versioning in Agenta
+
+<Image
+  style={{ display: "block", margin: "32px 0" }}
+  img={require("/images/prompt_management/taxonomy-concepts.png")}
+  alt="Taxonomy of entities in Agenta"
+  loading="lazy"
+/>
+
+Agenta uses a Git-like structure for versioning. Instead of having one commit history for each prompt, you can create multiple branches called **variants**. Each variant has its own version history. You can then deploy specific versions to **environments** (development, staging, production).
+
+## Entities in Agenta
+
+### Applications
+
+Prompts are applications in Agenta. Each application has a different type that determines how it runs. You can create chat applications and completion applications from the UI using templates. You can also create custom applications from your own code using [custom workflows](/custom-workflows/overview). 
+
+### Variants
+Variants are similar to branches in **git**. Each variant is an independent branch with its own commit history. When you create a prompt from the UI, we create a `default` variant for you. Unlike git branches, you cannot merge variants together. Use variants to experiment with different approaches or configurations. 
+
+### Versions
+
+Versions are similar to commits in **git**. Each version is an immutable snapshot of a variant. When you make changes to a variant, you create a new version. Each version has a **commit id** that uniquely identifies it. Each version contains a **configuration** with prompts and other parameters.
+
+### Environments
+
+Environments are deployment targets for your prompts. Agenta provides three environments: **development**, **staging**, and **production**. Each environment points to a specific version from a variant. When you deploy a new version to an environment, the environment updates to point to that version. Environments track their deployment history, so you can roll back to any previously deployed version.
+
+
+## Best practices for Organizing Prompts
+
+1. Create a new variant for each experiment or approach you explore. Some teams create variants per model. Others create variants per user or per approach. When you try a new approach, create a new variant.
+2. Add commit notes to each version. Explain the changes you made.
+3. Deploy variant versions to staging when ready. Use at least a staging environment and a production environment.
+4. Have your internal team test the staging environment before deploying to production. At minimum, do a vibe check on the prompt.
+

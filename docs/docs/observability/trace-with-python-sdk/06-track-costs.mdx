@@ -1,0 +1,167 @@
+---
+title: "Track Costs"
+sidebar_label: "Track Costs"
+description: "Learn how Agenta automatically tracks and aggregates LLM costs, token usage, and performance metrics across your traces"
+sidebar_position: 6
+---
+
+Agenta automatically tracks costs, token usage, and performance metrics for your LLM applications. This data is captured in the `ag.metrics` namespace of each span.
+
+## Overview
+
+When you instrument your application with Agenta, we automatically collect cost and performance metrics for spans of type chat.
+
+Costs are calculated using the latest pricing for each model provider. Token usage is tracked separately for input (prompt) and output (completion) tokens. Execution time is measured in milliseconds for each operation.
+
+## Metrics Structure
+
+### Cost Metrics
+
+Costs are tracked in USD with the following breakdown:
+
+```json
+{
+  "metrics": {
+    "costs": {
+      "cumulative": {
+        "total": 0.0070902,
+        "prompt": 0.00355,
+        "completion": 0.00354
+      }
+    }
+  }
+}
+```
+
+The `total` field shows the total cost across all LLM calls in this span and its children. The `prompt` field shows the cost attributed to input tokens. The `completion` field shows the cost for output tokens.
+
+### Token Usage
+
+Token consumption is tracked with separate counts for input and output:
+
+```json
+{
+  "metrics": {
+    "tokens": {
+      "cumulative": {
+        "total": 992,
+        "prompt": 175,
+        "completion": 817
+      }
+    }
+  }
+}
+```
+
+The `total` field shows all tokens used (prompt plus completion). The `prompt` field shows input tokens consumed. The `completion` field shows output tokens generated.
+
+### Duration
+
+Execution time is measured in milliseconds:
+
+```json
+{
+  "metrics": {
+    "duration": {
+      "cumulative": 19889.343
+    }
+  }
+}
+```
+
+:::info
+Agenta tracks metrics at two levels. **Incremental metrics** represent costs for a single span only. **Cumulative metrics** aggregate values from the current span plus all child spans.
+:::
+
+## How to Track Costs
+
+### With Auto-Instrumentation
+
+When you use auto-instrumentation from [compatible libraries](/observability/concepts#auto-instrumentation-compatibility), prompts and tokens are automatically extracted and formatted. Costs are calculated when possible.
+
+```python
+import agenta as ag
+from openinference.instrumentation.openai import OpenAIInstrumentor
+
+ag.init()
+OpenAIInstrumentor().instrument()
+
+@ag.instrument()
+def generate_response(prompt: str):
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    return response.choices[0].message.content
+```
+
+### With Manual Instrumentation
+
+You can manually add cost metrics to spans using incremental metrics:
+
+```python
+import agenta as ag
+
+@ag.instrument()
+def custom_llm_call(prompt: str):
+    # Your custom LLM call logic
+    response = my_custom_llm.generate(prompt)
+
+    # Manually track incremental metrics (for this span only)
+    ag.tracing.store_metrics({
+        "costs.incremental.total": 0.0025,
+        "costs.incremental.prompt": 0.0015,
+        "costs.incremental.completion": 0.001,
+        "tokens.incremental.total": 150,
+        "tokens.incremental.prompt": 100,
+        "tokens.incremental.completion": 50
+    })
+
+    # Cumulative metrics are automatically calculated by the backend
+
+    return response
+```
+
+## Automatic Cost Calculation
+
+Agenta calculates costs automatically for major LLM providers using the LiteLLM library. When the cost is not provided in the span and the span type is chat, we try to infer the cost from the number of tokens.
+
+### Custom Pricing
+
+For custom models or providers, you can manually set costs using incremental metrics:
+
+```python
+import agenta as ag
+
+@ag.instrument()
+def custom_model_call(prompt: str):
+    response = my_model.generate(prompt)
+
+    # Calculate custom cost
+    prompt_tokens = len(prompt.split())
+    completion_tokens = len(response.split())
+
+    # Custom pricing
+    cost_per_prompt_token = 0.00001
+    cost_per_completion_token = 0.00002
+
+    prompt_cost = prompt_tokens * cost_per_prompt_token
+    completion_cost = completion_tokens * cost_per_completion_token
+    total_cost = prompt_cost + completion_cost
+
+    # Set incremental metrics
+    ag.tracing.store_metrics({
+        "costs.incremental.total": total_cost,
+        "costs.incremental.prompt": prompt_cost,
+        "costs.incremental.completion": completion_cost,
+        "tokens.incremental.total": prompt_tokens + completion_tokens,
+        "tokens.incremental.prompt": prompt_tokens,
+        "tokens.incremental.completion": completion_tokens
+    })
+
+    return response
+```
+
+## Next steps
+
+Learn about [adding metadata](/observability/trace-with-python-sdk/adding-metadata) to enrich your traces.

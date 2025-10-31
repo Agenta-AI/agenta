@@ -1,0 +1,63 @@
+---
+title: "Setup Tracing"
+sidebar_label: "Setup Tracing"
+description: "Learn how to set up tracing with the Agenta Python SDK for LLM observability"
+sidebar_position: 1
+---
+
+```mdx-code-block
+import GoogleColabButton from "@site/src/components/GoogleColabButton";
+```
+
+<GoogleColabButton notebookPath="examples/jupyter/observability/trace-with-python-sdk-tutorial.ipynb">
+  Open in Google Colaboratory
+</GoogleColabButton>
+
+The Agenta Observability SDK integrates with the OpenTelemetry SDK. It wraps OpenTelemetry and provides a user-friendly way to instrument your LLM applications.
+
+The SDK provides:
+
+- Automatic OpenTelemetry setup
+- Easy function instrumentation using [decorators](/observability/trace-with-python-sdk/instrument-functions)
+- [Reference prompt versions](/observability/trace-with-python-sdk/reference-prompt-versions) to link traces to applications, variants, and environments
+- [Add attributes](/observability/trace-with-python-sdk/adding-metadata) to spans for additional metadata
+
+The SDK works with auto instrumentation. You should use auto instrumentation together with this SDK.
+
+## Installation
+
+**1. Install the Agenta SDK**
+
+```bash
+pip install -U agenta
+```
+
+## Configuration
+
+**2. Set environment variables**
+
+1. Visit the [Agenta API Keys page](https://cloud.agenta.ai/settings?tab=apiKeys).
+2. Click on **Create New API Key** and follow the prompts.
+
+```python
+import os
+
+os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
+os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai"
+```
+
+**3. Initialize the SDK**
+
+```python
+import agenta as ag
+
+ag.init()
+```
+
+That's it! You're now ready to instrument your functions and start capturing traces.
+
+## Next steps
+
+- Learn how to [instrument your functions](/observability/trace-with-python-sdk/instrument-functions)
+- Link traces to [prompt versions](/observability/trace-with-python-sdk/reference-prompt-versions)
+- Understand how to [redact sensitive data](/observability/trace-with-python-sdk/redact-sensitive-data)

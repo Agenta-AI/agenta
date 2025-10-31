@@ -1,0 +1,42 @@
+---
+title: "Managing Test Sets"
+sidebar_label: "Managing Test Sets"
+description: "Learn how to create, load, and manage test sets using the SDK"
+sidebar_position: 3
+---
+
+<!-- TODO: Replace with new SDK evaluation content -->
+
+## Creating test sets
+
+```python
+from agenta.client.types.new_testset import NewTestset
+
+csvdata = [
+    {"country": "france", "capital": "Paris"},
+    {"country": "Germany", "capital": "Berlin"}
+]
+
+response = client.testsets.create_testset(
+    request=NewTestset(name="test set", csvdata=csvdata)
+)
+test_set_id = response.id
+```
+
+## Loading existing test sets
+
+<!-- TODO: Add content for loading test sets -->
+
+## Updating test sets
+
+<!-- TODO: Add content for updating test sets -->
+
+## Deleting test sets
+
+<!-- TODO: Add content for deleting test sets -->
+
+## Next steps
+
+- Learn about [configuring evaluators](/evaluation/evaluation-from-sdk/configuring-evaluators)
+- Start [running evaluations](/evaluation/evaluation-from-sdk/running-evaluations)
+- Explore [viewing results](/evaluation/evaluation-from-sdk/viewing-results)

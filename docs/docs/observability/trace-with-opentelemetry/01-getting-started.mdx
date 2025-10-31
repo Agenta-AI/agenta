@@ -1,0 +1,103 @@
+---
+title: "Getting Started with OpenTelemetry"
+sidebar_label: "Getting Started"
+description: "Learn how to configure OpenTelemetry to send traces to Agenta's observability platform"
+sidebar_position: 1
+---
+
+Agenta accepts traces via the OpenTelemetry Protocol (OTLP) endpoint. You can use any OpenTelemetry-compatible instrumentation library to send traces to Agenta.
+
+## OTLP Endpoint
+
+Agenta accepts traces via the **OTLP/HTTP protocol** using **protobuf** encoding:
+
+**Endpoint:** `https://cloud.agenta.ai/api/otlp/v1/traces`
+
+For self-hosted installations, replace `https://cloud.agenta.ai` with your instance URL.
+
+:::warning
+Agenta does **not** support `gRPC` for the OpenTelemetry endpoint. Please use **HTTP/protobuf** instead.
+:::
+
+## Authentication
+
+Agenta uses ApiKey-based authentication for the OTLP endpoint:
+
+```javascript
+headers: {
+  Authorization: `ApiKey ${AGENTA_API_KEY}`
+}
+```
+
+### Getting Your API Key
+
+1. Visit the [Agenta API Keys page](https://cloud.agenta.ai/settings?tab=apiKeys)
+2. Click on **Create New API Key** and follow the prompts
+3. Copy the API key and set it as an environment variable:
+
+```bash
+export AGENTA_API_KEY="YOUR_AGENTA_API_KEY"
+export AGENTA_HOST="https://cloud.agenta.ai"  # Change for self-hosted
+```
+
+## Configuration
+
+When using OpenTelemetry SDKs directly (without the Agenta SDK), configure the OTLP exporter to point to Agenta:
+
+```bash
+OTEL_EXPORTER_OTLP_ENDPOINT="https://cloud.agenta.ai/api/otlp"
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="https://cloud.agenta.ai/api/otlp/v1/traces"
+OTEL_EXPORTER_OTLP_HEADERS="Authorization=ApiKey ${AGENTA_API_KEY}"
+```
+
+:::info
+If your collector requires signal-specific environment variables, use the trace-specific endpoint:
+
+```bash
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT="https://cloud.agenta.ai/api/otlp/v1/traces"
+OTEL_EXPORTER_OTLP_TRACES_HEADERS="Authorization=ApiKey ${AGENTA_API_KEY}"
+```
+:::
+
+## Supported Languages
+
+OpenTelemetry SDKs are available for many languages:
+
+- **Python**: Use the [Agenta Python SDK](/observability/quickstart-python) or OpenTelemetry SDK directly
+- **Node.js / TypeScript**: See the [OpenTelemetry Quick Start](/observability/quick-start-opentelemetry)
+- **Java**: Use the OpenTelemetry Java SDK
+- **Go**: Use the OpenTelemetry Go SDK
+- **.NET**: Use the OpenTelemetry .NET SDK
+- **Ruby, PHP, Rust**: OpenTelemetry SDKs available for all
+
+All can send traces to Agenta using the OTLP endpoint above.
+
+## Using OpenTelemetry Instrumentation Libraries
+
+Agenta is compatible with many OpenTelemetry instrumentation libraries that extend language and framework support. These libraries work seamlessly with Agenta's OTLP endpoint:
+
+### Popular Libraries
+
+- **[OpenLLMetry](https://github.com/Arize-ai/openllmetry)**: Supports multiple LLMs (OpenAI, Anthropic, Azure, etc.) and frameworks (LangChain, LlamaIndex)
+- **[OpenLIT](https://github.com/openlit/openlit)**: Comprehensive instrumentation for LLMs, vector DBs, and frameworks
+- **[OpenInference](https://arize-ai.github.io/openinference/)**: Arize's OpenTelemetry instrumentation for LLM applications
+
+### Framework Integrations
+
+Many frameworks have OpenTelemetry support built-in or via plugins:
+
+- **LangChain**: OpenTelemetry instrumentation available
+- **LlamaIndex**: OpenTelemetry support via plugins
+- **AutoGen**: OpenTelemetry compatible
+- **Semantic Kernel**: OpenTelemetry integration available
+- **Spring AI**: Java framework with OpenTelemetry support
+
+See the [semantic conventions](/observability/trace-with-opentelemetry/semantic-conventions) page for details on how Agenta maps OpenTelemetry attributes.
+
+## Next Steps
+
+- Follow the [OpenTelemetry Quick Start](/observability/quick-start-opentelemetry) for a complete example
+- Learn about [semantic conventions](/observability/trace-with-opentelemetry/semantic-conventions) for better trace display
+- Explore [distributed tracing](/observability/trace-with-opentelemetry/distributed-tracing) across services
+- Configure the [OpenTelemetry Collector](/observability/trace-with-opentelemetry/otel-collector-configuration) to forward traces
+

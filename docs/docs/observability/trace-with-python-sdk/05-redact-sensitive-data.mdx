@@ -1,0 +1,139 @@
+---
+title: "Redact Sensitive Data"
+sidebar_label: "Redact Sensitive Data"
+description: "Learn how to exclude sensitive data from traces using the Agenta Python SDK"
+sidebar_position: 5
+---
+
+```mdx-code-block
+import GoogleColabButton from "@site/src/components/GoogleColabButton";
+```
+
+<GoogleColabButton notebookPath="examples/jupyter/observability/trace-with-python-sdk-tutorial.ipynb">
+  Open in Google Colaboratory
+</GoogleColabButton>
+
+In some cases, you may want to exclude parts of the inputs or outputs due to privacy concerns or because the data is too large to be stored in the span.
+
+## Simple redaction
+
+You can do this by setting the `ignore_inputs` and/or `ignore_outputs` arguments to `True` in the instrument decorator.
+
+```python
+import agenta as ag
+
+@ag.instrument(
+    spankind="workflow",
+    ignore_inputs=True,
+    ignore_outputs=True
+)
+def rag_workflow(query: str):
+    ...
+```
+
+## Selective redaction
+
+If you want more control, you can specify which parts of the inputs and outputs to exclude:
+
+```python
+@ag.instrument(
+    spankind="workflow",
+    ignore_inputs=["user_id"],
+    ignore_outputs=["pii"],
+)
+def rag_workflow(query: str, user_id: str):
+    ...
+    return {
+        "result": ...,
+        "pii": ...
+    }
+```
+
+## Custom redaction callback
+
+For even finer control, you can use a custom `redact()` callback, along with instructions in the case of errors.
+
+```python
+def my_redact(name, field, data):
+    if name == "rag_workflow":
+        if field == "inputs":
+            del data["user_id"]
+        if field == "outputs":
+            del data["pii"]
+
+    return data
+
+
+@ag.instrument(
+    spankind="workflow",
+    redact=my_redact,
+    redact_on_error=False,
+)
+def rag_workflow(query: str, user_id: str):
+    ...
+    return {
+        "result": ...,
+        "pii": ...
+    }
+```
+
+## Global redaction rules
+
+Finally, if you want to set up global rules for redaction, you can provide a global `redact()` callback that applies everywhere.
+
+```python
+from typing import Dict, Any
+
+def global_redact(
+    name: str,
+    field: str,
+    data: Dict[str, Any]
+):
+    if "pii" in data:
+        del data["pii"]
+
+    return data
+
+
+ag.init(
+    redact=global_redact,
+    redact_on_error=True,
+)
+
+def local_redact(
+    name: str,
+    field: str,
+    data: Dict[str, Any]
+):
+    if name == "rag_workflow":
+        if field == "inputs":
+            del data["user_id"]
+
+    return data
+
+
+@ag.instrument(
+    spankind="workflow",
+    redact=local_redact,
+    redact_on_error=False,
+)
+def rag_workflow(query: str, user_id: str):
+    ...
+    return {
+        "result": ...,
+        "pii": ...
+    }
+```
+
+## Best practices
+
+- **Use selective redaction** rather than blocking all inputs/outputs when possible
+- **Test your redaction rules** to ensure they work as expected
+- **Consider global rules** for organization-wide PII policies
+- **Document redacted fields** so team members know what data is missing
+
+## Next steps
+
+- Understand how to [track costs](/observability/trace-with-python-sdk/track-costs)
+- Explore [distributed tracing](/observability/trace-with-python-sdk/distributed-tracing) across services
+- Learn how to [annotate traces](/observability/trace-with-python-sdk/annotate-traces) programmatically

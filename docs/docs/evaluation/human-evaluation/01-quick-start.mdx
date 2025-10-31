@@ -1,0 +1,62 @@
+---
+title: "Quick Start"
+sidebar_label: "Quick Start"
+description: "Get started with human evaluation in Agenta"
+sidebar_position: 1
+---
+
+import Image from "@theme/IdealImage";
+
+## Overview
+
+Human evaluation lets you evaluate your LLM application's performance using human judgment instead of automated metrics.
+
+<details>
+  <summary>⏯️ Watch a short demo of the human evaluation feature.</summary>
+
+  <iframe
+    width="100%"
+    height="400"
+    src="https://www.youtube.com/embed/zpoAbQlsfcw"
+    title="Human Evaluation - Demonstration"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</details>
+
+## Why use human evaluation?
+
+Automated metrics can't capture everything. Sometimes you need human experts to evaluate results and identify why errors occur.
+
+Human evaluation helps you:
+- Get expert feedback to compare different versions of your application
+- Collect human feedback and insights to improve your prompts and configuration
+- Collect annotations to bootstrap automated evaluation
+
+## How human evaluation works
+
+Human evaluation follows the same process as automatic evaluation:
+1. Choose a test set
+2. Select the versions you want to evaluate
+3. Pick your evaluators
+4. Start the evaluation
+
+The only difference is that humans provide the evaluation scores instead of automated systems.
+
+## Quick workflow
+
+1. **Start evaluation**: Go to Evaluations → Human annotation → Start new evaluation
+2. **Select test set**: Choose the data you want to evaluate against
+3. **Select variant**: Pick the version of your application to test
+4. **Configure evaluators**: Create or select evaluators (boolean, integer, multi-choice, etc.)
+5. **Run**: Click "Start evaluation" and generate outputs
+6. **Annotate**: Review each response and provide feedback
+7. **Review results**: Analyze aggregated scores and export data
+
+## Next steps
+
+- Learn about [configuring evaluators](/evaluation/human-evaluation/configuring-evaluators)
+- Understand [how to run evaluations](/evaluation/human-evaluation/running-evaluations)
+- Explore [viewing results](/evaluation/human-evaluation/viewing-results)
+- Try [A/B testing](/evaluation/human-evaluation/ab-testing)
