@@ -30,6 +30,8 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     showToolbar?: boolean
     enableTokens?: boolean
     tokens?: string[]
+    /** Template format for prompt variable/tag highlighting */
+    templateFormat?: "curly" | "fstring" | "jinja2"
     noProvider?: boolean
     /** Custom render function to override node rendering in Form view */
     customRender?: CustomRenderFn
@@ -62,6 +64,7 @@ export interface EditorPluginsProps {
     initialValue: string
     validationSchema?: unknown
     tokens?: string[]
+    templateFormat?: "curly" | "fstring" | "jinja2"
     handleUpdate: (editorState: EditorState, editor: LexicalEditor) => void
     /** Additional plugins to include in code editor */
     additionalCodePlugins?: React.ReactNode[]

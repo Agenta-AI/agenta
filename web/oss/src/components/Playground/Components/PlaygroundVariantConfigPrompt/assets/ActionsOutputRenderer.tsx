@@ -12,6 +12,7 @@ import {
     addPromptToolMutationAtomFamily,
 } from "../../../state/atoms/promptMutations"
 import PlaygroundVariantPropertyControl from "../../PlaygroundVariantPropertyControl"
+import TemplateFormatSelector from "./TemplateFormatSelector"
 
 interface Props {
     variantId: string
@@ -35,7 +36,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
     const responseFormatId = responseFormatInfo.enhancedId as string | undefined
     return (
         <div
-            className={clsx(["flex items-center gap-1 flex-wrap w-full"], {
+            className={clsx(["flex gap-1 flex-wrap w-full", "mb-6"], {
                 "[&>_div]:!w-full": viewOnly,
             })}
         >
@@ -57,6 +58,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                         propertyId={responseFormatId}
                         viewOnly={viewOnly}
                         disabled={viewOnly}
+                        className="!min-h-0 [&_div]:!mb-0"
                     />
                 ) : (
                     // Fallback for immutable/raw params (no property id)
@@ -71,6 +73,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                     </span>
                 )}
             </div>
+            <TemplateFormatSelector variantId={variantId} disabled={viewOnly} />
         </div>
     )
 }

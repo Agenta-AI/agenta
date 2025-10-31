@@ -35,6 +35,7 @@ export interface GroupedScenario {
         inputs: any
         outputs: any
         runId: string
+        colorIndex?: number
     }[]
 }
 
@@ -43,42 +44,46 @@ interface UseExpandableComparisonDataSourceProps {
     comparisonRunIds: string[]
 }
 
-const testcaseForScenarios = atomFamily((runId: string) =>
-    atom((get) => {
-        const scenarioSteps = get(scenarioStepsFamily(runId))
-        const allScenarioIds = Object.keys(scenarioSteps)
-        const allSteps = allScenarioIds.reduce((acc, scenarioId) => {
-            const scenarioTestcaseIds = scenarioSteps[scenarioId]?.data?.inputSteps?.map(
-                (s) => s?.testcaseId,
-            )
-            acc[scenarioId] = scenarioTestcaseIds
-            return acc
-        }, {})
-        return allSteps
-    }),
-)
-export const comparisonRunsStepsAtom = atomFamily((runIds: string[]) =>
-    atom((get) => {
-        const steps = runIds.reduce((acc, runId) => {
+const testcaseForScenarios = atomFamily(
+    (runId: string) =>
+        atom((get) => {
             const scenarioSteps = get(scenarioStepsFamily(runId))
-
-            const allStepIds = Object.keys(scenarioSteps)
-            const allSteps = allStepIds.map((stepId) => ({
-                id: stepId,
-                ...scenarioSteps[stepId],
-            }))
-            const allStepsData = allSteps.reduce((acc, step) => {
-                if (step.state === "hasData") {
-                    acc[step.id] = step?.data?.inputSteps?.map((s) => s?.testcaseId)
-                }
+            const allScenarioIds = Object.keys(scenarioSteps)
+            const allSteps = allScenarioIds.reduce((acc, scenarioId) => {
+                const scenarioTestcaseIds = scenarioSteps[scenarioId]?.data?.inputSteps?.map(
+                    (s) => s?.testcaseId,
+                )
+                acc[scenarioId] = scenarioTestcaseIds
                 return acc
             }, {})
+            return allSteps
+        }),
+    deepEqual,
+)
+export const comparisonRunsStepsAtom = atomFamily(
+    (runIds: string[]) =>
+        atom((get) => {
+            const steps = runIds.reduce((acc, runId) => {
+                const scenarioSteps = get(scenarioStepsFamily(runId))
 
-            acc[runId] = allStepsData
-            return acc
-        }, {})
-        return steps
-    }),
+                const allStepIds = Object.keys(scenarioSteps)
+                const allSteps = allStepIds.map((stepId) => ({
+                    id: stepId,
+                    ...scenarioSteps[stepId],
+                }))
+                const allStepsData = allSteps.reduce((acc, step) => {
+                    if (step.state === "hasData") {
+                        acc[step.id] = step?.data?.inputSteps?.map((s) => s?.testcaseId)
+                    }
+                    return acc
+                }, {})
+
+                acc[runId] = allStepsData
+                return acc
+            }, {})
+            return steps
+        }),
+    deepEqual,
 )
 
 export const comparisonRunIndexesAtom = atomFamily(
@@ -92,19 +97,21 @@ export const comparisonRunIndexesAtom = atomFamily(
     deepEqual,
 )
 
-const comparisonRunsEvaluatorsAtom = atomFamily((runIds: string[]) =>
-    atom((get) => {
-        const evaluators = new Set()
-        runIds.forEach((runId) => {
-            const evals = get(evaluationRunStateFamily(runId))
-            const enrichRun = evals?.enrichedRun
-            if (enrichRun) {
-                enrichRun.evaluators?.forEach((e) => evaluators.add(e))
-            }
-        })
+const comparisonRunsEvaluatorsAtom = atomFamily(
+    (runIds: string[]) =>
+        atom((get) => {
+            const evaluators = new Set()
+            runIds.forEach((runId) => {
+                const evals = get(evaluationRunStateFamily(runId))
+                const enrichRun = evals?.enrichedRun
+                if (enrichRun) {
+                    enrichRun.evaluators?.forEach((e) => evaluators.add(e))
+                }
+            })
 
-        return Array.from(evaluators)
-    }),
+            return Array.from(evaluators)
+        }),
+    deepEqual,
 )
 
 const metricsFromEvaluatorsFamily = atomFamily(
@@ -199,11 +206,17 @@ const useExpandableComparisonDataSource = ({
                                         (comparisonRunIds.includes(compRunId)
                                             ? comparisonRunIds.indexOf(compRunId) + 2
                                             : undefined)
+                                    const colorIndex =
+                                        compState?.colorIndex ??
+                                        (comparisonRunIds.includes(compRunId)
+                                            ? comparisonRunIds.indexOf(compRunId) + 2
+                                            : undefined)
                                     comparedScenarios.push({
                                         matchedTestcaseId: compTestcaseData,
                                         runId: compRunId,
                                         scenarioId: compScenarioId,
                                         compareIndex,
+                                        colorIndex,
                                     })
                                 }
                             },
@@ -216,7 +229,7 @@ const useExpandableComparisonDataSource = ({
         )
 
         return matches
-    }, [baseTestcases, comparisonRunsSteps, comparisonRunIds.join(",")])
+    }, [baseTestcases, comparisonRunsSteps, comparisonRunIds.join(","), store])
 
     // Build columns using EXACT same approach as regular table (useTableDataSource)
     const runIndex = useAtomValue(runIndexFamily(baseRunId))
@@ -345,6 +358,8 @@ const useExpandableComparisonDataSource = ({
         const builtRows = scenarioIds.map((scenarioId, idx) => {
             // Get matched comparison scenarios for this base scenario
             const comparedScenarios = matchedScenarios[scenarioId] || []
+            const baseState = store.get(evaluationRunStateFamily(baseRunId))
+            const baseColorIndex = baseState?.colorIndex ?? 1
 
             // Create base row structure
             const baseRow = {
@@ -352,6 +367,7 @@ const useExpandableComparisonDataSource = ({
                 scenarioIndex: idx + 1,
                 runId: baseRunId, // This row represents the base run
                 compareIndex: 1,
+                colorIndex: baseColorIndex,
                 // Add children for comparison scenarios
                 children: comparedScenarios.map((compScenario, compIdx) => ({
                     key: `${scenarioId}-comp-${compScenario.runId}-${compIdx}`,
@@ -361,6 +377,7 @@ const useExpandableComparisonDataSource = ({
                     isComparison: true, // Flag to identify comparison rows
                     isLastRow: compIdx === comparedScenarios.length - 1,
                     compareIndex: compScenario.compareIndex,
+                    colorIndex: compScenario.colorIndex ?? compScenario.compareIndex,
                 })),
             }
 
@@ -368,7 +385,7 @@ const useExpandableComparisonDataSource = ({
         })
 
         return builtRows
-    }, [scenarioIds, matchedScenarios, baseRunId])
+    }, [scenarioIds, matchedScenarios, baseRunId, store])
 
     return {
         antColumns,

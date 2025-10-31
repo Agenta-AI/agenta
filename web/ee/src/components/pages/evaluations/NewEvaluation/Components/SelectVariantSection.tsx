@@ -20,6 +20,7 @@ const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoR
 
 const SelectVariantSection = ({
     selectedVariantRevisionIds,
+    selectedTestsetId,
     className,
     setSelectedVariantRevisionIds,
     handlePanelChange,
@@ -29,6 +30,7 @@ const SelectVariantSection = ({
     ...props
 }: SelectVariantSectionProps) => {
     const currentApp = useAtomValue(currentAppAtom)
+
     const {data, isLoading: fallbackLoading} = useVariants(currentApp)
     const variants = useMemo(() => propsVariants || data, [propsVariants, data])
     const isVariantLoading = propsVariantLoading ?? fallbackLoading
@@ -37,7 +39,7 @@ const SelectVariantSection = ({
 
     const filteredVariant = useMemo(() => {
         if (!searchTerm) return variants
-        return variants?.filter((item) =>
+        return variants?.filter((item: EnhancedVariant) =>
             item.variantName.toLowerCase().includes(searchTerm.toLowerCase()),
         )
     }, [searchTerm, variants])
@@ -65,9 +67,11 @@ const SelectVariantSection = ({
         [selectedVariantRevisionIds, onSelectVariant],
     )
 
+    const variantsNonNull = (filteredVariant || []) as EnhancedVariant[]
+
     return (
         <div className={clsx(className)} {...props}>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-start justify-between mb-2 gap-4">
                 <Input.Search
                     placeholder="Search"
                     className="w-[300px] [&_input]:!py-[3.1px]"
@@ -87,13 +91,15 @@ const SelectVariantSection = ({
                 onRow={(record) => {
                     return {
                         style: {cursor: "pointer"},
-                        onClick: () => onRowClick(record as EnhancedVariant),
+                        onClick: () => {
+                            onRowClick(record as EnhancedVariant)
+                        },
                     }
                 }}
                 showActionsDropdown={false}
                 scroll={{x: "max-content", y: 455}}
                 isLoading={isVariantLoading}
-                variants={filteredVariant}
+                variants={variantsNonNull}
                 onRowClick={() => {}}
                 className="ph-no-capture"
                 rowKey={"id"}

@@ -130,7 +130,7 @@ export const clearFocusDrawerQueryParams = () => {
     }
 }
 
-export type FocusDrawerPublicApi = {
+export interface FocusDrawerPublicApi {
     syncFocusDrawerStateFromUrl: (nextUrl?: string) => void
     clearFocusDrawerQueryParams: () => void
 }

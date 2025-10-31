@@ -30,6 +30,62 @@ interface ScenarioCsvRow {
     record: Record<string, any>
 }
 
+const extractPrimitiveMetricValue = (input: any): any => {
+    if (input === null || input === undefined) return input
+    if (typeof input !== "object") return input
+    if (Array.isArray(input)) {
+        for (const item of input) {
+            const value = extractPrimitiveMetricValue(item)
+            if (value !== undefined) return value
+        }
+        return undefined
+    }
+    if (typeof (input as any).mean !== "undefined") return (input as any).mean
+    if (typeof (input as any).value !== "undefined") return (input as any).value
+    if (Array.isArray((input as any).frequency) && (input as any).frequency.length) {
+        const sorted = [...(input as any).frequency].sort(
+            (a, b) => (b?.count ?? 0) - (a?.count ?? 0),
+        )
+        const candidate = sorted.find((entry) => entry?.value !== undefined)
+        if (candidate) return candidate.value
+    }
+    if (Array.isArray((input as any).rank) && (input as any).rank.length) {
+        const candidate = (input as any).rank.find((entry: any) => entry?.value !== undefined)
+        if (candidate) return candidate.value
+    }
+    if (Array.isArray((input as any).unique) && (input as any).unique.length) {
+        return (input as any).unique.find((item: any) => item !== undefined)
+    }
+    for (const value of Object.values(input)) {
+        const extracted = extractPrimitiveMetricValue(value)
+        if (extracted !== undefined) return extracted
+    }
+    return undefined
+}
+
+const parseAnnotationMetricKey = (
+    key: string,
+): null | {slug: string; metric: string; source: "direct" | "analytics"} => {
+    if (!key.includes(".")) return null
+    if (key.startsWith("attributes.ag.")) return null
+    const analyticsOutputMatch = key.match(/^([^\.]+)\.attributes\.ag\.data\.outputs\.(.+)$/)
+    if (analyticsOutputMatch) {
+        return {slug: analyticsOutputMatch[1], metric: analyticsOutputMatch[2], source: "analytics"}
+    }
+    const analyticsMetricMatch = key.match(/^([^\.]+)\.attributes\.ag\.metrics\.(.+)$/)
+    if (analyticsMetricMatch) {
+        return {
+            slug: analyticsMetricMatch[1],
+            metric: analyticsMetricMatch[2],
+            source: "analytics",
+        }
+    }
+    const [slug, ...rest] = key.split(".")
+    const metric = rest.join(".")
+    if (!slug || !metric) return null
+    return {slug, metric, source: "direct"}
+}
+
 const EvalRunTestCaseViewUtilityOptions = ({
     columns,
     setEditColumns,
@@ -69,6 +125,10 @@ const EvalRunTestCaseViewUtilityOptions = ({
                 ? (evaluatorsRaw as any[])
                 : Object.values(evaluatorsRaw as any)
             const evaluatorSlugs = evaluatorList.map((e: any) => e.slug)
+            const baseEvaluatorMap = new Map<string, any>()
+            evaluatorList.forEach((evaluator: any) => {
+                if (evaluator?.slug) baseEvaluatorMap.set(evaluator.slug, evaluator)
+            })
 
             // 2) Resolve steps and metrics for this run
             const [scenarioMetricsMap, ...allScenarios] = await Promise.all([
@@ -85,8 +145,29 @@ const EvalRunTestCaseViewUtilityOptions = ({
 
             allScenarios.forEach((scenario) => {
                 if (!scenario) return
-                const sid = scenario.steps?.[0]?.scenarioId
+                const sid = scenario.scenarioId || scenario.id || scenario.steps?.[0]?.scenarioId
                 const scenarioId = sid ? String(sid) : undefined
+
+                const scenarioEvaluatorMap = new Map(baseEvaluatorMap)
+                const registerEvaluator = (candidate?: any) => {
+                    if (!candidate?.slug) return
+                    const existing = scenarioEvaluatorMap.get(candidate.slug)
+                    if (existing && existing.name) return
+                    scenarioEvaluatorMap.set(candidate.slug, {...existing, ...candidate})
+                }
+                ;(scenario.steps || []).forEach((step: any) => {
+                    registerEvaluator(step?.evaluator)
+                    registerEvaluator(step?.annotation?.references?.evaluator)
+                })
+                ;(scenario.annSteps || []).forEach((step: any) => {
+                    registerEvaluator(step?.evaluator)
+                    registerEvaluator(step?.annotation?.references?.evaluator)
+                })
+                const resolveEvaluatorLabel = (slug?: string) => {
+                    if (!slug) return undefined
+                    const evaluator = scenarioEvaluatorMap.get(slug)
+                    return evaluator?.name || evaluator?.displayName || evaluator?.slug || slug
+                }
 
                 const primaryInput = scenario.inputSteps?.find((s: any) => s.inputs) || {}
                 const {inputs = {}, groundTruth = {}, status: inputStatus} = primaryInput as any
@@ -158,13 +239,14 @@ const EvalRunTestCaseViewUtilityOptions = ({
                 const evalMetricsDefs = store.get(metricsFromEvaluatorsFamily(rId)) as any
                 if (evalMetricsDefs && typeof evalMetricsDefs === "object") {
                     Object.entries(evalMetricsDefs).forEach(([slug, defs]: [string, any[]]) => {
-                        const evaluator = evaluatorList?.find((e) => e?.slug === slug)
+                        const label = resolveEvaluatorLabel(slug)
+                        if (!label) return
                         if (!Array.isArray(defs)) return
                         defs.forEach((metricDef) => {
                             Object.keys(metricDef || {})
                                 .filter((k) => k !== "evaluatorSlug")
                                 .forEach((metricName) => {
-                                    const key = `${evaluator?.name || slug}.${metricName}`
+                                    const key = `${label}.${metricName}`
                                     if (!(key in record)) record[key] = ""
                                 })
                         })
@@ -181,19 +263,15 @@ const EvalRunTestCaseViewUtilityOptions = ({
                         Object.entries(evalMetrics || {}).forEach(([k, v]) => {
                             if (Array.isArray(v)) {
                                 v.forEach((metric) => {
-                                    const evaluator = (evaluatorList as any[])?.find(
-                                        (e) => e?.slug === metric?.evaluatorSlug,
-                                    )
                                     const {evaluatorSlug, ...rest} = metric
+                                    const label =
+                                        resolveEvaluatorLabel(evaluatorSlug) ||
+                                        evaluatorSlug ||
+                                        "unknown"
 
                                     Object.keys(rest || {}).forEach((metricKey) => {
-                                        if (evaluator) {
-                                            record[`${evaluator?.name}.${metricKey}`] =
-                                                convertToStringOrJson(errorMessage)
-                                        } else {
-                                            record[`${metric?.evaluatorSlug}.${metricKey}`] =
-                                                convertToStringOrJson(errorMessage)
-                                        }
+                                        record[`${label}.${metricKey}`] =
+                                            convertToStringOrJson(errorMessage)
                                     })
                                 })
                             }
@@ -203,29 +281,32 @@ const EvalRunTestCaseViewUtilityOptions = ({
 
                 if (annotation) {
                     Object.entries(annotation || {}).forEach(([k, v]) => {
-                        if (!k.includes(".")) return
-                        const [evalSlug, metricName] = k.split(".")
-                        if (["error", "errors"].includes(metricName)) return
-                        const evaluator = (evaluatorList as any[])?.find(
-                            (e) => e?.slug === evalSlug,
-                        )
+                        const parsed = parseAnnotationMetricKey(k)
+                        if (!parsed) return
+                        if (["error", "errors"].includes(parsed.metric)) return
+                        const label = resolveEvaluatorLabel(parsed.slug)
+                        if (!label) return
 
-                        if ((v as any).mean) {
-                            record[`${evaluator?.name}.${metricName}`] = (v as any)?.mean
-                        } else if ((v as any).unique) {
-                            const mostFrequent = (v as any).frequency.reduce(
-                                (max: any, current: any) =>
-                                    current.count > max.count ? current : max,
-                            ).value
-                            record[`${evaluator?.name}.${metricName}`] = String(mostFrequent)
-                        } else if (v && typeof v !== "object") {
-                            record[`${evaluator?.name}.${metricName}`] =
-                                typeof v === "number"
-                                    ? String(v).includes(".")
-                                        ? (v as number).toFixed(3)
-                                        : v
-                                    : convertToStringOrJson(v)
+                        const primitive = extractPrimitiveMetricValue(v)
+                        if (primitive === undefined) return
+
+                        const recordKey = `${label}.${parsed.metric}`
+                        const existingValue = record[recordKey]
+                        if (
+                            parsed.source === "direct" &&
+                            existingValue !== undefined &&
+                            existingValue !== null &&
+                            existingValue !== ""
+                        ) {
+                            return
                         }
+
+                        record[recordKey] =
+                            typeof primitive === "number"
+                                ? Number.isFinite(primitive) && !Number.isInteger(primitive)
+                                    ? primitive.toFixed(3)
+                                    : primitive
+                                : convertToStringOrJson(primitive)
                     })
                 }
                 rowsForRun.push({record, scenarioId})

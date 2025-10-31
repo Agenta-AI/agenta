@@ -533,15 +533,26 @@ def _format_with_template(
         elif format == "curly":
             import re
 
+            # Extract variables that exist in the original template before replacement
+            # This allows us to distinguish template variables from {{}} in user input values
+            original_variables = set(re.findall(r"\{\{(.*?)\}\}", content))
+
             result = content
             for key, value in kwargs.items():
                 pattern = r"\{\{" + re.escape(key) + r"\}\}"
                 old_result = result
-                result = re.sub(pattern, str(value), result)
-            unreplaced_matches = re.findall(r"\{\{(.*?)\}\}", result)
-            if unreplaced_matches:
+                # Escape backslashes in the replacement string to prevent regex interpretation
+                escaped_value = str(value).replace("\\", "\\\\")
+                result = re.sub(pattern, escaped_value, result)
+
+            # Only check if ORIGINAL template variables remain unreplaced
+            # Don't error on {{}} that came from user input values
+            unreplaced_matches = set(re.findall(r"\{\{(.*?)\}\}", result))
+            truly_unreplaced = original_variables & unreplaced_matches
+
+            if truly_unreplaced:
                 raise ValueError(
-                    f"Template variables not found in inputs: {', '.join(unreplaced_matches)}"
+                    f"Template variables not found in inputs: {', '.join(sorted(truly_unreplaced))}"
                 )
 
             return result

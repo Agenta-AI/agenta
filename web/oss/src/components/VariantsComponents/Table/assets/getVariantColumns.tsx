@@ -164,7 +164,6 @@ export const getColumns = ({
             title: "Created on",
             dataIndex: "createdAt",
             key: "createdAt",
-            width: 120,
             onHeaderCell: () => ({
                 style: {minWidth: 120},
             }),
@@ -177,7 +176,6 @@ export const getColumns = ({
             title: "Created by",
             dataIndex: "modifiedBy",
             key: "modifiedBy",
-            width: 160,
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
@@ -191,9 +189,9 @@ export const getColumns = ({
         title: "Commit notes",
         dataIndex: "createdAt",
         key: "createdAt",
-        width: 560,
+        width: 180,
         onHeaderCell: () => ({
-            style: {minWidth: 560},
+            style: {minWidth: 180, maxWidth: 560},
         }),
         className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[560px]",
         render: (_, record) => <CommitNotesCell record={record} />,

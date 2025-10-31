@@ -450,6 +450,35 @@ export enum SecretDTOProvider {
     GEMINI = "gemini",
 }
 
+export const PROVIDER_LABELS: Record<string, string> = {
+    openai: "OpenAI",
+    cohere: "Cohere",
+    anyscale: "Anyscale",
+    deepinfra: "DeepInfra",
+    alephalpha: "Aleph Alpha",
+    groq: "Groq",
+    mistralai: "Mistral AI",
+    anthropic: "Anthropic",
+    perplexityai: "Perplexity AI",
+    together_ai: "Together AI",
+    openrouter: "OpenRouter",
+    gemini: "Google Gemini",
+    vertex_ai: "Google Vertex AI",
+    bedrock: "AWS Bedrock",
+    // sagemaker: "AWS SageMaker",
+    azure: "Azure OpenAI",
+    custom: "Custom Provider",
+}
+
+export const PROVIDER_KINDS: Record<string, string> = Object.entries(PROVIDER_LABELS).reduce(
+    (acc, [kind, label]) => {
+        acc[kind] = kind
+        acc[label.toLowerCase()] = kind
+        return acc
+    },
+    {} as Record<string, string>,
+)
+
 interface VaultModels {
     slug: string
 }
@@ -461,6 +490,9 @@ interface VaultProvider {
         aws_secret_access_key?: string
         aws_session_token?: string
         aws_region_name?: string
+        vertex_ai_project?: string
+        vertex_ai_location?: string
+        vertex_ai_credentials?: string
         api_key?: string
     }
 }

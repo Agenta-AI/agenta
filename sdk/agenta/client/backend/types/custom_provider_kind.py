@@ -8,7 +8,7 @@ CustomProviderKind = typing.Union[
         "azure",
         "bedrock",
         "sagemaker",
-        "vertex",
+        "vertex_ai",
         "openai",
         "cohere",
         "anyscale",

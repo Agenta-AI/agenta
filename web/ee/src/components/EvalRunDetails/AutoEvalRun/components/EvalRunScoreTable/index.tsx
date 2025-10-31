@@ -245,7 +245,9 @@ const EvalRunScoreTable = ({className}: {className?: string}) => {
         allRunIds.forEach((id) => {
             const state = evalById[id]
             const enr = state?.enrichedRun
-            const color = EVAL_TAG_COLOR?.[state?.compareIndex || 1]
+            const colorIndex =
+                state?.colorIndex || (state?.isBase ? 1 : undefined) || state?.compareIndex || 1
+            const color = EVAL_TAG_COLOR?.[colorIndex]
             // evalsRow.values[id] = enr ? <EvalNameTag run={enr} color={color} /> : ""
             evalsRow.values[id] = enr ? (
                 <div className="group flex items-center justify-between gap-2 w-full">
@@ -435,6 +437,10 @@ const EvalRunScoreTable = ({className}: {className?: string}) => {
                             allRunIds.forEach((id, idx) => {
                                 const state = evalById[id]
                                 const compareIdx = state?.compareIndex || idx + 1
+                                const colorIdx =
+                                    state?.colorIndex ||
+                                    (state?.isBase ? 1 : undefined) ||
+                                    compareIdx
                                 cols.push({
                                     title: idx === 0 ? "Label" : `Label_${idx + 1}`,
                                     key: `label_${id}`,
@@ -475,7 +481,7 @@ const EvalRunScoreTable = ({className}: {className?: string}) => {
                                     onCell: (record: any) => ({
                                         style:
                                             isComparison && record?.key !== "testsets"
-                                                ? {background: (EVAL_BG_COLOR as any)[compareIdx]}
+                                                ? {background: (EVAL_BG_COLOR as any)[colorIdx]}
                                                 : undefined,
                                     }),
                                 })
@@ -501,9 +507,11 @@ const EvalRunScoreTable = ({className}: {className?: string}) => {
                             return allRunIds.map((id, idx) => {
                                 const state = evalById[id]
                                 const compareIdx = state?.compareIndex || idx + 1
+                                const colorIdx =
+                                    state?.colorIndex || (state?.isBase ? 1 : undefined) || compareIdx
                                 return {
                                     key: idx === 0 ? "value" : `value-${idx + 1}`,
-                                    color: (EVAL_COLOR as any)[compareIdx] || "#3B82F6",
+                                    color: (EVAL_COLOR as any)[colorIdx] || "#3B82F6",
                                     name: state?.enrichedRun?.name || `Eval ${compareIdx}`,
                                 }
                             })

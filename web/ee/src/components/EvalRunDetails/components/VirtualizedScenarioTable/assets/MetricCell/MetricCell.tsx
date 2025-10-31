@@ -2,13 +2,16 @@ import {type ReactNode, memo, useCallback, useMemo} from "react"
 
 import {Tag, Tooltip} from "antd"
 import clsx from "clsx"
+import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
+import {loadable, selectAtom} from "jotai/utils"
 
 import {urlStateAtom} from "@/oss/components/EvalRunDetails/state/urlState"
 import MetricDetailsPopover from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover" // adjust path if necessary
 import {formatMetricValue} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils" // same util used elsewhere
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {getStatusLabel} from "@/oss/lib/constants/statusLabels"
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {
     evaluationRunStateFamily,
     getCurrentRunId,
@@ -16,16 +19,13 @@ import {
     scenarioStepFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {runScopedMetricDataFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
+import {UseEvaluationRunScenarioStepsFetcherResult} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 import {EvaluationStatus} from "@/oss/lib/Types"
 
 import {STATUS_COLOR_TEXT} from "../../../EvalRunScenarioStatusTag/assets"
 import {CellWrapper} from "../CellComponents" // CellWrapper is default export? need to check.
 
 import {AnnotationValueCellProps, MetricCellProps, MetricValueCellProps} from "./types"
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {loadable, selectAtom} from "jotai/utils"
-import {UseEvaluationRunScenarioStepsFetcherResult} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
-import deepEqual from "fast-deep-equal"
 
 /*
  * MetricCell – common renderer for metric columns (scenario-level or evaluator-level).
@@ -81,7 +81,6 @@ const MetricCell = memo<MetricCellProps>(
 
         // Non-numeric arrays rendered as Tag list
         let formatted: ReactNode = formatMetricValue(metricKey, value)
-
         if (metricType === "boolean" && Array.isArray(value as any)) {
             const trueEntry = (distInfo as any).frequency.find((f: any) => f.value === true)
             const total = (distInfo as any).count ?? 0

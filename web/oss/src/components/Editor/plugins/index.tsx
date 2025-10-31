@@ -72,6 +72,7 @@ const EditorPlugins = ({
     initialValue,
     validationSchema,
     tokens,
+    templateFormat,
     additionalCodePlugins = [],
 }: EditorPluginsProps) => {
     const markdown = useAtomValue(markdownViewAtom(id))
@@ -112,7 +113,7 @@ const EditorPlugins = ({
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
             {enableTokens && (
                 <>
-                    <TokenPlugin />
+                    <TokenPlugin templateFormat={templateFormat} />
                     <AutoCloseTokenBracesPlugin />
                     <TokenTypeaheadPlugin tokens={tokens || []} />
                 </>

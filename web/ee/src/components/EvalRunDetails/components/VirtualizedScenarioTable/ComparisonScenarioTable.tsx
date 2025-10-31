@@ -3,7 +3,7 @@ import {RefObject, useEffect, useMemo} from "react"
 import {DownOutlined} from "@ant-design/icons"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue} from "jotai"
-import dynamic from "next/dynamic"
+
 import {useResizeObserver} from "usehooks-ts"
 
 import {useRunId} from "@/oss/contexts/RunIdContext"
@@ -15,10 +15,7 @@ import {urlStateAtom} from "../../state/urlState"
 import useExpandableComparisonDataSource from "./hooks/useExpandableComparisonDataSource"
 import useScrollToScenario from "./hooks/useScrollToScenario"
 
-const EnhancedTable = dynamic(() => import("@/oss/components/EnhancedUIs/Table"), {
-    ssr: false,
-    loading: () => <EvalRunTestCaseTableSkeleton />,
-})
+import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 
 export const expendedRowAtom = atom<Record<string, boolean>>({})
 
@@ -90,7 +87,7 @@ const ComparisonTable = () => {
         )
     }
 
-    if (loading) {
+    if (loading || !EnhancedTable) {
         return <EvalRunTestCaseTableSkeleton />
     }
 
@@ -112,9 +109,13 @@ const ComparisonTable = () => {
                     loading={false}
                     tableLayout="fixed"
                     onRow={(record) => ({
-                        style: record?.compareIndex
-                            ? {background: EVAL_BG_COLOR[record.compareIndex]}
-                            : undefined,
+                        style:
+                            (record?.colorIndex ?? record?.compareIndex)
+                                ? {
+                                      background:
+                                          EVAL_BG_COLOR[record.colorIndex || record.compareIndex],
+                                  }
+                                : undefined,
                         onClick: (event) => {
                             const target = event.target as HTMLElement
                             const isFirstCell = target.closest(".scenario-index-row-cell")

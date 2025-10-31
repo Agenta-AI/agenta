@@ -301,7 +301,9 @@ export const enrichEvaluationRun = ({
     const projectId = getProjectValues().projectId
 
     const baseVariants = filteredVariants.length ? filteredVariants : []
-    const combinedVariants = (baseVariants.length ? baseVariants : fallbackVariants) as typeof fallbackVariants
+    const combinedVariants = (
+        baseVariants.length ? baseVariants : fallbackVariants
+    ) as typeof fallbackVariants
 
     const normalizedVariants = combinedVariants
         .map((variant) => {
@@ -374,8 +376,7 @@ export const enrichEvaluationRun = ({
         finalAppId &&
         (normalizedVariants.find((variant: any) => variant?.appId === finalAppId) ||
             originalVariants.find(
-                (variant: any) =>
-                    variant?.appId === finalAppId || variant?.app_id === finalAppId,
+                (variant: any) => variant?.appId === finalAppId || variant?.app_id === finalAppId,
             ))
 
     const finalAppName = pickString(

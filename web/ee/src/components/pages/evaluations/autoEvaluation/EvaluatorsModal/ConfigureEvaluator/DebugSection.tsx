@@ -888,6 +888,7 @@ const DebugSection = ({
                 onCancel={() => setOpenVariantModal(false)}
                 setSelectedVariant={setSelectedVariant}
                 selectedVariant={selectedVariant}
+                selectedTestsetId={selectedTestset}
             />
 
             {testsets?.length && (

@@ -5,7 +5,7 @@ from collections import OrderedDict
 from threading import Lock
 
 CACHE_CAPACITY = int(getenv("AGENTA_MIDDLEWARE_CACHE_CAPACITY", "512"))
-CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(5 * 60)))  # 5 minutes
+CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(1 * 60)))  # 1 minutes
 
 
 class TTLLRUCache:

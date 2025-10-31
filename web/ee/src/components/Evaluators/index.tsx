@@ -2,13 +2,14 @@ import {memo, useCallback, useEffect, useMemo, useState, type ChangeEvent, type 
 
 import {DeleteOutlined, PlusOutlined} from "@ant-design/icons"
 import {Button, Input, Tabs, Typography} from "antd"
-import {message} from "@/oss/components/AppMessageContext"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
 
+import {message} from "@/oss/components/AppMessageContext"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {AnnotateDrawerSteps} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/enum"
+import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
@@ -26,7 +27,6 @@ import {EvaluatorCategory, EvaluatorRegistryRow} from "./assets/types"
 import DeleteEvaluatorsModal from "./components/DeleteEvaluatorsModal"
 import SelectEvaluatorModal from "./components/SelectEvaluatorModal"
 import useEvaluatorsRegistryData from "./hooks/useEvaluatorsRegistryData"
-import {useQueryParam} from "@/oss/hooks/useQuery"
 
 const AnnotateDrawer = dynamic(
     () => import("@/oss/components/pages/observability/drawer/AnnotateDrawer"),

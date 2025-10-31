@@ -7,7 +7,7 @@ import clsx from "clsx"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {capitalize} from "@/oss/lib/helpers/utils"
-import {SecretDTOProvider} from "@/oss/lib/Types"
+import {SecretDTOProvider, PROVIDER_LABELS} from "@/oss/lib/Types"
 
 import LLMIcons from "../LLMIcons"
 import Anthropic from "../LLMIcons/assets/Anthropic"
@@ -50,19 +50,34 @@ const SelectLLMProvider = ({
     const icons = useMemo(() => [OpenAi, Gemini, Anthropic, Mistral, Together], [])
 
     const extendedProviders = useMemo(
-        () => [...Object.values(SecretDTOProvider), "bedrock", "azure", "custom"],
+        () => [
+            ...Object.values(SecretDTOProvider),
+            "vertex_ai",
+            "bedrock",
+            // "sagemaker",
+            "azure",
+            "custom",
+        ],
         [],
+    )
+
+    const labeledProviders = useMemo(
+        () =>
+            extendedProviders.map((provider) => ({
+                key: provider,
+                label: PROVIDER_LABELS[provider] ?? provider,
+            })),
+        [extendedProviders],
     )
 
     const providers = useMemo(
         () =>
-            extendedProviders.map((provider) => {
-                return {
-                    label: capitalize(provider),
-                    options: [capitalize(provider)],
-                }
-            }),
-        [extendedProviders],
+            labeledProviders.map(({ key, label }) => ({
+                label,
+                options: [label],
+                value: key,
+            })),
+        [labeledProviders],
     )
 
     const filteredProviders = useMemo(() => {
@@ -161,7 +176,7 @@ const SelectLLMProvider = ({
             >
                 {/* Map out filtered groups and their options */}
                 {filteredProviders.map((group, idx) => {
-                    const GroupIcon = group.label ? LLMIcons[group.label.toLowerCase()] : null
+                    const GroupIcon = group.label ? LLMIcons[group.label] : null
                     return showGroup ? (
                         <OptGroup
                             key={idx}
@@ -180,7 +195,7 @@ const SelectLLMProvider = ({
                         </OptGroup>
                     ) : (
                         group.options?.map((option: string) => {
-                            const Icon = LLMIcons[option.toLowerCase()]
+                            const Icon = LLMIcons[option]
                             return (
                                 <Option
                                     key={option}

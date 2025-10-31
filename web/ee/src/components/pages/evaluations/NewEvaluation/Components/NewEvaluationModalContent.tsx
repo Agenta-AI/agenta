@@ -168,6 +168,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         variants={variants}
                         isVariantLoading={variantsLoading}
                         className="pt-2"
+                        selectedTestsetId={selectedTestsetId}
                     />
                 ) : (
                     requireAppMessage
@@ -195,6 +196,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         selectedTestsetId={selectedTestsetId}
                         setSelectedTestsetId={setSelectedTestsetId}
                         testSets={testSets}
+                        selectedVariantRevisionIds={selectedVariantRevisionIds}
                         className="pt-2"
                     />
                 ) : (

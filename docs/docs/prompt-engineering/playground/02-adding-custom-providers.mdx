@@ -16,6 +16,7 @@ You can integrate self-hosted models into Agenta by adding custom providers such
 
 - [Azure OpenAI](#configuring-azure-openai)
 - [AWS Bedrock](#configuring-aws-bedrock)
+- [Vertex AI](#configuring-vertex-ai)
 - [OpenAI-compatible endpoints](#configuring-openai-compatible-endpoints-eg-ollama) (including self-hosted models, OpenAI finetuned models, [Ollama](#configuring-openai-compatible-endpoints-eg-ollama), etc.)
 
 
@@ -48,6 +49,63 @@ You can add custom models to any of the providers already listed in the playgrou
 You can add multiple models to the same provider. This allows you to organize related models under a single provider configuration.
 :::
 
+## Configuring Vertex AI
+
+To add Vertex AI models, please provide:
+
+- **Vertex Project**: Your Google Cloud **project ID** (e.g., `my-project-123`)
+- **Vertex Location**: The **region** (e.g., `europe-west4`, `us-central1`)
+- **Vertex Credentials**: A **Service Account** key in **JSON** format
+
+### How to Retrieve Vertex Credentials
+
+Follow Google’s guides to authenticate and create a service account key:
+
+- Vertex AI authentication: [https://cloud.google.com/vertex-ai/docs/authentication](https://cloud.google.com/vertex-ai/docs/authentication)  
+- Create / manage service account keys: [https://cloud.google.com/iam/docs/keys-create-delete#iam-service-account-keys-create-console](https://cloud.google.com/iam/docs/keys-create-delete#iam-service-account-keys-create-console)
+
+**Steps to Retrieve Vertex Credentials in the Console**:
+
+1. In the Google Cloud console, go to **IAM & Admin → Service accounts**.  
+2. Select a **Project**.
+3. Click the email address of the service account that you want to create a key for.
+4. Click the **Keys** tab.
+5. Click the **Add key** drop-down menu, then select **Create new key**.
+6. Select **JSON** as the **Key type** and click **Create**.
+
+> Clicking **Create** downloads a service account key file. After you download the key file, you cannot download it again.
+
+### Configuration Example
+
+```plaintext
+Vertex project: my-project-123
+Vertex location: europe-west4
+Vertex credentials:
+{
+  "type": "service_account",
+  "project_id": "PROJECT_ID",
+  "private_key_id": "KEY_ID",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nPRIVATE_KEY\n-----END PRIVATE KEY-----\n",
+  "client_email": "SERVICE_ACCOUNT_EMAIL",
+  "client_id": "CLIENT_ID",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://accounts.google.com/o/oauth2/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/SERVICE_ACCOUNT_EMAIL"
+}
+```
+
+### Available models
+
+See the LiteLLM docs for an up-to-date list of models:
+
+- Vertex Gemini models: [https://docs.litellm.ai/docs/providers/vertex](https://docs.litellm.ai/docs/providers/vertex)  
+- Vertex partner models: [https://docs.litellm.ai/docs/providers/vertex_partner](https://docs.litellm.ai/docs/providers/vertex_partner)  
+- Vertex self-deployed models: [https://docs.litellm.ai/docs/providers/vertex_self_deployed](https://docs.litellm.ai/docs/providers/vertex_self_deployed)
+
+:::warning
+**Do not include** the `vertex_ai/` prefix in the **model name**. Use the bare model string (e.g., `gemini-2.5-pro`, `claude-3-5-sonnet@20240620`).
+:::
 
 ## Configuring Azure OpenAI
 

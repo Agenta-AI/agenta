@@ -137,7 +137,7 @@ const EvalRunPromptConfigViewer = () => {
                         variantId={variantRevisionId}
                         evaluation={enriched}
                         isComparison={compareRunIds?.length > 0}
-                        compareIndex={run.compareIndex || 1}
+                        colorIndex={run.colorIndex || (run.isBase ? 1 : undefined) || 1}
                         isFirstPrompt={idx === 0}
                         isMiddlePrompt={idx > 0 && idx < renderableRuns.length - 1}
                         isLastPrompt={idx === renderableRuns.length - 1}
