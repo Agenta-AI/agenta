@@ -1,4 +1,5 @@
-import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
+import dynamic from "next/dynamic"
+
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {TestSet, testset} from "@/oss/lib/Types"
@@ -7,7 +8,7 @@ import {useTestsetsData} from "@/oss/state/testset"
 import {urlAtom} from "@/oss/state/url"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 import {useQueryClient} from "@tanstack/react-query"
-import {Alert, Checkbox, Divider, Input, Menu, Table, Tooltip, Typography} from "antd"
+import {Checkbox, Divider, Input, Menu, Tooltip, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 import {useAtomValue} from "jotai"
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
@@ -15,6 +16,11 @@ import {useRouter} from "next/router"
 import clsx from "clsx"
 import {useTestsetInputsAnalysis} from "../../hooks/useTestsetInputsAnalysis"
 import {LoadTestsetModalContentProps} from "../types"
+import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
+
+const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
+    ssr: false,
+})
 
 const LoadTestsetModalContent = ({
     modalProps,
@@ -26,7 +32,7 @@ const LoadTestsetModalContent = ({
     isLoadingTestset,
     isChat,
 }: LoadTestsetModalContentProps) => {
-    const {testsets, columnsByTestsetId} = useTestsetsData({enabled: modalProps.open})
+    const {testsets, columnsByTestsetId, isLoading} = useTestsetsData({enabled: modalProps.open})
     const queryClient = useQueryClient()
     const router = useRouter()
 
@@ -196,6 +202,7 @@ const LoadTestsetModalContent = ({
     // Prefetch CSV data for the first N visible testsets to populate column cache
     useEffect(() => {
         if (!modalProps.open) return
+
         const BATCH = 8
         const list = (filteredTestset.length ? filteredTestset : testsets).slice(0, BATCH)
         list.forEach((ts: any) => {
@@ -258,10 +265,17 @@ const LoadTestsetModalContent = ({
     )
 
     const columnDef = useMemo(() => {
+        if (!testsetCsvData.length) {
+            return [
+                {title: "-", width: 300},
+                {title: "-", width: 300},
+            ]
+        }
+
         const columns: ColumnsType<TestSet["csvdata"]> = []
 
         if (testsetCsvData.length > 0) {
-            const keys = Object.keys(testsetCsvData[0])
+            const keys = Object.keys(testsetCsvData[0]).filter((key) => key !== "testcase_dedup_id")
 
             columns.push(
                 ...keys.map((key, index) => ({
@@ -298,7 +312,14 @@ const LoadTestsetModalContent = ({
         return columns
     }, [selectionWarningMessage, testsetCsvData])
 
+    const dataSource = useMemo(() => {
+        if (!testsetCsvData.length) return []
+        return testsetCsvData.map((data, index) => ({...data, id: index}))
+    }, [testsetCsvData])
+
     const menuItems = useMemo(() => {
+        if (!filteredTestset.length) return []
+
         const items = filteredTestset.map((ts: testset) => {
             const diagnostics = compatibilityByTestset[ts._id]
             const columnsKnown = diagnostics?.columnsKnown ?? false
@@ -318,7 +339,7 @@ const LoadTestsetModalContent = ({
                         <span
                             className={clsx(
                                 "flex items-center gap-2 transition-opacity",
-                                hasWarning && "opacity-70 text-gray-400",
+                                hasWarning && "opacity-70 text-gray-600",
                             )}
                         >
                             <span>{ts.name}</span>
@@ -361,7 +382,7 @@ const LoadTestsetModalContent = ({
 
     const menuSelectedKeys = selectedTestset ? [selectedTestset] : []
 
-    if (!testsets.length)
+    if (!testsets.length && !testsetCsvData.length && !isLoadingTestset && !isLoading)
         return (
             <NoResultsFound
                 primaryActionLabel="Create new testset"
@@ -393,21 +414,27 @@ const LoadTestsetModalContent = ({
 
             <div className="flex flex-col gap-4 flex-1 overflow-x-auto">
                 <div className="flex items-start justify-between gap-4">
-                    <Typography.Text className="text-lg font-medium">
+                    <Typography.Text className="text-lg font-medium -mt-1">
                         Select a testcase
                     </Typography.Text>
                 </div>
 
-                <Table
-                    rowSelection={{type: isChat ? "radio" : "checkbox", ...rowSelection}}
-                    loading={isLoadingTestset}
-                    dataSource={testsetCsvData.map((data, index) => ({...data, id: index}))}
+                <EnhancedTable
+                    uniqueKey="load-testset-playground"
+                    rowSelection={{
+                        type: isChat ? "radio" : "checkbox",
+                        ...rowSelection,
+                        columnWidth: 46,
+                    }}
+                    loading={isLoadingTestset || isLoading}
+                    dataSource={dataSource}
                     columns={columnDef}
                     className="flex-1"
                     bordered
                     rowKey={"id"}
                     pagination={false}
-                    scroll={{y: 500, x: "max-content"}}
+                    scroll={{y: 520, x: "max-content"}}
+                    virtualized
                     onRow={(_, rowIndex) => ({
                         className: "cursor-pointer",
                         title: selectionWarningMessage,

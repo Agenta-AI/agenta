@@ -244,6 +244,7 @@ const ConfigureEvaluator = ({
                                             {...field}
                                             key={field.key}
                                             traceTree={traceTree}
+                                            form={form}
                                             name={["settings_values", field.key]}
                                         />
                                     ))}

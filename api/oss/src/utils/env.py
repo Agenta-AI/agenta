@@ -89,6 +89,11 @@ class EnvironSettings(BaseModel):
         for e in (os.getenv("AGENTA_BLOCKED_DOMAINS") or "").split(",")
         if e.strip()
     }
+    AGENTA_ALLOWED_DOMAINS: set = {
+        e.strip().lower()
+        for e in (os.getenv("AGENTA_ALLOWED_DOMAINS") or "").split(",")
+        if e.strip()
+    }
 
     # AGENTA-SPECIFIC (INTERNAL INFRA)
     DOCKER_NETWORK_MODE: str = os.getenv("DOCKER_NETWORK_MODE") or "bridge"

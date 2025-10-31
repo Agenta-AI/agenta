@@ -238,7 +238,7 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
         [skeletonRowCount],
     )
     const data = useMemo(() => {
-        if (loading && (!dataSource || (Array.isArray(dataSource) && dataSource.length === 0))) {
+        if (loading) {
             return skeletonData
         }
         return dataSource

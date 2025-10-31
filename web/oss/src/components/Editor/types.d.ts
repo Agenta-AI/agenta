@@ -26,7 +26,7 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     singleLine?: boolean
     autoFocus?: boolean
     codeOnly?: boolean
-    language?: "json" | "yaml"
+    language?: "json" | "yaml" | "code"
     showToolbar?: boolean
     enableTokens?: boolean
     tokens?: string[]
@@ -58,7 +58,7 @@ export interface EditorPluginsProps {
     autoFocus?: boolean
     enableTokens: boolean
     debug: boolean
-    language?: "json" | "yaml"
+    language?: "json" | "yaml" | "code"
     placeholder?: string
     /** Initial text value for the editor */
     initialValue: string

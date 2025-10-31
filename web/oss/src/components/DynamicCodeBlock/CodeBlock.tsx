@@ -46,7 +46,16 @@ const theme: EditorThemeClasses = {
 }
 
 // Normalize language ids using Lexical's helper
-const normalizeShikiLang = (lang: string) => normalizeCodeLanguage((lang || "").toLowerCase())
+const LANGUAGE_FALLBACKS: Record<string, string> = {
+    code: "python",
+}
+
+const resolveLexicalLanguage = (language: string): string => {
+    const normalized = (language || "").toLowerCase()
+    const fallback = LANGUAGE_FALLBACKS[normalized] ?? normalized
+    const resolved = normalizeCodeLanguage(fallback)
+    return resolved || "plaintext"
+}
 
 const ShikiHighlightPlugin: FC<{langs: string[]; themeName: string}> = ({langs, themeName}) => {
     const [editor] = useLexicalComposerContext()
@@ -97,6 +106,8 @@ const InitializeContentPlugin: FC<{language: string; value: string}> = ({languag
 const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
     const classes = useStyles()
 
+    const lexicalLanguage = useMemo(() => resolveLexicalLanguage(language), [language])
+
     const editorConfig = useMemo(
         () => ({
             namespace: "AgentaCodeBlock",
@@ -109,7 +120,7 @@ const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
     )
 
     const shikiTheme = "github-light"
-    const shikiLang = useMemo(() => normalizeShikiLang(language), [language])
+    const shikiLang = lexicalLanguage
     const langs = useMemo(() => [shikiLang], [shikiLang])
 
     return (
@@ -120,7 +131,7 @@ const CodeBlock: FC<CodeBlockProps> = ({language, value}) => {
                     placeholder={null}
                     ErrorBoundary={LexicalErrorBoundary}
                 />
-                <InitializeContentPlugin language={shikiLang} value={value} />
+                <InitializeContentPlugin language={lexicalLanguage} value={value} />
                 <ShikiHighlightPlugin langs={langs} themeName={shikiTheme} />
             </LexicalComposer>
         </div>

@@ -1,11 +1,12 @@
+import {useCallback} from "react"
+
 import {InfoCircleOutlined} from "@ant-design/icons"
-import Editor from "@monaco-editor/react"
 import {theme, Form, Tooltip, InputNumber, Switch, Input, AutoComplete} from "antd"
-import {Rule} from "antd/es/form"
+import {FormInstance, Rule} from "antd/es/form"
 import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
-import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {isValidRegex} from "@/oss/lib/helpers/validators"
 import {generatePaths} from "@/oss/lib/transformers"
 import {EvaluationSettingsTemplate, JSSTheme} from "@/oss/lib/Types"
@@ -15,15 +16,24 @@ import {Messages} from "./Messages"
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
     name: string | string[]
     traceTree: Record<string, any>
+    form?: FormInstance<any>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    editor: {
-        border: `1px solid ${theme.colorBorder}`,
-        borderRadius: theme.borderRadius,
-        overflow: "hidden",
-        "& .monaco-editor": {
-            width: "0 !important",
+    codeEditor: {
+        "& .agenta-editor-wrapper": {
+            minHeight: 375,
+        },
+        "&.agenta-shared-editor": {
+            borderColor: theme.colorBorder,
+        },
+    },
+    objectEditor: {
+        "& .agenta-editor-wrapper": {
+            minHeight: 120,
+        },
+        "&.agenta-shared-editor": {
+            borderColor: theme.colorBorder,
         },
     },
     ExternalHelp: {
@@ -45,6 +55,41 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
+interface ControlledSharedEditorProps {
+    value?: unknown
+    onChange?: (value: string) => void
+    className?: string
+    language?: "json" | "yaml" | "code"
+}
+
+const ControlledSharedEditor = ({
+    value,
+    onChange,
+    className,
+    language,
+}: ControlledSharedEditorProps) => {
+    const handleValueChange = useCallback(
+        (next: string) => {
+            onChange?.(next)
+        },
+        [onChange],
+    )
+
+    return (
+        <SharedEditor
+            initialValue={value}
+            value={value as string}
+            handleChange={handleValueChange}
+            className={className}
+            syncWithInitialValueChanges
+            editorProps={{
+                codeOnly: true,
+                ...(language ? {language} : {}),
+            }}
+        />
+    )
+}
+
 export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     name,
     label,
@@ -55,10 +100,23 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     max,
     required,
     traceTree,
+    form,
 }) => {
-    const {appTheme} = useAppTheme()
+    const settingsValue = Form.useWatch(name, form)
+
     const classes = useStyles()
     const {token} = theme.useToken()
+
+    const handleValueChange = useCallback(
+        (next: string) => {
+            if (form) {
+                form.setFieldsValue({
+                    [name as string]: next,
+                })
+            }
+        },
+        [form, name],
+    )
 
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
     if (type === "regex")
@@ -100,7 +158,11 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                             )}
                         </div>
                     }
-                    initialValue={defaultVal}
+                    initialValue={
+                        type === "object" && defaultVal && typeof defaultVal === "object"
+                            ? JSON.stringify(defaultVal, null, 2)
+                            : defaultVal
+                    }
                     rules={rules}
                     hidden={type === "hidden"}
                 >
@@ -126,21 +188,18 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     ) : type === "text" ? (
                         <Input.TextArea rows={10} />
                     ) : type === "code" ? (
-                        <Editor
-                            className={classes.editor}
-                            height={375}
-                            width="100%"
-                            language="python"
-                            theme={`vs-${appTheme}`}
+                        <ControlledSharedEditor
+                            className={classes.codeEditor}
+                            value={settingsValue}
+                            onChange={handleValueChange}
+                            language="code"
                         />
                     ) : type === "object" ? (
-                        <Editor
-                            className={classes.editor}
-                            height={120}
-                            width="100%"
+                        <ControlledSharedEditor
+                            className={classes.objectEditor}
                             language="json"
-                            options={{lineNumbers: "off"}}
-                            theme={`vs-${appTheme}`}
+                            value={settingsValue}
+                            onChange={handleValueChange}
                         />
                     ) : null}
                 </Form.Item>
