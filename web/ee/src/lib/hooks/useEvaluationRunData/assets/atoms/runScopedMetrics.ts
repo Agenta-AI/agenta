@@ -9,6 +9,8 @@ import {slugify} from "@/oss/lib/utils/slugify"
 import {getJWT} from "@/oss/services/api"
 import {getProjectValues} from "@/oss/state/project"
 
+import type {EvaluationRunState} from "../../types"
+
 import {
     evaluationRunStateFamily,
     loadingStateFamily,
@@ -49,6 +51,26 @@ export function flattenMetrics(raw: Record<string, any>): Record<string, any> {
 // Deduplicate inflight requests per runId
 const inFlight = new Map<string, Promise<void>>()
 
+const buildAnnotationSlugMap = (state?: EvaluationRunState): Record<string, string> => {
+    if (!state?.runIndex?.steps) return {}
+
+    const map: Record<string, string> = {}
+    Object.values(state.runIndex.steps).forEach((meta: any) => {
+        const key = meta?.key
+        const slug = meta?.refs?.evaluator?.slug
+        if (
+            typeof key === "string" &&
+            key.startsWith("evaluator-") &&
+            typeof slug === "string" &&
+            slug.length
+        ) {
+            map[key] = slug
+        }
+    })
+
+    return map
+}
+
 const runFetchMetrics = async (
     store: any,
     runId: string,
@@ -57,11 +79,53 @@ const runFetchMetrics = async (
 ) => {
     if (inFlight.has(runId)) return inFlight.get(runId)! as Promise<void>
 
+    const existingMetrics = (() => {
+        try {
+            const value = store?.get ? store.get(runMetricsCacheFamily(runId)) : []
+            return Array.isArray(value) ? value : []
+        } catch {
+            return []
+        }
+    })()
+    const hasCachedMetrics = existingMetrics.length > 0
+
     const promise = (async () => {
         evalAtomStore().set(loadingStateFamily(runId), (draft) => {
-            draft.isLoadingMetrics = true
+            if (hasCachedMetrics) {
+                draft.isRefreshingMetrics = true
+            } else {
+                draft.isLoadingMetrics = true
+            }
         })
         try {
+            const state = store?.get ? store.get(evaluationRunStateFamily(runId)) : undefined
+
+            const annotationSlugMap = buildAnnotationSlugMap(state)
+
+            const effectiveEvaluatorSlugs =
+                evaluatorSlugs.length > 0
+                    ? evaluatorSlugs
+                    : (() => {
+                          if (!state?.enrichedRun?.evaluators) return []
+                          const list = Array.isArray(state.enrichedRun.evaluators)
+                              ? state.enrichedRun.evaluators
+                              : Object.values(state.enrichedRun.evaluators)
+                          return list
+                              .map((ev: any) => ev?.slug || ev?.id || ev?.name)
+                              .filter(Boolean) as string[]
+                      })()
+
+            const effectiveRevisionSlugs =
+                revisionSlugs.length > 0
+                    ? revisionSlugs
+                    : (() => {
+                          const revisions = state?.enrichedRun?.variants
+                          if (!Array.isArray(revisions)) return []
+                          return revisions
+                              .map((v: any) => slugify(v?.name, v?.id))
+                              .filter(Boolean) as string[]
+                      })()
+
             const apiUrl = getAgentaApiUrl()
             const jwt = await getJWT()
             const proj = getProjectValues() as any
@@ -80,8 +144,9 @@ const runFetchMetrics = async (
                 apiUrl,
                 jwt,
                 projectId,
-                evaluatorSlugs,
-                revisionSlugs,
+                evaluatorSlugs: effectiveEvaluatorSlugs,
+                revisionSlugs: effectiveRevisionSlugs,
+                annotationSlugMap,
             })
 
             const scenarioMetrics = Array.isArray(metrics) ? metrics : []
@@ -98,6 +163,7 @@ const runFetchMetrics = async (
             inFlight.delete(runId) // cleanup
             evalAtomStore().set(loadingStateFamily(runId), (draft) => {
                 draft.isLoadingMetrics = false
+                draft.isRefreshingMetrics = false
             })
         }
     })()
@@ -145,10 +211,7 @@ export const runMetricsFamily = atomFamily<string, Atom<any[]>>((runId: string) 
             const evaluatorSlugs = evaluatorsList.map((ev: any) => ev.slug || ev.id || ev.name)
 
             const revisions = state?.enrichedRun?.variants
-            const revisionSlugs = revisions
-                ? revisions.map((v: any) => slugify(v.name, v.id))
-                : // ? revisions.map((v: any) => slugify("comp-1", v.id))
-                  []
+            const revisionSlugs = revisions ? revisions.map((v: any) => slugify(v.name, v.id)) : []
 
             const p = runFetchMetrics(evalAtomStore(), runId, evaluatorSlugs, revisionSlugs)
             inFlight.set(runId, p)
@@ -333,6 +396,7 @@ export const scenarioMetricValueFamily = atomFamily(
                     }
 
                     push(base)
+
                     const slug = stepSlug || base.split(".")[0]
                     const withoutSlug =
                         slug && base.startsWith(`${slug}.`) ? base.slice(slug.length + 1) : base
@@ -341,10 +405,14 @@ export const scenarioMetricValueFamily = atomFamily(
                         push(`${slug}.${withoutSlug}`)
                         push(`${slug}.attributes.ag.data.outputs.${withoutSlug}`)
                         push(`${slug}.attributes.ag.metrics.${withoutSlug}`)
+                        push(`attributes.ag.data.outputs.${slug}.${withoutSlug}`)
+                        push(`attributes.ag.metrics.${slug}.${withoutSlug}`)
                     }
 
                     push(`attributes.ag.data.outputs.${withoutSlug}`)
                     push(`attributes.ag.metrics.${withoutSlug}`)
+                    push(`attributes.ag.data.outputs.${base}`)
+                    push(`attributes.ag.metrics.${base}`)
 
                     return candidates
                 }

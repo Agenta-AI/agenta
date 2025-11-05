@@ -37,7 +37,7 @@ services:
         volumes:
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
-            # - ../../../sdk:/sdk
+            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -84,7 +84,7 @@ services:
         volumes:
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
-            # - ../../../sdk:/sdk
+            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -111,7 +111,7 @@ services:
         volumes:
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
-            # - ../../../sdk:/sdk
+            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}

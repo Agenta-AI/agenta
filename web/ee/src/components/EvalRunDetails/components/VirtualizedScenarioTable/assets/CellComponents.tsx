@@ -1,30 +1,27 @@
-import {HTMLProps, memo, useMemo} from "react"
+import {HTMLProps, ReactNode, memo, useMemo} from "react"
 
 import {ArrowsOut} from "@phosphor-icons/react"
 import {Skeleton} from "antd"
 import clsx from "clsx"
-import {atom, useAtomValue} from "jotai"
-import {loadable} from "jotai/utils"
-import JSON5 from "json5"
+import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import TooltipButton from "@/oss/components/Playground/assets/EnhancedButton"
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {useOptionalRunId, useRunId} from "@/oss/contexts/RunIdContext"
-import {scenarioStepFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
 import {resolvePath} from "@/oss/lib/workers/evalRunner/pureEnrichment"
 import {useAppNavigation, useAppState} from "@/oss/state/appState"
 
-import {evalAtomStore} from "../../../../../lib/hooks/useEvaluationRunData/assets/atoms/store"
+import {
+    hasScenarioStepData,
+    useScenarioStepSnapshot,
+} from "../../../../../lib/hooks/useEvaluationRunData/useScenarioStepSnapshot"
 import {renderChatMessages} from "../../../assets/renderChatMessages"
 import {evalTypeAtom} from "../../../state/evalType"
 import {TableRow} from "../types"
 
-const SharedEditor = dynamic(() => import("@/oss/components/Playground/Components/SharedEditor"), {
-    ssr: false,
-    loading: () => <div className="w-full min-h-[70px]" />,
-})
+import {titleCase} from "./flatDataSourceBuilder"
 const GenerationResultUtils = dynamic(
     () =>
         import(
@@ -32,27 +29,216 @@ const GenerationResultUtils = dynamic(
         ),
     {ssr: false, loading: () => <div className="h-[24.4px] w-full" />},
 )
-const StatusCell = dynamic(() => import("./StatusCell"), {
-    ssr: false,
-    loading: () => <div className="h-[24.4px] w-[30px]" />,
-})
+const WRAPPER_KEYS = new Set([
+    "inputs",
+    "input",
+    "data",
+    "result",
+    "attribute",
+    "attributes",
+    "payload",
+    "request",
+    "requestBody",
+    "body",
+    "value",
+])
 
-export const CellWrapper = memo(({children, className}: HTMLProps<HTMLDivElement>) => {
-    return (
-        <div
-            className={clsx([
-                "w-full h-full",
-                "flex items-start",
-                "bg-inherit",
-                "overflow-hidden",
-                "group",
-                className,
-            ])}
-        >
-            {children}
-        </div>
-    )
-})
+const tryParseJson = (value: any) => {
+    if (typeof value !== "string") return value
+    try {
+        return JSON.parse(value)
+    } catch {
+        return value
+    }
+}
+
+const unwrapForDisplay = (value: any, preferredKeys: string[] = []): any => {
+    if (value == null) return value
+    const normalized = tryParseJson(value)
+    if (normalized !== value) return unwrapForDisplay(normalized, preferredKeys)
+    if (Array.isArray(value)) return value
+    if (typeof value !== "object") return value
+    if (Array.isArray(value)) return value
+    if (typeof value !== "object") return value
+
+    for (const key of preferredKeys) {
+        if (value && Object.prototype.hasOwnProperty.call(value, key)) {
+            return unwrapForDisplay(value[key], preferredKeys)
+        }
+    }
+
+    const entries = Object.entries(value ?? {})
+    if (entries.length === 1) {
+        const [key, nested] = entries[0]
+        if (WRAPPER_KEYS.has(key)) {
+            return unwrapForDisplay(nested, preferredKeys)
+        }
+    }
+    return value
+}
+
+const formatPrimitiveValue = (value: any): string => {
+    if (value == null) return ""
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    if (Array.isArray(value)) {
+        return value
+            .map((item) => formatPrimitiveValue(unwrapForDisplay(item)))
+            .filter(Boolean)
+            .join("\n")
+    }
+    if (typeof value === "object") {
+        return Object.entries(value)
+            .map(([key, nested]) => {
+                const formatted = formatPrimitiveValue(unwrapForDisplay(nested))
+                if (!formatted) return ""
+                return `${titleCase(key)}: ${formatted}`
+            })
+            .filter(Boolean)
+            .join("\n")
+    }
+    return String(value)
+}
+
+const stringifyOnlineValue = (value: any, depth = 0): string => {
+    const unwrapped = unwrapForDisplay(value)
+    if (unwrapped == null) return ""
+    if (typeof unwrapped === "string") return unwrapped
+    if (typeof unwrapped === "number" || typeof unwrapped === "boolean") return String(unwrapped)
+    if (Array.isArray(unwrapped)) {
+        return unwrapped
+            .map((item) => stringifyOnlineValue(item, depth))
+            .filter(Boolean)
+            .join(depth === 0 ? "\n" : ", ")
+    }
+    if (typeof unwrapped === "object") {
+        const entries = Object.entries(unwrapped)
+        if (!entries.length) return ""
+        return entries
+            .map(([key, nested]) => {
+                const rendered = stringifyOnlineValue(nested, depth + 1)
+                if (!rendered) return ""
+                return depth === 0 ? rendered : `${titleCase(key)}: ${rendered}`
+            })
+            .filter(Boolean)
+            .join(depth === 0 ? "\n" : ", ")
+    }
+    return String(unwrapped)
+}
+
+const isChatMessage = (entry: any) =>
+    entry && typeof entry === "object" && "role" in entry && "content" in entry
+
+const buildOnlineInputItems = (
+    value: any,
+): {label?: string; value?: string; chat?: ReactNode[]}[] => {
+    const unwrapped = unwrapForDisplay(value, ["inputs", "input", "data", "requestBody", "body"])
+    if (unwrapped == null) return []
+    if (Array.isArray(unwrapped) && unwrapped.every(isChatMessage)) {
+        return [
+            {
+                label: "Messages",
+                chat: renderChatMessages({
+                    keyPrefix: "input",
+                    rawJson: JSON.stringify(unwrapped),
+                    view: "table",
+                }),
+            },
+        ]
+    }
+    if (typeof unwrapped !== "object" || Array.isArray(unwrapped)) {
+        const valueStr = stringifyOnlineValue(unwrapped, 0)
+        return valueStr ? [{value: valueStr}] : []
+    }
+
+    return Object.entries(unwrapped)
+        .map(([key, nested]) => {
+            if (isChatMessage(nested)) {
+                return {
+                    label: titleCase(key),
+                    chat: renderChatMessages({
+                        keyPrefix: `input-${key}`,
+                        rawJson: JSON.stringify([nested]),
+                        view: "table",
+                    }),
+                }
+            }
+            if (Array.isArray(nested) && nested.every(isChatMessage)) {
+                return {
+                    label: titleCase(key),
+                    chat: renderChatMessages({
+                        keyPrefix: `input-${key}`,
+                        rawJson: JSON.stringify(nested),
+                        view: "table",
+                    }),
+                }
+            }
+            const rendered = stringifyOnlineValue(nested, 0)
+            if (!rendered) return null
+            const label = titleCase(key)
+            const sanitized = rendered.startsWith(`${label}: `)
+                ? rendered.slice(label.length + 2)
+                : rendered
+            return {label, value: sanitized}
+        })
+        .filter(Boolean) as {label?: string; value?: string; chat?: ReactNode[]}[]
+}
+
+const buildOnlineOutput = (
+    rawValue: any,
+    fallback: any,
+    keyPrefix: string,
+): {text?: string; chat?: ReactNode[]} => {
+    const candidates = [rawValue, fallback]
+    for (const candidate of candidates) {
+        if (candidate == null) continue
+        const parsed = unwrapForDisplay(candidate, ["outputs", "output", "response", "text"])
+        if (Array.isArray(parsed) && parsed.every(isChatMessage)) {
+            return {
+                chat: renderChatMessages({
+                    keyPrefix,
+                    rawJson: JSON.stringify(parsed),
+                    view: "table",
+                }),
+            }
+        }
+        if (parsed && typeof parsed === "object" && isChatMessage(parsed)) {
+            return {
+                chat: renderChatMessages({
+                    keyPrefix,
+                    rawJson: JSON.stringify([parsed]),
+                    view: "table",
+                }),
+            }
+        }
+        const formatted = formatPrimitiveValue(parsed)
+        if (formatted) {
+            return {text: formatted}
+        }
+    }
+    return {text: formatPrimitiveValue(fallback)}
+}
+
+export const CellWrapper = memo(
+    ({children, className, style, ...rest}: HTMLProps<HTMLDivElement>) => {
+        return (
+            <div
+                className={clsx([
+                    "w-full h-full",
+                    "flex items-start",
+                    "bg-inherit",
+                    "overflow-hidden",
+                    "group",
+                    className,
+                ])}
+                style={style}
+                {...rest}
+            >
+                {children}
+            </div>
+        )
+    },
+)
 
 export const InputCell = memo(
     ({
@@ -70,34 +256,21 @@ export const InputCell = memo(
         disableExpand?: boolean
         runId?: string
     }) => {
+        const evalType = useAtomValue(evalTypeAtom)
+
         // Use effective runId with proper fallback logic
         const contextRunId = useRunId()
-        const effectiveRunId = useMemo(() => {
-            if (runId) return runId
-            if (contextRunId) return contextRunId
-            // No fallback to getCurrentRunId() - component should not render without valid runId
-            return null
-        }, [runId, contextRunId])
+        const effectiveRunId = useMemo(() => runId ?? contextRunId ?? null, [runId, contextRunId])
 
-        // Use global store for multi-run support like InvocationInputs
-        // Only access atoms if we have a valid runId
-        const stepLoadable = useAtomValue(
-            effectiveRunId
-                ? loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId}))
-                : atom({state: "loading" as const}),
-        )
-        if (stepLoadable.state !== "hasData" || !stepLoadable.data)
-            return (
-                <CellWrapper>
-                    <span className="text-gray-400">—</span>
-                </CellWrapper>
-            )
-        const enrichedArr = stepLoadable.data?.inputSteps ?? []
+        const {data: stepData} = useScenarioStepSnapshot(scenarioId, effectiveRunId)
+        const hasStepData = hasScenarioStepData(stepData)
+        const enrichedArr = hasStepData ? (stepData?.inputSteps ?? []) : []
         let targetStep = stepKey ? enrichedArr.find((s) => s.stepKey === stepKey) : undefined
-        if (!targetStep) targetStep = stepLoadable.data?.inputStep ?? enrichedArr[0]
+        if (!targetStep) targetStep = enrichedArr[0]
+        const invocationStep = hasStepData ? stepData?.invocationSteps?.[0] : undefined
 
         let val: any
-        if (targetStep && (targetStep as any).inputs) {
+        if (hasStepData && targetStep && (targetStep as any).inputs) {
             let _inputs = {}
             try {
                 const {testcase_dedup_id, ...rest} = targetStep.testcase.data
@@ -112,6 +285,19 @@ export const InputCell = memo(
             const merged = {...groundTruth, ...inputs}
             const path = inputKey.startsWith("data.") ? inputKey.slice(5) : inputKey
             val = resolvePath(merged, path)
+        }
+
+        if (val === undefined && hasStepData && invocationStep) {
+            const evResult =
+                resolvePath(invocationStep?.inputs, inputKey) ??
+                resolvePath(invocationStep?.data, inputKey) ??
+                resolvePath(invocationStep?.result, inputKey)
+            if (evResult !== undefined) val = evResult
+        }
+
+        if (val === undefined && invocationStep?.trace) {
+            const tryTrace = resolvePath(invocationStep.trace, inputKey)
+            if (tryTrace !== undefined) val = tryTrace
         }
 
         // Use shared util for complex chat messages, otherwise primitive display
@@ -134,12 +320,50 @@ export const InputCell = memo(
             })
         }
 
+        const isOnlineEval = evalType === "online"
+        const onlineInputItems = useMemo(() => {
+            if (!hasStepData || !isOnlineEval || reactNodes) return []
+
+            const candidateValues: any[] = [val]
+            if (invocationStep) {
+                candidateValues.push(
+                    invocationStep?.trace?.data?.inputs,
+                    invocationStep?.trace?.data?.inputs?.inputs,
+                    invocationStep?.trace?.inputs,
+                    invocationStep?.inputs,
+                    invocationStep?.data?.inputs,
+                    invocationStep?.data,
+                )
+            }
+            if (targetStep) {
+                candidateValues.push((targetStep as any).inputs, (targetStep as any).groundTruth)
+            }
+
+            for (const candidate of candidateValues) {
+                if (!candidate) continue
+                const items = buildOnlineInputItems(candidate)
+                if (items.length) return items
+            }
+
+            return []
+        }, [hasStepData, isOnlineEval, reactNodes, val, invocationStep, targetStep])
+        const showOnlineLabels = showEditor !== false
+
+        if (!hasStepData) {
+            return (
+                <CellWrapper>
+                    <span className="text-gray-400">—</span>
+                </CellWrapper>
+            )
+        }
+
         return (
             <CellWrapper>
                 <Expandable
                     disableExpand={disableExpand}
                     expandKey={scenarioId}
                     className={clsx([
+                        "bg-transparent [&_.cell-expand-container]:!bg-transparent",
                         "[&_.agenta-shared-editor]:hover:!border-transparent",
                         {
                             "[&_.agenta-shared-editor]:p-0": !reactNodes,
@@ -148,10 +372,35 @@ export const InputCell = memo(
                 >
                     {reactNodes ? (
                         <div className="flex flex-col gap-2 w-full">{reactNodes}</div>
+                    ) : isOnlineEval ? (
+                        onlineInputItems.length ? (
+                            <div className="flex flex-col gap-2 w-full leading-5 text-gray-700">
+                                {onlineInputItems.map((item, index) => (
+                                    <div
+                                        key={`${scenarioId}-${inputKey}-${index}`}
+                                        className="flex flex-col gap-0.5 whitespace-pre-line"
+                                    >
+                                        {showOnlineLabels && item.label ? (
+                                            <span className="font-medium text-gray-500">
+                                                {item.label}
+                                            </span>
+                                        ) : null}
+                                        {item.chat ? (
+                                            <div className="flex flex-col gap-2">{item.chat}</div>
+                                        ) : (
+                                            <span>{item.value}</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <span className="text-gray-400">N/A</span>
+                        )
                     ) : val != null && val !== "" && !showEditor ? (
                         <div>{String(val)}</div>
                     ) : val != null && val !== "" ? (
                         <SharedEditor
+                            className="!bg-transparent !border-none !shadow-none"
                             handleChange={() => {}}
                             initialValue={String(val)}
                             editorType="borderless"
@@ -163,6 +412,251 @@ export const InputCell = memo(
                     ) : (
                         <span>N/A</span>
                     )}
+                </Expandable>
+            </CellWrapper>
+        )
+    },
+)
+
+export const InputSummaryCell = memo(
+    ({scenarioId, runId}: {scenarioId: string; runId?: string}) => {
+        const contextRunId = useRunId()
+        const evalType = useAtomValue(evalTypeAtom)
+        const effectiveRunId = useMemo(() => runId ?? contextRunId ?? null, [runId, contextRunId])
+
+        const {data: stepData} = useScenarioStepSnapshot(scenarioId, effectiveRunId)
+
+        if (!hasScenarioStepData(stepData)) {
+            return (
+                <CellWrapper>
+                    <span className="text-gray-400">—</span>
+                </CellWrapper>
+            )
+        }
+
+        const inputSteps = stepData?.inputSteps ?? []
+
+        const combined = new Map<string, any>()
+        const structured: Record<string, any> = {}
+
+        const deepMerge = (target: Record<string, any>, source?: Record<string, any>) => {
+            if (!source || typeof source !== "object") return target
+            Object.entries(source).forEach(([key, rawValue]) => {
+                const parsed = tryParseJson(rawValue)
+                const value = parsed
+                if (value && typeof value === "object" && !Array.isArray(value)) {
+                    target[key] = deepMerge((target[key] ||= {}), value as Record<string, any>)
+                } else {
+                    target[key] = value
+                }
+            })
+            return target
+        }
+
+        const flattenInto = (value: any, path: string[] = []) => {
+            if (value == null) return
+            const parsed = tryParseJson(value)
+            if (parsed !== value) {
+                flattenInto(parsed, path)
+                return
+            }
+            if (Array.isArray(value)) {
+                const keyPath = path.join(".")
+                if (
+                    value.length &&
+                    value.every(
+                        (entry) =>
+                            entry &&
+                            typeof entry === "object" &&
+                            "role" in entry &&
+                            "content" in entry,
+                    )
+                ) {
+                    if (!combined.has(keyPath || "messages")) {
+                        combined.set(keyPath || "messages", value)
+                    }
+                    return
+                }
+
+                if (value.length && value.every((entry) => typeof entry !== "object")) {
+                    const joined = value.map((entry) => String(entry)).join(", ")
+                    if (keyPath && !combined.has(keyPath)) {
+                        combined.set(keyPath, joined)
+                    }
+                    return
+                }
+
+                value.forEach((entry, index) => flattenInto(entry, [...path, String(index)]))
+                return
+            }
+            if (typeof value === "object") {
+                Object.entries(value).forEach(([key, nested]) => {
+                    flattenInto(nested, [...path, key])
+                })
+                return
+            }
+            if (!path.length) return
+            const keyPath = path.join(".")
+            if (!combined.has(keyPath)) {
+                combined.set(keyPath, value)
+            }
+        }
+
+        const mergeCandidate = (source?: Record<string, any>) => {
+            if (!source || typeof source !== "object") return
+            flattenInto(source)
+            deepMerge(structured, source)
+        }
+
+        inputSteps.forEach((step: any) => {
+            mergeCandidate(step?.groundTruth)
+            mergeCandidate(step?.inputs)
+            try {
+                const {testcase_dedup_id, ...rest} = step?.testcase?.data ?? {}
+                mergeCandidate(rest)
+            } catch {
+                /* ignore */
+            }
+        })
+
+        const invocationStep = stepData?.invocationSteps?.[0]
+
+        if (invocationStep) {
+            mergeCandidate(invocationStep?.inputs)
+            const invocationParams = invocationStep?.invocationParameters
+            if (invocationParams && typeof invocationParams === "object") {
+                Object.values(invocationParams).forEach((param: any) => {
+                    mergeCandidate(param?.requestBody?.inputs)
+                    mergeCandidate(param?.inputs)
+                    mergeCandidate(param?.agConfig?.inputs)
+                })
+            }
+
+            const collectTraceInputs = (node: any) => {
+                if (!node || typeof node !== "object") return
+                if (node.inputs && typeof node.inputs === "object") mergeCandidate(node.inputs)
+                if (node.data && typeof node.data === "object") {
+                    if (node.data.inputs && typeof node.data.inputs === "object") {
+                        mergeCandidate(node.data.inputs)
+                    }
+                }
+                const children = ([] as any[])
+                    .concat(node?.nodes || [])
+                    .concat(node?.children || [])
+                    .concat(node?.events || [])
+                children.forEach(collectTraceInputs)
+            }
+
+            if (invocationStep?.trace) {
+                collectTraceInputs(invocationStep.trace)
+                if (invocationStep.trace?.tree) collectTraceInputs(invocationStep.trace.tree)
+            }
+        }
+
+        if (!combined.size) {
+            return (
+                <CellWrapper>
+                    <span className="text-gray-400">—</span>
+                </CellWrapper>
+            )
+        }
+
+        const buildOnlineItems = () => {
+            const items: {label: string; value?: string; chat?: ReactNode[]}[] = []
+            for (const [path, value] of combined.entries()) {
+                const segments = path.split(".").filter(Boolean)
+                while (segments.length && WRAPPER_KEYS.has(segments[0])) {
+                    segments.shift()
+                }
+                if (!segments.length) continue
+                const label = titleCase(segments[segments.length - 1])
+
+                if (Array.isArray(value) && value.every(isChatMessage)) {
+                    const nodes = renderChatMessages({
+                        keyPrefix: `${scenarioId}-${label}`,
+                        rawJson: JSON.stringify(value),
+                        view: "table",
+                    })
+                    items.push({label, chat: nodes})
+                    continue
+                }
+
+                if (isChatMessage(value)) {
+                    const nodes = renderChatMessages({
+                        keyPrefix: `${scenarioId}-${label}`,
+                        rawJson: JSON.stringify([value]),
+                        view: "table",
+                    })
+                    items.push({label, chat: nodes})
+                    continue
+                }
+
+                const rendered = stringifyOnlineValue(value, 0)
+                if (!rendered) continue
+                const sanitized = rendered.startsWith(`${label}: `)
+                    ? rendered.slice(label.length + 2)
+                    : rendered
+                items.push({label, value: sanitized})
+            }
+            return items
+        }
+
+        if (evalType === "online") {
+            const items = buildOnlineItems()
+            if (!items.length) {
+                return (
+                    <CellWrapper>
+                        <span className="text-gray-400">—</span>
+                    </CellWrapper>
+                )
+            }
+
+            return (
+                <CellWrapper>
+                    <Expandable
+                        expandKey={`${scenarioId}-inputs-summary`}
+                        className="[&_.agenta-shared-editor]:hover:!border-transparent [&_.agenta-shared-editor]:!p-0"
+                    >
+                        <div className="flex flex-col gap-2 w-full leading-5 text-gray-700 whitespace-pre-line">
+                            {items.map(({label, value, chat}) => (
+                                <div key={`${scenarioId}-${label}`} className="flex flex-col gap-1">
+                                    <span className="font-semibold text-gray-500">{label}</span>
+                                    {chat ? (
+                                        <div className="flex flex-col gap-2">{chat}</div>
+                                    ) : (
+                                        <span>{value}</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </Expandable>
+                </CellWrapper>
+            )
+        }
+
+        const serialized = (() => {
+            try {
+                return JSON.stringify(structured, null, 2)
+            } catch {
+                return String(structured)
+            }
+        })()
+
+        return (
+            <CellWrapper>
+                <Expandable
+                    expandKey={`${scenarioId}-inputs-summary`}
+                    className="[&_.agenta-shared-editor]:hover:!border-transparent [&_.agenta-shared-editor]:!p-0"
+                >
+                    <SharedEditor
+                        className="!bg-transparent !border-none !shadow-none"
+                        handleChange={() => {}}
+                        initialValue={serialized}
+                        editorType="borderless"
+                        disabled
+                        editorClassName="!text-xs"
+                        editorProps={{enableResize: true}}
+                    />
                 </Expandable>
             </CellWrapper>
         )
@@ -192,16 +686,17 @@ export const InvocationResultCell = memo(
         runId?: string // Optional for multi-run support
         record?: TableRow
     }) => {
-        const {trace, value, messageNodes, hasError} = useInvocationResult({
+        const evalType = useAtomValue(evalTypeAtom)
+        const {trace, value, rawValue, messageNodes, hasError} = useInvocationResult({
             scenarioId,
             stepKey,
             runId,
             viewType: "table",
         })
-        const evalType = useAtomValue(evalTypeAtom)
         const navigation = useAppNavigation()
         const appState = useAppState()
         const contextRunId = useOptionalRunId()
+        const enableFocusDrawer = evalType === "auto" || evalType === "online"
 
         const handleOpenFocus = () => {
             const targetRunId = runId ?? contextRunId ?? null
@@ -232,9 +727,39 @@ export const InvocationResultCell = memo(
             }
         }
 
+        const isOnlineEval = evalType === "online"
+        const onlineOutput = useMemo(() => {
+            if (!isOnlineEval) return {text: undefined, chat: undefined}
+            if (messageNodes) return {text: undefined, chat: messageNodes}
+            return buildOnlineOutput(rawValue, value, `${scenarioId}-output`)
+        }, [isOnlineEval, messageNodes, rawValue, value, scenarioId])
+
+        const formattedPrimitive = useMemo(() => {
+            if (value === null || value === undefined) return ""
+            if (typeof value === "string") {
+                try {
+                    const parsed = JSON.parse(value)
+                    if (parsed && typeof parsed === "object") {
+                        return JSON.stringify(parsed, null, 2)
+                    }
+                } catch {
+                    /* ignore parse errors */
+                }
+                return value
+            }
+            if (typeof value === "object") {
+                try {
+                    return JSON.stringify(value, null, 2)
+                } catch {
+                    return String(value)
+                }
+            }
+            return String(value)
+        }, [value])
+
         return (
             <CellWrapper className="flex flex-col !items-start justify-between gap-2 text-wrap">
-                {!isSkeleton && evalType === "auto" ? (
+                {!isSkeleton && enableFocusDrawer ? (
                     <TooltipButton
                         icon={<ArrowsOut size={14} className="ml-[1px] mt-[1px]" />}
                         size="small"
@@ -249,69 +774,82 @@ export const InvocationResultCell = memo(
                         <div className="h-[24.4px] w-full" />
                     </>
                 ) : messageNodes ? (
-                    <Expandable
-                        className="[&_.agenta-shared-editor]:hover:!border-transparent"
-                        expandKey={scenarioId}
-                        buttonProps={{
-                            className: evalType === "auto" ? "!right-7" : "top-0",
-                        }}
-                    >
-                        <div className="flex flex-col gap-2 w-full">{messageNodes}</div>
-                    </Expandable>
+                    <>
+                        {/* <ScenarioTraceSummary
+                            scenarioId={scenarioId}
+                            stepKey={summaryStepKey}
+                            runId={runId}
+                            trace={trace}
+                            status={status}
+                            className="w-full"
+                        /> */}
+                        <Expandable
+                            className="[&_.agenta-shared-editor]:hover:!border-transparent"
+                            expandKey={scenarioId}
+                            buttonProps={{
+                                className: enableFocusDrawer ? "!right-7" : "top-0",
+                            }}
+                        >
+                            <div className="flex flex-col gap-2 w-full">{messageNodes}</div>
+                        </Expandable>
+                    </>
+                ) : onlineOutput.chat?.length ? (
+                    <>
+                        <Expandable
+                            className="[&_.agenta-shared-editor]:hover:!border-transparent [&_.agenta-shared-editor]:!p-0"
+                            expandKey={scenarioId}
+                            buttonProps={{
+                                className: enableFocusDrawer ? "!right-7" : "top-0",
+                            }}
+                        >
+                            <div className="flex flex-col gap-2 w-full">{onlineOutput.chat}</div>
+                        </Expandable>
+                    </>
+                ) : onlineOutput.text ? (
+                    <>
+                        <Expandable
+                            className="[&_.agenta-shared-editor]:hover:!border-transparent [&_.agenta-shared-editor]:!p-0"
+                            expandKey={scenarioId}
+                            buttonProps={{
+                                className: enableFocusDrawer ? "!right-7" : "top-0",
+                            }}
+                        >
+                            <div className="w-full h-max whitespace-pre-line text-gray-700">
+                                {onlineOutput.text}
+                            </div>
+                        </Expandable>
+                    </>
                 ) : (
-                    <Expandable
-                        className="[&_.agenta-shared-editor]:hover:!border-transparent [&_.agenta-shared-editor]:!p-0"
-                        expandKey={scenarioId}
-                        buttonProps={{
-                            className: evalType === "auto" ? "!right-7" : "top-0",
-                        }}
-                    >
-                        <div className="w-full h-max">
-                            {value ? (
-                                <SharedEditor
-                                    key={trace?.id || "no-response-cell"}
-                                    handleChange={() => {}}
-                                    initialValue={(() => {
-                                        if (typeof value === "string") {
-                                            try {
-                                                const parsed = JSON5.parse(value)
-                                                return JSON.stringify(parsed, null, 2)
-                                            } catch {
-                                                return value
-                                            }
-                                        }
-                                        if (value && typeof value === "object") {
-                                            try {
-                                                return JSON.stringify(value, null, 2)
-                                            } catch {
-                                                return String(value)
-                                            }
-                                        }
-                                        return String(value)
-                                    })()}
-                                    editorProps={{
-                                        codeOnly: (() => {
-                                            if (typeof value === "string") {
-                                                try {
-                                                    const parsed = JSON5.parse(value)
-                                                    return Boolean(
-                                                        parsed && typeof parsed === "object",
-                                                    )
-                                                } catch {
-                                                    return false
-                                                }
-                                            }
-                                            return !!value && typeof value !== "string"
-                                        })(),
-                                    }}
-                                    editorType="borderless"
-                                    disabled
-                                    editorClassName="!text-xs"
-                                    error={hasError}
-                                />
-                            ) : null}
-                        </div>
-                    </Expandable>
+                    <>
+                        {/* <ScenarioTraceSummary
+                            scenarioId={scenarioId}
+                            stepKey={summaryStepKey}
+                            runId={runId}
+                            trace={trace}
+                            status={status}
+                            className="w-full"
+                        /> */}
+                        <Expandable
+                            className="[&_.agenta-shared-editor]:hover:!border-transparent [&_.agenta-shared-editor]:!p-0"
+                            expandKey={scenarioId}
+                            buttonProps={{
+                                className: enableFocusDrawer ? "!right-7" : "top-0",
+                            }}
+                        >
+                            <div className="w-full h-max">
+                                {formattedPrimitive ? (
+                                    <pre
+                                        className={clsx(
+                                            "whitespace-pre-wrap break-words text-xs",
+                                            hasError ? "text-red-500" : "text-gray-700",
+                                        )}
+                                    >
+                                        {formattedPrimitive}
+                                    </pre>
+                                ) : null}
+                            </div>
+                        </Expandable>
+                    </>
                 )}
                 {trace ? (
                     <div className="flex gap-2">
@@ -325,7 +863,7 @@ export const InvocationResultCell = memo(
                                 },
                             }}
                         />
-                        <StatusCell scenarioId={scenarioId} result={record?.result} runId={runId} />
+                        {/* <StatusCell scenarioId={scenarioId} result={record?.result} runId={runId} /> */}
                     </div>
                 ) : (
                     <div className="h-[24.4px] w-full" />

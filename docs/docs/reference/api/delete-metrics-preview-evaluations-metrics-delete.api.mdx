@@ -1,0 +1,71 @@
+---
+id: delete-metrics-preview-evaluations-metrics-delete
+title: "Delete Metrics"
+description: "Delete Metrics"
+sidebar_label: "Delete Metrics"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1lVFP2zAQx79Kdc8uKQXKlqd1oxIVTEPA9lJV6OpcWrMkDrbD1lX57tPZoUkpMAlpfUhj++7s+93flw04XFqIZzB5xKxCp3RhYS5Al2T8aJpADAll5OguJ2eUtHeloUdFv+6o9dmu3QVbEGDooSLrPutkDfEGpC4cFY5fsSwzJb1jdG91wXNWrihHfisNb+4UWR49xVWJHypHuX9x65IgBuuMKpYgINUmRwcxVJVKoBZPBmgMrkGAUy7j8dcQrzdNLNStmV7ck3TNqZWhhJl09563IVpUTbBpYq9DslBzzDaGMxX5CVvqwoaMhoMB/yVkpVElh4EYbiopydq0ynrXjTGI9zKTugpOTXKqcLQk06HwxVsISCjFKnMQD2rxX1F3tprNX+L+NtyGSO3xHg+H+wB/YKYS79ebGKPN++kl5FBlOwR2DTItd1axWH9LIZ49J1WLvQrU89dxXepwQCaa2+VL5Fuy1uKSWvavm3oYvVte/ZfcOa+wdWPX0XyLN9B9PY2zgO+tGp/f3l7tBQy13S3qme8lvUYJ4CW60m1HAgEluhXEEDU9Ker0pKgRdAQCLJlHMtZXqTIZxLByrrRxFMlMV8kBLqlweIAqwlJBPWcPWRnl1t5lfDW9oPU5YULGK7hjcMM6CsrYNdsWBUt1QcyowJzH48qttFF/QrkFKM51FbwYAiv0uu2ek9+YlxntdcMZHKX44SQdHfdPTg9P+8cno2F/cZTK/lB+HB2loxGmOAKWnCpS7Q/UVGDs0+2Nr6YggMEE3oODw4MBPK/CjjFfKpT+Uj1l45dBPOO6JQoCKPc3Chxh/qld4FxLbV2ORSfeXtF3TrOF6ui3i8oMlb8wfu9No4YZNGrgrTvftW2LAwEs7pW23I9gs1mgpe8mq2uefqjIcNnnAh7RKFwwshljXD0JYAM/ae37qG8xfX+/2DyrQsGftRtuBcFjLCWV7k3beUfnZ5PLye0EBCyaz2iuE/YyyMnxMwbgz3XIMN6EuQ1kWCwr7hExhKj8+wur57i9
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Metrics"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/preview/evaluations/metrics/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Metrics
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"metrics_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Metrics Ids"}},"type":"object","required":["metrics_ids"],"title":"EvaluationMetricsIdsRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"metrics_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Metrics Ids","default":[]}},"type":"object","title":"EvaluationMetricsIdsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from uuid import UUID
 from json import dumps
 from asyncio import get_event_loop
@@ -93,7 +93,8 @@ from oss.src.core.evaluations.types import (
 
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import (
-    WorkflowServiceData,
+    WorkflowServiceRequestData,
+    WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceResponse,
     WorkflowServiceInterface,
@@ -109,9 +110,10 @@ from oss.src.core.queries.dtos import (
     Query,
 )
 
-from oss.src.core.workflows.dtos import Tree
-
-from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
+from oss.src.core.evaluations.utils import (
+    get_metrics_keys_from_schema,
+    fetch_trace,
+)
 
 
 log = get_module_logger(__name__)
@@ -246,35 +248,31 @@ async def setup_evaluation(
 
     try:
         # create evaluation run ------------------------------------------------
-        runs_create = [
-            EvaluationRunCreate(
-                name=name,
-                description=description,
-                #
-                flags=(
-                    EvaluationRunFlags(
-                        is_closed=None,
-                        is_live=True,
-                        is_active=True,
-                    )
-                    if query_id
-                    else None
-                ),
-                #
-                status=EvaluationStatus.PENDING,
-            )
-        ]
+        run_create = EvaluationRunCreate(
+            name=name,
+            description=description,
+            #
+            flags=(
+                EvaluationRunFlags(
+                    is_closed=None,
+                    is_live=True,
+                    is_active=True,
+                )
+                if query_id
+                else None
+            ),
+            #
+            status=EvaluationStatus.PENDING,
+        )
 
-        runs = await evaluations_service.create_runs(
+        run = await evaluations_service.create_run(
             project_id=project_id,
             user_id=user_id,
             #
-            runs=runs_create,
+            run=run_create,
         )
 
-        assert len(runs) == 1, "Failed to create evaluation run."
-
-        run = runs[0]
+        assert run is not None, "Failed to create evaluation run."
         # ----------------------------------------------------------------------
 
         # just-in-time transfer of testset -------------------------------------
@@ -1002,7 +1000,7 @@ def annotate(
         # ----------------------------------------------------------------------
 
         # create input steps ---------------------------------------------------
-        steps_create = [
+        results_create = [
             EvaluationResultCreate(
                 run_id=run_id,
                 scenario_id=scenario.id,
@@ -1020,7 +1018,7 @@ def annotate(
                 project_id=project_id,
                 user_id=user_id,
                 #
-                results=steps_create,
+                results=results_create,
             )
         )
 
@@ -1057,12 +1055,19 @@ def annotate(
                     "application_variant": {"id": str(variant.id)},
                     "application_revision": {"id": str(revision.id)},
                 },
+                scenarios=[
+                    s.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                    for s in scenarios
+                ],
             )
         )
         # ----------------------------------------------------------------------
 
-        # create invocation steps ----------------------------------------------
-        steps_create = [
+        # create invocation results --------------------------------------------
+        results_create = [
             EvaluationResultCreate(
                 run_id=run_id,
                 scenario_id=scenario.id,
@@ -1089,7 +1094,7 @@ def annotate(
                 project_id=project_id,
                 user_id=user_id,
                 #
-                results=steps_create,
+                results=results_create,
             )
         )
 
@@ -1106,6 +1111,7 @@ def annotate(
             scenario = scenarios[idx]
             testcase = testcases[idx]
             invocation = invocations[idx]
+            invocation_step_key = invocation_steps_keys[0]
 
             scenario_has_errors = 0
             scenario_status = EvaluationStatus.SUCCESS
@@ -1126,6 +1132,58 @@ def annotate(
 
             # proceed with the evaluation otherwise ----------------------------
             else:
+                if not invocation.trace_id:
+                    log.warn(f"invocation trace_id is missing.")
+                    scenario_has_errors += 1
+                    scenario_status = EvaluationStatus.ERRORS
+                    continue
+
+                trace = None
+                if invocation.trace_id:
+                    trace = loop.run_until_complete(
+                        fetch_trace(
+                            tracing_router=tracing_router,
+                            request=request,
+                            trace_id=invocation.trace_id,
+                        )
+                    )
+
+                if trace:
+                    log.info(
+                        f"Trace found  ",
+                        scenario_id=scenario.id,
+                        step_key=invocation_step_key,
+                        trace_id=invocation.trace_id,
+                    )
+                else:
+                    log.warn(
+                        f"Trace missing",
+                        scenario_id=scenario.id,
+                        step_key=invocation_step_key,
+                        trace_id=invocation.trace_id,
+                    )
+                    scenario_has_errors += 1
+                    scenario_status = EvaluationStatus.ERRORS
+                    continue
+
+                if not isinstance(trace.spans, dict):
+                    log.warn(
+                        f"Trace with id {invocation.trace_id} has no root spans",
+                    )
+                    scenario_has_errors += 1
+                    scenario_status = EvaluationStatus.ERRORS
+                    continue
+
+                root_span = list(trace.spans.values())[0]
+
+                if isinstance(root_span, list):
+                    log.warn(
+                        f"More than one root span for trace with id {invocation.trace_id}.",
+                    )
+                    scenario_has_errors += 1
+                    scenario_status = EvaluationStatus.ERRORS
+                    continue
+
                 # run the evaluators if no error in the invocation -------------
                 for jdx in range(nof_annotations):
                     annotation_step_key = annotation_steps_keys[jdx]
@@ -1133,12 +1191,12 @@ def annotate(
                     step_has_errors = 0
                     step_status = EvaluationStatus.SUCCESS
 
-                    references = {
+                    references: Dict[str, Any] = {
                         **evaluator_references[annotation_step_key],
                         "testset": {"id": testset_id},
                         "testcase": {"id": str(testcase.id)},
                     }
-                    links = {
+                    links: Dict[str, Any] = {
                         invocation_steps_keys[0]: {
                             "trace_id": invocation.trace_id,
                             "span_id": invocation.span_id,
@@ -1146,51 +1204,140 @@ def annotate(
                     }
 
                     # invoke annotation workflow -------------------------------
-                    workflow_revision = evaluators[annotation_step_key]
+                    evaluator_revision = evaluators[annotation_step_key]
 
-                    workflows_service_request = WorkflowServiceRequest(
-                        version="2025.07.14",
-                        flags={
-                            "is_annotation": True,
-                            "inline": True,
-                        },
-                        tags=None,
-                        meta=None,
-                        data=WorkflowServiceData(
-                            inputs=testcase.data,
-                            # trace=
-                            trace_parameters=revision_parameters,
-                            trace_outputs=invocation.result.value["data"],
-                            tree=(
-                                Tree(
-                                    version=invocation.result.value.get("version"),
-                                    nodes=invocation.result.value["tree"].get("nodes"),
-                                )
-                                if "tree" in invocation.result.value
-                                else None
-                            ),
-                        ),
-                        references=references,
-                        links=links,
-                        credentials=credentials,
-                        secrets=secrets,
+                    if not evaluator_revision:
+                        log.error(
+                            f"Evaluator revision for {annotation_step_key} not found!"
+                        )
+                        step_has_errors += 1
+                        scenario_has_errors += 1
+                        run_has_errors += 1
+                        step_status = EvaluationStatus.FAILURE
+                        scenario_status = EvaluationStatus.ERRORS
+                        run_status = EvaluationStatus.ERRORS
+                        continue
+
+                    _revision = evaluator_revision.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                    interface = (
+                        dict(
+                            uri=evaluator_revision.data.uri,
+                            url=evaluator_revision.data.url,
+                            headers=evaluator_revision.data.headers,
+                            schemas=evaluator_revision.data.schemas,
+                        )
+                        if evaluator_revision.data
+                        else dict()
+                    )
+                    configuration = (
+                        dict(
+                            script=evaluator_revision.data.script,
+                            parameters=evaluator_revision.data.parameters,
+                        )
+                        if evaluator_revision.data
+                        else dict()
+                    )
+                    parameters = configuration.get("parameters")
+
+                    _testcase = testcase.model_dump(mode="json")
+                    inputs = testcase.data
+                    if isinstance(inputs, dict):
+                        if "testcase_dedup_id" in inputs:
+                            del inputs["testcase_dedup_id"]
+
+                    _trace: Optional[dict] = (
+                        trace.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
+                        if trace
+                        else None
                     )
 
+                    _root_span = root_span.model_dump(mode="json", exclude_none=True)
+                    testcase_data = testcase.data
+
+                    root_span_attributes: dict = _root_span.get("attributes") or {}
+                    root_span_attributes_ag: dict = root_span_attributes.get("ag") or {}
+                    root_span_attributes_ag_data: dict = (
+                        root_span_attributes_ag.get("data") or {}
+                    )
+                    root_span_attributes_ag_data_outputs = (
+                        root_span_attributes_ag_data.get("outputs")
+                    )
+                    root_span_attributes_ag_data_inputs = (
+                        root_span_attributes_ag_data.get("inputs")
+                    )
+
+                    outputs = root_span_attributes_ag_data_outputs
+                    inputs = testcase_data or root_span_attributes_ag_data_inputs
+
+                    workflow_service_request_data = WorkflowServiceRequestData(
+                        revision=_revision,
+                        parameters=parameters,
+                        #
+                        testcase=_testcase,
+                        inputs=inputs,
+                        #
+                        trace=_trace,
+                        outputs=outputs,
+                    )
+
+                    flags = (
+                        evaluator_revision.flags.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                            exclude_unset=True,
+                        )
+                        if evaluator_revision.flags
+                        else None
+                    )
+
+                    workflow_service_request = WorkflowServiceRequest(
+                        version="2025.07.14",
+                        #
+                        flags=flags,
+                        #
+                        interface=interface,
+                        configuration=configuration,
+                        #
+                        data=workflow_service_request_data,
+                        #
+                        references=references,
+                        links=links,
+                    )
+
+                    log.info(
+                        "Invoking evaluator...  ",
+                        scenario_id=scenario.id,
+                        testcase_id=testcase.id,
+                        trace_id=invocation.trace_id,
+                        uri=interface.get("uri"),
+                    )
                     workflows_service_response = loop.run_until_complete(
                         workflows_service.invoke_workflow(
                             project_id=project_id,
                             user_id=user_id,
                             #
-                            request=workflows_service_request,
-                            revision=workflow_revision,
+                            request=workflow_service_request,
+                            #
+                            annotate=True,
                         )
+                    )
+                    log.info(
+                        "Invoked evaluator      ",
+                        scenario_id=scenario.id,
+                        trace_id=workflows_service_response.trace_id,
                     )
                     # ----------------------------------------------------------
 
                     # run evaluator --------------------------------------------
-                    trace_id = None
-                    error = None
+                    trace_id = workflows_service_response.trace_id
 
+                    error = None
                     has_error = workflows_service_response.status.code != 200
 
                     # if error in evaluator, no annotation, only step ----------
@@ -1214,36 +1361,52 @@ def annotate(
 
                     # else, first annotation, then step ------------------------
                     else:
-                        outputs = workflows_service_response.data.outputs or {}
-
-                        annotation_create_request = AnnotationCreateRequest(
-                            annotation=AnnotationCreate(
-                                origin=AnnotationOrigin.AUTO,
-                                kind=AnnotationKind.EVAL,
-                                channel=AnnotationChannel.API,  # hardcoded
-                                #
-                                data={"outputs": outputs},
-                                #
-                                references=references,
-                                links=links,
-                            )
+                        outputs = (
+                            workflows_service_response.data.outputs
+                            if workflows_service_response.data
+                            else None
                         )
 
-                        annotation_response = loop.run_until_complete(
-                            annotations_router.create_annotation(
-                                request=request,
-                                annotation_create_request=annotation_create_request,
+                        annotation = workflows_service_response
+
+                        trace_id = annotation.trace_id
+
+                        if not annotation.trace_id:
+                            log.warn(f"annotation trace_id is missing.")
+                            scenario_has_errors += 1
+                            scenario_status = EvaluationStatus.ERRORS
+                            continue
+
+                        trace = None
+                        if annotation.trace_id:
+                            trace = loop.run_until_complete(
+                                fetch_trace(
+                                    tracing_router=tracing_router,
+                                    request=request,
+                                    trace_id=annotation.trace_id,
+                                )
                             )
-                        )
 
-                        assert (
-                            annotation_response.count != 0
-                        ), f"Failed to create annotation for invocation {invocation.trace_id} and evaluator {references.get('evaluator').get('id')}"
-
-                        trace_id = annotation_response.annotation.trace_id
+                        if trace:
+                            log.info(
+                                f"Trace found  ",
+                                scenario_id=scenario.id,
+                                step_key=annotation_step_key,
+                                trace_id=annotation.trace_id,
+                            )
+                        else:
+                            log.warn(
+                                f"Trace missing",
+                                scenario_id=scenario.id,
+                                step_key=annotation_step_key,
+                                trace_id=annotation.trace_id,
+                            )
+                            scenario_has_errors += 1
+                            scenario_status = EvaluationStatus.ERRORS
+                            continue
                     # ----------------------------------------------------------
 
-                    steps_create = [
+                    results_create = [
                         EvaluationResultCreate(
                             run_id=run_id,
                             scenario_id=scenario.id,
@@ -1261,7 +1424,7 @@ def annotate(
                             project_id=project_id,
                             user_id=user_id,
                             #
-                            results=steps_create,
+                            results=results_create,
                         )
                     )
 

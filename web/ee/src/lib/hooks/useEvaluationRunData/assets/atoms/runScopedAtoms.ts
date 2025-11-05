@@ -70,6 +70,7 @@ export const loadingStateFamily = atomFamily(
             isLoadingEvaluation: false,
             isLoadingScenarios: false,
             isLoadingMetrics: false,
+            isRefreshingMetrics: false,
             activeStep: null as string | null,
         }),
     deepEqual,

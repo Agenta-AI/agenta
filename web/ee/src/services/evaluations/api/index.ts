@@ -13,7 +13,7 @@ import {
     EvaluatorConfig,
     KeyValuePair,
     LLMRunRateLimit,
-    TestSet,
+    Testset,
     _Evaluation,
     _EvaluationScenario,
 } from "@/oss/lib/Types"
@@ -264,7 +264,7 @@ export const fetchAllComparisonResults = async (evaluationIds: string[]) => {
         throw new Error("No valid evaluation IDs provided")
     }
     const scenarioGroups = await Promise.all(validIds.map(fetchAllEvaluationScenarios))
-    const testset: TestSet = await fetchTestset(scenarioGroups[0][0].evaluation?.testset?.id)
+    const testset: Testset = await fetchTestset(scenarioGroups[0][0].evaluation?.testset?.id)
 
     const inputsNameSet = new Set<string>()
     scenarioGroups.forEach((group) => {

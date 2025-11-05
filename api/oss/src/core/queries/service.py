@@ -473,20 +473,32 @@ class QueriesService:
             return None
 
         if query_ref and not query_variant_ref and not query_revision_ref:
-            query_variant = await self.query_query_variants(
+            query = await self.fetch_query(
                 project_id=project_id,
                 #
-                query_refs=[query_ref],
+                query_ref=query_ref,
+            )
+
+            if not query:
+                return None
+
+            query_ref = Reference(
+                id=query.id,
+                slug=query.slug,
+            )
+
+            query_variant = await self.fetch_query_variant(
+                project_id=project_id,
                 #
-                windowing=Windowing(limit=1, order="descending"),
+                query_ref=query_ref,
             )
 
             if not query_variant:
                 return None
 
             query_variant_ref = Reference(
-                id=query_variant[0].id,
-                slug=query_variant[0].slug,
+                id=query_variant.id,
+                slug=query_variant.slug,
             )
 
         revision = await self.queries_dao.fetch_revision(
@@ -748,7 +760,7 @@ class SimpleQueriesService:
         # ----------------------------------------------------------------------
         # Query variant
         # ----------------------------------------------------------------------
-        query_variant_slug = uuid4().hex
+        query_variant_slug = uuid4().hex[-12:]
 
         _query_variant_create = QueryVariantCreate(
             slug=query_variant_slug,
@@ -778,7 +790,7 @@ class SimpleQueriesService:
         # ----------------------------------------------------------------------
         # Query revision
         # ----------------------------------------------------------------------
-        query_revision_slug = uuid4().hex
+        query_revision_slug = uuid4().hex[-12:]
 
         _query_revision_commit = QueryRevisionCommit(
             slug=query_revision_slug,
@@ -1001,7 +1013,7 @@ class SimpleQueriesService:
         # ----------------------------------------------------------------------
         # Query revision
         # ----------------------------------------------------------------------
-        query_revision_slug = uuid4().hex
+        query_revision_slug = uuid4().hex[-12:]
 
         _query_revision_commit = QueryRevisionCommit(
             slug=query_revision_slug,

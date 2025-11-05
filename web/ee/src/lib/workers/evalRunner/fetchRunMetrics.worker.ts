@@ -15,6 +15,7 @@ interface WorkerRequest {
         runId: string
         evaluatorSlugs?: string[]
         revisionSlugs?: string[]
+        annotationSlugMap?: Record<string, string>
     }
 }
 
@@ -29,7 +30,15 @@ interface WorkerResponse {
 self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     const {requestId, payload} = e.data
     try {
-        const {apiUrl, jwt, projectId, runId, evaluatorSlugs = [], revisionSlugs = []} = payload
+        const {
+            apiUrl,
+            jwt,
+            projectId,
+            runId,
+            evaluatorSlugs = [],
+            revisionSlugs = [],
+            annotationSlugMap = {},
+        } = payload
         const url = `${apiUrl}/preview/evaluations/metrics/query?project_id=${projectId}`
         const body: Record<string, any> = {
             metrics: {run_ids: [runId]},
@@ -51,6 +60,11 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
         const classifyKey = (
             key: string,
         ): {type: "invocation" | "evaluator" | "revision"; slug?: string} => {
+            const mappedSlug = annotationSlugMap[key]
+            if (mappedSlug) {
+                return {type: "evaluator", slug: mappedSlug}
+            }
+
             const parts = key.split(".")
             if (parts.length === 1 && !evaluatorSlugs.includes(parts[0]))
                 return {type: "invocation"}

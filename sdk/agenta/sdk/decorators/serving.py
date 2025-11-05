@@ -28,13 +28,12 @@ from agenta.sdk.middleware.otel import OTelMiddleware
 from agenta.sdk.middleware.auth import AuthHTTPMiddleware
 from agenta.sdk.middleware.cors import CORSMiddleware
 
-from agenta.sdk.context.serving import (
-    serving_context_manager,
+from agenta.sdk.contexts.routing import (
+    routing_context_manager,
     RoutingContext,
 )
-from agenta.sdk.context.tracing import (
+from agenta.sdk.contexts.tracing import (
     tracing_context_manager,
-    tracing_context,
     TracingContext,
 )
 from agenta.sdk.router import router
@@ -338,7 +337,7 @@ class entrypoint:
         inline = state.inline
         mock = state.mock
 
-        with serving_context_manager(
+        with routing_context_manager(
             context=RoutingContext(
                 parameters=parameters,
                 secrets=secrets,
@@ -394,15 +393,15 @@ class entrypoint:
 
         try:
             if isinstance(result, StarletteResponse):
-                result.headers.setdefault("X-ag-version", "3.0")
+                result.headers.setdefault("x-ag-version", "3.0")
                 if content_type:
-                    result.headers.setdefault("X-ag-content-type", content_type)
+                    result.headers.setdefault("x-ag-content-type", content_type)
                 if tree_id:
-                    result.headers.setdefault("X-ag-tree-id", tree_id)
+                    result.headers.setdefault("x-ag-tree-id", tree_id)
                 if trace_id:
-                    result.headers.setdefault("X-ag-trace-id", trace_id)
+                    result.headers.setdefault("x-ag-trace-id", trace_id)
                 if span_id:
-                    result.headers.setdefault("X-ag-span-id", span_id)
+                    result.headers.setdefault("x-ag-span-id", span_id)
 
                 return result
         except:
@@ -530,7 +529,7 @@ class entrypoint:
     async def fetch_inline_trace_id(
         self,
     ):
-        context = tracing_context.get()
+        context = TracingContext.get()
 
         link = context.link
 
@@ -549,7 +548,7 @@ class entrypoint:
         TIMESTEP = 0.1
         NOFSTEPS = TIMEOUT / TIMESTEP
 
-        context = tracing_context.get()
+        context = TracingContext.get()
 
         link = context.link
 

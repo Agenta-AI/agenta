@@ -5,100 +5,59 @@ description: "Status of OTLP endpoint."
 sidebar_label: "Status of OTLP endpoint"
 hide_title: true
 hide_table_of_contents: true
-api: eJx9U8tu2zAQ/BVhz4Rl96hT3aBojRSI0aS9GEKxptYWE4pkyJVRV9C/FyvJjxhIdJFEzr5mZjtg3CcoNvCwTRQPuDXW8BFKBRUlHU1g4x0U8MjIbcr8Lnt4+rHOyFXBG8czUOADRRTYqoICPNvwJw1oUBApBe8SJSg6+DSfy+smcas1pbRrbfZzAoMC7R2TY4FjCNbooUD+nCSmg6RralC+QpTybMYKB4rJjBA+BoICEkfj9qCADVs5+D1BegVTlx+Ax6mh79UJ4rfPpHmY7LU1kSrh7lT2nLK8pLjz1pLmMdN5wl4eBQ1x7YW1PUnOgFxDAbm/1iI/LHIhNeeImoRUuaQoqnXQRgsF1MwhFXmurW+rGe7JMc7Q5BgM3Cq5HG6zO4FCX0o63UYRXfIt16t7On4nrChCsSmvAY/C+kj0W9iZQAzmno6gwGEj/8uWax/Nv0E9UGCkgXqMkvmN2/khfCJr6u0L6hdyFaiLoDCfLWbz94aZArLlejWZB/VgnlMfAwzUDV1nokABNWjkjgmbz5cL6TL4xA26q3zvbMNte93Fxx8t0EQe01/Og0UzmHPotJsssYE3lhBiFrJ5bIPEj8YoFdQ+saC7bouJfkXb93L82lIUeUsFB4wGt0L2puzVSQtR/oWOwpTWFGSQA9p2lPRm/cQRZ99++/oEff8fFdF2Zw==
+api: eJx9k1uL2zAQhf9KOM8iTvrop4ZS2rCFDd3tUzBFkSextrKllcahqfF/L2M7V2j94ovO3L4z7sD6kJBv8bxLFI96Z53lEwqFkpKJNrD1DXK8sOY2zfx+9vz6bTOjpgzeNjyHgg8UtcjWJXJ4duFnGtRQiJSCbxIl5B0+LBZye0jcGkMp7Vs3+z6JoWB8w9SwyHUIzpqhQPaWJKZDMhXVWp5ClPJsxwpT3bwDnwIhR+JomwMU2LKjyxzoe3WW+N0bGR56fW9tpFJoTImKa+An7xwZHuMvnfZyKdTElZfpDySZguYKOTJ/yzQ7LjOBk3HUhgSOHFIU+h3a6JCjYg4pzzLjfFvO9YEa1nNtMx0s+kIiTBvFHwlZbdZPdPpKuqSIfFvcCl4E0MjkXnYho4N9ohMUGl3L+6rlykf7ZwANBSvmVGOUjGibvR/CJx6robnZarOGgowx2rmYL+cLPG7PnVi81Wbw9lx7OIZ6oHCZHwpUaytnTLr+eD2QzoJPXOvmJt8/lvWxre66Zv/b7wkY02/OgtO2QT912k1Ob3HntABZyo/BLkj86HehUPnEou66nU70I7q+l8/vLUWxtFA46mj1TgBvi16d+Yvbv+gkpIyhIIMctWtHGx/+DtmCyzp++fyKvv8LS5BUqQ==
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-backend
+info_path: reference/api/agenta-api
 custom_edit_url: null
 ---
 
-import ApiTabs from "@theme/ApiTabs";
-import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
-import MimeTabs from "@theme/MimeTabs";
-import ParamsItem from "@theme/ParamsItem";
-import ResponseSamples from "@theme/ResponseSamples";
-import SchemaItem from "@theme/SchemaItem";
-import SchemaTabs from "@theme/SchemaTabs";
-import Markdown from "@theme/Markdown";
-import Heading from "@theme/Heading";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Status of OTLP endpoint"}
-></Heading>
+>
+</Heading>
 
 <MethodEndpoint
   method={"get"}
   path={"/observability/v1/otlp/traces"}
-></MethodEndpoint>
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
 
 Status of OTLP endpoint.
 
-<div>
-  <div>
-    <ApiTabs label={undefined} id={undefined}>
-      <TabItem label={"200"} value={"200"}>
-        <div>Successful Response</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"version"}
-                        required={true}
-                        schemaName={"Version (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Version" }}
-                      ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"status"}
-                        required={true}
-                        schemaName={"Status (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Status" }}
-                      ></SchemaItem>
-                    </ul>
-                  </details>
-                </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
-                  <ResponseSamples
-                    responseExample={
-                      '{\n  "version": "string",\n  "status": "string"\n}'
-                    }
-                    language={"json"}
-                  ></ResponseSamples>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-    </ApiTabs>
-  </div>
-</div>
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"status":{"type":"string","title":"Status"}},"type":"object","required":["status"],"title":"CollectStatusResponse"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -135,6 +135,12 @@ def parse_otlp_stream(otlp_stream: bytes) -> List[OTelSpanDTO]:
                 s_span_id = "0x" + span.span_id.hex()
                 s_context = OTelContextDTO(trace_id=s_trace_id, span_id=s_span_id)
 
+                # log.debug(
+                #     "[SPAN] [PARSE] ",
+                #     trace_id=s_trace_id[2:],
+                #     span_id=s_span_id[2:],
+                # )
+
                 # SPAN PARENT CONTEXT
                 s_parent_id = span.parent_span_id.hex()
                 s_parent_id = "0x" + s_parent_id if s_parent_id else None

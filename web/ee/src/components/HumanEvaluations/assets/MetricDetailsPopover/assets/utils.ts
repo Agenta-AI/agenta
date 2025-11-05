@@ -146,25 +146,50 @@ export const format3Sig = (num: number | string): string => {
  * Format a metric value using the mapping above.
  * Falls back to the raw value when the metric has no formatter or value is non-numeric.
  */
-export function formatMetricValue(metricKey: string, value: number | string): string {
+export function formatMetricValue(metricKey: string, value: unknown): string {
+    if (value == null) {
+        return ""
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((v) => formatMetricValue(metricKey, v)).join(", ")
+    }
+
+    if (typeof value === "boolean") {
+        return value ? "true" : "false"
+    }
+
+    if (typeof value === "object") {
+        try {
+            return JSON.stringify(value, null, 2)
+        } catch (error) {
+            return String(value)
+        }
+    }
+
+    if (typeof value !== "string" && typeof value !== "number") {
+        return String(value)
+    }
+
     const fmt = METRIC_FORMATTERS[metricKey] || {
         decimals: 2,
     }
 
-    if (Array.isArray(value)) {
-        return value.map((v) => {
-            return formatMetricValue(metricKey, v)
-        })
-    }
-    if (!fmt) return String(value)
-
-    if (fmt.format) {
+    if (fmt?.format) {
         return fmt.format(value)
     }
 
-    let num = typeof value === "number" ? value : Number(value)
-    num = fmt.multiplier ? num * fmt.multiplier : num
-    const rounded =
-        Number.isFinite(num) && fmt.decimals !== undefined ? format3Sig(num) : format3Sig(value)
+    if (typeof value !== "number") {
+        const numericValue = Number(value)
+        if (Number.isNaN(numericValue)) {
+            return String(value)
+        }
+        const adjusted = fmt.multiplier ? numericValue * fmt.multiplier : numericValue
+        const rounded = Number.isFinite(adjusted) ? format3Sig(adjusted) : format3Sig(value)
+        return `${fmt.prefix ?? ""}${rounded}${fmt.suffix ?? ""}`
+    }
+
+    const adjusted = fmt.multiplier ? value * fmt.multiplier : value
+    const rounded = Number.isFinite(adjusted) ? format3Sig(adjusted) : format3Sig(value)
     return `${fmt.prefix ?? ""}${rounded}${fmt.suffix ?? ""}`
 }

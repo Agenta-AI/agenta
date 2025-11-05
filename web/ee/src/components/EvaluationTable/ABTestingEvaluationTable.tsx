@@ -627,7 +627,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 title: (
                     <div className={classes.inputTestContainer}>
                         <div>
-                            <span> Inputs (Test set: </span>
+                            <span> Inputs (Testset: </span>
                             <span className={classes.inputTest}>{evaluation.testset.name}</span>
                             <span> )</span>
                         </div>

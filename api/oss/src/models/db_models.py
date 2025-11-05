@@ -152,7 +152,7 @@ class ProjectDB(Base):
     evaluator_config = relationship(
         "EvaluatorConfigDB", cascade=CASCADE_ALL_DELETE, backref="project"
     )
-    testset = relationship("TestSetDB", cascade=CASCADE_ALL_DELETE, backref="project")
+    testset = relationship("TestsetDB", cascade=CASCADE_ALL_DELETE, backref="project")
 
 
 # KEEP in oss/
@@ -409,7 +409,7 @@ class AppEnvironmentRevisionDB(Base):
 
 
 # KEEP in oss/
-class TestSetDB(Base):
+class TestsetDB(Base):
     __tablename__ = "testsets"
 
     id = Column(

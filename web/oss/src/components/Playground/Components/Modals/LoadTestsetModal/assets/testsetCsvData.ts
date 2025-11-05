@@ -1,7 +1,7 @@
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {TestSet} from "@/oss/lib/Types"
+import {Testset} from "@/oss/lib/Types"
 import {fetchTestset} from "@/oss/services/testsets/api"
 
 export interface TestsetCsvParams {
@@ -14,7 +14,7 @@ export interface TestsetCsvParams {
  * Returns the raw csvdata array from the testset response.
  */
 export const testsetCsvDataQueryAtomFamily = atomFamily((params: TestsetCsvParams) =>
-    atomWithQuery<TestSet["csvdata"]>((get) => {
+    atomWithQuery<Testset["csvdata"]>((get) => {
         const {testsetId, enabled = true} = params || {}
         return {
             queryKey: ["testsetCsvData", testsetId],

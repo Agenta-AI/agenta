@@ -30,11 +30,11 @@ const LoadTestsetModalFooter = ({
     }, [expectedInputVariables, hasCompatibilityIssue])
 
     const loadTestset = useCallback(() => {
-        const selectedTestCase = testsetCsvData.filter((_, index) =>
+        const selectedTestcase = testsetCsvData.filter((_, index) =>
             selectedRowKeys.includes(index),
         )
-        if (selectedTestCase) {
-            setTestsetData(selectedTestCase)
+        if (selectedTestcase) {
+            setTestsetData(selectedTestcase)
             onClose()
         }
     }, [onClose, selectedRowKeys, setTestsetData, testsetCsvData])
@@ -54,7 +54,7 @@ const LoadTestsetModalFooter = ({
                         loading={isLoadingTestset}
                         onClick={loadTestset}
                     >
-                        Load test set
+                        Load testset
                     </Button>
                 </span>
             </Tooltip>

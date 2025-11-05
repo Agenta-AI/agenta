@@ -39,7 +39,7 @@ LIMITED_EVENTS_PER_AUTH = {
 if POSTHOG_API_KEY:
     posthog.api_key = POSTHOG_API_KEY
     posthog.host = POSTHOG_HOST
-    log.info("PostHog initialized with host %s:", POSTHOG_HOST)
+    log.info("PostHog initialized with host %s", POSTHOG_HOST)
 else:
     log.warn("PostHog API key not found in environment variables")
 
@@ -197,7 +197,7 @@ def _get_event_name_from_path(
         return "app_revision_fetched"
     # <----------- End of Configuration Events ------------->
 
-    # <----------- Test sets Events ------------->
+    # <----------- Testsets Events ------------->
     if method == "POST" and "/testsets" in path:
         return "testset_created"
 
@@ -206,7 +206,7 @@ def _get_event_name_from_path(
 
     elif method == "PUT" and "/testsets" in path:
         return "testset_updated"
-    # <----------- End of Test sets Events ------------->
+    # <----------- End of Testsets Events ------------->
 
     # <----------- Evaluation Events ------------->
     if method == "POST" and "/evaluators/configs" in path:

@@ -5,363 +5,78 @@ description: "Retrieve a list of bases filtered by app_id and base_name."
 sidebar_label: "List Bases"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVktv2zgQ/ivEnFJAsNOgJ53W3QSt0UeC1LsXxwhoaWyxpUiWHGXrNfTfF0NKlhyv291jgZ5sz+ObmW8e9B5IbgPkS3gtAwZYZVBiKLxypKyBHO6RvMInFFJoFUjYjVizpdgoTeixFOudkM49qlJIU0blo5E1Th7Mg5n5bcgfjBBCePzaYCBxcZ++vMjFokKhTGFrZba9fpKsO8SLQL4znF9zbKqQdYJsl4BY7zqXQ2RxcRuzl3oZyK8yYbufHVK06bDY6RhMXONGNpoCiz9akwq5R2q86Wt5rwItmbDbhlxDq1zMDuwMYmHXn7GgIDw6jwENcZ0cdeCOqUwBpArY479dLO5uvhUY887FPObqUfwlg5BGoPfWC58602MmKMjAOvSSHecl5MBpPUYdZOCklzUSeu74HpgIyCFxDRkobvjXBv0OMuB+KI8l5OQbzCAUFdYS8j3QzrFbIK/MFjIgRZoFM+fEvIS2zQ7Qh56cR99IHY7gpdndbmJ+x4EYtpOYRmtoV0NoJl185Dgtiz0GZw3XnO/h6vKSP47H+lNTFBjCptHivjOGDAprCA3FLJzTqog8Tj8H9tmfUiC9l1yNIqxjLOeZfVIpcqxeld/jLCbOpGUjrn5k3xWa9VZpzo5YXR6Cj4GfMZbGlGP30p6LOOEinYS25VCvrq5OWfxTalVGjsQNz+T/ofCYqhJJKs3fznCpbXGk/Q9TogzhFj20q4GqvmN9we9tSpBJqMP2e9R/wBDkFuEAdt40kiEWrP1Rm7iuFLqzG/VooDexe76M60TfvwXrTfimnACm3tZIleVjsUWKV4IqyGHaX42A/qk/GY3XkENF5EI+nRbaNuVEbtGQnEg1lU7B8wdkFrXidzaNOxuwaLyiXcSb3c3f4e4tyhI95MvV2OATz0rq/rHZsH9OvUPmoTs3s4Yq69XfqaXdyamSFxeqzMZG9/5ipdxey+ILGl4VrjOlfTl5Obk8V0znIGZ3827kZRFHvs8jmkH2jK4DUZAB1nHegVDWvw0KztLZQLU0I7zRNj7LaD8s3K+n+qd7qrsxJvxGU6elimcozsy+28J0x+P/ssoGYsF+z6I/vG5bFqcXlXepVEGu9ehNPTspsbF8gV6Ic1l8wd34r8GT1A0bxft6EigZjx/7wX7FP7xih7jgWb+QnHJynBXM38jr5OVglMOVenOzgLb9B82nqbk=
+api: eJztVt9v2zYQ/leIe0oBwc6CPelpHhKsRrsmSL29OEZAS2eJHUWy5CmrZ+h/L46UbCme2+1xwJ5s36/v7rvjnQ9AsgqQr+FnGTDAJoMSQ+GVI2UN5PCI5BW+oJBCq0DC7sSWLcVOaUKPpdjuhXTuWZVCmjIqn41scPZknszCVyF/MkII4fFzi4HE1WP68iYXqxqFMoVtlKkG/SxZ9xGvAvnecHnL2FQj6wTZPgGx3fcuR2RxdR+zl3odyG8yYfuffaRo08dip2kwcYs72WoKLP5gTSrkEan1ZqjlvQq0ZsLuW3ItbXKxOLJzEgu7/YQFBeHReQxoiOtk1BN3TGUCkCrgEP/tavVw96XAmHculjFXj+JPGYQ0Ar23XvjUmSFmCgUZWIdesuOyhBw4reeogwyc9LJBQs8dPwATATkkriEDxQ3/3KLfQwbcD+WxhJx8ixmEosZGQn4A2jt2C+SVqSADUqRZsHBOLEvouuwY+tiTy9F3UodJeGn297uY3xSIw/YS02oN3eYEzaSLD4zTsdhjcNZwzfkBbq6v+WM61h/bosAQdq0Wj70xZFBYQ2goZuGcVkXkcf4psM/hnALpveRqFGETsZxn9kkl5Fi9Kr/FWUycSctGXH3Pvi80G6zSnE1YXR/Bx4FfMZbGlLEH6cBFnHCRVkLXMdSPNzfnLP4utSojR+KOZ/LfUDilqkSSSvO3C1xqW0y0/2BKlCGs0EO3OVE1dGwo+L1NCTIJTai+Rf2vGIKsEI7BLptGMsSKtd9rE9eVoHu7UY9O9CZ2L5dxm+j7O7DBhHfKWcDU2waptrwsKqS4JaiGHObD1gjoX4aV0XoNOdRELuTzeaFtW85khYbkTKq5dCo+y4BF6xXto8viYfkO929RlughX2/GBh95HFKDp2anJ+bUO+RS+42yaKm2Xv2VutZvlTp5cS3K7Gx0H5ZSTE4sHpaQAZeRJvd69sPsGl4fu4kxT7Is4iQP2FEN2SsWjvVDBtjEMQZC2fx0UnBmzgZqpBnFGz2yV5kcTu/o/wv8n7vA/egSfqG501LF7RJn5tA/rrSe49+t2gZiweHAot+87joWp0PJ76dUQW716FRenJTYWF4sb8SlLP7A/fjiv0jdslFcm2dAyXh8w0/2G/7hFTvER50Nj5BTTo6LgvkbeZ0dBI5yXD6/3K2g674CcIabKg==
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-backend
+info_path: reference/api/agenta-api
 custom_edit_url: null
 ---
 
-import ApiTabs from "@theme/ApiTabs";
-import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
-import MimeTabs from "@theme/MimeTabs";
-import ParamsItem from "@theme/ParamsItem";
-import ResponseSamples from "@theme/ResponseSamples";
-import SchemaItem from "@theme/SchemaItem";
-import SchemaTabs from "@theme/SchemaTabs";
-import Markdown from "@theme/Markdown";
-import Heading from "@theme/Heading";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"List Bases"}
-></Heading>
+>
+</Heading>
 
-<MethodEndpoint method={"get"} path={"/bases"}></MethodEndpoint>
+<MethodEndpoint
+  method={"get"}
+  path={"/bases"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
 
 Retrieve a list of bases filtered by app_id and base_name.
 
 Args:
-request (Request): The incoming request.
-app_id (str): The ID of the app to filter by.
-base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
+    request (Request): The incoming request.
+    app_id (str): The ID of the app to filter by.
+    base_name (Optional[str], optional): The name of the base to filter by. Defaults to None.
 
 Returns:
-List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
+    List[BaseOutput]: A list of BaseOutput objects representing the filtered bases.
 
 Raises:
-HTTPException: If there was an error retrieving the bases.
+    HTTPException: If there was an error retrieving the bases.
 
 <Heading
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
   children={"Request"}
-></Heading>
-
-<details
-  style={{ marginBottom: "1rem" }}
-  className={"openapi-markdown__details"}
-  data-collapsed={false}
-  open={true}
 >
-  <summary style={{}}>
-    <h3 className={"openapi-markdown__details-summary-header-params"}>
-      Query Parameters
-    </h3>
-  </summary>
-  <div>
-    <ul>
-      <ParamsItem
-        className={"paramsItem"}
-        param={{
-          name: "app_id",
-          in: "query",
-          required: true,
-          schema: { type: "string", title: "App Id" },
-        }}
-      ></ParamsItem>
-      <ParamsItem
-        className={"paramsItem"}
-        param={{
-          name: "base_name",
-          in: "query",
-          required: false,
-          schema: {
-            anyOf: [{ type: "string" }, { type: "null" }],
-            title: "Base Name",
-          },
-        }}
-      ></ParamsItem>
-    </ul>
-  </div>
-</details>
-<div>
-  <div>
-    <ApiTabs label={undefined} id={undefined}>
-      <TabItem label={"200"} value={"200"}>
-        <div>Successful Response</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>
-                      <li>
-                        <div
-                          style={{
-                            fontSize: "var(--ifm-code-font-size)",
-                            opacity: "0.6",
-                            marginLeft: "-.5rem",
-                            paddingBottom: ".5rem",
-                          }}
-                        >
-                          Array [
-                        </div>
-                      </li>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"base_id"}
-                        required={true}
-                        schemaName={"Base Id (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Base Id" }}
-                      ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"base_name"}
-                        required={true}
-                        schemaName={"Base Name (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Base Name" }}
-                      ></SchemaItem>
-                      <li>
-                        <div
-                          style={{
-                            fontSize: "var(--ifm-code-font-size)",
-                            opacity: "0.6",
-                            marginLeft: "-.5rem",
-                          }}
-                        >
-                          ]
-                        </div>
-                      </li>
-                    </ul>
-                  </details>
-                </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
-                  <ResponseSamples
-                    responseExample={
-                      '[\n  {\n    "base_id": "string",\n    "base_name": "string"\n  }\n]'
-                    }
-                    language={"json"}
-                  ></ResponseSamples>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-      <TabItem label={"422"} value={"422"}>
-        <div>Validation Error</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>
-                      <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
-                          <summary style={{}}>
-                            <span className={"openapi-schema__container"}>
-                              <strong className={"openapi-schema__property"}>
-                                detail
-                              </strong>
-                              <span className={"openapi-schema__name"}>
-                                object[]
-                              </span>
-                            </span>
-                          </summary>
-                          <div style={{ marginLeft: "1rem" }}>
-                            <li>
-                              <div
-                                style={{
-                                  fontSize: "var(--ifm-code-font-size)",
-                                  opacity: "0.6",
-                                  marginLeft: "-.5rem",
-                                  paddingBottom: ".5rem",
-                                }}
-                              >
-                                Array [
-                              </div>
-                            </li>
-                            <SchemaItem
-                              collapsible={true}
-                              className={"schemaItem"}
-                            >
-                              <details
-                                style={{}}
-                                className={"openapi-markdown__details"}
-                              >
-                                <summary style={{}}>
-                                  <span className={"openapi-schema__container"}>
-                                    <strong
-                                      className={"openapi-schema__property"}
-                                    >
-                                      loc
-                                    </strong>
-                                    <span className={"openapi-schema__name"}>
-                                      object[]
-                                    </span>
-                                    <span
-                                      className={"openapi-schema__divider"}
-                                    ></span>
-                                    <span
-                                      className={"openapi-schema__required"}
-                                    >
-                                      required
-                                    </span>
-                                  </span>
-                                </summary>
-                                <div style={{ marginLeft: "1rem" }}>
-                                  <li>
-                                    <div
-                                      style={{
-                                        fontSize: "var(--ifm-code-font-size)",
-                                        opacity: "0.6",
-                                        marginLeft: "-.5rem",
-                                        paddingBottom: ".5rem",
-                                      }}
-                                    >
-                                      Array [
-                                    </div>
-                                  </li>
-                                  <div>
-                                    <span className={"badge badge--info"}>
-                                      anyOf
-                                    </span>
-                                    <SchemaTabs>
-                                      <TabItem
-                                        label={"MOD1"}
-                                        value={"0-item-properties"}
-                                      >
-                                        <div
-                                          style={{
-                                            marginTop: ".5rem",
-                                            marginBottom: ".5rem",
-                                          }}
-                                        >
-                                          string
-                                        </div>
-                                      </TabItem>
-                                      <TabItem
-                                        label={"MOD2"}
-                                        value={"1-item-properties"}
-                                      >
-                                        <div
-                                          style={{
-                                            marginTop: ".5rem",
-                                            marginBottom: ".5rem",
-                                          }}
-                                        >
-                                          integer
-                                        </div>
-                                      </TabItem>
-                                    </SchemaTabs>
-                                  </div>
-                                  <li>
-                                    <div
-                                      style={{
-                                        fontSize: "var(--ifm-code-font-size)",
-                                        opacity: "0.6",
-                                        marginLeft: "-.5rem",
-                                      }}
-                                    >
-                                      ]
-                                    </div>
-                                  </li>
-                                </div>
-                              </details>
-                            </SchemaItem>
-                            <SchemaItem
-                              collapsible={false}
-                              name={"msg"}
-                              required={true}
-                              schemaName={"Message (string)"}
-                              qualifierMessage={undefined}
-                              schema={{ type: "string", title: "Message" }}
-                            ></SchemaItem>
-                            <SchemaItem
-                              collapsible={false}
-                              name={"type"}
-                              required={true}
-                              schemaName={"Error Type (string)"}
-                              qualifierMessage={undefined}
-                              schema={{ type: "string", title: "Error Type" }}
-                            ></SchemaItem>
-                            <li>
-                              <div
-                                style={{
-                                  fontSize: "var(--ifm-code-font-size)",
-                                  opacity: "0.6",
-                                  marginLeft: "-.5rem",
-                                }}
-                              >
-                                ]
-                              </div>
-                            </li>
-                          </div>
-                        </details>
-                      </SchemaItem>
-                    </ul>
-                  </details>
-                </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
-                  <ResponseSamples
-                    responseExample={
-                      '{\n  "detail": [\n    {\n      "loc": [\n        "string",\n        0\n      ],\n      "msg": "string",\n      "type": "string"\n    }\n  ]\n}'
-                    }
-                    language={"json"}
-                  ></ResponseSamples>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-    </ApiTabs>
-  </div>
-</div>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"app_id","in":"query","required":true,"schema":{"type":"string","title":"App Id"}},{"name":"base_name","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Base Name"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"array","items":{"properties":{"base_id":{"type":"string","title":"Base Id"},"base_name":{"type":"string","title":"Base Name"}},"type":"object","required":["base_id","base_name"],"title":"BaseOutput"},"title":"Response List Bases"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

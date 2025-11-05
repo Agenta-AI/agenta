@@ -15,7 +15,7 @@ import type {
     StepResponseStep,
     UseEvaluationRunScenarioStepsFetcherResult,
 } from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
-import {PreviewTestCase, PreviewTestSet} from "@/oss/lib/Types"
+import {PreviewTestcase, PreviewTestset} from "@/oss/lib/Types"
 
 import {
     deserializeRunIndex,
@@ -140,65 +140,79 @@ async function processScenarioBatchWorker(
     }
 
     // Fetch testcase data (updated endpoint)
-    const testcaseResp = await fetch(
-        `${apiUrl}/preview/testcases/query?project_id=${encodeURIComponent(projectId)}`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: jwt ? `Bearer ${jwt}` : "",
-            },
-            credentials: "include",
-            body: JSON.stringify({testcase_ids: Array.from(testcaseIds)}),
-        },
-    )
-    const testcases = (await testcaseResp.json()) as {count: number; testcases: PreviewTestCase[]}
+    let updatedTestsets: PreviewTestset[] = Array.isArray(context.testsets)
+        ? [...context.testsets]
+        : []
 
-    // Group testcases by their testset_id for easier lookup
-    const testcasesByTestsetId = (testcases.testcases || []).reduce(
-        (acc, testcase) => {
-            if (!acc[testcase.testset_id]) {
-                acc[testcase.testset_id] = []
-            }
-            acc[testcase.testset_id].push(testcase)
-            return acc
-        },
-        {} as Record<string, PreviewTestCase[]>,
-    )
-
-    // Update testsets with their matching testcases
-    const updatedTestsets = context.testsets?.map((testset) => {
-        const matchingTestcases = testcasesByTestsetId[testset.id] || []
-
-        if (matchingTestcases.length > 0) {
-            return {
-                ...testset,
-                data: {
-                    ...testset.data,
-                    testcase_ids: matchingTestcases?.map((tc) => tc.id),
-                    testcases: matchingTestcases,
+    if (testcaseIds.size > 0 && updatedTestsets.length > 0) {
+        const testcaseResp = await fetch(
+            `${apiUrl}/preview/testcases/query?project_id=${encodeURIComponent(projectId)}`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: jwt ? `Bearer ${jwt}` : "",
                 },
+                credentials: "include",
+                body: JSON.stringify({testcase_ids: Array.from(testcaseIds)}),
+            },
+        )
+
+        if (testcaseResp.ok) {
+            const testcases = (await testcaseResp.json()) as {
+                count: number
+                testcases: PreviewTestcase[]
             }
+
+            // Group testcases by their testset_id for easier lookup
+            const testcasesByTestsetId = (testcases.testcases || []).reduce(
+                (acc, testcase) => {
+                    if (!acc[testcase.testset_id]) {
+                        acc[testcase.testset_id] = []
+                    }
+                    acc[testcase.testset_id].push(testcase)
+                    return acc
+                },
+                {} as Record<string, PreviewTestcase[]>,
+            )
+
+            updatedTestsets = updatedTestsets.map((testset) => {
+                const matchingTestcases = testcasesByTestsetId[testset.id] || []
+
+                if (matchingTestcases.length > 0) {
+                    return {
+                        ...testset,
+                        data: {
+                            ...testset.data,
+                            testcase_ids: matchingTestcases.map((tc) => tc.id),
+                            testcases: matchingTestcases,
+                        },
+                    }
+                }
+
+                return testset
+            }) as PreviewTestset[]
         }
+    }
 
-        // Return testset as is if no matching testcases found
-        return testset
-    }) as PreviewTestSet[]
-
-    // Update the context with the new testsets which have the fetched testcases
     context.testsets = updatedTestsets
 
     const scenarioMap = new Map<string, UseEvaluationRunScenarioStepsFetcherResult>()
 
     const runIndex = deserializeRunIndex(context.runIndex)
+    const safeEvaluators = Array.isArray(context.evaluators) ? context.evaluators : []
+    const safeTestsets = Array.isArray(context.testsets) ? context.testsets : []
+    const safeVariants = Array.isArray(context.variants) ? context.variants : []
+    const safeMappings = Array.isArray(context.mappings) ? context.mappings : context.mappings || []
+
     for (const [sid, stepsArr] of perScenarioSteps.entries()) {
         const core = buildScenarioCore({
             steps: stepsArr,
             runIndex: runIndex,
-            evaluators: context.evaluators,
-            testsets: context.testsets,
-            variants: context.variants,
-            mappings: context.mappings,
+            evaluators: safeEvaluators,
+            testsets: safeTestsets,
+            variants: safeVariants,
+            mappings: safeMappings,
             uriObject: context.uriObject,
             parametersByRevisionId: context.parametersByRevisionId,
             appType: appType,

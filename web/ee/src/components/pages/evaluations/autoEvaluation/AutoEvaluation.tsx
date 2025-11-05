@@ -63,11 +63,17 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
         const evals = previewEvaluations.swrData?.data?.runs || []
         if (!evals.length) return []
 
-        return evals?.filter((run) =>
-            run?.data?.steps.every(
+        return evals.filter((run) => {
+            const steps = Array.isArray(run?.data?.steps) ? run.data.steps : []
+            const hasOnlyAutoAnnotations = steps.every(
                 (step) => step?.type !== "annotation" || step?.origin === "auto",
-            ),
-        )
+            )
+            const isLive = run?.flags?.isLive === true || run?.flags?.is_live === true
+            const source =
+                typeof run?.meta?.source === "string" ? run.meta.source.toLowerCase() : undefined
+            const isOnlineSource = source === "online_evaluation_drawer"
+            return hasOnlyAutoAnnotations && !isLive && !isOnlineSource
+        })
     }, [previewEvaluations])
 
     const mergedEvaluations = useMemo(() => {

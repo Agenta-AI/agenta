@@ -1,11 +1,11 @@
-import dynamic from "next/dynamic"
 import {useCallback, useMemo, useState} from "react"
 
 import {useAtomValue} from "jotai"
-
-import {TestSet} from "@/oss/lib/Types"
+import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {Testset} from "@/oss/lib/Types"
+
 import {testsetCsvDataQueryAtomFamily} from "./assets/testsetCsvData"
 import {LoadTestsetModalProps} from "./assets/types"
 
@@ -38,8 +38,8 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
         ),
     )
 
-    const testsetCsvData: TestSet["csvdata"] = useMemo(
-        () => ((testsetCsvQuery as any)?.data as TestSet["csvdata"]) || [],
+    const testsetCsvData: Testset["csvdata"] = useMemo(
+        () => ((testsetCsvQuery as any)?.data as Testset["csvdata"]) || [],
         [testsetCsvQuery],
     )
     const isLoadingTestset = useMemo(
@@ -60,7 +60,7 @@ const LoadTestsetModal: React.FC<LoadTestsetModalProps> = ({
                 setSelectedRowKeys([])
                 afterClose?.()
             }}
-            title="Load test set"
+            title="Load testset"
             footer={
                 <LoadTestsetModalFooter
                     onClose={onClose}

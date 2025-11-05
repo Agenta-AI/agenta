@@ -5,8 +5,8 @@ import {testset} from "@/oss/lib/Types"
 import {fetchTestsets, fetchPreviewTestsets} from "@/oss/services/testsets/api"
 import {PreviewTestsetsQueryPayload} from "@/oss/services/testsets/api/types"
 
-import {projectIdAtom} from "../../project"
 import {userAtom} from "../../profile"
+import {projectIdAtom} from "../../project"
 
 // Local options type for enabling/disabling queries
 interface TestsetsQueryOptions {

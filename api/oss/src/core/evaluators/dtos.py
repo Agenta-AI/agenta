@@ -16,11 +16,13 @@ from oss.src.core.workflows.dtos import (
     VariantFork,
     RevisionFork,
     #
+    WorkflowFlags,
+    WorkflowQueryFlags,
+    #
     Workflow,
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
-    WorkflowFlags,
     WorkflowFork,
     #
     WorkflowVariant,
@@ -81,6 +83,13 @@ class EvaluatorFlags(WorkflowFlags):
         super().__init__(**data)
 
 
+class EvaluatorQueryFlags(WorkflowQueryFlags):
+    def __init__(self, **data):
+        data["is_evaluator"] = True
+
+        super().__init__(**data)
+
+
 # evaluators -------------------------------------------------------------------
 
 
@@ -97,7 +106,7 @@ class EvaluatorEdit(WorkflowEdit):
 
 
 class EvaluatorQuery(WorkflowQuery):
-    flags: Optional[EvaluatorFlags] = None
+    flags: Optional[EvaluatorQueryFlags] = None
 
 
 # evaluator variants -----------------------------------------------------------
@@ -128,7 +137,7 @@ class EvaluatorVariantEdit(WorkflowVariantEdit):
 
 
 class EvaluatorVariantQuery(WorkflowVariantQuery):
-    flags: Optional[EvaluatorFlags] = None
+    flags: Optional[EvaluatorQueryFlags] = None
 
 
 # evaluator revisions ----------------------------------------------------------
@@ -169,7 +178,7 @@ class EvaluatorRevisionEdit(WorkflowRevisionEdit):
 
 
 class EvaluatorRevisionQuery(WorkflowRevisionQuery):
-    flags: Optional[EvaluatorFlags] = None
+    flags: Optional[EvaluatorQueryFlags] = None
 
 
 class EvaluatorRevisionCommit(
@@ -258,6 +267,10 @@ class SimpleEvaluatorFlags(EvaluatorFlags):
     pass
 
 
+class SimpleEvaluatorQueryFlags(EvaluatorQueryFlags):
+    pass
+
+
 class SimpleEvaluatorData(EvaluatorRevisionData):
     pass
 
@@ -281,17 +294,7 @@ class SimpleEvaluatorEdit(Identifier, Header, Metadata):
 
 
 class SimpleEvaluatorQuery(Metadata):
-    flags: Optional[SimpleEvaluatorFlags] = None
-
-
-class SimpleEvaluatorQQuery(
-    Identifier,
-    Slug,
-    Lifecycle,
-    Header,
-    SimpleEvaluatorQuery,
-):
-    data: Optional[SimpleEvaluatorData] = None
+    flags: Optional[SimpleEvaluatorQueryFlags] = None
 
 
 # ------------------------------------------------------------------------------

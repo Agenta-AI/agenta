@@ -1,6 +1,6 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {TestSet, PreviewTestSet} from "@/oss/lib/Types"
+import {Testset, PreviewTestset} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
 
 import {PreviewTestsetsQueryPayload} from "./types"
@@ -58,7 +58,7 @@ export async function updateTestset(testsetId: string, testsetName: string, test
 export async function fetchTestset<T extends boolean = false>(
     testsetId: string,
     preview?: T,
-): Promise<T extends true ? PreviewTestSet : TestSet> {
+): Promise<T extends true ? PreviewTestset : Testset> {
     if (!testsetId) {
         return null as any
     }
@@ -69,9 +69,9 @@ export async function fetchTestset<T extends boolean = false>(
     const response = await axios.get(url)
 
     if (!preview) {
-        return response?.data as T extends true ? PreviewTestSet : TestSet
+        return response?.data as T extends true ? PreviewTestset : Testset
     } else {
-        return response?.data?.testset as T extends true ? PreviewTestSet : TestSet
+        return response?.data?.testset as T extends true ? PreviewTestset : Testset
     }
 }
 

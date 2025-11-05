@@ -1,6 +1,7 @@
 import {memo, useEffect, useMemo, useRef} from "react"
 
-import {Tag, theme} from "antd"
+import {InfoCircleOutlined} from "@ant-design/icons"
+import {GlobalToken, Tag, Tooltip, theme} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 import {mutate} from "swr"
 
@@ -21,10 +22,26 @@ const EvaluationStatusCell = ({
     runId,
     status,
     evalType,
+    preferProvidedStatus = false,
+    statusOverride,
 }: {
     runId: string
     status?: EvaluationStatus
     evalType?: "auto" | "human"
+    preferProvidedStatus?: boolean
+    statusOverride?: (
+        status: EvaluationStatus,
+        token: GlobalToken,
+        baseStatus?: {
+            label: string
+            color: string
+            tooltip?: string
+        },
+    ) => {
+        label: string
+        color: string
+        tooltip?: string
+    }
 }) => {
     const swrData = useEvaluationRunScenarios(runId, undefined, {
         syncAtom: false,
@@ -130,16 +147,41 @@ const EvaluationStatusCell = ({
     }, [scenarios])
 
     const _status = useMemo(() => {
-        if (evalType !== "auto") return runStatus
+        if (preferProvidedStatus || evalType !== "auto") return runStatus
         return runningEvaluations.data?.run?.status || runStatus
-    }, [runningEvaluations.data?.run?.status, runStatus])
+    }, [preferProvidedStatus, evalType, runningEvaluations.data?.run?.status, runStatus])
+
+    const statusInfo = useMemo(() => {
+        const baseStatus = statusMapper(token)(_status as EvaluationStatus | "stopped" | "closed")
+        if (!statusOverride) return baseStatus
+
+        const overrideStatus = statusOverride(_status as EvaluationStatus, token, baseStatus)
+        if (!overrideStatus) return baseStatus
+
+        return {
+            ...baseStatus,
+            ...overrideStatus,
+            label: overrideStatus.label ?? baseStatus.label,
+            color: overrideStatus.color ?? baseStatus.color,
+            tooltip: !["Running", "Success"].includes(baseStatus.label) ? baseStatus.label : null,
+        }
+    }, [_status, statusOverride, token])
 
     return (
         <div className="w-full flex gap-4 items-center justify-between">
-            <Tag color={statusMapper(token)(_status).color}>
-                {statusMapper(token)(_status).label}
+            <Tag
+                style={statusInfo.textColor ? {color: statusInfo.textColor} : undefined}
+                color={statusInfo.color}
+            >
+                {statusInfo.label}
             </Tag>
-            <div className="text-nowrap">{`${completedCount} / ${totalCount}`}</div>
+            <Tooltip title={statusInfo.tooltip}>
+                <div className="flex items-center gap-1 text-nowrap text-xs text-[#1d2939]">
+                    <span style={{color: token.colorSuccess}}>{`${completedCount}`}</span>
+                    <span>{` / `}</span>
+                    <span>{`${totalCount}`}</span>
+                </div>
+            </Tooltip>
         </div>
     )
 }

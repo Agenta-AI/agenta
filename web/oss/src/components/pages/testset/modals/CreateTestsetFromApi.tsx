@@ -102,11 +102,11 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                     onClick={() => setCurrent(0)}
                 />
 
-                <Text className={classes.headerText}>Create a test set with API</Text>
+                <Text className={classes.headerText}>Create a testset with API</Text>
             </div>
 
             <div className="flex flex-col gap-6">
-                <Text>Create a test set programmatically using our API endpoints</Text>
+                <Text>Create a testset programmatically using our API endpoints</Text>
 
                 <div className="grid gap-2">
                     <Text className={classes.label}>Select type</Text>
@@ -116,7 +116,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
                     </Radio.Group>
                 </div>
 
-                <Text>Use this endpoint to create a new Test set for your App using JSON</Text>
+                <Text>Use this endpoint to create a new Testset for your App using JSON</Text>
 
                 <div>
                     <Tabs
@@ -164,7 +164,7 @@ const CreateTestsetFromApi: React.FC<Props> = ({setCurrent, onCancel}) => {
 
             <div className="w-full flex items-center justify-between">
                 <Typography.Link
-                    href="https://docs.agenta.ai/evaluation/create-test-sets#creating-a-test-set-using-the-api"
+                    href="https://docs.agenta.ai/evaluation/create-testsets#creating-a-testset-using-the-api"
                     target="_blank"
                     className={classes.subText}
                 >

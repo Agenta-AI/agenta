@@ -40,7 +40,7 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
     setEvaluationName: Dispatch<SetStateAction<string>>
     isOpen?: boolean
-    testSets: testset[]
+    testsets: testset[]
     variants?: EnhancedVariant[]
     variantsLoading?: boolean
     evaluators: Evaluator[] | EvaluatorDto<"response">[]
@@ -64,7 +64,7 @@ export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
 }
 
 export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
-    testSets: testset[]
+    testsets: testset[]
     selectedTestsetId: string
     setSelectedTestsetId: Dispatch<SetStateAction<string>>
     handlePanelChange: (key: string | string[]) => void

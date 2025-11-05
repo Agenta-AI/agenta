@@ -262,7 +262,7 @@ export const prefetchProjectVariantConfigs = (references: ProjectVariantConfigKe
                     params.variantVersion ?? "",
                 ],
                 queryFn: async () => {
-                    return fetchVariantConfig({
+                    const res = await fetchVariantConfig({
                         projectId: params.projectId as string,
                         application: {
                             id: params.appId,
@@ -274,6 +274,7 @@ export const prefetchProjectVariantConfigs = (references: ProjectVariantConfigKe
                             version: params.variantVersion ?? null,
                         },
                     })
+                    return (res ?? {}) as VariantConfigResponse
                 },
             })
             .catch((error) => {

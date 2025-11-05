@@ -45,9 +45,10 @@ const SimpleSharedEditorContent = ({
     disableFormatItems,
     showTextToMdOutside = false,
     minimizedHeight = 68,
+    defaultMinimized = false,
     ...props
 }: SimpleSharedEditorProps) => {
-    const [minimized, setMinimized] = useState(false)
+    const [minimized, setMinimized] = useState(() => Boolean(defaultMinimized))
     const [isCopied, setIsCopied] = useState(false)
     const [language, setLanguage] = useState<Format>(() =>
         isJSON ? "json" : isYAML ? "yaml" : "text",
@@ -263,11 +264,11 @@ const SimpleSharedEditorContent = ({
                         {isMinimizeVisible && (
                             <EnhancedButton
                                 {...minimizeButtonProps}
-                                icon={!minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
+                                icon={minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
                                 type="text"
                                 size="small"
                                 onClick={() => setMinimized((c) => !c)}
-                                tooltipProps={{title: minimized ? "Minimize" : "Maximize"}}
+                                tooltipProps={{title: minimized ? "Maximize" : "Minimize"}}
                             />
                         )}
                     </div>

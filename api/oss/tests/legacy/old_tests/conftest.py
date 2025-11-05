@@ -10,7 +10,7 @@ if is_oss():
 @pytest.fixture(scope="session", autouse=True)
 def event_loop():
     """
-    Create an instance of the default event loop for each test case.
+    Create an instance of the default event loop for each testcase.
     """
 
     policy = asyncio.get_event_loop_policy()

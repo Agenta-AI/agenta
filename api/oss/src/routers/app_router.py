@@ -261,7 +261,7 @@ async def create_app(
     return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
 
 
-@router.get("/{app_id}/", response_model=ReadAppOutput, operation_id="create_app")
+@router.get("/{app_id}/", response_model=ReadAppOutput, operation_id="read_app")
 async def read_app(
     request: Request,
     app_id: str,
@@ -454,7 +454,7 @@ async def add_variant_from_url(
         return app_variant_dto
 
     except Exception as e:
-        log.exception(f"An error occurred: {str(e)}")
+        log.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -486,11 +486,11 @@ async def add_variant_from_key_route(
         url = app_manager.get_service_url_from_template_key(payload.key)
 
     except NotImplementedError as e:
-        log.exception(f"An error occurred: {str(e)}")
+        log.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
-        log.exception(f"An error occurred: {str(e)}")
+        log.error(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     if not url:

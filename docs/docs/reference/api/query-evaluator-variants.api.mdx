@@ -1,0 +1,71 @@
+---
+id: query-evaluator-variants
+title: "Query Evaluator Variants"
+description: "Query Evaluator Variants"
+sidebar_label: "Query Evaluator Variants"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNWdty2zYQ/RXNPrUzjOV6+qSnqnYyduPGbu2kDxqNByJXEhKQYHCxo2j4750FQIrUzbQuiZ88lnb3HBwssIvVHAybaOgN4O0jE5YZqTQMI5A5Kma4zK4S6MFXi2r2gKXFwyNTnGVGQwQ5UyxFg4qCzCFjKUIPFqY8gQh4VgaBCBR+tVxhAr0xExoj0PEUUwa9ObBsdjN2ccwspzjaKJ5NIIKxVCkz0ANreQJFVFlkVggohhEYbgR9UK2jc5VAQZZrOOl9SDGlGPlwg6kmi2fItmWrN9DVwk4OIGI7GncEtpnHMYVrKdSdo7GeYkjMn5l1nzyFzdm34PgKs3DB/jmJf2hWlrS2ZGed1yvI0jrjppTuz3GF+0AQdcwEdax4Thf6kaEvakh1BmPB9tuWFtjvHEYd1Rwf9H4ZM0XDjoz5N0HUMXkWC5vgA1PxlD/iXrffSEqBLNtK4MrjdfolXiPB8Zv5wdfvB4JscnhCfWAWCTP4xnA6WlupOOQ6GSmSn0TmxiPXyQie8r248MzgBNVW3GsH0tBAJah2gsXMptSgMh1jlngZ6D4L/xBq64Nz41gU9JFCnctMo7viz05P6U/9muzBnY1j1HpsReffYAwRxDIzmBnHMc8Fj12b3P2syWdeW0GuqIk23CPE0nqnJRUX3M6dBa1tzKww0DstotX65oJVpamJ0ei6j9JOR/Ak1ZexkE8HhPgvhAwITBk+ZrE5IEI/hAwIvhY1YjeF5PohttrIdPcLUnfOfYQionDV1uwTsdqLEHRqU5btE/DSBSiK6gjJ0WeMDazZ/lBbV+IVkS94DRYsSTidCiZuG7q2qHVrb5d01Pykvrz1WBBzFVvB1C/vrBB/aZm9ubEmt+ZXWF4sBQkHqo2Xbw+3tiFNX1iR9/nSHoVn+WsV9YO85to8K+vGGrns/jKNfMsVhdKyT4scNa/8A7S8EcQKmcHkgZmDlvJzH7bTd2LZPDkGyEcfNoAkKPAIIBc+bAAp5RrNDnjhl2L9OQtXfqnXQVFKtSqUUrCDopRyVSju5b1jrvoHdASHo+fnHM8XkPAgrp308qG98fGs693QYPgSGF11bEVBfr+fna02eJ+Y4Ilr3zpvlZJq9+4uQcO42NKaCRk3vn3JpT3cLNm19ARJ1VRP1o2BFoVFazbBhf6bTZ0YnXv6dp3mi6594NbloYNdLTMW8np1Ny/jwsu3bYMv7+9vVwL6vW1u6j/0tuiszaUUzVTSPDuX7jmWMzOFHnRzhY8cn7pVk6a7ZbfdLZ8qGtVjOeS2SkAPpsbkutftxkLa5IRNMDPshPEuy7k7IBpjq7iZOZf+7dV7nF0io/cH5XLN4I6SyqdJ02wxksr5eyQW4THVt2YqFf/O6gOdqfciRXg2ls697H8duU7/9goioGV4qU5Pfjs5hWUBG8Z0HljszkOJ7b6GaEmFav0QAabuMIBBlv6x+IKYkfKhaQ3xtuzXUm0OYhj8Zrq5YNxlvWMxD1s5gLCVUHs5UaTaDxZ+Q4cRTCkJegOYz0dM40clioI+9t/TniVcs5GovU6/4Gz1tw36j2i5o9vCRb/YJ0xaX+70cqjG/HxX191hd1rp8uC3jXeYwbYxbY5O23iUo842tqa9aZgrtjFdMw5spYof3LUzDfO1NsbV/KuNcTmfahU4DJUWtsNw1kd07w2ock7LO3cenPpxjHkdYaXQU5SqVtze3N1DUfwPi8PuoA==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Query Evaluator Variants"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/evaluators/variants/query"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Query Evaluator Variants
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"evaluator_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Evaluator Id"}},{"name":"evaluator_ids","in":"query","required":false,"schema":{"anyOf":[{"type":"array","items":{"type":"string","format":"uuid"}},{"type":"null"}],"title":"Evaluator Ids"}},{"name":"evaluator_slug","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Evaluator Slug"}},{"name":"evaluator_slugs","in":"query","required":false,"schema":{"anyOf":[{"type":"array","items":{"type":"string"}},{"type":"null"}],"title":"Evaluator Slugs"}},{"name":"evaluator_variant_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Evaluator Variant Id"}},{"name":"evaluator_variant_ids","in":"query","required":false,"schema":{"anyOf":[{"type":"array","items":{"type":"string","format":"uuid"}},{"type":"null"}],"title":"Evaluator Variant Ids"}},{"name":"evaluator_variant_slug","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Evaluator Variant Slug"}},{"name":"evaluator_variant_slugs","in":"query","required":false,"schema":{"anyOf":[{"type":"array","items":{"type":"string"}},{"type":"null"}],"title":"Evaluator Variant Slugs"}},{"name":"name","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"}},{"name":"description","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"}},{"name":"flags","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Flags"}},{"name":"tags","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Tags"}},{"name":"meta","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Meta"}},{"name":"include_archived","in":"query","required":false,"schema":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Include Archived"}},{"name":"next","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Next"}},{"name":"newest","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Newest"}},{"name":"oldest","in":"query","required":false,"schema":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Oldest"}},{"name":"limit","in":"query","required":false,"schema":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"}},{"name":"order","in":"query","required":false,"schema":{"anyOf":[{"enum":["ascending","descending"],"type":"string"},{"type":"null"}],"title":"Order"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"evaluator_variants":{"items":{"properties":{"evaluator_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Evaluator Id"},"workflow_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Workflow Id"},"artifact_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Artifact Id"},"flags":{"anyOf":[{"properties":{"is_custom":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Is Custom"},"is_evaluator":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Is Evaluator"},"is_human":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Is Human"}},"type":"object","title":"EvaluatorFlags"},{"type":"null"}]},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(NoListJson-Output)","type":"object"},{"type":"null"}],"title":"NoListJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"EvaluatorVariant"},"type":"array","title":"Evaluator Variants","default":[]}},"type":"object","title":"EvaluatorVariantsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

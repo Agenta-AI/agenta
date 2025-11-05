@@ -282,8 +282,28 @@ export function getTypedValue(res?: TypedValue) {
             return formatCurrency(Number(value))
         case "latency":
             return formatLatency(Number(value))
+        case "string":
+        case "text":
+            return value?.toString() ?? "-"
+        case "code":
+        case "regex":
+            return value?.toString() ?? "-"
+        case "object":
+            return typeof value === "object"
+                ? JSON.stringify(value, null, 2)
+                : (value?.toString() ?? "-")
+        case "messages":
+            return Array.isArray(value)
+                ? value
+                      .map((msg) => (typeof msg === "string" ? msg : JSON.stringify(msg)))
+                      .join("\n")
+                : (value?.toString() ?? "-")
+        case "multiple_choice":
+            return Array.isArray(value) ? value.join(", ") : (value?.toString() ?? "-")
+        case "hidden":
+            return "-"
         default:
-            return value?.toString()
+            return value?.toString() ?? "-"
     }
 }
 

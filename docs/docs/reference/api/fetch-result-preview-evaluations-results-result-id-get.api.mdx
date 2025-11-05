@@ -1,0 +1,71 @@
+---
+id: fetch-result-preview-evaluations-results-result-id-get
+title: "Fetch Result"
+description: "Fetch Result"
+sidebar_label: "Fetch Result"
+hide_title: true
+hide_table_of_contents: true
+api: eJzVWEtv20YQ/ivCnBKAsRyjJ56qJnbtOmkMW8nFEIQRORI3XS7p3VnVqsD/XuxySZGSLD/gBO1J0nIe337z4IzWwLgwEN/C6RKlRRaFMjCJoChJ+18XKcQwJ06yqSZjJU9LTUtBf09poxEemWkjI9LpdEEMEZSoMScm7bysQWFOEEMrBhEIBTGUyBlEoOnOCk0pxKwtRWCSjHKEeA28Kp2iYS3UAiKYFzpHhhis9VZYsHQC197y4CKFqpo4g6YslCHjbJwcH7uPlEyiRemQQww3NknImLmVg+sgDBEkhWJS7MSxLKVI/EWH343TWXdwldpRxaL2kBS2VgpwhWJakO7g++AlIkhpjlYyxMdVFOjwztTqy9wz1Tc8lz5OXQFMU+FAobzqiW4kAohZUUhCBVW0TWM1qaLmqJh9p4S7QspKCY7EBvuZB1FFkBPjC8E0nqMdjnqe81n/pHuH/b4gETqxEvWbMyvlH6ZQ775YLi2/hX13FEz5E7VQa1wdJqavC89i9bMj02m8PMI/gdQ/i0/C8KO0PnTJHfXncTQOiZdoQqZ0inyIh053SJHpHYucDpr/UJsdjDwsW6Y/wsnX2mxwkpKkH+DkY202OGnomq1cq32aH99Pn0LWbyvfZTd8vaqXhq3WS0PYq3pp6Gq9vJ7p2t6StBH1O+MJVbtj5FtQryLI0GSvePNzNFm4M2tM6BHTB4vT6Te2yHCC5jFzz0E6DiaDB9K60P/dPvk/e/mcejarCAwj24OsRUDK5m5WLEml9cmdJUtu/NJWqfrI1POUCzEKabWbpnzM3FGCKiEpKYUuhnaQvKlB7APczkutd1etikkvUe6FvTe020XaGHCkiZwMY16+akMet1b9nFcSurH3/sWIr72JwUV6vz1EGqZy+het9k3LjfYNUzm4pJWPeEIKtShCqT51wL4JaqEctVXPNHBtVT2eb+dpd/y/3Vynj7T1uDeB6ul/D4H7vD2k3q4BVeXUfjk52d0avqEUqdcZ1CX04pUhJUbhMzh0hW0BWSS9p8/pap35vm4km1t/KmqAfp43i0NZ85mMwQVtOsvDop6Mwdg9fSzA7l616yDXfe+19LYN6oFrfKzpOxTf8/H4asdgHdt+UM/cmjsIOeS3nKxw62+zyXIGMQzD/jvs7L/DsP8O1+1iW7m8Jb1sFl+rJcSQMZcmHg4TWdj0CBekGI9QDLEUvsoNJVYLXnmV0dXFJa3OCVPSEN9OugI3Lpvq/OiLtaHBUlz66gkr98hyVmjxTx30sHZntVble+m88OqBtZEHNxhdXUBnjIHjo/dHx7DNXE/YFQImvhAa3/4xRFsstPd3r4jcVwEwYf7r5oFDVhaGc1Qde1uB6mFpCWC652EpUfgU957XIYi3EILoHHf++Gg2cfct3vxHMYkgKww7vfV6hoa+allV7vjOknbBmkSwRC1w5qi7XUMqjPueQjxHaWgHYtsr4M11KIm3g81Lvw+9Cahy0XRo3S+IwPf6zl8pvtqzJl3W4fkoSajkjuZOc3J51eb676djqKp/AUN2MQM=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Result"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/evaluations/results/{result_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Result
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"result_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Result Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"result":{"anyOf":[{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"}]},"type":"object"},{"type":"null"}],"title":"Flags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(NoListJson-Output)","type":"object"},{"type":"null"}],"title":"NoListJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"},"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"hash_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Hash Id"},"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"},"testcase_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Testcase Id"},"error":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Error"},"status":{"anyOf":[{"type":"string","enum":["pending","queued","running","success","failure","errors","cancelled"],"title":"EvaluationStatus"},{"type":"null"}],"default":"pending"},"interval":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Interval"},"timestamp":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Timestamp"},"repeat_idx":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Repeat Idx","default":0},"step_key":{"type":"string","title":"Step Key"},"scenario_id":{"type":"string","format":"uuid","title":"Scenario Id"},"run_id":{"type":"string","format":"uuid","title":"Run Id"}},"type":"object","required":["step_key","scenario_id","run_id"],"title":"EvaluationResult"},{"type":"null"}]}},"type":"object","title":"EvaluationResultResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -12,6 +12,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.workflows.dtos import (
     WorkflowFlags,
+    WorkflowQueryFlags,
     #
     WorkflowQuery,
     WorkflowVariantQuery,
@@ -55,7 +56,7 @@ def parse_workflow_query_request_from_params(
 ) -> WorkflowQueryRequest:
     _flags, _tags, _meta = parse_metadata(flags, tags, meta)
 
-    __flags = WorkflowFlags(**_flags) if _flags else None  # type: ignore
+    __flags = WorkflowQueryFlags(**_flags) if _flags else None  # type: ignore
 
     workflow = (
         WorkflowQuery(
@@ -201,7 +202,7 @@ def parse_workflow_variant_query_request_from_params(
 ) -> WorkflowVariantQueryRequest:
     _flags, _tags, _meta = parse_metadata(flags, tags, meta)
 
-    __flags = WorkflowFlags(**_flags) if _flags else None  # type: ignore
+    __flags = WorkflowQueryFlags(**_flags) if _flags else None  # type: ignore
 
     workflow_variant = (
         WorkflowVariantQuery(
@@ -387,7 +388,7 @@ def parse_workflow_revision_query_request_from_params(
 ) -> WorkflowRevisionQueryRequest:
     _flags, _tags, _meta = parse_metadata(flags, tags, meta)
 
-    __flags = WorkflowFlags(**_flags) if _flags else None  # type: ignore
+    __flags = WorkflowQueryFlags(**_flags) if _flags else None  # type: ignore
 
     workflow_revision = (
         WorkflowRevisionQuery(

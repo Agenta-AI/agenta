@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 from uuid import UUID, uuid4
 
 from fastapi import Request
@@ -88,7 +88,7 @@ class InvocationsService:
             invocation_create.references.application.slug
             if invocation_create.references.application
             else None
-        ) or uuid4().hex
+        ) or uuid4().hex[-12:]
 
         legacy_application_flags = LegacyApplicationFlags()
 
@@ -801,7 +801,7 @@ class InvocationsService:
 
         filtering = Filtering()
 
-        conditions: List[Condition | Filtering] = [
+        conditions: List[Union[Condition, Filtering]] = [
             Condition(
                 field="attributes",
                 key="ag.type.trace",

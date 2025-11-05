@@ -48,7 +48,7 @@ from oss.src.models.db_models import (
     AppVariantDB,
     UserDB,
     AppDB,
-    TestSetDB,
+    TestsetDB,
     InvitationDB,
     EvaluatorConfigDB,
     AppVariantRevisionsDB,
@@ -1418,7 +1418,7 @@ async def fetch_evaluation_by_id(
             id=uuid.UUID(evaluation_id),
         )
         query = base_query.options(
-            joinedload(EvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
+            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
         )
 
         result = await session.execute(
@@ -1451,7 +1451,7 @@ async def list_human_evaluations(app_id: str, project_id: str):
             .filter(HumanEvaluationDB.testset_id.isnot(None))
         )
         query = base_query.options(
-            joinedload(HumanEvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
+            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
         )
 
         result = await session.execute(query)
@@ -1583,7 +1583,7 @@ async def fetch_human_evaluation_by_id(
     async with engine.core_session() as session:
         base_query = select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         query = base_query.options(
-            joinedload(HumanEvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
+            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
         )
         result = await session.execute(query)
         evaluation = result.scalars().first()
@@ -1811,7 +1811,7 @@ async def fetch_human_evaluation_scenario_by_evaluation_id(
 async def create_new_evaluation(
     app: AppDB,
     project_id: str,
-    testset: TestSetDB,
+    testset: TestsetDB,
     status: Result,
     variant: str,
     variant_revision: str,
@@ -1859,7 +1859,7 @@ async def list_evaluations(app_id: str, project_id: str):
             app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
         )
         query = base_query.options(
-            joinedload(EvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
+            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
         )
 
         result = await session.execute(

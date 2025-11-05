@@ -111,7 +111,7 @@ const TurnMessageHeaderOptions = ({
 
             {!hideAddToTestset && (
                 <TestsetDrawerButton
-                    tooltipProps={{title: "Add to test set"}}
+                    tooltipProps={{title: "Add to testset"}}
                     type="text"
                     resultHashes={resultHashes}
                     onClickTestsetDrawer={onClickTestsetDrawer}

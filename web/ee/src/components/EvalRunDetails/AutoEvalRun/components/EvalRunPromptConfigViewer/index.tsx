@@ -58,36 +58,12 @@ const EvalRunPromptConfigViewer = () => {
     const referencesSetRef = useRef(false)
 
     useEffect(() => {
-        if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
-            console.info("[EvalRunPromptConfigViewer] Renderable runs", {
-                total: runs?.length ?? 0,
-                renderable: renderableRuns.length,
-                runIds,
-                enrichedRunIds: renderableRuns.map((r) => r.enrichedRun?.id),
-            })
-        }
-    }, [runIds, runs, renderableRuns])
-
-    useEffect(() => {
         if (!projectId || projectVariantReferences.length === 0) {
-            if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
-                console.info("[EvalRunPromptConfigViewer] No project variant references derived", {
-                    projectId,
-                    renderableRuns: renderableRuns.length,
-                })
-            }
             return
         }
         setProjectVariantReferences(projectVariantReferences)
         prefetchProjectVariantConfigs(projectVariantReferences)
         referencesSetRef.current = true
-        if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
-            console.info("[EvalRunPromptConfigViewer] Prefetch project variants", {
-                projectId,
-                referenceCount: projectVariantReferences.length,
-                references: projectVariantReferences,
-            })
-        }
     }, [
         projectId,
         projectVariantReferences,
@@ -100,9 +76,6 @@ const EvalRunPromptConfigViewer = () => {
             if (referencesSetRef.current) {
                 clearProjectVariantReferences()
                 referencesSetRef.current = false
-                if (process.env.NODE_ENV !== "production" && typeof window !== "undefined") {
-                    console.info("[EvalRunPromptConfigViewer] Cleared project variant references")
-                }
             }
         },
         [clearProjectVariantReferences],

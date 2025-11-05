@@ -95,7 +95,8 @@ from oss.src.core.tracing.dtos import (
     TracingQuery,
 )
 from oss.src.core.workflows.dtos import (
-    WorkflowServiceData,
+    WorkflowServiceRequestData,
+    WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceResponse,
     WorkflowServiceInterface,

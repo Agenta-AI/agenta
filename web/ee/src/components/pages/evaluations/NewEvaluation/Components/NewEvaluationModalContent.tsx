@@ -49,7 +49,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     setEvaluationName,
     preview,
     evaluationType,
-    testSets,
+    testsets,
     variants,
     variantsLoading,
     evaluators,
@@ -73,8 +73,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     }, [redirectUrl])
 
     const selectedTestset = useMemo(
-        () => testSets.find((ts) => ts._id === selectedTestsetId) || null,
-        [testSets, selectedTestsetId],
+        () => testsets.find((ts) => ts._id === selectedTestsetId) || null,
+        [testsets, selectedTestsetId],
     )
 
     const selectedVariants = useMemo(
@@ -195,7 +195,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         handlePanelChange={handlePanelChange}
                         selectedTestsetId={selectedTestsetId}
                         setSelectedTestsetId={setSelectedTestsetId}
-                        testSets={testSets}
+                        testsets={testsets}
                         selectedVariantRevisionIds={selectedVariantRevisionIds}
                         className="pt-2"
                     />
@@ -275,7 +275,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         selectedEvalConfigs,
         preview,
         evaluationType,
-        testSets,
+        testsets,
         variants,
         evaluators,
         evaluatorConfigs,

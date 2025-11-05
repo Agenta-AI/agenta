@@ -6,7 +6,14 @@ import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import {useAppId} from "@/oss/hooks/useAppId"
-import {Evaluator, EvaluatorConfig, JSSTheme, testset, Variant} from "@/oss/lib/Types"
+import {
+    EvaluationSettingsTemplate,
+    Evaluator,
+    EvaluatorConfig,
+    JSSTheme,
+    testset,
+    Variant,
+} from "@/oss/lib/Types"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
@@ -116,26 +123,88 @@ const ConfigureEvaluator = ({
         trace: null,
     })
 
-    const evalFields = useMemo(
-        () =>
-            Object.keys(selectedEvaluator?.settings_template || {})
-                .filter((key) => !!selectedEvaluator?.settings_template[key]?.type)
-                .map((key) => ({
+    const evaluatorVersionNumber = useMemo(() => {
+        const raw =
+            editEvalEditValues?.settings_values?.version ??
+            selectedEvaluator?.settings_template?.version?.default ??
+            3
+
+        if (typeof raw === "number") return raw
+        // extract leading number (e.g., "4", "4.1", "v4")
+        const match = String(raw).match(/\d+(\.\d+)?/)
+        return match ? parseFloat(match[0]) : 3
+    }, [editEvalEditValues?.settings_values?.version, selectedEvaluator])
+
+    const evalFields = useMemo(() => {
+        const templateEntries = Object.entries(selectedEvaluator?.settings_template || {})
+        const allowStructuredOutputs = evaluatorVersionNumber >= 4
+
+        return templateEntries.reduce(
+            (acc, [key, field]) => {
+                const f = field as Partial<EvaluationSettingsTemplate> | undefined
+                if (!f?.type) return acc
+                if (!allowStructuredOutputs && (key === "json_schema" || key === "response_type")) {
+                    return acc
+                }
+                acc.push({
                     key,
-                    ...selectedEvaluator?.settings_template[key]!,
-                    advanced: selectedEvaluator?.settings_template[key]?.advanced || false,
-                })),
-        [selectedEvaluator],
-    )
+                    ...(f as EvaluationSettingsTemplate),
+                    advanced: Boolean((f as any)?.advanced),
+                })
+                return acc
+            },
+            [] as Array<EvaluationSettingsTemplate & {key: string}>,
+        )
+    }, [selectedEvaluator, evaluatorVersionNumber])
 
     const advancedSettingsFields = evalFields.filter((field) => field.advanced)
     const basicSettingsFields = evalFields.filter((field) => !field.advanced)
 
-    const onSubmit = (values: CreateEvaluationConfigData) => {
+    const onSubmit = async (values: CreateEvaluationConfigData) => {
         try {
             setSubmitLoading(true)
             if (!selectedEvaluator.key) throw new Error("No selected key")
             const settingsValues = values.settings_values || {}
+
+            const jsonSchemaFieldPath: Array<string | number> = ["settings_values", "json_schema"]
+            const hasJsonSchema = Object.prototype.hasOwnProperty.call(
+                settingsValues,
+                "json_schema",
+            )
+
+            if (hasJsonSchema) {
+                form.setFields([{name: jsonSchemaFieldPath, errors: []}])
+
+                if (typeof settingsValues.json_schema === "string") {
+                    try {
+                        const parsed = JSON.parse(settingsValues.json_schema)
+                        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                            throw new Error()
+                        }
+                        settingsValues.json_schema = parsed
+                    } catch {
+                        form.setFields([
+                            {
+                                name: jsonSchemaFieldPath,
+                                errors: ["Enter a valid JSON object"],
+                            },
+                        ])
+                        throw new Error("JSON schema must be a valid JSON object")
+                    }
+                } else if (
+                    settingsValues.json_schema &&
+                    (typeof settingsValues.json_schema !== "object" ||
+                        Array.isArray(settingsValues.json_schema))
+                ) {
+                    form.setFields([
+                        {
+                            name: jsonSchemaFieldPath,
+                            errors: ["Enter a valid JSON object"],
+                        },
+                    ])
+                    throw new Error("JSON schema must be a valid JSON object")
+                }
+            }
 
             const data = {
                 ...values,
@@ -143,28 +212,56 @@ const ConfigureEvaluator = ({
                 settings_values: settingsValues,
             }
 
-            ;(editMode
-                ? updateEvaluatorConfig(editEvalEditValues?.id!, data)
-                : createEvaluatorConfig(appId, data)
-            )
-                .then(onSuccess)
-                .catch(console.error)
-                .finally(() => setSubmitLoading(false))
+            if (editMode) {
+                await updateEvaluatorConfig(editEvalEditValues?.id!, data)
+
+                setEditEvalEditValues((previous) =>
+                    previous
+                        ? {
+                              ...previous,
+                              ...data,
+                              settings_values: settingsValues,
+                          }
+                        : previous,
+                )
+            } else {
+                const response = await createEvaluatorConfig(appId, data)
+                const createdConfig = response?.data
+
+                if (createdConfig) {
+                    setEditEvalEditValues(createdConfig)
+                    setEditMode(true)
+                }
+            }
+
+            onSuccess()
         } catch (error: any) {
-            setSubmitLoading(false)
+            if (error?.errorFields) return
             console.error(error)
             message.error(error.message)
+        } finally {
+            setSubmitLoading(false)
         }
     }
 
     useEffect(() => {
+        // Reset form before loading new values so there are no stale values
         form.resetFields()
-        if (editMode) {
-            form.setFieldsValue(editEvalEditValues)
-        } else if (cloneConfig) {
-            form.setFieldValue("settings_values", editEvalEditValues?.settings_values)
+
+        if (editMode && editEvalEditValues) {
+            // Load all values including nested settings_values
+            form.setFieldsValue({
+                ...editEvalEditValues,
+                settings_values: editEvalEditValues.settings_values || {},
+            })
+        } else if (cloneConfig && editEvalEditValues) {
+            // When cloning, copy only settings_values and clear the name so user provides a new name
+            form.setFieldsValue({
+                settings_values: editEvalEditValues.settings_values || {},
+                name: "",
+            })
         }
-    }, [editMode, cloneConfig])
+    }, [editMode, cloneConfig, editEvalEditValues, form])
 
     return (
         <section className="flex flex-col w-full h-[calc(100vh-84px)] gap-2">

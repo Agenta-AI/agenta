@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {TestSet} from "@/oss/lib/Types"
+import {Testset} from "@/oss/lib/Types"
 
 export interface InputsVsColumnsResult {
     availableCsvColumns: string[]
@@ -21,7 +21,7 @@ export interface InputsVsColumnsResult {
  */
 export function useInputsVsColumns(
     expectedInputVariables: string[],
-    testsetCsvData: TestSet["csvdata"],
+    testsetCsvData: Testset["csvdata"],
 ): InputsVsColumnsResult {
     const availableCsvColumns = useMemo(() => {
         if (!testsetCsvData.length) return [] as string[]
@@ -93,7 +93,7 @@ export function useInputsVsColumns(
         if (!hasCompatibilityIssue) return undefined
         if (!expectedInputVariables.length) return undefined
         if (!missingExpectedVariables.length) return undefined
-        return `Variant inputs missing in test set: ${missingExpectedVariables.join(", ")}`
+        return `Variant inputs missing in testset: ${missingExpectedVariables.join(", ")}`
     }, [expectedInputVariables.length, hasCompatibilityIssue, missingExpectedVariables])
 
     return {

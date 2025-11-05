@@ -1553,7 +1553,7 @@ class SimpleTestsetsRouter:
 
         simple_testset_create_request = SimpleTestsetCreateRequest(
             testset=SimpleTestsetCreate(
-                slug=testset_slug or uuid4().hex,
+                slug=testset_slug or uuid4().hex[-12:],
                 #
                 name=testset_name or testset_slug or None,
                 description=testset_description,

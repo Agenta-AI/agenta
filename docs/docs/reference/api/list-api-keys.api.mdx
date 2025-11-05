@@ -5,186 +5,65 @@ description: "List all API keys associated with the authenticated user."
 sidebar_label: "List Api Keys"
 hide_title: true
 hide_table_of_contents: true
-api: eJzdVE1v2zAM/SsCTxsgJNmOPs3biq1ogRX9OKVBwMpMrMaWVYnumgX+7wNlx00ydIcdl4OjD/Lh8fFRO2BcR8jmkHurLmgbYaGhoGiC9WwbBxlc2sgKq0rlV+dqQ9uoMMbGWGQq1E/LpeKSFLZckmNr0nEbKUzu3b3Lwzpm904ppQI9tRRZvbvuF+8zdVuSss40tXXr8b55eCTDKfuauA1uDyBE5vLJr86F6jVF37hIi0zlqhKWzSqRvHiLZKIFGhpPAaW88wIykNQleruU4kBDGHAjZDv4OJvJ37EkN60xFOOqrdSeBGgwjWNyLOHofSVS2MZNH6Pk7CCakmqUlWWqE7gPwoQtDTta2RdZ8dYTZBA5WLcGDWy5koOrPqLTYAJJaUvkv8V/6aNUzpJTYeRlG8csdNsfK8jmp/mdHk9cW1XQLV4RLzGyuosjJr1420u5LJDpX2HPRhj1VWC6Tu9jezuktjy1NlAhbh2kOtLhkOWfJoFXRAwBtwcq7UOSwdQ4CJ38NNTEZSM2WZOw8MglZDAdvBIpPFOIqdw2VJBByexjNp2aqmmLCa7JMU7QTtFbOB2tPN2qLxKa9Ihk2mB5m/D6Cr4TFhQgmy8OA27ETL1tjsNGjdHbC5IyHdayz1sum2B/JZVBgxUCZZ8ldVq3alL6oMrA7TOaDbkCNEidPe3Z5MNk9lYxQ4IM4jATaJLd9jxSGOgTuUahQAPVaOWOCetPrxfC0jeRa3QHeMdNOyG1ex3K//EdG1rN9MJTX6F14vKk624w6hw2w6NeNpFlv9s9YKS7UHWdHD+1FMRuCw3PGCw+SPPni07vvSFO3NBWOmcMeZmBZ6za3mInr5w4dJyXb2e30HW/AYK5MV8=
+api: eJzdVMtu2zAQ/BViTy1A2GmPOlVogzZIgAZ5nBzD2NBri4lEMuQqjWvo34ulZPlRtIce64PNx+54ZjjkFhjXCYoZlMGqS9okmGtYUjLRBrbeQQFXNrHCulbl9YV6pk1SmJI3FpmW6oflSnFFCluuyLE1eblNFCcP7sGVcZ2KB6eUUpFeWkqs3t30g/eFuqtIWWd8Y9163PePT2Q4d98Qt9HtAITITL7K6wuhekMpeJdoXqhS1cLSrzLJyz+RzLRAgw8UUeRdLKEAaV1gsAsRBxrigJug2MLHszP5ObbktjWGUlq1tdqRAA3GOybHUo4h1GKF9W76lKRnC8lU1KCMLFOTwUMUJmxpmNHKvsmIN4GggMTRujVoYMu1LFz3FZ0GE0mkLZD/Vv+5r1IlS0+NiRdtGrvQbb6voJid9nd6XHFtXUM33yNeYWJ1n0ZMegu2t3KxRKZ/hT0fYdQXgek6vavt45CP5aW1kZaS1sGqIx8OWf4eEtgjYoy4OXBpV5IDpsaL0MlHQ0NceYnJmoRFQK6ggOmQlUTxlWLKcttYQwEVc0jFdGpq3y4nuCbHOEE7xWCz5ESmjZY3uaUn+Y1wSRGK2fyw4Fby0ifjuGy0EYO9JFHisJF52XLlo/2ZjQQNVrJa9V0ixbqVz+2D8DKTkysDGkRGn+6zyYfJGZw+A0fFEnU0OUW7/87boE9cGPWDBmrQyh4TNp/2G8Is+MQNugO847M4IbPd37X/8XkajpfpjaehRuskvNnX7ZC/GTwPb3XlE8t8u33ERPex7jpZfmkpSsTmGl4xWnyUA5/NO73Lg6TvmTZycsZQkGi/Yt32sTp5vCSV4zX4en4HXfcLULMi0A==
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-backend
+info_path: reference/api/agenta-api
 custom_edit_url: null
 ---
 
-import ApiTabs from "@theme/ApiTabs";
-import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
-import MimeTabs from "@theme/MimeTabs";
-import ParamsItem from "@theme/ParamsItem";
-import ResponseSamples from "@theme/ResponseSamples";
-import SchemaItem from "@theme/SchemaItem";
-import SchemaTabs from "@theme/SchemaTabs";
-import Markdown from "@theme/Markdown";
-import Heading from "@theme/Heading";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"List Api Keys"}
-></Heading>
+>
+</Heading>
 
-<MethodEndpoint method={"get"} path={"/keys"}></MethodEndpoint>
+<MethodEndpoint
+  method={"get"}
+  path={"/keys"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
 
 List all API keys associated with the authenticated user.
 
 Args:
-request (Request): The incoming request object.
+    request (Request): The incoming request object.
 
 Returns:
-List[ListAPIKeysResponse]: A list of API Keys associated with the user.
+    List[ListAPIKeysResponse]: A list of API Keys associated with the user.
 
-<div>
-  <div>
-    <ApiTabs label={undefined} id={undefined}>
-      <TabItem label={"200"} value={"200"}>
-        <div>Successful Response</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>
-                      <li>
-                        <div
-                          style={{
-                            fontSize: "var(--ifm-code-font-size)",
-                            opacity: "0.6",
-                            marginLeft: "-.5rem",
-                            paddingBottom: ".5rem",
-                          }}
-                        >
-                          Array [
-                        </div>
-                      </li>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"prefix"}
-                        required={true}
-                        schemaName={"Prefix (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Prefix" }}
-                      ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"created_at"}
-                        required={true}
-                        schemaName={"Created At (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Created At" }}
-                      ></SchemaItem>
-                      <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
-                          <summary style={{}}>
-                            <strong>last_used_at</strong>
-                            <span style={{ opacity: "0.6" }}>object</span>
-                          </summary>
-                          <div style={{ marginLeft: "1rem" }}></div>
-                          <div>
-                            <span className={"badge badge--info"}>anyOf</span>
-                            <SchemaTabs>
-                              <TabItem
-                                label={"MOD1"}
-                                value={"0-item-properties"}
-                              >
-                                <div
-                                  style={{
-                                    marginTop: ".5rem",
-                                    marginBottom: ".5rem",
-                                  }}
-                                >
-                                  string
-                                </div>
-                              </TabItem>
-                            </SchemaTabs>
-                          </div>
-                        </details>
-                      </SchemaItem>
-                      <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
-                          <summary style={{}}>
-                            <strong>expiration_date</strong>
-                            <span style={{ opacity: "0.6" }}>object</span>
-                          </summary>
-                          <div style={{ marginLeft: "1rem" }}></div>
-                          <div>
-                            <span className={"badge badge--info"}>anyOf</span>
-                            <SchemaTabs>
-                              <TabItem
-                                label={"MOD1"}
-                                value={"0-item-properties"}
-                              >
-                                <div
-                                  style={{
-                                    marginTop: ".5rem",
-                                    marginBottom: ".5rem",
-                                  }}
-                                >
-                                  string
-                                </div>
-                              </TabItem>
-                            </SchemaTabs>
-                          </div>
-                        </details>
-                      </SchemaItem>
-                      <li>
-                        <div
-                          style={{
-                            fontSize: "var(--ifm-code-font-size)",
-                            opacity: "0.6",
-                            marginLeft: "-.5rem",
-                          }}
-                        >
-                          ]
-                        </div>
-                      </li>
-                    </ul>
-                  </details>
-                </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
-                  <ResponseSamples
-                    responseExample={
-                      '[\n  {\n    "prefix": "string",\n    "created_at": "string",\n    "last_used_at": "string",\n    "expiration_date": "string"\n  }\n]'
-                    }
-                    language={"json"}
-                  ></ResponseSamples>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-    </ApiTabs>
-  </div>
-</div>
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"prefix":{"type":"string","title":"Prefix"},"created_at":{"type":"string","title":"Created At"},"last_used_at":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Last Used At"},"expiration_date":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Expiration Date"}},"type":"object","required":["prefix","created_at"],"title":"ListAPIKeysResponse"},"type":"array","title":"Response List Api Keys"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

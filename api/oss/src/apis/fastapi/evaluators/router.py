@@ -13,6 +13,7 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     EvaluatorFlags,
+    EvaluatorQueryFlags,
     #
     EvaluatorQuery,
     #
@@ -21,7 +22,9 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorData,
     SimpleEvaluatorQuery,
     SimpleEvaluator,
+    #
     SimpleEvaluatorFlags,
+    SimpleEvaluatorQueryFlags,
 )
 from oss.src.core.evaluators.service import (
     SimpleEvaluatorsService,
@@ -1260,7 +1263,11 @@ class SimpleEvaluatorsRouter:
 
         simple_evaluator_flags = (
             SimpleEvaluatorFlags(
-                **evaluator.flags.model_dump(mode="json"),
+                **evaluator.flags.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                ),
             )
             if evaluator.flags
             else SimpleEvaluatorFlags()
@@ -1351,7 +1358,11 @@ class SimpleEvaluatorsRouter:
 
         simple_evaluator_flags = (
             SimpleEvaluatorFlags(
-                **evaluator.flags.model_dump(mode="json"),
+                **evaluator.flags.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_unset=True,
+                ),
             )
             if evaluator.flags
             else SimpleEvaluatorFlags()
@@ -1391,7 +1402,7 @@ class SimpleEvaluatorsRouter:
     ) -> SimpleEvaluatorsResponse:
         simple_evaluator_query_request = SimpleEvaluatorQueryRequest(
             evaluator=SimpleEvaluatorQuery(
-                flags=SimpleEvaluatorFlags(
+                flags=SimpleEvaluatorQueryFlags(
                     is_evaluator=True,
                 )
             )
@@ -1425,11 +1436,11 @@ class SimpleEvaluatorsRouter:
             else None
         )
 
-        flags = EvaluatorFlags(
-            is_evaluator=True,
+        flags = EvaluatorQueryFlags(
             is_custom=(
                 simple_evaluator_flags.is_custom if simple_evaluator_flags else None
             ),
+            is_evaluator=True,
             is_human=(
                 simple_evaluator_flags.is_human if simple_evaluator_flags else None
             ),
@@ -1494,7 +1505,11 @@ class SimpleEvaluatorsRouter:
 
             simple_evaluator_flags = (
                 SimpleEvaluatorFlags(
-                    **evaluator.flags.model_dump(mode="json"),
+                    **evaluator.flags.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                        exclude_unset=True,
+                    ),
                 )
                 if evaluator.flags
                 else SimpleEvaluatorFlags()

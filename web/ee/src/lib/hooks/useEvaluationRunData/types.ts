@@ -1,4 +1,4 @@
-import {EvaluationStatus, PreviewTestSet, WorkspaceMember} from "@/oss/lib/Types"
+import {EvaluationStatus, PreviewTestset, WorkspaceMember} from "@/oss/lib/Types"
 
 import {Evaluation} from "../../Types"
 import type {Metric} from "../useEvaluationRunMetrics/types"
@@ -109,6 +109,7 @@ export interface EvaluationLoadingState {
     isLoadingScenarios: boolean
     isLoadingSteps: boolean
     isLoadingMetrics: boolean
+    isRefreshingMetrics: boolean
     activeStep: LoadingStep
     scenarioStepProgress: ScenarioStepProgress
 }
@@ -128,7 +129,7 @@ export interface EvalRunDataContextType {
     mappings: any
     members: WorkspaceMember[]
     evaluators: EvaluatorDto[]
-    testsets: PreviewTestSet[]
+    testsets: PreviewTestset[]
     variants: any[]
     /**
      * Given an array of scenario IDs, fetches step data for each, and then

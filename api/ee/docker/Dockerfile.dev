@@ -18,12 +18,13 @@ RUN pip install --upgrade pip \
 COPY ./ee /app/ee/
 COPY ./oss /app/oss/
 COPY ./entrypoint.py ./pyproject.toml /app/
+#
 
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi
-    # && pip install -e /sdk/
+#
 
-# ENV PYTHONPATH=/sdk:$PYTHONPATH
+ENV PYTHONPATH=/sdk:$PYTHONPATH
 
 COPY ./ee/src/crons/meters.sh /meters.sh
 COPY ./ee/src/crons/meters.txt /etc/cron.d/meters-cron

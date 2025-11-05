@@ -1,6 +1,6 @@
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {PreviewTestSet, SnakeToCamelCaseKeys, WorkspaceMember} from "@/oss/lib/Types"
+import {PreviewTestset, SnakeToCamelCaseKeys, WorkspaceMember} from "@/oss/lib/Types"
 
 /**
  * Interface representing a single evaluation run as returned from the backend API.
@@ -75,7 +75,7 @@ export interface EvaluationRun {
 
 export interface EnrichedEvaluationRun extends SnakeToCamelCaseKeys<EvaluationRun> {
     /** All distinct testsets referenced in this run */
-    testsets: PreviewTestSet[]
+    testsets: PreviewTestset[]
     createdBy?: WorkspaceMember
     createdAtTimestamp?: number
     /** All distinct application revisions (variants) referenced */

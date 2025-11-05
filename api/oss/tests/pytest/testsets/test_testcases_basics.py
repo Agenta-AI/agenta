@@ -24,8 +24,8 @@ def mock_data(authed_api):
 
     testset = {
         "slug": slug,
-        "name": "Test Set Name",
-        "description": "This is a test set description.",
+        "name": "Testset Name",
+        "description": "This is a testset description.",
         "tags": tags,
         "meta": meta,
         "data": {
@@ -52,8 +52,8 @@ def mock_data(authed_api):
 
     testset = {
         "slug": slug,
-        "name": "Another Test Set Name",
-        "description": "This is another test set description.",
+        "name": "Another Testset Name",
+        "description": "This is another testset description.",
         "tags": tags,
         "meta": meta,
         "data": {

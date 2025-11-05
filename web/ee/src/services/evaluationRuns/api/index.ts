@@ -11,9 +11,9 @@ import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/pr
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
 import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import {CreateEvaluationRunInput, TestSet} from "./types"
+import {CreateEvaluationRunInput, Testset} from "./types"
 
-const extractColumnsFromTestset = (testset?: TestSet): string[] => {
+const extractColumnsFromTestset = (testset?: Testset): string[] => {
     if (!testset) return []
 
     const columns = new Set<string>()
@@ -34,7 +34,7 @@ const extractColumnsFromTestset = (testset?: TestSet): string[] => {
 
     const data = (testset as any)?.data
     if (data) {
-        const testcases = data.testcases || data.testCases
+        const testcases = data.testcases || data.testcases
         if (Array.isArray(testcases) && testcases.length > 0) {
             addColumnsFromObject(
                 (testcases[0] && (testcases[0].data || testcases[0])) as Record<string, any>,
@@ -59,7 +59,7 @@ const extractColumnsFromTestset = (testset?: TestSet): string[] => {
  * directly from the testset object. Any undefined reference keys are omitted.
  */
 
-const buildInputStep = (testset?: TestSet) => {
+const buildInputStep = (testset?: Testset) => {
     if (!testset) return
     const inputKey = slugify(testset.name ?? (testset as any).slug ?? "testset", testset.id)
     if (!testset) {
@@ -160,7 +160,7 @@ const buildMappings = (
     revision: EnhancedVariant,
     correctAnswerColumn: string,
     evaluators: EvaluatorDto[] | undefined,
-    testset?: TestSet,
+    testset?: Testset,
 ) => {
     const testsetKey = testset
         ? slugify(testset.name ?? (testset as any).slug ?? "testset", testset.id)
@@ -281,7 +281,7 @@ const buildMappings = (
  * the POST `/preview/evaluations/runs/` endpoint.
  *
  * @param name - Base name used in each run
- * @param testset - The test set being used in this evaluation (must include variantId & revisionId).
+ * @param testset - The testset being used in this evaluation (must include variantId & revisionId).
  * @param revisions - List of enhanced variant revisions; one run will be generated per revision.
  * @param evaluators - List of available evaluators used in annotation.
  * @param correctAnswerColumn - The property name in the input step that holds the ground truth value.

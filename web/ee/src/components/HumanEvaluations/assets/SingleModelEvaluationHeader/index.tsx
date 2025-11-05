@@ -148,7 +148,7 @@ const SingleModelEvaluationHeader = ({
                     const row: Record<string, any> = {
                         Name: "name" in item ? item.name : item.key,
                         Variant: `${item.variants?.[0]?.variantName} v${"revisions" in item ? item.revisions?.[0] : item.variants?.[0]?.revision}`,
-                        "Test set":
+                        Testset:
                             "testset" in item
                                 ? item.testset.name
                                 : (item.testsets?.[0]?.name ?? ""),

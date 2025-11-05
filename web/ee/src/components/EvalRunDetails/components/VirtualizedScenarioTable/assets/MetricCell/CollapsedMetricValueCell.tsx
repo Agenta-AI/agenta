@@ -5,6 +5,7 @@ import {useAtomValue} from "jotai"
 import {formatColumnTitle} from "@/oss/components/Filters/EditColumns/assets/helper"
 import {formatMetricValue} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
 import LabelValuePill from "@/oss/components/ui/LabelValuePill"
+import {useOptionalRunId} from "@/oss/contexts/RunIdContext"
 import {
     SchemaMetricType,
     canonicalizeMetricKey,
@@ -15,12 +16,15 @@ import {
 
 import {scenarioMetricSelectorFamily} from "../../../../../../lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
 import {TableColumn} from "../../types"
+import {evaluatorFailuresMapFamily} from "../atoms/evaluatorFailures"
 import {CellWrapper} from "../CellComponents"
+
+import {EvaluatorFailureCell} from "./MetricCell"
 
 export interface CollapsedMetricValueCellProps {
     scenarioId: string
     evaluatorSlug?: string
-    runId: string
+    runId?: string
     childrenDefs?: TableColumn[]
 }
 
@@ -247,14 +251,47 @@ interface BaseCellProps extends CollapsedMetricValueCellProps {
     emptyState: ReactNode
 }
 
-const BaseCollapsedMetricValueCell = ({
+const CollapsedMetricValueCellContent = ({
     scenarioId,
     evaluatorSlug,
     runId,
     childrenDefs,
     emptyState,
-}: BaseCellProps) => {
+}: Required<BaseCellProps>) => {
     const rowMetrics = useAtomValue(scenarioMetricSelectorFamily({runId, scenarioId})) || {}
+    const evaluatorFailuresMap = useAtomValue(evaluatorFailuresMapFamily(runId))
+
+    const candidateSlugs = useMemo(() => {
+        const set = new Set<string>()
+        const addCandidate = (value?: string | null) => {
+            if (!value || typeof value !== "string") return
+            const trimmed = value.trim()
+            if (!trimmed) return
+            if (!set.has(trimmed)) set.add(trimmed)
+
+            const dotParts = trimmed.split(".")
+            dotParts.forEach((part) => {
+                const segment = part.trim()
+                if (segment && !set.has(segment)) {
+                    set.add(segment)
+                }
+            })
+        }
+
+        addCandidate(evaluatorSlug)
+        childrenDefs?.forEach((col) => {
+            addCandidate(col.stepKey)
+            if (col.stepKeyByRunId && typeof col.stepKeyByRunId === "object") {
+                Object.values(col.stepKeyByRunId).forEach((stepKey) => addCandidate(stepKey))
+            }
+            addCandidate(col.path)
+            addCandidate(col.fallbackPath)
+            if (typeof col.key === "string") addCandidate(col.key)
+            if (typeof col.name === "string") addCandidate(col.name)
+        })
+
+        return Array.from(set)
+    }, [childrenDefs, evaluatorSlug])
 
     const pillEntries = useMemo(
         () =>
@@ -265,6 +302,38 @@ const BaseCollapsedMetricValueCell = ({
             }),
         [rowMetrics, childrenDefs, evaluatorSlug],
     )
+
+    const failure = useMemo(() => {
+        if (!candidateSlugs.length) return undefined
+        const failures = evaluatorFailuresMap?.get(scenarioId)
+        if (!failures) return undefined
+
+        for (const slug of candidateSlugs) {
+            if (failures[slug]) {
+                return failures[slug]
+            }
+        }
+
+        const entries = Object.entries(failures)
+        const substringMatch = entries.find(([failureSlug]) =>
+            candidateSlugs.some((candidate) => {
+                if (!candidate || candidate.length < 3) return false
+                return candidate.includes(failureSlug) || failureSlug.includes(candidate)
+            }),
+        )
+        if (substringMatch) return substringMatch[1]
+
+        const normalize = (value: string) => value.replace(/[^\w]/g, "").toLowerCase()
+        const normalizedCandidates = candidateSlugs.map(normalize)
+        const normalizedMatch = entries.find(([failureSlug]) =>
+            normalizedCandidates.includes(normalize(failureSlug)),
+        )
+        return normalizedMatch?.[1]
+    }, [candidateSlugs, evaluatorFailuresMap, scenarioId])
+
+    if (failure) {
+        return <EvaluatorFailureCell status={failure.status} error={failure.error} />
+    }
 
     if (!pillEntries.length) {
         return (
@@ -291,6 +360,39 @@ const BaseCollapsedMetricValueCell = ({
                 ))}
             </div>
         </CellWrapper>
+    )
+}
+
+const BaseCollapsedMetricValueCell = ({
+    scenarioId,
+    evaluatorSlug,
+    runId,
+    childrenDefs,
+    emptyState,
+}: BaseCellProps) => {
+    const contextRunId = useOptionalRunId()
+    const effectiveRunId = runId ?? contextRunId ?? null
+
+    if (!scenarioId || !effectiveRunId) {
+        return (
+            <CellWrapper>
+                {typeof emptyState === "string" ? (
+                    <span className="text-gray-500">{emptyState}</span>
+                ) : (
+                    emptyState
+                )}
+            </CellWrapper>
+        )
+    }
+
+    return (
+        <CollapsedMetricValueCellContent
+            scenarioId={scenarioId}
+            evaluatorSlug={evaluatorSlug}
+            runId={effectiveRunId}
+            childrenDefs={childrenDefs}
+            emptyState={emptyState}
+        />
     )
 }
 

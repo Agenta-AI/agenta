@@ -4,4 +4,4 @@ export interface AutoEvalRunDetailsProps {
     id: string
     isLoading: boolean
 }
-export type ViewOptionsType = "overview" | "test-cases"
+export type ViewOptionsType = "overview" | "testcases"

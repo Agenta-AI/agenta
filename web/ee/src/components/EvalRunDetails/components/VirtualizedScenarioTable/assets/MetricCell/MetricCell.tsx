@@ -6,6 +6,8 @@ import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 import {loadable, selectAtom} from "jotai/utils"
 
+import {useCachedScenarioSteps} from "@/oss/components/EvalRunDetails/hooks/useCachedScenarioSteps"
+import {useMetricStepError} from "@/oss/components/EvalRunDetails/hooks/useMetricStepError"
 import {urlStateAtom} from "@/oss/components/EvalRunDetails/state/urlState"
 import MetricDetailsPopover from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover" // adjust path if necessary
 import {formatMetricValue} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils" // same util used elsewhere
@@ -15,9 +17,9 @@ import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {
     evaluationRunStateFamily,
     getCurrentRunId,
-    loadableScenarioStepFamily,
     scenarioStepFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {scenarioMetricsMapFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
 import {runScopedMetricDataFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
 import {UseEvaluationRunScenarioStepsFetcherResult} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 import {EvaluationStatus} from "@/oss/lib/Types"
@@ -25,6 +27,7 @@ import {EvaluationStatus} from "@/oss/lib/Types"
 import {STATUS_COLOR_TEXT} from "../../../EvalRunScenarioStatusTag/assets"
 import {CellWrapper} from "../CellComponents" // CellWrapper is default export? need to check.
 
+import {resolveAnnotationMetricValue, resolveStepFailure} from "./helpers"
 import {AnnotationValueCellProps, MetricCellProps, MetricValueCellProps} from "./types"
 
 /*
@@ -156,8 +159,22 @@ const MetricCell = memo<MetricCellProps>(
             formatted = String(value)
         }
 
-        // Wrap in popover when distInfo present
-        if (distInfo && metricType !== "string") {
+        // 1) Detect string by the actual value, not by metricType
+        const isPlainString = typeof value === "string"
+
+        // 2) When string, render as a wrapped block (no popover)
+        if (isPlainString) {
+            return (
+                <CellWrapper>
+                    <div className="max-w-full whitespace-pre-wrap break-words break-all">
+                        {value as string}
+                    </div>
+                </CellWrapper>
+            )
+        }
+
+        // 3) Only show popover for non-strings
+        if (distInfo && !isPlainString) {
             return (
                 <CellWrapper>
                     <MetricDetailsPopover
@@ -187,10 +204,8 @@ const MetricCell = memo<MetricCellProps>(
 
 // --- Wrapper cell that fetches the value from atoms ----------------------
 
-const failureRunTypes = [EvaluationStatus.FAILED, EvaluationStatus.FAILURE, EvaluationStatus.ERROR]
-
 export const MetricValueCell = memo<MetricValueCellProps>(
-    ({scenarioId, metricKey, fallbackKey, fullKey, metricType, evalType, runId}) => {
+    ({scenarioId, metricKey, fallbackKey, fullKey, metricType, evalType, runId, stepKey}) => {
         const param = useMemo(
             () => ({runId, scenarioId, metricKey}),
             [runId, scenarioId, metricKey],
@@ -218,46 +233,22 @@ export const MetricValueCell = memo<MetricValueCellProps>(
             value = fallbackResult.value
             distInfo = distInfo ?? fallbackResult.distInfo
         }
-        const loadable = useAtomValue(loadableScenarioStepFamily({scenarioId, runId}))
-
-        // TODO: remove this from here and create a function or something to also use in somewhere else
-        // Last minute implementation for eval-checkpoint
-        const errorStep = useMemo(() => {
-            if (evalType !== "auto") return null
-            if (loadable.state === "loading") return null
-            const [evalSlug, key] = metricKey.split(".")
-            if (!key) return null // if does not have key that means it's not an evaluator metric
-            const _step = loadable.data?.steps?.find((s) => s.stepKey === evalSlug)
-
-            if (!_step) {
-                const invocationStep = loadable.data?.invocationSteps?.find(
-                    (s) => s.scenarioId === scenarioId,
-                )
-
-                if (failureRunTypes.includes(invocationStep?.status)) {
-                    return {
-                        status: invocationStep?.status,
-                        error: invocationStep?.error?.stacktrace || invocationStep?.error?.message,
-                    }
-                }
-                return null
-            }
-
-            if (failureRunTypes.includes(_step?.status)) {
-                return {
-                    status: _step?.status,
-                    error: _step?.error?.stacktrace || _step?.error?.message,
-                }
-            }
-
-            return null
-        }, [loadable])
+        const {errorStep} = useMetricStepError({
+            runId,
+            scenarioId,
+            metricKey,
+            fallbackKey,
+            fullKey,
+            stepKey,
+        })
 
         // TODO: create a separate component for error
         if (errorStep?.status || errorStep?.error) {
+            const tooltipContent =
+                errorStep?.error || "Evaluator returned an error for this metric."
             return (
                 <Tooltip
-                    title={errorStep?.error}
+                    title={<span className="whitespace-pre-wrap">{tooltipContent}</span>}
                     classNames={{body: "max-w-[200px] max-h-[300px] overflow-y-auto"}}
                 >
                     <span
@@ -266,7 +257,7 @@ export const MetricValueCell = memo<MetricValueCellProps>(
                             "text-wrap cursor-help",
                         )}
                     >
-                        {getStatusLabel(errorStep?.status)}
+                        {getStatusLabel(errorStep?.status || EvaluationStatus.ERROR)}
                     </span>
                 </Tooltip>
             )
@@ -286,120 +277,28 @@ export const MetricValueCell = memo<MetricValueCellProps>(
     },
 )
 
+export const EvaluatorFailureCell = ({status, error}: EvaluatorFailure) => {
+    const tooltipContent = error || "Evaluator returned an error for this metric."
+    const normalizedStatus = status || EvaluationStatus.ERROR
+    const statusClass = STATUS_COLOR_TEXT[normalizedStatus] || "text-red-500"
+
+    return (
+        <CellWrapper>
+            <Tooltip
+                title={<span className="whitespace-pre-wrap">{String(tooltipContent)}</span>}
+                classNames={{body: "max-w-[200px] max-h-[300px] overflow-y-auto"}}
+            >
+                <span className={clsx(statusClass, "text-wrap cursor-help")}>
+                    {getStatusLabel(normalizedStatus)}
+                </span>
+            </Tooltip>
+        </CellWrapper>
+    )
+}
+
 // --- Annotation value cell -----------------------------------------------
 // It's a hot fix until we fix the backend issue for annotation metrics
 // In the backend the metrics endpoint is not returning all the type of annotation metrics
-const OUTPUTS_PREFIX = "data.outputs."
-const OUTPUT_SECTION_KEYS = ["metrics", "notes", "extra"] as const
-
-const getNestedValue = (source: any, path?: string): any => {
-    if (!source || !path) return undefined
-    const segments = path.split(".").filter(Boolean)
-    if (!segments.length) return undefined
-    return segments.reduce<any>((acc, segment) => {
-        if (acc === undefined || acc === null) return undefined
-        return acc[segment]
-    }, source)
-}
-
-const normalizeOutputsPath = (path?: string): string | undefined => {
-    if (!path) return undefined
-    if (path.startsWith(OUTPUTS_PREFIX)) {
-        return path.slice(OUTPUTS_PREFIX.length)
-    }
-    if (path.startsWith("outputs.")) {
-        return path.slice("outputs.".length)
-    }
-    return path
-}
-
-// Extract annotation metric/notes/extra values straight from the invocation payload.
-const resolveAnnotationMetricValue = ({
-    annotations,
-    fieldPath,
-    metricKey,
-    name,
-}: {
-    annotations: AnnotationDto[]
-    fieldPath?: string
-    metricKey?: string
-    name?: string
-}) => {
-    if (!annotations?.length) return undefined
-
-    const fieldSegments = fieldPath?.split(".").filter(Boolean) ?? []
-
-    const annotationsBySlug = new Map<string, AnnotationDto>()
-    annotations.forEach((ann) => {
-        const slug = ann?.references?.evaluator?.slug
-        if (slug) annotationsBySlug.set(slug, ann)
-    })
-
-    const slugIndex = fieldSegments.findIndex((segment) => annotationsBySlug.has(segment))
-    const slug = slugIndex >= 0 ? fieldSegments[slugIndex] : undefined
-    const remainderSegments = slugIndex >= 0 ? fieldSegments.slice(slugIndex + 1) : fieldSegments
-    const remainderPath = remainderSegments.length ? remainderSegments.join(".") : undefined
-
-    const keyCandidates = Array.from(
-        new Set(
-            [metricKey, name, remainderSegments.at(-1), fieldSegments.at(-1)]
-                .filter((key): key is string => Boolean(key))
-                .map((key) => key),
-        ),
-    )
-
-    const outputPathCandidates = Array.from(
-        new Set(
-            [
-                normalizeOutputsPath(fieldPath),
-                normalizeOutputsPath(remainderPath),
-                ...keyCandidates.flatMap((key) =>
-                    OUTPUT_SECTION_KEYS.map((section) => `${section}.${key}`),
-                ),
-            ].filter((path): path is string => Boolean(path)),
-        ),
-    )
-
-    const rootPathCandidates = Array.from(
-        new Set([fieldPath, remainderPath, ...keyCandidates].filter(Boolean) as string[]),
-    )
-
-    const prioritizedAnnotations = (() => {
-        if (slug) {
-            const matched = annotationsBySlug.get(slug)
-            if (matched) return [matched]
-        }
-
-        const matchedByKey = annotations.filter((ann) => {
-            const outputs = ann?.data?.outputs
-            if (!outputs) return false
-            return keyCandidates.some((key) =>
-                OUTPUT_SECTION_KEYS.some(
-                    (section) => getNestedValue(outputs[section], key) !== undefined,
-                ),
-            )
-        })
-
-        if (matchedByKey.length) return matchedByKey
-        return annotations
-    })()
-
-    for (const ann of prioritizedAnnotations) {
-        const outputs = ann?.data?.outputs ?? {}
-        for (const path of outputPathCandidates) {
-            const val = getNestedValue(outputs, path)
-            if (val !== undefined) return val
-        }
-
-        for (const path of rootPathCandidates) {
-            const val = getNestedValue(ann, path)
-            if (val !== undefined) return val
-        }
-    }
-
-    return undefined
-}
-
 export const AnnotationValueCell = memo<AnnotationValueCellProps>(
     ({
         scenarioId,
@@ -431,16 +330,10 @@ export const AnnotationValueCell = memo<AnnotationValueCellProps>(
             [effectiveRunId, evaluatorsSelector],
         )
         const evaluators = useAtomValue(evaluatorsAtom)
-        const stepDataLoadable = useAtomValue(
-            loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId})),
+        const {data: stepData, hasResolved: hasAnnotationSteps} = useCachedScenarioSteps(
+            effectiveRunId,
+            scenarioId,
         )
-
-        let stepData: UseEvaluationRunScenarioStepsFetcherResult | undefined = undefined
-        if (stepDataLoadable.state === "hasData") {
-            stepData = stepDataLoadable.data
-        } else if (stepDataLoadable.state === "loading") {
-            // stepData = prevDataRef.current
-        }
 
         // Memoize annotation steps for best performance (multi-step)
         const _annotationSteps = useMemo(
@@ -449,6 +342,7 @@ export const AnnotationValueCell = memo<AnnotationValueCellProps>(
                     []) as UseEvaluationRunScenarioStepsFetcherResult["annotationSteps"],
             [stepData],
         )
+
         // Build annotations per step key / slug
         const annotationsByStep = useMemo(() => {
             type AnnStep = UseEvaluationRunScenarioStepsFetcherResult["annotationSteps"][number]
@@ -546,6 +440,43 @@ export const AnnotationValueCell = memo<AnnotationValueCellProps>(
             return annotateData.annotations
         }, [buildAnnotateData, resolvedAnnotationKey])
 
+        const failureInfo = useMemo(() => {
+            if (!stepData && !hasAnnotationSteps) return null
+            if (!stepData) return null
+            const slugHints = [
+                resolvedAnnotationKey,
+                ...annotationsForStep.map(
+                    (ann) => ann?.references?.evaluator?.slug || ann?.references?.evaluator?.key,
+                ),
+            ]
+                .flat()
+                .filter((slug): slug is string => Boolean(slug))
+
+            const uniqueSlugs = Array.from(new Set(slugHints))
+
+            const failure = resolveStepFailure({
+                data: stepData,
+                scenarioId,
+                slugCandidates: uniqueSlugs,
+                stepKey,
+                debug: {
+                    metricKey: metricKey ?? fieldPath ?? "",
+                    runId: effectiveRunId,
+                },
+            })
+
+            return failure
+        }, [
+            annotationsForStep,
+            effectiveRunId,
+            fieldPath,
+            metricKey,
+            resolvedAnnotationKey,
+            scenarioId,
+            stepData,
+            stepKey,
+        ])
+
         const metricVal = useMemo(
             () =>
                 resolveAnnotationMetricValue({
@@ -557,6 +488,29 @@ export const AnnotationValueCell = memo<AnnotationValueCellProps>(
             [annotationsForStep, fieldPath, metricKey, name],
         )
         const distInfo = propsDistInfo
+
+        if (failureInfo?.status || failureInfo?.error) {
+            const tooltipContent =
+                failureInfo?.error || "Evaluator returned an error for this annotation."
+            return (
+                <CellWrapper>
+                    <Tooltip
+                        title={tooltipContent}
+                        classNames={{body: "max-w-[200px] max-h-[300px] overflow-y-auto"}}
+                    >
+                        <span
+                            className={clsx(
+                                STATUS_COLOR_TEXT[failureInfo?.status],
+                                "text-wrap cursor-help",
+                            )}
+                        >
+                            {getStatusLabel(failureInfo?.status || EvaluationStatus.ERROR)}
+                        </span>
+                    </Tooltip>
+                </CellWrapper>
+            )
+        }
+
         return (
             <MetricCell
                 scenarioId={scenarioId}

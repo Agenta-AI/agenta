@@ -548,11 +548,11 @@ function validateLineWithParser(
     }
 
     // Try different JSON wrapping strategies to validate the line
-    const testCases = []
+    const testcases = []
 
     if (context === "array") {
         // For array elements, test as array items first
-        testCases.push(
+        testcases.push(
             {test: `[${trimmedLine}]`, description: "wrapped as array"},
             {
                 test: `[${trimmedLine.replace(/,\s*$/, "")}]`,
@@ -562,7 +562,7 @@ function validateLineWithParser(
         )
     } else {
         // For object context, test as object properties
-        testCases.push(
+        testcases.push(
             // Test as-is (for complete JSON fragments)
             {test: trimmedLine, description: "as-is"},
             // Test as object property
@@ -576,10 +576,10 @@ function validateLineWithParser(
 
     let lastError = ""
 
-    for (const testCase of testCases) {
+    for (const testcase of testcases) {
         try {
             // Use native JSON.parse for strict JSON validation
-            JSON.parse(testCase.test)
+            JSON.parse(testcase.test)
 
             // If we get here, the JSON is valid
             // But we need to check for JSON5-specific issues that JSON.parse allows
@@ -600,7 +600,7 @@ function validateLineWithParser(
         }
     }
 
-    // If all test cases failed, analyze the error for better messaging
+    // If all testcases failed, analyze the error for better messaging
     const enhancedError = enhanceErrorMessage(trimmedLine, lastError, context)
 
     return {valid: false, error: enhancedError}

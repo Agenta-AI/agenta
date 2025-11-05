@@ -5,69 +5,59 @@ description: "Fetch Usage User Route"
 sidebar_label: "Fetch Usage User Route"
 hide_title: true
 hide_table_of_contents: true
-api: eJx1kkFvm0AQhf8KeueVcXvkVKdqUyuXKKlPFqrG6zFsA7vb3cUqRfz3agA7iaVwQTBvZr95bwckqiKKPe5M0xhboVRwngMl4+z2iAInTrr+1UWqGAqBo3c2ckQx4PN6La8jRx2Mlw4UeO605hhPXZM9LWIoaGcT2yRy8r4xejog/x2lZ0DUNbeEYhjlUTcjvwtCthOEbBc5ZE+uSzK15VQ7gaw4QcFTqlEgP8y75BfoyOHMQdYc0IUGBeqUfCzyXDeuO66oYptoRSYnb3B7+maqZl9FirGUcboLJvXTvM3j9oH7H0xHDij25VvBs2w1W/VeNiD1nlGAvHngHgqWWvnedKl2wfyb3IGCEYB67hJfjD25qd2khl/Z7ki/sD1CQfacsderT6v1R8ssDdnmcbuEQ3oK58IxyaBu7LoaBQVuyUgtMbVfXgtC6V1MLdk38z5M8B3d1ZbEf1PuGzIW48IwLOnusaQrcFO+pULtYpLSMBwo8i404yi//3QcJKVS4UzB0EE825ejulgqAb5wLwtrzV7u0Jmabk7m5pZKsNf7dv/tJ8bxP0g6Gbk=
+api: eJx1Uk2PmzAQ/Svona2Q9sipqdSPaC+r3eYUoWriTMAtYNceolLEf68GknQTqVwQzHvj9+ERQlVCscdH1zSuq1Aa+MCRxPlue0SBE4utv/eJKoZB5BR8lzihGPF+vdbXkZONLigDBV57azmlU99kLxcwDKzvhDtROIXQODsfkP9IyhmRbM0toRgnfczDys8qIduphGyXOGYvvhfd2rLUXkVWLDAIJDUK5IfFS34VnTieOarNEX1sUKAWCanIc9v4/riiijuhFbmcgsNUKsP20ckwUzbP2ycevjIdOaLYl28Bryp8SeMeNkKGwChAwT3xAIOOWv3e9FL76P7MAcDAqcN6Yal11538THfSzPhZXLZ53sJAbSyZrFfvVms8JnUH1szJzplfz57HMA8p3PzDgFtyOhOm9sO/gSoLPklL3Zt9/y3mTtUtCuHfkoeGXIfpomG8lLbHpTQVN9dWGtQ+iY7G8UCJd7GZJv39q+eozZQGZ4qODprTvpzMNUYt7ScPathaDno1ztT0SxsPl0/LvF2jL5++YZr+Au0pCyo=
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-backend
+info_path: reference/api/agenta-api
 custom_edit_url: null
 ---
 
-import ApiTabs from "@theme/ApiTabs";
-import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
-import MimeTabs from "@theme/MimeTabs";
-import ParamsItem from "@theme/ParamsItem";
-import ResponseSamples from "@theme/ResponseSamples";
-import SchemaItem from "@theme/SchemaItem";
-import SchemaTabs from "@theme/SchemaTabs";
-import Markdown from "@theme/Markdown";
-import Heading from "@theme/Heading";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Fetch Usage User Route"}
-></Heading>
+>
+</Heading>
 
-<MethodEndpoint method={"get"} path={"/billing/usage"}></MethodEndpoint>
+<MethodEndpoint
+  method={"get"}
+  path={"/billing/usage"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
 
 Fetch Usage User Route
 
-<div>
-  <div>
-    <ApiTabs label={undefined} id={undefined}>
-      <TabItem label={"200"} value={"200"}>
-        <div>Successful Response</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>any</ul>
-                  </details>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-    </ApiTabs>
-  </div>
-</div>
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

@@ -61,7 +61,7 @@ export interface testset {
     updated_at: string
 }
 
-export interface TestSet {
+export interface Testset {
     id: string
     name: string
     created_at: string
@@ -69,7 +69,7 @@ export interface TestSet {
     csvdata: KeyValuePair[]
 }
 
-export interface PreviewTestCase {
+export interface PreviewTestcase {
     created_at: string
     created_by_id: string
 
@@ -79,7 +79,7 @@ export interface PreviewTestCase {
     data: Record<string, any>
 }
 
-export interface PreviewTestSet {
+export interface PreviewTestset {
     id: string
     name: string
     created_at: string
@@ -206,7 +206,7 @@ export interface Evaluation {
     testset: {
         _id: string
         testsetChatColumn: string
-    } & TestSet
+    } & Testset
     appName: string
     llmAppPromptTemplate?: string
     evaluationTypeSettings: {
@@ -831,9 +831,16 @@ export interface StyleProps {
     themeMode: "dark" | "light"
 }
 
+export interface SettingsPreset {
+    key: string;
+    name: string;
+    values: Record<string, any>;
+}
+
 export interface Evaluator {
     name: string
     key: string
+    settings_presets?: SettingsPreset[]
     settings_template: Record<string, EvaluationSettingsTemplate>
     icon_url?: string | StaticImageData
     color?: string
@@ -976,6 +983,7 @@ type ValueTypeOptions =
     | "hidden"
     | "messages"
     | "multiple_choice"
+    | "llm_response_schema"
 
 export interface EvaluationSettingsTemplate {
     type: ValueTypeOptions

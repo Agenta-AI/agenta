@@ -5,7 +5,7 @@ import {Play} from "@phosphor-icons/react"
 import {Button, Divider, Input, Menu, Modal, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 
-import {TestSet} from "@/oss/lib/Types"
+import {Testset} from "@/oss/lib/Types"
 import {fetchTestset} from "@/oss/services/testsets/api"
 
 import {useEvaluatorTestcaseModalStyles as useStyles} from "./assets/styles"
@@ -20,7 +20,7 @@ const EvaluatorTestcaseModal = ({
 }: EvaluatorTestcaseModalProps) => {
     const classes = useStyles()
     const [isLoadingTestset, setIsLoadingTestset] = useState(false)
-    const [testsetCsvData, setTestsetCsvData] = useState<TestSet["csvdata"]>([])
+    const [testsetCsvData, setTestsetCsvData] = useState<Testset["csvdata"]>([])
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
     const [searchTerm, setSearchTerm] = useState("")
 
@@ -80,11 +80,11 @@ const EvaluatorTestcaseModal = ({
         },
     }
 
-    const loadTestCase = () => {
-        const selectedTestCase = testsetCsvData.find((_, index) => index === selectedRowKeys[0])
+    const loadTestcase = () => {
+        const selectedTestcase = testsetCsvData.find((_, index) => index === selectedRowKeys[0])
 
-        if (selectedTestCase) {
-            setSelectedTestcase({testcase: selectedTestCase})
+        if (selectedTestcase) {
+            setSelectedTestcase({testcase: selectedTestcase})
             props.onCancel?.({} as any)
         }
     }
@@ -94,12 +94,12 @@ const EvaluatorTestcaseModal = ({
             centered
             width={1150}
             closeIcon={null}
-            okText="Load test case"
+            okText="Load testcase"
             okButtonProps={{
                 icon: <Play />,
                 iconPosition: "end",
                 disabled: !selectedRowKeys.length,
-                onClick: loadTestCase,
+                onClick: loadTestcase,
                 loading: isLoadingTestset,
             }}
             className={classes.container}

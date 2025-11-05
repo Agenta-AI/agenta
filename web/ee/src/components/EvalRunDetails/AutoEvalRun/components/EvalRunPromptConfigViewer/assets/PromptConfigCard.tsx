@@ -538,25 +538,6 @@ const PromptConfigCard = ({
                 ? "project-scoped"
                 : "none"
 
-    if (
-        process.env.NODE_ENV !== "production" &&
-        typeof window !== "undefined" &&
-        normalizedVariantId
-    ) {
-        console.info("[PromptConfigCard] Render", {
-            runId: evaluation?.id,
-            variantId: normalizedVariantId,
-            hasSelectedVariant: Boolean(selectedVariant),
-            usingProjectFallback: Boolean(!selectedVariant && projectScopedVariant),
-            hasPrompts,
-            hasCustomProps: combinedCustomPropsHasContent,
-            showPrompts,
-            parametersSource,
-            usingFallbackPrompts,
-            usingFallbackCustomProps,
-        })
-    }
-
     return (
         <div
             className={clsx([

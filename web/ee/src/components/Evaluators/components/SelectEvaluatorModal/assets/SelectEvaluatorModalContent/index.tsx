@@ -23,6 +23,27 @@ const TAG_CLASSNAME_MAP: Record<string, string> = {
     functional: "bg-amber-100 text-amber-700",
 }
 
+const ENABLED_EVALUATORS = [
+    "auto_exact_match",
+    "auto_contains_json",
+    "auto_similarity_match",
+    "auto_semantic_similarity",
+    "auto_regex_test",
+    "field_match_test",
+    "auto_json_diff",
+    "auto_ai_critique",
+    "auto_custom_code_run",
+    "auto_webhook_test",
+    "auto_starts_with",
+    "auto_ends_with",
+    "auto_contains",
+    "auto_contains_any",
+    "auto_contains_all",
+    "auto_levenshtein_distance",
+    "rag_faithfulness",
+    "rag_context_relevancy",
+]
+
 const getEvaluatorTagValues = (item: EvaluatorPreview | Evaluator) => {
     const registry = new Set<string>()
     // Prefer explicit evaluator tags when available and fall back to metadata tags
@@ -78,11 +99,15 @@ const SelectEvaluatorModalContent = () => {
     }, [availableTags])
 
     const filteredEvaluators = useMemo(() => {
+        const enabled_evaluators = evaluators.filter((item) => {
+            return ENABLED_EVALUATORS.includes(item.key)
+        })
+
         if (activeTab === DEFAULT_TAB_KEY) {
-            return evaluators
+            return enabled_evaluators
         }
 
-        return evaluators.filter((item) => {
+        return enabled_evaluators.filter((item) => {
             const tags = getEvaluatorTagValues(item)
             return tags.includes(activeTab)
         })

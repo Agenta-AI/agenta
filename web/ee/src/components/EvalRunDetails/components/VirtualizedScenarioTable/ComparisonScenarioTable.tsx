@@ -3,19 +3,17 @@ import {RefObject, useEffect, useMemo} from "react"
 import {DownOutlined} from "@ant-design/icons"
 import clsx from "clsx"
 import {atom, useAtom, useAtomValue} from "jotai"
-
 import {useResizeObserver} from "usehooks-ts"
 
+import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {useRunId} from "@/oss/contexts/RunIdContext"
 
 import {EVAL_BG_COLOR} from "../../AutoEvalRun/assets/utils"
-import {EvalRunTestCaseTableSkeleton} from "../../AutoEvalRun/components/EvalRunTestCaseViewer/assets/EvalRunTestCaseViewerSkeleton"
+import {EvalRunTestcaseTableSkeleton} from "../../AutoEvalRun/components/EvalRunTestcaseViewer/assets/EvalRunTestcaseViewerSkeleton"
 import {urlStateAtom} from "../../state/urlState"
 
 import useExpandableComparisonDataSource from "./hooks/useExpandableComparisonDataSource"
 import useScrollToScenario from "./hooks/useScrollToScenario"
-
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 
 export const expendedRowAtom = atom<Record<string, boolean>>({})
 
@@ -88,7 +86,7 @@ const ComparisonTable = () => {
     }
 
     if (loading || !EnhancedTable) {
-        return <EvalRunTestCaseTableSkeleton />
+        return <EvalRunTestcaseTableSkeleton />
     }
 
     return (

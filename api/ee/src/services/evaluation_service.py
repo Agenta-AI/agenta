@@ -59,7 +59,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
     """
 
     for datum in csvdata:
-        # Check whether the inputs in the test set match the inputs in the variant
+        # Check whether the inputs in the testset match the inputs in the variant
         try:
             inputs = [
                 {"input_name": name, "input_value": datum[name]}
@@ -70,9 +70,9 @@ async def prepare_csvdata_and_create_evaluation_scenario(
                 evaluation_id=str(new_evaluation.id)
             )
             msg = f"""
-            Columns in the test set should match the names of the inputs in the variant.
+            Columns in the testset should match the names of the inputs in the variant.
             Inputs names in variant are: {[variant_input for variant_input in payload_inputs]} while
-            columns in test set are: {[col for col in datum.keys() if col != 'correct_answer']}
+            columns in testset are: {[col for col in datum.keys() if col != 'correct_answer']}
             """
             raise HTTPException(
                 status_code=400,
@@ -396,7 +396,11 @@ async def create_new_evaluation(
     """
 
     app = await db_manager.fetch_app_by_id(app_id=app_id)
-    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
+    testset = await db_manager.fetch_testset_by_id(
+        project_id=project_id,
+        #
+        testset_id=testset_id,
+    )
     variant_revision = await db_manager.fetch_app_variant_revision_by_id(
         variant_revision_id=revision_id
     )
@@ -404,6 +408,8 @@ async def create_new_evaluation(
     assert (
         variant_revision and variant_revision.revision is not None
     ), f"Variant revision with {revision_id} cannot be None"
+
+    assert testset is not None, f"Testset with id {testset_id} does not exist"
 
     evaluation_db = await db_manager_ee.create_new_evaluation(
         app=app,

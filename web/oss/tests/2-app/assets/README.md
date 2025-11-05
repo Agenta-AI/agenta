@@ -56,7 +56,7 @@ Our tests use custom fixtures that extend Playwright's base functionality:
     // Checks loading states and app name visibility
     ```
 
-## Test Cases
+## Testcases
 
 ### App Creation
 

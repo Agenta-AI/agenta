@@ -58,7 +58,7 @@ const useEvaluations = ({
 }: {
     withPreview?: boolean
     types: EvaluationType[]
-    evalType?: "human" | "auto"
+    evalType?: "human" | "auto" | "custom"
     appId?: string | null
 }) => {
     const routeAppId = useAppId()
@@ -207,10 +207,18 @@ const useEvaluations = ({
     /**
      * Hook for fetching preview evaluations if withPreview is enabled.
      */
+    const previewFlags = useMemo(() => {
+        if (evalType === "custom") {
+            return {is_live: false}
+        }
+        return undefined
+    }, [evalType])
+
     const previewEvaluations = usePreviewEvaluations({
         skip: !withPreview,
         types,
         appId,
+        flags: previewFlags,
     })
 
     // Extract runs from preview evaluations
@@ -252,14 +260,24 @@ const useEvaluations = ({
                     filteredRuns = [...filteredRuns, ...autoEvalLagecyRuns]
                 }
             } else if (evalType === "auto") {
-                filteredRuns = runs.filter((run) =>
-                    run?.data?.steps.every(
-                        (step) =>
-                            step.type !== "annotation" ||
-                            step.origin === "auto" ||
-                            step.origin === undefined,
-                    ),
-                )
+                filteredRuns = runs
+                    .filter((run) =>
+                        run?.data?.steps.every(
+                            (step) =>
+                                step.type !== "annotation" ||
+                                step.origin === "auto" ||
+                                step.origin === undefined,
+                        ),
+                    )
+                    .filter((run) => {
+                        const isLive = run?.flags?.isLive === true || run?.flags?.is_live === true
+                        const source =
+                            typeof run?.meta?.source === "string"
+                                ? run.meta.source.toLowerCase()
+                                : undefined
+                        const isOnlineSource = source === "online_evaluation_drawer"
+                        return !isLive && !isOnlineSource
+                    })
                 if (filteredLegacy.length > 0) {
                     const autoEvalLagecyRuns = filteredLegacy.filter(
                         (run) => "aggregated_results" in run,
@@ -267,6 +285,26 @@ const useEvaluations = ({
 
                     filteredRuns = [...filteredRuns, ...autoEvalLagecyRuns]
                 }
+            } else if (evalType === "custom") {
+                filteredRuns = runs.filter((run) => {
+                    const steps = Array.isArray(run?.data?.steps) ? run.data.steps : []
+                    const hasCustomStep = steps.some(
+                        (step: any) =>
+                            step?.origin === "custom" ||
+                            step?.type === "custom" ||
+                            step?.metadata?.origin === "custom",
+                    )
+                    if (!hasCustomStep) return false
+
+                    const source =
+                        typeof run?.meta?.source === "string"
+                            ? run.meta.source.toLowerCase()
+                            : undefined
+                    const isOnlineSource = source === "online_evaluation_drawer"
+                    const isLive = run?.flags?.isLive === true || run?.flags?.is_live === true
+
+                    return hasCustomStep && !isOnlineSource && !isLive
+                })
             } else {
                 filteredRuns = [...filteredLegacy, ...runs]
             }
@@ -297,7 +335,9 @@ const useEvaluations = ({
             const listOfLegacyEvals =
                 evalType === "auto"
                     ? legacyEvaluations.data?.autoEvals || []
-                    : legacyEvaluations.data?.humanEvals || []
+                    : evalType === "human"
+                      ? legacyEvaluations.data?.humanEvals || []
+                      : []
 
             // Determine which IDs are legacy evaluations
             const legacyEvals = listOfLegacyEvals

@@ -1,5 +1,7 @@
 from typing import Optional, Dict, List
 from threading import Lock
+from json import dumps
+from uuid import UUID
 
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
@@ -9,9 +11,12 @@ from opentelemetry.sdk.trace.export import (
     ReadableSpan,
     BatchSpanProcessor,
 )
+from opentelemetry.trace import SpanContext
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.tracing.conventions import Reference
+
+from agenta.sdk.contexts.tracing import TracingContext
 
 log = get_module_logger(__name__)
 
@@ -50,6 +55,15 @@ class TraceProcessor(SpanProcessor):
         span: Span,
         parent_context: Optional[Context] = None,
     ) -> None:
+        trace_id = span.context.trace_id
+        span_id = span.context.span_id
+
+        # log.debug(
+        #     "[SPAN] [START] ",
+        #     trace_id=UUID(int=trace_id).hex,
+        #     span_id=UUID(int=span_id).hex[-16:],
+        # )
+
         for key in self.references.keys():
             span.set_attribute(f"ag.refs.{key}", self.references[key])
 
@@ -60,6 +74,83 @@ class TraceProcessor(SpanProcessor):
                 _key = key.replace("ag.refs.", "")
                 if _key in [_.value for _ in Reference.__members__.values()]:
                     span.set_attribute(key, baggage[key])
+
+        context = TracingContext.get()
+
+        trace_type = span.attributes.get("trace_type") if span.attributes else None
+
+        context.annotate = (
+            context.annotate
+            or (context.type == "annotation")
+            or (trace_type == "annotation")
+        )
+        context.type = (
+            (str(trace_type) if trace_type else None)
+            or context.type
+            or ("annotation" if context.annotate else "invocation")
+        )
+
+        span.set_attribute("ag.type.tree", context.type)
+
+        if context.flags:
+            for key in context.flags.keys():
+                span.set_attribute(f"ag.flags.{key}", context.flags[key])
+        # if context.tags:
+        #     for key in context.tags.keys():
+        #         span.set_attribute(f"ag.tags.{key}", context.tags[key])
+        # if context.meta:
+        #     span.set_attribute(f"ag.meta.", dumps(context.meta))
+
+        # --- DISTRIBUTED
+        if not self.inline:
+            if context.links:
+                for key, link in context.links.items():
+                    try:
+                        link = link.model_dump(mode="json", exclude_none=True)
+                    except:  # pylint: disable=bare-except
+                        pass
+                    if not isinstance(link, dict):
+                        continue
+                    if not link.get("trace_id") or not link.get("span_id"):
+                        continue
+
+                    span.add_link(
+                        context=SpanContext(
+                            trace_id=int(str(link.get("trace_id")), 16),
+                            span_id=int(str(link.get("span_id")), 16),
+                            is_remote=True,
+                        ),
+                        attributes=dict(
+                            key=str(key),
+                        ),
+                    )
+
+        if context.references:
+            for key, ref in context.references.items():
+                try:
+                    ref = ref.model_dump(mode="json", exclude_none=True)
+                except:  # pylint: disable=bare-except
+                    pass
+                if not isinstance(ref, dict):
+                    continue
+                if not ref.get("id") and not ref.get("slug") and not ref.get("version"):
+                    continue
+
+                if ref.get("id"):
+                    span.set_attribute(
+                        f"ag.refs.{key}.id",
+                        str(ref.get("id")),
+                    )
+                if ref.get("slug"):
+                    span.set_attribute(
+                        f"ag.refs.{key}.slug",
+                        str(ref.get("slug")),
+                    )
+                if ref.get("version"):
+                    span.set_attribute(
+                        f"ag.refs.{key}.version",
+                        str(ref.get("version")),
+                    )
 
         trace_id = span.context.trace_id
         span_id = span.context.span_id
@@ -73,6 +164,12 @@ class TraceProcessor(SpanProcessor):
     ):
         trace_id = span.context.trace_id
         span_id = span.context.span_id
+
+        # log.debug(
+        #     "[SPAN] [END]   ",
+        #     trace_id=UUID(int=trace_id).hex,
+        #     span_id=UUID(int=span_id).hex[-16:],
+        # )
 
         self._spans.setdefault(trace_id, []).append(span)
         self._registry.setdefault(trace_id, {})

@@ -81,7 +81,7 @@ poetry run pytest tests/unit/test_tracing_decorators.py::TestGeneratorTracing -v
 
 ## Test Data Patterns
 
-### Simple Test Cases
+### Simple Testcases
 ```python
 # Basic generator
 def simple_generator():
@@ -92,7 +92,7 @@ def simple_generator():
 # Expected result: ["first", "second", "third"]
 ```
 
-### Complex Test Cases  
+### Complex Testcases  
 ```python
 # Generator with return value
 def generator_with_return():
@@ -158,7 +158,7 @@ poetry run pytest tests/unit/ -v
 
 ## Extending Tests
 
-### Adding New Test Cases
+### Adding New Testcases
 
 1. **Choose appropriate test class**:
    - `TestExistingFunctionality`: For regression tests

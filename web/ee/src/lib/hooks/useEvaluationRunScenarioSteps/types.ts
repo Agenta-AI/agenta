@@ -1,6 +1,6 @@
 import {SWRResponse, SWRConfiguration} from "swr"
 
-import type {PreviewTestSet, SnakeToCamelCaseKeys} from "../../Types"
+import type {PreviewTestset, SnakeToCamelCaseKeys} from "../../Types"
 import {AnnotationDto} from "../useAnnotations/types"
 import {RunIndex} from "../useEvaluationRunData/assets/helpers/buildRunIndex"
 
@@ -136,7 +136,7 @@ export interface IInvocationStep extends IStepResponse {
 export interface IInputStep extends IStepResponse {
     inputs?: Record<string, any>
     groundTruth?: Record<string, any>
-    testcase?: PreviewTestSet["data"]["testcases"][number]
+    testcase?: PreviewTestset["data"]["testcases"][number]
 }
 export interface IAnnotationStep extends IStepResponse {
     annotation?: AnnotationDto

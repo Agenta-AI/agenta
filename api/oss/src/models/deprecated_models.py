@@ -76,7 +76,7 @@ class DeprecatedAppDB(DeprecatedBase):
     )
 
 
-class DeprecatedTestSetDB(DeprecatedBase):
+class DeprecatedTestsetDB(DeprecatedBase):
     __tablename__ = "testsets"
     __table_args__ = {"extend_existing": True}
 

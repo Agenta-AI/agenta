@@ -16,7 +16,7 @@ import type {
 import type {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import type {PreviewTestSet, WorkspaceMember} from "@/oss/lib/Types"
+import type {PreviewTestset, WorkspaceMember} from "@/oss/lib/Types"
 
 function collectTraceIds({steps, invocationKeys}: {steps: any[]; invocationKeys: Set<string>}) {
     const traceIds: string[] = []
@@ -146,10 +146,51 @@ export function identifyScenarioSteps({
     const invocationKeys = runIndex?.invocationKeys ?? new Set<string>()
     const invocationSteps = steps.filter((s) => invocationKeys.has(s.stepKey))
 
-    const annotationSteps = steps.filter((s) => {
-        const keyParts = (s.stepKey || "").split(".")
-        const evaluatorSlug = keyParts.length > 1 ? keyParts[keyParts.length - 1] : undefined
-        return evaluatorSlug ? evaluators.some((e) => e.slug === evaluatorSlug) : false
+    const evaluatorIds = new Set<string>(
+        (evaluators || []).map((e) => (typeof e.id === "string" ? e.id : "")).filter(Boolean),
+    )
+    const evaluatorSlugs = new Set<string>(
+        (evaluators || []).map((e) => (typeof e.slug === "string" ? e.slug : "")).filter(Boolean),
+    )
+
+    const annotationSteps = steps.filter((step) => {
+        const meta = runIndex?.steps?.[step.stepKey]
+        const refEvaluator = meta?.refs?.evaluator ?? (step as any)?.references?.evaluator
+        const candidateSlug: string | undefined =
+            typeof refEvaluator?.slug === "string"
+                ? refEvaluator.slug
+                : typeof (step as any)?.evaluator_slug === "string"
+                  ? (step as any).evaluator_slug
+                  : undefined
+        const candidateId: string | undefined =
+            typeof refEvaluator?.id === "string" ? refEvaluator.id : undefined
+
+        let matched = false
+
+        if (candidateId) {
+            if (evaluatorIds.has(candidateId)) {
+                matched = true
+            } else {
+                matched = true
+            }
+        }
+
+        if (!matched && candidateSlug) {
+            matched = evaluatorSlugs.has(candidateSlug)
+            if (!matched) {
+                matched = true
+            }
+        }
+
+        if (!matched) {
+            const keyParts = (step.stepKey || "").split(".")
+            const fallbackSlug = keyParts.length > 1 ? keyParts[keyParts.length - 1] : undefined
+            if (fallbackSlug && evaluatorSlugs.has(fallbackSlug)) {
+                matched = true
+            }
+        }
+
+        return matched
     })
 
     return {inputSteps, invocationSteps, annotationSteps}
@@ -165,9 +206,9 @@ export function deriveTestsetAndRevision({
     inputSteps: any[]
     invocationSteps: any[]
     runIndex?: {steps: Record<string, any>}
-    testsets: PreviewTestSet[]
+    testsets: PreviewTestset[]
     variants: EnhancedVariant[]
-}): {testsets: PreviewTestSet[]; revisions: EnhancedVariant[]} {
+}): {testsets: PreviewTestset[]; revisions: EnhancedVariant[]} {
     const referencedTestsetIds = new Set<string>()
     const referencedRevisionIds = new Set<string>()
 
@@ -467,7 +508,7 @@ export function buildScenarioCore({
     steps: StepResponseStep[]
     runIndex?: RunIndex
     evaluators: EvaluatorDto[]
-    testsets: PreviewTestSet[]
+    testsets: PreviewTestset[]
     variants: EnhancedVariant[]
     mappings?: unknown
     uriObject?: {runtimePrefix: string; routePath?: string}

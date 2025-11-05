@@ -5,69 +5,59 @@ description: "User Profile"
 sidebar_label: "User Profile"
 hide_title: true
 hide_table_of_contents: true
-api: eJx1UsFu2zAM/ZXgnYU421GnZcOwBb0E7XoKjIKVmVqrLamSHMwz/O8DHSdpDUwXQeIj+fgeB/jAkbL1bldB48jZ1E9d4vgUoj/ahqEQOQXvEifoAZ83G7kqTibaIInQeOiM4ZSOXbO6n8FQMN5ldlngFEJjzdSn+J0kZ0AyNbcEPYxy1KLkY+K42l85tJxrLwxfOEMhUK6hUdxIJo4njgn6MKCLDTTqnEPSRWEa31VremGXaU22oGCx7LadoqtvAsVYSjnTRZv7qd52v7vj/idTxRH6UL4HPMgUZ2k+wgbkPjA0KNg77qHgqJX3tsu1j/bvpAYUrBCoz1mig3VHP6Xb3PCN21cyr+wqKMicZ9qb9af15n/DzAmr7X43m0FmMuPCY4JBLeS6CgUFbslKLDO1X24BYRl8yi25d/UWjn3gdBUj859chIaswzh3HmY3D7i4WSrUPmX5GoZnSvwYm3GU77eOo3hSKpwoWnoWhQ7lqC4Cil2v3Mt4xnCQXTlR0519WOyg2Hjdqx/ff2Ec/wGdpws6
+api: eJxdUk1v2zAM/SvBOwtxuqNOzWFYg16CtT0FRsEqTK3NtlSJDuoZ/u8DnY829kWw+Ci+Dw4IkROJD+1mD4sDi6teu8zpNaZw8DXDIHGOoc2cYQf8WK302HN2yUdthMVT5xznfOjqxe8zGAYutMKtKJxirL2b5hR/svYMyK7ihmCHUT8ze/Ilc1psrxwalioow3cWGESSChbFF8nM6cgpw+4GdKmGRSUSsy0KV4duv6R3boWW5AuKHmOpHa5LXvqpZb3dPHL/wLTnBLsrvwOelOhJ/S1sgPSRYUHRP3IPg5Ya/V93UoXk/02CYeBVUXXqUqm+PYSp3Us94Sdyi/V2AwOVcfJgtbxbrjB35gasHpObPL7MnsowMxeu+mHADXmtCVNz/1VQZjFkaaj99t4siBsuVwOEP6WINfkW43nycA5ph0tIpUEVsujVMLxR5pdUj6Nef3ScNIfS4EjJ05u6sitHczFNI/rLvcpzjqOuwJHq7uT9bLU0uuu6/Pr5jHH8D6yG/Jw=
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-backend
+info_path: reference/api/agenta-api
 custom_edit_url: null
 ---
 
-import ApiTabs from "@theme/ApiTabs";
-import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
-import MimeTabs from "@theme/MimeTabs";
-import ParamsItem from "@theme/ParamsItem";
-import ResponseSamples from "@theme/ResponseSamples";
-import SchemaItem from "@theme/SchemaItem";
-import SchemaTabs from "@theme/SchemaTabs";
-import Markdown from "@theme/Markdown";
-import Heading from "@theme/Heading";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"User Profile"}
-></Heading>
+>
+</Heading>
 
-<MethodEndpoint method={"get"} path={"/profile"}></MethodEndpoint>
+<MethodEndpoint
+  method={"get"}
+  path={"/profile"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
 
 User Profile
 
-<div>
-  <div>
-    <ApiTabs label={undefined} id={undefined}>
-      <TabItem label={"200"} value={"200"}>
-        <div>Successful Response</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>any</ul>
-                  </details>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-    </ApiTabs>
-  </div>
-</div>
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

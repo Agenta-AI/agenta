@@ -296,6 +296,13 @@ class ObservabilityRouter:
                 )
         # -------------------------------------------------------------------- #
 
+        # for otel_span in otel_spans:
+        #     log.debug(
+        #         "Receiving trace... ",
+        #         project_id=request.state.project_id,
+        #         trace_id=str(UUID(otel_span.context.trace_id[2:])),
+        #     )
+
         span_dtos = None
         try:
             # ---------------------------------------------------------------- #

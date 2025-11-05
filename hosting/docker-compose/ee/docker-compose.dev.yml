@@ -49,7 +49,7 @@ services:
 
         volumes:
             - ../../../api:/app
-            # - ../../../sdk:/sdk
+            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -96,7 +96,7 @@ services:
 
         volumes:
             - ../../../api:/app
-            # - ../../../sdk:/sdk
+            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -145,7 +145,7 @@ services:
 
         volumes:
             - ../../../api:/app
-            # - ../../../sdk:/sdk
+            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -161,7 +161,7 @@ services:
     completion:
         build: 
             context: ../../../services/completion
-            dockerfile: oss/docker/Dockerfile.dev
+            dockerfile: ee/docker/Dockerfile.dev
 
         volumes:
             - ../../../services/completion:/app
@@ -190,7 +190,7 @@ services:
     chat:
         build: 
             context: ../../../services/chat
-            dockerfile: oss/docker/Dockerfile.dev
+            dockerfile: ee/docker/Dockerfile.dev
 
         volumes:
             - ../../../services/chat:/app

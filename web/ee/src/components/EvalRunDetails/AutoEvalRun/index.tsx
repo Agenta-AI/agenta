@@ -16,7 +16,7 @@ const EvalRunOverviewViewer = dynamic(() => import("../components/EvalRunOvervie
 const EvalRunPromptConfigViewer = dynamic(() => import("./components/EvalRunPromptConfigViewer"), {
     ssr: false,
 })
-const EvalRunTestCaseViewer = dynamic(() => import("./components/EvalRunTestCaseViewer"), {
+const EvalRunTestcaseViewer = dynamic(() => import("./components/EvalRunTestcaseViewer"), {
     ssr: false,
 })
 
@@ -32,15 +32,15 @@ const AutoEvalRunDetails = ({name, description, id, isLoading}: AutoEvalRunDetai
         <section
             className={clsx([
                 "flex flex-col w-full !h-[calc(100vh-84px)] gap-2 overflow-auto",
-                {"!overflow-hidden": viewType === "test-cases"},
+                {"!overflow-hidden": viewType === "testcases"},
             ])}
         >
             <EvalRunHeader name={name} id={id} />
 
             {viewType === "overview" ? (
-                <EvalRunOverviewViewer />
-            ) : viewType === "test-cases" ? (
-                <EvalRunTestCaseViewer />
+                <EvalRunOverviewViewer type="auto" />
+            ) : viewType === "testcases" ? (
+                <EvalRunTestcaseViewer />
             ) : viewType === "prompt" ? (
                 <EvalRunPromptConfigViewer />
             ) : null}

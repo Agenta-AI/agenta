@@ -25,7 +25,7 @@ import {isValidId} from "@/oss/lib/helpers/serviceValidations"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {ComparisonResultRow, EvaluatorConfig, JSSTheme, TestSet, _Evaluation} from "@/oss/lib/Types"
+import {ComparisonResultRow, EvaluatorConfig, JSSTheme, Testset, _Evaluation} from "@/oss/lib/Types"
 import {fetchAllComparisonResults} from "@/oss/services/evaluations/api"
 import {getAppValues} from "@/oss/state/app"
 
@@ -88,7 +88,7 @@ const EvaluationCompareMode: FC<Props> = () => {
     const [fetching, setFetching] = useState(false)
     const [scenarios, setScenarios] = useState<_Evaluation[]>([])
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
-    const [testset, setTestset] = useState<TestSet>()
+    const [testset, setTestset] = useState<Testset>()
     const [evaluators] = useAtom(evaluatorsAtom)
     const [gridRef, setGridRef] = useState<AgGridReactType<ComparisonResultRow>>()
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)

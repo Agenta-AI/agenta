@@ -43,7 +43,7 @@ export const useSidebarConfig = () => {
         },
         {
             key: "app-testsets-link",
-            title: "Test Sets",
+            title: "Testsets",
             link: `${projectURL}/testsets`,
             icon: <DatabaseOutlined size={16} />,
         },

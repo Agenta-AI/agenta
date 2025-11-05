@@ -27,7 +27,7 @@ const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoR
 })
 
 const SelectTestsetSection = ({
-    testSets: propsTestsets,
+    testsets: propsTestsets,
     selectedTestsetId,
     setSelectedTestsetId,
     handlePanelChange,
@@ -36,10 +36,10 @@ const SelectTestsetSection = ({
     ...props
 }: SelectTestsetSectionProps) => {
     const [searchTerm, setSearchTerm] = useState("")
-    const {testsets: fetchedTestSets, columnsByTestsetId} = useTestsetsData()
-    const testSets = useMemo(() => {
-        return propsTestsets && propsTestsets.length > 0 ? propsTestsets : fetchedTestSets || []
-    }, [propsTestsets, fetchedTestSets])
+    const {testsets: fetchedTestsets, columnsByTestsetId} = useTestsetsData()
+    const testsets = useMemo(() => {
+        return propsTestsets && propsTestsets.length > 0 ? propsTestsets : fetchedTestsets || []
+    }, [propsTestsets, fetchedTestsets])
 
     // Stable flag for whether any revision is selected
     const hasSelectedRevision = useMemo(
@@ -85,9 +85,9 @@ const SelectTestsetSection = ({
 
     useEffect(() => {
         if (!hasSelectedRevision || !hasExpectedVariables) return
-        if (!Array.isArray(testSets) || testSets.length === 0) return
+        if (!Array.isArray(testsets) || testsets.length === 0) return
 
-        const pending = testSets.filter((ts) => {
+        const pending = testsets.filter((ts) => {
             const cols = columnsByTestsetId?.[ts._id]
             return !Array.isArray(cols) || cols.length === 0
         })
@@ -130,7 +130,7 @@ const SelectTestsetSection = ({
         return () => {
             cancelled = true
         }
-    }, [columnsByTestsetId, hasExpectedVariables, hasSelectedRevision, queryClient, testSets])
+    }, [columnsByTestsetId, hasExpectedVariables, hasSelectedRevision, queryClient, testsets])
 
     // Determine disabled state and tooltip for each testset based on known columns
     const compatibilityByTestset = useMemo(() => {
@@ -148,7 +148,7 @@ const SelectTestsetSection = ({
 
         const expectedLabel = expectedVariables.join(", ")
 
-        ;(testSets || []).forEach((ts) => {
+        ;(testsets || []).forEach((ts) => {
             const cols = columnsByTestsetId?.[ts._id]
             const columnsKnown = Array.isArray(cols)
             const trimmedColumns = columnsKnown
@@ -197,7 +197,7 @@ const SelectTestsetSection = ({
         })
 
         return diagnostics
-    }, [columnsByTestsetId, hasExpectedVariables, hasSelectedRevision, expectedVariables, testSets])
+    }, [columnsByTestsetId, hasExpectedVariables, hasSelectedRevision, expectedVariables, testsets])
 
     const getTestsetMessage = useCallback(
         (testsetId: string) => compatibilityByTestset[testsetId]?.message,
@@ -266,21 +266,21 @@ const SelectTestsetSection = ({
     }, [getTestsetMessage])
 
     const filteredTestset = useMemo(() => {
-        let allTestsets = testSets.sort(
+        let allTestsets = testsets.sort(
             (a: testset, b: testset) =>
                 dayjs(b.updated_at).valueOf() - dayjs(a.updated_at).valueOf(),
         )
         if (searchTerm) {
-            allTestsets = testSets.filter((item: testset) =>
+            allTestsets = testsets.filter((item: testset) =>
                 item.name.toLowerCase().includes(searchTerm.toLowerCase()),
             )
         }
         return allTestsets
-    }, [searchTerm, testSets])
+    }, [searchTerm, testsets])
 
     const selectedTestset = useMemo(
-        () => testSets.find((testset) => testset._id === selectedTestsetId) || null,
-        [selectedTestsetId, testSets],
+        () => testsets.find((testset) => testset._id === selectedTestsetId) || null,
+        [selectedTestsetId, testsets],
     )
 
     return (

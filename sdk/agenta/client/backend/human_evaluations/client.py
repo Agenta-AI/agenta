@@ -237,7 +237,7 @@ class HumanEvaluationsClient:
         Updates an evaluation's status.
 
         Raises:
-            HTTPException: If the columns in the test set do not match with the inputs in the variant.
+            HTTPException: If the columns in the testset do not match with the inputs in the variant.
 
         Returns:
             None: A 204 No Content status code, indicating that the update was successful.
@@ -785,7 +785,7 @@ class AsyncHumanEvaluationsClient:
         Updates an evaluation's status.
 
         Raises:
-            HTTPException: If the columns in the test set do not match with the inputs in the variant.
+            HTTPException: If the columns in the testset do not match with the inputs in the variant.
 
         Returns:
             None: A 204 No Content status code, indicating that the update was successful.

@@ -108,9 +108,13 @@ from oss.src.routers import (
     container_router,
 )
 
+from oss.src.utils.env import env
+
 import agenta as ag
 
-ag.init()
+ag.init(
+    api_url=env.AGENTA_API_URL,
+)
 
 ee = None
 if is_ee():

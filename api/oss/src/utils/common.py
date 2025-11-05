@@ -1,4 +1,5 @@
 from typing import Any, Callable
+from uuid import UUID, RFC_4122
 
 from fastapi.types import DecoratedCallable
 from fastapi import APIRouter as FastAPIRouter
@@ -53,3 +54,18 @@ def is_ee():
 
 def is_oss():
     return env.AGENTA_LICENSE == "oss"
+
+
+def is_uuid7(s: str, *, require_canonical: bool = False) -> bool:
+    try:
+        u = UUID(s)  # parses hyphenated, braced, or 32-hex forms
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+    if u.version != 7 or u.variant != RFC_4122:
+        return False
+
+    if require_canonical and str(u) != s.lower():
+        return False
+
+    return True

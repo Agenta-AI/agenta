@@ -561,7 +561,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
             title: (
                 <div className={classes.inputTestContainer}>
                     <div>
-                        <span> Inputs (Test set: </span>
+                        <span> Inputs (Testset: </span>
                         <span className={classes.inputTest}>{evaluation.testset.name}</span>
                         <span> )</span>
                     </div>
@@ -733,7 +733,7 @@ const SingleModelEvaluationTable: React.FC<EvaluationTableProps> = ({
                 open={isTestsetModalOpen}
                 onCancel={() => setIsTestsetModalOpen(false)}
                 onSuccess={(testsetName: string) => {
-                    message.success(`Row added to the "${testsetName}" test set!`)
+                    message.success(`Row added to the "${testsetName}" testset!`)
                     setIsTestsetModalOpen(false)
                 }}
                 rows={rows}

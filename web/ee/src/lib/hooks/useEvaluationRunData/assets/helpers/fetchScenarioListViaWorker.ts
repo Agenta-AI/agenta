@@ -21,6 +21,7 @@ interface Params {
     jwt: string
     projectId: string
     runId: string
+    order?: "ascending" | "descending"
 }
 
 export async function fetchScenarioListViaWorker(

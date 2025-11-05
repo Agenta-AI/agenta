@@ -9,3 +9,4 @@ google-cloud-aiplatform>=1.38
 
 # temporary
 decorator
+restrictedpython

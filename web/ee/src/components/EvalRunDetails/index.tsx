@@ -3,7 +3,7 @@ import {memo, useCallback, useEffect} from "react"
 import {Spin, Typography} from "antd"
 import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
-import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
+import {getDefaultStore, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {selectAtom} from "jotai/utils"
 import {useRouter} from "next/router"
 
@@ -11,7 +11,6 @@ import ErrorState from "@/oss/components/ErrorState"
 import EvalRunDetails from "@/oss/components/EvalRunDetails/HumanEvalRun"
 import SingleModelEvaluationTable from "@/oss/components/EvaluationTable/SingleModelEvaluationTable"
 import {RunIdProvider} from "@/oss/contexts/RunIdContext"
-import {useAppId} from "@/oss/hooks/useAppId"
 import {appendBreadcrumbAtom, breadcrumbAtom, setBreadcrumbsAtom} from "@/oss/lib/atoms/breadcrumb"
 import {isUuid} from "@/oss/lib/helpers/utils"
 import useEvaluationRunData from "@/oss/lib/hooks/useEvaluationRunData"
@@ -26,8 +25,9 @@ import EvaluationScenarios from "../pages/evaluations/evaluationScenarios/Evalua
 
 import AutoEvalRunDetails from "./AutoEvalRun"
 import {ComparisonDataFetcher} from "./components/ComparisonDataFetcher"
+import OnlineEvalRunDetails from "./OnlineEvalRun"
+import OnlineUrlSync from "./OnlineEvalRun/OnlineUrlSync"
 import {evalTypeAtom, setEvalTypeAtom} from "./state/evalType"
-import {runViewTypeAtom} from "./state/urlState"
 import UrlSync from "./UrlSync"
 
 const EvaluationPageData = memo(
@@ -96,20 +96,17 @@ const PreviewEvaluationPage = memo(
         description,
         id,
     }: {
-        evalType: "auto" | "human"
+        evalType: "auto" | "human" | "online"
         name: string
         description: string
         id: string
     }) => {
         return evalType === "auto" ? (
-            <AutoEvalRunDetails
-                name={name as string}
-                description={description}
-                id={id}
-                isLoading={false}
-            />
+            <AutoEvalRunDetails name={name} description={description} id={id} isLoading={false} />
+        ) : evalType === "online" ? (
+            <OnlineEvalRunDetails name={name} description={description} id={id} />
         ) : (
-            <EvalRunDetails description={description} name={name as string} id={id} />
+            <EvalRunDetails description={description} name={name} id={id} />
         )
     },
 )
@@ -120,13 +117,15 @@ const LoadingState = ({
     description,
     id,
 }: {
-    evalType: "auto" | "human"
+    evalType: "auto" | "human" | "online"
     name: string
     description: string
     id: string
 }) => {
     return evalType === "auto" ? (
-        <AutoEvalRunDetails name={name as string} description={description} id={id} isLoading />
+        <AutoEvalRunDetails name={name} description={description} id={id} isLoading />
+    ) : evalType === "online" ? (
+        <OnlineEvalRunDetails name={name} description={description} id={id} isLoading />
     ) : (
         <div className="w-full h-[calc(100dvh-70px)] flex items-center justify-center">
             <div className="flex gap-2 items-center justify-center">
@@ -139,172 +138,200 @@ const LoadingState = ({
     )
 }
 
-const EvaluationPage = memo(({evalType, runId}: {evalType: "auto" | "human"; runId: string}) => {
-    const rootStore = getDefaultStore()
-    const breadcrumbs = useAtomValue(breadcrumbAtom, {store: rootStore})
-    const appendBreadcrumb = useSetAtom(appendBreadcrumbAtom, {store: rootStore})
-    const setEvalType = useSetAtom(setEvalTypeAtom)
-    const router = useRouter()
+const EvaluationPage = memo(
+    ({evalType, runId}: {evalType: "auto" | "human" | "online"; runId: string}) => {
+        const rootStore = getDefaultStore()
+        const breadcrumbs = useAtomValue(breadcrumbAtom, {store: rootStore})
+        const appendBreadcrumb = useSetAtom(appendBreadcrumbAtom, {store: rootStore})
 
-    const {isPreview, name, description, id} = useAtomValue(
-        selectAtom(
-            evaluationRunStateFamily(runId!),
-            useCallback((v) => {
-                return {
-                    isPreview: v.isPreview,
-                    name: v.enrichedRun?.name,
-                    description: v.enrichedRun?.description,
-                    id: v.enrichedRun?.id,
-                }
-            }, []),
-            deepEqual,
-        ),
-    )
+        const router = useRouter()
 
-    useEffect(() => {
-        setEvalType(evalType)
-    }, [evalType])
+        const {isPreview, name, description, id} = useAtomValue(
+            selectAtom(
+                evaluationRunStateFamily(runId!),
+                useCallback((v) => {
+                    return {
+                        isPreview: v.isPreview,
+                        name: v.enrichedRun?.name,
+                        description: v.enrichedRun?.description,
+                        id: v.enrichedRun?.id,
+                    }
+                }, []),
+                deepEqual,
+            ),
+        )
 
-    useEffect(() => {
-        // Try loaded name first; fallback to name in URL (when present as /results/:id/:name).
-        const base = (typeof window !== "undefined" ? window.location.pathname : "") || ""
-        const segs = base.split("/").filter(Boolean)
-        const resultsIdx = segs.findIndex((s) => s === "results")
-        const urlName =
-            resultsIdx !== -1 && segs[resultsIdx + 2] && !isUuid(segs[resultsIdx + 2])
-                ? segs[resultsIdx + 2]
-                : undefined
+        useEffect(() => {
+            // Try loaded name first; fallback to name in URL (when present as /results/:id/:name).
+            const base = (typeof window !== "undefined" ? window.location.pathname : "") || ""
+            const segs = base.split("/").filter(Boolean)
+            const resultsIdx = segs.findIndex((s) => s === "results")
+            const urlName =
+                resultsIdx !== -1 && segs[resultsIdx + 2] && !isUuid(segs[resultsIdx + 2])
+                    ? segs[resultsIdx + 2]
+                    : undefined
 
-        const label = name || urlName
-        if (!id || !label) return
+            const label = name || urlName
+            if (!id || !label) return
 
-        const existing = (breadcrumbs && (breadcrumbs["eval-detail"] as any)) || null
-        const currentLabel: string | undefined = existing?.label
-        if (currentLabel === label) return
+            const existing = (breadcrumbs && (breadcrumbs["eval-detail"] as any)) || null
+            const currentLabel: string | undefined = existing?.label
+            if (currentLabel === label) return
 
-        appendBreadcrumb({
-            "eval-detail": {
-                label,
-                value: id as string,
-            },
-        })
-    }, [appendBreadcrumb, breadcrumbs, id, name])
+            appendBreadcrumb({
+                "eval-detail": {
+                    label,
+                    value: id as string,
+                },
+            })
+        }, [appendBreadcrumb, breadcrumbs, id, name])
 
-    useEffect(() => {
-        const base = (typeof window !== "undefined" ? window.location.pathname : "") || ""
-        const segs = base.split("/").filter(Boolean)
-        const desiredLabel = evalType === "auto" ? "auto evaluation" : "human annotation"
+        useEffect(() => {
+            const base = (typeof window !== "undefined" ? window.location.pathname : "") || ""
+            const segs = base.split("/").filter(Boolean)
+            const desiredLabel =
+                evalType === "auto"
+                    ? "auto evaluation"
+                    : evalType === "online"
+                      ? "online evaluation"
+                      : "human annotation"
 
-        const appsIdx = segs.findIndex((s) => s === "apps")
-        if (appsIdx !== -1) {
-            const appId = segs[appsIdx + 1]
-            if (!appId) return
-            const evaluationsHref = `/${segs.slice(0, appsIdx + 2).join("/")}/evaluations`
+            const appsIdx = segs.findIndex((s) => s === "apps")
+            if (appsIdx !== -1) {
+                const appId = segs[appsIdx + 1]
+                if (!appId) return
+                const evaluationsHref = `/${segs.slice(0, appsIdx + 2).join("/")}/evaluations`
+
+                const current = (rootStore.get(breadcrumbAtom) as any) || {}
+                const appPage = current["appPage"] as any
+                const needsHref =
+                    !appPage || !appPage.href || !appPage.href.endsWith("/evaluations")
+                const needsLabel = !appPage || appPage.label !== desiredLabel
+                if (!needsHref && !needsLabel) return
+
+                rootStore.set(appendBreadcrumbAtom, {
+                    appPage: {
+                        ...(appPage || {}),
+                        label: desiredLabel,
+                        href: evaluationsHref,
+                    },
+                })
+                return
+            }
+
+            const evaluationsIdx = segs.findIndex((s) => s === "evaluations")
+            if (evaluationsIdx === -1) return
+            const evaluationsHref = `/${segs.slice(0, evaluationsIdx + 1).join("/")}`
 
             const current = (rootStore.get(breadcrumbAtom) as any) || {}
-            const appPage = current["appPage"] as any
-            const needsHref = !appPage || !appPage.href || !appPage.href.endsWith("/evaluations")
-            const needsLabel = !appPage || appPage.label !== desiredLabel
+            const projectPage = current["projectPage"] as any
+            const needsHref = !projectPage || projectPage.href !== evaluationsHref
+            const needsLabel = !projectPage || projectPage.label !== desiredLabel
             if (!needsHref && !needsLabel) return
 
             rootStore.set(appendBreadcrumbAtom, {
-                appPage: {
-                    ...(appPage || {}),
+                projectPage: {
+                    ...(projectPage || {}),
                     label: desiredLabel,
                     href: evaluationsHref,
                 },
             })
-            return
-        }
+        }, [rootStore, appendBreadcrumb, evalType])
 
-        const evaluationsIdx = segs.findIndex((s) => s === "evaluations")
-        if (evaluationsIdx === -1) return
-        const evaluationsHref = `/${segs.slice(0, evaluationsIdx + 1).join("/")}`
-
-        const current = (rootStore.get(breadcrumbAtom) as any) || {}
-        const projectPage = current["projectPage"] as any
-        const needsHref = !projectPage || projectPage.href !== evaluationsHref
-        const needsLabel = !projectPage || projectPage.label !== desiredLabel
-        if (!needsHref && !needsLabel) return
-
-        rootStore.set(appendBreadcrumbAtom, {
-            projectPage: {
-                ...(projectPage || {}),
-                label: desiredLabel,
-                href: evaluationsHref,
-            },
-        })
-    }, [rootStore, appendBreadcrumb, evalType])
-
-    // Clean up eval-detail crumb when leaving the page to avoid stale breadcrumbs
-    useEffect(() => {
-        return () => {
-            const current = (rootStore.get(breadcrumbAtom) as any) || {}
-            if (current["eval-detail"]) {
-                const {"eval-detail": _omit, ...rest} = current
-                rootStore.set(setBreadcrumbsAtom, rest)
+        // Clean up eval-detail crumb when leaving the page to avoid stale breadcrumbs
+        useEffect(() => {
+            return () => {
+                const current = (rootStore.get(breadcrumbAtom) as any) || {}
+                if (current["eval-detail"]) {
+                    const {"eval-detail": _omit, ...rest} = current
+                    rootStore.set(setBreadcrumbsAtom, rest)
+                }
             }
-        }
-    }, [rootStore])
+        }, [rootStore])
 
-    const hasPreviewData = Boolean(id)
+        const hasPreviewData = Boolean(id)
 
-    if (isPreview && !hasPreviewData) {
-        return (
-            <ErrorState
-                title="Evaluation data unavailable"
-                subtitle="We couldn't load this evaluation run. Please try again later or relaunch the evaluation."
-                status="warning"
-                onRetry={() => router.reload()}
-            />
-        )
-    }
-
-    return (
-        <div
-            className={clsx([
-                "min-h-0",
-                {"evaluationContainer human-eval grow": evalType === "human"},
-                {"flex flex-col min-h-0": isPreview && evalType === "human"},
-            ])}
-        >
-            {/** TODO: improve the component state specially AutoEvalRunDetails */}
-            {isPreview === undefined ? (
-                <LoadingState
-                    evalType={evalType}
-                    name={name as string}
-                    description={description!}
-                    id={runId}
+        if (isPreview && !hasPreviewData) {
+            return (
+                <ErrorState
+                    title="Evaluation data unavailable"
+                    subtitle="We couldn't load this evaluation run. Please try again later or relaunch the evaluation."
+                    status="warning"
+                    onRetry={() => router.reload()}
                 />
-            ) : isPreview && id ? (
-                <>
-                    <UrlSync evalType={evalType} />
-                    <PreviewEvaluationPage
-                        evalType={evalType}
-                        name={name as string}
-                        description={description!}
-                        id={runId}
-                        runId={runId}
-                        isLoading={false}
-                    />
-                </>
-            ) : (
-                <LegacyEvaluationPage id={id!} />
-            )}
-        </div>
-    )
-})
+            )
+        }
 
-const EvalRunDetailsPage = memo(({evalType}: {evalType: "auto" | "human"}) => {
-    const router = useRouter()
-    const runId = router.query.evaluation_id ? router.query.evaluation_id.toString() : ""
-    return (
-        <RunIdProvider runId={runId as string}>
-            <EvaluationPageData runId={runId} />
-            <EvaluationPage evalType={evalType} runId={runId} />
-            <ComparisonDataFetcher />
-        </RunIdProvider>
-    )
-})
+        return (
+            <div
+                className={clsx([
+                    "evaluationContainer human-eval grow",
+                    {"flex flex-col min-h-0": isPreview},
+                ])}
+            >
+                {/** TODO: improve the component state specially AutoEvalRunDetails */}
+                {isPreview === undefined ? (
+                    <LoadingState
+                        evalType={evalType}
+                        name={(name as string) || ""}
+                        description={(description as string) || ""}
+                        id={runId}
+                    />
+                ) : isPreview && id ? (
+                    <>
+                        {evalType === "online" ? (
+                            <OnlineUrlSync />
+                        ) : (
+                            <UrlSync evalType={evalType} />
+                        )}
+                        <PreviewEvaluationPage
+                            evalType={evalType}
+                            name={(name as string) || ""}
+                            description={(description as string) || ""}
+                            id={runId}
+                        />
+                    </>
+                ) : (
+                    <LegacyEvaluationPage id={id} />
+                )}
+            </div>
+        )
+    },
+)
+
+const EvalRunDetailsPage = memo(
+    ({evalType: propsEvalType}: {evalType: "auto" | "human" | "online"}) => {
+        const router = useRouter()
+        const runIdParam = router.query.evaluation_id
+        const runId =
+            typeof runIdParam === "string"
+                ? runIdParam
+                : Array.isArray(runIdParam)
+                  ? runIdParam[0]
+                  : null
+        const setEvalType = useSetAtom(setEvalTypeAtom)
+        const evalType = useAtomValue(evalTypeAtom)
+
+        useEffect(() => {
+            setEvalType(propsEvalType)
+
+            return () => {
+                setEvalType(null)
+            }
+        }, [propsEvalType])
+
+        return (
+            <RunIdProvider runId={runId}>
+                {evalType && runId ? (
+                    <>
+                        <EvaluationPageData runId={runId} />
+                        <EvaluationPage evalType={evalType} runId={runId} />
+                        <ComparisonDataFetcher />
+                    </>
+                ) : null}
+            </RunIdProvider>
+        )
+    },
+)
 
 export default memo(EvalRunDetailsPage)

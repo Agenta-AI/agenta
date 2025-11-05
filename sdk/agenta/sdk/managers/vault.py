@@ -1,16 +1,16 @@
 from typing import Optional, Dict, Any
 
-from agenta.sdk.context.serving import serving_context
+from agenta.sdk.contexts.routing import RoutingContext
 
 
 class VaultManager:
     @staticmethod
     def get_from_route() -> Optional[Dict[str, Any]]:
-        context = serving_context.get()
+        context = RoutingContext.get()
 
         secrets = context.secrets
 
         if not secrets:
-            return None
+            return []
 
         return secrets

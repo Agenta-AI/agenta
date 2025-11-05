@@ -24,7 +24,7 @@ const EMPTY_ROWS: any[] = []
 /**
  * This component renders a bar of buttons above the scenario table.
  * It includes a button to run all scenarios, a button to export results,
- * a button to save the test set, a button to refresh the page, and a button
+ * a button to save the testset, a button to refresh the page, and a button
  * to open the instruction modal.
  *
  * @returns A JSX element containing a bar of buttons.
@@ -226,7 +226,7 @@ const EvalRunBatchActions = ({name}: {name: string}) => {
                 name={name}
             />
 
-            <SaveDataButton label="Save test set" onClick={onClickSaveData} rows={rows} />
+            <SaveDataButton label="Save testset" onClick={onClickSaveData} rows={rows} />
 
             <InstructionButton />
         </div>

@@ -227,7 +227,7 @@ class DeployToEnvironmentPayload(BaseModel):
     commit_message: Optional[str] = None
 
 
-class TestSetOutput(BaseModel):
+class TestsetOutput(BaseModel):
     id: str
     name: str
     csvdata: List[Dict[str, Any]]

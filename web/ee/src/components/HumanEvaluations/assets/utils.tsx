@@ -38,6 +38,9 @@ const TableDropdownMenu = dynamic(() => import("./TableDropdownMenu"), {
     loading: () => <div className="w-16 h-16"></div>,
 })
 
+const ALLOWED_AUTO_INVOCATION_METRIC_KEYS = new Set(
+    GeneralAutoEvalMetricColumns.map((column) => canonicalizeMetricKey(column.path)),
+)
 const isUuidLike = (value: string | undefined): boolean => {
     if (!value) return false
     const trimmed = value.trim()
@@ -102,6 +105,9 @@ export const extractEvaluationStatus = (
     status?: EvaluationStatus,
     evalType?: "auto" | "human",
 ) => {
+    if (status === EvaluationStatus.CANCELLED) {
+        return {runStatus: EvaluationStatus.CANCELLED, scenarios}
+    }
     // Derive overall run status if not provided
     let derived: EvaluationStatus = EvaluationStatus.PENDING
     if (scenarios.length) {
@@ -168,11 +174,43 @@ export const getEvaluatorMetricColumns = ({
         "slug",
     )
         .filter(Boolean)
-        .map((evaluator: EvaluatorDto) => ({
-            name: evaluator?.name,
-            slug: evaluator?.slug,
-            metrics: evaluator?.data.service.format.properties.outputs.properties,
-        }))
+        .map((evaluator: EvaluatorDto) => {
+            const serviceFormat = (evaluator as any)?.data?.service?.format
+            let metricsCandidate: Record<string, any> | undefined
+            if (serviceFormat && typeof serviceFormat === "object") {
+                const properties = (serviceFormat as any)?.properties
+                const outputsCandidate =
+                    (properties && typeof properties === "object"
+                        ? (properties as any).outputs
+                        : undefined) ?? (serviceFormat as any).outputs
+
+                if (outputsCandidate && typeof outputsCandidate === "object") {
+                    metricsCandidate =
+                        (outputsCandidate as any).properties &&
+                        typeof (outputsCandidate as any).properties === "object"
+                            ? ((outputsCandidate as any).properties as Record<string, any>)
+                            : (outputsCandidate as Record<string, any>)
+                }
+            }
+
+            if (!metricsCandidate) {
+                const fallback =
+                    (evaluator as any)?.settings_values?.outputs ??
+                    (evaluator as any)?.settings?.outputs ??
+                    undefined
+                if (fallback && typeof fallback === "object" && !Array.isArray(fallback)) {
+                    metricsCandidate = fallback as Record<string, any>
+                }
+            }
+
+            const metrics = metricsCandidate ?? {}
+
+            return {
+                name: evaluator?.name,
+                slug: evaluator?.slug,
+                metrics,
+            }
+        })
         .sort((a, b) => {
             const diff = (evaluatorCounts[b.slug] ?? 0) - (evaluatorCounts[a.slug] ?? 0)
             return diff !== 0 ? diff : a.name.localeCompare(b.name)
@@ -582,7 +620,7 @@ export const getColumns = ({
             },
         },
         {
-            title: "Test set",
+            title: "Testset",
             dataIndex: "testsetName",
             key: "testsetName",
             onHeaderCell: () => ({

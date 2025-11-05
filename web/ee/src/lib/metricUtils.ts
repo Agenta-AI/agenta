@@ -47,9 +47,32 @@ export type SchemaMetricType = PrimitiveMetricType | PrimitiveMetricType[]
 // ---------------------------------------------------------------------------
 
 const METRIC_KEY_SYNONYMS: string[][] = [
-    ["attributes.ag.metrics.costs.cumulative.total", "totalCost", "costs.total", "cost"],
-    ["attributes.ag.metrics.duration.cumulative", "duration", "duration.total"],
-    ["attributes.ag.metrics.tokens.cumulative.total", "totalTokens", "tokens.total", "tokens"],
+    [
+        "attributes.ag.metrics.costs.cumulative.total",
+        "totalCost",
+        "costs.total",
+        "cost",
+        "ag.metrics.unit.costs.total",
+        "attributes.ag.metrics.unit.costs.total",
+        "otel.attributes.ag.metrics.unit.costs.total",
+    ],
+    [
+        "attributes.ag.metrics.duration.cumulative",
+        "duration",
+        "duration.total",
+        "ag.metrics.unit.duration.total",
+        "attributes.ag.metrics.unit.duration.total",
+        "otel.attributes.ag.metrics.unit.duration.total",
+    ],
+    [
+        "attributes.ag.metrics.tokens.cumulative.total",
+        "totalTokens",
+        "tokens.total",
+        "tokens",
+        "ag.metrics.unit.tokens.total",
+        "attributes.ag.metrics.unit.tokens.total",
+        "otel.attributes.ag.metrics.unit.tokens.total",
+    ],
     ["attributes.ag.metrics.errors.cumulative", "errors"],
 ]
 
@@ -108,7 +131,7 @@ export const getMetricDisplayName = (key: string): string => {
         case "attributes.ag.metrics.duration.cumulative":
             return "Duration (Total)"
         case "attributes.ag.metrics.tokens.cumulative.total":
-            return "Total tokens"
+            return "Tokens (Total)"
         case "attributes.ag.metrics.errors.cumulative":
             return "Errors"
         default: {
