@@ -91,7 +91,7 @@ Collaborate with Subject Matter Experts (SMEs) on prompt engineering and make su
 
 ### 📊 Evaluation & Testing
 Evaluate your LLM applications systematically with both human and automated feedback.
-- **Flexible Test Sets**: Create test cases from production data, playground experiments, or upload CSVs
+- **Flexible Testsets**: Create testcases from production data, playground experiments, or upload CSVs
 - **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or you custom evaluators
 - **UI and API Access**: Run evaluations via UI (for SMEs) or programmatically (for engineers)
 - **Human Feedback Integration**: Collect and incorporate expert annotations

@@ -1,0 +1,71 @@
+---
+id: inspect-workflow
+title: "Inspect Workflow"
+description: "Inspect Workflow"
+sidebar_label: "Inspect Workflow"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV01v2zgQ/SvGnLYAG6dBTzqtd7eLuu0iRpy2B8NY0NJYZkuRLD+ceg3992JI2ZJix00M9LTxxSI5MyTfm3kkt+B56SCbwWdtvy6lvnMwZ6ANWu6FVuMCMhDKGcz9v3eNCTCw+C2g83/oYgPZFnKtPCpPn9wYKfLoPPzitKI+l6+w4vRlLIX2Ah211midSCZcba6XkM224DcGIQPnrVAl1Gzfo4KUUM8ZeOEldXxq3GsGwYpzo3y0IkWQ50eQFGGFvEDr+lF4UQjCgstJb+utxa+CxMlQnhtmSr41A1GcisBgqW3FPWQQgihORhwXUNdsN6wXXzD30A7f4BItqhy7QXYLnR84nprpbUMDQRDz7rGM/JSpB/ETymOJtr+satHvWWgtkavYdXwuyIXNg+T2t7+DlO+cVi/HygT/Ao7tX3isHufEreWbk5j1XeEI3k8gYNqgXjOouDFClY9k4D6+T5jzn91Ep5JsJ3FTtGuR41h5tEtOOUdeJGnCYgGZtwFjhzNaubS2q8tL+ivQ5VYYH0sUpiHP0bllkIObxhjYsxg+i+GzGP4KMbwO/gw1PPB6ghwm3/+jHtYMXl9dHUreJy5FEQVt8MZabc/XuwI9F1FmGu7uG0id90afknudKkl0t7v+oNMCIx+uPAS6gyI6x0tsoX/YNIIxuKXRY5C3h8ss7itN3dh1JWsPb0L34W38leA7xe/b29vJQcDEbZ/UcbrgDz63F/wK/UrT5d9oRzEN9yvIYGgsrgXeDXdvATdsXgfAwKFdR82fbdMJAivvjcuGw1zqUFzwEpXnF1wMuRExXR3mwQq/iS6jyfg9bpJiQTabdw1iDaW06JvtGeFGvEcCSPGK2qPgV9qK/xLXDARtNJ1KETRKz5v2FfPmO6+MxN6p07IcT9RuU3ab7VnXk9l+vdOcQi11XHJD0CgCMhhNxsA6015evLq4hPsk9Yyp5ngea2633zi8X9wO+T3mwACrWHDgkVe/twO0MmK54qoT70hO9NazB97jdz80kgvVuTmkdJlBky7AYJ8wkYuUMnMGK0qvbAbb7YI7/GhlXVP3t4CWsmLOYM2t4AvCazbfXyxiwnzFDWTwZ5Kfl7H2yFyGlA/3pIhkInmM8hyNP2k771TA5Hp6CwwWzVu30gX5WB7fwfwOMgB6MZN3TNDYtwXJVRlIPTJIMen3A+hBT+M=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Inspect Workflow"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/workflows/inspect"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Inspect Workflow
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"uri":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Uri"},"url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Url"},"headers":{"anyOf":[{"additionalProperties":{"anyOf":[{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Reference"},{"type":"string"}]},"type":"object"},{"type":"null"}],"title":"Headers"},"schemas":{"anyOf":[{"additionalProperties":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Input)","type":"object"},{"items":"circular(FullJson-Input)","type":"array"},{"type":"null"}],"title":"FullJson-Input"},"type":"object"},"type":"object"},{"type":"null"}],"title":"Schemas"},"mappings":{"anyOf":[{"additionalProperties":{"type":"string"},"type":"object"},{"type":"null"}],"title":"Mappings"}},"type":"object","title":"WorkflowServiceInterface"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"uri":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Uri"},"url":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Url"},"headers":{"anyOf":[{"additionalProperties":{"anyOf":[{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Reference"},{"type":"string"}]},"type":"object"},{"type":"null"}],"title":"Headers"},"schemas":{"anyOf":[{"additionalProperties":{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},"type":"object"},{"type":"null"}],"title":"Schemas"},"mappings":{"anyOf":[{"additionalProperties":{"type":"string"},"type":"object"},{"type":"null"}],"title":"Mappings"}},"type":"object","title":"WorkflowServiceInterface"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

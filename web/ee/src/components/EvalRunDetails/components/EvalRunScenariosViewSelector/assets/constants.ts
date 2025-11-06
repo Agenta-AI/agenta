@@ -15,6 +15,12 @@ export const VIEW_HUMAN_OPTIONS = (() => {
 
 export const VIEW_AUTO_OPTIONS = [
     {label: "Overview", value: "overview"},
-    {label: "Test cases", value: "test-cases"},
+    {label: "Testcases", value: "testcases"},
     {label: "Prompt configuration", value: "prompt"},
+]
+
+export const VIEW_ONLINE_OPTIONS = [
+    {label: "Overview", value: "overview"},
+    {label: "Results", value: "results"},
+    {label: "Configuration", value: "configuration"},
 ]

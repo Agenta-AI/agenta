@@ -93,7 +93,7 @@ const SaveDataModal = ({rows, exportDataset = false, name, ...props}: SaveDataMo
 
     return (
         <EnhancedModal
-            title={exportDataset ? "Export Results" : "Add new test set"}
+            title={exportDataset ? "Export Results" : "Add new testset"}
             okText={exportDataset ? "Export" : "Create"}
             onOk={exportDataset ? onExportResults : onSaveTestset}
             confirmLoading={submitLoading}

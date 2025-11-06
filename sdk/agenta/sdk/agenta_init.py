@@ -9,7 +9,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.client.client import AgentaApi, AsyncAgentaApi
 
 from agenta.sdk.tracing import Tracing
-from agenta.sdk.context.serving import serving_context
+from agenta.sdk.contexts.routing import RoutingContext
 
 
 log = get_module_logger(__name__)
@@ -68,7 +68,7 @@ class AgentaSingleton:
 
         """
 
-        log.info("Agenta - SDK version: %s", version("agenta"))
+        log.info("Agenta -  SDK ver: %s", version("agenta"))
 
         config = {}
         if config_fname:
@@ -94,7 +94,7 @@ class AgentaSingleton:
             log.error(f"Failed to parse host URL '{_host}': {e}")
             raise
 
-        log.info("Agenta - Host: %s", self.host)
+        log.info("Agenta -  API URL: %s/api", self.host)
 
         self.api_key = api_key or getenv("AGENTA_API_KEY") or config.get("api_key")
 
@@ -149,7 +149,7 @@ class Config:
         return self.default_parameters
 
     def __getattr__(self, key):
-        context = serving_context.get()
+        context = RoutingContext.get()
 
         parameters = context.parameters
 

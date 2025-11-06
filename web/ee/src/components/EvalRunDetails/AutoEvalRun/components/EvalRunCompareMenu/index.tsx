@@ -97,10 +97,11 @@ const EvalRunCompareMenu = ({
 
         const evals = matchedTestsetEvals.filter((run) => run?.id !== enrichedRun?.id)
 
-        const autoEvals = evals?.filter((run) =>
-            run?.data?.steps.every(
-                (step) => step?.type !== "annotation" || step?.origin === "auto",
-            ),
+        const autoEvals = evals?.filter(
+            (run) =>
+                run?.data?.steps.every(
+                    (step) => step?.type !== "annotation" || step?.origin === "auto",
+                ) && !Boolean(run?.flags?.is_live),
         )
 
         return autoEvals

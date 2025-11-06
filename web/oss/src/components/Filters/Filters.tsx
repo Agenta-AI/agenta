@@ -1,4 +1,5 @@
 import {useMemo, useState} from "react"
+
 import {ArrowClockwiseIcon, CaretDown, Funnel, Plus, Trash} from "@phosphor-icons/react"
 import {
     Button,
@@ -15,10 +16,6 @@ import {
 import type {TreeSelectProps} from "antd"
 import isEqual from "lodash/isEqual"
 
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {Filter, FilterConditions} from "@/oss/lib/Types"
-import CustomAntdBadge from "../ui/CustomAntdBadge"
-
 import {
     fieldConfigByOptionKey,
     FieldConfig,
@@ -32,16 +29,18 @@ import {
     normalizeFilter,
     toUIValue,
 } from "@/oss/components/pages/observability/assets/filters/valueCodec"
+import useLazyEffect from "@/oss/hooks/useLazyEffect"
+import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
+import {Filter, FilterConditions} from "@/oss/lib/Types"
+
 import {
-    FilterMenuNode,
-    FilterLeaf,
-    FilterGroup,
-    SelectOption,
-    Props,
-    FilterItem,
-    FieldMenuItem,
-    RowValidation,
-} from "./types"
+    NUM_OPS,
+    STRING_EQU_AND_CONTAINS_OPS,
+    STRING_EQU_OPS,
+} from "../pages/observability/assets/utils"
+import CustomAntdBadge from "../ui/CustomAntdBadge"
+
 import {useStyles} from "./assets/styles"
 import {
     buildCustomTreeNode,
@@ -60,29 +59,32 @@ import {
     operatorOptionsFromIds,
     valueToPathLabel,
 } from "./helpers/utils"
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {
-    NUM_OPS,
-    STRING_EQU_AND_CONTAINS_OPS,
-    STRING_EQU_OPS,
-} from "../pages/observability/assets/utils"
+    FilterMenuNode,
+    FilterLeaf,
+    FilterGroup,
+    SelectOption,
+    Props,
+    FilterItem,
+    FieldMenuItem,
+    RowValidation,
+} from "./types"
 
 type AnnotationFeedbackValueType = "string" | "number" | "boolean"
 
-type AnnotationFeedbackCondition = {
+interface AnnotationFeedbackCondition {
     field?: string | string[]
     operator?: FilterConditions
     value?: string | number | boolean
     valueType?: AnnotationFeedbackValueType
 }
 
-type AnnotationFilterValue = {
+interface AnnotationFilterValue {
     evaluator?: string
     feedback?: AnnotationFeedbackCondition
 }
 
-type AnnotationFeedbackOption = {
+interface AnnotationFeedbackOption {
     label: string
     value: string
     evaluatorSlug: string
@@ -238,7 +240,12 @@ const buildFieldMenuItems = (
                           )
                       }
                     : undefined,
-                popupClassName: submenuPopupClassName,
+                // popupClassName: submenuPopupClassName,
+                classNames: {
+                    popup: {
+                        root: submenuPopupClassName,
+                    },
+                },
             } as FieldMenuItem)
         } else {
             const leaf = node as FilterLeaf
@@ -784,9 +791,8 @@ const Filters: React.FC<Props> = ({
             open={isFilterOpen}
             placement="bottomLeft"
             autoAdjustOverflow
-            overlayStyle={{maxWidth: "100vw"}}
-            overlayInnerStyle={{maxHeight: "70vh"}}
-            destroyTooltipOnHide
+            styles={{body: {maxHeight: "70vh"}, root: {maxWidth: "100vw"}}}
+            destroyOnHidden
             content={
                 <section>
                     <div className={classes.filterHeading}>
@@ -931,9 +937,7 @@ const Filters: React.FC<Props> = ({
                                 return undefined
                             }
 
-                            const parseFeedbackArrayInput = (
-                                input: string,
-                            ): Array<any> | undefined => {
+                            const parseFeedbackArrayInput = (input: string): any[] | undefined => {
                                 const trimmed = input.trim()
                                 if (!trimmed.startsWith("[") || !trimmed.endsWith("]"))
                                     return undefined
@@ -1307,9 +1311,13 @@ const Filters: React.FC<Props> = ({
                                                                 treeData={treeData}
                                                                 treeNodeLabelProp="pathLabel"
                                                                 dropdownMatchSelectWidth={false}
-                                                                dropdownStyle={{
-                                                                    minWidth: 260,
-                                                                    ...dropdownPanelStyle,
+                                                                styles={{
+                                                                    popup: {
+                                                                        root: {
+                                                                            minWidth: 260,
+                                                                            ...dropdownPanelStyle,
+                                                                        },
+                                                                    },
                                                                 }}
                                                                 getPopupContainer={(t) =>
                                                                     getWithinPopover(t)
@@ -1453,7 +1461,13 @@ const Filters: React.FC<Props> = ({
                                                     options={operatorOptions}
                                                     disabled={item.isPermanent}
                                                     getPopupContainer={(t) => getWithinPopover(t)}
-                                                    dropdownStyle={dropdownPanelStyle}
+                                                    styles={{
+                                                        popup: {
+                                                            root: {
+                                                                ...dropdownPanelStyle,
+                                                            },
+                                                        },
+                                                    }}
                                                 />
                                             )}
 
@@ -1475,7 +1489,14 @@ const Filters: React.FC<Props> = ({
                                                             getPopupContainer={(t) =>
                                                                 getWithinPopover(t)
                                                             }
-                                                            dropdownStyle={dropdownPanelStyle}
+                                                            styles={{
+                                                                popup: {
+                                                                    root: {
+                                                                        ...(dropdownPanelStyle ||
+                                                                            {}),
+                                                                    },
+                                                                },
+                                                            }}
                                                         />
 
                                                         <Button
@@ -1534,7 +1555,13 @@ const Filters: React.FC<Props> = ({
                                                     disabled={item.isPermanent}
                                                     status={valueHasError ? "error" : undefined}
                                                     getPopupContainer={(t) => getWithinPopover(t)}
-                                                    dropdownStyle={dropdownPanelStyle}
+                                                    styles={{
+                                                        popup: {
+                                                            root: {
+                                                                ...(dropdownPanelStyle || {}),
+                                                            },
+                                                        },
+                                                    }}
                                                 />
                                             ) : valueAs === "select" ? (
                                                 <Select
@@ -1554,7 +1581,13 @@ const Filters: React.FC<Props> = ({
                                                     disabled={item.isPermanent}
                                                     status={valueHasError ? "error" : undefined}
                                                     getPopupContainer={(t) => getWithinPopover(t)}
-                                                    dropdownStyle={dropdownPanelStyle}
+                                                    styles={{
+                                                        popup: {
+                                                            root: {
+                                                                ...(dropdownPanelStyle || {}),
+                                                            },
+                                                        },
+                                                    }}
                                                 />
                                             ) : valueAs === "range" ? (
                                                 <Input
@@ -1618,7 +1651,13 @@ const Filters: React.FC<Props> = ({
                                                     popupMatchSelectWidth
                                                     disabled={item.isPermanent}
                                                     getPopupContainer={(t) => getWithinPopover(t)}
-                                                    dropdownStyle={dropdownPanelStyle}
+                                                    styles={{
+                                                        popup: {
+                                                            root: {
+                                                                ...(dropdownPanelStyle || {}),
+                                                            },
+                                                        },
+                                                    }}
                                                 />
                                             )}
 
@@ -1668,7 +1707,13 @@ const Filters: React.FC<Props> = ({
                                                         getPopupContainer={(t) =>
                                                             getWithinPopover(t)
                                                         }
-                                                        dropdownStyle={dropdownPanelStyle}
+                                                        styles={{
+                                                            popup: {
+                                                                root: {
+                                                                    ...(dropdownPanelStyle || {}),
+                                                                },
+                                                            },
+                                                        }}
                                                     />
                                                     <Select
                                                         className="w-[80px]"
@@ -1679,7 +1724,13 @@ const Filters: React.FC<Props> = ({
                                                         getPopupContainer={(t) =>
                                                             getWithinPopover(t)
                                                         }
-                                                        dropdownStyle={dropdownPanelStyle}
+                                                        styles={{
+                                                            popup: {
+                                                                root: {
+                                                                    ...(dropdownPanelStyle || {}),
+                                                                },
+                                                            },
+                                                        }}
                                                     />
                                                     {feedbackValueType === "boolean" ? (
                                                         <Select
@@ -1694,7 +1745,14 @@ const Filters: React.FC<Props> = ({
                                                             getPopupContainer={(t) =>
                                                                 getWithinPopover(t)
                                                             }
-                                                            dropdownStyle={dropdownPanelStyle}
+                                                            styles={{
+                                                                popup: {
+                                                                    root: {
+                                                                        ...(dropdownPanelStyle ||
+                                                                            {}),
+                                                                    },
+                                                                },
+                                                            }}
                                                         />
                                                     ) : (
                                                         <Input
@@ -1725,7 +1783,13 @@ const Filters: React.FC<Props> = ({
                                                         getPopupContainer={(t) =>
                                                             getWithinPopover(t)
                                                         }
-                                                        dropdownStyle={dropdownPanelStyle}
+                                                        styles={{
+                                                            popup: {
+                                                                root: {
+                                                                    ...(dropdownPanelStyle || {}),
+                                                                },
+                                                            },
+                                                        }}
                                                     />
 
                                                     <Button

@@ -649,9 +649,16 @@ export const computeRunMetrics = (metrics: {data: Record<string, any>}[]): Recor
                 }
             }
             result[k] = finalStats
-        } else {
-            // Default to class metric for strings / mixed primitives
-            // result[k] = processClass(values as any[])
+        } else if (
+            values.every(
+                (v) =>
+                    v === null ||
+                    typeof v === "string" ||
+                    typeof v === "number" ||
+                    typeof v === "boolean",
+            )
+        ) {
+            result[k] = processClass(values as any[])
         }
     })
 

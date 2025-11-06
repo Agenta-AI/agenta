@@ -21,6 +21,7 @@ export interface MetricValueCellProps {
     metricType?: SchemaMetricType
     evalType?: "auto" | "human"
     runId?: string
+    stepKey?: string
 }
 
 export interface AnnotationValueCellProps {

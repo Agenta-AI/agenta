@@ -53,17 +53,41 @@ export function buildRunIndex(rawRun: any): RunIndex {
     const evaluatorSlugToId = new Map<string, string>()
 
     // 1️⃣  Index steps -------------------------------------------------------
+    const shouldLog =
+        process.env.NODE_ENV !== "production" &&
+        typeof window !== "undefined" &&
+        (rawRun?.evaluation_type === "online" ||
+            rawRun?.data?.evaluation_type === "online" ||
+            rawRun?.meta?.evaluation_type === "online")
+
     for (const s of rawRun?.data?.steps ?? []) {
         let kind: StepKind = "annotation"
-        if (s.references?.testset) {
+        const refs = s.references ?? {}
+        const hasInvocationReference =
+            Boolean(refs.applicationRevision) ||
+            Boolean(refs.application) ||
+            Boolean(refs.query) ||
+            Boolean(refs.query_revision) ||
+            Boolean(refs.queryRevision) ||
+            Boolean(refs.query_variant) ||
+            Boolean(refs.queryVariant)
+        if (refs.testset) {
             kind = "input"
-        } else if (s.references?.applicationRevision || s.references?.application) {
-            kind = "invocation"
-        } else if (s.references?.evaluator) {
+        } else if (refs.evaluator) {
             kind = "annotation"
-            if (s.references.evaluator.slug) {
-                evaluatorSlugToId.set(s.references.evaluator.slug, s.references.evaluator.id)
+            if (refs.evaluator.slug) {
+                evaluatorSlugToId.set(refs.evaluator.slug, refs.evaluator.id)
             }
+        } else if (hasInvocationReference) {
+            kind = "invocation"
+        }
+
+        if (shouldLog) {
+            console.debug("[EvalRun][buildRunIndex] Step classified", {
+                key: s.key,
+                refs: Object.keys(refs || {}),
+                kind,
+            })
         }
 
         steps[s.key] = {
@@ -76,12 +100,28 @@ export function buildRunIndex(rawRun: any): RunIndex {
 
     // 2️⃣  Group column defs by step ---------------------------------------
     for (const m of rawRun?.data?.mappings ?? []) {
+        const stepKind = steps[m.step.key]?.kind
+        const rawKind = typeof m.column.kind === "string" ? m.column.kind.toLowerCase() : ""
         const colKind: StepKind =
-            m.column.kind === "testset"
+            stepKind ||
+            (rawKind === "testset" || rawKind.includes("testset") || rawKind.includes("input")
                 ? "input"
-                : m.column.kind === "invocation"
+                : rawKind === "invocation" ||
+                    rawKind.includes("invocation") ||
+                    rawKind.includes("application") ||
+                    rawKind.includes("query")
                   ? "invocation"
-                  : "annotation"
+                  : "annotation")
+
+        if (shouldLog) {
+            console.debug("[EvalRun][buildRunIndex] Column mapping", {
+                column: m.column?.name,
+                rawKind: m.column?.kind,
+                resolvedKind: colKind,
+                stepKey: m.step?.key,
+            })
+        }
+
         const col: ColumnDef = {
             name: m.column.name,
             kind: colKind,

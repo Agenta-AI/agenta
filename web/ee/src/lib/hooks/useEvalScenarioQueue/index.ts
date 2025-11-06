@@ -113,7 +113,6 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
                     ...structuredClone(invocationStepTarget),
                     status,
                     traceId: result.traceId,
-                    trace: result?.tree,
                 }
 
                 if ("invocationParameters" in invocationStepTarget) {

@@ -95,7 +95,7 @@ const TableDropdownMenu = ({
             },
             {
                 key: "view_testset",
-                label: "View test set",
+                label: "View testset",
                 icon: <Database size={16} />,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()

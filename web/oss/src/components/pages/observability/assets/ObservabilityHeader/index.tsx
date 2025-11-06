@@ -298,7 +298,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                                     onClick={() => getTestsetTraceData()}
                                     icon={<Database size={14} />}
                                     disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                    tooltipProps={{title: "Add to test set"}}
+                                    tooltipProps={{title: "Add to testset"}}
                                 />
                             </>
                         )}
@@ -328,7 +328,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                                 icon={<Database size={14} />}
                                 disabled={traces.length === 0 || selectedRowKeys.length === 0}
                             >
-                                Add to test set
+                                Add to testset
                             </Button>
 
                             <EditColumns

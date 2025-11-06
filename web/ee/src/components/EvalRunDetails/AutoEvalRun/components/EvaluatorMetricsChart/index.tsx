@@ -1,4 +1,4 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {Card, Radio, Typography} from "antd"
 import clsx from "clsx"
@@ -9,6 +9,8 @@ import {EVAL_BG_COLOR} from "../../assets/utils"
 
 import BarChart from "./assets/BarChart"
 import HistogramChart from "./assets/HistogramChart"
+import PlaceholderOverlay, {PlaceholderEvaluationType} from "../shared/PlaceholderOverlay"
+import BarChartPlaceholder from "../shared/BarChartPlaceholder"
 
 /* ---------------- helpers ---------------- */
 
@@ -95,6 +97,10 @@ const EvaluatorMetricsChart = ({
     isCompare,
     averageRows,
     summaryRows,
+    evaluationType = "auto",
+    hasMetricData = false,
+    placeholderTitle,
+    placeholderDescription,
 }: {
     className?: string
     name: string
@@ -104,6 +110,10 @@ const EvaluatorMetricsChart = ({
     isCompare?: boolean
     averageRows?: readonly {x: string; y: number; color?: string}[]
     summaryRows?: readonly {x: string; y: number; color?: string}[]
+    evaluationType?: PlaceholderEvaluationType
+    hasMetricData?: boolean
+    placeholderTitle?: ReactNode
+    placeholderDescription?: ReactNode
 }) => {
     const [selectedItem, setSelectedItem] = useState(items[0])
     const isBooleanMetric = !!metric?.unique?.length
@@ -193,6 +203,18 @@ const EvaluatorMetricsChart = ({
         [isBooleanMetric],
     )
 
+    const hasSummaryRows = summaryRows?.some((row) => Number.isFinite(row.y)) ?? false
+    const showPlaceholder = chartData.length === 0 && !hasSummaryRows && !hasMetricData
+    const evaluatorLabel = evaluator?.name || evaluator?.slug || "this evaluator"
+    const defaultPlaceholderTitle =
+        evaluationType === "online" ? "Waiting for your traces" : "Waiting for evaluation runs"
+    const defaultPlaceholderDescription =
+        evaluationType === "online"
+            ? `Generate traces with ${evaluatorLabel} to start collecting results.`
+            : `Annotate your scenarios with ${evaluatorLabel} to start seeing distribution data.`
+    const overlayTitle = placeholderTitle ?? defaultPlaceholderTitle
+    const overlayDescription = placeholderDescription ?? defaultPlaceholderDescription
+
     return (
         <Card
             title={
@@ -210,86 +232,103 @@ const EvaluatorMetricsChart = ({
             className={clsx("rounded !p-0 overflow-hidden", className)}
             classNames={{title: "!py-0 !px-4", header: "!p-0", body: "!p-0"}}
         >
-            <div className="flex flex-col justify-center items-center">
-                {isCompare ? (
-                    <div className="border-0 border-b border-solid border-[#EAEFF5] w-full flex items-center justify-evenly h-[80px] px-4">
-                        {compareSummaries.map((s, idx) => (
-                            <div key={idx} className="flex flex-col items-center justify-center">
-                                <Typography.Text
-                                    style={{color: s.color}}
-                                    className="text-xl font-medium"
+            {showPlaceholder ? (
+                <div className="relative min-h-[260px] overflow-hidden rounded bg-[#F8FAFC]">
+                    <BarChartPlaceholder className="opacity-60" />
+                    <PlaceholderOverlay
+                        evaluationType={evaluationType}
+                        title={overlayTitle}
+                        description={overlayDescription}
+                        className="px-8"
+                    />
+                </div>
+            ) : (
+                <div className="flex flex-col justify-center items-center">
+                    {isCompare ? (
+                        <div className="border-0 border-b border-solid border-[#EAEFF5] w-full flex items-center justify-evenly h-[80px] px-4">
+                            {compareSummaries.map((s, idx) => (
+                                <div
+                                    key={idx}
+                                    className="flex flex-col items-center justify-center"
                                 >
-                                    {s.value}
-                                </Typography.Text>
-                                <Typography.Text
-                                    className={
-                                        idx === 0
-                                            ? "text-[#758391]"
-                                            : s.delta?.startsWith("+")
-                                              ? "text-green-600"
-                                              : s.delta?.startsWith("-")
-                                                ? "text-red-500"
-                                                : "text-[#758391]"
-                                    }
-                                >
-                                    {s.delta}
-                                </Typography.Text>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="border-0 border-b border-solid border-[#EAEFF5] w-full flex items-center justify-center h-[65px]">
-                        <Typography.Text className="text-xl font-medium text-[#4096FF]">
-                            {chartSummeryValue}
-                        </Typography.Text>
-                    </div>
-                )}
+                                    <Typography.Text
+                                        style={{color: s.color}}
+                                        className="text-xl font-medium"
+                                    >
+                                        {s.value}
+                                    </Typography.Text>
+                                    <Typography.Text
+                                        className={
+                                            idx === 0
+                                                ? "text-[#758391]"
+                                                : s.delta?.startsWith("+")
+                                                  ? "text-green-600"
+                                                  : s.delta?.startsWith("-")
+                                                    ? "text-red-500"
+                                                    : "text-[#758391]"
+                                        }
+                                    >
+                                        {s.delta}
+                                    </Typography.Text>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="border-0 border-b border-solid border-[#EAEFF5] w-full flex items-center justify-center h-[65px]">
+                            <Typography.Text className="text-xl font-medium text-[#4096FF]">
+                                {chartSummeryValue}
+                            </Typography.Text>
+                        </div>
+                    )}
 
-                <div className="w-full h-full flex flex-col p-4">
-                    <div className="w-full flex items-center h-full gap-2 px-4">
+                    <div className="w-full h-full flex flex-col p-4">
+                        <div className="w-full flex items-center h-full gap-2 px-4">
+                            <Typography.Text
+                                className="font-normal -rotate-90 w-[20px] text-nowrap"
+                                type="secondary"
+                            >
+                                {showHistogram ? "Frequency" : "Avg score"}
+                            </Typography.Text>
+                            <div className="flex-1 h-[400px]">
+                                {showHistogram ? (
+                                    <HistogramChart
+                                        data={chartData as any}
+                                        xKey="x"
+                                        yKey="y"
+                                        colorKey="color"
+                                        tooltipLabel={name}
+                                        yDomain={[0, 1]}
+                                        barGap={0}
+                                        barCategoryGap={chartData.length < 4 ? "30%" : "10%"}
+                                        barProps={{radius: [8, 8, 0, 0]}}
+                                    />
+                                ) : (
+                                    <BarChart
+                                        data={(averageRows as any) || []}
+                                        xKey="x"
+                                        yKey="y"
+                                        colorKey="color"
+                                        tooltipLabel={name}
+                                        yDomain={[0, "dataMax"]}
+                                        tooltipFormatter={(value) => formatYAxisTick(value)}
+                                        yAxisProps={{tickFormatter: formatYAxisTick}}
+                                        barCategoryGap={
+                                            (averageRows?.length ?? 0) < 4 ? "30%" : "10%"
+                                        }
+                                        barProps={{radius: [8, 8, 0, 0]}}
+                                    />
+                                )}
+                            </div>
+                        </div>
                         <Typography.Text
-                            className="font-normal -rotate-90 w-[20px] text-nowrap"
+                            className="capitalize font-normal text-center mx-auto"
                             type="secondary"
                         >
-                            {showHistogram ? "Frequency" : "Avg score"}
+                            {name}
                         </Typography.Text>
-                        <div className="flex-1 h-[400px]">
-                            {showHistogram ? (
-                                <HistogramChart
-                                    data={chartData as any}
-                                    xKey="x"
-                                    yKey="y"
-                                    colorKey="color"
-                                    tooltipLabel={name}
-                                    yDomain={[0, 1]}
-                                    barGap={0}
-                                    barCategoryGap={chartData.length < 4 ? "30%" : "10%"}
-                                    barProps={{radius: [8, 8, 0, 0]}}
-                                />
-                            ) : (
-                                <BarChart
-                                    data={(averageRows as any) || []}
-                                    xKey="x"
-                                    yKey="y"
-                                    colorKey="color"
-                                    tooltipLabel={name}
-                                    yDomain={[0, "dataMax"]}
-                                    tooltipFormatter={(value) => formatYAxisTick(value)}
-                                    yAxisProps={{tickFormatter: formatYAxisTick}}
-                                    barCategoryGap={(averageRows?.length ?? 0) < 4 ? "30%" : "10%"}
-                                    barProps={{radius: [8, 8, 0, 0]}}
-                                />
-                            )}
-                        </div>
                     </div>
-                    <Typography.Text
-                        className="capitalize font-normal text-center mx-auto"
-                        type="secondary"
-                    >
-                        {name}
-                    </Typography.Text>
                 </div>
-            </div>
+            )}
         </Card>
     )
 }

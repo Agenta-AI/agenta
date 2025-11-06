@@ -10,7 +10,7 @@ export const RunIdContext = createContext<string | null>(null)
  * Provider component that supplies the run ID to all child components.
  */
 export const RunIdProvider: React.FC<{
-    runId: string
+    runId: string | null
     children: React.ReactNode
 }> = ({runId, children}) => {
     return <RunIdContext.Provider value={runId}>{children}</RunIdContext.Provider>

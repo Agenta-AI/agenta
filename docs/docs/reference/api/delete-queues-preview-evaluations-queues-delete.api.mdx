@@ -1,0 +1,71 @@
+---
+id: delete-queues-preview-evaluations-queues-delete
+title: "Delete Queues"
+description: "Delete Queues"
+sidebar_label: "Delete Queues"
+hide_title: true
+hide_table_of_contents: true
+api: eJy1ldtO20AQhl8lmusNDgFC66umJRIRVKVAexNF0cQeJ0ttr9kDJY387tXsOjgJh0pI5SLs4Z/ZnW9mx2uwuDAQT2D0gLlDK1VpYCpAVaT9bJxCDCnlZGl278iRmVWaHiT9nlFrstmaBSUI0HTvyNjPKl1BvIZElZZKy0Osqlwm3i66M6rkNZMsqUAeVZqPtpIMz7zbmUz9RFoq/MCuKoIYjNWyXICATOkCLcTgnEyhFhsBao0rEGClzXn+nb11xqmBuhWp+R0ltrmx1JQyjfbcaWveIvKOxqm5DkFCzf5ae6sd+QVTqdKESPq9Hv9LySRaVuwEYrhxSULGZC7vXDdiEO9llSgXjJrAZGlpQXor/i9eISClDF1uIe7V4r8h3jpmMn2J91tYGxa1B3vc7z9H9xNzmXqrzkhrpd/PLSWLMt+JfleQq2RnF8vVtwziyT6lWjxjX09fR3WpwgWZZmEWL1HfSL+SMbiglvvrUg+jc8u7/ypyjisc3ei2ar3FG+i+HsZZwPdWhs9vb6+eOQy53U3qme8eHV8HXEEF2aVqGxAIqNAuIYao6UHRVg+KQg+KQIAh/UDa+Bw5nUMMS2srE0dRkiuXHuCCSosHKCOsJNRTtkiclnblTYZX4wtanROmpH31bgluuIpCXezKnlKClbwgJlRiwfOhs0ul5Z+QbAGSI10GK0bA9XnddsvRIxZVTnvdbwJHGX44yQbH3ZPTw9Pu8cmg350fZUm3n3wcHGWDAWY4AC43WWbKX6ehP/TBdoZXYxDAWALr3sHhQQ/2M7Aj5geFiX9Qm1j8Nog9qk88QQAV/jWBJSw+tRscaaWMLbDc8ref8J3LPBG19GijKkfp34o/et1UwgSaSuCTtz5hTV/jAZf1UhnuQ7Bez9HQD53XNS/fO9Kc8qmAB9QS5wxswhCXm+Sv4RetfO/0zaXrXxbLcxeSvddouAkEi2GSUGXf1E63SvxsdDm6HYGAefPJLFTKVho5Nv6NAfjDHAKM12FtDTmWC8fdIYbglf/+Arv/r/M=
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Queues"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/preview/evaluations/queues/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Queues
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"application/json":{"schema":{"properties":{"queue_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Queue Ids"}},"type":"object","required":["queue_ids"],"title":"EvaluationQueueIdsRequest"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"queue_ids":{"items":{"type":"string","format":"uuid"},"type":"array","title":"Queue Ids","default":[]}},"type":"object","title":"EvaluationQueueIdsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

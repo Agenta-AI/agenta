@@ -2,6 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {getDefaultStore} from "jotai"
 
+import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
@@ -16,12 +17,12 @@ import {
 import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {WorkspaceMember, SnakeToCamelCaseKeys, PreviewTestSet} from "@/oss/lib/Types"
+import {WorkspaceMember, SnakeToCamelCaseKeys, PreviewTestset} from "@/oss/lib/Types"
 import {useAppList} from "@/oss/state/app/hooks"
 import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
 import {useOrgData} from "@/oss/state/org"
-import {getProjectValues} from "@/oss/state/project"
+// import {getProjectValues} from "@/oss/state/project"
 
 const pickString = (...values: unknown[]): string | undefined => {
     for (const value of values) {
@@ -125,7 +126,7 @@ export const enrichEvaluationRun = ({
     projectScope = false,
 }: {
     run: SnakeToCamelCaseKeys<EvaluationRun>
-    testsets: PreviewTestSet[]
+    testsets: PreviewTestset[]
     variantsData: any
     evaluators: EvaluatorDto[]
     members: WorkspaceMember[]
@@ -140,10 +141,15 @@ export const enrichEvaluationRun = ({
 }) => {
     const run: Partial<EnrichedEvaluationRun> = _run
     const appNameById = _appNameById ?? new Map<string, string>()
-    // Convert snake_case keys to camelCase recursively
-    run.createdAtTimestamp = dayjs(run.createdAt, "YYYY/MM/DD H:mm:ssAZ").valueOf()
+    // Robust createdAt handling: accept known format or ISO/date-like fallback
+    const parsedTs = dayjs(run.createdAt, "YYYY/MM/DD H:mm:ssAZ", true).valueOf()
+    const fallbackTs = Number.isNaN(parsedTs) ? dayjs(run.createdAt as any).valueOf() : parsedTs
+    run.createdAtTimestamp = Number.isNaN(fallbackTs) ? Date.now() : fallbackTs
     // Format creation date for display
-    run.createdAt = formatDay({date: run.createdAt, outputFormat: "DD MMM YYYY | h:mm a"})
+    run.createdAt = formatDay({
+        date: dayjs(run.createdAtTimestamp).toISOString(),
+        outputFormat: "DD MMM YYYY | h:mm a",
+    })
     // Derive potential ids via runIndex – allow multiple
     const testsetIds: string[] = []
     const revisionIds: string[] = []
@@ -178,7 +184,7 @@ export const enrichEvaluationRun = ({
                           ).valueOf(),
                       })),
               )
-              .filter(Boolean) as PreviewTestSet[])
+              .filter(Boolean) as PreviewTestset[])
         : []
 
     // Support both shapes: array or { variants: [...] }
@@ -298,7 +304,7 @@ export const enrichEvaluationRun = ({
                   })
                   .filter((item): item is Record<string, any> => Boolean(item))
 
-    const projectId = getProjectValues().projectId
+    // Note: projectId not needed for enrichment; kept resolvers local to run data
 
     const baseVariants = filteredVariants.length ? filteredVariants : []
     const combinedVariants = (
@@ -437,16 +443,56 @@ export const enrichEvaluationRun = ({
             })
             .filter(Boolean)
 
-        // Extract all evaluator slugs or IDs from those steps
-        const evaluatorRefs = annotationSteps
-            .map((step) => step?.references?.evaluator?.id)
-            .filter((id): id is string => !!id)
-        // Match evaluator objects using slug or id
-        const matchedEvaluators = evaluatorRefs
-            .map((id: string) => evaluators?.find((e) => e.slug === id || e.id === id))
-            .filter(Boolean)
+        const evaluatorRefs = new Set<string>()
+        annotationSteps.forEach((step) => {
+            const ref = step?.references?.evaluator
+            if (!ref) return
+            if (ref.id) evaluatorRefs.add(ref.id)
+            if (ref.slug) evaluatorRefs.add(ref.slug)
+            if (ref.key) evaluatorRefs.add(ref.key)
+        })
 
-        returnValue.evaluators = matchedEvaluators as EvaluatorDto[]
+        const matchedEvaluators: EvaluatorDto[] = []
+        const seenIds = new Set<string>()
+        const seenSlugs = new Set<string>()
+        const seenKeys = new Set<string>()
+
+        Array.from(evaluatorRefs).forEach((reference) => {
+            const match = evaluators?.find(
+                (e) => e.id === reference || e.slug === reference || e.key === reference,
+            )
+            if (!match) return
+
+            const normalizedMatch = {
+                ...match,
+                metrics:
+                    (match as any).metrics && Object.keys((match as any).metrics || {}).length > 0
+                        ? (match as any).metrics
+                        : getMetricsFromEvaluator(match as EvaluatorDto),
+            }
+
+            const id = typeof normalizedMatch.id === "string" ? normalizedMatch.id : undefined
+            const slug = typeof normalizedMatch.slug === "string" ? normalizedMatch.slug : undefined
+            const key = typeof normalizedMatch.key === "string" ? normalizedMatch.key : undefined
+            const fallbackKey = reference
+
+            if (id && seenIds.has(id)) return
+            if (!id && slug && seenSlugs.has(slug)) return
+            if (!id && !slug && key && seenKeys.has(key)) return
+            if (!id && !slug && !key && seenKeys.has(fallbackKey)) return
+
+            if (id) seenIds.add(id)
+            if (slug) seenSlugs.add(slug)
+            if (key) {
+                seenKeys.add(key)
+            } else if (!id && !slug) {
+                seenKeys.add(fallbackKey)
+            }
+
+            matchedEvaluators.push(normalizedMatch as EvaluatorDto)
+        })
+
+        returnValue.evaluators = matchedEvaluators
     }
 
     return returnValue as EnrichedEvaluationRun
@@ -455,11 +501,11 @@ export const enrichEvaluationRun = ({
 const useEnrichEvaluationRun = ({
     evalType = "human",
 }: {
-    evalType?: "human" | "auto"
+    evalType?: "human" | "auto" | "online"
 } = {}):
     | ((
           run: SnakeToCamelCaseKeys<EvaluationRun>,
-          testsetData?: PreviewTestSet[],
+          testsetData?: PreviewTestset[],
           runIndex?: RunIndex,
       ) => EnrichedEvaluationRun)
     | undefined => {
@@ -472,19 +518,46 @@ const useEnrichEvaluationRun = ({
         return new Map((appList || []).map((item) => [item.app_id, item.app_name]))
     }, [appList])
 
-    const {data: evaluators, isLoading: _loadingEvaluators} = useEvaluators({
+    const {data: evaluators, isLoading: loadingEvaluators} = useEvaluators({
         preview: true,
-        queries: {is_human: evalType === "human"},
+        queries: evalType === "human" ? {is_human: true} : {},
     })
+    const combinedEvaluators = useMemo(() => {
+        const list: EvaluatorDto[] = []
+        const seenIds = new Set<string>()
+        const seenSlugs = new Set<string>()
+        const seenKeys = new Set<string>()
+        const pushEvaluator = (ev: any) => {
+            if (!ev) return
+            const id = typeof ev.id === "string" ? ev.id : undefined
+            const slug = typeof ev.slug === "string" ? ev.slug : undefined
+            const key = typeof ev.key === "string" ? ev.key : undefined
+            if (id && seenIds.has(id)) return
+            if (!id && slug && seenSlugs.has(slug)) return
+            if (!id && !slug && key && seenKeys.has(key)) return
+            if (id) seenIds.add(id)
+            if (slug) seenSlugs.add(slug)
+            if (!id && !slug && key) seenKeys.add(key)
+            const metrics =
+                (ev as any)?.metrics && Object.keys((ev as any).metrics || {}).length > 0
+                    ? (ev as any).metrics
+                    : getMetricsFromEvaluator(ev as EvaluatorDto)
+            list.push({...ev, metrics} as EvaluatorDto)
+        }
+        ;(Array.isArray(evaluators) ? evaluators : []).forEach(pushEvaluator)
+        return list
+    }, [evaluators])
     const {revisions: variantsData, isLoading: _variantsLoading} = useStatelessVariants({
         lightLoading: true,
     })
-    const effectiveVariantsData = isProjectScope ? (variantsData ?? []) : variantsData
+    // For online evaluations, do not use variants data (no variant/testset context)
+    const effectiveVariantsData =
+        evalType === "online" ? [] : isProjectScope ? (variantsData ?? []) : variantsData
 
     const enrichRun = useCallback(
         (
             run: SnakeToCamelCaseKeys<EvaluationRun>,
-            testsetData?: PreviewTestSet[],
+            testsetData?: PreviewTestset[],
             runIndex?: RunIndex,
             options?: {variantConfigs?: Record<string, any>},
         ) => {
@@ -513,7 +586,7 @@ const useEnrichEvaluationRun = ({
                 run,
                 testsets: testsetData || [],
                 variantsData: effectiveVariantsData || [],
-                evaluators: (evaluators as EvaluatorDto[]) || [],
+                evaluators: (combinedEvaluators as EvaluatorDto[]) || [],
                 members,
                 runIndex,
                 extras: {
@@ -525,21 +598,20 @@ const useEnrichEvaluationRun = ({
                 appNameById: appNames,
             }) as EnrichedEvaluationRun
 
-            if (process.env.NODE_ENV !== "production") {
-                const variantSummary = (result?.variants || []).map((v: any) => ({
-                    id: v?.id,
-                    variantId: v?.variantId,
-                    name: v?.variantName ?? v?.name,
-                    appStatus: v?.appStatus,
-                }))
+            // For online evaluations, explicitly drop variants and testsets (no variant/testset context)
+            if (evalType === "online") {
+                ;(result as any).variants = []
+                ;(result as any).testsets = []
             }
+
+            // Optional: add debug logs here if needed
 
             return result
         },
-        [effectiveVariantsData, evaluators, members, isProjectScope, appNames],
+        [effectiveVariantsData, combinedEvaluators, members, isProjectScope, appNames],
     )
 
-    const evaluatorsReady = Array.isArray(evaluators)
+    const evaluatorsReady = !loadingEvaluators && Array.isArray(combinedEvaluators)
 
     return !_variantsLoading && evaluatorsReady ? enrichRun : undefined
 }

@@ -515,5 +515,5 @@ async def start_evaluation(
 
         raise HTTPException(
             status_code=400,
-            detail="Columns in the test set should match the names of the inputs in the variant",
+            detail="Columns in the testset should match the names of the inputs in the variant",
         ) from e

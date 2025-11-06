@@ -1,4 +1,4 @@
-import TestsetTable from "@/oss/components/TestSetTable/TestsetTable"
+import TestsetTable from "@/oss/components/TestsetTable/TestsetTable"
 
 const testsetDisplay = () => {
     return <TestsetTable mode="edit" />

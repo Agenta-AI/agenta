@@ -1,0 +1,71 @@
+---
+id: delete-annotation-by-trace-id
+title: "Delete Annotation"
+description: "Delete Annotation"
+sidebar_label: "Delete Annotation"
+hide_title: true
+hide_table_of_contents: true
+api: eJylVU1v2zAM/SsBTxsgNFmxk08L1gAt2mFFm+1SBAFjM7FaWVYluptn+L8Pkr+bthi6UxyJfCTfI6kKGA8OojtYap0zssy1g42A3JAN/y4SiCAhRUxb7G22u3LLFmPaygQEGLSYEZP1UBVozAgiGBlIDREY5BQEWHospKUEIrYFCXBxShlCVAGXxvs5tlIfQABLVv5g7YFmFwnUtejRnUE9An8syJYT9D0qN4FHXX7fhwSngTxoe6ILpaDeDKFvDeom8sZjO5NrR86jnS4W/ichF1tpPCnevIhjcm5fqNlNawwC4lwzaQ45GKNkHDic3zvvU40yNNbzzrKJEOdF49QmJzXTgeyImK/BQkBCeywUQ7SoBYxUUlI/TCufRug4/F9yxKD1O6HGEndG+e6eYh6Ve+XLOUZ5y2Voa+/ca1LX3unz6emxhD9RySR4zFbW5vb9+iXEKJX/kkyZOzZQeTy5/Qfiuh6oN0PRaC2WY5ryJkGvS+YOb03WN3IODwQ92OumgYzZ2t++RPgwd3ehriZ0azcSeqC3Yff1Ms4a+t5S93y9vj4CbLSdinoWFths6AafH3GaD9strDFOIYK5sfQk6dd8mCQ3r7oOr0GAI/vULbvCKoggZTYums9jlRfJCR5IM56gnKORoc8dxYWVXAaX5fXFJZXnhAlZiO42Y4Nb30xNe0zNemXQyEvyRLWLcFlwmlv5p6srrMO08fJMSL3Pg3s3EiG52fL6AgT4MhqKFiefThbwnLiJsZ8DjMMcdLHDNYhnLPT1gwDKwhAAE2ZfhgufmckdZ6hHeC/pNEmoZ4HpN8+NQhnaPISvWgHvoBUQxsvQgfAvTrumNgLS3LE3rqodOvphVV374+Yh8TIl0uFOjZ6SByonD88TqsLnEhR+Qiu9+cuuz4roNwp8uGkH5+MMxMvFdbrrchyzS6cvKayEtGuqqr1exjEZHjkebTCffD8LZ6ur1XoFdf0XlMbCfA==
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Delete Annotation"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/preview/annotations/{trace_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Delete Annotation
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"trace_id","in":"path","required":true,"schema":{"type":"string","title":"Trace Id"}},{"name":"span_id","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Span Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"annotation_link":{"anyOf":[{"properties":{"span_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Span Id"},"trace_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Trace Id"}},"type":"object","title":"Link"},{"type":"null"}]}},"type":"object","title":"AnnotationLinkResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

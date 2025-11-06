@@ -94,8 +94,8 @@ class Normalizer:
             ),  # Ensure default
             status_message=otel_span_dto.status_message,
             span_attributes=copy(otel_span_dto.attributes),
-            events=events_data,
-            links=links_data,
+            events=copy(events_data),
+            links=copy(links_data),
         )
 
         return attributes

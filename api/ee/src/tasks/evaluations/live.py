@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from uuid import UUID
 import asyncio
 from datetime import datetime
@@ -82,15 +82,22 @@ from oss.src.core.tracing.dtos import (
     SimpleTraceReferences,
 )
 from oss.src.core.workflows.dtos import (
-    WorkflowServiceData,
+    WorkflowServiceRequestData,
+    WorkflowServiceResponseData,
     WorkflowServiceRequest,
+    WorkflowServiceResponse,
 )
 from oss.src.core.queries.dtos import (
+    QueryRevisionData,
     QueryRevision,
 )
 from oss.src.core.evaluators.dtos import (
+    EvaluatorRevisionData,
     EvaluatorRevision,
 )
+
+from oss.src.core.evaluations.utils import fetch_trace
+
 
 log = get_module_logger(__name__)
 
@@ -229,31 +236,6 @@ def evaluate(
         )
         # ----------------------------------------------------------------------
 
-        # fetch project --------------------------------------------------------
-        project = loop.run_until_complete(
-            get_project_by_id(project_id=str(project_id)),
-        )
-        # ----------------------------------------------------------------------
-
-        # fetch provider keys from secrets -------------------------------------
-        secrets = loop.run_until_complete(
-            get_llm_providers_secrets(str(project_id)),
-        )
-        # ----------------------------------------------------------------------
-
-        # prepare credentials --------------------------------------------------
-        secret_token = loop.run_until_complete(
-            sign_secret_token(
-                user_id=str(user_id),
-                project_id=str(project_id),
-                workspace_id=str(project.workspace_id),
-                organization_id=str(project.organization_id),
-            )
-        )
-
-        credentials = f"Secret {secret_token}"
-        # ----------------------------------------------------------------------
-
         # fetch evaluation run -------------------------------------------------
         run = loop.run_until_complete(
             evaluations_service.fetch_run(
@@ -337,6 +319,9 @@ def evaluate(
                 )
             )
 
+            if query_revision and not query_revision.data:
+                query_revision.data = QueryRevisionData()
+
             if (
                 not query_revision
                 or not query_revision.id
@@ -366,6 +351,9 @@ def evaluate(
                     evaluator_revision_ref=evaluator_revision_ref,
                 )
             )
+
+            if evaluator_revision and not evaluator_revision.data:
+                evaluator_revision.data = EvaluatorRevisionData()
 
             if (
                 not evaluator_revision
@@ -482,7 +470,7 @@ def evaluate(
                     run_id=run_id,
                     scenario_id=scenario_id,
                     step_key=query_step_key,
-                    repeat_idx=1,
+                    repeat_idx=0,
                     timestamp=timestamp,
                     interval=interval,
                     #
@@ -548,82 +536,151 @@ def evaluate(
                 )
 
                 # run evaluator revisions --------------------------------------
-                for (
-                    evaluator_step_key,
-                    evaluator_revision,
-                ) in evaluator_revisions.items():
+                for jdx in range(nof_annotations):
+                    annotation_step_key = annotation_steps_keys[jdx]
+
                     step_has_errors = 0
                     step_status = EvaluationStatus.SUCCESS
 
-                    references: dict = evaluator_references[evaluator_step_key]
-                    links: dict = dict(
-                        query_step_key=Link(
+                    references: Dict[str, Any] = {
+                        **evaluator_references[annotation_step_key],
+                    }
+                    links: Dict[str, Any] = {
+                        query_step_key: dict(
                             trace_id=query_trace_id,
                             span_id=query_span_id,
                         )
-                    )
+                    }
 
-                    parameters: dict = (
-                        evaluator_revision.data.parameters or {}
+                    # invoke annotation workflow -------------------------------
+                    evaluator_revision = evaluator_revisions[annotation_step_key]
+
+                    if not evaluator_revision:
+                        log.error(
+                            f"Evaluator revision for {annotation_step_key} not found!"
+                        )
+                        step_has_errors += 1
+                        scenario_has_errors[idx] += 1
+                        # run_has_errors += 1
+                        step_status = EvaluationStatus.FAILURE
+                        scenario_status[idx] = EvaluationStatus.ERRORS
+                        # run_status = EvaluationStatus.ERRORS
+                        continue
+
+                    _revision = evaluator_revision.model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+                    interface = (
+                        dict(
+                            uri=evaluator_revision.data.uri,
+                            url=evaluator_revision.data.url,
+                            headers=evaluator_revision.data.headers,
+                            schemas=evaluator_revision.data.schemas,
+                        )
                         if evaluator_revision.data
-                        else {}
+                        else dict()
                     )
-                    inputs: dict = {}
-                    outputs: Any = None
+                    configuration = (
+                        dict(
+                            script=evaluator_revision.data.script,
+                            parameters=evaluator_revision.data.parameters,
+                        )
+                        if evaluator_revision.data
+                        else dict()
+                    )
+                    parameters = configuration.get("parameters")
 
-                    trace_attributes: dict = root_span.attributes or {}
-                    trace_ag_attributes: dict = trace_attributes.get("ag", {})
-                    trace_data: dict = trace_ag_attributes.get("data", {})
-                    trace_parameters: dict = trace_data.get("parameters", {})
-                    trace_inputs: dict = trace_data.get("inputs", {})
-                    trace_outputs: Any = trace_data.get("outputs")
+                    _testcase = None
+                    inputs = None
 
-                    workflow_service_data = WorkflowServiceData(
-                        #
+                    _trace: Optional[dict] = (
+                        trace.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
+                        if trace
+                        else None
+                    )
+
+                    _root_span = root_span.model_dump(mode="json", exclude_none=True)
+                    testcase_data = None
+
+                    root_span_attributes: dict = _root_span.get("attributes") or {}
+                    root_span_attributes_ag: dict = root_span_attributes.get("ag") or {}
+                    root_span_attributes_ag_data: dict = (
+                        root_span_attributes_ag.get("data") or {}
+                    )
+                    root_span_attributes_ag_data_outputs = (
+                        root_span_attributes_ag_data.get("outputs")
+                    )
+                    root_span_attributes_ag_data_inputs = (
+                        root_span_attributes_ag_data.get("inputs")
+                    )
+
+                    outputs = root_span_attributes_ag_data_outputs
+                    inputs = testcase_data or root_span_attributes_ag_data_inputs
+
+                    workflow_service_request_data = WorkflowServiceRequestData(
+                        revision=_revision,
                         parameters=parameters,
+                        #
+                        testcase=_testcase,
                         inputs=inputs,
                         #
-                        trace_parameters=trace_parameters,
-                        trace_inputs=trace_inputs,
-                        trace_outputs=trace_outputs,
-                        #
-                        trace=trace,
+                        trace=_trace,
+                        outputs=outputs,
+                    )
+
+                    flags = (
+                        evaluator_revision.flags.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                            exclude_unset=True,
+                        )
+                        if evaluator_revision.flags
+                        else None
                     )
 
                     workflow_service_request = WorkflowServiceRequest(
                         version="2025.07.14",
                         #
-                        flags={
-                            "is_annotation": True,
-                            "inline": True,
-                        },
-                        tags=None,
-                        meta=None,
+                        flags=flags,
                         #
-                        data=workflow_service_data,
+                        interface=interface,
+                        configuration=configuration,
+                        #
+                        data=workflow_service_request_data,
                         #
                         references=references,
                         links=links,
-                        #
-                        credentials=credentials,
-                        secrets=secrets,
                     )
 
-                    workflow_revision = evaluator_revision
-
+                    log.info(
+                        "Invoking evaluator...  ",
+                        scenario_id=scenario.id,
+                        trace_id=query_trace_id,
+                        uri=interface.get("uri"),
+                    )
                     workflows_service_response = loop.run_until_complete(
                         workflows_service.invoke_workflow(
                             project_id=project_id,
                             user_id=user_id,
                             #
                             request=workflow_service_request,
-                            revision=workflow_revision,
+                            #
+                            annotate=True,
                         )
                     )
+                    log.info(
+                        "Invoked evaluator      ",
+                        scenario_id=scenario.id,
+                        trace_id=workflows_service_response.trace_id,
+                    )
 
-                    evaluator_trace_id = None
+                    trace_id = workflows_service_response.trace_id
+
                     error = None
-
                     has_error = workflows_service_response.status.code != 200
 
                     # if error in evaluator, no annotation, only step ----------
@@ -651,54 +708,57 @@ def evaluate(
                             else None
                         )
 
-                        annotation_create_request = AnnotationCreateRequest(
-                            annotation=AnnotationCreate(
-                                origin=AnnotationOrigin.AUTO,
-                                kind=AnnotationKind.EVAL,
-                                channel=AnnotationChannel.API,
-                                #
-                                data={"outputs": outputs},
-                                #
-                                references=SimpleTraceReferences(**references),
-                                links=links,
-                            )
-                        )
+                        annotation = workflows_service_response
 
-                        annotation_response = loop.run_until_complete(
-                            annotations_router.create_annotation(
-                                request=request,
-                                annotation_create_request=annotation_create_request,
-                            )
-                        )
+                        trace_id = annotation.trace_id
 
-                        if (
-                            not annotation_response.count
-                            or not annotation_response.annotation
-                        ):
-                            log.warn(
-                                f"Failed to create annotation for query {query_trace_id} and evaluator {evaluator_revision.id}"
-                            )
-                            step_has_errors += 1
-                            step_status = EvaluationStatus.FAILURE
+                        if not annotation.trace_id:
+                            log.warn(f"annotation trace_id is missing.")
                             scenario_has_errors[idx] += 1
                             scenario_status[idx] = EvaluationStatus.ERRORS
                             continue
 
-                        evaluator_trace_id = annotation_response.annotation.trace_id
+                        trace = None
+                        if annotation.trace_id:
+                            trace = loop.run_until_complete(
+                                fetch_trace(
+                                    tracing_router=tracing_router,
+                                    request=request,
+                                    trace_id=annotation.trace_id,
+                                )
+                            )
+
+                        if trace:
+                            log.info(
+                                f"Trace found  ",
+                                scenario_id=scenario.id,
+                                step_key=annotation_step_key,
+                                trace_id=annotation.trace_id,
+                            )
+                        else:
+                            log.warn(
+                                f"Trace missing",
+                                scenario_id=scenario.id,
+                                step_key=annotation_step_key,
+                                trace_id=annotation.trace_id,
+                            )
+                            scenario_has_errors[idx] += 1
+                            scenario_status[idx] = EvaluationStatus.ERRORS
+                            continue
                     # ----------------------------------------------------------
 
                     results_create = [
                         EvaluationResultCreate(
                             run_id=run_id,
                             scenario_id=scenario_id,
-                            step_key=evaluator_step_key,
-                            repeat_idx=1,
+                            step_key=annotation_step_key,
+                            #
                             timestamp=timestamp,
                             interval=interval,
                             #
                             status=step_status,
                             #
-                            trace_id=evaluator_trace_id,
+                            trace_id=trace_id,
                             error=error,
                         )
                     ]

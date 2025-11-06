@@ -101,13 +101,13 @@ const GenerationComparisonHeader = ({className}: GenerationComparisonHeaderProps
                     </Button>
                 </Tooltip>
                 <TestsetDrawerButton
-                    label="Add all to test set"
+                    label="Add all to testset"
                     icon={false}
                     size="small"
                     resultHashes={resultHashes}
                     key={resultHashes?.join("-") || "no-results"}
                 />
-                <LoadTestsetButton label="Load test set" />
+                <LoadTestsetButton label="Load testset" />
 
                 {!isRunning ? (
                     <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">

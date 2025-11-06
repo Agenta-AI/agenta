@@ -202,6 +202,7 @@ async def invoke_app(
     openapi_parameters: List[Dict],
     user_id: str,
     project_id: str,
+    scenario_id: Optional[str] = None,
     **kwargs,
 ) -> InvokationResult:
     """
@@ -247,7 +248,14 @@ async def invoke_app(
         app_response = {}
 
         try:
-            log.info("Invoking workflow...", url=url)
+            log.info(
+                "Invoking application...",
+                scenario_id=scenario_id,
+                testcase_id=(
+                    datapoint["testcase_id"] if "testcase_id" in datapoint else None
+                ),
+                url=url,
+            )
             response = await client.post(
                 url,
                 json=payload,
@@ -267,6 +275,12 @@ async def invoke_app(
 
             trace_id = app_response.get("trace_id", None)
             span_id = app_response.get("span_id", None)
+
+            log.info(
+                "Invoked application.   ",
+                scenario_id=scenario_id,
+                trace_id=trace_id,
+            )
 
             return InvokationResult(
                 result=Result(
@@ -328,6 +342,7 @@ async def run_with_retry(
     openapi_parameters: List[Dict],
     user_id: str,
     project_id: str,
+    scenario_id: Optional[str] = None,
     **kwargs,
 ) -> InvokationResult:
     """
@@ -364,6 +379,7 @@ async def run_with_retry(
                 openapi_parameters,
                 user_id,
                 project_id,
+                scenario_id,
                 **kwargs,
             )
             return result
@@ -403,6 +419,7 @@ async def batch_invoke(
     rate_limit_config: Dict,
     user_id: str,
     project_id: str,
+    scenarios: Optional[List[Dict]] = None,
     **kwargs,
 ) -> List[InvokationResult]:
     """
@@ -497,6 +514,7 @@ async def batch_invoke(
                     openapi_parameters,
                     user_id,
                     project_id,
+                    scenarios[index].get("id") if scenarios else None,
                     **kwargs,
                 )
             )

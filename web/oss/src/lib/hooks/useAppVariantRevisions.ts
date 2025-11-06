@@ -5,15 +5,15 @@ import {useAtomValue} from "jotai"
 
 import {formatDay, parseDate} from "@/oss/lib/helpers/dateTimeHelper"
 import {adaptRevisionToVariant} from "@/oss/lib/shared/variant"
+import {fetchRevisions} from "@/oss/lib/shared/variant/api"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import type {
     ParentVariantObject,
     RevisionObject,
 } from "@/oss/lib/shared/variant/transformer/types/variant"
-import {fetchRevisions} from "@/oss/lib/shared/variant/api"
 import type {Variant, ApiRevision} from "@/oss/lib/Types"
-import {projectIdAtom} from "@/oss/state/project/selectors/project"
 import {fetchVariants} from "@/oss/services/api"
+import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 const REVISION_INPUT_FORMAT = "YYYY-MM-DD HH:mm:ss.SSSZ"
 
@@ -154,10 +154,13 @@ export const useAppVariantRevisions = (appId?: string | null) => {
         }, {})
     }, [query.data])
 
+    const variants = query.data ?? []
+    const isInitialLoading = query.isLoading || (!variants.length && (query.isFetching ?? false))
+
     return {
-        variants: query.data ?? [],
+        variants,
         revisionMap,
-        isLoading: query.isLoading || query.isFetching,
+        isLoading: isInitialLoading,
         refetch: query.refetch,
     }
 }

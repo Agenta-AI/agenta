@@ -13,7 +13,7 @@ const EvalRunScenarioCardTitle = ({
 }: EvalRunScenarioCardTitleProps) => {
     return (
         <div className="flex items-center justify-between">
-            <Typography.Text className="!text-base">Test Case #{scenarioIndex}</Typography.Text>
+            <Typography.Text className="!text-base">Testcase #{scenarioIndex}</Typography.Text>
             <EvalRunScenarioStatusTag scenarioId={scenarioId} runId={runId} />
         </div>
     )

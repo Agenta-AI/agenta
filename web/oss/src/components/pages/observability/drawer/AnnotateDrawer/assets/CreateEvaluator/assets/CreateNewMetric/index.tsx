@@ -158,7 +158,11 @@ const CreateNewMetric = ({
                 >
                     <Select
                         className="w-full !rounded-lg"
-                        popupClassName="!capitalize"
+                        classNames={{
+                            popup: {
+                                root: "!capitalize",
+                            },
+                        }}
                         placeholder="Select type"
                         options={EVALUATOR_OPTIONS}
                     />

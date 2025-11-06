@@ -7,7 +7,7 @@ import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {evaluationRunStateFamily} from "./runScopedAtoms"
 
 type HumanEvalViewTypes = "focus" | "list" | "table" | "results"
-type AutoEvalViewTypes = "overview" | "test-cases" | "prompt"
+type AutoEvalViewTypes = "overview" | "testcases" | "prompt"
 
 // UI atom to track current scenario view type ("focus" or "table")
 // export const runViewTypeAtom = atom<HumanEvalViewTypes | AutoEvalViewTypes>("focus")

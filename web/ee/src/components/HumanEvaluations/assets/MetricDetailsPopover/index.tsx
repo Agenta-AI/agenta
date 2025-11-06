@@ -287,6 +287,9 @@ export const MetricDetailsPopoverWrapper = memo(
 
         const summary = useMemo(() => {
             if (!stats) return "N/A"
+            if (resolvedMetricType === "string" || resolvedMetricType === "object") {
+                return "N/A"
+            }
             // Numeric metrics → mean
             if (typeof (stats as any).mean === "number") {
                 return format3Sig(Number((stats as any).mean))

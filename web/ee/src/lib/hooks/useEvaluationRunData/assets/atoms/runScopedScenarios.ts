@@ -58,10 +58,41 @@ export const scenarioStepFamily = atomFamily<
         const evaluation = runState?.enrichedRun
         const runIndex = runState?.runIndex
 
+        const inferEvaluationType = (): string | undefined => {
+            const candidates = [
+                runState?.rawRun && (runState.rawRun as any).evaluation_type,
+                (runState?.rawRun as any)?.data?.evaluation_type,
+                (runState?.rawRun as any)?.data?.evaluationType,
+                (evaluation as any)?.evaluationType,
+                (evaluation as any)?.evaluation_type,
+                (evaluation as any)?.data?.evaluationType,
+                (evaluation as any)?.data?.evaluation_type,
+                (evaluation as any)?.meta?.evaluation_type,
+                (evaluation as any)?.flags?.evaluation_type,
+            ]
+            for (const candidate of candidates) {
+                if (typeof candidate === "string" && candidate.trim().length > 0) {
+                    return candidate
+                }
+            }
+            return undefined
+        }
+
+        const evaluationType = inferEvaluationType()
+        const isOnlineEval =
+            (evaluationType && evaluationType.toLowerCase() === "online") ||
+            Boolean((evaluation as any)?.flags?.isLive) ||
+            Boolean((runState?.rawRun as any)?.flags?.is_live)
+
         const testsetData = evaluation?.testsets?.[0]
-        if (!runId || !evaluation || !testsetData || !runIndex) {
+        if (!runId || !evaluation || !runIndex) {
+            console.warn(`[scenarioStepFamily] Missing runId/evaluation/runIndex for ${scenarioId}`)
+            return undefined
+        }
+
+        if (!isOnlineEval && !testsetData) {
             console.warn(
-                `[scenarioStepFamily] Missing runId/evaluation/testsetData for ${scenarioId}`,
+                `[scenarioStepFamily] Missing testset data for ${scenarioId} (evaluationType=${evaluationType ?? "unknown"})`,
             )
             return undefined
         }
@@ -210,25 +241,6 @@ export async function revalidateScenarioForRun(
     updatedSteps?: UseEvaluationRunScenarioStepsFetcherResult["steps"],
 ) {
     // Apply optimistic override if requested
-    if (updatedSteps) {
-        // Apply optimistic updates to maintain continuous loading state
-        store.set(scenarioStepLocalFamily({runId, scenarioId}), (draft: any) => {
-            if (!draft) return draft
-            updatedSteps.forEach((updatedStep) => {
-                const targetStep =
-                    draft.invocationSteps?.find((s: any) => s.stepKey === updatedStep.stepKey) ||
-                    draft.inputSteps?.find((s: any) => s.stepKey === updatedStep.stepKey) ||
-                    draft.annotationSteps?.find((s: any) => s.stepKey === updatedStep.stepKey)
-                if (!targetStep) return
-                // Merge updated step data
-                Object.entries(updatedStep).forEach(([k, v]) => {
-                    // @ts-ignore – dynamic merge
-                    targetStep[k] = v as any
-                })
-            })
-            return draft
-        })
-    }
 
     // Bump refresh counter so the specific scenario refetches
     try {
@@ -275,10 +287,33 @@ export function attachScenarioListPrefetchForRun(
     runId: string,
     store: ReturnType<typeof import("jotai").createStore>,
 ) {
+    const inferIsOnline = (runState: any, enrichedRun: any): boolean => {
+        const candidates = [
+            enrichedRun?.evaluationType,
+            enrichedRun?.evaluation_type,
+            enrichedRun?.meta?.evaluationType,
+            enrichedRun?.meta?.evaluation_type,
+            runState?.rawRun?.evaluation_type,
+            runState?.rawRun?.data?.evaluation_type,
+            runState?.rawRun?.data?.evaluationType,
+        ]
+        const hasOnlineType = candidates.some(
+            (candidate) => typeof candidate === "string" && candidate.toLowerCase() === "online",
+        )
+        if (hasOnlineType) return true
+        return Boolean(
+            enrichedRun?.flags?.isLive ||
+                enrichedRun?.flags?.is_live ||
+                runState?.rawRun?.flags?.isLive ||
+                runState?.rawRun?.flags?.is_live,
+        )
+    }
+
     // Subscribe to changes in enriched run for this specific run
     const unsubscribe = store.sub(enrichedRunFamily(runId), () => {
         const enrichedRun = store.get(enrichedRunFamily(runId))
         const currentScenarios = store.get(scenariosFamily(runId))
+        const runState = store.get(evaluationRunStateFamily(runId))
 
         // Only fetch scenarios if we have an enriched run but no scenarios yet
         if (enrichedRun && currentScenarios.length === 0) {
@@ -300,6 +335,7 @@ export function attachScenarioListPrefetchForRun(
                         jwt,
                         projectId,
                         runId,
+                        order: inferIsOnline(runState, enrichedRun) ? "descending" : undefined,
                     })
                     store.set(evaluationRunStateFamily(runId), (draft: any) => {
                         draft.scenarios = scenarios.map((s, idx) => ({

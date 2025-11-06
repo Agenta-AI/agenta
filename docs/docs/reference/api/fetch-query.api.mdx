@@ -1,0 +1,71 @@
+---
+id: fetch-query
+title: "Fetch Query"
+description: "Fetch Query"
+sidebar_label: "Fetch Query"
+hide_title: true
+hide_table_of_contents: true
+api: eJy9V1Fz2zYM/is+PLV3bOzm9qSneU2zZu3WtHH34vPlYAm22FGiQoLZXJ3++46kZEt2kia+tE+2RQDfhw8QAdfAuLaQzOGTIyPJwkKArsggS11eZJDAijjNr28cmQ0IqNBgQUzGO9VQYkGQQDi9lhkIkCUkUCHnIMDQjZOGMkjYOBJg05wKhKQG3lTez7KR5RoErLQpkCEB50IUlqy8gWe1GV1k0DQLH89WurRkfYjTycR/ZGRTIytPFxK4cmlK1q6cGn1ujUFAqkumkr05VpWSachu/NV6n7pHqzI+d5YRIdUuOrVsZcm0JtOj9yZYCMhohU4xJJNGRDECVrn5uAoyDeOuVNC8b4BZJj0nVJcD051Fy2GptSIsoRH7IjaLRnSP9PIrpdw3Kp1S4DXsqJ8HEo2AghiPJNMhiwOJBsjFcvikn8PdWJBKkzqF5sW5U+oPq8tXHx1Xjl/CXTlKpuKRXmgMbh4WZugLT1L1Ty+m9zi+wj9B1L/0B2n5u7Lel+SB+9M0mrWNF++ORylwSMH7NmL49h8X6qwXohGQGkKm7Br5oYC9GytDplcsA5/7Ud7EsKNpEMtV2Y8A+RLDtiAZKfoBIGcxbAvSybUM1//jcMId/xixfotX/06vZ0Xp1NqidII9K0on1xbFKrc+tlevvG8j4PnohdG6//buzd87AnzXZzt9m8bb/nJ6ejis/0YlszCKR2+N0eb4SZ0Ro1T+WzsK9g2UTgenT7l1e3M1To9dqh90JBjmqF3ftdnsJoO1uKbdVXm/aRBjNPOnd+m826rmIa8I3dr1SruTN6p7fxpnUb6HivpuNrs8CBhrOyzquV8XR5/adbEgzrXfItfEYXvkHBIYV4ZuJf07volL57juFsgGBFgyt91+6YyCBHLmyibjcaq0y05wTSXjCcoxVjI0s6XUGcmb4DK9vHhPm3eEGRlI5ou+wZXvn9gRQ7NtMbCS78kzbzfbqeNcG/ktlrldb/Po5ZOX5UoH91anaSA3ml5egACfRlRlcvL6ZAL7Wg2MfetjGlq/ww7HIPZU2OYPAqgIfQ9MWPy6O/DMKm25wLIXb1iavdHZ5s/0H48rhTL0dACu27LNoS0bxB3Xv1oCku3uvxCQa8vesK6XaOmLUU3jH7cb8Xwh4BaNxKWXal5DJq3/nkGyQmXpgNP2NoAXn9umfznarSpDrl0BS5/cLSrnf4GAf2jT/4cSXue86466PZ6mKVXcczy4fXwbbbv597czaJr/AeUwgiU=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Query"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/preview/queries/{query_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Query
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"query_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Query Id"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"query":{"anyOf":[{"properties":{"flags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"boolean"},{"type":"string"}]},"type":"object"},{"type":"null"}],"title":"Flags"},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(NoListJson-Output)","type":"object"},{"type":"null"}],"title":"NoListJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Query"},{"type":"null"}]}},"type":"object","title":"QueryResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

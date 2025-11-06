@@ -2,10 +2,12 @@ from typing import Optional, Protocol, Any
 from os import environ
 from contextlib import contextmanager
 
+import litellm
+
 from agenta.sdk.utils.logging import get_module_logger
 
 from agenta.sdk.litellm.mocks import MOCKS
-from agenta.sdk.context.serving import serving_context
+from agenta.sdk.contexts.routing import RoutingContext
 
 AGENTA_LITELLM_MOCK = environ.get("AGENTA_LITELLM_MOCK") or None
 
@@ -69,14 +71,11 @@ class LitellmProtocol(Protocol):
         ...
 
 
-litellm: Optional[LitellmProtocol] = None  # pylint: disable=invalid-name
-
-
 async def acompletion(*args, **kwargs):
-    mock = AGENTA_LITELLM_MOCK or serving_context.get().mock
+    mock = AGENTA_LITELLM_MOCK or RoutingContext.get().mock
 
     if mock:
-        log.debug("Mocking litellm: %s.", mock)
+        # log.debug("Mocking litellm: %s.", mock)
 
         if mock not in MOCKS:
             mock = "hello"

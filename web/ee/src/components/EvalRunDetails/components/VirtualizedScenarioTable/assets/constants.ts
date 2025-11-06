@@ -76,14 +76,14 @@ export const GeneralAutoEvalMetricColumns = [
         metricType: "number",
     },
     {
-        name: "Total tokens",
+        name: "Tokens (Total)",
         kind: "metric",
         path: "attributes.ag.metrics.tokens.cumulative.total",
         stepKey: "metric",
         metricType: "number",
     },
     {
-        name: "errors",
+        name: "Errors",
         kind: "metric",
         path: "attributes.ag.metrics.errors.cumulative",
         stepKey: "metric",

@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.evaluations.types import (
+    EvaluationStatus,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -127,6 +128,8 @@ class EvaluationsDAOInterface(ABC):
         user_id: UUID,
         #
         run_id: UUID,
+        #
+        status: Optional[EvaluationStatus] = None,
     ) -> Optional[EvaluationRun]:
         raise NotImplementedError
 

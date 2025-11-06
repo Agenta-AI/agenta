@@ -49,10 +49,10 @@ const testWithVariantFixtures = baseTest.extend<VariantFixtures>({
                 await uiHelpers.expectNoText("Click run to generate output")
                 await expect(page.getByText("Error").first()).not.toBeVisible()
 
-                // 5. Add a new Test case
-                const testCaseButton = page.getByRole("button", {name: "Test case"})
-                await testCaseButton.scrollIntoViewIfNeeded()
-                await testCaseButton.click()
+                // 5. Add a new Testcase
+                const testcaseButton = page.getByRole("button", {name: "Testcase"})
+                await testcaseButton.scrollIntoViewIfNeeded()
+                await testcaseButton.click()
             }
         })
     },

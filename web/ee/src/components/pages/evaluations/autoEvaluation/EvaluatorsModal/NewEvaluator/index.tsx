@@ -71,6 +71,8 @@ const NewEvaluator = ({
     const filteredEvaluators = useMemo(() => {
         let filtered = evaluators
 
+        console.log("filtered", filtered)
+
         if (selectedEvaluatorCategory !== "view_all") {
             filtered = filtered.filter((item) => item.tags.includes(selectedEvaluatorCategory))
         }

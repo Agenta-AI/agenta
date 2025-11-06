@@ -1,10 +1,13 @@
-import {useMemo} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import deepEqual from "fast-deep-equal"
 import {atom, getDefaultStore, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
+import useEvaluatorConfigs from "@/oss/lib/hooks/useEvaluatorConfigs"
+import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+import {fetchEvaluatorById} from "@/oss/services/evaluators"
 import {
     evaluationRunStateFamily,
     runIndexFamily,
@@ -16,6 +19,15 @@ import {
     scenarioStepsFamily,
 } from "../../../../../lib/hooks/useEvaluationRunData/assets/atoms/runScopedScenarios"
 import {buildScenarioTableData} from "../assets/dataSourceBuilder"
+import {buildEvaluatorNameMap} from "../assets/evaluatorNameUtils"
+import {
+    collectEvaluatorIdentifiers,
+    collectMetricSchemasFromEvaluator,
+    deriveSchemaMetricType,
+    mergeEvaluatorRecords,
+    pickString,
+    toArray,
+} from "../assets/evaluatorSchemaUtils"
 import type {TableColumn} from "../assets/types"
 import {buildAntdColumns} from "../assets/utils"
 import {expendedRowAtom} from "../ComparisonScenarioTable"
@@ -236,24 +248,220 @@ const useExpandableComparisonDataSource = ({
     const evaluationRunState = useAtomValue(evaluationRunStateFamily(baseRunId))
     const expendedRows = useAtomValue(expendedRowAtom)
     const evaluators = evaluationRunState?.enrichedRun?.evaluators || []
+    const baseAppId =
+        evaluationRunState?.enrichedRun?.appId ??
+        evaluationRunState?.enrichedRun?.app_id ??
+        evaluationRunState?.enrichedRun?.app?.id ??
+        evaluationRunState?.enrichedRun?.application?.id ??
+        null
     const baseEvaluators = Array.isArray(evaluators) ? evaluators : Object.values(evaluators)
+    const [fetchedEvaluatorsById, setFetchedEvaluatorsById] = useState<Record<string, any>>({})
     const allEvaluators = useMemo(() => {
         const bySlug = new Map<string, any>()
-        ;[...comparisonRunsEvaluators, ...baseEvaluators].forEach((ev: any) => {
+        ;[
+            ...comparisonRunsEvaluators,
+            ...baseEvaluators,
+            ...Object.values(fetchedEvaluatorsById),
+        ].forEach((ev: any) => {
             if (ev?.slug && !bySlug.has(ev.slug)) bySlug.set(ev.slug, ev)
         })
         return Array.from(bySlug.values())
-    }, [comparisonRunsEvaluators, baseEvaluators])
+    }, [comparisonRunsEvaluators, baseEvaluators, fetchedEvaluatorsById])
+    const {data: previewEvaluators} = useEvaluators({preview: true})
+    const {data: projectEvaluators} = useEvaluators()
+    const {data: evaluatorConfigs} = useEvaluatorConfigs({appId: baseAppId})
+    const evaluatorConfigsForNames = useMemo(
+        () =>
+            (evaluatorConfigs ?? []).map((config) => ({
+                ...config,
+                slug: config?.id,
+            })),
+        [evaluatorConfigs],
+    )
+    const evaluatorNameBySlug = useMemo(
+        () =>
+            buildEvaluatorNameMap(
+                allEvaluators,
+                previewEvaluators,
+                projectEvaluators,
+                evaluatorConfigsForNames,
+                Object.values(fetchedEvaluatorsById),
+            ),
+        [
+            allEvaluators,
+            previewEvaluators,
+            projectEvaluators,
+            evaluatorConfigsForNames,
+            fetchedEvaluatorsById,
+        ],
+    )
+
+    const evaluatorIdsAcrossRunIndexes = useMemo(() => {
+        const ids = new Set<string>()
+        const collect = (index: RunIndex | null | undefined) => {
+            const steps = index?.steps ?? {}
+            Object.values(steps).forEach((meta: any) => {
+                const id =
+                    typeof meta?.refs?.evaluator?.id === "string"
+                        ? meta.refs.evaluator.id
+                        : undefined
+                if (id) ids.add(id)
+            })
+        }
+        collect(runIndex)
+        Object.values(comparisonRunIndexes || {}).forEach(collect)
+        return ids
+    }, [runIndex, comparisonRunIndexes])
+
+    const catalogEvaluatorsByIdentifier = useMemo(() => {
+        const map = new Map<string, any>()
+        const register = (entry: any) => {
+            if (!entry) return
+            collectEvaluatorIdentifiers(entry).forEach((identifier) => {
+                if (!map.has(identifier)) {
+                    map.set(identifier, entry)
+                }
+            })
+        }
+        toArray(previewEvaluators).forEach(register)
+        toArray(projectEvaluators).forEach(register)
+        Object.values(fetchedEvaluatorsById || {}).forEach(register)
+        return map
+    }, [previewEvaluators, projectEvaluators, fetchedEvaluatorsById])
+
+    const resolvedMetricsFromEvaluators = useMemo(() => {
+        const result: Record<string, any[]> = {}
+        const appendDefinition = (
+            slug: string | undefined,
+            metricName: string | undefined,
+            metricType?: string | string[],
+        ) => {
+            if (!slug) return
+            const name = metricName?.trim()
+            if (!name) return
+
+            const list = (result[slug] ||= [])
+            const existing = list.find((definition: Record<string, any>) =>
+                Object.prototype.hasOwnProperty.call(definition, name),
+            )
+            if (existing) {
+                existing[name] = {
+                    ...existing[name],
+                    metricType: existing[name]?.metricType ?? metricType,
+                }
+                return
+            }
+            list.push({
+                [name]: {metricType},
+            })
+        }
+
+        const registerEvaluator = (entry: any) => {
+            if (!entry || typeof entry !== "object") return
+            const slug = pickString(entry.slug)
+            if (!slug) return
+            const schemas = collectMetricSchemasFromEvaluator(entry)
+            schemas.forEach(({name, schema}) => {
+                appendDefinition(slug, name, deriveSchemaMetricType(schema))
+            })
+        }
+
+        allEvaluators.forEach((evaluator: any) => {
+            const identifiers = collectEvaluatorIdentifiers(evaluator)
+            let catalogMatch: any
+            for (const identifier of identifiers) {
+                const matched = catalogEvaluatorsByIdentifier.get(identifier)
+                if (matched) {
+                    catalogMatch = matched
+                    break
+                }
+            }
+            const merged = mergeEvaluatorRecords(evaluator, catalogMatch)
+            registerEvaluator(merged)
+        })
+
+        Object.entries(metricsFromEvaluators || {}).forEach(([slug, definitions]) => {
+            const entries = Array.isArray(definitions) ? definitions : [definitions]
+            entries.forEach((definition) => {
+                if (!definition || typeof definition !== "object") return
+                Object.entries(definition).forEach(([metricName, meta]) => {
+                    if (metricName === "evaluatorSlug") return
+                    appendDefinition(slug, metricName, (meta as any)?.metricType)
+                })
+            })
+        })
+
+        return result
+    }, [allEvaluators, catalogEvaluatorsByIdentifier, metricsFromEvaluators])
+
+    useEffect(() => {
+        const knownIds = new Set<string>()
+        ;[
+            ...(allEvaluators || []),
+            ...(previewEvaluators || []),
+            ...(projectEvaluators || []),
+            ...(Object.values(fetchedEvaluatorsById) || []),
+        ].forEach((ev: any) => {
+            const id = typeof ev?.id === "string" ? ev.id : undefined
+            if (id) knownIds.add(id)
+        })
+
+        const missingIds = Array.from(evaluatorIdsAcrossRunIndexes).filter(
+            (id) => !knownIds.has(id),
+        )
+        if (!missingIds.length) return
+
+        let cancelled = false
+        ;(async () => {
+            const results = await Promise.allSettled(
+                missingIds.map(async (id) => {
+                    try {
+                        const evaluator = await fetchEvaluatorById(id)
+                        return {id, evaluator}
+                    } catch (error) {
+                        console.warn(
+                            "[useExpandableComparisonDataSource] Failed to fetch evaluator by id",
+                            JSON.stringify({id, error: (error as Error)?.message}),
+                        )
+                        return {id, evaluator: null}
+                    }
+                }),
+            )
+            if (cancelled) return
+            setFetchedEvaluatorsById((prev) => {
+                const next = {...prev}
+                results.forEach((result) => {
+                    if (result.status !== "fulfilled") return
+                    const {id, evaluator} = result.value
+                    if (evaluator && !next[id]) {
+                        next[id] = evaluator
+                    }
+                })
+                return next
+            })
+        })()
+
+        return () => {
+            cancelled = true
+        }
+    }, [
+        evaluatorIdsAcrossRunIndexes,
+        allEvaluators,
+        previewEvaluators,
+        projectEvaluators,
+        fetchedEvaluatorsById,
+    ])
 
     const rawColumns = useMemo(
         () =>
             buildScenarioTableData({
                 runIndex,
-                metricsFromEvaluators,
+                metricsFromEvaluators: resolvedMetricsFromEvaluators,
                 runId: baseRunId,
                 evaluators: allEvaluators,
+                evaluatorNameBySlug,
             }),
-        [runIndex, metricsFromEvaluators, allEvaluators, expendedRows],
+        [runIndex, resolvedMetricsFromEvaluators, allEvaluators, evaluatorNameBySlug, expendedRows],
     )
 
     const columnsWithRunSpecificSteps = useMemo(() => {
@@ -332,7 +540,9 @@ const useExpandableComparisonDataSource = ({
     // Build Ant Design columns using the same function as regular table
     const baseAntColumns = useMemo(
         () =>
-            buildAntdColumns(columnsWithRunSpecificSteps as TableColumn[], baseRunId, expendedRows),
+            buildAntdColumns(columnsWithRunSpecificSteps as TableColumn[], baseRunId, {
+                expendedRows,
+            }),
         [columnsWithRunSpecificSteps, baseRunId, expendedRows],
     )
 

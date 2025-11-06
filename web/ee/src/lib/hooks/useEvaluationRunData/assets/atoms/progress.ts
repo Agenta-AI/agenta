@@ -140,6 +140,46 @@ export const scenarioStatusFamily = atomFamily((params: {scenarioId: string; run
         const data = await get(scenarioStepFamily(params))
         const evalType = get(evalTypeAtom)
 
+        const normalizeStatus = (status: unknown) => {
+            if (typeof status === "string") return status.toLowerCase()
+            if (status === null || status === undefined) return ""
+            return String(status).toLowerCase()
+        }
+
+        const hasStatus = (steps: any[] | undefined, matcher: (status: string) => boolean) => {
+            if (!Array.isArray(steps)) return false
+            return steps.some((step) => matcher(normalizeStatus(step?.status)))
+        }
+
+        const everyStatus = (steps: any[] | undefined, matcher: (status: string) => boolean) => {
+            if (!Array.isArray(steps) || steps.length === 0) return false
+            return steps.every((step) => matcher(normalizeStatus(step?.status)))
+        }
+
+        const isSuccessStatus = (status: string) =>
+            status === "success" ||
+            status === "succeeded" ||
+            status === "successful" ||
+            status === "completed" ||
+            status === "complete" ||
+            status === "done" ||
+            status === "finished"
+
+        const isFailureStatus = (status: string) =>
+            status === "failure" || status === "failed" || status === "error"
+
+        const isRunningStatus = (status: string) =>
+            status === "running" ||
+            status === "in_progress" ||
+            status === "in progress" ||
+            status === "processing" ||
+            status === "queued" ||
+            status === "started" ||
+            status === "starting"
+
+        const isAnnotatingStatus = (status: string) => status === "annotating"
+        const isRevalidatingStatus = (status: string) => status === "revalidating"
+
         const invocationSteps: any[] = Array.isArray(data?.invocationSteps)
             ? data.invocationSteps
             : []
@@ -148,23 +188,21 @@ export const scenarioStatusFamily = atomFamily((params: {scenarioId: string; run
             : []
 
         const isRunning =
-            data?.invocationSteps.some((s) => s.status === "running") ||
-            data?.annotationSteps.some((s) => s.status === "running") ||
-            data?.inputSteps.some((s) => s.status === "running")
+            hasStatus(data?.invocationSteps, isRunningStatus) ||
+            hasStatus(data?.annotationSteps, isRunningStatus) ||
+            hasStatus(data?.inputSteps, isRunningStatus)
 
-        const isAnnotating = data?.annotationSteps.some((s) => s.status === "annotating")
-        const isRevalidating = data?.annotationSteps.some((s) => s.status === "revalidating")
+        const isAnnotating = hasStatus(data?.annotationSteps, isAnnotatingStatus)
+        const isRevalidating = hasStatus(data?.annotationSteps, isRevalidatingStatus)
 
         // Determine scenario status based on step outcomes
         let computedStatus = "pending"
-        const allInvSucceeded =
-            invocationSteps.length > 0 && invocationSteps.every((s) => s.status === "success")
-        const allAnnSucceeded =
-            annotationSteps.length > 0 && annotationSteps.every((s) => s.status === "success")
+        const allInvSucceeded = everyStatus(invocationSteps, isSuccessStatus)
+        const allAnnSucceeded = everyStatus(annotationSteps, isSuccessStatus)
         const anyFailed =
-            data?.invocationSteps.some((s) => s.status === "failure") ||
-            data?.annotationSteps.some((s) => s.status === "failure") ||
-            data?.inputSteps.some((s) => s.status === "failure")
+            hasStatus(data?.invocationSteps, isFailureStatus) ||
+            hasStatus(data?.annotationSteps, isFailureStatus) ||
+            hasStatus(data?.inputSteps, isFailureStatus)
 
         if (isRunning) {
             computedStatus = "running"
@@ -175,8 +213,9 @@ export const scenarioStatusFamily = atomFamily((params: {scenarioId: string; run
         } else if (allAnnSucceeded) {
             computedStatus = "success"
         } else if (allInvSucceeded) {
-            // In auto eval we don't have any annotation steps for now
-            computedStatus = evalType === "auto" ? "success" : "incomplete"
+            // Auto and online evals treat successful invocations as completion
+            const isAutoLikeEval = evalType === "auto" || evalType === "online"
+            computedStatus = isAutoLikeEval ? "success" : "incomplete"
         } else if (anyFailed) {
             computedStatus = "failure"
         } else {

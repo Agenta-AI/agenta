@@ -30,12 +30,12 @@ const PlaygroundGenerationVariableMenu: React.FC<PlaygroundGenerationVariableMen
                 },
             },
             {
-                key: "test-set",
+                key: "testset",
                 label: (
                     <TestsetDrawerButton
                         resultHashes={Array.isArray(resultHash) ? resultHash : [resultHash]}
                     >
-                        <div>Add to test set</div>
+                        <div>Add to testset</div>
                     </TestsetDrawerButton>
                 ),
                 icon: <Database size={14} />,

@@ -21,6 +21,7 @@ export const defaultLoadingState: EvaluationLoadingState = {
     isLoadingScenarios: false,
     isLoadingSteps: false,
     isLoadingMetrics: false,
+    isRefreshingMetrics: false,
     activeStep: null,
     scenarioStepProgress: {completed: 0, total: 0, percent: 0},
 }

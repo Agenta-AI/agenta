@@ -5,363 +5,75 @@ description: "Uploads a CSV or JSON file and saves its data to Postgres."
 sidebar_label: "Upload File"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVk2P20YM/SsDnhJAsbeLnnSqs02QbdqsETu5eI0FLdHWJKMZZYZa1DX03wvOyLa83o+g554kj8hH8vGR4x0wbgLkC5hT4EAcYJlBSaHwumHtLOTwpTEOy6BQXc2+KufVH7ObT2qtDSm0pQp4T0FpDqpERsVOTV3gjacwurW3duI3Ib+1bQS5421DKlfvNFfkFapvwVmBLMJ9RBzdWqVUAn+VAr/Xhl7nal7ReXx2KgH3fpyKuLNYk3p1EytA8zpXXJGKh24d33tDpdeq8e5el1TGbD8Tt95KwgJX6oJTZE+hNbz3TjHFs6AQRpCBa8ijRLsuIYe+WEkRMvD0o6XAb125hXwHhbNMluW1bg3rBj2P187Xb4Q/OQ5FRXV8a7wAs6YgvwYcys/0hMBe2w1kwJoNHfql5vK5yyBm8Yi5hESGHFbaot8OAIRx8RyyKQhotzdryBcPsbrscGJbY6BbHrF6WalPgtEJaDJ0q29UcM+O9lSKBmOqA2eh7G5IZicIRw/2LcWD0DgbEkmXFxfyOJXwrC2kU+vWqM+9MWTDTmDTGF3EDo5Fk8+1QZfPsX9dCnV7yp6ySnRkUHhCpvIO+Tnrq2SlJvwihbqEPvoJ+IOOzIhnum4MHdjoIrW/Xl6ek/cVjS4jNeqd987/d+ZKYtQmcshUh3MD44qTrz+hOG2ZNuShWx6ZQe9xKOg/XUpQGK/D5jmq/6IQcJPk/8KcRTL6MXuhK1JXCt3bDfpxpDex+3QZvyf6Hgu2N/kwn0/PAFNva+LKyXZqXBCXBrmCHMb9lIdxGjTIIJC/Jx8i7603kEPF3IR8PC6Ma8sRbsgyjlCPsdHw8LqYxK/qSkzjKghUtF7zNuJNptcfafuBsCQP+WI5NJiJbJIQTs0OPcBGf6TtXuE5TFqunNf/pO5moCWBKnlJzdquXXTv6elze4vFd7JSqtSZ0r4Y/TK6eKqY3kFNpte9+rGI6t/nEc0ge0DXgSjIgOoofWDC+rfjB8lSGlKjHeD1K/x9ukBOUhpcIP/fzD9xM/fKYfqbx41BHZdAbNOuH4HF/qIL0sA0BMsMKhmTfAG73QoDffGm6+T4R0tepLzM4B69xpUIayHLp9qLegffaStrOzXqTVwRYm5aSeWxW18WWnKaFAU1PDA/W7AyModhnt7M5pDBqv9zUbtSfAQ44mbHV0my6/4Fa4RmKA==
+api: eJztVsGOGzcM/RWBpwSY2JtFT3OqmybINm3WiJ1cvMZCHtEepRpJkThGXWP+vaA0tsfrzW7Qc04jS+Qj+fgoeQ8kNxHKBcwxUkSKsCxAYayC9qSdhRI+e+OkikKKN7MvwgXxx+z2o1hrg0JaJaLcYhSaolCSpCAnpi7SJmAc3dk7OwmbWN7ZNoHc086jKMVbTTUGIcXX6CxDVnGbEEd3VgiRwV/kwO+0wZelmNd4GZ+cyMC9H+Ui7q1sULy4TRVI87IUVKNIm26d1r2h0Gvhg9tqhSpl+wmpDZYTZjilK8qRA8bW0ME7x2TPCmMcQQHOY5Ac7UZBCX2xnCIUEPBbi5F+c2oH5R4qZwkt8bJpDWkvA43XLjSvmD/ejlWNTVr5wMCkMfKvAYf8M38hUtB2AwWQJoPHfok5H3cFpCweMeeQkqCElbYy7AYAzDh7DtlkBGl3t2soFw+xuuK4Y1tjoFuesHpZiY+M0TFoNnSrr1hRz44OqFiDKdWBM1N2PySzY4STB4UW00b0zsZM0vXVFX/OJTxrK+7UujXiU28MxbAT0nujq9TBMWvyqTZo9RT7N4qpO1D2PatMRwFVQEmo7iU9Zf0mW4kJPUuhVtBHPwN/0JEZ0kw33uCRjS5R+8v19SV5X6TRKlEj3obgwv9nTiFJbRKHhE28NDCuOjv9AcVpS7jBAN3yxIwMQQ4F/afLCTLjTdw8RfVfGKPcZPk/M2eJjH7MnukK15VD93aDfpzozex+v4zfM32PBTuYvJ/PpxeAubcNUu34dvIusouXVEMJ437K4zgPGhQQMWwxxMR7GwyUUBP5WI7HlXGtGskNWpIjqcfS6zTtEas2aNoll8n05gPu3qNUGKBcLIcGM1ZG7vW52ZFm6fUH3B1EXMKkpdoF/W9uYAGaJVlnLy5L27VL7j0Dk5ScmExvoAAuI4v4avR6dAUPn7YzYxa1rJKoD7HTMRQPWDjWDwVgkxQNhLL59XTAmTHPjbQDvP5mfpffhbNUBu/Czwf3Bx7cXi2E/9DYG6nTbKc27XtlLw7vV+QGZm0vC6hZ/eUC9vuVjPg5mK7j7W8tBpbvsoCtDFquWEwLvlPqg5D38Dfu+DbOjXqVJp/NTcupPPaY8z2VnSZVhZ4G5hf3Jo/JcUant7M5FLDq/zM0TrEPAyfc4rTkJLvuPxo/V5k=
 sidebar_class_name: "post api-method"
-info_path: reference/api/agenta-backend
+info_path: reference/api/agenta-api
 custom_edit_url: null
 ---
 
-import ApiTabs from "@theme/ApiTabs";
-import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
-import MimeTabs from "@theme/MimeTabs";
-import ParamsItem from "@theme/ParamsItem";
-import ResponseSamples from "@theme/ResponseSamples";
-import SchemaItem from "@theme/SchemaItem";
-import SchemaTabs from "@theme/SchemaTabs";
-import Markdown from "@theme/Markdown";
-import Heading from "@theme/Heading";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Upload File"}
-></Heading>
+>
+</Heading>
 
-<MethodEndpoint method={"post"} path={"/testsets/upload"}></MethodEndpoint>
+<MethodEndpoint
+  method={"post"}
+  path={"/testsets/upload"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
 
 Uploads a CSV or JSON file and saves its data to Postgres.
 
 Args:
 upload_type : Either a json or csv file.
-file (UploadFile): The CSV or JSON file to upload.
-testset_name (Optional): the name of the testset if provided.
+    file (UploadFile): The CSV or JSON file to upload.
+    testset_name (Optional): the name of the testset if provided.
 
 Returns:
-dict: The result of the upload process.
+    dict: The result of the upload process.
 
 <Heading
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
   children={"Request"}
-></Heading>
+>
+</Heading>
 
-<MimeTabs className={"openapi-tabs__mime"}>
-  <TabItem label={"multipart/form-data"} value={"multipart/form-data-schema"}>
-    <details
-      style={{}}
-      className={"openapi-markdown__details mime"}
-      data-collapsed={false}
-      open={true}
-    >
-      <summary style={{}} className={"openapi-markdown__details-summary-mime"}>
-        <h3 className={"openapi-markdown__details-summary-header-body"}>
-          Body
-        </h3>
-        <strong className={"openapi-schema__required"}>required</strong>
-      </summary>
-      <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
-      <ul style={{ marginLeft: "1rem" }}>
-        <SchemaItem
-          collapsible={false}
-          name={"upload_type"}
-          required={false}
-          schemaName={"Upload Type (string)"}
-          qualifierMessage={undefined}
-          schema={{ type: "string", title: "Upload Type" }}
-        ></SchemaItem>
-        <SchemaItem
-          collapsible={false}
-          name={"file"}
-          required={true}
-          schemaName={"binary"}
-          qualifierMessage={undefined}
-          schema={{ type: "string", format: "binary", title: "File" }}
-        ></SchemaItem>
-        <SchemaItem collapsible={true} className={"schemaItem"}>
-          <details style={{}} className={"openapi-markdown__details"}>
-            <summary style={{}}>
-              <strong>testset_name</strong>
-              <span style={{ opacity: "0.6" }}>object</span>
-            </summary>
-            <div style={{ marginLeft: "1rem" }}></div>
-            <div>
-              <span className={"badge badge--info"}>anyOf</span>
-              <SchemaTabs>
-                <TabItem label={"MOD1"} value={"0-item-properties"}>
-                  <div style={{ marginTop: ".5rem", marginBottom: ".5rem" }}>
-                    string
-                  </div>
-                </TabItem>
-              </SchemaTabs>
-            </div>
-          </details>
-        </SchemaItem>
-      </ul>
-    </details>
-  </TabItem>
-</MimeTabs>
-<div>
-  <div>
-    <ApiTabs label={undefined} id={undefined}>
-      <TabItem label={"200"} value={"200"}>
-        <div>Successful Response</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"id"}
-                        required={true}
-                        schemaName={"Id (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Id" }}
-                      ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"name"}
-                        required={true}
-                        schemaName={"Name (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Name" }}
-                      ></SchemaItem>
-                      <SchemaItem
-                        collapsible={false}
-                        name={"created_at"}
-                        required={true}
-                        schemaName={"Created At (string)"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string", title: "Created At" }}
-                      ></SchemaItem>
-                    </ul>
-                  </details>
-                </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
-                  <ResponseSamples
-                    responseExample={
-                      '{\n  "id": "string",\n  "name": "string",\n  "created_at": "string"\n}'
-                    }
-                    language={"json"}
-                  ></ResponseSamples>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-      <TabItem label={"422"} value={"422"}>
-        <div>Validation Error</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>
-                      <SchemaItem collapsible={true} className={"schemaItem"}>
-                        <details
-                          style={{}}
-                          className={"openapi-markdown__details"}
-                        >
-                          <summary style={{}}>
-                            <span className={"openapi-schema__container"}>
-                              <strong className={"openapi-schema__property"}>
-                                detail
-                              </strong>
-                              <span className={"openapi-schema__name"}>
-                                object[]
-                              </span>
-                            </span>
-                          </summary>
-                          <div style={{ marginLeft: "1rem" }}>
-                            <li>
-                              <div
-                                style={{
-                                  fontSize: "var(--ifm-code-font-size)",
-                                  opacity: "0.6",
-                                  marginLeft: "-.5rem",
-                                  paddingBottom: ".5rem",
-                                }}
-                              >
-                                Array [
-                              </div>
-                            </li>
-                            <SchemaItem
-                              collapsible={true}
-                              className={"schemaItem"}
-                            >
-                              <details
-                                style={{}}
-                                className={"openapi-markdown__details"}
-                              >
-                                <summary style={{}}>
-                                  <span className={"openapi-schema__container"}>
-                                    <strong
-                                      className={"openapi-schema__property"}
-                                    >
-                                      loc
-                                    </strong>
-                                    <span className={"openapi-schema__name"}>
-                                      object[]
-                                    </span>
-                                    <span
-                                      className={"openapi-schema__divider"}
-                                    ></span>
-                                    <span
-                                      className={"openapi-schema__required"}
-                                    >
-                                      required
-                                    </span>
-                                  </span>
-                                </summary>
-                                <div style={{ marginLeft: "1rem" }}>
-                                  <li>
-                                    <div
-                                      style={{
-                                        fontSize: "var(--ifm-code-font-size)",
-                                        opacity: "0.6",
-                                        marginLeft: "-.5rem",
-                                        paddingBottom: ".5rem",
-                                      }}
-                                    >
-                                      Array [
-                                    </div>
-                                  </li>
-                                  <div>
-                                    <span className={"badge badge--info"}>
-                                      anyOf
-                                    </span>
-                                    <SchemaTabs>
-                                      <TabItem
-                                        label={"MOD1"}
-                                        value={"0-item-properties"}
-                                      >
-                                        <div
-                                          style={{
-                                            marginTop: ".5rem",
-                                            marginBottom: ".5rem",
-                                          }}
-                                        >
-                                          string
-                                        </div>
-                                      </TabItem>
-                                      <TabItem
-                                        label={"MOD2"}
-                                        value={"1-item-properties"}
-                                      >
-                                        <div
-                                          style={{
-                                            marginTop: ".5rem",
-                                            marginBottom: ".5rem",
-                                          }}
-                                        >
-                                          integer
-                                        </div>
-                                      </TabItem>
-                                    </SchemaTabs>
-                                  </div>
-                                  <li>
-                                    <div
-                                      style={{
-                                        fontSize: "var(--ifm-code-font-size)",
-                                        opacity: "0.6",
-                                        marginLeft: "-.5rem",
-                                      }}
-                                    >
-                                      ]
-                                    </div>
-                                  </li>
-                                </div>
-                              </details>
-                            </SchemaItem>
-                            <SchemaItem
-                              collapsible={false}
-                              name={"msg"}
-                              required={true}
-                              schemaName={"Message (string)"}
-                              qualifierMessage={undefined}
-                              schema={{ type: "string", title: "Message" }}
-                            ></SchemaItem>
-                            <SchemaItem
-                              collapsible={false}
-                              name={"type"}
-                              required={true}
-                              schemaName={"Error Type (string)"}
-                              qualifierMessage={undefined}
-                              schema={{ type: "string", title: "Error Type" }}
-                            ></SchemaItem>
-                            <li>
-                              <div
-                                style={{
-                                  fontSize: "var(--ifm-code-font-size)",
-                                  opacity: "0.6",
-                                  marginLeft: "-.5rem",
-                                }}
-                              >
-                                ]
-                              </div>
-                            </li>
-                          </div>
-                        </details>
-                      </SchemaItem>
-                    </ul>
-                  </details>
-                </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
-                  <ResponseSamples
-                    responseExample={
-                      '{\n  "detail": [\n    {\n      "loc": [\n        "string",\n        0\n      ],\n      "msg": "string",\n      "type": "string"\n    }\n  ]\n}'
-                    }
-                    language={"json"}
-                  ></ResponseSamples>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-    </ApiTabs>
-  </div>
-</div>
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={{"content":{"multipart/form-data":{"schema":{"properties":{"upload_type":{"type":"string","title":"Upload Type"},"file":{"type":"string","format":"binary","title":"File"},"testset_name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Testset Name"}},"type":"object","required":["file"],"title":"Body_upload_file"}}},"required":true}}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"id":{"type":"string","title":"Id"},"name":{"type":"string","title":"Name"},"created_at":{"type":"string","title":"Created At"}},"type":"object","required":["id","name","created_at"],"title":"TestSetSimpleResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

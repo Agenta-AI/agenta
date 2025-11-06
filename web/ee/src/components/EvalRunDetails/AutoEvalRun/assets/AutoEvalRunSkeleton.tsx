@@ -5,7 +5,7 @@ import {useRouter} from "next/router"
 import EvalRunOverviewViewerSkeleton from "../../components/EvalRunOverviewViewer/assets/EvalRunOverviewViewerSkeleton"
 import EvalRunHeaderSkeleton from "../components/EvalRunHeader/assets/EvalRunHeaderSkeleton"
 import EvalRunPromptConfigViewerSkeleton from "../components/EvalRunPromptConfigViewer/assets/EvalRunPromptConfigViewerSkeleton"
-import EvalRunTestCaseViewerSkeleton from "../components/EvalRunTestCaseViewer/assets/EvalRunTestCaseViewerSkeleton"
+import EvalRunTestcaseViewerSkeleton from "../components/EvalRunTestcaseViewer/assets/EvalRunTestcaseViewerSkeleton"
 
 const AutoEvalRunSkeleton = () => {
     const router = useRouter()
@@ -14,8 +14,8 @@ const AutoEvalRunSkeleton = () => {
     return (
         <section className="flex flex-col w-full h-[calc(100vh-84px)] gap-2 overflow-auto">
             <EvalRunHeaderSkeleton />
-            {viewType === "test-cases" ? (
-                <EvalRunTestCaseViewerSkeleton />
+            {viewType === "testcases" ? (
+                <EvalRunTestcaseViewerSkeleton />
             ) : viewType === "prompt" ? (
                 <EvalRunPromptConfigViewerSkeleton />
             ) : (

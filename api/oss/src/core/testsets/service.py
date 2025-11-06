@@ -20,7 +20,7 @@ from oss.src.core.git.dtos import (
     RevisionQuery,
     RevisionCommit,
 )
-from oss.src.models.db_models import TestSetDB
+from oss.src.models.db_models import TestsetDB
 from oss.src.core.testcases.dtos import Testcase
 from oss.src.services.db_manager import fetch_testset_by_id
 from oss.src.utils.helpers import get_slug_from_name_and_id
@@ -511,6 +511,20 @@ class TestsetsService:
             return None
 
         if testset_ref and not testset_variant_ref and not testset_revision_ref:
+            testset = await self.fetch_testset(
+                project_id=project_id,
+                #
+                testset_ref=testset_ref,
+            )
+
+            if not testset:
+                return None
+
+            testset_ref = Reference(
+                id=testset.id,
+                slug=testset.slug,
+            )
+
             testset_variant = await self.fetch_testset_variant(
                 project_id=project_id,
                 #
@@ -852,7 +866,7 @@ class SimpleTestsetsService:
         if testset is None:
             return None
 
-        testset_variant_slug = uuid4().hex
+        testset_variant_slug = uuid4().hex[-12:]
 
         testset_variant_create = TestsetVariantCreate(
             slug=testset_variant_slug,
@@ -879,7 +893,7 @@ class SimpleTestsetsService:
         if testset_variant is None:
             return None
 
-        testset_revision_slug = uuid4().hex
+        testset_revision_slug = uuid4().hex[-12:]
 
         testset_revision_create = TestsetRevisionCreate(
             slug=testset_revision_slug,
@@ -907,7 +921,7 @@ class SimpleTestsetsService:
         if testset_revision is None:
             return None
 
-        testset_revision_slug = uuid4().hex
+        testset_revision_slug = uuid4().hex[-12:]
 
         testset_revision_commit = TestsetRevisionCommit(
             slug=testset_revision_slug,
@@ -1112,7 +1126,7 @@ class SimpleTestsetsService:
         )
 
         if has_changes:
-            testset_revision_slug = uuid4().hex
+            testset_revision_slug = uuid4().hex[-12:]
 
             testset_revision_commit = TestsetRevisionCommit(
                 slug=testset_revision_slug,
@@ -1174,6 +1188,8 @@ class SimpleTestsetsService:
         testset_id: UUID,
     ):
         old_testset = await fetch_testset_by_id(
+            project_id=str(project_id),
+            #
             testset_id=str(testset_id),
         )
 
@@ -1246,7 +1262,7 @@ class SimpleTestsetsService:
     def _transfer_simple_testset_revision_data(
         self,
         *,
-        old_testset: TestSetDB,
+        old_testset: TestsetDB,
     ) -> TestsetRevisionData:
         return TestsetRevisionData(
             testcases=[

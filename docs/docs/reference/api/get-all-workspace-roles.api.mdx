@@ -5,119 +5,67 @@ description: "Get all workspace roles."
 sidebar_label: "Get All Workspace Roles"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVE1v2zAM/SsCz0Kc7ejTsqFog+4QpB12SIOCVZhYrSx5Ep02M/LfByp20gZo+wfmi23p8evxkR0wbhKUC/gd4lNq0BAsNawomWgbtsFDCZfECp1TzwNExeAoje78nZ8Tt9EnhcrZxCqsMxK3aB0+OPrIprzzSin10yZeHKPPg6M5pSb4RMtSTY5u3yBUeHgkw0lFaiIl8mz9RnFFn0VGm2gIfHV7O7t4MZTLLNV0rdArijFEFYxpY1LPlXWkInG0tB0inPsFDaGhiOJluoISNsT36Nz9EXifgaAh9oUlKDv4Oh7L6y3VN60xlNK6dWpgATSY4Jk8CxybxlmTgxWPSWw6SKaiGuXLMtXZOa5WVjDoZlGyY3sIyruGoITE0foN7PVwcODz1QHGiDvQwJad/A/ZKBHDxLlTP9Q8V7eXR0NNXIWeBdDQIFdQQnHkIhUDGYnilqJor4M2OiihYm5SWRTGhXY1wg15xhHaAhsL55qc5Fv1Q6CwX4o700bLu+xvMpte0+6KcEURysXyNeBG2Dqw8RZ2ZAcbe01SvMda/ictVyHav5l10GAlgepgJTVbvw7ZvOeqz+07mifyK9AgdR7SHo++jMbvFdMbqMls2jcdTW76kEeGgT6j60gUaKAardwxYf3tdCFZNiFxjf6Vv/daeZZed9Lf/1Xw2SroJcT0wkXj0HqZqdyvrh+GBZyGQXZCpnypoQqJ5bbrHjDRr+j2ezn+01IUUS81bDFaqScrWg8KFL0/0U70YaQC0Ru69iDks2Uhc3Cc0MuLW9jv/wFK9h0F
+api: eJztVMtu2zAQ/BViz4Tl9qhTfQgSIz0YTooeHCPY0GuLCUWq5MqJK/jfi6Ut+QG0+YHqYomcfczsrDtg3CQoF/AzxLfUoCFYalhRMtE2bIOHEm6JFTqn3nuIisFRGj35Jz8nbqNPCpWziVVYZyRu0Tp8cfSvmPLJK6XUd5t4MVSfB0dzSk3wiZalmgxpLxAqvLyS4aQiNZESebZ+o7iizyqjTdQXvnt8nN18GMo0SzVdK/SKYgxRBWPamNR7ZR2pSBwtbfsK13lBQ2goomSZrqCEDfEzOvc8AJ8zEDTEI7EEZQdfx2P5uZT6oTWGUlq3TvUqgAYTPJNngWPTOGtyseI1SUwHyVRUo7xZpjonx9XKCgbdLEp3bA9FedcQlJA4Wr+Bve4PDnqeHWCMuAMNbNnJd9+NEjNMnDvNQ80zu708GmriKhxVAA0NcgUlFIMWqejFSBS3FMV7HbTRQQkVc5PKojAutKsRbsgzjtAW2FjYLyXCtNHyLodMZtN72t0RrihCuVieAx5EkAPhS9ggADb2noSfx1q+Jy1XIdrfWVjQYGUY1SFKaFm/Djn8KMckN6cmsyloEBqH8Y1HX0ZjuN6fC7DMEk2eZV87X4O+UmHgDxqoRit3TFh/O11IZ01IXKM/y/e3CV211Z1s9X/DP9vwo22YPrhoHFovq5Ln1R09voCTx2XVs+RLDVVILLdd94KJfkS338vxr5aiGHmpYYvRCp/sYt27Tjz+RjvxhxEG4jN07cG8V/8B4v1h8W5vHmG//wP6PA52
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-backend
+info_path: reference/api/agenta-api
 custom_edit_url: null
 ---
 
-import ApiTabs from "@theme/ApiTabs";
-import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
-import MimeTabs from "@theme/MimeTabs";
-import ParamsItem from "@theme/ParamsItem";
-import ResponseSamples from "@theme/ResponseSamples";
-import SchemaItem from "@theme/SchemaItem";
-import SchemaTabs from "@theme/SchemaTabs";
-import Markdown from "@theme/Markdown";
-import Heading from "@theme/Heading";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Get All Workspace Roles"}
-></Heading>
+>
+</Heading>
 
-<MethodEndpoint method={"get"} path={"/workspaces/roles"}></MethodEndpoint>
+<MethodEndpoint
+  method={"get"}
+  path={"/workspaces/roles"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
 
 Get all workspace roles.
 
 Returns a list of all available workspace roles.
 
 Returns:
-List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
+    List[WorkspaceRoleResponse]: A list of WorkspaceRole objects representing the available workspace roles.
 
 Raises:
-HTTPException: If an error occurs while retrieving the workspace roles.
+    HTTPException: If an error occurs while retrieving the workspace roles.
 
-<div>
-  <div>
-    <ApiTabs label={undefined} id={undefined}>
-      <TabItem label={"200"} value={"200"}>
-        <div>Successful Response</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>
-                      <li>
-                        <div
-                          style={{
-                            fontSize: "var(--ifm-code-font-size)",
-                            opacity: "0.6",
-                            marginLeft: "-.5rem",
-                            paddingBottom: ".5rem",
-                          }}
-                        >
-                          Array [
-                        </div>
-                      </li>
-                      <SchemaItem
-                        name={"property name*"}
-                        required={false}
-                        schemaName={"string"}
-                        qualifierMessage={undefined}
-                        schema={{ type: "string" }}
-                        collapsible={false}
-                        discriminator={false}
-                      ></SchemaItem>
-                      <li>
-                        <div
-                          style={{
-                            fontSize: "var(--ifm-code-font-size)",
-                            opacity: "0.6",
-                            marginLeft: "-.5rem",
-                          }}
-                        >
-                          ]
-                        </div>
-                      </li>
-                    </ul>
-                  </details>
-                </TabItem>
-                <TabItem
-                  label={"Example (from schema)"}
-                  value={"Example (from schema)"}
-                >
-                  <ResponseSamples
-                    responseExample={"[\n  {}\n]"}
-                    language={"json"}
-                  ></ResponseSamples>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-    </ApiTabs>
-  </div>
-</div>
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Response Get All Workspace Roles"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

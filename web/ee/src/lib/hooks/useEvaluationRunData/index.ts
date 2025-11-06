@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useRef} from "react"
 
 import deepEqual from "fast-deep-equal"
 import {type WritableDraft} from "immer"
@@ -12,7 +12,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import useEnrichEvaluationRun from "@/oss/lib/hooks/usePreviewEvaluations/assets/utils"
-import {Evaluation, GenericObject, PreviewTestSet} from "@/oss/lib/Types"
+import {Evaluation, GenericObject, PreviewTestset} from "@/oss/lib/Types"
 import {
     fetchAllEvaluationScenarios as fetchAllLegacyAutoEvaluationScenarios,
     fetchEvaluation as fetchLegacyAutoEvaluation,
@@ -85,27 +85,35 @@ const useEvaluationRunData = (evaluationTableId: string | null, debug = false, r
     const user = useAtomValue(userAtom)
     const requireUser = isDemo()
     const enrichRun = useEnrichEvaluationRun({debug, evalType})
+    const suppressLoadingRef = useRef(false)
 
     // New fetcher for preview runs that fetches and enriches with testsetData
     const fetchAndEnrichPreviewRun = useCallback(async () => {
+        const suppressLoading = suppressLoadingRef.current
         if (!evaluationTableId || !projectId || (requireUser && !user?.id)) {
-            evalAtomStore().set(loadingStateAtom, (draft) => {
-                draft.isLoadingEvaluation = false
-                draft.activeStep = null
-            })
+            if (!suppressLoading) {
+                evalAtomStore().set(loadingStateAtom, (draft) => {
+                    draft.isLoadingEvaluation = false
+                    draft.activeStep = null
+                })
+            }
+            suppressLoadingRef.current = false
             return null
         }
 
-        evalAtomStore().set(loadingStateAtom, (draft) => {
-            draft.isLoadingEvaluation = true
-            draft.activeStep = "eval-run"
-        })
+        if (!suppressLoading) {
+            evalAtomStore().set(loadingStateAtom, (draft) => {
+                draft.isLoadingEvaluation = true
+                draft.activeStep = "eval-run"
+            })
+        }
 
         try {
             const runRes = await axios.get(
                 `/preview/evaluations/runs/${evaluationTableId}?project_id=${projectId}`,
             )
             const rawRun = snakeToCamelCaseKeys(runRes.data?.run)
+
             const runIndex = buildRunIndex(rawRun)
 
             const testsetIds = Array.from(
@@ -119,9 +127,9 @@ const useEvaluationRunData = (evaluationTableId: string | null, debug = false, r
                 await Promise.all(
                     testsetIds.map((tid) => fetchTestset(tid, true).catch(() => null)),
                 )
-            ).filter(Boolean) as PreviewTestSet[]
+            ).filter(Boolean) as PreviewTestset[]
 
-            if (!fetchedTestsets.length) {
+            if (!fetchedTestsets.length && evalType === "auto") {
                 evalAtomStore().set(
                     evaluationRunStateFamily(runId || evaluationTableId),
                     (draft: any) => {
@@ -158,9 +166,11 @@ const useEvaluationRunData = (evaluationTableId: string | null, debug = false, r
             }
 
             if (!routeAppId && projectId && enrichedRun) {
-                const references = collectProjectVariantReferences([enrichedRun], projectId)
-                setProjectVariantReferences(references)
-                prefetchProjectVariantConfigs(references)
+                if (evalType !== "online") {
+                    const references = collectProjectVariantReferences([enrichedRun], projectId)
+                    setProjectVariantReferences(references)
+                    prefetchProjectVariantConfigs(references)
+                }
             }
 
             return enrichedRun
@@ -170,10 +180,13 @@ const useEvaluationRunData = (evaluationTableId: string | null, debug = false, r
             }
             throw error
         } finally {
-            evalAtomStore().set(loadingStateAtom, (draft) => {
-                draft.isLoadingEvaluation = false
-                draft.activeStep = null
-            })
+            if (!suppressLoading) {
+                evalAtomStore().set(loadingStateAtom, (draft) => {
+                    draft.isLoadingEvaluation = false
+                    draft.activeStep = null
+                })
+            }
+            suppressLoadingRef.current = false
         }
     }, [enrichRun, evaluationTableId, projectId, runId, user?.id, requireUser])
 
@@ -255,17 +268,34 @@ const useEvaluationRunData = (evaluationTableId: string | null, debug = false, r
         // Mutate functions
         legacyEvaluationSWR,
         legacyScenariosSWR,
-        refetchEvaluation() {
-            if (isPreview) {
-                previewRunSwr.mutate()
-            } else {
-                legacyEvaluationSWR.mutate()
+        refetchEvaluation(options?: {background?: boolean}) {
+            const background = Boolean(options?.background)
+            if (background) {
+                suppressLoadingRef.current = true
             }
+            const mutatePromise = isPreview
+                ? previewRunSwr.mutate(undefined, {revalidate: true})
+                : legacyEvaluationSWR.mutate(undefined, {revalidate: true})
+
+            if (mutatePromise && typeof (mutatePromise as any)?.finally === "function") {
+                return (mutatePromise as Promise<any>).finally(() => {
+                    if (background) {
+                        suppressLoadingRef.current = false
+                    }
+                })
+            }
+
+            if (background) {
+                suppressLoadingRef.current = false
+            }
+
+            return Promise.resolve(mutatePromise as any)
         },
         refetchScenarios() {
             if (!isPreview) {
-                legacyScenariosSWR.mutate()
+                return legacyScenariosSWR.mutate(undefined, {revalidate: true})
             }
+            return Promise.resolve(null)
         },
     }
 }

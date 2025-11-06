@@ -6,7 +6,7 @@ import {
     displayedVariantsVariablesAtom,
     schemaInputKeysAtom,
 } from "@/oss/components/Playground/state/atoms/variants"
-import {TestSet} from "@/oss/lib/Types"
+import {Testset} from "@/oss/lib/Types"
 import {requestSchemaMetaAtomFamily} from "@/oss/state/newPlayground/core/requestSchemaMeta"
 
 import {useInputsVsColumns} from "./useInputsVsColumns"
@@ -19,7 +19,7 @@ export interface UseTestsetInputsAnalysisParams {
     schemaInputKeysOverride?: string[]
     requestSchemaMetaOverride?: {inputKeys?: string[]; required?: string[]}
     // The dataset to analyze
-    testsetCsvData: TestSet["csvdata"]
+    testsetCsvData: Testset["csvdata"]
 }
 
 export interface UseTestsetInputsAnalysisResult {

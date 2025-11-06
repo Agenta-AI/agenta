@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {Splitter, Spin} from "antd"
+import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
+import {Button, Splitter, Spin} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -31,7 +32,8 @@ const TraceDrawer = () => {
     const [selected, setSelected] = useState("")
     const {traces, activeSpanId, getTraceById, traceResponse, error, isLoading, traceId} =
         useTraceDrawer()
-    const [drawerWidth] = useState(1200)
+    const initialWidth = 1200
+    const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useState(true)
     const {
@@ -100,9 +102,25 @@ const TraceDrawer = () => {
         [clearTraceParam, setSpanQueryParam],
     )
 
-    return (
-        <EnhancedDrawer
-            title={
+    const header = (
+        <div className="flex items-center gap-3">
+            <Button onClick={() => closeDrawer()} type="text" icon={<CloseOutlined />} />
+
+            <Button
+                onClick={() =>
+                    setDrawerWidth((width) => (width === initialWidth ? 1920 : initialWidth))
+                }
+                type="text"
+                icon={
+                    drawerWidth === initialWidth ? (
+                        <FullscreenOutlined />
+                    ) : (
+                        <FullscreenExitOutlined />
+                    )
+                }
+            />
+
+            <div className="flex-1 min-w-0">
                 <TraceHeader
                     activeTrace={activeTrace as any}
                     activeTraceId={activeId}
@@ -122,7 +140,14 @@ const TraceDrawer = () => {
                     isAnnotationsSectionOpen={isAnnotationsSectionOpen}
                     setSelected={setSelected}
                 />
-            }
+            </div>
+        </div>
+    )
+
+    return (
+        <EnhancedDrawer
+            closeIcon={null}
+            title={header}
             open={open}
             onClose={closeDrawer}
             width={drawerWidth}

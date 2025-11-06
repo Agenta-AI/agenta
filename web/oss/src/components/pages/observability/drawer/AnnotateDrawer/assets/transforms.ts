@@ -250,7 +250,7 @@ export const generateAnnotationPayloadData = ({
     evaluators: EvaluatorDto[]
     /** The `key` of the invocation step this annotation belongs to (e.g. `${scenarioId}.invoke`) */
     invocationStepKey: string
-    /** Optional test-set / case references if available in the FE context */
+    /** Optional testset / case references if available in the FE context */
     testsetId?: string
     testcaseId?: string
 }): {
@@ -355,7 +355,7 @@ export const generateNewAnnotationPayloadData = ({
     traceSpanIds: {traceId: string; spanId: string}
     /** The `key` of the invocation step this annotation belongs to (e.g. `${scenarioId}.invoke`) */
     invocationStepKey: string
-    /** Optional test-set / case references if available in the FE context */
+    /** Optional testset / case references if available in the FE context */
     testsetId?: string
     testcaseId?: string
 }): {

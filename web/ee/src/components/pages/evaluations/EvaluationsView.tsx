@@ -1,6 +1,6 @@
 import {useEffect, useMemo} from "react"
 
-import {Radio, Typography} from "antd"
+import {Tabs, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
@@ -24,6 +24,10 @@ const AbTestingEvaluation = dynamic(
     () => import("@/oss/components/HumanEvaluations/AbTestingEvaluation"),
     {ssr: false},
 )
+const OnlineEvaluation = dynamic(() => import("./onlineEvaluation/OnlineEvaluation"), {ssr: false})
+const CustomEvaluation = dynamic(() => import("./customEvaluation/CustomEvaluation"), {
+    ssr: false,
+})
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
@@ -42,19 +46,29 @@ type EvaluationScope = "app" | "project"
 
 const formatLabel = (value: string) => value.replaceAll("_", " ")
 
+interface TabOption {
+    value: string
+    label: string
+    disabled?: boolean
+}
+
 interface EvaluationsViewProps {
     scope?: EvaluationScope
 }
 
-const allowedOptionsByScope: Record<EvaluationScope, {value: string; label: string}[]> = {
+const allowedOptionsByScope: Record<EvaluationScope, TabOption[]> = {
     app: [
-        {value: "auto_evaluation", label: "Automatic"},
-        {value: "human_annotation", label: "Human annotation"},
+        {value: "auto_evaluation", label: "Automatic Evaluations"},
+        {value: "human_annotation", label: "Human Annotations"},
+        // {value: "online_evaluation", label: "Online Evaluations"},
+        {value: "custom_evaluation", label: "SDK Evaluations"},
         {value: "human_ab_testing", label: "A/B Testing"},
     ],
     project: [
-        {value: "auto_evaluation", label: "Automatic"},
-        {value: "human_annotation", label: "Human annotation"},
+        {value: "auto_evaluation", label: "Automatic Evaluations"},
+        {value: "human_annotation", label: "Human Annotations"},
+        {value: "online_evaluation", label: "Online Evaluations"},
+        {value: "custom_evaluation", label: "SDK Evaluations"},
     ],
 }
 
@@ -81,7 +95,9 @@ const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
 
     // Ensure selected evaluation is valid for current scope
     useEffect(() => {
-        const allowed = allowedOptionsByScope[scope].map((option) => option.value)
+        const allowed = allowedOptionsByScope[scope]
+            .filter((option) => !option.disabled)
+            .map((option) => option.value)
         if (!selectedEvaluation || !router.query.selectedEvaluation) {
             setSelectedEvaluation(defaultKey)
             return
@@ -99,11 +115,17 @@ const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
         router.query.selectedEvaluation,
     ])
 
+    const options = allowedOptionsByScope[scope]
+
     useEffect(() => {
-        if (selectedEvaluation && selectedEvaluation !== defaultKey) {
+        if (
+            selectedEvaluation &&
+            selectedEvaluation !== defaultKey &&
+            options.some((option) => option.value === selectedEvaluation && !option.disabled)
+        ) {
             setDefaultKey(selectedEvaluation)
         }
-    }, [selectedEvaluation, defaultKey, setDefaultKey])
+    }, [selectedEvaluation, defaultKey, setDefaultKey, options])
 
     useBreadcrumbsEffect(
         {
@@ -127,29 +149,36 @@ const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
                 ) : (
                     <AutoEvaluation viewType="evaluation" scope={scope} />
                 )
+            case "online_evaluation":
+                return <OnlineEvaluation viewType="evaluation" scope={scope} />
+            case "custom_evaluation":
+                return <CustomEvaluation viewType="evaluation" scope={scope} />
             case "auto_evaluation":
             default:
                 return <AutoEvaluation viewType="evaluation" scope={scope} />
         }
     }, [selectedEvaluation, scope])
 
-    const options = allowedOptionsByScope[scope]
-
     return (
-        <div className={clsx(classes.container, "grow flex flex-col min-h-0")}>
-            <div className="flex items-center gap-4">
-                <Typography.Text className="text-[16px] font-medium">Evaluations</Typography.Text>
-                <Radio.Group
-                    optionType="button"
-                    value={selectedEvaluation}
-                    onChange={(e) => setSelectedEvaluation(e.target.value)}
-                >
-                    {options.map((option) => (
-                        <Radio.Button key={option.value} value={option.value}>
-                            {option.label}
-                        </Radio.Button>
-                    ))}
-                </Radio.Group>
+        <div
+            className={clsx(classes.container, "grow flex flex-col min-h-0 [&_.ant-tabs-nav]:mb-0")}
+        >
+            <div className="flex items-center">
+                <Typography.Text className={classes.title}>Evaluations</Typography.Text>
+            </div>
+            <div>
+                <Tabs
+                    items={options.map((o) => ({
+                        label: o.label,
+                        key: o.value,
+                        disabled: o.disabled,
+                    }))}
+                    activeKey={selectedEvaluation}
+                    onChange={(key) => {
+                        if (options.find((option) => option.value === key)?.disabled) return
+                        setSelectedEvaluation(key)
+                    }}
+                />
             </div>
 
             <div className={clsx("grow flex flex-col min-h-0")}>{renderPage}</div>

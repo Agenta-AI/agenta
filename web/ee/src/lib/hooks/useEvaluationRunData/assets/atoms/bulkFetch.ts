@@ -28,6 +28,7 @@ export async function runBulkFetch(
     opts: {
         force?: boolean
         onComplete?: (map: Map<string, UseEvaluationRunScenarioStepsFetcherResult>) => void
+        silent?: boolean
     } = {},
 ): Promise<Map<string, UseEvaluationRunScenarioStepsFetcherResult>> {
     if (!scenarioIds || !scenarioIds.length) {
@@ -71,7 +72,9 @@ export async function runBulkFetch(
         return store.get(bulkStepsCacheFamily(runId))
     }
 
-    store.set(bulkStepsStatusFamily(runId), "loading")
+    if (!opts.silent) {
+        store.set(bulkStepsStatusFamily(runId), "loading")
+    }
     // return
     try {
         const params = {runId, evaluation: enrichedRun, runIndex}
@@ -81,16 +84,31 @@ export async function runBulkFetch(
 
         // Write all results to the bulk cache atom at once
         store.set(bulkStepsCacheFamily(runId), (draft) => {
+            const next = draft ? new Map(draft) : new Map()
             for (const [scenarioId, scenarioSteps] of workerResult?.entries() || []) {
                 if (scenarioSteps) {
-                    draft.set(scenarioId, scenarioSteps)
+                    next.set(scenarioId, scenarioSteps)
                 }
             }
+            return next
         })
 
-        store.set(bulkStepsStatusFamily(runId), "done")
+        if (!opts.silent) {
+            store.set(bulkStepsStatusFamily(runId), "done")
+        }
+
+        if (typeof opts.onComplete === "function") {
+            opts.onComplete(workerResult)
+        }
+
+        return workerResult
     } catch (err) {
         console.error("[bulk-steps] bulk fetch ERROR", err)
-        store.set(bulkStepsStatusFamily(runId), "error")
+        if (!opts.silent) {
+            store.set(bulkStepsStatusFamily(runId), "error")
+        }
+        return store.get(bulkStepsCacheFamily(runId))
     }
+
+    return store.get(bulkStepsCacheFamily(runId))
 }

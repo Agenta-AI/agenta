@@ -25,6 +25,7 @@ const resolveMetricStats = (
             allCandidates.push(`${key}.${fallbackSuffix}`)
         })
     }
+
     for (const key of allCandidates) {
         if (!key) continue
         if (metrics[key]) return metrics[key]
@@ -63,8 +64,8 @@ export function buildEvaluatorMetricColumns({
         const baseCandidates = [
             `${evaluator.slug}.${metricKey}`,
             metricKey,
-            ...analyticsCandidates,
             ...analyticsCandidates.map((path) => `${evaluator.slug}.${path}`),
+            ...analyticsCandidates,
         ]
 
         return {
@@ -89,13 +90,13 @@ export function buildEvaluatorMetricColumns({
                       )
                     : false
 
-                const runMetric =
-                    runMetricsMap?.[("id" in record ? record.id : (record as any).key) as string]
+                const runId = ("id" in record ? record.id : (record as any).key) as string
+                const runMetric = runMetricsMap?.[runId]
                 const stats = resolveMetricStats(runMetric, baseCandidates)
 
                 return hasEvaluator ? (
                     <MetricDetailsPopoverWrapper
-                        runId={"id" in record ? record.id : (record as any).key}
+                        runId={runId}
                         evaluatorSlug={evaluator.slug}
                         evaluatorMetricKey={metricKey}
                         evaluator={evaluator}

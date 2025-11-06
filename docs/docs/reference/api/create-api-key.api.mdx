@@ -5,81 +5,65 @@ description: "Creates an API key for a user."
 sidebar_label: "Create Api Key"
 hide_title: true
 hide_table_of_contents: true
-api: eJzVVMGO2jAQ/RVrTq1kAe3Rp6a7hyIORbA9AVoNzkC8JI7XnqDSKP9eTRLYXaR+QHNJbM+M37z3Ji0wHhOYDWTBqQVdEuw05JRsdIFd7cHAQyRkSgq9ypZzdaKLOtRRoWoSxcnWb30Wj8lsvVJKRXptKLH6tBo+Phv1VNBtu96/kGVla8/ovPNHxQX1hdT8UTnfL6/BiZGpv2BF3ER/vSNxHKraHll+hTUBDXWgiAJ8noOBIeAZg3s+0QU0REqh9okSmBa+zmby+tjturGWUjo0pVqNwaBBAJNnCccQSmf7O6YvSXJaSLagCuWLL4HAQOLo/BE0sONSNq611MCmGumGTh4NFXFRC+JQJwYNAbkAA9OTKKIhUTxTFJ1aaGIJBgrmkMx0asu6ySd4JM84QTfF4OBewKw/VQ8SCt1OytkmOr709bLlfEGXH4Q5RTCb3fuAtfQ1kPUx7NYoBrfomfVYyTpruKij+9PzAxqcACiGLGnU+UPdp4+8jNi+oz2Rz0GD9DnAnk2+TGb/amZMEOlHedD28lxx9GGg7+i6EQUaqEInZ0xYfXs7EJSiQoX+Xb072e5QtW8G+b/GZVSR6TdPQ4nOQzdS1o4e3MBp/CsUYk2zgbbdY6Jfsew62X5tKIqTdhrOGB3uRdfNrtNX2cVkMn0GMmspiL3PWDaDe+5mScx3m4Xlz/UTdN1fyDiT9Q==
+api: eJzVU02P2jAQ/SvWnFrJIrRHnxq1hyIORbA9AVrNmoF4CY7XnqDSKP+9GiewC/+gucQfM+M3773pgPGQwKyhDE7N6ZJgq2FHyUYX2DUeDHyPhExJoVflYqaOdFH7JipUbaI42fiNL+MhmY1XSqlIby0lVp+Ww+KzUU8V3Y6bl1eyrGzjGZ13/qC4olxIzX4o5/P2GpwYmfIDS+I2+usbieNQ1WZkuyusCWhoAkUU4LMdGBgCnjG45yNdQEOkFBqfKIHp4Ot0Kr/7blettZTSvq3VcgwGDQKYPEs4hlA7m98oXpPkdJBsRSeUFV8CgYHE0fkDaGDHtRxca6mBTTXSDb18Gk7EVSOIQ5MYNATkCgwUR1FEQ6J4pig6ddDGGgxUzCGZorB10+4meCDPOEFXYHDQbyXDttHxJaeUi9mcLj8JdxTBrLcfA1YCfeDjPuzWCwY3z+R5PMm+bLlqovubKQANTmirhizpxfl9k9PH1ssMTkQCDdLGQPR08mUyhUez3QVnm9jM+vXtfA36gYVb/6CBTujkjglP394vBJmQe0L/od6DGg9ounfd/68pGJVj+sNFqNF56EfKutFaaziOw16J48wauu4FE/2Odd/L8VtLUdyz1XDG6PBFtFxve32VWowlQ2WgtJaCuPaMdTs45mFExHA3iy9+rZ6g7/8BgAqFZg==
 sidebar_class_name: "post api-method"
-info_path: reference/api/agenta-backend
+info_path: reference/api/agenta-api
 custom_edit_url: null
 ---
 
-import ApiTabs from "@theme/ApiTabs";
-import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
-import MimeTabs from "@theme/MimeTabs";
-import ParamsItem from "@theme/ParamsItem";
-import ResponseSamples from "@theme/ResponseSamples";
-import SchemaItem from "@theme/SchemaItem";
-import SchemaTabs from "@theme/SchemaTabs";
-import Markdown from "@theme/Markdown";
-import Heading from "@theme/Heading";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Create Api Key"}
-></Heading>
+>
+</Heading>
 
-<MethodEndpoint method={"post"} path={"/keys"}></MethodEndpoint>
+<MethodEndpoint
+  method={"post"}
+  path={"/keys"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
 
 Creates an API key for a user.
 
 Args:
-request (Request): The request object containing the user ID in the request state.
+    request (Request): The request object containing the user ID in the request state.
 
 Returns:
-str: The created API key.
+    str: The created API key.
 
-<div>
-  <div>
-    <ApiTabs label={undefined} id={undefined}>
-      <TabItem label={"200"} value={"200"}>
-        <div>Successful Response</div>
-        <div>
-          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
-            <TabItem label={"application/json"} value={"application/json"}>
-              <SchemaTabs className={"openapi-tabs__schema"}>
-                <TabItem label={"Schema"} value={"Schema"}>
-                  <details
-                    style={{}}
-                    className={"openapi-markdown__details response"}
-                    data-collapsed={false}
-                    open={true}
-                  >
-                    <summary
-                      style={{}}
-                      className={"openapi-markdown__details-summary-response"}
-                    >
-                      <strong>Schema</strong>
-                    </summary>
-                    <div
-                      style={{ textAlign: "left", marginLeft: "1rem" }}
-                    ></div>
-                    <ul style={{ marginLeft: "1rem" }}>
-                      <div
-                        style={{ marginTop: ".5rem", marginBottom: ".5rem" }}
-                      >
-                        string
-                      </div>
-                    </ul>
-                  </details>
-                </TabItem>
-              </SchemaTabs>
-            </TabItem>
-          </MimeTabs>
-        </div>
-      </TabItem>
-    </ApiTabs>
-  </div>
-</div>
+<ParamsDetails
+  parameters={undefined}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"string","title":"Response Create Api Key"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

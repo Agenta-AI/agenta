@@ -28,6 +28,8 @@ export interface VariantDrawerTitleProps {
     isLoading: boolean
     variantIds?: string[]
     viewAs: ViewType
+    onToggleWidth: () => void
+    isExpanded: boolean
 }
 
 export interface VariantDrawerContentProps {
@@ -46,4 +48,6 @@ export interface DeploymentDrawerTitleProps {
     onClose: () => void
     revert?: Revert
     isLoading: boolean
+    onToggleWidth: () => void
+    isExpanded: boolean
 }

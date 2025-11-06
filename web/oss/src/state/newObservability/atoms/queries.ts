@@ -4,6 +4,10 @@ import {selectAtom, atomFamily} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithInfiniteQuery, atomWithQuery} from "jotai-tanstack-query"
 
+import {
+    normalizeReferenceValue,
+    parseReferenceKey,
+} from "@/oss/components/pages/observability/assets/filters/referenceUtils"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {formatLatency, formatCurrency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
@@ -52,113 +56,11 @@ export const tracesQueryAtom = atomWithInfiniteQuery((get) => {
         focus: traceTabs === "chat" ? "span" : traceTabs,
     }
 
-    type Condition = {field: string; operator: string; value?: any; key?: string}
-
-    const parseReferenceKey = (rawKey?: string, rawValue?: any) => {
-        let category: "reference" | "application" | "evaluator" | "application_variant" =
-            "reference"
-        let property = rawKey && rawKey !== "" ? rawKey : "id"
-
-        if (rawKey) {
-            const [categoryPart, propertyPart] = rawKey.split(".")
-            if (
-                propertyPart &&
-                ["reference", "application", "evaluator", "application_variant"].includes(
-                    categoryPart,
-                )
-            ) {
-                return {
-                    category: categoryPart as
-                        | "reference"
-                        | "application"
-                        | "evaluator"
-                        | "application_variant",
-                    property: propertyPart,
-                }
-            }
-        }
-
-        const candidates = Array.isArray(rawValue)
-            ? rawValue
-            : rawValue === undefined || rawValue === null
-              ? []
-              : [rawValue]
-
-        for (const entry of candidates) {
-            if (entry && typeof entry === "object" && !Array.isArray(entry)) {
-                const obj = entry as Record<string, unknown>
-                const attrKey = obj["attributes.key"] as string | undefined
-                if (
-                    attrKey === "application" ||
-                    attrKey === "evaluator" ||
-                    attrKey === "application_variant"
-                ) {
-                    category = attrKey
-                }
-                if (obj["version"] !== undefined) {
-                    property = "version"
-                    break
-                }
-                if (obj["slug"] !== undefined) {
-                    property = "slug"
-                } else if (obj["id"] !== undefined) {
-                    property = "id"
-                }
-            }
-        }
-
-        return {category, property}
-    }
-
-    const normalizeReferenceValue = (
-        rawValue: any,
-        property: string,
-        category: "reference" | "application" | "evaluator" | "application_variant",
-    ): Record<string, string>[] => {
-        const extras: Record<string, string> | undefined =
-            category === "application"
-                ? {"attributes.key": "application"}
-                : category === "evaluator"
-                  ? {"attributes.key": "evaluator"}
-                  : category === "application_variant"
-                    ? {"attributes.key": "application_variant"}
-                    : undefined
-
-        const entries = Array.isArray(rawValue)
-            ? rawValue
-            : rawValue === undefined || rawValue === null || rawValue === ""
-              ? []
-              : [rawValue]
-
-        return entries
-            .map((entry) => {
-                if (entry && typeof entry === "object" && !Array.isArray(entry)) {
-                    const obj: Record<string, any> = {...entry}
-                    const propValue = obj[property]
-                    const normalized =
-                        propValue === undefined || propValue === null
-                            ? ""
-                            : String(propValue).trim()
-                    if (!normalized) return undefined
-                    obj[property] = normalized
-                    if (extras) obj["attributes.key"] = extras["attributes.key"]
-                    else if (obj["attributes.key"] && category === "reference")
-                        delete obj["attributes.key"]
-                    return Object.entries(obj).reduce<Record<string, string>>((acc, [k, v]) => {
-                        if (v === undefined || v === null) return acc
-                        acc[k] = typeof v === "string" ? v : String(v)
-                        return acc
-                    }, {})
-                }
-
-                const str = entry === undefined || entry === null ? "" : String(entry).trim()
-                if (!str) return undefined
-                return {
-                    [property]: str,
-                    ...(extras ?? {}),
-                }
-            })
-            .filter((entry): entry is Record<string, string> => Boolean(entry))
+    interface Condition {
+        field: string
+        operator: string
+        value?: any
+        key?: string
     }
 
     const isHasAnnotationSelected = filters.findIndex((f) => f.field === "has_annotation")

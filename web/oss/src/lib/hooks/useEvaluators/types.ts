@@ -18,21 +18,28 @@ export interface EvaluatorData {
     }
 }
 
-export type EvaluatorPreviewDto = EvaluatorDto & {
-    /**
-     * Computed metrics schema derived from EvaluatorDto.data
-     */
-    metrics: Record<string, unknown>
-}
+export type EvaluatorPreviewDto = EvaluatorDto<"payload"> &
+    EvaluatorDto<"response"> & {
+        /**
+         * Computed metrics schema derived from EvaluatorDto.data
+         */
+        metrics: Record<string, unknown>
+    }
 
-export type EvaluatorDto<T extends "payload" | "response" = "response"> = {
+type EvaluatorDtoBase = {
     name: string
     slug: string
+    key?: string
     description: string
     data: EvaluatorData
-} & (T extends "response"
-    ? {id: string; created_at: string; created_by_id: string}
-    : {meta: Record<string, any>; flags: Record<string, any>})
+    tags?: string[] | Record<string, unknown> | string
+    flags?: Record<string, any>
+    meta?: Record<string, any>
+    requires_llm_api_keys?: boolean
+}
+
+export type EvaluatorDto<T extends "payload" | "response" = "response"> = EvaluatorDtoBase &
+    (T extends "response" ? {id: string; created_at: string; created_by_id: string} : {id?: string})
 
 export type EvaluatorResponseDto<T extends "payload" | "response" = "response"> =
     T extends "response"

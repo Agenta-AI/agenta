@@ -419,10 +419,15 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
         if "configuration" in cleaned_ag["meta"]:
             if cleaned_ag["data"]["parameters"] is None:
                 cleaned_ag["data"]["parameters"] = cleaned_ag["meta"]["configuration"]
+            del cleaned_ag["meta"]["configuration"]
+            if not cleaned_ag["meta"]:
+                cleaned_ag["meta"] = None
 
     # --- unsupported top-level ---
     for key in ag:
         if key not in AgAttributes.model_fields:
+            if key == "refs":
+                continue
             unsupported[key] = ag[key]
 
     cleaned_ag["unsupported"] = unsupported or None
@@ -454,6 +459,9 @@ REFERENCE_KEYS = [
     "environment",
     "environment_variant",
     "environment_revision",
+    "snippet",
+    "snippet_variant",
+    "snippet_revision",
 ]
 
 

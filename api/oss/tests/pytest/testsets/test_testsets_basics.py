@@ -21,8 +21,8 @@ class TestTestsetsBasics:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name",
-            "description": "This is a test set description.",
+            "name": "Testset Name",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {
@@ -68,8 +68,8 @@ class TestTestsetsBasics:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name",
-            "description": "This is a test set description.",
+            "name": "Testset Name",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {
@@ -115,8 +115,8 @@ class TestTestsetsBasics:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name",
-            "description": "This is a test set description.",
+            "name": "Testset Name",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {
@@ -178,8 +178,8 @@ class TestTestsetsBasics:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name",
-            "description": "This is a test set description.",
+            "name": "Testset Name",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {
@@ -264,8 +264,8 @@ class TestTestsetsBasics:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name",
-            "description": "This is a test set description.",
+            "name": "Testset Name",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {
@@ -340,8 +340,8 @@ class TestTestsetsBasics:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name - Archive",
-            "description": "This is a test set description.",
+            "name": "Testset Name - Archive",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {
@@ -391,8 +391,8 @@ class TestTestsetsBasics:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name - Unarchive",
-            "description": "This is a test set description.",
+            "name": "Testset Name - Unarchive",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {

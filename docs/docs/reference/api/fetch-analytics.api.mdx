@@ -1,0 +1,71 @@
+---
+id: fetch-analytics
+title: "Fetch Legacy Analytics"
+description: "Fetch Legacy Analytics"
+sidebar_label: "Fetch Legacy Analytics"
+hide_title: true
+hide_table_of_contents: true
+api: eJztV01vGzcQ/SvCnLeWa/S0p6pJgxhxayNWexGEYsQdSYy5HyFnnarC/vdiSO0uV7IURUmRS0+GzDfzHudrh1tgXDlIZzC1qHSxgnkCZUUWWZfFbQYpLInV+i8s0GxYKwcJVGgxJyYrhlsoMCfBlaqWU11ACh9rshtIwNLHWlvKIF2icZSAU2vKEdItYLG5X3oHvKnEgWMrAhKgos5FEltUBAm4CgvRxZqNAN94pibpLIvaGGgOEQLp1Nkc+ZvKwxUVjODjVTAZyontZijUk55WGiCR1NJk5L6F1IhXF0wrsiel3AfeWEpBn76LlN8DbyzF6Fx/lZJzeO88SUwrVvYZzX/NfNvyxOQWmb6GuKjzxWd43wvFoFG0YbJfwNpVcjBsxLslV5WFIyeAm+tr+ZORU1ZXMlcghcdaKXJuWZvR+x0YElBlwVSwv0xVGa38GBp/cGKzjUgrK0OKdWBQZR2M9gLeX/OVRySQ0RJrw5BeNwksavVE7D1optwdOmadk2PMq8h5Nwd2IyWFDJl+EGhEOO0sm6QvolMS+wpIgEsO6CP3vKjEXoxBVodRf2n9vG7t9/yq0oXIXuL0lTfe88jlExUXu5wG64FPcRrg5eIDKY6SMek+d00CZG1pX6iO/9PxHdLxAqofTrOoY5N4doeG6lIZKfnFDwHo3aK1uIF9wEDrbH5K7L3JOr3dbGsaMfnp5uZwFP6JRmc+a6NfRd7lczAjRm1OzDNTqsHpl3yu58dDdFcGgRLF3K1eGpYt9DdyDlfUx/s41AdjNJXTz2Vd7hWod7gowX14Q3SPX+N1CN+p3L6dTh8OHIbcDpP6Rrbm0R2tUG1Gk2h5zonXpezVVek3qwp5DSmMK0vPmj6NOezhY1l63Theux3Z53bnrq2BFNbMlUvHY2XKOrsK++gV6jFW2nebI1VbzRtvMnm4fUebt4QZWV/CEeBRCiqUyBDWZQcr/Y4kWLs1YVLzurT6n3ba+G1hHawa/8lblvF2MPHiRpOHW0hArhHCdH3149U17AdvAJZeQOV7oeVuF+9hFLr7S5/nvhGACfOf+wNRJnHPsYj8Hc3VQFUXCqa/eVwZ1L7evYbtLo0z2KVRSmb3oArvF3HXJ3OewFrSn85gu12goz+saRr5d1i4JF+Zdrgw0cr1RJvomfWMphY1vlePYnePnnPA3bPjHHD3MDgH3K7u52CjmX0OfLchnxWMdrHtwXP5YbWgfUckbQVL/IPVRCmqYvEH81i8dE39cP84hab5F+vbLmw=
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Legacy Analytics"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/preview/tracing/spans/analytics"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Fetch Legacy Analytics
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+  children={"Request"}
+>
+</Heading>
+
+<ParamsDetails
+  parameters={[{"name":"focus","in":"query","required":false,"schema":{"anyOf":[{"type":"string","enum":["trace","span"],"title":"Focus"},{"type":"null"}],"title":"Focus"}},{"name":"format","in":"query","required":false,"schema":{"anyOf":[{"type":"string","enum":["agenta","opentelemetry"],"title":"Format"},{"type":"null"}],"title":"Format"}},{"name":"oldest","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"null"}],"title":"Oldest"}},{"name":"newest","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"null"}],"title":"Newest"}},{"name":"limit","in":"query","required":false,"schema":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"}},{"name":"interval","in":"query","required":false,"schema":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Interval"}},{"name":"rate","in":"query","required":false,"schema":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Rate"}},{"name":"filter","in":"query","required":false,"schema":{"title":"Filter"}}]}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  title={"Body"}
+  body={undefined}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  id={undefined}
+  label={undefined}
+  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"buckets":{"items":{"properties":{"timestamp":{"type":"string","format":"date-time","title":"Timestamp"},"interval":{"type":"integer","title":"Interval"},"total":{"properties":{"count":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Count","default":0},"duration":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Duration","default":0},"costs":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Costs","default":0},"tokens":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Tokens","default":0}},"type":"object","title":"Analytics"},"errors":{"properties":{"count":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Count","default":0},"duration":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Duration","default":0},"costs":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Costs","default":0},"tokens":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Tokens","default":0}},"type":"object","title":"Analytics"}},"type":"object","required":["timestamp","interval","total","errors"],"title":"Bucket"},"type":"array","title":"Buckets","default":[]}},"type":"object","title":"OldAnalyticsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
+>
+  
+</StatusCodes>
+
+
+      

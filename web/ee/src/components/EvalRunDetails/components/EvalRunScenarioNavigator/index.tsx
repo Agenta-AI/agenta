@@ -8,6 +8,7 @@ import {useAtomValue} from "jotai"
 import {loadable} from "jotai/utils"
 import {useRouter} from "next/router"
 
+import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
 import {useRunId} from "@/oss/contexts/RunIdContext"
 import useFocusInput from "@/oss/hooks/useFocusInput"
 import {useEvalScenarioQueue} from "@/oss/lib/hooks/useEvalScenarioQueue"
@@ -46,6 +47,9 @@ const EvalRunScenarioNavigator = ({
 }) => {
     const router = useRouter()
     const runId = useRunId()
+    const evalType = useAtomValue(evalTypeAtom)
+    const isOnlineEval = evalType === "online"
+    const labelPrefix = isOnlineEval ? "Scenario" : "Testcase"
 
     // Get effective runId - use provided runId or fallback to current run context
     const effectiveRunId = useMemo(() => {
@@ -98,7 +102,7 @@ const EvalRunScenarioNavigator = ({
 
     // Get filtered scenarios with search term applied
     const _scenarios = useMemo(() => {
-        return filteredScenarioIds
+        const list = filteredScenarioIds
             .map((id) => scenarioMap.get(id))
             .filter((scenario) => scenario) // Remove any undefined scenarios
             .filter((scenario) =>
@@ -106,9 +110,12 @@ const EvalRunScenarioNavigator = ({
                     ? scenario.scenarioIndex.toString().includes(searchTerm)
                     : true,
             )
+
+        return list
     }, [searchTerm, filteredScenarioIds, scenarioMap])
 
     const scenarioIds = _scenarios.map((s) => s.id || s._id)
+
     const handlePrevNext = useCallback(
         (direction: -1 | 1) => {
             if (!activeId) return
@@ -126,7 +133,10 @@ const EvalRunScenarioNavigator = ({
     // Keyboard shortcuts: Left/Right for navigation, Meta+Enter/Ctrl+Enter for Run
     const {enqueueScenario} = useEvalScenarioQueue({concurrency: 5})
     const status = useAtomValue(
-        useMemo(() => scenarioStatusAtomFamily(activeId), [activeId]),
+        useMemo(
+            () => scenarioStatusAtomFamily({scenarioId: activeId, runId: effectiveRunId}),
+            [activeId, effectiveRunId],
+        ),
     ) as any
     const rawStatus = status?.status
     const isRunning = ["running", "EVALUATION_STARTED"].includes(rawStatus as string)
@@ -250,9 +260,15 @@ const EvalRunScenarioNavigator = ({
                         const labelIndex = scenarioIndex ?? scenarioIds.indexOf(id) + 1
 
                         return (
-                            <Select.Option key={id} value={id} label={`Test case: ${labelIndex}`}>
+                            <Select.Option
+                                key={id}
+                                value={id}
+                                label={`${labelPrefix}: ${labelIndex}`}
+                            >
                                 <div className="flex items-center justify-between w-full">
-                                    <span>Scenario {labelIndex}</span>
+                                    <span>
+                                        {labelPrefix} {labelIndex}
+                                    </span>
                                     <span className={clsx(colorClass)}>{scenStatus.status}</span>
                                 </div>
                             </Select.Option>

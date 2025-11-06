@@ -22,12 +22,12 @@ class TestTestsetsFiles:
 
             files = {
                 "file": ("testset.csv", csvfile, "text/csv"),
-                "testset_name": (None, "Test Set Name"),
+                "testset_name": (None, "Testset Name"),
             }
 
             data = {
                 "file_type": "csv",
-                "testset_description": "This is a test set description.",
+                "testset_description": "This is a testset description.",
                 "testset_tags": dumps({"tag1": "value1", "tag2": "value2"}),
                 "testset_meta": dumps({"meta1": "value1", "meta2": "value2"}),
             }
@@ -61,12 +61,12 @@ class TestTestsetsFiles:
 
             files = {
                 "file": ("testset.json", jsonfile, "application/json"),
-                "testset_name": (None, "Test Set Name"),
+                "testset_name": (None, "Testset Name"),
             }
 
             data = {
                 "file_type": "json",
-                "testset_description": "This is a test set description.",
+                "testset_description": "This is a testset description.",
                 "testset_tags": dumps({"tag1": "value1", "tag2": "value2"}),
                 "testset_meta": dumps({"meta1": "value1", "meta2": "value2"}),
             }
@@ -104,8 +104,8 @@ class TestTestsetsFiles:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name",
-            "description": "This is a test set description.",
+            "name": "Testset Name",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {
@@ -166,8 +166,8 @@ class TestTestsetsFiles:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name",
-            "description": "This is a test set description.",
+            "name": "Testset Name",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {
@@ -229,8 +229,8 @@ class TestTestsetsFiles:
 
         testset = {
             "slug": slug,
-            "name": "Test Set Name",
-            "description": "This is a test set description.",
+            "name": "Testset Name",
+            "description": "This is a testset description.",
             "tags": tags,
             "meta": meta,
             "data": {
@@ -267,7 +267,7 @@ class TestTestsetsFiles:
 
             files = {
                 "file": ("testset.csv", csvfile, "text/csv"),
-                "testset_name": (None, "Updated Test Set Name"),
+                "testset_name": (None, "Updated Testset Name"),
             }
 
             data = {

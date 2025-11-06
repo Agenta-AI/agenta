@@ -11,6 +11,7 @@ import {isValidRegex} from "@/oss/lib/helpers/validators"
 import {generatePaths} from "@/oss/lib/transformers"
 import {EvaluationSettingsTemplate, JSSTheme} from "@/oss/lib/Types"
 
+import {JSONSchemaEditor} from "./JSONSchema"
 import {Messages} from "./Messages"
 
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
@@ -107,6 +108,8 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     const classes = useStyles()
     const {token} = theme.useToken()
 
+    const watched = Form.useWatch(name as any, form)
+    const savedValue = watched ?? defaultVal
     const handleValueChange = useCallback(
         (next: string) => {
             if (form) {
@@ -119,6 +122,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     )
 
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
+
     if (type === "regex")
         rules.push({
             validator: (_, value) =>
@@ -200,6 +204,16 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                             language="json"
                             value={settingsValue}
                             onChange={handleValueChange}
+                        />
+                    ) : type === "llm_response_schema" ? (
+                        <JSONSchemaEditor
+                            form={form!}
+                            name={name}
+                            defaultValue={
+                                typeof savedValue === "string"
+                                    ? savedValue
+                                    : JSON.stringify(savedValue ?? {}, null, 2)
+                            }
                         />
                     ) : null}
                 </Form.Item>

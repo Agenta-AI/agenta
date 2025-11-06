@@ -78,12 +78,12 @@ import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {buildVariantFromRevision} from "./variantUtils"
+
 interface DebugSectionProps {
     selectedTestcase: {
         testcase: Record<string, any> | null
     }
     selectedVariant: EnhancedVariant
-    // NonNullable<ReturnType<typeof useStatelessVariants>["variants"]>[number]
     testsets: testset[] | null
     traceTree: {
         trace: Record<string, any> | string | null
@@ -108,6 +108,17 @@ interface DebugSectionProps {
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
+    "@global": {
+        /* Make selection modal fit viewport/container with scrollable body */
+        ".ant-modal .ant-modal-content": {
+            maxHeight: "80vh",
+            display: "flex",
+            flexDirection: "column",
+        },
+        ".ant-modal .ant-modal-body": {
+            overflow: "auto",
+        },
+    },
     title: {
         fontSize: theme.fontSizeLG,
         fontWeight: theme.fontWeightMedium,
@@ -144,6 +155,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     },
 }))
+
+const LAST_APP_KEY = "agenta:lastAppId"
+const LAST_VARIANT_KEY = "agenta:lastVariantId"
 
 const DebugSection = ({
     selectedTestcase,
@@ -195,10 +209,10 @@ const DebugSection = ({
 
     const selectedVariant = useMemo(() => {
         const revs = _selectedVariant?.revisions || []
-        // find the most recent revision by looking at the updatedAtTimestamp
         const variant = revs?.sort((a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
         return variant
     }, [_selectedVariant])
+
     const fallbackVariant = useMemo(() => {
         if (_selectedVariant || !defaultAppId) return null
         const revisionLists = Object.values(defaultRevisionMap || {})
@@ -215,6 +229,60 @@ const DebugSection = ({
         if (fallbackVariant) return [fallbackVariant]
         return []
     }, [variants, fallbackVariant])
+
+    // Resolve current application object for display
+    const selectedApp = useMemo(() => {
+        const id = _selectedVariant?.appId || defaultAppId
+        return availableApps.find((a: any) => a.app_id === id)
+    }, [_selectedVariant?.appId, defaultAppId, availableApps])
+
+    // Initialize from localStorage (remember last app/variant) with fallbacks
+    useEffect(() => {
+        // if parent already set a specific variant, respect it
+        if (_selectedVariant) return
+
+        const storedAppId =
+            typeof window !== "undefined" ? localStorage.getItem(LAST_APP_KEY) : null
+        const storedVariantId =
+            typeof window !== "undefined" ? localStorage.getItem(LAST_VARIANT_KEY) : null
+
+        let nextVariant: Variant | null = null
+
+        // 1) Try to find an existing variant matching stored ids among provided or fallback variants
+        const searchPool: Variant[] = [...(variants || []), ...(derivedVariants || [])].filter(
+            Boolean,
+        ) as Variant[]
+
+        if (storedVariantId) {
+            nextVariant = searchPool.find((v) => (v as any)?.variantId === storedVariantId) || null
+        }
+
+        // 2) If not found by variant, but we have an app id, try first variant under that app
+        if (!nextVariant && storedAppId) {
+            nextVariant = searchPool.find((v) => (v as any)?.appId === storedAppId) || null
+        }
+
+        // 3) Finally fall back to first available variant in our computed list
+        if (!nextVariant && searchPool.length > 0) {
+            nextVariant = searchPool[0]
+        }
+
+        if (nextVariant) {
+            setSelectedVariant(nextVariant)
+        }
+    }, [_selectedVariant, variants, derivedVariants, setSelectedVariant])
+
+    // Persist whenever the working selectedVariant changes
+    useEffect(() => {
+        const v = _selectedVariant as any
+        if (!v) return
+        try {
+            if (v.appId) localStorage.setItem(LAST_APP_KEY, v.appId)
+            if (v.variantId) localStorage.setItem(LAST_VARIANT_KEY, v.variantId)
+        } catch {
+            // ignore storage errors (private mode, etc.)
+        }
+    }, [_selectedVariant])
 
     useEffect(() => {
         if (_selectedVariant) return
@@ -286,8 +354,34 @@ const DebugSection = ({
             setIsLoadingResult(true)
 
             const settingsValues = form.getFieldValue("settings_values") || {}
+            let normalizedSettings = {...settingsValues}
+
+            if (typeof normalizedSettings.json_schema === "string") {
+                try {
+                    const parsed = JSON.parse(normalizedSettings.json_schema)
+                    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                        throw new Error()
+                    }
+                    normalizedSettings.json_schema = parsed
+                } catch {
+                    message.error("JSON schema must be a valid JSON object")
+                    setEvalOutputStatus({success: false, error: true})
+                    setIsLoadingResult(false)
+                    return
+                }
+            } else if (
+                normalizedSettings.json_schema &&
+                (typeof normalizedSettings.json_schema !== "object" ||
+                    Array.isArray(normalizedSettings.json_schema))
+            ) {
+                message.error("JSON schema must be a valid JSON object")
+                setEvalOutputStatus({success: false, error: true})
+                setIsLoadingResult(false)
+                return
+            }
+
             const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
-                settingsValues,
+                normalizedSettings,
                 selectedTestcase.testcase,
             )
 
@@ -312,7 +406,6 @@ const DebugSection = ({
                         ? correctAnswerKey.split(".")[1]
                         : correctAnswerKey
 
-                // Normalize ground_truth and prediction to compact, comparable strings
                 const normalizeCompact = (val: any) => {
                     try {
                         if (val === undefined || val === null) return ""
@@ -333,9 +426,7 @@ const DebugSection = ({
 
                 outputs = {
                     ...outputs,
-                    // Include all testcase fields so evaluators can access them directly (e.g., {{topic}})
                     ...selectedTestcase.testcase,
-                    // Set both ground_truth and the specific correct answer key for compatibility
                     ground_truth,
                     [groundTruthKey]: ground_truth,
                     prediction,
@@ -345,27 +436,18 @@ const DebugSection = ({
 
             const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
                 inputs: outputs,
-                settings: transformTraceKeysInSettings(settingsValues),
+                settings: transformTraceKeysInSettings(normalizedSettings),
                 ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
                     ? {credentials: apiKeyObject(secrets)}
                     : {}),
             })
             setEvalOutputStatus({success: true, error: false})
 
-            setOutputResult(
-                getStringOrJson(
-                    runResponse.outputs.success !== undefined
-                        ? runResponse.outputs.success
-                        : runResponse.outputs.score !== undefined
-                          ? runResponse.outputs.score
-                          : runResponse.outputs,
-                ),
-            )
+            setOutputResult(getStringOrJson(runResponse.outputs))
         } catch (error: any) {
             console.error(error)
             setEvalOutputStatus({success: false, error: true})
-            if (error.response.data.detail) {
-                // Handle both string and object error details properly
+            if (error.response?.data?.detail) {
                 const errorDetail =
                     typeof error.response.data.detail === "string"
                         ? error.response.data.detail
@@ -409,12 +491,8 @@ const DebugSection = ({
                 const isCustomBySchema = Boolean(spec) && !hasInputsProp && !hasMessagesProp
                 const isCustom = Boolean(flags?.isCustom) || isCustomBySchema
 
-                // Build effective input keys
                 let effectiveKeys: string[] = []
                 if (isCustom) {
-                    // For custom workflows, use top-level schema keys
-                    // Do not strip "context" here; callVariant will attach project context under root
-                    // and any variable keys are handled by transformToRequestBody.
                     effectiveKeys = spec ? extractInputKeysFromSchema(spec, routePath) : []
                 } else {
                     const fromParams = (() => {
@@ -437,10 +515,8 @@ const DebugSection = ({
                     ).filter((k) => k && k !== "chat")
                 }
 
-                // Parameter definitions: mark as non-input so callVariant nests under inputs for non-custom
                 params.inputs = (effectiveKeys || []).map((name) => ({name, input: false}))
 
-                // Optional parameters/body extras: prefer stable transform snapshot
                 const baseParameters = isPlainObject(stableTransformedParams)
                     ? {...stableTransformedParams}
                     : transformToRequestBody({
@@ -454,7 +530,6 @@ const DebugSection = ({
                                         routePath,
                                     ) || []
                                   : [],
-                          // Keep request shape aligned with OpenAPI schema
                           isChat: hasMessagesProp,
                           isCustom,
                           customProperties: isCustom ? customProps : undefined,
@@ -477,7 +552,7 @@ const DebugSection = ({
                               : undefined
 
                         if (variantAgConfig) {
-                            baseParameters.ag_config = variantAgConfig
+                            ;(baseParameters as any).ag_config = variantAgConfig
                         }
                     }
 
@@ -504,7 +579,6 @@ const DebugSection = ({
                 params.isCustom = selectedVariant?.isCustom
             }
 
-            // Filter testcase down to allowed keys only (exclude chat)
             const testcaseDict = selectedTestcase.testcase
             const allowed = new Set((params.inputs || []).map((p) => p.name))
             const filtered = Object.fromEntries(
@@ -541,7 +615,7 @@ const DebugSection = ({
                 const {trace, tree, data} = result
                 setVariantResult(getStringOrJson(data))
 
-                if (trace && trace?.spans) {
+                if (trace?.spans) {
                     setTraceTree({
                         trace: transformTraceTreeToJson(
                             fromBaseResponseToTraceSpanType(trace.spans, trace.trace_id)[0],
@@ -550,17 +624,16 @@ const DebugSection = ({
                 }
 
                 if (tree) {
-                    const traceTree = tree.nodes
+                    const tTree = tree.nodes
                         .flatMap((node: AgentaNodeDTO) => buildNodeTree(node))
                         .flatMap((item: any) => observabilityTransformer(item))
                         .map((item) => {
                             const {key, children, ...trace} = item
-
                             return trace
                         })[0]
 
                     setTraceTree({
-                        trace: buildNodeTreeV3(traceTree),
+                        trace: buildNodeTreeV3(tTree),
                     })
                 }
                 setVariantStatus({success: true, error: false})
@@ -571,7 +644,7 @@ const DebugSection = ({
             if (!controller.signal.aborted) {
                 console.error("error: ", error)
                 message.error(error.message)
-                if (error.response.data.detail) {
+                if (error.response?.data?.detail) {
                     setVariantResult(getStringOrJson(error.response.data.detail))
                 } else {
                     setVariantResult("Error occured")
@@ -616,6 +689,10 @@ const DebugSection = ({
             return str
         }
     }
+
+    // Helper to print "App / Variant" nicely
+    const appName = selectedApp?.name || selectedApp?.app_name || "app"
+    const variantName = selectedVariant?.variantName || "variant"
 
     return (
         <section className="flex flex-col gap-4 h-full pb-10 w-[50%]">
@@ -677,7 +754,7 @@ const DebugSection = ({
                                         setSelectedTestcase(parsedValue)
                                     }
                                 } catch (error) {
-                                    console.error("Failed to parse test case JSON", error)
+                                    console.error("Failed to parse testcase JSON", error)
                                 }
                             }}
                             options={{
@@ -734,7 +811,8 @@ const DebugSection = ({
                                         {
                                             key: "change_variant",
                                             icon: <Lightning />,
-                                            label: "Change Variant",
+                                            // Updated copy
+                                            label: "Change application",
                                             onClick: () => setOpenVariantModal(true),
                                         },
                                     ],
@@ -749,8 +827,8 @@ const DebugSection = ({
                                     }
                                 >
                                     <Play />
-                                    {/* Adding key above ensures React re-renders this label when variant changes */}
-                                    Run {selectedVariant?.variantName || "variant"}
+                                    {/* Show "App / Variant" */}
+                                    Run application ({appName}/{variantName})
                                 </div>
                             </Dropdown.Button>
                         )}
@@ -833,7 +911,7 @@ const DebugSection = ({
                     <Flex justify="space-between">
                         <Space size={5}>
                             <Typography.Text className={classes.formTitleText}>
-                                Evaluator Output
+                                Evaluator
                             </Typography.Text>
                             {evalOutputStatus.success && (
                                 <>
@@ -861,24 +939,36 @@ const DebugSection = ({
                         </Tooltip>
                     </Flex>
 
-                    <div className="w-full h-full overflow-hidden">
-                        <Editor
-                            className={classes.editor}
-                            width="100%"
-                            height="100%"
-                            language="yaml"
-                            theme={`vs-${appTheme}`}
-                            options={{
-                                wordWrap: "on",
-                                minimap: {enabled: false},
-                                readOnly: true,
-                                lineNumbers: "off",
-                                lineDecorationsWidth: 0,
-                                scrollBeyondLastLine: false,
-                            }}
-                            value={formatOutput(outputResult)}
-                        />
-                    </div>
+                    <Tabs
+                        defaultActiveKey="output"
+                        className={classes.variantTab}
+                        items={[
+                            {
+                                key: "output",
+                                label: "Output",
+                                children: (
+                                    <div className="w-full h-full overflow-hidden">
+                                        <Editor
+                                            className={classes.editor}
+                                            width="100%"
+                                            height="100%"
+                                            language="yaml"
+                                            theme={`vs-${appTheme}`}
+                                            options={{
+                                                wordWrap: "on",
+                                                minimap: {enabled: false},
+                                                readOnly: true,
+                                                lineNumbers: "off",
+                                                lineDecorationsWidth: 0,
+                                                scrollBeyondLastLine: false,
+                                            }}
+                                            value={formatOutput(outputResult)}
+                                        />
+                                    </div>
+                                ),
+                            },
+                        ]}
+                    />
                 </div>
             </div>
 
@@ -886,7 +976,15 @@ const DebugSection = ({
                 variants={derivedVariants}
                 open={openVariantModal}
                 onCancel={() => setOpenVariantModal(false)}
-                setSelectedVariant={setSelectedVariant}
+                setSelectedVariant={(v) => {
+                    setSelectedVariant(v)
+                    // eager persist on selection from modal
+                    try {
+                        if ((v as any)?.appId) localStorage.setItem(LAST_APP_KEY, (v as any).appId)
+                        if ((v as any)?.variantId)
+                            localStorage.setItem(LAST_VARIANT_KEY, (v as any).variantId)
+                    } catch {}
+                }}
                 selectedVariant={selectedVariant}
                 selectedTestsetId={selectedTestset}
             />

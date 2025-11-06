@@ -14,8 +14,8 @@ from ..core.serialization import convert_and_respect_annotation_metadata
 from ..errors.unprocessable_entity_error import UnprocessableEntityError
 from ..types.http_validation_error import HttpValidationError
 from ..types.meta_request import MetaRequest
-from ..types.test_set_output_response import TestSetOutputResponse
-from ..types.test_set_simple_response import TestSetSimpleResponse
+from ..types.testset_output_response import TestsetOutputResponse
+from ..types.testset_simple_response import TestsetSimpleResponse
 from ..types.testcase_response import TestcaseResponse
 from ..types.testset import Testset
 from ..types.testset_response import TestsetResponse
@@ -45,7 +45,7 @@ class RawTestsetsClient:
         upload_type: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[TestSetSimpleResponse]:
+    ) -> HttpResponse[TestsetSimpleResponse]:
         """
         Uploads a CSV or JSON file and saves its data to Postgres.
 
@@ -71,7 +71,7 @@ class RawTestsetsClient:
 
         Returns
         -------
-        HttpResponse[TestSetSimpleResponse]
+        HttpResponse[TestsetSimpleResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -91,9 +91,9 @@ class RawTestsetsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TestSetSimpleResponse,
+                    TestsetSimpleResponse,
                     parse_obj_as(
-                        type_=TestSetSimpleResponse,  # type: ignore
+                        type_=TestsetSimpleResponse,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -129,7 +129,7 @@ class RawTestsetsClient:
         endpoint: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> HttpResponse[TestSetSimpleResponse]:
+    ) -> HttpResponse[TestsetSimpleResponse]:
         """
         Import JSON testset data from an endpoint and save it to Postgres.
 
@@ -153,7 +153,7 @@ class RawTestsetsClient:
 
         Returns
         -------
-        HttpResponse[TestSetSimpleResponse]
+        HttpResponse[TestsetSimpleResponse]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -175,9 +175,9 @@ class RawTestsetsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TestSetSimpleResponse,
+                    TestsetSimpleResponse,
                     parse_obj_as(
-                        type_=TestSetSimpleResponse,  # type: ignore
+                        type_=TestsetSimpleResponse,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -208,7 +208,7 @@ class RawTestsetsClient:
 
     def get_testsets(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> HttpResponse[typing.List[TestSetOutputResponse]]:
+    ) -> HttpResponse[typing.List[TestsetOutputResponse]]:
         """
         Get all testsets.
 
@@ -225,7 +225,7 @@ class RawTestsetsClient:
 
         Returns
         -------
-        HttpResponse[typing.List[TestSetOutputResponse]]
+        HttpResponse[typing.List[TestsetOutputResponse]]
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
@@ -236,9 +236,9 @@ class RawTestsetsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.List[TestSetOutputResponse],
+                    typing.List[TestsetOutputResponse],
                     parse_obj_as(
-                        type_=typing.List[TestSetOutputResponse],  # type: ignore
+                        type_=typing.List[TestsetOutputResponse],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -476,11 +476,11 @@ class RawTestsetsClient:
         Update a testset with given id, update the testset in Postgres.
 
         Args:
-        testset_id (str): id of the test set to be updated.
+        testset_id (str): id of the testset to be updated.
         csvdata (NewTestset): New data to replace the old testset.
 
         Returns:
-        str: The id of the test set updated.
+        str: The id of the testset updated.
 
         Parameters
         ----------
@@ -1202,7 +1202,7 @@ class AsyncRawTestsetsClient:
         upload_type: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[TestSetSimpleResponse]:
+    ) -> AsyncHttpResponse[TestsetSimpleResponse]:
         """
         Uploads a CSV or JSON file and saves its data to Postgres.
 
@@ -1228,7 +1228,7 @@ class AsyncRawTestsetsClient:
 
         Returns
         -------
-        AsyncHttpResponse[TestSetSimpleResponse]
+        AsyncHttpResponse[TestsetSimpleResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1248,9 +1248,9 @@ class AsyncRawTestsetsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TestSetSimpleResponse,
+                    TestsetSimpleResponse,
                     parse_obj_as(
-                        type_=TestSetSimpleResponse,  # type: ignore
+                        type_=TestsetSimpleResponse,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1286,7 +1286,7 @@ class AsyncRawTestsetsClient:
         endpoint: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> AsyncHttpResponse[TestSetSimpleResponse]:
+    ) -> AsyncHttpResponse[TestsetSimpleResponse]:
         """
         Import JSON testset data from an endpoint and save it to Postgres.
 
@@ -1310,7 +1310,7 @@ class AsyncRawTestsetsClient:
 
         Returns
         -------
-        AsyncHttpResponse[TestSetSimpleResponse]
+        AsyncHttpResponse[TestsetSimpleResponse]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1332,9 +1332,9 @@ class AsyncRawTestsetsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    TestSetSimpleResponse,
+                    TestsetSimpleResponse,
                     parse_obj_as(
-                        type_=TestSetSimpleResponse,  # type: ignore
+                        type_=TestsetSimpleResponse,  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1365,7 +1365,7 @@ class AsyncRawTestsetsClient:
 
     async def get_testsets(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> AsyncHttpResponse[typing.List[TestSetOutputResponse]]:
+    ) -> AsyncHttpResponse[typing.List[TestsetOutputResponse]]:
         """
         Get all testsets.
 
@@ -1382,7 +1382,7 @@ class AsyncRawTestsetsClient:
 
         Returns
         -------
-        AsyncHttpResponse[typing.List[TestSetOutputResponse]]
+        AsyncHttpResponse[typing.List[TestsetOutputResponse]]
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
@@ -1393,9 +1393,9 @@ class AsyncRawTestsetsClient:
         try:
             if 200 <= _response.status_code < 300:
                 _data = typing.cast(
-                    typing.List[TestSetOutputResponse],
+                    typing.List[TestsetOutputResponse],
                     parse_obj_as(
-                        type_=typing.List[TestSetOutputResponse],  # type: ignore
+                        type_=typing.List[TestsetOutputResponse],  # type: ignore
                         object_=_response.json(),
                     ),
                 )
@@ -1633,11 +1633,11 @@ class AsyncRawTestsetsClient:
         Update a testset with given id, update the testset in Postgres.
 
         Args:
-        testset_id (str): id of the test set to be updated.
+        testset_id (str): id of the testset to be updated.
         csvdata (NewTestset): New data to replace the old testset.
 
         Returns:
-        str: The id of the test set updated.
+        str: The id of the testset updated.
 
         Parameters
         ----------

@@ -48,7 +48,7 @@ const HumanEvaluationModal = ({
     const [selectedTestset, setSelectedTestset] = useState<{
         _id?: string
         name: string
-    }>({name: "Select a Test set"})
+    }>({name: "Select a Testset"})
     const [testsetsList, setTestsetsList] = useState<any[]>([])
 
     const [selectedVariants, setSelectedVariants] = useState<Variant[]>(
@@ -254,7 +254,7 @@ const HumanEvaluationModal = ({
     const onStartEvaluation = async () => {
         const selectedVariant = selectedVariants[0]
         // 1. We check all data is provided
-        if (selectedTestset === undefined || selectedTestset.name === "Select a Test set") {
+        if (selectedTestset === undefined || selectedTestset.name === "Select a Testset") {
             message.error("Please select a Testset")
             return
         } else if (selectedVariant?.variantName === "Select a variant") {
@@ -286,7 +286,7 @@ const HumanEvaluationModal = ({
             if (err.message !== PERMISSION_ERR_MSG) {
                 setError({
                     message: getErrorMessage(err),
-                    btnText: "Go to Test sets",
+                    btnText: "Go to Testsets",
                     endpoint: `${projectURL}/testsets`,
                 })
             }
@@ -313,7 +313,7 @@ const HumanEvaluationModal = ({
                 onCancel={() => {
                     setIsEvalModalOpen(false)
 
-                    setSelectedTestset({name: "Select a Test set"})
+                    setSelectedTestset({name: "Select a Testset"})
                     setSelectedVariants(new Array(1).fill({variantName: "Select a variant"}))
                 }}
                 title="New Evaluation"

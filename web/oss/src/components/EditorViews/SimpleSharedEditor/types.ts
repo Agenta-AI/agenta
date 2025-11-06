@@ -19,5 +19,6 @@ export interface SimpleSharedEditorProps extends SharedEditorProps {
     disableFormatItems?: {text?: boolean; markdown?: boolean; json?: boolean; yaml?: boolean}
     minimizedHeight?: number
     showTextToMdOutside?: boolean
+    defaultMinimized?: boolean
 }
 export type Format = "text" | "json" | "yaml" | "markdown" | "html"

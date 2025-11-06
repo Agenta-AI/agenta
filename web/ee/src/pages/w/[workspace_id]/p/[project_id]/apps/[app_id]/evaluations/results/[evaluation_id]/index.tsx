@@ -1,7 +1,12 @@
+import {useRouter} from "next/router"
+
 import EvalRunDetailsPage from "@/oss/components/EvalRunDetails"
 
-const EvaluationPage = () => {
-    return <EvalRunDetailsPage evalType="auto" />
+const AppEvaluationResultsPage = () => {
+    const router = useRouter()
+    const t = (router.query.type as string) || "auto"
+    const evalType = t === "online" ? "online" : "auto"
+    return <EvalRunDetailsPage evalType={evalType as any} />
 }
 
-export default EvaluationPage
+export default AppEvaluationResultsPage

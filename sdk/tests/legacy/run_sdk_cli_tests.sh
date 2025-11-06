@@ -9,7 +9,7 @@ check_and_request_var() {
   if [ -z "$var_value" ]; then
     read -p "Enter value for $var_name: " var_value
     export $var_name="$var_value"
-    export BASE_URL="http://127.0.0.1" # required for sdk serving test suites
+    export BASE_URL="http://127.0.0.1" # required for sdk routing test suites
   fi
 }
 

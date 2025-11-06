@@ -49,7 +49,7 @@
   --ifm-h2-font-weight: 500;
   --ifm-h3-font-weight: 500;
   --ifm-h4-font-weight: 500;
-  --ifm-navbar-height: 3.9rem;
+  --ifm-navbar-height: 6.5rem;
   --ifm-link-color: var(--ifm-color-primary-darker);
   --ifm-heading-color: var(--ifm-color-primary-darkest);
   --ifm-heading-h1-font-size: 32px;
@@ -426,6 +426,25 @@ a[class*="cardContainer"]:hover {
 
 /** Navbar **/
 
+/* Two-row navbar layout */
+.two-row-navbar {
+  --ifm-navbar-height: 6.5rem;
+  padding: 0 !important;
+}
+
+.two-row-navbar .navbar__inner {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 0 !important;
+}
+
+/* Hide mobile toggle on desktop for bottom row */
+@media (min-width: 997px) {
+  .two-row-navbar .navbar__toggle {
+    display: none;
+  }
+}
+
 @media (min-width: 1851px) {
 
   .main-wrapper,
@@ -459,6 +478,35 @@ a[class*="cardContainer"]:hover {
   .navbar__inner {
     width: 100%;
     margin: auto;
+  }
+}
+
+/* Target CSS module classes properly - these override the module's own styles */
+.two-row-navbar :global(.navbarTopRow) {
+  padding: 10px 0 0 0 !important;
+}
+
+.two-row-navbar :global(.navbarBottomRow) {
+  padding: 0 !important;
+  margin-top: 17px !important;
+}
+
+/* Add left margin to logo in desktop two-row mode */
+@media (min-width: 997px) {
+  .two-row-navbar .navbar__logo {
+    margin-left: 8px;
+  }
+}
+
+/* Mobile: reset to single row with normal navbar height */
+@media (max-width: 996px) {
+  .two-row-navbar {
+    --ifm-navbar-height: 3.5rem;
+    padding: 8px 16px !important;
+  }
+
+  .two-row-navbar :global(.navbarTopRow) {
+    padding: 0 !important;
   }
 }
 
@@ -604,10 +652,20 @@ a[class*="cardContainer"]:hover {
   padding: 0 2px 0px 8px !important;
 }
 
-@media (min-width: 1350px) {
-  .DocSearch-Button {
-    width: 250px;
-  }
+/* Search bar in two-row navbar should be wider */
+.two-row-navbar .navbar__search {
+  width: auto !important;
+  flex: 1 1 auto !important;
+}
+
+.two-row-navbar .DocSearch {
+  width: 100% !important;
+}
+
+.two-row-navbar .DocSearch-Button {
+  min-width: 400px !important;
+  max-width: 740px !important;
+  width: 100% !important;
 }
 
 @media (max-width: 768px) {
@@ -632,6 +690,7 @@ a[class*="cardContainer"]:hover {
 }
 
 /*************************** Sidebar ***************************/
+
 @media (min-width: 1350px) {
   .theme-doc-sidebar-container {
     margin-right: 40px;
@@ -712,6 +771,11 @@ li.sidebar-section-title>div.menu__list-item-collapsible a {
 
 .menu__list {
   padding-right: 5px;
+  padding-left: 4px;
+}
+
+.menu {
+  padding-left: 0px !important;
 }
 
 /* Sidebar container - always hide border */

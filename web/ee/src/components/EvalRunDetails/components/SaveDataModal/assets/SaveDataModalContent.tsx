@@ -39,7 +39,7 @@ const SaveDataModalContent = ({
         <section className="flex flex-col gap-4 my-5">
             <div className="flex flex-col gap-1">
                 <Typography.Text type="secondary">
-                    {exportDataset ? "File name" : "Test set name"}
+                    {exportDataset ? "File name" : "Testset name"}
                 </Typography.Text>
                 <Input
                     ref={inputRef}

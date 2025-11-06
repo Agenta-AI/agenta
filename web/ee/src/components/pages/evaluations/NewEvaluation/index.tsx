@@ -265,7 +265,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             return false
         }
         if (!selectedTestsetId) {
-            message.error("Please select a test set")
+            message.error("Please select a testset")
             return false
         }
         if (selectedVariantRevisionIds.length === 0) {
@@ -320,13 +320,13 @@ const NewEvaluationModal = <Preview extends boolean = true>({
 
             const testset = await fetchTestset(selectedTestsetId)
             if (!testset) {
-                message.error("Please select a test set")
+                message.error("Please select a testset")
                 return false
             }
             const testsetColumns = Object.keys(testset?.csvdata[0] || {})
 
             if (!testsetColumns.length) {
-                message.error("Please select a correct testset which has test cases")
+                message.error("Please select a correct testset which has testcases")
                 return false
             }
 
@@ -422,9 +422,9 @@ const NewEvaluationModal = <Preview extends boolean = true>({
                     (evaluationType === "human" && !evaluationName)
                 ) {
                     message.error(
-                        `Please select a test set, app variant, ${evaluationType === "human" ? "evaluation name, and" : " and"} evaluator configuration. Missing: ${
+                        `Please select a testset, app variant, ${evaluationType === "human" ? "evaluation name, and" : " and"} evaluator configuration. Missing: ${
                             !selectionData.revisions?.length ? "app revision" : ""
-                        } ${!selectionData.testset ? "test set" : ""} ${
+                        } ${!selectionData.testset ? "testset" : ""} ${
                             !selectionData.evaluators?.length
                                 ? "evaluators"
                                 : evaluationType === "human" && !evaluationName
@@ -532,7 +532,7 @@ const NewEvaluationModal = <Preview extends boolean = true>({
                     variantsLoading
                 }
                 isOpen={props.open}
-                testSets={selectedAppId ? testsets || [] : []}
+                testsets={selectedAppId ? testsets || [] : []}
                 variants={filteredVariants}
                 variantsLoading={variantsLoading}
                 evaluators={evaluators}

@@ -1,0 +1,22 @@
+from agenta.sdk.models.workflows import WorkflowServiceConfiguration
+
+
+echo_v0_configuration = WorkflowServiceConfiguration()
+auto_exact_match_v0_configuration = WorkflowServiceConfiguration()
+auto_regex_test_v0_configuration = WorkflowServiceConfiguration()
+field_match_test_v0_configuration = WorkflowServiceConfiguration()
+auto_webhook_test_v0_configuration = WorkflowServiceConfiguration()
+auto_custom_code_run_v0_configuration = WorkflowServiceConfiguration()
+auto_ai_critique_v0_configuration = WorkflowServiceConfiguration()
+auto_starts_with_v0_configuration = WorkflowServiceConfiguration()
+auto_ends_with_v0_configuration = WorkflowServiceConfiguration()
+auto_contains_v0_configuration = WorkflowServiceConfiguration()
+auto_contains_any_v0_configuration = WorkflowServiceConfiguration()
+auto_contains_all_v0_configuration = WorkflowServiceConfiguration()
+auto_contains_json_v0_configuration = WorkflowServiceConfiguration()
+auto_json_diff_v0_configuration = WorkflowServiceConfiguration()
+auto_levenshtein_distance_v0_configuration = WorkflowServiceConfiguration()
+auto_similarity_match_v0_configuration = WorkflowServiceConfiguration()
+auto_semantic_similarity_v0_configuration = WorkflowServiceConfiguration()
+completion_v0_configuration = WorkflowServiceConfiguration()
+chat_v0_configuration = WorkflowServiceConfiguration()

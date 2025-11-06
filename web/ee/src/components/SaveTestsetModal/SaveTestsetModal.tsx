@@ -59,7 +59,7 @@ const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
 
     return (
         <EnhancedModal
-            title="Add new test set"
+            title="Add new testset"
             okText="Create"
             onOk={handleSave}
             confirmLoading={submitLoading}
@@ -74,7 +74,7 @@ const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
         >
             <Input
                 ref={inputRef}
-                placeholder="Test set name"
+                placeholder="Testset name"
                 onChange={(e) => setTestsetName(e.target.value)}
                 value={testsetName}
                 className="my-3"

@@ -1,14 +1,16 @@
 import {memo, useCallback} from "react"
 
 import {Button, Spin} from "antd"
-import {getDefaultStore, useAtomValue} from "jotai"
-import {loadable} from "jotai/utils"
+import {getDefaultStore} from "jotai"
 
 import {useRunId} from "@/oss/contexts/RunIdContext"
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
 
 // Use EE run-scoped versions for multi-run support
-import {scenarioStepFamily} from "../../../../../lib/hooks/useEvaluationRunData/assets/atoms"
+import {
+    hasScenarioStepData,
+    useScenarioStepSnapshot,
+} from "../../../../../lib/hooks/useEvaluationRunData/useScenarioStepSnapshot"
 import RunEvalScenarioButton from "../../../HumanEvalRun/components/RunEvalScenarioButton"
 
 import {CellWrapper} from "./CellComponents"
@@ -22,10 +24,7 @@ const ActionCell = ({scenarioId, runId: propRunId}: {scenarioId: string; runId?:
     const contextRunId = useRunId()
     const effectiveRunId = propRunId || contextRunId
 
-    // Use global store for multi-run support
-    const stepLoadable = useAtomValue(
-        loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId})),
-    )
+    const {data: stepData} = useScenarioStepSnapshot(scenarioId, effectiveRunId)
 
     const openAnnotateDrawer = useCallback(() => {
         store.set(virtualScenarioTableAnnotateDrawerAtom, {
@@ -35,7 +34,7 @@ const ActionCell = ({scenarioId, runId: propRunId}: {scenarioId: string; runId?:
         })
     }, [scenarioId, effectiveRunId, store])
 
-    if (stepLoadable.state !== "hasData") {
+    if (!effectiveRunId || !hasScenarioStepData(stepData)) {
         return (
             <CellWrapper className="justify-center">
                 <Spin size="small" />
@@ -43,9 +42,7 @@ const ActionCell = ({scenarioId, runId: propRunId}: {scenarioId: string; runId?:
         )
     }
 
-    const data = stepLoadable.data
-
-    const invocationArr: any[] = data?.invocationSteps || []
+    const invocationArr: any[] = stepData?.invocationSteps || []
 
     const allSuccess =
         invocationArr.length > 0 && invocationArr.every((s) => s.status === "success")

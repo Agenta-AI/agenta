@@ -216,7 +216,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
             },
         },
         {
-            title: "Test set",
+            title: "Testset",
             dataIndex: "testsetName",
             key: "testsetName",
             onHeaderCell: () => ({
@@ -353,7 +353,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                     },
                                     {
                                         key: "view_testset",
-                                        label: "View test set",
+                                        label: "View testset",
                                         icon: <Database size={16} />,
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()
@@ -410,7 +410,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                 variant_name: item.variantNames[1] ?? "",
                                 revision: item.revisions[1],
                             }),
-                            "Test set": item.testset.name,
+                            Testset: item.testset.name,
                             "Result 1": `${getVotesPercentage(item, 0) || 0}%`,
                             "Result 2": `${getVotesPercentage(item, 1) || 0}%`,
                             "Both are good": `${item.votesData.positive_votes.percentage}%`,

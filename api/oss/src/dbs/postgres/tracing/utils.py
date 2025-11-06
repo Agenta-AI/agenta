@@ -349,7 +349,8 @@ def _handle_existence_operator(
 
     elif operator == ExistenceOperator.NOT_EXISTS:
         if key:
-            clauses.append(not_(attribute.op("?")(key)))
+            container, leaf = _to_jsonb_path(attribute, key, leaf_as_text=False)
+            clauses.append(not_(container.op("?")(leaf)))
         else:
             clauses.append(attribute.is_(None))
 
@@ -1328,17 +1329,26 @@ def build_numeric_continuous_blocks(
             cont_bin_series.c.bin,
             (cont_bin_series.c.bin == cont_bins.c.bins).label("is_last_bin"),
             case(
-                (
-                    is_edge_aligned,
-                    cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width,
+                (cont_bin_series.c.bin == literal(1, Integer), cont_bins.c.vmin),
+                else_=case(
+                    (
+                        is_edge_aligned,
+                        cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width,
+                    ),
+                    else_=(cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width)
+                    - (bin_width / 2),
                 ),
-                else_=(cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width)
-                - (bin_width / 2),
             ).label("interval_start"),
             case(
-                (is_edge_aligned, cont_bins.c.vmin + cont_bin_series.c.bin * bin_width),
-                else_=(cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width)
-                + (bin_width / 2),
+                (cont_bin_series.c.bin == cont_bins.c.bins, cont_bins.c.vmax),
+                else_=case(
+                    (
+                        is_edge_aligned,
+                        cont_bins.c.vmin + cont_bin_series.c.bin * bin_width,
+                    ),
+                    else_=(cont_bins.c.vmin + (cont_bin_series.c.bin - 1) * bin_width)
+                    + (bin_width / 2),
+                ),
             ).label("interval_end"),
         ).select_from(cont_bins.join(cont_bin_series, literal(True)))
     ).cte("bin_intervals")
@@ -1988,7 +1998,9 @@ def normalize_hist(
         count += float(h.get("count", 0.0))
 
     for h in hist:
-        h["count"] = float(h.get("count", 0.0)) / count if count > 0.0 else 0.0
+        h["density"] = round(
+            float(h.get("count", 0.0)) / count if count > 0.0 else 0.0, 5
+        )
 
     return {"hist": hist}
 
@@ -2022,7 +2034,9 @@ def normalize_freq(
         count += float(f.get("count", 0.0))
 
     for f in freq:
-        f["count"] = float(f.get("count", 0.0)) / count if count > 0.0 else 0.0
+        f["density"] = round(
+            float(f.get("count", 0.0)) / count if count > 0.0 else 0.0, 5
+        )
 
     return {"freq": freq}
 

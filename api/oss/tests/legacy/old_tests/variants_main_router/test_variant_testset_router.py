@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 
 from oss.src.models.db_models import (
     AppDB,
-    TestSetDB,
+    TestsetDB,
 )
 
 from oss.src.dbs.postgres.shared.engine import engine
@@ -63,7 +63,7 @@ async def test_update_testset():
         app = result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(project_id=app.project_id)
+            select(TestsetDB).filter_by(project_id=app.project_id)
         )
         testset = testset_result.scalars().first()
 
@@ -111,7 +111,7 @@ async def test_get_testset():
         app = result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(project_id=app.project_id)
+            select(TestsetDB).filter_by(project_id=app.project_id)
         )
         testset = testset_result.scalars().first()
 
@@ -133,7 +133,7 @@ async def test_delete_testsets():
         app = result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestSetDB).filter_by(project_id=app.project_id)
+            select(TestsetDB).filter_by(project_id=app.project_id)
         )
         testsets = testset_result.scalars().all()
 

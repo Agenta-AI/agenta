@@ -48,6 +48,7 @@ export async function fetchRunMetricsViaWorker(
         projectId: string
         evaluatorSlugs: string[]
         revisionSlugs: string[]
+        annotationSlugMap?: Record<string, string>
     },
     timeoutMs = 30000,
 ): Promise<{metrics: any[]; stats: Record<string, any>}> {

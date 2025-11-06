@@ -12,11 +12,13 @@ from oss.src.core.shared.dtos import (
     Metadata,
 )
 from oss.src.core.workflows.dtos import (
+    WorkflowFlags,
+    WorkflowQueryFlags,
+    #
     Workflow,
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
-    WorkflowFlags,
     #
     WorkflowVariant,
     WorkflowVariantCreate,

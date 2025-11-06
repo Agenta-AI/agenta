@@ -10,7 +10,7 @@ import {useAppId} from "@/oss/hooks/useAppId"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationType} from "@/oss/lib/enums"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-import {EvaluationStatus, SnakeToCamelCaseKeys, TestSet} from "@/oss/lib/Types"
+import {EvaluationStatus, SnakeToCamelCaseKeys, Testset} from "@/oss/lib/Types"
 import {slugify} from "@/oss/lib/utils/slugify"
 import {createEvaluationRunConfig} from "@/oss/services/evaluationRuns/api"
 import {CreateEvaluationRunInput} from "@/oss/services/evaluationRuns/api/types"
@@ -34,6 +34,12 @@ interface PreviewEvaluationRunsData {
     count: number
 }
 
+interface RunFlagsFilter {
+    is_live?: boolean
+    is_active?: boolean
+    is_closed?: boolean
+}
+
 interface PreviewEvaluationRunsQueryParams {
     projectId?: string
     appId?: string
@@ -42,12 +48,13 @@ interface PreviewEvaluationRunsQueryParams {
     typesKey: string
     debug: boolean
     enabled: boolean
+    flags?: RunFlagsFilter
 }
 
 const previewEvaluationRunsQueryAtomFamily = atomFamily((serializedParams: string) =>
     atomWithQuery<PreviewEvaluationRunsData>(() => {
         const params = JSON.parse(serializedParams) as PreviewEvaluationRunsQueryParams
-        const {projectId, appId, searchQuery, references, typesKey, debug, enabled} = params
+        const {projectId, appId, searchQuery, references, typesKey, enabled, flags} = params
 
         return {
             queryKey: [
@@ -57,6 +64,7 @@ const previewEvaluationRunsQueryAtomFamily = atomFamily((serializedParams: strin
                 typesKey,
                 searchQuery ?? "",
                 JSON.stringify(references ?? []),
+                JSON.stringify(flags ?? {}),
             ],
             enabled,
             refetchOnWindowFocus: false,
@@ -73,9 +81,14 @@ const previewEvaluationRunsQueryAtomFamily = atomFamily((serializedParams: strin
                 if (searchQuery) {
                     payload.run.search = searchQuery
                 }
+                if (flags && Object.keys(flags).length) {
+                    payload.run.flags = flags
+                }
 
                 const queryParams: Record<string, string> = {project_id: projectId}
-                if (appId) queryParams.app_id = appId
+                if (appId) {
+                    queryParams.app_id = appId
+                }
 
                 const response = await axios.post(`/preview/evaluations/runs/query`, payload, {
                     params: queryParams,
@@ -104,6 +117,8 @@ interface PreviewEvaluationsQueryState {
 import {searchQueryAtom} from "./states/queryFilterAtoms"
 import {EnrichedEvaluationRun, EvaluationRun} from "./types"
 
+import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+
 const SCENARIOS_ENDPOINT = "/preview/evaluations/scenarios/"
 
 /**
@@ -118,12 +133,14 @@ const usePreviewEvaluations = ({
     skip,
     types: propsTypes = [],
     debug,
+    flags,
     appId: appIdOverride,
 }: {
     skip?: boolean
     types?: EvaluationType[]
     debug?: boolean
     appId?: string | null
+    flags?: RunFlagsFilter
 } = {}): {
     swrData: PreviewEvaluationsQueryState
     createNewRun: (paramInputs: CreateEvaluationRunInput) => Promise<any>
@@ -143,15 +160,33 @@ const usePreviewEvaluations = ({
                     return EvaluationType.human
                 case EvaluationType.auto_exact_match:
                 case EvaluationType.automatic:
+                case EvaluationType.online:
                     return EvaluationType.automatic
                 default:
                     return type
             }
         })
     }, [propsTypes])
+
     const {mutate: globalMutate} = useSWRConfig()
     const routeAppId = useAppId()
     const appId = (appIdOverride ?? routeAppId) || undefined
+
+    // Derive effective flags based on types (e.g., online implies is_live=true by default)
+    const effectiveFlags = useMemo(() => {
+        const base = {...(flags || {})}
+        if (propsTypes.includes(EvaluationType.online) && base.is_live === undefined) {
+            base.is_live = true
+        }
+        return base
+    }, [flags, propsTypes])
+
+    const {data: humanEvaluators} = useEvaluators({
+        preview: true,
+        queries: {
+            is_human: !types.includes(EvaluationType.automatic),
+        },
+    })
 
     const referenceFilters = useMemo(() => {
         const filters: any[] = []
@@ -163,8 +198,19 @@ const usePreviewEvaluations = ({
         return filters
     }, [appId])
 
+    const effectiveEvalType = useMemo(() => {
+        if (propsTypes.includes(EvaluationType.online)) return "online" as const
+        if (types.includes(EvaluationType.automatic)) return "auto" as const
+        return "human" as const
+    }, [propsTypes, types])
+
+    const enrichRun = useEnrichEvaluationRun({
+        evalType: effectiveEvalType,
+    })
+
     const typesKey = useMemo(() => types.slice().sort().join("|"), [types])
     const queryEnabled = !skip && Boolean(projectId)
+    const isEnrichmentPending = queryEnabled && !enrichRun
 
     const serializedQueryParams = useMemo(
         () =>
@@ -176,8 +222,18 @@ const usePreviewEvaluations = ({
                 typesKey,
                 debug: debugEnabled,
                 enabled: queryEnabled,
+                flags: effectiveFlags,
             }),
-        [projectId, appId, searchQuery, referenceFilters, typesKey, debugEnabled, queryEnabled],
+        [
+            projectId,
+            appId,
+            searchQuery,
+            referenceFilters,
+            typesKey,
+            debugEnabled,
+            queryEnabled,
+            effectiveFlags,
+        ],
     )
 
     const evaluationRunsAtom = useMemo(
@@ -195,17 +251,19 @@ const usePreviewEvaluations = ({
             (evaluationRunsQuery as any).isLoading ??
             (evaluationRunsQuery as any).isFetching ??
             isPending
+        const combinedPending = isPending || isEnrichmentPending
+        const combinedLoading = isLoading || isEnrichmentPending
         const data = queryEnabled ? evaluationRunsQuery.data : {runs: [], count: 0}
         return {
             data,
             mutate: async () => evaluationRunsQuery.refetch(),
             refetch: evaluationRunsQuery.refetch,
-            isLoading,
-            isPending,
+            isLoading: combinedLoading,
+            isPending: combinedPending,
             isError: queryEnabled ? ((evaluationRunsQuery as any).isError ?? false) : false,
             error: queryEnabled ? evaluationRunsQuery.error : undefined,
         }
-    }, [evaluationRunsQuery, queryEnabled])
+    }, [evaluationRunsQuery, queryEnabled, isEnrichmentPending])
     const setProjectVariantReferences = useSetAtom(setProjectVariantReferencesAtom)
 
     useEffect(() => {
@@ -226,9 +284,6 @@ const usePreviewEvaluations = ({
      */
     const {testsets} = useTestsetsData()
     const {testsets: previewTestsets} = usePreviewTestsetsData()
-    const enrichRun = useEnrichEvaluationRun({
-        evalType: types.includes(EvaluationType.automatic) ? "auto" : "human",
-    })
 
     /**
      * Helper to create scenarios for a given run and testset.
@@ -237,7 +292,7 @@ const usePreviewEvaluations = ({
     const createScenarios = useCallback(
         async (
             runId: string,
-            testset: TestSet & {data: {testcaseIds?: string[]; testcases?: {id: string}[]}},
+            testset: Testset & {data: {testcaseIds?: string[]; testcases?: {id: string}[]}},
         ): Promise<string[]> => {
             if (!testset?.id) {
                 throw new Error(`Testset with id ${testset.id} not found.`)
@@ -269,11 +324,23 @@ const usePreviewEvaluations = ({
      */
     const computeRuns = useCallback((): EnrichedEvaluationRun[] => {
         if (!rawRuns.length || !enrichRun) return []
+        const isOnline = propsTypes.includes(EvaluationType.online)
         const enriched: EnrichedEvaluationRun[] = rawRuns
             .map((_run) => {
                 const runClone = structuredClone(_run)
                 const runIndex = buildRunIndex(runClone)
-                return enrichRun(runClone, previewTestsets?.testsets || [], runIndex)
+                const result = enrichRun(runClone, previewTestsets?.testsets || [], runIndex)
+                if (result && isOnline) {
+                    const flags = (result as any).flags || {}
+
+                    if (flags?.isActive === false) {
+                        ;(result as any).status = EvaluationStatus.CANCELLED
+                        if (result.data) {
+                            ;(result.data as any).status = EvaluationStatus.CANCELLED
+                        }
+                    }
+                }
+                return result
             })
             .filter((run): run is EnrichedEvaluationRun => Boolean(run))
 
@@ -283,7 +350,7 @@ const usePreviewEvaluations = ({
             const tB = new Date(b.createdAtTimestamp || 0).getTime()
             return tB - tA
         })
-    }, [rawRuns, previewTestsets, enrichRun, debug])
+    }, [rawRuns, previewTestsets, enrichRun, debug, propsTypes])
 
     const createNewRun = useCallback(
         async (paramInputs: CreateEvaluationRunInput) => {
@@ -296,9 +363,8 @@ const usePreviewEvaluations = ({
                 const existingPreviewQuery = await axios.get(
                     `/preview/simple/testsets/${paramInputs.testset._id}`,
                 )
-                const existingQuery = await fetchTestset(paramInputs.testset._id, false)
+                const _existingQuery = await fetchTestset(paramInputs.testset._id, false)
                 const existingPreview = existingPreviewQuery.data?.testset
-                const existing = existingQuery
                 let testset
                 if (!existingPreview) {
                     const result = await axios.post(

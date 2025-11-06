@@ -1,12 +1,7 @@
 import {useMemo} from "react"
 
-import {useAtomValue} from "jotai"
-import {loadable} from "jotai/utils"
-
-import {UseEvaluationRunScenarioStepsFetcherResult} from "../useEvaluationRunScenarioSteps/types"
-
 import {getCurrentRunId} from "./assets/atoms/migrationHelper"
-import {scenarioStepFamily} from "./assets/atoms/runScopedScenarios"
+import {hasScenarioStepData, useScenarioStepSnapshot} from "./useScenarioStepSnapshot"
 
 const useEvalRunScenarioData = (scenarioId: string, runId?: string) => {
     // Memoize runId calculation to prevent infinite loops
@@ -20,20 +15,13 @@ const useEvalRunScenarioData = (scenarioId: string, runId?: string) => {
         }
     }, [runId])
 
-    // Read from the same global store that writes are going to
-    const stepLoadable = useAtomValue(
-        loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId || ""})),
-    )
+    const snapshot = useScenarioStepSnapshot(scenarioId, effectiveRunId)
 
     return useMemo(() => {
-        let data: UseEvaluationRunScenarioStepsFetcherResult | undefined =
-            stepLoadable.state === "hasData" ? stepLoadable.data : undefined
-
-        if (stepLoadable.state === "hasData" && stepLoadable.data?.trace) {
-            data = stepLoadable.data
-        }
-        return data
-    }, [stepLoadable])
+        const data = snapshot.data
+        if (hasScenarioStepData(data)) return data
+        return undefined
+    }, [snapshot])
 }
 
 export default useEvalRunScenarioData

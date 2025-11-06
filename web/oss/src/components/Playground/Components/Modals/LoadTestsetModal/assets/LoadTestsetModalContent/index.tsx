@@ -2,7 +2,7 @@ import dynamic from "next/dynamic"
 
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {TestSet, testset} from "@/oss/lib/Types"
+import {Testset, testset} from "@/oss/lib/Types"
 import {fetchTestset} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
 import {urlAtom} from "@/oss/state/url"
@@ -272,7 +272,7 @@ const LoadTestsetModalContent = ({
             ]
         }
 
-        const columns: ColumnsType<TestSet["csvdata"]> = []
+        const columns: ColumnsType<Testset["csvdata"]> = []
 
         if (testsetCsvData.length > 0) {
             const keys = Object.keys(testsetCsvData[0]).filter((key) => key !== "testcase_dedup_id")

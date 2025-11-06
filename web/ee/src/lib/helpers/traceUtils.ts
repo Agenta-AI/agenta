@@ -45,6 +45,7 @@ export function resolvePath(obj: any, path: string): any {
 // Manual mapping for legacy/compatibility keys to canonical keys
 const INVOCATION_OUTPUT_KEY_MAP: Record<string, string> = {
     "attributes.ag.data.outputs": "data.outputs",
+    "attributes.ag.data": "data",
     // Add more mappings here if needed
 }
 
@@ -55,6 +56,7 @@ export function readInvocationResponse({
     optimisticResult,
     forceTrace,
     scenarioId,
+    evalType,
 }: {
     scenarioData: any
     stepKey: string
@@ -62,6 +64,7 @@ export function readInvocationResponse({
     optimisticResult?: any
     forceTrace?: TraceTree
     scenarioId?: string
+    evalType?: "auto" | "online" | "human"
 }): {trace?: any; value?: any; rawValue?: any; testsetId?: string; testcaseId?: string} {
     if (!scenarioData) return {}
 
@@ -114,13 +117,41 @@ export function readInvocationResponse({
     // -----------------------------------------------------
 
     // Access trace directly attached to the invocation step (set during enrichment)
-    const trace = (forceTrace || invocationStep?.trace?.nodes?.[0]) ?? undefined
+    const invocationTrace = forceTrace || invocationStep?.trace
+    const candidateNodes: any[] = []
+    if (invocationTrace) {
+        if (Array.isArray(invocationTrace?.nodes)) {
+            candidateNodes.push(...invocationTrace.nodes)
+        }
+        if (Array.isArray(invocationTrace?.tree?.nodes)) {
+            candidateNodes.push(...invocationTrace.tree.nodes)
+        }
+        if (invocationTrace?.tree) {
+            candidateNodes.push(invocationTrace.tree)
+        }
+        candidateNodes.push(invocationTrace)
+    }
+    const primaryNode = candidateNodes[0]
+    const trace =
+        Array.isArray(candidateNodes) && candidateNodes.length ? candidateNodes[0] : undefined
 
     // First priority: optimistic result override (e.g., UI enqueue)
     let rawValue = optimisticResult
 
     if (rawValue === undefined && resolvedPath) {
-        rawValue = resolvePath(trace, resolvedPath)
+        rawValue = resolvePath(primaryNode, resolvedPath)
+        if (rawValue === undefined) {
+            for (const node of candidateNodes.slice(1)) {
+                rawValue = resolvePath(node, resolvedPath)
+                if (rawValue !== undefined) break
+            }
+        }
+        if (rawValue === undefined) {
+            rawValue =
+                resolvePath(invocationStep?.data, resolvedPath) ??
+                resolvePath(invocationStep?.result, resolvedPath) ??
+                resolvePath(invocationStep, resolvedPath)
+        }
     }
 
     // Convert raw value to displayable string where possible

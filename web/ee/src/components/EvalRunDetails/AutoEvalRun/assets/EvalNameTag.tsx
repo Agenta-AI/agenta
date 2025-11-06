@@ -31,6 +31,13 @@ interface EvalNameTagProps extends TagProps {
     onlyShowBasePin?: boolean
     popoverProps?: PopoverProps
     allowVariantNavigation?: boolean
+    appContext?: {
+        appId?: string
+        appName?: string
+        variantName?: string
+        revisionLabel?: string
+        isOnlineEval?: boolean
+    }
 }
 const EvalNameTag = ({
     run,
@@ -41,6 +48,7 @@ const EvalNameTag = ({
     className,
     popoverProps,
     allowVariantNavigation = true,
+    appContext,
     ...props
 }: EvalNameTagProps) => {
     const router = useRouter()
@@ -143,87 +151,107 @@ const EvalNameTag = ({
                                     bordered={false}
                                     className="bg-[#0517290F] hover:bg-[#05172916]"
                                 >
-                                    {run?.id.split("-")[run?.id.split("-").length - 1]}
+                                    {run?.id
+                                        ? run?.id.split("-")[run?.id.split("-").length - 1]
+                                        : ""}
                                 </Tag>
                             </TooltipWithCopyAction>
                         </div>
-                        <div className="w-full flex items-center justify-between">
-                            <span>Testset</span>
-                            <TagWithLink
-                                name={run?.testsets[0].name}
-                                href={run?.testsets[0].id}
-                                className="[&_span]:truncate [&_span]:max-w-[150px]"
-                            />
-                        </div>
-                        <div className="w-full flex items-center justify-between">
-                            <span>Variant</span>
-                            {run?.variants && run?.variants.length > 0 ? (
-                                (() => {
-                                    const variant: any = run?.variants[0]
-                                    const summary = getVariantDisplayMetadata(variant)
-                                    const {label: formattedLabel, revision: labelRevision} =
-                                        deriveVariantLabelParts({
-                                            variant,
-                                            displayLabel: summary.label,
-                                        })
-                                    const resolvedAppName =
-                                        deriveVariantAppName({
-                                            variant,
-                                            fallbackAppName:
-                                                run?.appName ||
-                                                (run as any)?.app_name ||
-                                                (run as any)?.app?.name,
-                                        }) ?? run?.appName
-
-                                    const prettyLabel = combineAppNameWithLabel(
-                                        resolvedAppName,
-                                        prettifyVariantLabel(formattedLabel) ?? formattedLabel,
-                                    )
-
-                                    const candidateRevisionId =
-                                        summary.revisionId ||
-                                        normalizeId(variant?.id) ||
-                                        normalizeId(variant?.variantId)
-                                    const candidateAppId = normalizeId(
-                                        variant?.appId ||
-                                            (variant as any)?.app_id ||
-                                            run?.appId ||
-                                            (run as any)?.app_id,
-                                    )
-
-                                    const resolvedAppId = candidateAppId || normalizedRouteAppId
-                                    const blockedByRuntime =
-                                        Boolean(normalizedRouteAppId) &&
-                                        resolvedAppId === normalizedRouteAppId &&
-                                        summary.hasRuntime === false
-
-                                    const canNavigate =
-                                        allowVariantNavigation &&
-                                        Boolean(candidateRevisionId && resolvedAppId) &&
-                                        summary.isHealthy !== false &&
-                                        !blockedByRuntime
-
-                                    return (
-                                        <VariantTag
-                                            variantName={prettyLabel}
-                                            revision={labelRevision ?? variant?.revision}
-                                            id={candidateRevisionId}
-                                            disabled={!canNavigate}
-                                            enrichedRun={run}
-                                            variant={variant}
-                                            className="[&_span]:truncate [&_span]:max-w-[150px]"
-                                        />
-                                    )
-                                })()
-                            ) : (
-                                <Tag
-                                    bordered={false}
-                                    className="bg-[#0517290F] hover:bg-[#05172916]"
+                        {appContext?.isOnlineEval ? null : (
+                            <div className="w-full flex items-center justify-between">
+                                <span>Testset</span>
+                                <TagWithLink
+                                    name={run?.testsets?.[0]?.name}
+                                    href={run?.testsets?.[0]?.id}
+                                    className="[&_span]:truncate [&_span]:max-w-[150px]"
+                                />
+                            </div>
+                        )}
+                        {appContext && appContext.appId ? (
+                            <div className="w-full flex items-start justify-between">
+                                <span>Application</span>
+                                <TooltipWithCopyAction
+                                    copyText={appContext.appId}
+                                    title="Copy app ID"
+                                    className="max-w-[180px]"
                                 >
-                                    Not available
-                                </Tag>
-                            )}
-                        </div>
+                                    <span className="truncate text-[#051729]">
+                                        {appContext.appName || appContext.appId}
+                                    </span>
+                                </TooltipWithCopyAction>
+                            </div>
+                        ) : null}
+                        {run?.variants?.length || appContext?.variantName ? (
+                            <div className="w-full flex items-center justify-between">
+                                <span>Variant</span>
+                                {run?.variants && run?.variants.length > 0 ? (
+                                    (() => {
+                                        const variant: any = run?.variants[0]
+                                        const summary = getVariantDisplayMetadata(variant)
+                                        const {label: formattedLabel, revision: labelRevision} =
+                                            deriveVariantLabelParts({
+                                                variant,
+                                                displayLabel: summary.label,
+                                            })
+                                        const resolvedAppName =
+                                            deriveVariantAppName({
+                                                variant,
+                                                fallbackAppName:
+                                                    run?.appName ||
+                                                    (run as any)?.app_name ||
+                                                    (run as any)?.app?.name,
+                                            }) ?? run?.appName
+
+                                        const prettyLabel = combineAppNameWithLabel(
+                                            resolvedAppName,
+                                            prettifyVariantLabel(formattedLabel) ?? formattedLabel,
+                                        )
+
+                                        const candidateRevisionId =
+                                            summary.revisionId ||
+                                            normalizeId(variant?.id) ||
+                                            normalizeId(variant?.variantId)
+                                        const candidateAppId = normalizeId(
+                                            variant?.appId ||
+                                                (variant as any)?.app_id ||
+                                                run?.appId ||
+                                                (run as any)?.app_id,
+                                        )
+
+                                        const resolvedAppId = candidateAppId || normalizedRouteAppId
+                                        const blockedByRuntime =
+                                            Boolean(normalizedRouteAppId) &&
+                                            resolvedAppId === normalizedRouteAppId &&
+                                            summary.hasRuntime === false
+
+                                        const canNavigate =
+                                            allowVariantNavigation &&
+                                            Boolean(candidateRevisionId && resolvedAppId) &&
+                                            summary.isHealthy !== false &&
+                                            !blockedByRuntime
+
+                                        return (
+                                            <VariantTag
+                                                variantName={prettyLabel}
+                                                revision={labelRevision ?? variant?.revision}
+                                                id={candidateRevisionId}
+                                                disabled={!canNavigate}
+                                                enrichedRun={run}
+                                                variant={variant}
+                                                className="[&_span]:truncate [&_span]:max-w-[150px]"
+                                            />
+                                        )
+                                    })()
+                                ) : (
+                                    <span className="text-sm text-[#051729]">
+                                        {appContext?.variantName}
+                                        {appContext?.revisionLabel
+                                            ? ` v${appContext.revisionLabel}`
+                                            : ""}
+                                    </span>
+                                )}
+                            </div>
+                        ) : null}
                         <div className="w-full flex items-center justify-between">
                             <span>Created on</span>
                             <span>{run?.createdAt}</span>

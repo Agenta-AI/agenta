@@ -95,38 +95,64 @@ const config: Config = {
           docId: "getting-started/introduction",
           position: "left",
           label: "Docs",
+          customProps: {
+            icon: {
+              name: "fileText",
+            },
+          },
         },
         {
           type: "docSidebar",
           sidebarId: "guidesSidebar",
           position: "left",
           label: "Tutorials",
+          customProps: {
+            icon: {
+              name: "bookOpen",
+            },
+          },
         },
         {
           type: "docSidebar",
           sidebarId: "refrenceSidebar",
           position: "left",
           label: "Reference",
+          customProps: {
+            icon: {
+              name: "code",
+            },
+          },
         },
         {
           to: "/roadmap",
           position: "left",
           label: "Roadmap",
+          customProps: {
+            icon: {
+              name: "route",
+            },
+          },
         },
         {
           to: "/changelog/main",
           position: "left",
           label: "Changelog",
+          customProps: {
+            icon: {
+              name: "clock",
+            },
+          },
         },
         {
-          to: "https://agenta.ai/pricing",
+          type: "docSidebar",
+          sidebarId: "selfHostSidebar",
           position: "left",
-          label: "Pricing",
-        },
-        {
-          to: "https://agenta.ai/blog",
-          position: "left",
-          label: "Blog",
+          label: "Self-host",
+          customProps: {
+            icon: {
+              name: "server",
+            },
+          },
         },
 
         // {
@@ -232,6 +258,7 @@ const config: Config = {
       ],
     } satisfies Preset.ThemeConfig,
     algolia: {
+      askAi: 'I14hRlCxbWzW',
       appId: "0HZ4ONM2EC",
       apiKey: "18ab633e81d706cbda7c78d25d0fe763",
       indexName: "agenta",
@@ -390,7 +417,7 @@ const config: Config = {
           },
           {
             from: "/evaluation/sdk-evaluation",
-            to: "/tutorials/sdk/evaluate-with-SDK",
+            to: "/evaluation/concepts",
           },
           {
             from: "/evaluation/configure-evaluators",
@@ -442,35 +469,11 @@ const config: Config = {
           },
           {
             from: "/evaluation/quick-start-sdk",
-            to: "/tutorials/sdk/evaluate-with-SDK",
+            to: "/evaluation/concepts",
           },
           {
             from: "/evaluation/overview",
             to: "/evaluation/concepts",
-          },
-          {
-            from: "/evaluation/evaluation-from-sdk/quick-start",
-            to: "/tutorials/sdk/evaluate-with-SDK",
-          },
-          {
-            from: "/evaluation/evaluation-from-sdk/setup-configuration",
-            to: "/tutorials/sdk/evaluate-with-SDK",
-          },
-          {
-            from: "/evaluation/evaluation-from-sdk/managing-test-sets",
-            to: "/tutorials/sdk/evaluate-with-SDK",
-          },
-          {
-            from: "/evaluation/evaluation-from-sdk/configuring-evaluators",
-            to: "/tutorials/sdk/evaluate-with-SDK",
-          },
-          {
-            from: "/evaluation/evaluation-from-sdk/running-evaluations",
-            to: "/tutorials/sdk/evaluate-with-SDK",
-          },
-          {
-            from: "/evaluation/evaluation-from-sdk/viewing-results",
-            to: "/tutorials/sdk/evaluate-with-SDK",
           },
           // Observability restructure redirects
           {

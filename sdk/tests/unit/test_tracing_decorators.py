@@ -8,7 +8,7 @@ Test Architecture:
 -----------------
 The tests are organized into two main classes:
 
-1. TestExistingFunctionality: Regression tests ensuring that existing sync/async 
+1. TestExistingFunctionality: Regression tests ensuring that existing sync/async
    function tracing continues to work without issues after generator support was added.
 
 2. TestGeneratorTracing: Comprehensive tests for the new generator tracing functionality,
@@ -32,7 +32,7 @@ Tests use comprehensive mocking to isolate the tracing decorator logic:
 Coverage:
 ---------
 ✅ Sync function tracing (regression)
-✅ Async function tracing (regression)  
+✅ Async function tracing (regression)
 ✅ Exception handling for sync/async functions (regression)
 ✅ Parameter handling and complex return types (regression)
 ✅ Sync generator tracing

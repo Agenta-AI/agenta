@@ -92,7 +92,7 @@ const AdvancedSettings = ({advanceSettings, setAdvanceSettings}: AdvancedSetting
                     label={
                         <>
                             Correct Answer Column&nbsp;
-                            <Tooltip title="Column in the test set containing the correct/expected answer">
+                            <Tooltip title="Column in the testset containing the correct/expected answer">
                                 <QuestionCircleOutlined />
                             </Tooltip>
                         </>

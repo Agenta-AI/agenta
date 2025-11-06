@@ -6,7 +6,7 @@ export interface MetricDetailsPopoverProps {
     primaryValue?: number | string
     extraDimensions: Record<string, any>
     /** Value to highlight (bin/bar will be inferred from this value) */
-    highlightValue?: number | string
+    highlightValue?: number | string | boolean | Array<number | string | boolean>
     /** Hide primitives key‒value table; useful for lightweight popovers */
     hidePrimitiveTable?: boolean
     /** Force using edge-axis (for debugging) */

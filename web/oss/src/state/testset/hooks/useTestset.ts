@@ -2,7 +2,7 @@ import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {TestSet, PreviewTestSet} from "@/oss/lib/Types"
+import {Testset, PreviewTestset} from "@/oss/lib/Types"
 import {fetchTestset} from "@/oss/services/testsets/api"
 
 import {projectIdAtom} from "../../project"
@@ -13,7 +13,7 @@ import {projectIdAtom} from "../../project"
  */
 export const testsetQueryAtomFamily = atomFamily(
     ({testsetId, preview}: {testsetId: string; preview?: boolean}) =>
-        atomWithQuery<TestSet | PreviewTestSet>((get) => {
+        atomWithQuery<Testset | PreviewTestset>((get) => {
             const projectId = get(projectIdAtom)
 
             return {
@@ -50,7 +50,7 @@ export function useTestset<T extends boolean = false>(
     testsetId?: string,
     preview?: T,
 ): {
-    data: T extends true ? PreviewTestSet : TestSet
+    data: T extends true ? PreviewTestset : Testset
     error: any
     isLoading: boolean
     isPending: boolean
@@ -67,7 +67,7 @@ export function useTestset<T extends boolean = false>(
     const queryResult = useAtomValue(queryAtom)
 
     return {
-        data: queryResult.data as T extends true ? PreviewTestSet : TestSet,
+        data: queryResult.data as T extends true ? PreviewTestset : Testset,
         error: queryResult.error,
         isLoading: queryResult.isPending,
         isPending: queryResult.isPending,

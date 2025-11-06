@@ -13,6 +13,7 @@ from oss.src.core.queries.service import (
     QueriesService,
 )
 from oss.src.core.evaluations.service import (
+    EvaluationStatus,
     EvaluationsService,
     SimpleEvaluationsService,
 )
@@ -195,6 +196,15 @@ class EvaluationsRouter:
         # POST /api/evaluations/runs/{run_id}/close
         self.router.add_api_route(
             path="/runs/{run_id}/close",
+            methods=["POST"],
+            endpoint=self.close_run,
+            response_model=EvaluationRunResponse,
+            response_model_exclude_none=True,
+        )
+
+        # POST /api/evaluations/runs/{run_id}/close/{status}
+        self.router.add_api_route(
+            path="/runs/{run_id}/close/{status}",
             methods=["POST"],
             endpoint=self.close_run,
             response_model=EvaluationRunResponse,
@@ -768,12 +778,15 @@ class EvaluationsRouter:
         return run_id_response
 
     # POST /evaluations/runs/{run_id}/close
+    # POST /evaluations/runs/{run_id}/close/{status}
     @intercept_exceptions()
     async def close_run(
         self,
         request: Request,
         *,
         run_id: UUID,
+        #
+        status: Optional[EvaluationStatus] = None,
     ) -> EvaluationRunResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -788,6 +801,8 @@ class EvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=run_id,
+            #
+            status=status,
         )
 
         run_response = EvaluationRunResponse(

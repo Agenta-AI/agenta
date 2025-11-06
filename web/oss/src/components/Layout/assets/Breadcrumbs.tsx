@@ -42,7 +42,7 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
                     copyText={getUniquePartOfId(item.value)}
                     tooltipProps={{placement: "right"}}
                 >
-                    <span>{isUuid(item.label) ? getUniquePartOfId(item.label) : item.label}</span>
+                    <span className="font-mono">{isUuid(item.label) ? getUniquePartOfId(item.label) : item.label}</span>
                 </TooltipWithCopyAction>
             </span>
         ) : (

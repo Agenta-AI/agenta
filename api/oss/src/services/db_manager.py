@@ -32,7 +32,7 @@ from oss.src.models.db_models import (
     AppDB,
     UserDB,
     APIKeyDB,
-    TestSetDB,
+    TestsetDB,
     IDsMappingDB,
     DeploymentDB,
     InvitationDB,
@@ -139,7 +139,7 @@ async def add_testset_to_app_variant(
                     "name": f"{app_name}_testset",
                     "csvdata": csvdata,
                 }
-                testset_db = TestSetDB(
+                testset_db = TestsetDB(
                     **testset,
                     project_id=uuid.UUID(project_id),
                 )
@@ -675,7 +675,7 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    app = await fetch_app_by_name_and_parameters(
+    app = await fetch_app_by_name(
         app_name=app_name,
         project_id=project_id,
     )
@@ -832,9 +832,7 @@ async def list_app_variants_by_app_slug(
     """
 
     assert app_slug is not None, "app_slug cannot be None"
-    app_db = await fetch_app_by_name_and_parameters(
-        app_name=app_slug, project_id=project_id
-    )
+    app_db = await fetch_app_by_name(app_name=app_slug, project_id=project_id)
     if app_db is None:
         raise NoResultFound(f"App with name {app_slug} not found.")
 
@@ -1908,9 +1906,7 @@ async def list_apps(
     """
 
     if app_name is not None:
-        app_db = await fetch_app_by_name_and_parameters(
-            app_name=app_name, project_id=project_id
-        )
+        app_db = await fetch_app_by_name(app_name=app_name, project_id=project_id)
         return [converters.app_db_to_pydantic(app_db)]
 
     else:
@@ -2596,16 +2592,24 @@ async def remove_environment(environment_db: AppEnvironmentDB):
         await session.commit()
 
 
-async def remove_testsets(testset_ids: List[str]):
+async def remove_testsets(
+    project_id: str,
+    #
+    testset_ids: List[str],
+):
     """
     Removes testsets.
 
     Args:
+        project_id (str): The ID of the project.
         testset_ids (List[str]):  The testset identifiers
     """
 
     async with engine.core_session() as session:
-        query = select(TestSetDB).where(TestSetDB.id.in_(testset_ids))
+        query = select(TestsetDB).where(
+            TestsetDB.project_id == uuid.UUID(project_id),
+            TestsetDB.id.in_(testset_ids),
+        )
         result = await session.execute(query)
         testsets = result.scalars().all()
 
@@ -2763,24 +2767,26 @@ async def get_app_variant_instance_by_id(
         return app_variant_db
 
 
-async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
+async def fetch_testset_by_id(
+    project_id: str,
+    #
+    testset_id: str,
+) -> Optional[TestsetDB]:
     """Fetches a testset by its ID.
     Args:
+        project_id (str): The ID of the project.
         testset_id (str): The ID of the testset to fetch.
     Returns:
-        TestSetDB: The fetched testset, or None if no testset was found.
+        TestsetDB: The fetched testset, or None if no testset was found.
     """
 
-    if not isinstance(testset_id, str) or not testset_id:
-        raise ValueError(f"testset_id {testset_id} must be a non-empty string")
-
-    try:
-        testset_uuid = uuid.UUID(testset_id)
-    except ValueError as e:
-        raise ValueError(f"testset_id {testset_id} is not a valid UUID") from e
-
     async with engine.core_session() as session:
-        result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
+        result = await session.execute(
+            select(TestsetDB).filter_by(
+                project_id=uuid.UUID(project_id),
+                id=uuid.UUID(testset_id),
+            )
+        )
         testset = result.scalars().first()
 
         if not testset:
@@ -2797,21 +2803,31 @@ async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
         return testset
 
 
-async def create_testset(project_id: str, testset_data: Dict[str, Any]):
+async def create_testset(
+    project_id: str,
+    #
+    testset_data: Dict[str, Any],
+    #
+    testset_id: Optional[str] = None,
+) -> TestsetDB:
     """
     Creates a testset.
 
     Args:
-        app (AppDB): The app object
         project_id (str): The ID of the project
         testset_data (dict): The data of the testset to create with
+        testset_id (Optional[str]): The ID of the testset to create
 
     Returns:
         returns the newly created TestsetDB
     """
 
     async with engine.core_session() as session:
-        testset = TestSetDB(**testset_data, project_id=uuid.UUID(project_id))
+        testset = TestsetDB(
+            **testset_data,
+            project_id=uuid.UUID(project_id),
+            id=uuid.UUID(testset_id) if testset_id else None,
+        )
 
         log.info(
             "[TESTSET] CREATE:",
@@ -2828,17 +2844,28 @@ async def create_testset(project_id: str, testset_data: Dict[str, Any]):
         return testset
 
 
-async def update_testset(testset_id: str, values_to_update: dict) -> None:
+async def update_testset(
+    project_id: str,
+    #
+    testset_id: str,
+    #
+    values_to_update: dict,
+) -> None:
     """Update a testset.
 
     Args:
+        project_id (str): The ID of the project
+        testset_id (str): The ID of the testset to update
         testset (TestsetDB): the testset object to update
         values_to_update (dict):  The values to update
     """
 
     async with engine.core_session() as session:
         result = await session.execute(
-            select(TestSetDB).filter_by(id=uuid.UUID(testset_id))
+            select(TestsetDB).filter_by(
+                project_id=uuid.UUID(project_id),
+                id=uuid.UUID(testset_id),
+            )
         )
         testset = result.scalars().first()
 
@@ -2867,12 +2894,12 @@ async def fetch_testsets_by_project_id(project_id: str):
         project_id (str): The ID of the project.
 
     Returns:
-        List[TestSetDB]: The fetched testsets.
+        List[TestsetDB]: The fetched testsets.
     """
 
     async with engine.core_session() as session:
         result = await session.execute(
-            select(TestSetDB).filter_by(project_id=uuid.UUID(project_id))
+            select(TestsetDB).filter_by(project_id=uuid.UUID(project_id))
         )
         testsets = result.scalars().all()
 
@@ -2985,7 +3012,7 @@ async def update_app_variant(
         return app_variant
 
 
-async def fetch_app_by_name_and_parameters(
+async def fetch_app_by_name(
     app_name: str,
     project_id: Optional[str] = None,
 ):

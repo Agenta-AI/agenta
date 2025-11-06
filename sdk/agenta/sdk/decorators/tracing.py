@@ -1,8 +1,9 @@
+# /agenta/sdk/decorators/tracing.py
+
 from typing import Callable, Optional, Any, Dict, List, Union
 
 from opentelemetry import context as otel_context
 from opentelemetry.context import attach, detach
-from opentelemetry import trace
 
 
 from functools import wraps
@@ -14,19 +15,35 @@ from inspect import (
     isasyncgenfunction,
 )
 
+from pydantic import BaseModel
+
 from opentelemetry import baggage
 from opentelemetry.context import attach, detach, get_current
 from opentelemetry.baggage import set_baggage, get_all
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import suppress
-from agenta.sdk.utils.otel import debug_otel_context
-from agenta.sdk.context.tracing import tracing_context
+from agenta.sdk.contexts.tracing import (
+    TracingContext,
+    tracing_context_manager,
+)
 from agenta.sdk.tracing.conventions import parse_span_kind
 
 import agenta as ag
 
+
 log = get_module_logger(__name__)
+
+
+def _has_instrument(handler: Callable[..., Any]) -> bool:
+    return bool(getattr(handler, "__has_instrument__", False))
+
+
+def auto_instrument(handler: Callable[..., Any]) -> Callable[..., Any]:
+    if _has_instrument(handler):
+        return handler
+
+    return instrument()(handler)
 
 
 class instrument:  # pylint: disable=invalid-name
@@ -41,7 +58,8 @@ class instrument:  # pylint: disable=invalid-name
         redact: Optional[Callable[..., Any]] = None,
         redact_on_error: Optional[bool] = True,
         max_depth: Optional[int] = 2,
-        aggregate: Optional[Callable[[List[Any]], Any]] = None,
+        aggregate: Optional[Union[bool, Callable]] = None,  # stream to batch
+        annotate: Optional[bool] = None,  # annotation vs invocation
         # DEPRECATING
         kind: str = "task",
         spankind: Optional[str] = "TASK",
@@ -55,142 +73,183 @@ class instrument:  # pylint: disable=invalid-name
         self.redact_on_error = redact_on_error
         self.max_depth = max_depth
         self.aggregate = aggregate
+        self.annotate = annotate
 
-    def __call__(self, func: Callable[..., Any]):
-        is_coroutine_function = iscoroutinefunction(func)
-        is_sync_generator = isgeneratorfunction(func)
-        is_async_generator = isasyncgenfunction(func)
+    def __call__(self, handler: Callable[..., Any]):
+        is_coroutine_function = iscoroutinefunction(handler)
+        is_sync_generator = isgeneratorfunction(handler)
+        is_async_generator = isasyncgenfunction(handler)
 
         # ---- ASYNC GENERATOR ----
         if is_async_generator:
 
-            @wraps(func)
+            @wraps(handler)
             def astream_wrapper(*args, **kwargs):
-                # debug_otel_context("[BEFORE STREAM] [BEFORE SETUP]")
+                with tracing_context_manager(context=TracingContext.get()):
+                    # debug_otel_context("[BEFORE STREAM] [BEFORE SETUP]")
 
-                captured_ctx = otel_context.get_current()
+                    captured_ctx = otel_context.get_current()
 
-                self._parse_type_and_kind()
+                    self._parse_type_and_kind()
 
-                self._attach_baggage()
+                    self._attach_baggage()
 
-                ctx = self._get_traceparent()
+                    ctx = self._get_traceparent()
 
-                # debug_otel_context("[BEFORE STREAM] [AFTER SETUP]")
+                    # debug_otel_context("[BEFORE STREAM] [AFTER SETUP]")
 
-                async def wrapped_generator():
-                    # debug_otel_context("[WITHIN STREAM] [BEFORE ATTACH]")
+                    async def wrapped_generator():
+                        # debug_otel_context("[WITHIN STREAM] [BEFORE ATTACH]")
 
-                    otel_token = otel_context.attach(captured_ctx)
+                        otel_token = otel_context.attach(captured_ctx)
 
-                    # debug_otel_context("[WITHIN STREAM] [AFTER ATTACH]")
+                        # debug_otel_context("[WITHIN STREAM] [AFTER ATTACH]")
 
-                    try:
-                        with ag.tracer.start_as_current_span(
-                            name=func.__name__,
-                            kind=self.kind,
-                            context=ctx,
-                        ):
-                            self._set_link()
-                            self._pre_instrument(func, *args, **kwargs)
+                        try:
+                            with ag.tracer.start_as_current_span(
+                                name=handler.__name__,
+                                kind=self.kind,
+                                context=ctx,
+                            ):
+                                self._set_link()
+                                self._pre_instrument(handler, *args, **kwargs)
 
-                            _result = []
+                                _result = []
 
-                            agen = func(*args, **kwargs)
+                                agen = handler(*args, **kwargs)
 
-                            try:
-                                async for chunk in agen:
-                                    _result.append(chunk)
-                                    yield chunk
+                                try:
+                                    async for chunk in agen:
+                                        _result.append(chunk)
+                                        yield chunk
 
-                            finally:
-                                if self.aggregate:
-                                    result = self.aggregate(_result)
-                                elif all(isinstance(r, str) for r in _result):
-                                    result = "".join(_result)
-                                elif all(isinstance(r, bytes) for r in _result):
-                                    result = b"".join(_result)
-                                else:
-                                    result = _result
+                                finally:
+                                    if self.aggregate and callable(self.aggregate):
+                                        result = self.aggregate(_result)
+                                    elif all(isinstance(r, str) for r in _result):
+                                        result = "".join(_result)
+                                    elif all(isinstance(r, bytes) for r in _result):
+                                        result = b"".join(_result)
+                                    else:
+                                        result = _result
 
-                                self._post_instrument(result)
+                                    self._post_instrument(result)
 
-                    finally:
-                        # debug_otel_context("[WITHIN STREAM] [BEFORE DETACH]")
+                        finally:
+                            # debug_otel_context("[WITHIN STREAM] [BEFORE DETACH]")
 
-                        otel_context.detach(otel_token)
+                            otel_context.detach(otel_token)
 
-                        # debug_otel_context("[WITHIN STREAM] [AFTER DETACH]")
+                            # debug_otel_context("[WITHIN STREAM] [AFTER DETACH]")
 
                 return wrapped_generator()
 
+            setattr(astream_wrapper, "__has_instrument__", True)
+            setattr(astream_wrapper, "__original_handler__", handler)
             return astream_wrapper
 
         # ---- SYNC GENERATOR ----
         if is_sync_generator:
 
-            @wraps(func)
+            @wraps(handler)
             def stream_wrapper(*args, **kwargs):
-                self._parse_type_and_kind()
+                with tracing_context_manager(context=TracingContext.get()):
+                    self._parse_type_and_kind()
 
-                token = self._attach_baggage()
+                    token = self._attach_baggage()
 
-                ctx = self._get_traceparent()
+                    ctx = self._get_traceparent()
 
-                def wrapped_generator():
+                    def wrapped_generator():
+                        try:
+                            with ag.tracer.start_as_current_span(
+                                name=handler.__name__,
+                                kind=self.kind,
+                                context=ctx,
+                            ):
+                                self._set_link()
+
+                                self._pre_instrument(handler, *args, **kwargs)
+
+                                _result = []
+
+                                gen = handler(*args, **kwargs)
+
+                                gen_return = None
+
+                                try:
+                                    while True:
+                                        try:
+                                            chunk = next(gen)
+                                        except StopIteration as e:
+                                            gen_return = e.value
+                                            break
+
+                                        _result.append(chunk)
+                                        yield chunk
+
+                                finally:
+                                    if self.aggregate and callable(self.aggregate):
+                                        result = self.aggregate(_result)
+                                    elif all(isinstance(r, str) for r in _result):
+                                        result = "".join(_result)
+                                    elif all(isinstance(r, bytes) for r in _result):
+                                        result = b"".join(_result)
+                                    else:
+                                        result = _result
+
+                                    self._post_instrument(result)
+
+                                return gen_return
+
+                        finally:
+                            self._detach_baggage(token)
+
+                return wrapped_generator()
+
+            setattr(stream_wrapper, "__has_instrument__", True)
+            setattr(stream_wrapper, "__original_handler__", handler)
+            return stream_wrapper
+
+        # ---- ASYNC FUNCTION ----
+        if is_coroutine_function:
+
+            @wraps(handler)
+            async def awrapper(*args, **kwargs):
+                with tracing_context_manager(context=TracingContext.get()):
+                    self._parse_type_and_kind()
+
+                    token = self._attach_baggage()
+
+                    ctx = self._get_traceparent()
+
                     try:
                         with ag.tracer.start_as_current_span(
-                            name=func.__name__,
+                            name=handler.__name__,
                             kind=self.kind,
                             context=ctx,
                         ):
                             self._set_link()
 
-                            self._pre_instrument(func, *args, **kwargs)
+                            self._pre_instrument(handler, *args, **kwargs)
 
-                            _result = []
+                            result = await handler(*args, **kwargs)
 
-                            gen = func(*args, **kwargs)
-
-                            gen_return = None
-
-                            try:
-                                while True:
-                                    try:
-                                        chunk = next(gen)
-                                    except StopIteration as e:
-                                        gen_return = e.value
-                                        break
-
-                                    _result.append(chunk)
-                                    yield chunk
-
-                            finally:
-                                if self.aggregate:
-                                    result = self.aggregate(_result)
-                                elif all(isinstance(r, str) for r in _result):
-                                    result = "".join(_result)
-                                elif all(isinstance(r, bytes) for r in _result):
-                                    result = b"".join(_result)
-                                else:
-                                    result = _result
-
-                                self._post_instrument(result)
-
-                            return gen_return
+                            self._post_instrument(result)
 
                     finally:
                         self._detach_baggage(token)
 
-                return wrapped_generator()
+                    return result
 
-            return stream_wrapper
+            setattr(awrapper, "__has_instrument__", True)
+            setattr(awrapper, "__original_handler__", handler)
+            return awrapper
 
-        # ---- ASYNC FUNCTION (non-generator) ----
-        if is_coroutine_function:
-
-            @wraps(func)
-            async def awrapper(*args, **kwargs):
+        # ---- SYNC FUNCTION ----
+        @wraps(handler)
+        def wrapper(*args, **kwargs):
+            with tracing_context_manager(context=TracingContext.get()):
                 self._parse_type_and_kind()
 
                 token = self._attach_baggage()
@@ -199,15 +258,15 @@ class instrument:  # pylint: disable=invalid-name
 
                 try:
                     with ag.tracer.start_as_current_span(
-                        name=func.__name__,
+                        name=handler.__name__,
                         kind=self.kind,
                         context=ctx,
                     ):
                         self._set_link()
 
-                        self._pre_instrument(func, *args, **kwargs)
+                        self._pre_instrument(handler, *args, **kwargs)
 
-                        result = await func(*args, **kwargs)
+                        result = handler(*args, **kwargs)
 
                         self._post_instrument(result)
 
@@ -216,36 +275,8 @@ class instrument:  # pylint: disable=invalid-name
 
                 return result
 
-            return awrapper
-
-        # ---- SYNC FUNCTION (non-generator) ----
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            self._parse_type_and_kind()
-
-            token = self._attach_baggage()
-
-            ctx = self._get_traceparent()
-
-            try:
-                with ag.tracer.start_as_current_span(
-                    name=func.__name__,
-                    kind=self.kind,
-                    context=ctx,
-                ):
-                    self._set_link()
-
-                    self._pre_instrument(func, *args, **kwargs)
-
-                    result = func(*args, **kwargs)
-
-                    self._post_instrument(result)
-
-            finally:
-                self._detach_baggage(token)
-
-            return result
-
+        setattr(wrapper, "__has_instrument__", True)
+        setattr(wrapper, "__original_handler__", handler)
         return wrapper
 
     def _parse_type_and_kind(self):
@@ -255,7 +286,7 @@ class instrument:  # pylint: disable=invalid-name
         self.kind = parse_span_kind(self.type)
 
     def _get_traceparent(self):
-        context = tracing_context.get()
+        context = TracingContext.get()
 
         traceparent = context.traceparent
 
@@ -268,7 +299,7 @@ class instrument:  # pylint: disable=invalid-name
     def _set_link(self):
         span = ag.tracing.get_current_span()
 
-        context = tracing_context.get()
+        context = TracingContext.get()
 
         if not context.link:
             context.link = {
@@ -276,10 +307,10 @@ class instrument:  # pylint: disable=invalid-name
                 "span_id": span.get_span_context().span_id,
             }
 
-            tracing_context.set(context)
+            TracingContext.set(context)
 
     def _attach_baggage(self):
-        context = tracing_context.get()
+        context = TracingContext.get()
 
         references = context.references
 
@@ -299,26 +330,24 @@ class instrument:  # pylint: disable=invalid-name
 
     def _pre_instrument(
         self,
-        func,
+        handler,
         *args,
         **kwargs,
     ):
         span = ag.tracing.get_current_span()
 
-        context = tracing_context.get()
+        context = TracingContext.get()
 
         with suppress():
             trace_id = span.context.trace_id
 
             ag.tracing.credentials.put(trace_id, context.credentials)
 
-            trace_type = context.type or "invocation"
             span_type = self.type or "task"
 
             span.set_attributes(
                 attributes={
                     "node": span_type,
-                    "tree": trace_type,
                 },
                 namespace="type",
             )
@@ -332,7 +361,7 @@ class instrument:  # pylint: disable=invalid-name
             _inputs = self._redact(
                 name=span.name,
                 field="inputs",
-                io=self._parse(func, *args, **kwargs),
+                io=self._parse(handler, *args, **kwargs),
                 ignore=self.ignore_inputs,
             )
 
@@ -403,14 +432,14 @@ class instrument:  # pylint: disable=invalid-name
 
     def _parse(
         self,
-        func,
+        handler,
         *args,
         **kwargs,
     ) -> Dict[str, Any]:
         inputs = {
             key: value
             for key, value in chain(
-                zip(getfullargspec(func).args, args),
+                zip(getfullargspec(handler).args, args),
                 kwargs.items(),
             )
         }
@@ -463,6 +492,22 @@ class instrument:  # pylint: disable=invalid-name
             except:  # pylint: disable=bare-except
                 if ag.tracing.redact_on_error:
                     io = {}
+
+        if "request" in io:
+            with suppress():
+                if isinstance(io["request"], BaseModel):
+                    io["request"] = io["request"].model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
+
+        if "response" in io:
+            with suppress():
+                if isinstance(io["response"], BaseModel):
+                    io["response"] = io["response"].model_dump(
+                        mode="json",
+                        exclude_none=True,
+                    )
 
         return io
 
