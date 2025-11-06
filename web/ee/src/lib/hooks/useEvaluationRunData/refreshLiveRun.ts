@@ -84,7 +84,7 @@ export const refreshLiveEvaluationRun = async (runId: string): Promise<RefreshRe
 
         return {scenarioCount: scenarioIds.length}
     } catch (error) {
-        console.error(`[refreshLiveEvaluationRun] Failed to refresh run ${runId}`, error)
+        console.error("[refreshLiveEvaluationRun] Failed to refresh run %s", runId, error)
         throw error
     }
 }
