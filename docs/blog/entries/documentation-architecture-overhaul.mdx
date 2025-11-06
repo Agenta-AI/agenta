@@ -1,0 +1,40 @@
+---
+title: "Documentation Architecture Overhaul"
+slug: documentation-architecture-overhaul
+date: 2025-11-03
+tags: [v0.59.10]
+---
+
+import Image from "@theme/IdealImage";
+
+We've completely rewritten and restructured our documentation with a new architecture. This is one of the largest updates we've made to the documentation, involving a near-complete rewrite of existing content and adding substantial new material.
+
+### Diataxis Framework Implementation
+
+We've reorganized all documentation using the [Diataxis framework](https://diataxis.fr/).
+
+### Expanded Observability Documentation
+
+One of the biggest gaps in our previous documentation was observability. We've added comprehensive documentation covering:
+
+- [Tracing with OpenTelemetry](/observability/trace-with-opentelemetry/getting-started)
+- [Tracing LLM applications with JS/TS](/observability/quick-start-opentelemetry)
+- [Using the Metrics API to fetch metrics](/observability/query-data/analytics-data)
+- [Using the Query API to fetch traces](/observability/query-data/query-api)
+
+### JavaScript/TypeScript Support
+
+Documentation now includes JavaScript and TypeScript examples alongside Python wherever applicable. This makes it easier for JavaScript developers to integrate Agenta into their applications.
+
+### Ask AI Feature
+
+We've added a new "Ask AI" feature that lets you ask questions directly to the documentation. Get instant answers to your questions without searching through pages.
+
+<Image
+  img={require('/static/images/changelog/agenta_askai.png')}
+  alt="Ask AI feature in documentation"
+  style={{display: 'block', margin: '20px auto', textAlign: 'center'}}
+/>
+
+
+---

@@ -1,0 +1,16 @@
+---
+title: Frequently Asked Questions
+sidebar_label: FAQ
+description: Self-hosting Agenta FAQ. Learn how to lock Agenta to a specific version, configure Docker images, and troubleshoot common deployment issues.
+---
+
+## How do I lock Agenta to a specific version?
+
+Use the `AGENTA_WEB_IMAGE_TAG` and `AGENTA_API_IMAGE_TAG` environment variables.
+
+```bash
+AGENTA_WEB_IMAGE_TAG=v0.15.0
+AGENTA_API_IMAGE_TAG=v0.15.0
+```
+
+These are set to `latest` by default.
