@@ -442,6 +442,8 @@ export const InputSummaryCell = memo(
         const deepMerge = (target: Record<string, any>, source?: Record<string, any>) => {
             if (!source || typeof source !== "object") return target
             Object.entries(source).forEach(([key, rawValue]) => {
+                // Prevent prototype pollution by excluding dangerous keys
+                if (key === "__proto__" || key === "constructor" || key === "prototype") return
                 const parsed = tryParseJson(rawValue)
                 const value = parsed
                 if (value && typeof value === "object" && !Array.isArray(value)) {

@@ -493,6 +493,12 @@ def resolve_dot_notation(expr: str, data: dict) -> object:
     if "[" in expr or "]" in expr:
         raise KeyError(f"Bracket syntax is not supported in dot-notation: {expr!r}")
 
+    # First, check if the expression exists as a literal key (e.g., "topic.story" as a single key)
+    # This allows users to use dots in their variable names without nested access
+    if expr in data:
+        return data[expr]
+
+    # If not found as a literal key, try to parse as dot-notation path
     cur = data
     for token in (p for p in expr.split(".") if p):
         if isinstance(cur, list) and token.isdigit():
