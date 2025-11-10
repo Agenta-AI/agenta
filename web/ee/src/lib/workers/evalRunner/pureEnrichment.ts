@@ -58,9 +58,40 @@ export function buildAnnotationMap({
     return map
 }
 
-/** Simple dot-path resolver ("a.b.c") */
+/** Simple dot-path resolver ("a.b.c"). Supports literal keys that contain dots. */
 export function resolvePath(obj: any, path: string): any {
-    return path.split(".").reduce((o: any, key: string) => (o ? o[key] : undefined), obj)
+    if (!obj || typeof obj !== "object" || !path) return undefined
+
+    const parts = path.split(".")
+    let current: any = obj
+
+    for (let i = 0; i < parts.length; i++) {
+        if (current === undefined || current === null) return undefined
+
+        const part = parts[i]
+
+        if (Object.prototype.hasOwnProperty.call(current, part)) {
+            current = current[part]
+            continue
+        }
+
+        let combined = part
+        let found = false
+
+        for (let j = i + 1; j < parts.length; j++) {
+            combined += `.${parts[j]}`
+            if (Object.prototype.hasOwnProperty.call(current, combined)) {
+                current = current[combined]
+                i = j
+                found = true
+                break
+            }
+        }
+
+        if (!found) return undefined
+    }
+
+    return current
 }
 
 export function computeInputsAndGroundTruth({
