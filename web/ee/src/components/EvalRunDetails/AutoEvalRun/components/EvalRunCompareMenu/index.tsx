@@ -22,9 +22,11 @@ const failedFilters = ["errors", "error", "failed", "failure"]
 const EvalRunCompareMenu = ({
     popoverProps,
     buttonProps,
+    disabled = false,
 }: {
     popoverProps?: PopoverProps
     buttonProps?: ButtonProps
+    disabled?: boolean
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState("")
@@ -101,7 +103,7 @@ const EvalRunCompareMenu = ({
             (run) =>
                 run?.data?.steps.every(
                     (step) => step?.type !== "annotation" || step?.origin === "auto",
-                ) && !Boolean(run?.flags?.is_live),
+                ) && !run?.flags?.is_live,
         )
 
         return autoEvals
@@ -260,7 +262,7 @@ const EvalRunCompareMenu = ({
             }
             {...popoverProps}
         >
-            <Button icon={<Plus size={14} />} {...buttonProps}>
+            <Button icon={<Plus size={14} />} {...buttonProps} disabled={disabled}>
                 Compare
             </Button>
         </Popover>

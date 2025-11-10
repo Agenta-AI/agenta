@@ -832,9 +832,9 @@ export interface StyleProps {
 }
 
 export interface SettingsPreset {
-    key: string;
-    name: string;
-    values: Record<string, any>;
+    key: string
+    name: string
+    values: Record<string, any>
 }
 
 export interface Evaluator {

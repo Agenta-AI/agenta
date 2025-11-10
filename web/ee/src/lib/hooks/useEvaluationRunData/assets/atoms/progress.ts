@@ -214,7 +214,8 @@ export const scenarioStatusFamily = atomFamily((params: {scenarioId: string; run
             computedStatus = "success"
         } else if (allInvSucceeded) {
             // Auto and online evals treat successful invocations as completion
-            const isAutoLikeEval = evalType === "auto" || evalType === "online"
+            const isAutoLikeEval =
+                evalType === "auto" || evalType === "online" || evalType === "custom"
             computedStatus = isAutoLikeEval ? "success" : "incomplete"
         } else if (anyFailed) {
             computedStatus = "failure"

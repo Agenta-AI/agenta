@@ -550,12 +550,14 @@ const PromptConfigCard = ({
         >
             <div className="h-[48px] flex items-center justify-between py-2 px-2 border-0 border-b border-solid border-[#EAEFF5]">
                 <div className="w-[80%] flex items-center gap-2">
-                    <EvalNameTag
-                        color={EVAL_TAG_COLOR?.[colorIndex || 1]}
-                        run={evaluation}
-                        className={isComparison ? "!max-w-[60%]" : ""}
-                        allowVariantNavigation={canNavigateToVariant}
-                    />
+                    {evaluation?.name ? (
+                        <EvalNameTag
+                            color={EVAL_TAG_COLOR?.[colorIndex || 1]}
+                            run={evaluation}
+                            className={isComparison ? "!max-w-[60%]" : ""}
+                            allowVariantNavigation={canNavigateToVariant}
+                        />
+                    ) : null}
                     {variantForDisplay ? (
                         <VariantTag
                             variantName={variantLabel}

@@ -72,7 +72,7 @@ const SelectLLMProvider = ({
 
     const providers = useMemo(
         () =>
-            labeledProviders.map(({ key, label }) => ({
+            labeledProviders.map(({key, label}) => ({
                 label,
                 options: [label],
                 value: key,

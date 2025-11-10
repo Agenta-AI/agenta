@@ -698,7 +698,8 @@ export const InvocationResultCell = memo(
         const navigation = useAppNavigation()
         const appState = useAppState()
         const contextRunId = useOptionalRunId()
-        const enableFocusDrawer = evalType === "auto" || evalType === "online"
+        const enableFocusDrawer =
+            evalType === "auto" || evalType === "online" || evalType === "custom"
 
         const handleOpenFocus = () => {
             const targetRunId = runId ?? contextRunId ?? null

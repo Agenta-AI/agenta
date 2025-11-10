@@ -7,7 +7,7 @@ from agenta.sdk.workflows.handlers import SinglePromptConfig
 
 def echo(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -28,7 +28,7 @@ def echo(
 
 def auto_exact_match(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -57,7 +57,7 @@ def auto_exact_match(
 
 def auto_regex_test(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -91,7 +91,7 @@ def auto_regex_test(
 
 def field_match_test(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -123,7 +123,7 @@ def field_match_test(
 
 def auto_webhook_test(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -155,7 +155,7 @@ def auto_webhook_test(
 
 def auto_custom_code_run(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -189,7 +189,7 @@ def auto_custom_code_run(
 
 def auto_ai_critique(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -225,7 +225,7 @@ def auto_ai_critique(
 
 def auto_starts_with(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -257,7 +257,7 @@ def auto_starts_with(
 
 def auto_ends_with(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -289,7 +289,7 @@ def auto_ends_with(
 
 def auto_contains(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -321,7 +321,7 @@ def auto_contains(
 
 def auto_contains_any(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -353,7 +353,7 @@ def auto_contains_any(
 
 def auto_contains_all(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -385,7 +385,7 @@ def auto_contains_all(
 
 def auto_contains_json(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -406,7 +406,7 @@ def auto_contains_json(
 
 def auto_json_diff(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -443,7 +443,7 @@ def auto_json_diff(
 
 def auto_levenshtein_distance(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -476,7 +476,7 @@ def auto_levenshtein_distance(
 
 def auto_similarity_match(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -509,7 +509,7 @@ def auto_similarity_match(
 
 def auto_semantic_similarity(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -542,7 +542,7 @@ def auto_semantic_similarity(
 
 def completion(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,
@@ -572,7 +572,7 @@ def completion(
 
 def chat(
     *,
-    slug: str,
+    slug: Optional[str] = None,
     #
     name: Optional[str] = None,
     description: Optional[str] = None,

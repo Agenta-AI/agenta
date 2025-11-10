@@ -35,7 +35,7 @@ export const runViewTypeAtom = atom<HumanEvalViewTypes | AutoEvalViewTypes | Onl
         // Put "testcases" first so it becomes the default for auto evaluations
         const autoViews: AutoEvalViewTypes[] = ["testcases", "overview", "prompt"]
 
-        if (evalType === "auto") {
+        if (evalType === "auto" || evalType === "custom") {
             // default and validation for auto eval
             const v = (view as AutoEvalViewTypes | undefined) ?? autoViews[0]
             return autoViews.includes(v) ? v : autoViews[0]

@@ -6,11 +6,11 @@ import clsx from "clsx"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 
 import {EVAL_BG_COLOR} from "../../assets/utils"
+import BarChartPlaceholder from "../shared/BarChartPlaceholder"
+import PlaceholderOverlay, {PlaceholderEvaluationType} from "../shared/PlaceholderOverlay"
 
 import BarChart from "./assets/BarChart"
 import HistogramChart from "./assets/HistogramChart"
-import PlaceholderOverlay, {PlaceholderEvaluationType} from "../shared/PlaceholderOverlay"
-import BarChartPlaceholder from "../shared/BarChartPlaceholder"
 
 /* ---------------- helpers ---------------- */
 
@@ -221,7 +221,7 @@ const EvaluatorMetricsChart = ({
                 <div className="flex justify-between items-center w-full h-[64px] p-0">
                     <div className="flex flex-col gap-1">
                         <Typography.Text className="font-medium text-sm capitalize">
-                            {evaluator?.name}
+                            {evaluatorLabel}
                         </Typography.Text>
                         <Typography.Text className="capitalize font-normal" type="secondary">
                             {name}

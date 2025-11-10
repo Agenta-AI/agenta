@@ -38,20 +38,6 @@ export const GeneralHumanEvalMetricColumns = [
         metricType: "number",
     },
     {
-        name: "promptTokens",
-        kind: "metric",
-        path: "promptTokens",
-        stepKey: "metric",
-        metricType: "number",
-    },
-    {
-        name: "completionTokens",
-        kind: "metric",
-        path: "completionTokens",
-        stepKey: "metric",
-        metricType: "number",
-    },
-    {
         name: "errors",
         kind: "metric",
         path: "errors",

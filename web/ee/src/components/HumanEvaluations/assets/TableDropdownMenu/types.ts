@@ -13,4 +13,5 @@ export interface TableDropdownMenuProps {
     resolveAppId?: (evaluation: EvaluationRow) => string | undefined
     scope: "app" | "project"
     projectURL: string
+    disableVariantAction?: boolean
 }

@@ -5,7 +5,7 @@ import {useRouter} from "next/router"
 
 import {EvalRunUrlState, runViewTypeAtom, urlStateAtom} from "./state/urlState"
 
-const UrlSync = ({evalType}: {evalType: "auto" | "human" | "online"}) => {
+const UrlSync = ({evalType}: {evalType: "auto" | "human" | "online" | "custom"}) => {
     const router = useRouter()
 
     // Use global store for all atom reads/writes to ensure consistency
@@ -22,7 +22,7 @@ const UrlSync = ({evalType}: {evalType: "auto" | "human" | "online"}) => {
         const {view, scenarioId, compare} = router.query
         const queryView = Array.isArray(view) ? view[0] : (view as string | undefined)
         const fallbackView =
-            evalType === "auto" ? "testcases" : evalType === "online" ? "results" : "focus"
+            evalType === "online" ? "results" : evalType === "human" ? "focus" : "testcases"
         const v = queryView ?? fallbackView
 
         // Parse compare parameter - can be a single string or array of strings
