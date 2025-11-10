@@ -81,6 +81,7 @@ from .managers.secrets import SecretsManager
 from .managers.config import ConfigManager
 from .managers.variant import VariantManager
 from .managers.deployment import DeploymentManager
+from .managers import testsets as testsets
 
 
 config = PreInitObject("agenta.config", Config)

@@ -77,7 +77,7 @@ const LegacyEvaluationPage = ({id: evaluationTableId}: {id: string}) => {
     const data = legacyEvaluationSWR.data
 
     return data ? (
-        evalType === "auto" ? (
+        evalType === "auto" || evalType === "custom" ? (
             <EvaluationScenarios scenarios={legacyScenariosSWR.data as _EvaluationScenario[]} />
         ) : evalType === "human" ? (
             <SingleModelEvaluationTable
@@ -96,12 +96,12 @@ const PreviewEvaluationPage = memo(
         description,
         id,
     }: {
-        evalType: "auto" | "human" | "online"
+        evalType: "auto" | "human" | "online" | "custom"
         name: string
         description: string
         id: string
     }) => {
-        return evalType === "auto" ? (
+        return evalType === "auto" || evalType === "custom" ? (
             <AutoEvalRunDetails name={name} description={description} id={id} isLoading={false} />
         ) : evalType === "online" ? (
             <OnlineEvalRunDetails name={name} description={description} id={id} />
@@ -117,12 +117,12 @@ const LoadingState = ({
     description,
     id,
 }: {
-    evalType: "auto" | "human" | "online"
+    evalType: "auto" | "human" | "online" | "custom"
     name: string
     description: string
     id: string
 }) => {
-    return evalType === "auto" ? (
+    return evalType === "auto" || evalType === "custom" ? (
         <AutoEvalRunDetails name={name} description={description} id={id} isLoading />
     ) : evalType === "online" ? (
         <OnlineEvalRunDetails name={name} description={description} id={id} isLoading />
@@ -139,7 +139,7 @@ const LoadingState = ({
 }
 
 const EvaluationPage = memo(
-    ({evalType, runId}: {evalType: "auto" | "human" | "online"; runId: string}) => {
+    ({evalType, runId}: {evalType: "auto" | "human" | "online" | "custom"; runId: string}) => {
         const rootStore = getDefaultStore()
         const breadcrumbs = useAtomValue(breadcrumbAtom, {store: rootStore})
         const appendBreadcrumb = useSetAtom(appendBreadcrumbAtom, {store: rootStore})
@@ -190,11 +190,13 @@ const EvaluationPage = memo(
             const base = (typeof window !== "undefined" ? window.location.pathname : "") || ""
             const segs = base.split("/").filter(Boolean)
             const desiredLabel =
-                evalType === "auto"
-                    ? "auto evaluation"
-                    : evalType === "online"
-                      ? "online evaluation"
-                      : "human annotation"
+                evalType === "online"
+                    ? "online evaluation"
+                    : evalType === "human"
+                      ? "human annotation"
+                      : evalType === "custom"
+                        ? "custom evaluation"
+                        : "auto evaluation"
 
             const appsIdx = segs.findIndex((s) => s === "apps")
             if (appsIdx !== -1) {
@@ -300,7 +302,7 @@ const EvaluationPage = memo(
 )
 
 const EvalRunDetailsPage = memo(
-    ({evalType: propsEvalType}: {evalType: "auto" | "human" | "online"}) => {
+    ({evalType: propsEvalType}: {evalType: "auto" | "human" | "online" | "custom"}) => {
         const router = useRouter()
         const runIdParam = router.query.evaluation_id
         const runId =

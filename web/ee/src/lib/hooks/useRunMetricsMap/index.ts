@@ -35,17 +35,36 @@ const fetchRunMetricsMap = async (
                 const parts = stepKey.split(".")
                 if (parts.length === 1) {
                     const slug = parts[0]
-                    if (evaluatorSlugs?.has(slug)) {
-                        // This is an evaluator metric, ensure all keys are prefixed
-                        const newStepData: Record<string, any> = {}
-                        Object.entries(stepData).forEach(([key, value]) => {
-                            const prefixedKey = key.startsWith(`${slug}.`) ? key : `${slug}.${key}`
-                            newStepData[prefixedKey] = value
-                        })
-                        processedData[stepKey] = newStepData
-                    } else {
-                        // Keep non-evaluator data as is
-                        processedData[stepKey] = stepData
+                    try {
+                        if (evaluatorSlugs?.has(slug)) {
+                            // This is an evaluator metric, ensure all keys are prefixed
+                            const newStepData: Record<string, any> = {}
+                            Object.entries(stepData).forEach(([key, value]) => {
+                                const prefixedKey = key.startsWith(`${slug}.`)
+                                    ? key
+                                    : `${slug}.${key}`
+                                newStepData[prefixedKey] = value
+                            })
+                            processedData[stepKey] = newStepData
+                        } else {
+                            // Keep non-evaluator data as is
+                            processedData[stepKey] = stepData
+                        }
+                    } catch (e) {
+                        if (evaluatorSlugs?.includes(slug)) {
+                            // This is an evaluator metric, ensure all keys are prefixed
+                            const newStepData: Record<string, any> = {}
+                            Object.entries(stepData).forEach(([key, value]) => {
+                                const prefixedKey = key.startsWith(`${slug}.`)
+                                    ? key
+                                    : `${slug}.${key}`
+                                newStepData[prefixedKey] = value
+                            })
+                            processedData[stepKey] = newStepData
+                        } else {
+                            // Keep non-evaluator data as is
+                            processedData[stepKey] = stepData
+                        }
                     }
                 } else {
                     // Keep invocation data as is

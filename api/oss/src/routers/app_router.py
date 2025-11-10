@@ -258,7 +258,13 @@ async def create_app(
         project_id=request.state.project_id,
     )
 
-    return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
+    return CreateAppOutput(
+        app_id=str(app_db.id),
+        app_name=str(app_db.app_name),
+        app_type=AppType.friendly_tag(app_db.app_type),
+        created_at=str(app_db.created_at),
+        updated_at=str(app_db.updated_at),
+    )
 
 
 @router.get("/{app_id}/", response_model=ReadAppOutput, operation_id="read_app")
@@ -299,7 +305,13 @@ async def read_app(
                 status_code=403,
             )
 
-    return ReadAppOutput(app_id=str(app.id), app_name=str(app.app_name))
+    return ReadAppOutput(
+        app_id=str(app.id),
+        app_name=str(app.app_name),
+        app_type=AppType.friendly_tag(app.app_type),
+        created_at=str(app.created_at),
+        updated_at=str(app.updated_at),
+    )
 
 
 @router.patch("/{app_id}/", response_model=UpdateAppOutput, operation_id="update_app")
@@ -343,11 +355,19 @@ async def update_app(
             )
     await db_manager.update_app(app_id=app_id, values_to_update=payload.model_dump())
 
+    app = await db_manager.fetch_app_by_id(app_id)
+
     await invalidate_cache(
         project_id=request.state.project_id,
     )
 
-    return UpdateAppOutput(app_id=app_id, app_name=payload.app_name)
+    return UpdateAppOutput(
+        app_id=str(app.id),
+        app_name=str(app.app_name),
+        app_type=AppType.friendly_tag(app.app_type),
+        created_at=str(app.created_at),
+        updated_at=str(app.updated_at),
+    )
 
 
 @router.get("/", response_model=List[App], operation_id="list_apps")

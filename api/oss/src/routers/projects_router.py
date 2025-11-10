@@ -42,6 +42,7 @@ router = APIRouter()
 )
 async def get_projects(
     request: Request,
+    scope: Optional[str] = Query(None),
 ):
     try:
         if is_oss():
@@ -112,6 +113,10 @@ async def get_projects(
                     is_demo=project_membership.is_demo,
                 )
                 for project_membership in _project_memberships
+                if (
+                    scope is None
+                    or str(project_membership.project.id) == request.state.project_id
+                )
             ]
 
             return projects

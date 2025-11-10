@@ -19,6 +19,7 @@ import {
     runIndexFamily,
 } from "../../../../../lib/hooks/useEvaluationRunData/assets/atoms/runScopedAtoms"
 // import {scenarioMetricsMapFamily} from "../../../../../lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
+import {runMetricsStatsCacheFamily} from "../../../../../lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
 import {
     displayedScenarioIdsFamily,
     loadableScenarioStepFamily,
@@ -119,6 +120,7 @@ const useTableDataSource = () => {
     const runIndex = useAtomValue(runIndexFamily(runId))
     const metricsFromEvaluators =
         useAtomValue(metricsFromEvaluatorsFamily(runId)) || EMPTY_METRICS_MAP
+    const metricStatsMap = useAtomValue(runMetricsStatsCacheFamily(runId)) || {}
     // temporary implementation to implement loading state for auto eval
     const firstScenarioLoadable = useAtomValue(firstScenarioLoadableFamily(runId))
     const loadableState = firstScenarioLoadable?.state
@@ -139,6 +141,21 @@ const useTableDataSource = () => {
                   : [],
         [rawEvaluators],
     )
+    const revisionSlugByEvaluatorSlug = useMemo(() => {
+        const map = new Map<string, string>()
+        const steps = runIndex?.steps ?? {}
+        Object.values(steps).forEach((meta: any) => {
+            if (!meta || meta.kind !== "annotation") return
+            const baseSlug = pickString(meta?.refs?.evaluator?.slug)
+            const revisionSlug = pickString(meta?.refs?.evaluatorRevision?.slug)
+            if (baseSlug && revisionSlug && baseSlug !== revisionSlug) {
+                if (!map.has(baseSlug)) {
+                    map.set(baseSlug, revisionSlug)
+                }
+            }
+        })
+        return map
+    }, [runIndex])
     const evaluatorFailuresMap = useAtomValue(evaluatorFailuresMapFamily(runId))
     const {data: previewEvaluators} = useEvaluators({preview: true})
     const {data: projectEvaluators} = useEvaluators()
@@ -249,7 +266,12 @@ const useTableDataSource = () => {
         })
 
         return result
-    }, [catalogEvaluatorsByIdentifier, metricsFromEvaluators, runEvaluators])
+    }, [
+        catalogEvaluatorsByIdentifier,
+        metricsFromEvaluators,
+        runEvaluators,
+        revisionSlugByEvaluatorSlug,
+    ])
 
     const evaluatorIdsFromRunIndex = useMemo(() => {
         const ids = new Set<string>()
@@ -353,10 +375,20 @@ const useTableDataSource = () => {
                 runIndex,
                 runId,
                 metricsFromEvaluators: resolvedMetricsFromEvaluators,
+                metrics: metricStatsMap,
                 evaluators: runEvaluators,
                 evaluatorNameBySlug,
+                revisionSlugByEvaluatorSlug,
             }),
-        [runIndex, runId, resolvedMetricsFromEvaluators, runEvaluators, evaluatorNameBySlug],
+        [
+            runIndex,
+            runId,
+            resolvedMetricsFromEvaluators,
+            metricStatsMap,
+            runEvaluators,
+            evaluatorNameBySlug,
+            revisionSlugByEvaluatorSlug,
+        ],
     )
 
     // Build Ant Design columns and make them resizable

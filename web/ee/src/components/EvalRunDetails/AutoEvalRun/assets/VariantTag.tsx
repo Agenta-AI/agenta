@@ -4,13 +4,19 @@ import {ArrowSquareOut} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {Skeleton, Tag} from "antd"
 import clsx from "clsx"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
+import {runIndexFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import type {EnrichedEvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
-import {recentAppIdAtom, routerAppIdAtom} from "@/oss/state/app"
+import {
+    appDetailQueryAtomFamily,
+    currentAppContextAtom,
+    recentAppIdAtom,
+    routerAppIdAtom,
+} from "@/oss/state/app"
 
 import {
     combineAppNameWithLabel,
@@ -50,7 +56,7 @@ const VariantTag = ({
     const setRecentAppId = useSetAtom(recentAppIdAtom)
     const routeAppId = normalizeId(router.query.app_id as string | undefined)
     const {baseAppURL} = useURL()
-
+    const app = useAtomValue(appDetailQueryAtomFamily(enrichedRun?.appId || null))
     const variantsFromRun = useMemo(() => {
         if (enrichedRun?.variants && Array.isArray(enrichedRun.variants)) {
             return enrichedRun.variants as any[]
@@ -107,10 +113,6 @@ const VariantTag = ({
         return variantFromRun
     }, [variant, variantFromRun])
 
-    if (isLoading) {
-        return <Skeleton.Input active className="!w-[90px] !h-[22px]" />
-    }
-
     const baseLabel =
         normalizeLabel(variantName) ??
         normalizeLabel(resolvedVariant?.variantName) ??
@@ -143,6 +145,7 @@ const VariantTag = ({
                 fallbackAppName:
                     (resolvedVariant as any)?.appName ??
                     (resolvedVariant as any)?.application?.name ??
+                    (resolvedVariant as any)?.baseName ??
                     enrichedRun?.appName ??
                     (enrichedRun as any)?.app_name ??
                     (enrichedRun as any)?.app?.name,
@@ -208,6 +211,7 @@ const VariantTag = ({
     const blockedByRuntime = isRouteAppContext && display.hasRuntime === false
 
     const canNavigate =
+        app?.data?.app_type !== "custom (sdk)" &&
         !isDeleted &&
         Boolean(targetAppId) &&
         hasValidRevision &&
@@ -259,4 +263,12 @@ const VariantTag = ({
     )
 }
 
-export default VariantTag
+const VariantTagRouter = ({isLoading, ...props}: VariantTagProps) => {
+    if (isLoading) {
+        return <Skeleton.Input active className="!w-[90px] !h-[22px]" />
+    } else {
+        return <VariantTag {...props} />
+    }
+}
+
+export default VariantTagRouter

@@ -117,8 +117,6 @@ interface PreviewEvaluationsQueryState {
 import {searchQueryAtom} from "./states/queryFilterAtoms"
 import {EnrichedEvaluationRun, EvaluationRun} from "./types"
 
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-
 const SCENARIOS_ENDPOINT = "/preview/evaluations/scenarios/"
 
 /**
@@ -181,13 +179,6 @@ const usePreviewEvaluations = ({
         return base
     }, [flags, propsTypes])
 
-    const {data: humanEvaluators} = useEvaluators({
-        preview: true,
-        queries: {
-            is_human: !types.includes(EvaluationType.automatic),
-        },
-    })
-
     const referenceFilters = useMemo(() => {
         const filters: any[] = []
         if (appId) {
@@ -201,6 +192,7 @@ const usePreviewEvaluations = ({
     const effectiveEvalType = useMemo(() => {
         if (propsTypes.includes(EvaluationType.online)) return "online" as const
         if (types.includes(EvaluationType.automatic)) return "auto" as const
+        if (types.includes(EvaluationType.custom_code_run)) return "custom" as const
         return "human" as const
     }, [propsTypes, types])
 
@@ -330,6 +322,9 @@ const usePreviewEvaluations = ({
                 const runClone = structuredClone(_run)
                 const runIndex = buildRunIndex(runClone)
                 const result = enrichRun(runClone, previewTestsets?.testsets || [], runIndex)
+                if (result) {
+                    result.runIndex = runIndex
+                }
                 if (result && isOnline) {
                     const flags = (result as any).flags || {}
 

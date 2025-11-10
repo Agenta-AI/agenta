@@ -27,7 +27,7 @@ const EvaluationStatusCell = ({
 }: {
     runId: string
     status?: EvaluationStatus
-    evalType?: "auto" | "human"
+    evalType?: "auto" | "human" | "custom"
     preferProvidedStatus?: boolean
     statusOverride?: (
         status: EvaluationStatus,
@@ -51,13 +51,13 @@ const EvaluationStatusCell = ({
     const {refetch} = useEvaluations({
         withPreview: true,
         types:
-            evalType === "auto"
+            evalType === "auto" || evalType === "custom"
                 ? [EvaluationType.automatic, EvaluationType.auto_exact_match]
                 : [EvaluationType.human, EvaluationType.single_model_test],
         evalType,
     })
     const runningEvaluations = useAtomValue(
-        resourceStatusQueryFamily(evalType === "auto" ? runId : ""),
+        resourceStatusQueryFamily(evalType === "auto" || evalType === "custom" ? runId : ""),
     )
     const [tempEvaluation, setTempEvaluation] = useAtom(tempEvaluationAtom)
     const handledCompletionRef = useRef<Set<string>>(new Set())
@@ -87,7 +87,7 @@ const EvaluationStatusCell = ({
 
     // refresh the eval after a completed run
     useEffect(() => {
-        if (evalType !== "auto") return
+        if (evalType !== "auto" && evalType !== "custom") return
 
         const runIdToCheck = runningEvaluations.data?.run?.id
         const runStatus = runningEvaluations.data?.run?.status
@@ -147,7 +147,7 @@ const EvaluationStatusCell = ({
     }, [scenarios])
 
     const _status = useMemo(() => {
-        if (preferProvidedStatus || evalType !== "auto") return runStatus
+        if (preferProvidedStatus || (evalType !== "auto" && evalType !== "custom")) return runStatus
         return runningEvaluations.data?.run?.status || runStatus
     }, [preferProvidedStatus, evalType, runningEvaluations.data?.run?.status, runStatus])
 

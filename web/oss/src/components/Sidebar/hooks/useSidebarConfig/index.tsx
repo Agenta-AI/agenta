@@ -17,7 +17,6 @@ import {
     Gauge,
 } from "@phosphor-icons/react"
 
-import {useAppId} from "@/oss/hooks/useAppId"
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
@@ -28,7 +27,6 @@ import {useOrgData} from "@/oss/state/org"
 import {SidebarConfig} from "../../types"
 
 export const useSidebarConfig = () => {
-    const appId = useAppId()
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
@@ -78,41 +76,41 @@ export const useSidebarConfig = () => {
             title: "Overview",
             link: `${appURL || recentlyVisitedAppURL}/overview`,
             icon: <Desktop size={16} />,
-            isHidden: !appId && !recentlyVisitedAppId,
+            isHidden: !currentApp && !recentlyVisitedAppId,
         },
         {
             key: "app-playground-link",
             title: "Playground",
             link: `${appURL || recentlyVisitedAppURL}/playground`,
             icon: <Rocket size={16} />,
-            isHidden: !appId && !recentlyVisitedAppId,
+            isHidden: !currentApp && !recentlyVisitedAppId,
         },
         {
             key: "app-variants-link",
             title: "Registry",
             link: `${appURL || recentlyVisitedAppURL}/variants`,
-            isHidden: !appId && !recentlyVisitedAppId,
+            isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
         },
         {
             key: "app-evaluations-link",
             title: "Evaluations",
             link: `${appURL || recentlyVisitedAppURL}/evaluations`,
-            isHidden: (!appId && !recentlyVisitedAppId) || !isDemo(),
+            isHidden: (!currentApp && !recentlyVisitedAppId) || !isDemo(),
             icon: <ChartDonut size={16} />,
         },
         {
             key: "app-traces-link",
             title: "Traces",
             icon: <TreeView size={16} />,
-            isHidden: !appId && !recentlyVisitedAppId,
+            isHidden: !currentApp && !recentlyVisitedAppId,
             link: `${appURL || recentlyVisitedAppURL}/traces`,
         },
         {
             key: "app-deployments-link",
             title: "Deployments",
             link: `${appURL || recentlyVisitedAppURL}/deployments`,
-            isHidden: !appId && !recentlyVisitedAppId,
+            isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <CloudArrowUp size={16} />,
         },
         {

@@ -27,6 +27,7 @@ class AgentaSingleton:
 
     def __init__(self):
         self.host = None
+        self.api_url = None
         self.api_key = None
 
         self.scope_type = None
@@ -41,6 +42,7 @@ class AgentaSingleton:
         self,
         *,
         host: Optional[str] = None,
+        api_url: Optional[str] = None,
         api_key: Optional[str] = None,
         config_fname: Optional[str] = None,
         redact: Optional[Callable[..., Any]] = None,
@@ -77,16 +79,29 @@ class AgentaSingleton:
         _host = (
             host
             or getenv("AGENTA_HOST")
-            or config.get("backend_host")
             or config.get("host")
-            or getenv("AGENTA_API_URL", "https://cloud.agenta.ai")
+            or "https://cloud.agenta.ai"
         )
+
+        _api_url = (
+            api_url
+            or getenv("AGENTA_API_URL")
+            or config.get("api_url")
+            or None  # NO FALLBACK
+        )
+
+        if _api_url:
+            _host = _api_url.rsplit("/api", 1)[0]
+
+        if _host and not _api_url:
+            _api_url = _host + "/api"
 
         try:
             assert _host and isinstance(
                 _host, str
             ), "Host is required. Please provide a valid host or set AGENTA_HOST environment variable."
             self.host = parse_url(url=_host)
+            self.api_url = self.host + "/api"
         except AssertionError as e:
             log.error(str(e))
             raise
@@ -94,19 +109,27 @@ class AgentaSingleton:
             log.error(f"Failed to parse host URL '{_host}': {e}")
             raise
 
-        log.info("Agenta -  API URL: %s/api", self.host)
+        self.api_key = (
+            api_key
+            or getenv("AGENTA_API_KEY")
+            or config.get("api_key")
+            or None  # NO FALLBACK
+        )
 
-        self.api_key = api_key or getenv("AGENTA_API_KEY") or config.get("api_key")
+        log.info("Agenta -  API URL: %s", self.api_url)
 
         self.scope_type = (
             scope_type
             or getenv("AGENTA_SCOPE_TYPE")
             or config.get("scope_type")
-            or None
+            or None  # NO FALLBACK
         )
 
         self.scope_id = (
-            scope_id or getenv("AGENTA_SCOPE_ID") or config.get("scope_id") or None
+            scope_id
+            or getenv("AGENTA_SCOPE_ID")
+            or config.get("scope_id")
+            or None  # NO FALLBACK
         )
 
         self.tracing = Tracing(
@@ -120,12 +143,12 @@ class AgentaSingleton:
         )
 
         self.api = AgentaApi(
-            base_url=self.host + "/api",
+            base_url=self.api_url,
             api_key=self.api_key if self.api_key else "",
         )
 
         self.async_api = AsyncAgentaApi(
-            base_url=self.host + "/api",
+            base_url=self.api_url,
             api_key=self.api_key if self.api_key else "",
         )
 
@@ -172,6 +195,7 @@ class Config:
 
 def init(
     host: Optional[str] = None,
+    api_url: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
     redact: Optional[Callable[..., Any]] = None,
@@ -200,6 +224,7 @@ def init(
 
     singleton.init(
         host=host,
+        api_url=api_url,
         api_key=api_key,
         config_fname=config_fname,
         redact=redact,

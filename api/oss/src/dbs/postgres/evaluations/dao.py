@@ -547,7 +547,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     exclude_none=True,
                 )
 
-            run_dbe.flags["is_closed"] = True  # type: ignore
+            # run_dbe.flags["is_closed"] = True  # type: ignore
             flag_modified(run_dbe, "flags")
 
             run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
@@ -596,7 +596,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         exclude_none=True,
                     )
 
-                run_dbe.flags["is_closed"] = True  # type: ignore
+                # run_dbe.flags["is_closed"] = True  # type: ignore
                 flag_modified(run_dbe, "flags")
 
                 run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore

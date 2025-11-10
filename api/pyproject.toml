@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.60.2"
+version = "0.61.1"
 description = "Agenta API"
 authors = [
     { name = "Mahmoud Mabrouk", email = "mahmoud@agenta.ai" },
@@ -21,10 +21,10 @@ pydantic = "^2.11.7"
 uvicorn = "^0.34.3"
 redis = "^6.4.0"
 sendgrid = "^6.12.4"
-restrictedpython =  { version = "^8.0", python = ">=3.11,<=3.12" }
+restrictedpython =  { version = "^8.0", python = ">=3.11,<3.14" }
 celery = "^5.5.3"
 newrelic = "^10.17.0"
-openai = "^1.106.0"
+openai = ">=1.106.0"
 sqlalchemy = "^2.0.43"
 asyncpg = "^0.30.0"
 uuid-utils = "^0.10.0"
@@ -57,7 +57,7 @@ python-jsonpath = "^2.0.0"
 h11 = "^0.16.0"
 ecdsa = "^0.19.1"
 bson = "^0.5.10"
-agenta = "^0.59.5"
+agenta = ">=0.61.0"
 tiktoken = "0.11.0"
 
 google-auth = ">=2.23,<3"

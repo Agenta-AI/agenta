@@ -451,6 +451,24 @@ const useExpandableComparisonDataSource = ({
         projectEvaluators,
         fetchedEvaluatorsById,
     ])
+    const revisionSlugMap = useMemo(() => {
+        const map = new Map<string, string>()
+        Object.values(runIndex?.steps ?? {}).forEach((meta: any) => {
+            if (!meta || meta.kind !== "annotation") return
+            const baseSlug =
+                typeof meta?.refs?.evaluator?.slug === "string"
+                    ? meta.refs.evaluator.slug
+                    : undefined
+            const revisionSlug =
+                typeof meta?.refs?.evaluatorRevision?.slug === "string"
+                    ? meta.refs.evaluatorRevision.slug
+                    : undefined
+            if (baseSlug && revisionSlug && baseSlug !== revisionSlug && !map.has(baseSlug)) {
+                map.set(baseSlug, revisionSlug)
+            }
+        })
+        return map
+    }, [runIndex])
 
     const rawColumns = useMemo(
         () =>
@@ -460,8 +478,16 @@ const useExpandableComparisonDataSource = ({
                 runId: baseRunId,
                 evaluators: allEvaluators,
                 evaluatorNameBySlug,
+                revisionSlugByEvaluatorSlug: revisionSlugMap,
             }),
-        [runIndex, resolvedMetricsFromEvaluators, allEvaluators, evaluatorNameBySlug, expendedRows],
+        [
+            runIndex,
+            resolvedMetricsFromEvaluators,
+            allEvaluators,
+            evaluatorNameBySlug,
+            revisionSlugMap,
+            expendedRows,
+        ],
     )
 
     const columnsWithRunSpecificSteps = useMemo(() => {

@@ -27,6 +27,10 @@ import {
     retrieveQueryRevision,
     type QueryFilteringPayload,
 } from "../../../../../services/onlineEvaluations/api"
+import {
+    collectMetricSchemasFromEvaluator,
+    deriveSchemaMetricType,
+} from "../../../components/VirtualizedScenarioTable/assets/evaluatorSchemaUtils"
 import RenameEvalButton from "../../../HumanEvalRun/components/Modals/RenameEvalModal/assets/RenameEvalButton"
 import {urlStateAtom} from "../../../state/urlState"
 import EvalNameTag from "../../assets/EvalNameTag"
@@ -76,6 +80,34 @@ const INVOCATION_METRIC_COLUMNS: {key: string; label: string}[] = [
     {key: ERRORS_METRIC_KEY, label: "Errors"},
 ]
 
+const metricHasContent = (metric: Record<string, any> | undefined): boolean => {
+    if (!metric || typeof metric !== "object") return false
+    if (typeof metric.mean === "number" && Number.isFinite(metric.mean)) return true
+    if (typeof metric.count === "number" && metric.count > 0) return true
+
+    const distribution: any[] | undefined = Array.isArray((metric as any).distribution)
+        ? (metric as any).distribution
+        : undefined
+    if (distribution && distribution.some((bin) => Number(bin?.count ?? 0) > 0)) return true
+
+    const hist = Array.isArray((metric as any).hist) ? (metric as any).hist : undefined
+    if (hist && hist.some((bin) => Number(bin?.count ?? bin?.frequency ?? 0) > 0)) return true
+
+    const freq = Array.isArray((metric as any).frequency)
+        ? (metric as any).frequency
+        : Array.isArray((metric as any).rank)
+          ? (metric as any).rank
+          : undefined
+    if (freq && freq.some((entry) => Number(entry?.count ?? entry?.frequency ?? 0) > 0)) return true
+
+    const unique = (metric as any).unique
+    if (Array.isArray(unique) && unique.length > 0) {
+        return typeof metric.mean === "number"
+    }
+
+    return false
+}
+
 const EvalRunScoreTable = ({className, type}: {className?: string; type: "auto" | "online"}) => {
     const baseRunId = useRunId()
     const {projectURL} = useURL()
@@ -89,6 +121,79 @@ const EvalRunScoreTable = ({className, type}: {className?: string; type: "auto" 
     const runs = useAtomValue(runsStateFamily(allRunIds))
     const metricsByRun = useAtomValue(runsMetricsFamily(allRunIds))
 
+    const evaluatorsBySlug = useMemo(() => {
+        const map = new Map<string, any>()
+        const register = (entry: any, slug: string) => {
+            if (!entry || typeof entry !== "object") return
+            if (!slug || map.has(slug)) return
+            map.set(slug, entry)
+        }
+
+        runs.forEach((state) => {
+            const annotationSteps = state?.enrichedRun?.data?.steps?.filter(
+                (step: any) => step?.type === "annotation",
+            )
+            annotationSteps?.forEach((step: any) => {
+                const evaluatorId = step?.references?.evaluator?.id
+                if (!evaluatorId) return
+                const evaluator = (state?.enrichedRun?.evaluators || []).find(
+                    (e: any) => e.id === evaluatorId,
+                )
+                if (evaluator) {
+                    const originalKey = typeof step?.key === "string" ? step.key : undefined
+                    const parts = originalKey ? originalKey.split(".") : []
+                    const humanKey = parts.length > 1 ? parts[1] : originalKey
+                    const resolvedKey = step.origin === "human" ? humanKey : originalKey
+                    if (originalKey) {
+                        register(evaluator, originalKey)
+                    }
+                    if (resolvedKey && resolvedKey !== originalKey) {
+                        register(evaluator, resolvedKey)
+                    }
+                }
+            })
+        })
+
+        return Object.fromEntries(map.entries())
+    }, [runs])
+
+    const schemaMetricDefinitionsBySlug = useMemo(() => {
+        const map: Record<string, {name: string; type?: string | string[]}[]> = {}
+        Object.entries(evaluatorsBySlug).forEach(([slug, evaluator]) => {
+            const definitions = collectMetricSchemasFromEvaluator(evaluator)
+                .map(({name, schema}) => {
+                    const trimmed = (name || "").trim()
+                    if (!trimmed) return null
+                    return {name: trimmed, type: deriveSchemaMetricType(schema)}
+                })
+                .filter(Boolean) as {name: string; type?: string | string[]}[]
+
+            const existing = map[slug] ?? []
+            const merged = new Map<string, {name: string; type?: string | string[]}>()
+            existing.forEach((definition) => merged.set(definition.name, definition))
+            definitions.forEach((definition) => merged.set(definition.name, definition))
+            map[slug] = Array.from(merged.values())
+        })
+        return map
+    }, [evaluatorsBySlug])
+
+    const evaluatorMetricKeysBySlug = useMemo(() => {
+        const map: Record<string, Set<string>> = {}
+        Object.entries(schemaMetricDefinitionsBySlug).forEach(([slug, definitions]) => {
+            const set = new Set<string>()
+            definitions.forEach(({name}) => {
+                const canonical = canonicalizeMetricKey(name)
+                set.add(name)
+                set.add(canonical)
+                const prefixed = `${slug}.${name}`
+                set.add(prefixed)
+                set.add(canonicalizeMetricKey(prefixed))
+            })
+            map[slug] = set
+        })
+        return map
+    }, [schemaMetricDefinitionsBySlug])
+
     // Convenience lookup maps
     const evalById = useMemo(() => {
         const map: Record<string, any> = {}
@@ -101,48 +206,107 @@ const EvalRunScoreTable = ({className, type}: {className?: string; type: "auto" 
 
         metricsByRun.forEach(({id, metrics}) => {
             const source = (metrics || {}) as Record<string, BasicStats>
-            const normalized: Record<string, BasicStats> = {}
-
-            const evaluators = (evalById[id]?.enrichedRun?.evaluators || []) as {
-                slug?: string
-                metrics?: Record<string, unknown>
-            }[]
-            const evaluatorsBySlug = new Map<string, {metrics?: Record<string, unknown>}>()
-            evaluators.forEach((evaluator) => {
-                if (typeof evaluator?.slug === "string") {
-                    evaluatorsBySlug.set(evaluator.slug, evaluator)
-                }
-            })
-
-            const shouldIncludeMetric = (canonicalKey: string) => {
-                if (INVOCATION_METRIC_SET.has(canonicalKey)) return true
-                if (!canonicalKey.includes(".")) return true
-
-                const [slug, ...parts] = canonicalKey.split(".")
-                if (!parts.length) return false
-                const evaluator = evaluatorsBySlug.get(slug)
-                if (!evaluator?.metrics) return false
-                const key = parts[parts.length - 1]
-                return Object.prototype.hasOwnProperty.call(evaluator.metrics, key)
-            }
+            const normalized: Record<string, BasicStats> = {...source}
 
             Object.entries(source || {}).forEach(([rawKey, value]) => {
                 const canonical = canonicalizeMetricKey(rawKey)
-                if (!shouldIncludeMetric(canonical)) return
-
-                if (normalized[rawKey] === undefined) {
-                    normalized[rawKey] = value
-                }
                 if (canonical !== rawKey && normalized[canonical] === undefined) {
                     normalized[canonical] = value
                 }
             })
-
             map[id] = normalized
         })
 
         return map
-    }, [metricsByRun, evalById])
+    }, [metricsByRun])
+
+    const combinedMetricEntries = useMemo(() => {
+        const entries: {
+            fullKey: string
+            evaluatorSlug: string
+            metricKey: string
+        }[] = []
+        const seen = new Set<string>()
+
+        const pushEntry = (source: Record<string, any>) => {
+            Object.keys(source || {}).forEach((rawKey) => {
+                const canonical = canonicalizeMetricKey(rawKey)
+                if (INVOCATION_METRIC_SET.has(canonical)) return
+                if (!canonical.includes(".")) return
+                if (seen.has(canonical)) return
+
+                const metric =
+                    (getMetricValueWithAliases(source, canonical) as Record<string, any>) ||
+                    (source?.[rawKey] as Record<string, any>)
+                if (!metricHasContent(metric)) return
+
+                const segments = canonical.split(".").filter(Boolean)
+                if (!segments.length) return
+
+                const resolveSlugFromSegments = () => {
+                    let slugCandidate = segments[0]
+                    let idx = 1
+                    while (idx <= segments.length) {
+                        if (evaluatorsBySlug[slugCandidate]) {
+                            return {slug: slugCandidate, metricStartIdx: idx}
+                        }
+                        if (idx >= segments.length) break
+                        slugCandidate = `${slugCandidate}.${segments[idx]}`
+                        idx += 1
+                    }
+                    if (segments.length > 1 && evaluatorsBySlug[segments[1]]) {
+                        return {slug: segments[1], metricStartIdx: 2}
+                    }
+                    return null
+                }
+
+                const resolved = resolveSlugFromSegments()
+                if (!resolved) return
+                const {slug, metricStartIdx} = resolved
+
+                const evaluator = evaluatorsBySlug[slug]
+                if (!evaluator) return
+
+                const metricKeySegments = segments.slice(metricStartIdx)
+                const metricKey =
+                    metricKeySegments.length > 0
+                        ? metricKeySegments.join(".")
+                        : (segments[metricStartIdx - 1] ?? slug)
+
+                if (metricKey.startsWith("attributes.ag.metrics")) {
+                    return
+                }
+
+                const allowedKeys = evaluatorMetricKeysBySlug[slug]
+                if (allowedKeys && allowedKeys.size) {
+                    const keySegments = metricKey.split(".").filter(Boolean)
+                    const candidateKeys = new Set<string>([metricKey])
+                    keySegments.forEach((_, idx) => {
+                        const prefix = keySegments.slice(0, idx + 1).join(".")
+                        const suffix = keySegments.slice(idx).join(".")
+                        if (prefix) candidateKeys.add(prefix)
+                        if (suffix) candidateKeys.add(suffix)
+                        const segment = keySegments[idx]
+                        if (segment) candidateKeys.add(segment)
+                    })
+                    const matchesDefinition = Array.from(candidateKeys).some((key) =>
+                        allowedKeys.has(key),
+                    )
+                    if (!matchesDefinition) return
+                }
+
+                entries.push({fullKey: canonical, evaluatorSlug: slug, metricKey})
+                seen.add(canonical)
+            })
+        }
+
+        metricsByRun.forEach(({metrics}) => {
+            const source = (metrics || {}) as Record<string, any>
+            pushEntry(source)
+        })
+
+        return entries
+    }, [metricsByRun, evaluatorsBySlug, evaluatorMetricKeysBySlug])
 
     const baseRunState = baseRunId ? evalById[baseRunId] : undefined
     const hasBaseScenarios =
@@ -160,7 +324,6 @@ const EvalRunScoreTable = ({className, type}: {className?: string; type: "auto" 
     }, [])
 
     const chartMetrics = useMemo(() => {
-        // Build union of evaluator metrics across all runs, then add invocation metrics per rules.
         interface Axis {
             name: string
             maxScore: number
@@ -172,63 +335,49 @@ const EvalRunScoreTable = ({className, type}: {className?: string; type: "auto" 
 
         const axesByKey: Record<string, Axis> = {}
 
-        // 1) Union evaluator metrics from all runs
-        allRunIds.forEach((runId, runIdx) => {
-            const stats = metricsLookup[runId] || {}
-            const evaluators = evalById[runId]?.enrichedRun?.evaluators
-            const processed = new Set<string>()
+        combinedMetricEntries.forEach(({fullKey, evaluatorSlug, metricKey}) => {
+            const evaluator = evaluatorsBySlug[evaluatorSlug]
+            if (!evaluator) return
 
-            Object.keys(stats).forEach((rawKey) => {
-                const canonicalKey = canonicalizeMetricKey(rawKey)
-                if (processed.has(canonicalKey)) return
-                processed.add(canonicalKey)
+            const displayMetricName = metricKey
+                ? formatMetricName(metricKey)
+                : formatMetricName(fullKey)
+            const evaluatorLabel = evaluator?.name ?? formatColumnTitle(evaluatorSlug)
 
-                if (INVOCATION_METRIC_SET.has(canonicalKey)) return
-                if (!canonicalKey.includes(".")) return
+            const axis =
+                axesByKey[fullKey] ||
+                (axesByKey[fullKey] = {
+                    name: `${evaluatorLabel} - ${displayMetricName}`,
+                    maxScore: 100,
+                    type: "numeric",
+                    _key: fullKey,
+                })
 
-                const metric = getMetricValueWithAliases(stats, canonicalKey)
-                if (!metric) return
+            allRunIds.forEach((runId, runIdx) => {
+                const stats = metricsLookup[runId] || {}
+                const metric = getMetricValueWithAliases(stats, fullKey)
+                if (!metricHasContent(metric)) return
 
-                const [evalSlug, ...metricParts] = canonicalKey.split(".")
-                const metricRemainder = metricParts.join(".")
-                const evaluator = evaluators?.find((e: any) => e.slug === evalSlug)
-
-                if (!evaluator) return
-
-                const axisKey = canonicalKey
                 const isBinary = Array.isArray((metric as any)?.frequency)
-                const displayMetricName = metricRemainder
-                    ? formatMetricName(metricRemainder)
-                    : formatMetricName(canonicalKey)
-
-                const x = metricParts[metricParts.length - 1]
-                if (x in evaluator.metrics) {
-                    if (!axesByKey[axisKey]) {
-                        axesByKey[axisKey] = {
-                            name: `${evaluator?.name ?? evalSlug} - ${displayMetricName}`,
-                            maxScore: isBinary ? 100 : (metric as any)?.max || 100,
-                            type: isBinary ? "binary" : "numeric",
-                            _key: axisKey,
-                        }
-                    } else if (!isBinary) {
-                        const mx = (metric as any)?.max
-                        if (typeof mx === "number") {
-                            axesByKey[axisKey].maxScore = Math.max(axesByKey[axisKey].maxScore, mx)
-                        }
+                axis.type = isBinary ? "binary" : "numeric"
+                if (!isBinary) {
+                    const mx = (metric as any)?.max
+                    if (typeof mx === "number") {
+                        axis.maxScore = Math.max(axis.maxScore, mx)
                     }
-
-                    const seriesKey = runIdx === 0 ? "value" : `value-${runIdx + 1}`
-                    const v = isBinary
-                        ? getFrequencyData(metric, false)
-                        : ((metric as any)?.mean ?? 0)
-                    axesByKey[axisKey][seriesKey] = v
+                } else {
+                    axis.maxScore = 100
                 }
+
+                const seriesKey = runIdx === 0 ? "value" : `value-${runIdx + 1}`
+                axis[seriesKey] = isBinary
+                    ? getFrequencyData(metric, false)
+                    : ((metric as any)?.mean ?? 0)
             })
         })
 
         let axes: Axis[] = Object.values(axesByKey)
 
-        // 2) Invocation metrics only when evaluator metrics are fewer than 3 (based on union)
         const evaluatorCount = axes.length
         const addInvocationAxis = (metricKey: string, label?: string) => {
             const axis: Axis = {
@@ -237,27 +386,27 @@ const EvalRunScoreTable = ({className, type}: {className?: string; type: "auto" 
                 type: "numeric",
                 _key: metricKey,
             }
-            allRunIds.forEach((runId, runIdx) => {
-                const stats = metricsLookup[runId] || {}
-                const metric = getMetricValueWithAliases(stats, metricKey) as BasicStats | any
-                const seriesKey = runIdx === 0 ? "value" : `value-${runIdx + 1}`
-                axis[seriesKey] = metric?.mean ?? 0
-                const mx = metric?.max
-                if (typeof mx === "number") axis.maxScore = Math.max(axis.maxScore, mx)
-            })
-            axes.push(axis)
-        }
 
-        if (evaluatorCount < 3) {
-            if (evaluatorCount === 2) {
-                addInvocationAxis(COST_METRIC_KEY, "Invocation costs")
-            } else if (evaluatorCount <= 1) {
-                addInvocationAxis(DURATION_METRIC_KEY, "Invocation duration")
-                addInvocationAxis(COST_METRIC_KEY, "Invocation costs")
+            allRunIds.forEach((runId, runIdx) => {
+                const metrics = metricsLookup[runId]
+                const metric = getMetricValueWithAliases(metrics || {}, metricKey) as any
+                if (!metric) return
+                const seriesKey = runIdx === 0 ? "value" : `value-${runIdx + 1}`
+                if (metric.mean !== undefined) {
+                    axis[seriesKey] = metric.mean
+                    axis.maxScore = Math.max(axis.maxScore, metric.mean)
+                }
+            })
+
+            if (axis.maxScore > 0) {
+                axes.push(axis)
             }
         }
 
-        // 3) Ensure all series keys exist for each axis
+        if (evaluatorCount < 3) {
+            INVOCATION_METRIC_COLUMNS.forEach(({key, label}) => addInvocationAxis(key, label))
+        }
+
         if (axes.length > 0) {
             allRunIds.forEach((_, runIdx) => {
                 const seriesKey = runIdx === 0 ? "value" : `value-${runIdx + 1}`
@@ -268,22 +417,39 @@ const EvalRunScoreTable = ({className, type}: {className?: string; type: "auto" 
         }
 
         return axes.map(({_key, ...rest}) => rest)
-    }, [allRunIds, evalById, metricsLookup, getFrequencyData])
+    }, [allRunIds, combinedMetricEntries, evaluatorsBySlug, metricsLookup, getFrequencyData])
 
     const spiderChartClassName = clsx([
         "min-h-[400px] h-[400px]",
         {"w-[50%] !h-full": !isComparison},
     ])
 
+    const chartSeries = useMemo(
+        () =>
+            allRunIds.map((id, idx) => {
+                const state = evalById[id]
+                const compareIdx = state?.compareIndex || idx + 1
+                const colorIdx = state?.colorIndex || (state?.isBase ? 1 : undefined) || compareIdx
+                return {
+                    key: idx === 0 ? "value" : `value-${idx + 1}`,
+                    color: (EVAL_COLOR as any)[colorIdx] || "#3B82F6",
+                    name: state?.enrichedRun?.name || `Eval ${compareIdx}`,
+                }
+            }),
+        [allRunIds, evalById],
+    )
+
+    const sortedEvaluatorMetricEntries = useMemo(() => {
+        const entries = [...combinedMetricEntries]
+        entries.sort((a, b) =>
+            a.evaluatorSlug === b.evaluatorSlug
+                ? a.metricKey.localeCompare(b.metricKey)
+                : a.evaluatorSlug.localeCompare(b.evaluatorSlug),
+        )
+        return entries
+    }, [combinedMetricEntries])
+
     const dataSource = useMemo(() => {
-        // Build union of all metric keys across runs
-        const metricKeys = new Set<string>()
-        allRunIds.forEach((id) => {
-            const m = metricsLookup[id] || {}
-
-            Object.keys(m).forEach((k) => metricKeys.add(canonicalizeMetricKey(k)))
-        })
-
         // const baseEval = evalById[baseRunId!]?.enrichedRun
         const rows: any[] = []
 
@@ -436,52 +602,43 @@ const EvalRunScoreTable = ({className, type}: {className?: string; type: "auto" 
         })
 
         // Evaluator metrics grouped by evaluator slug
-        const allEvaluatorEntries: {slug: string; metricKey: string; fullKey: string}[] = []
-        Array.from(metricKeys)
-            .filter((k) => !INVOCATION_METRIC_SET.has(k) && k.includes("."))
-            .forEach((fullKey) => {
-                const [slug, ...restParts] = fullKey.split(".")
-                const metricKey = restParts.join(".") || slug
-                allEvaluatorEntries.push({slug, metricKey, fullKey})
-            })
-
-        // Maintain stable order by slug then metricKey
-        allEvaluatorEntries
-            .sort((a, b) =>
-                a.slug === b.slug
-                    ? a.metricKey.localeCompare(b.metricKey)
-                    : a.slug.localeCompare(b.slug),
-            )
-            .forEach(({slug, metricKey, fullKey}) => {
-                const state = evalById[baseRunId!]
-                const evaluator = state?.enrichedRun?.evaluators?.find((e: any) => e.slug === slug)
-                const baseMetric = getMetricValueWithAliases(
-                    metricsLookup[baseRunId!] || {},
-                    fullKey,
-                ) as any
-                const [, ...restParts] = fullKey.split(".")
-                const metricPath = restParts.length ? restParts.join(".") : metricKey
-                const labelSegment = metricPath.split(".").pop() || metricPath
-                const displayMetricName = formatColumnTitle(labelSegment)
-                const titleNode = (
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-[#586673]">
-                            {evaluator?.name ?? formatColumnTitle(slug)}
-                        </span>
-                        <div className="flex items-center gap-2">
-                            {displayMetricName}
-                            {/* Show (mean) if base has mean */}
-                            {baseMetric && (baseMetric as any)?.mean !== undefined && (
-                                <span className="text-[#586673]">(mean)</span>
-                            )}
-                        </div>
+        sortedEvaluatorMetricEntries.forEach(({evaluatorSlug: slug, metricKey, fullKey}) => {
+            const evaluator = evaluatorsBySlug[slug]
+            const baseMetric = getMetricValueWithAliases(
+                metricsLookup[baseRunId!] || {},
+                fullKey,
+            ) as any
+            const metricPath = metricKey || fullKey
+            const labelSegment = metricPath.split(".").pop() || metricPath
+            const displayMetricName = formatColumnTitle(labelSegment)
+            const titleNode = (
+                <div className="flex flex-col gap-0.5">
+                    <span className="text-[#586673]">
+                        {evaluator?.name ?? formatColumnTitle(slug)}
+                    </span>
+                    <div className="flex items-center gap-2">
+                        {displayMetricName}
+                        {baseMetric && (baseMetric as any)?.mean !== undefined && (
+                            <span className="text-[#586673]">(mean)</span>
+                        )}
                     </div>
-                )
-                pushMetricRow(fullKey, titleNode)
-            })
+                </div>
+            )
+            pushMetricRow(fullKey, titleNode)
+        })
 
         return rows
-    }, [allRunIds, baseRunId, evalById, getFrequencyData, metricsLookup, runs, type])
+    }, [
+        allRunIds,
+        baseRunId,
+        evalById,
+        evaluatorsBySlug,
+        getFrequencyData,
+        metricsLookup,
+        projectURL,
+        sortedEvaluatorMetricEntries,
+        type,
+    ])
 
     return (
         <div className={clsx("border border-solid border-[#EAEFF5] rounded h-full", className)}>
@@ -602,21 +759,7 @@ const EvalRunScoreTable = ({className, type}: {className?: string; type: "auto" 
                             {"w-[50%] !h-full": !isComparison},
                         ])}
                         metrics={chartMetrics}
-                        series={useMemo(() => {
-                            return allRunIds.map((id, idx) => {
-                                const state = evalById[id]
-                                const compareIdx = state?.compareIndex || idx + 1
-                                const colorIdx =
-                                    state?.colorIndex ||
-                                    (state?.isBase ? 1 : undefined) ||
-                                    compareIdx
-                                return {
-                                    key: idx === 0 ? "value" : `value-${idx + 1}`,
-                                    color: (EVAL_COLOR as any)[colorIdx] || "#3B82F6",
-                                    name: state?.enrichedRun?.name || `Eval ${compareIdx}`,
-                                }
-                            })
-                        }, [allRunIds, evalById])}
+                        series={chartSeries}
                     />
                 )}
             </div>

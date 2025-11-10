@@ -26,7 +26,6 @@ const useEvaluators = <Preview extends boolean = false>({
     onSuccess,
     onError,
     projectId,
-    ..._rest
 }: UseEvaluatorsOptions & {
     preview?: Preview
     queries?: {is_human: boolean}

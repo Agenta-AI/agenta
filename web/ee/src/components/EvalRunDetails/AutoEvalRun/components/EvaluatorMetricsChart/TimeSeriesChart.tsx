@@ -5,7 +5,7 @@ import clsx from "clsx"
 import {
     Area,
     CartesianGrid,
-    Legend,
+    ComposedChart,
     Line,
     LineChart,
     ResponsiveContainer,
@@ -19,43 +19,12 @@ import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {formatMetricName} from "../../assets/utils"
 import PlaceholderOverlay, {PlaceholderEvaluationType} from "../shared/PlaceholderOverlay"
 
+import {withAlpha, format3Sig, formatTimestamp} from "./assets/helpers"
 import HistogramChart from "./assets/HistogramChart"
+import LowerBand from "./assets/LowerBand"
+import UpperBand from "./assets/UpperBand"
 
-const withAlpha = (color: string, alpha: number) => {
-    if (color.startsWith("#")) {
-        const hex = color.slice(1)
-        const normalized =
-            hex.length === 3
-                ? hex
-                      .split("")
-                      .map((ch) => ch + ch)
-                      .join("")
-                : hex
-        const int = Number.parseInt(normalized, 16)
-        if (!Number.isNaN(int)) {
-            const r = (int >> 16) & 255
-            const g = (int >> 8) & 255
-            const b = int & 255
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`
-        }
-    }
-    return color
-}
-
-const format3Sig = (n: number) => {
-    if (!Number.isFinite(n)) return String(n)
-    const abs = Math.abs(n)
-    if (abs !== 0 && (abs < 0.001 || abs >= 1000)) return n.toExponential(2)
-    const s = n.toPrecision(3)
-    return String(Number(s))
-}
-
-const formatTimestamp = (value: number) => {
-    if (!Number.isFinite(value)) return ""
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return ""
-    return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`
-}
+// helpers moved to ./assets/helpers
 
 const PLACEHOLDER_TIME_START = Date.UTC(2025, 0, 1, 9, 0, 0)
 const PLACEHOLDER_TIME_STEP = 60 * 60 * 1000
@@ -114,6 +83,29 @@ const EvaluatorMetricsTimeSeriesChart = ({
     placeholderTitle?: ReactNode
     placeholderDescription?: ReactNode
 }) => {
+    useEffect(() => {
+        if (process.env.NODE_ENV === "development") {
+            try {
+                const _seriesCount = Array.isArray(series) ? series.length : 0
+                const _summary = (series || []).map((s) => {
+                    const pts = Array.isArray(s.points) ? s.points : []
+                    const count = pts.length
+                    const timestamps = pts.slice(0, 10).map((p) => p.timestamp)
+                    const allTs = pts.map((p) => p.timestamp)
+                    const minTs = allTs.length ? Math.min(...allTs) : undefined
+                    const maxTs = allTs.length ? Math.max(...allTs) : undefined
+                    return {
+                        id: s.id,
+                        name: s.name,
+                        points: count,
+                        minTs,
+                        maxTs,
+                        sampleTs: timestamps,
+                    }
+                })
+            } catch {}
+        }
+    }, [series, metricKey, isBoolean, evaluationType])
     const hasData = series?.some((s) => s.points.length > 0)
     const evaluatorLabel = evaluator?.name || evaluator?.slug || "this evaluator"
     const overlayTitle = placeholderTitle ?? "Waiting for your traces"
@@ -122,7 +114,7 @@ const EvaluatorMetricsTimeSeriesChart = ({
         `Generate traces with ${evaluatorLabel} to start collecting results.`
 
     const chartData = useMemo(() => {
-        const map = new Map<number, Record<string, number | string>>()
+        const map = new Map<number, Record<string, any>>()
         series.forEach((s) => {
             s.points.forEach((pt) => {
                 const existing = map.get(pt.timestamp) ?? {timestamp: pt.timestamp}
@@ -139,9 +131,7 @@ const EvaluatorMetricsTimeSeriesChart = ({
                 if (pt.p50 !== undefined) {
                     existing[`${s.id}__p50`] = pt.p50
                 }
-                if (pt.p25 !== undefined && pt.p75 !== undefined) {
-                    existing[`${s.id}__pRange`] = pt.p75 - pt.p25
-                }
+                // old band helpers removed; we will compute highlight areas in windowData
                 if (pt.histogram && pt.histogram.length) {
                     existing[`${s.id}__hist`] = pt.histogram
                 }
@@ -198,7 +188,6 @@ const EvaluatorMetricsTimeSeriesChart = ({
         setPanStartX(e.clientX)
         const range = resolveRange() || [tsExtent.min, tsExtent.max]
         setPanStartDomain(range)
-        console.debug("[TimeSeries] mousedown", {startX: e.clientX, range})
     }
     const handleMouseMove: React.MouseEventHandler<HTMLDivElement> = (e) => {
         const rect = containerRef.current?.getBoundingClientRect()
@@ -221,12 +210,7 @@ const EvaluatorMetricsTimeSeriesChart = ({
             nextMin -= diff
             nextMax -= diff
         }
-        console.debug("[TimeSeries] mousemove", {
-            dx,
-            domainWidth,
-            xDomainBefore: panStartDomain,
-            xDomainAfter: [nextMin, nextMax],
-        })
+
         panTargetRef.current = [nextMin, nextMax]
         if (panRAF.current == null) {
             panRAF.current = requestAnimationFrame(() => {
@@ -240,7 +224,6 @@ const EvaluatorMetricsTimeSeriesChart = ({
         setIsPanning(false)
         setPanStartX(null)
         setPanStartDomain(null)
-        console.debug("[TimeSeries] pan end")
         if (panRAF.current) {
             cancelAnimationFrame(panRAF.current)
             panRAF.current = null
@@ -327,14 +310,6 @@ const EvaluatorMetricsTimeSeriesChart = ({
                 anchorRatio = Math.max(0, Math.min(1, anchorRatio))
             }
 
-            console.debug("[TimeSeries] wheel(native)", {
-                xDomainBefore: [currentMin, currentMax],
-                xDomainAfter: [nextMin, nextMax],
-                cursorRatio: ratio,
-                factor: rawFactor,
-                anchorCenter,
-                anchorRatio,
-            })
             setXDomain([nextMin, nextMax])
 
             // Reset anchor after idle time to start a new gesture on next wheel
@@ -388,7 +363,7 @@ const EvaluatorMetricsTimeSeriesChart = ({
     }, [series, isBoolean])
 
     // Consistent chart margins to compute plot area sizes
-    const chartMargin = useMemo(() => ({top: 8, right: 12, bottom: 48, left: 56}), [])
+    const chartMargin = useMemo(() => ({top: 8, right: 12, bottom: 24, left: 48}), [])
 
     const domain = useMemo(() => {
         if (isBoolean) return [0 - BOOLEAN_AXIS_PADDING, 100 + BOOLEAN_AXIS_PADDING] as const
@@ -453,40 +428,75 @@ const EvaluatorMetricsTimeSeriesChart = ({
         )
     })
 
+    const makeActiveDot =
+        (strokeColor: string, r = 3) =>
+        (props: any) => {
+            const isEdge = !!props?.payload?.__edgeRow
+            if (isEdge) return <g />
+            const {cx, cy} = props || {}
+            if (typeof cx !== "number" || typeof cy !== "number") return <g />
+            return (
+                <circle
+                    cx={cx}
+                    cy={cy}
+                    r={r}
+                    fill="#fff"
+                    stroke={withAlpha(strokeColor, 0.6)}
+                    strokeWidth={1}
+                />
+            )
+        }
+
     const ChartLegend = memo((props: any) => {
-        const items: any[] = Array.isArray(props?.payload) ? props.payload : []
+        // Manual items mode: [{label, color}] — used when rendering outside the chart
+        if (Array.isArray(props?.items)) {
+            const items = props.items as {label: string; color: string}[]
+            if (!items.length) return null
+            return (
+                <div
+                    style={{
+                        marginTop: 8,
+                        paddingBottom: 8,
+                        display: "flex",
+                        justifyContent: "center",
+                        gap: 16,
+                        fontSize: 12,
+                        color: "#4b5563",
+                        width: "100%",
+                    }}
+                >
+                    {items.map((it, idx) => (
+                        <div
+                            key={`${it.label}-${idx}`}
+                            style={{display: "flex", alignItems: "center", gap: 6}}
+                        >
+                            <span
+                                style={{
+                                    width: 8,
+                                    height: 8,
+                                    borderRadius: 999,
+                                    backgroundColor: it.color,
+                                    display: "inline-block",
+                                }}
+                            />
+                            <span>{it.label}</span>
+                        </div>
+                    ))}
+                </div>
+            )
+        }
+
+        // Fallback: Recharts payload mode (not used after moving legend outside)
+        const raw: any[] = Array.isArray(props?.payload) ? props.payload : []
+        if (!raw.length) return null
+        const items = raw
+            .filter((it) => !!String(it?.value ?? ""))
+            .map((it) => ({
+                label: String(it?.payload?.name ?? it?.value ?? ""),
+                color: String(it?.payload?.stroke || it?.payload?.fill || it?.color || "#888"),
+            }))
         if (!items.length) return null
-        return (
-            <div
-                style={{
-                    marginTop: 16,
-                    display: "flex",
-                    justifyContent: "center",
-                    gap: 16,
-                    fontSize: 12,
-                    color: "#4b5563",
-                    width: "100%",
-                }}
-            >
-                {items.map((it) => (
-                    <div
-                        key={String(it?.value)}
-                        style={{display: "flex", alignItems: "center", gap: 6}}
-                    >
-                        <span
-                            style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: 999,
-                                backgroundColor: String(it?.color || "#888"),
-                                display: "inline-block",
-                            }}
-                        />
-                        <span>{String(it?.value ?? "")}</span>
-                    </div>
-                ))}
-            </div>
-        )
+        return <ChartLegend items={items} />
     })
 
     // Augmented data: full wide dataset plus interpolated boundary rows at min/max
@@ -513,6 +523,7 @@ const EvaluatorMetricsTimeSeriesChart = ({
 
         const addEdgeRow = (boundaryTs: number, side: "min" | "max") => {
             let row = rowMap.get(boundaryTs) ?? {timestamp: boundaryTs}
+            ;(row as any).__edgeRow = true
             let any = false
             for (const s of sorted) {
                 const pts = s.pts
@@ -577,6 +588,80 @@ const EvaluatorMetricsTimeSeriesChart = ({
         addEdgeRow(minNum, "min")
         addEdgeRow(maxNum, "max")
 
+        // Interpolate p25/p75 for rows that lack them so active dots appear consistently
+        const interpAt = (
+            pts: {timestamp: number; value: number}[],
+            t: number,
+        ): number | undefined => {
+            if (!pts.length) return undefined
+            if (t <= pts[0].timestamp) return pts[0].value
+            if (t >= pts[pts.length - 1].timestamp) return pts[pts.length - 1].value
+            let lo = 0
+            let hi = pts.length - 1
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1
+                const mt = pts[mid].timestamp
+                if (mt < t) lo = mid + 1
+                else hi = mid - 1
+            }
+            const next = pts[lo]
+            const prev = pts[lo - 1]
+            if (!prev || !next || next.timestamp === prev.timestamp) return undefined
+            const r = (t - prev.timestamp) / (next.timestamp - prev.timestamp)
+            return prev.value + r * (next.value - prev.value)
+        }
+
+        for (const s of series) {
+            const p25Pts = s.points
+                .filter((p) => typeof p.p25 === "number")
+                .map((p) => ({timestamp: p.timestamp, value: p.p25 as number}))
+                .sort((a, b) => a.timestamp - b.timestamp)
+            const p75Pts = s.points
+                .filter((p) => typeof p.p75 === "number")
+                .map((p) => ({timestamp: p.timestamp, value: p.p75 as number}))
+                .sort((a, b) => a.timestamp - b.timestamp)
+            if (!p25Pts.length && !p75Pts.length) continue
+
+            for (const [ts, row] of rowMap.entries()) {
+                if (typeof (row as any)[`${s.id}__p25`] !== "number" && p25Pts.length) {
+                    const v = interpAt(p25Pts, ts)
+                    if (typeof v === "number" && Number.isFinite(v)) {
+                        ;(row as any)[`${s.id}__p25`] = v
+                    }
+                }
+                if (typeof (row as any)[`${s.id}__p75`] !== "number" && p75Pts.length) {
+                    const v = interpAt(p75Pts, ts)
+                    if (typeof v === "number" && Number.isFinite(v)) {
+                        ;(row as any)[`${s.id}__p75`] = v
+                    }
+                }
+
+                // Compute helpers
+                const mainVal = Number((row as any)[s.id])
+                const p25Val = (row as any)[`${s.id}__p25`]
+                const p75Val = (row as any)[`${s.id}__p75`]
+                if (Number.isFinite(mainVal)) {
+                    const NUM_SEGS = 30
+                    if (typeof p75Val === "number" && Number.isFinite(p75Val as number)) {
+                        ;(row as any)[`${s.id}__upperBase`] = mainVal
+                        const ud = Math.max(0, (p75Val as number) - mainVal)
+                        const usz = ud / NUM_SEGS
+                        for (let i = 0; i < NUM_SEGS; i++) {
+                            ;(row as any)[`${s.id}__upperSeg${i}`] = usz
+                        }
+                    }
+                    if (typeof p25Val === "number" && Number.isFinite(p25Val as number)) {
+                        ;(row as any)[`${s.id}__lowerBase`] = p25Val as number
+                        const ld = Math.max(0, mainVal - (p25Val as number))
+                        const lsz = ld / NUM_SEGS
+                        for (let i = 0; i < NUM_SEGS; i++) {
+                            ;(row as any)[`${s.id}__lowerSeg${i}`] = lsz
+                        }
+                    }
+                }
+            }
+        }
+
         return Array.from(rowMap.values()).sort((a, b) => Number(a.timestamp) - Number(b.timestamp))
     }, [chartData, xDomain, tsExtent, series, isBoolean])
 
@@ -616,7 +701,7 @@ const EvaluatorMetricsTimeSeriesChart = ({
             <div
                 ref={containerRef}
                 className={clsx(
-                    "py-4 px-4 h-[280px] select-none",
+                    "pt-4 pb-2 px-4 h-[280px] select-none",
                     isPanning ? "cursor-grabbing" : "cursor-grab",
                 )}
                 style={{touchAction: "pan-y", overscrollBehavior: "auto"}}
@@ -625,7 +710,6 @@ const EvaluatorMetricsTimeSeriesChart = ({
                 onMouseUp={endPan}
                 onMouseLeave={endPan}
                 onDoubleClick={() => {
-                    console.debug("[TimeSeries] reset")
                     setXDomain(["auto", "auto"])
                     // Also clear any previous wheel anchor so next zoom re-anchors at cursor
                     wheelAnchorRef.current = null
@@ -634,7 +718,7 @@ const EvaluatorMetricsTimeSeriesChart = ({
                 <div className="relative h-full">
                     {hasData ? (
                         <ResponsiveContainer width="100%" height="100%">
-                            <LineChart
+                            <ComposedChart
                                 key={(xAxisDomain || xDomain).toString()}
                                 data={windowData as any}
                                 margin={chartMargin}
@@ -668,10 +752,22 @@ const EvaluatorMetricsTimeSeriesChart = ({
                                     content={({active, label, payload}) => {
                                         if (suppressTooltip) return null
                                         if (!active || !payload || !payload.length) return null
-                                        const rows = payload as any[]
+                                        const rows = (payload as any[]).filter((row: any) => {
+                                            const key = String(row?.dataKey || "")
+                                            // Exclude helper series for highlight areas and redundant percentile lines
+                                            if (!key) return false
+                                            if (key.endsWith("__upperBase")) return false
+                                            if (key.endsWith("__lowerBase")) return false
+                                            if (key.includes("__upperSeg")) return false
+                                            if (key.includes("__lowerSeg")) return false
+                                            // Remove separate percentile lines (we show range below the main row)
+                                            if (key.endsWith("__p25")) return false
+                                            if (key.endsWith("__p75")) return false
+                                            return true
+                                        })
                                         return (
-                                            <div className="bg-white/95 border border-[#e5e7eb] rounded p-2 text-xs text-[#111827] shadow">
-                                                <div className="mb-1 font-medium">
+                                            <div className="bg-white border border-[#e5e7eb] rounded-lg p-3 text-xs text-[#111827] shadow-lg">
+                                                <div className="mb-2 font-semibold text-[12px]">
                                                     {formatTimestamp(Number(label))}
                                                 </div>
                                                 <div className="flex flex-col gap-1">
@@ -689,7 +785,6 @@ const EvaluatorMetricsTimeSeriesChart = ({
                                                                     : Number(countRaw.toFixed(2))
                                                                 : countRaw
                                                         const p25 = row.payload?.[`${dataKey}__p25`]
-                                                        const p50 = row.payload?.[`${dataKey}__p50`]
                                                         const p75 = row.payload?.[`${dataKey}__p75`]
                                                         const formatValue = (val?: number) => {
                                                             if (val == null) return undefined
@@ -705,11 +800,6 @@ const EvaluatorMetricsTimeSeriesChart = ({
                                                         const formattedValue = formatValue(valueNum)
                                                         const formattedP25 = formatValue(p25)
                                                         const formattedP75 = formatValue(p75)
-                                                        const formattedMedian = formatValue(p50)
-                                                        const formattedRange =
-                                                            formattedP25 && formattedP75
-                                                                ? `${formattedP25} – ${formattedP75}`
-                                                                : undefined
                                                         const histogram = row.payload?.[
                                                             `${dataKey}__hist`
                                                         ] as {
@@ -760,57 +850,79 @@ const EvaluatorMetricsTimeSeriesChart = ({
                                                                   )
                                                             : []
                                                         return (
-                                                            <div key={dataKey}>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span
-                                                                        className="inline-block w-2 h-2 rounded-full"
-                                                                        style={{
-                                                                            backgroundColor: color,
-                                                                        }}
-                                                                    />
-                                                                    <span className="font-medium">
-                                                                        {name}:
-                                                                    </span>
-                                                                    <span>{formattedValue}</span>
-                                                                    {count != null ? (
-                                                                        <span className="text-[#4b5563]">
-                                                                            • {count} scenarios
+                                                            <div key={dataKey} className="py-1">
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <div className="flex items-center gap-2 min-w-0">
+                                                                        <span
+                                                                            className="inline-block w-2.5 h-2.5 rounded-full"
+                                                                            style={{
+                                                                                backgroundColor:
+                                                                                    color,
+                                                                            }}
+                                                                        />
+                                                                        <span className="font-medium truncate">
+                                                                            {name}
                                                                         </span>
-                                                                    ) : null}
-                                                                </div>
-                                                                {formattedRange ? (
-                                                                    <div className="pl-4 text-[#4b5563]">
-                                                                        P25–P75: {formattedRange}
+                                                                        {count != null ? (
+                                                                            <span className="text-[#6b7280]">
+                                                                                • {count} scenarios
+                                                                            </span>
+                                                                        ) : null}
                                                                     </div>
-                                                                ) : null}
-                                                                {formattedMedian ? (
-                                                                    <div className="pl-4 text-[#4b5563]">
-                                                                        Median: {formattedMedian}
+                                                                    <div
+                                                                        style={{
+                                                                            fontVariantNumeric:
+                                                                                "tabular-nums",
+                                                                        }}
+                                                                    >
+                                                                        {formattedValue}
+                                                                    </div>
+                                                                </div>
+                                                                {formattedP25 || formattedP75 ? (
+                                                                    <div className="pl-5 text-[#4b5563]">
+                                                                        P25: {formattedP25 ?? "-"}
+                                                                        {formattedP75 ? (
+                                                                            <span>{` / P75: ${formattedP75}`}</span>
+                                                                        ) : null}
                                                                     </div>
                                                                 ) : null}
                                                                 {histogramData.length ? (
-                                                                    <div className="pl-4 mt-2 w-[260px] h-[96px]">
-                                                                        <HistogramChart
-                                                                            data={histogramData}
-                                                                            xKey="label"
-                                                                            yKey="value"
-                                                                            tooltipLabel="count"
-                                                                            containerProps={{
-                                                                                width: 260,
-                                                                                height: 96,
-                                                                            }}
-                                                                            barProps={{fill: color}}
-                                                                            xAxisProps={{
-                                                                                tick: {
-                                                                                    fontSize: 10,
-                                                                                },
-                                                                            }}
-                                                                            yAxisProps={{
-                                                                                tick: {
-                                                                                    fontSize: 10,
-                                                                                },
-                                                                            }}
-                                                                        />
+                                                                    <div className="mt-2 border-t border-[#e5e7eb] pt-2">
+                                                                        <div className="w-[260px] h-[96px]">
+                                                                            <HistogramChart
+                                                                                data={histogramData}
+                                                                                xKey="label"
+                                                                                yKey="value"
+                                                                                tooltipLabel="count"
+                                                                                yDomain={[
+                                                                                    0,
+                                                                                    "dataMax",
+                                                                                ]}
+                                                                                containerProps={{
+                                                                                    width: 260,
+                                                                                    height: 96,
+                                                                                }}
+                                                                                barProps={{
+                                                                                    fill: color,
+                                                                                    isAnimationActive: true,
+                                                                                    animationBegin: 0,
+                                                                                    animationDuration: 180,
+                                                                                    animationEasing:
+                                                                                        "ease-out",
+                                                                                }}
+                                                                                chartProps={{}}
+                                                                                xAxisProps={{
+                                                                                    tick: {
+                                                                                        fontSize: 10,
+                                                                                    },
+                                                                                }}
+                                                                                yAxisProps={{
+                                                                                    tick: {
+                                                                                        fontSize: 10,
+                                                                                    },
+                                                                                }}
+                                                                            />
+                                                                        </div>
                                                                     </div>
                                                                 ) : null}
                                                             </div>
@@ -828,67 +940,46 @@ const EvaluatorMetricsTimeSeriesChart = ({
                                     stroke="#CBD5E1"
                                     onChange={onBrushChange as any}
                                 /> */}
-                                <Legend
-                                    verticalAlign="bottom"
-                                    align="center"
-                                    content={<ChartLegend />}
-                                />
                                 {series.map((s) => {
                                     const hasRange = s.points.some(
                                         (pt) =>
                                             typeof pt.p25 === "number" &&
                                             typeof pt.p75 === "number",
                                     )
-                                    const hasMedian = s.points.some(
-                                        (pt) => typeof pt.p50 === "number",
-                                    )
-                                    const rangeId = `range_${s.id}`
-                                    const rangeFill = withAlpha(s.color, 0.18)
-                                    const medianStroke = withAlpha(s.color, 0.6)
 
                                     return (
                                         <Fragment key={s.id}>
                                             {hasRange ? (
                                                 <>
-                                                    <Area
+                                                    <LowerBand id={s.id} color={s.color} />
+                                                    <UpperBand id={s.id} color={s.color} />
+                                                    <Line
                                                         type="monotone"
                                                         dataKey={`${s.id}__p25`}
-                                                        stackId={rangeId}
-                                                        stroke="none"
-                                                        fill="none"
+                                                        name={`${s.name} P25`}
+                                                        stroke={withAlpha(s.color, 0.1)}
+                                                        strokeWidth={1}
+                                                        dot={false}
+                                                        activeDot={makeActiveDot(s.color, 3)}
+                                                        strokeDasharray="2 2"
                                                         connectNulls
                                                         isAnimationActive={false}
-                                                        // @ts-expect-error hide range base from legend
                                                         legendType="none"
                                                     />
-                                                    <Area
+                                                    <Line
                                                         type="monotone"
-                                                        dataKey={`${s.id}__pRange`}
-                                                        stackId={rangeId}
-                                                        stroke="none"
-                                                        fill={rangeFill}
+                                                        dataKey={`${s.id}__p75`}
+                                                        name={`${s.name} P75`}
+                                                        stroke={withAlpha(s.color, 0.1)}
+                                                        strokeWidth={1}
+                                                        dot={false}
+                                                        activeDot={makeActiveDot(s.color, 3)}
+                                                        strokeDasharray="2 2"
                                                         connectNulls
                                                         isAnimationActive={false}
-                                                        name={`${s.name} P25–P75`}
-                                                        legendType="rect"
+                                                        legendType="none"
                                                     />
                                                 </>
-                                            ) : null}
-                                            {hasMedian ? (
-                                                <Line
-                                                    type="monotone"
-                                                    dataKey={`${s.id}__p50`}
-                                                    name={`${s.name} median`}
-                                                    stroke={medianStroke}
-                                                    strokeWidth={1.5}
-                                                    dot={false}
-                                                    activeDot={false}
-                                                    strokeDasharray="4 4"
-                                                    connectNulls
-                                                    isAnimationActive={false}
-                                                    // @ts-expect-error hide median from legend
-                                                    legendType="none"
-                                                />
                                             ) : null}
                                             <Line
                                                 type="monotone"
@@ -897,14 +988,14 @@ const EvaluatorMetricsTimeSeriesChart = ({
                                                 stroke={s.color}
                                                 strokeWidth={2}
                                                 dot={{r: 2}}
-                                                activeDot={{r: 4}}
+                                                activeDot={makeActiveDot(s.color, 4)}
                                                 connectNulls
                                                 isAnimationActive={false}
                                             />
                                         </Fragment>
                                     )
                                 })}
-                            </LineChart>
+                            </ComposedChart>
                         </ResponsiveContainer>
                     ) : (
                         <ResponsiveContainer width="100%" height="100%">
@@ -992,6 +1083,21 @@ const EvaluatorMetricsTimeSeriesChart = ({
                     ) : null}
                 </div>
             </div>
+            {(() => {
+                const items = series.flatMap((s) => {
+                    const base = [{label: s.name, color: s.color}]
+                    const hasRange = s.points.some(
+                        (pt) => typeof pt.p25 === "number" && typeof pt.p75 === "number",
+                    )
+                    if (!hasRange) return base
+                    return [
+                        ...base,
+                        {label: `${s.name} P25`, color: withAlpha(s.color, 0.1)},
+                        {label: `${s.name} P75`, color: withAlpha(s.color, 0.1)},
+                    ]
+                })
+                return <ChartLegend items={items} />
+            })()}
         </Card>
     )
 }

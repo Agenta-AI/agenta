@@ -22,10 +22,10 @@ import {
     type QueryWindowingPayload,
 } from "../../../../services/onlineEvaluations/api"
 import {EvalRunTestcaseTableSkeleton} from "../../AutoEvalRun/components/EvalRunTestcaseViewer/assets/EvalRunTestcaseViewerSkeleton"
-import type {TableRow} from "./types"
 
 import useScrollToScenario from "./hooks/useScrollToScenario"
 import useTableDataSource from "./hooks/useTableDataSource"
+import type {TableRow} from "./types"
 
 const VirtualizedScenarioTableAnnotateDrawer = dynamic(
     () => import("./assets/VirtualizedScenarioTableAnnotateDrawer"),
@@ -173,7 +173,7 @@ const ScenarioTable = ({runId: propRunId}: {runId?: string}) => {
 
     const handleRowFocus = useCallback(
         (record: TableRow, event: React.MouseEvent) => {
-            if (evalType !== "auto" && evalType !== "online") return
+            if (evalType !== "auto" && evalType !== "online" && evalType !== "custom") return
 
             // Ignore clicks originating from interactive elements inside the row
             const interactiveTarget = (event.target as HTMLElement | null)?.closest(

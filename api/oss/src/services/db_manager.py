@@ -640,6 +640,7 @@ async def get_app_type_from_template_key(template_key: Optional[str]) -> Optiona
         AppType.CHAT_SERVICE,
         AppType.COMPLETION_SERVICE,
         AppType.CUSTOM,
+        AppType.SDK_CUSTOM,
     ]:
         return template_key
 
@@ -2887,7 +2888,10 @@ async def update_testset(
         await session.refresh(testset)
 
 
-async def fetch_testsets_by_project_id(project_id: str):
+async def fetch_testsets_by_project_id(
+    project_id: str,
+    name: Optional[str] = None,
+) -> List[TestsetDB]:
     """Fetches all testsets for a given project.
 
     Args:
@@ -2898,9 +2902,19 @@ async def fetch_testsets_by_project_id(project_id: str):
     """
 
     async with engine.core_session() as session:
-        result = await session.execute(
-            select(TestsetDB).filter_by(project_id=uuid.UUID(project_id))
-        )
+        if not name:
+            result = await session.execute(
+                select(TestsetDB).filter_by(
+                    project_id=uuid.UUID(project_id),
+                )
+            )
+        else:
+            result = await session.execute(
+                select(TestsetDB).filter_by(
+                    project_id=uuid.UUID(project_id),
+                    name=name if name else None,
+                )
+            )
         testsets = result.scalars().all()
 
         for i, testset in enumerate(testsets):
