@@ -768,7 +768,9 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
 
             template_format = parameters.get("template_format") or default_format
 
-            response_type = input.settings.get("response_type") or "text"
+            response_type = input.settings.get("response_type") or (
+                "json_schema" if template_version == "4" else "text"
+            )
 
             json_schema = input.settings.get("json_schema") or None
 
