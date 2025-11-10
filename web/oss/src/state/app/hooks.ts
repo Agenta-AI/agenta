@@ -4,7 +4,6 @@ import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
 
 import {ListAppsItem} from "@/oss/lib/Types"
-
 import {useAppState} from "@/oss/state/appState"
 
 import {appsQueryAtom, recentAppIdAtom} from "./atoms/fetcher"
@@ -20,8 +19,19 @@ export const useAppsData = () => {
     const {appId} = useAppState()
 
     useEffect(() => {
-        if (appId) setRecentAppId(appId)
-    }, [appId, setRecentAppId])
+        // Only set recent app from URL when it exists in the filtered apps list
+        // This avoids enabling app-sidebar for SDK evaluation apps (filtered out)
+        if (!appId) return
+        if (Array.isArray(apps)) {
+            const exists = (apps as ListAppsItem[]).some((app) => app.app_id === appId)
+            if (exists) {
+                if (recentAppId !== appId) setRecentAppId(appId)
+            } else {
+                if (recentAppId) setRecentAppId(null)
+            }
+        }
+        // If apps haven't loaded yet, do nothing here; the fallback effect below will enforce validity once loaded
+    }, [appId, apps, recentAppId, setRecentAppId])
 
     useEffect(() => {
         if (recentAppId && Array.isArray(apps)) {

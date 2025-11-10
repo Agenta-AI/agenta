@@ -9,6 +9,8 @@ export interface ColumnDef {
     name: string
     /** "input" | "invocation" | "annotation" */
     kind: StepKind
+    /** Optional marker for where the column originated (auto/custom/human/etc.) */
+    origin?: string
     /** Optional evaluator metric primitive type ("number", "boolean", etc.) */
     metricType?: string
     /** Dot-path used to resolve the value inside the owning step payload / testcase */
@@ -23,6 +25,7 @@ export interface ColumnDef {
 export interface StepMeta {
     key: string
     kind: StepKind
+    origin?: string
     /** List of upstream step keys declared in `inputs` */
     upstream: string[]
     /** Raw references blob – may contain application, evaluator, etc. */
@@ -93,6 +96,7 @@ export function buildRunIndex(rawRun: any): RunIndex {
         steps[s.key] = {
             key: s.key,
             kind,
+            origin: typeof s.origin === "string" ? s.origin : undefined,
             upstream: (s.inputs ?? []).map((i: any) => i.key),
             refs: s.references ?? {},
         }
@@ -122,9 +126,11 @@ export function buildRunIndex(rawRun: any): RunIndex {
             })
         }
 
+        const metaForStep = steps[m.step.key]
         const col: ColumnDef = {
             name: m.column.name,
             kind: colKind,
+            origin: metaForStep?.origin,
             path: m.step.path,
             stepKey: m.step.key,
         }

@@ -325,7 +325,7 @@ export function buildAntdColumns(
                                     />
                                 )
                             }
-                            return evalType === "auto" ? (
+                            return evalType === "auto" || evalType === "custom" ? (
                                 <AutoEvalCollapsedMetricValueCell
                                     scenarioId={scenarioId}
                                     runId={(record as any).runId || runId}
@@ -409,7 +409,7 @@ export function buildAntdColumns(
                             },
                         }
                     case "action":
-                        if (evalType === "auto") return null
+                        if (evalType === "auto" || evalType === "custom") return null
                         return {
                             ...common,
                             fixed: "right",
@@ -582,7 +582,7 @@ export function buildAntdColumns(
                     totalOutputs: number,
                 ) => {
                     const isOnlineEval = evalType === "online"
-                    const isAutoEval = evalType === "auto"
+                    const isAutoEval = evalType === "auto" || evalType === "custom"
                     const useSingleColumnLayout = isOnlineEval || (isAutoEval && totalOutputs <= 1)
                     const outputKey = outputCol.name || outputCol.path || `output-${idx}`
                     const columnTitle = useSingleColumnLayout
@@ -629,7 +629,10 @@ export function buildAntdColumns(
                     } as EnhancedColumnType<TableRow>
                 }
 
-                if (evalType === "online" || (evalType === "auto" && outputColumns.length <= 1)) {
+                if (
+                    evalType === "online" ||
+                    ((evalType === "auto" || evalType === "custom") && outputColumns.length <= 1)
+                ) {
                     const outputIndex = Math.max(outputColumns.indexOf(c), 0)
                     return createOutputColumnDef(c, outputIndex, outputColumns.length)
                 }
@@ -726,23 +729,23 @@ export function buildAntdColumns(
                         }
                         case "metric": {
                             // If this “metric” is actually pointing inside annotations, render via AnnotationValueCell
-                            if (isAnnotationLikeMetricPath(c.path)) {
-                                const annotationStepKey = resolveStepKeyForRun(c, effectiveRunId)
-                                const fieldPath = toAnnotationFieldPath(c.path)
-                                return (
-                                    <AnnotationValueCell
-                                        scenarioId={record.scenarioId || record.key}
-                                        fieldPath={fieldPath}
-                                        metricKey={c.name}
-                                        metricType={c.metricType}
-                                        fullKey={c.path}
-                                        distInfo={distMap[c.path]}
-                                        stepKey={annotationStepKey}
-                                        name={c.name}
-                                        runId={effectiveRunId}
-                                    />
-                                )
-                            }
+                            // if (isAnnotationLikeMetricPath(c.path)) {
+                            //     const annotationStepKey = resolveStepKeyForRun(c, effectiveRunId)
+                            //     const fieldPath = toAnnotationFieldPath(c.path)
+                            //     return (
+                            //         <AnnotationValueCell
+                            //             scenarioId={record.scenarioId || record.key}
+                            //             fieldPath={fieldPath}
+                            //             metricKey={c.name}
+                            //             metricType={c.metricType}
+                            //             fullKey={c.path}
+                            //             distInfo={distMap[c.path]}
+                            //             stepKey={annotationStepKey}
+                            //             name={c.name}
+                            //             runId={effectiveRunId}
+                            //         />
+                            //     )
+                            // }
 
                             const scenarioId = record.scenarioId || record.key
                             const evaluatorSlug = (c as any).evaluatorSlug as string | undefined

@@ -58,13 +58,14 @@ const buildAnnotationSlugMap = (state?: EvaluationRunState): Record<string, stri
     Object.values(state.runIndex.steps).forEach((meta: any) => {
         const key = meta?.key
         const slug = meta?.refs?.evaluator?.slug
+        if (meta?.kind !== "annotation") return
         if (
             typeof key === "string" &&
             key.startsWith("evaluator-") &&
             typeof slug === "string" &&
             slug.length
         ) {
-            map[key] = slug
+            map[key] = key
         }
     })
 
@@ -87,6 +88,7 @@ const runFetchMetrics = async (
             return []
         }
     })()
+
     const hasCachedMetrics = existingMetrics.length > 0
 
     const promise = (async () => {
@@ -365,6 +367,49 @@ export const scenarioMetricSelectorFamily = atomFamily<
     return selectAtom(scenarioMetricsMapFamily(runId), (s) => s?.[scenarioId], deepEqual)
 }, deepEqual)
 
+const OUTPUT_PREFIX = "attributes.ag.data.outputs."
+const METRICS_PREFIX = "attributes.ag.metrics."
+
+const stripPrefixVariants = (value: string, ...prefixes: string[]): string => {
+    let next = value
+    prefixes.forEach((prefix) => {
+        if (next.startsWith(prefix)) {
+            next = next.slice(prefix.length)
+        }
+    })
+    return next
+}
+
+const appendOutputCandidates = (
+    push: (candidate?: string) => void,
+    seed: string,
+    slug?: string,
+) => {
+    if (!seed) return
+    const tail = stripPrefixVariants(seed, OUTPUT_PREFIX, "outputs.")
+    if (!tail) return
+    push(`${OUTPUT_PREFIX}${tail}`)
+    if (slug) {
+        push(`${slug}.${OUTPUT_PREFIX}${tail}`)
+        push(`${OUTPUT_PREFIX}${slug}.${tail}`)
+    }
+}
+
+const appendMetricCandidates = (
+    push: (candidate?: string) => void,
+    seed: string,
+    slug?: string,
+) => {
+    if (!seed) return
+    const tail = stripPrefixVariants(seed, METRICS_PREFIX, "metrics.")
+    if (!tail) return
+    push(`${METRICS_PREFIX}${tail}`)
+    if (slug) {
+        push(`${slug}.${METRICS_PREFIX}${tail}`)
+        push(`${METRICS_PREFIX}${slug}.${tail}`)
+    }
+}
+
 /**
  * Run-scoped single metric value selector
  * Mirrors the legacy scenarioMetricValueFamily but adds runId and optional stepSlug support.
@@ -403,16 +448,12 @@ export const scenarioMetricValueFamily = atomFamily(
 
                     if (slug) {
                         push(`${slug}.${withoutSlug}`)
-                        push(`${slug}.attributes.ag.data.outputs.${withoutSlug}`)
-                        push(`${slug}.attributes.ag.metrics.${withoutSlug}`)
-                        push(`attributes.ag.data.outputs.${slug}.${withoutSlug}`)
-                        push(`attributes.ag.metrics.${slug}.${withoutSlug}`)
                     }
 
-                    push(`attributes.ag.data.outputs.${withoutSlug}`)
-                    push(`attributes.ag.metrics.${withoutSlug}`)
-                    push(`attributes.ag.data.outputs.${base}`)
-                    push(`attributes.ag.metrics.${base}`)
+                    appendOutputCandidates(push, withoutSlug, slug)
+                    appendMetricCandidates(push, withoutSlug, slug)
+                    appendOutputCandidates(push, base, slug)
+                    appendMetricCandidates(push, base, slug)
 
                     return candidates
                 }
@@ -425,7 +466,9 @@ export const scenarioMetricValueFamily = atomFamily(
 
                 for (const candidate of candidateKeys) {
                     const resolved = getMetricValueWithAliases(metrics, candidate)
-                    if (resolved !== undefined) return resolved
+                    if (resolved !== undefined) {
+                        return resolved
+                    }
                 }
                 return undefined
             },

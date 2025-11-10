@@ -118,13 +118,14 @@ class LegacyApplicationsRouter:
             "revision_ref": application_revision_retrieve_request.application_revision_ref,  # type: ignore
         }
 
-        application_revision = await get_cache(
-            namespace="applications:retrieve",
-            project_id=request.state.project_id,
-            user_id=request.state.user_id,
-            key=cache_key,
-            model=ApplicationRevision,
-        )
+        application_revision = None
+        # application_revision = await get_cache(
+        #     namespace="applications:retrieve",
+        #     project_id=request.state.project_id,
+        #     user_id=request.state.user_id,
+        #     key=cache_key,
+        #     model=ApplicationRevision,
+        # )
 
         if not application_revision:
             application_revision = await self.legacy_applications_service.retrieve(

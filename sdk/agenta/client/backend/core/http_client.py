@@ -148,9 +148,9 @@ def get_request_body(
         json_body = maybe_filter_request_body(json, request_options, omit)
 
     # If you have an empty JSON body, you should just send None
-    return (
-        json_body if json_body != {} else None
-    ), data_body if data_body != {} else None
+    return (json_body if json_body != {} else None), (
+        data_body if data_body != {} else None
+    )
 
 
 class HttpClient:

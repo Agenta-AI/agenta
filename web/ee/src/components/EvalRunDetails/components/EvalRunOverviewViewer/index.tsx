@@ -154,13 +154,21 @@ const extractTimeSeriesValue = (rawValue: any): {value: number; isBoolean: boole
             return {value: rawValue.value, isBoolean: false}
         }
 
-        const frequency = Array.isArray(rawValue.frequency)
-            ? rawValue.frequency
-            : Array.isArray(rawValue.rank)
-              ? rawValue.rank
+        const frequency = Array.isArray((rawValue as any).frequency)
+            ? (rawValue as any).frequency
+            : Array.isArray((rawValue as any).rank)
+              ? (rawValue as any).rank
+              : Array.isArray((rawValue as any).freq)
+                ? (rawValue as any).freq
+                : undefined
+
+        const uniqueArr = Array.isArray((rawValue as any).unique)
+            ? (rawValue as any).unique
+            : Array.isArray((rawValue as any).uniq)
+              ? (rawValue as any).uniq
               : undefined
 
-        if (Array.isArray(rawValue.unique) || frequency) {
+        if (uniqueArr || frequency) {
             const counts = frequency?.map((entry) => entry?.count ?? entry?.frequency ?? 0) ?? []
             const total =
                 typeof rawValue.count === "number"
@@ -228,56 +236,45 @@ const EvalRunOverviewViewer = ({type = "auto"}: {type: "auto" | "online"}) => {
     const runs = useAtomValue(runsStateFamily(allRunIds))
     const metricsByRun = useAtomValue(runsMetricsFamily(allRunIds))
     const rawMetricsByRun = useAtomValue(runsRawMetricsFamily(allRunIds))
-    const {data: previewEvaluators} = useEvaluators({preview: true, queries: {is_human: false}})
-    const {data: projectEvaluators} = useEvaluators()
-
-    const catalogEvaluators = useMemo(
-        () => [...toArray(previewEvaluators), ...toArray(projectEvaluators)],
-        [previewEvaluators, projectEvaluators],
-    )
-
-    const catalogEvaluatorsByIdentifier = useMemo(() => {
-        const map = new Map<string, any>()
-        catalogEvaluators.forEach((entry) => {
-            collectEvaluatorIdentifiers(entry).forEach((identifier) => {
-                if (!map.has(identifier)) {
-                    map.set(identifier, entry)
-                }
-            })
-        })
-        return map
-    }, [catalogEvaluators])
 
     const evaluatorsBySlug = useMemo(() => {
         const map = new Map<string, any>()
-        const register = (entry: any) => {
+        const register = (entry: any, slug: string) => {
             if (!entry || typeof entry !== "object") return
-            const identifiers = collectEvaluatorIdentifiers(entry)
-            let catalogMatch: any
-            for (const identifier of identifiers) {
-                const match = catalogEvaluatorsByIdentifier.get(identifier)
-                if (match) {
-                    catalogMatch = match
-                    break
-                }
-            }
-            const merged = mergeEvaluatorRecords(entry, catalogMatch) ?? catalogMatch ?? entry
-            const slug =
-                pickString(merged?.slug) ||
-                pickString(entry?.slug) ||
-                pickString(catalogMatch?.slug) ||
-                undefined
+
             if (!slug || map.has(slug)) return
-            map.set(slug, merged)
+            map.set(slug, entry)
         }
 
         runs.forEach((state) => {
-            toArray(state?.enrichedRun?.evaluators).forEach(register)
+            const annotationSteps = state?.enrichedRun?.data?.steps?.filter(
+                (step) => step.type === "annotation",
+            )
+            annotationSteps?.forEach((step) => {
+                toArray(
+                    state?.enrichedRun?.evaluators?.filter(
+                        (evaluator) => evaluator.id === step.references?.evaluator?.id,
+                    ),
+                ).forEach((evaluator) => {
+                    if (!evaluator) return
+                    const originalKey = typeof step?.key === "string" ? step.key : undefined
+                    const registerKey = (key?: string) => {
+                        if (!key) return
+                        register(evaluator, key)
+                    }
+                    registerKey(originalKey)
+                    if (step.origin === "human" && originalKey) {
+                        const parts = originalKey.split(".")
+                        if (parts.length > 1) {
+                            registerKey(parts[1])
+                        }
+                    }
+                })
+            })
         })
-        toArray(evaluators).forEach(register)
 
         return Object.fromEntries(map.entries())
-    }, [runs, evaluators, catalogEvaluatorsByIdentifier])
+    }, [runs, evaluators])
 
     const schemaMetricDefinitionsBySlug = useMemo(() => {
         const map: Record<string, {name: string; type?: string | string[]}[]> = {}
@@ -386,17 +383,47 @@ const EvalRunOverviewViewer = ({type = "auto"}: {type: "auto" | "online"}) => {
                 (source?.[rawKey] as Record<string, any>)
             if (!metricHasContent(metric)) return
 
-            const [slug, ...rest] = canonical.split(".")
-            const metricKey = rest.join(".") || slug
+            const segments = canonical.split(".").filter(Boolean)
+            if (!segments.length) return
+
+            const resolveSlugFromSegments = (): {slug: string; metricStartIdx: number} | null => {
+                let slugCandidate = segments[0]
+                let idx = 1
+                while (idx <= segments.length) {
+                    if (evaluatorsBySlug[slugCandidate]) {
+                        return {slug: slugCandidate, metricStartIdx: idx}
+                    }
+                    if (idx >= segments.length) break
+                    slugCandidate = `${slugCandidate}.${segments[idx]}`
+                    idx += 1
+                }
+                if (segments.length > 1 && evaluatorsBySlug[segments[1]]) {
+                    return {slug: segments[1], metricStartIdx: 2}
+                }
+                return null
+            }
+
+            const resolved = resolveSlugFromSegments()
+            if (!resolved) return
+            const {slug, metricStartIdx} = resolved
+
+            const metricKeySegments = segments.slice(metricStartIdx)
+            const metricKey =
+                metricKeySegments.length > 0
+                    ? metricKeySegments.join(".")
+                    : segments[metricStartIdx - 1]
 
             const evaluator = evaluatorsBySlug[slug]
             if (!evaluator) {
                 return
             }
 
+            if (metricKey.startsWith("attributes.ag.metrics")) {
+                return
+            }
+
             const allowedKeys = evaluatorMetricKeysBySlug[slug]
-            if (allowedKeys) {
-                if (allowedKeys.size === 0) return
+            if (allowedKeys && allowedKeys.size > 0) {
                 const segments = metricKey.split(".").filter(Boolean)
                 const candidateKeys = new Set<string>([metricKey])
                 segments.forEach((_, idx) => {
@@ -470,6 +497,7 @@ const EvalRunOverviewViewer = ({type = "auto"}: {type: "auto" | "online"}) => {
     const evaluatorList = Object.values(evaluatorsBySlug)
     const resolvedEvalType: PlaceholderEvaluationType =
         evalType === "online" ? "online" : evalType === "human" ? "human" : "auto"
+
     const evaluatorKeysWithMetrics = useMemo(() => {
         const set = new Set<string>()
         combinedMetricEntries.forEach(({evaluatorSlug}) => {
@@ -479,11 +507,8 @@ const EvalRunOverviewViewer = ({type = "auto"}: {type: "auto" | "online"}) => {
     }, [combinedMetricEntries])
 
     const placeholderEvaluators = useMemo(() => {
-        if (!evaluatorList.length) return []
-        return evaluatorList.filter((ev: any) => {
-            const key = ev?.slug
-            if (!key) return true
-            return !evaluatorKeysWithMetrics.has(key)
+        return Object.entries(evaluatorsBySlug).filter(([slug, evaluator]) => {
+            return !evaluatorKeysWithMetrics.has(slug)
         })
     }, [evaluatorList, evaluatorKeysWithMetrics])
 
@@ -745,8 +770,13 @@ const EvalRunOverviewViewer = ({type = "auto"}: {type: "auto" | "online"}) => {
     }, [buildPlaceholderCopy, resolvedEvalType, scaffoldItems])
 
     if (shouldShowMetricsSkeleton) {
-        return <EvalRunOverviewViewerSkeleton className={clsx({"px-6": evalType === "auto"})} />
+        return (
+            <EvalRunOverviewViewerSkeleton
+                className={clsx({"px-6": evalType === "auto" || evalType === "custom"})}
+            />
+        )
     }
+
     return (
         <>
             <div className="px-6">
@@ -774,14 +804,7 @@ const EvalRunOverviewViewer = ({type = "auto"}: {type: "auto" | "online"}) => {
 
                                 if (type === "online") {
                                     const resolveEntryTimestamp = (entry: any): number | null => {
-                                        const rawTs =
-                                            entry?.timestamp ??
-                                            entry?.window?.timestamp ??
-                                            entry?.window?.end ??
-                                            entry?.created_at ??
-                                            entry?.createdAt ??
-                                            entry?.window_start ??
-                                            null
+                                        const rawTs = entry?.timestamp ?? null
                                         if (typeof rawTs === "number") {
                                             return Number.isFinite(rawTs) ? rawTs : null
                                         }
@@ -814,17 +837,48 @@ const EvalRunOverviewViewer = ({type = "auto"}: {type: "auto" | "online"}) => {
                                                     if (ts == null) return null
 
                                                     const source = entry?.data || {}
-                                                    let rawValue = source?.[fullKey]
+                                                    const isPlainObject = (
+                                                        v: unknown,
+                                                    ): v is Record<string, any> =>
+                                                        !!v &&
+                                                        typeof v === "object" &&
+                                                        !Array.isArray(v)
+
+                                                    const groupFlat: Record<string, any> = {}
+                                                    Object.entries(source || {}).forEach(
+                                                        ([groupKey, groupVal]) => {
+                                                            if (isPlainObject(groupVal)) {
+                                                                Object.entries(groupVal).forEach(
+                                                                    ([innerKey, innerVal]) => {
+                                                                        groupFlat[
+                                                                            `${groupKey}.${innerKey}`
+                                                                        ] = innerVal
+                                                                    },
+                                                                )
+                                                            }
+                                                        },
+                                                    )
+
+                                                    let rawValue = getMetricValueWithAliases(
+                                                        source,
+                                                        fullKey,
+                                                    )
+
                                                     if (rawValue === undefined) {
-                                                        rawValue = getMetricValueWithAliases(
-                                                            source,
-                                                            fullKey,
+                                                        const matchKey = Object.keys(
+                                                            groupFlat,
+                                                        ).find(
+                                                            (k) =>
+                                                                k === fullKey ||
+                                                                k.endsWith(`.${fullKey}`),
                                                         )
+                                                        if (matchKey) rawValue = groupFlat[matchKey]
                                                     }
                                                     if (rawValue === undefined) return null
 
                                                     const resolved =
                                                         extractTimeSeriesValue(rawValue)
+
                                                     if (!resolved) return null
                                                     const {value, isBoolean: valueIsBoolean} =
                                                         resolved

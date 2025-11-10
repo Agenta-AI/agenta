@@ -501,7 +501,7 @@ export const enrichEvaluationRun = ({
 const useEnrichEvaluationRun = ({
     evalType = "human",
 }: {
-    evalType?: "human" | "auto" | "online"
+    evalType?: "human" | "auto" | "online" | "custom"
 } = {}):
     | ((
           run: SnakeToCamelCaseKeys<EvaluationRun>,
@@ -520,13 +520,20 @@ const useEnrichEvaluationRun = ({
 
     const {data: evaluators, isLoading: loadingEvaluators} = useEvaluators({
         preview: true,
-        queries: evalType === "human" ? {is_human: true} : {},
+        queries:
+            evalType === "human"
+                ? {is_human: true}
+                : evalType === "custom"
+                  ? {is_evaluator: true}
+                  : {},
     })
+
     const combinedEvaluators = useMemo(() => {
         const list: EvaluatorDto[] = []
         const seenIds = new Set<string>()
         const seenSlugs = new Set<string>()
         const seenKeys = new Set<string>()
+
         const pushEvaluator = (ev: any) => {
             if (!ev) return
             const id = typeof ev.id === "string" ? ev.id : undefined
@@ -547,6 +554,7 @@ const useEnrichEvaluationRun = ({
         ;(Array.isArray(evaluators) ? evaluators : []).forEach(pushEvaluator)
         return list
     }, [evaluators])
+
     const {revisions: variantsData, isLoading: _variantsLoading} = useStatelessVariants({
         lightLoading: true,
     })

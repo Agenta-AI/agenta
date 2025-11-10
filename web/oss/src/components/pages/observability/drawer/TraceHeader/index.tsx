@@ -490,9 +490,7 @@ const TraceHeader = ({
                         copyText={getTraceIdFromNode(displayTrace) || ""}
                         title="Copy trace id"
                     >
-                        <Tag className="font-mono">
-                            {getTraceIdFromNode(displayTrace) || "-"}
-                        </Tag>
+                        <Tag className="font-mono">{getTraceIdFromNode(displayTrace) || "-"}</Tag>
                     </TooltipWithCopyAction>
                 </Space>
 

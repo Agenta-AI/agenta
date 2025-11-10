@@ -159,9 +159,7 @@ const TraceContent = ({
                             title="Copy span id"
                             tooltipProps={{placement: "bottom", arrow: true}}
                         >
-                            <Tag className="font-mono truncate">
-                                {activeTrace?.span_id || "-"}
-                            </Tag>
+                            <Tag className="font-mono truncate">{activeTrace?.span_id || "-"}</Tag>
                         </TooltipWithCopyAction>
                     </div>
                     <Divider className="m-0" />

@@ -4,9 +4,20 @@ import EvalRunDetailsPage from "@/oss/components/EvalRunDetails"
 
 const AppEvaluationResultsPage = () => {
     const router = useRouter()
-    const t = (router.query.type as string) || "auto"
-    const evalType = t === "online" ? "online" : "auto"
-    return <EvalRunDetailsPage evalType={evalType as any} />
+    const rawType =
+        (Array.isArray(router.query.eval_type)
+            ? router.query.eval_type[0]
+            : router.query.eval_type) ||
+        (Array.isArray(router.query.type) ? router.query.type[0] : router.query.type)
+    const normalized =
+        rawType === "online"
+            ? "online"
+            : rawType === "human"
+              ? "human"
+              : rawType === "custom"
+                ? "custom"
+                : "auto"
+    return <EvalRunDetailsPage evalType={normalized} />
 }
 
 export default AppEvaluationResultsPage

@@ -158,13 +158,11 @@ class OTLPExporter(OTLPSpanExporter):
                     # )
 
             if _ASYNC_EXPORT is True:
+                # log.debug("[SPAN] [ASYNC.X]")
                 thread = Thread(target=__export, daemon=True)
                 thread.start()
             else:
-                # log.debug(
-                #     "[SPAN] [__XPORT]",
-                #     data=serialized_data,
-                # )
+                # log.debug("[SPAN] [ SYNC.X]")
                 return __export()
 
         except Exception as e:

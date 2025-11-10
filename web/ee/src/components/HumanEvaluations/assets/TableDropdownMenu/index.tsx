@@ -26,6 +26,7 @@ const TableDropdownMenu = ({
     scope,
     projectURL,
     resolveAppId,
+    disableVariantAction = false,
 }: TableDropdownMenuProps) => {
     const router = useRouter()
     const primaryInvocation = extractPrimaryInvocation(record)
@@ -49,7 +50,7 @@ const TableDropdownMenu = ({
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
                     if (
-                        evalType === "auto" &&
+                        (evalType === "auto" || evalType === "custom") &&
                         ![
                             EvaluationStatus.PENDING,
                             EvaluationStatus.RUNNING,
@@ -60,7 +61,7 @@ const TableDropdownMenu = ({
                     ) {
                         const evaluationId = "id" in record ? record.id : record.key
                         const suffix =
-                            evalType === "auto"
+                            evalType === "auto" || evalType === "custom"
                                 ? `/evaluations/results/${evaluationId}`
                                 : `/evaluations/single_model_test/${evaluationId}`
                         const pathname = buildEvaluationNavigationUrl({
@@ -86,10 +87,10 @@ const TableDropdownMenu = ({
                 key: "variant",
                 label: "View variant",
                 icon: <Rocket size={16} />,
-                disabled: !variantId || !targetAppId,
+                disabled: disableVariantAction || !variantId || !targetAppId,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
-                    if (!variantId) return
+                    if (disableVariantAction || !variantId) return
                     onVariantNavigation({revisionId: variantId, appId: targetAppId || undefined})
                 },
             },

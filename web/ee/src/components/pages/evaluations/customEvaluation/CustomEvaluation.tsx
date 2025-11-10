@@ -1,9 +1,11 @@
-import {useCallback, useMemo, useState} from "react"
+import {isValidElement, useCallback, useMemo, useState} from "react"
 
-import {Button, message} from "antd"
-import {ColumnsType} from "antd/es/table"
+import {Export, Trash} from "@phosphor-icons/react"
+import {Button, Space, message} from "antd"
+import type {ColumnType, ColumnsType} from "antd/es/table"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
+import {renderToStaticMarkup} from "react-dom/server"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
@@ -14,11 +16,13 @@ import type {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
 import {useAppId} from "@/oss/hooks/useAppId"
 import useURL from "@/oss/hooks/useURL"
 import {EvaluationType} from "@/oss/lib/enums"
+import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import useEvaluations from "@/oss/lib/hooks/useEvaluations"
 import {tempEvaluationAtom} from "@/oss/lib/hooks/usePreviewRunningEvaluations/states/runningEvalAtom"
 import useRunMetricsMap from "@/oss/lib/hooks/useRunMetricsMap"
 import {EvaluationStatus} from "@/oss/lib/Types"
+import {getAppValues} from "@/oss/state/app"
 
 import {buildAppScopedUrl, buildEvaluationNavigationUrl, extractEvaluationAppId} from "../utils"
 
@@ -42,6 +46,141 @@ const isPreviewCustomRun = (run: any) => {
     const isLive = Boolean(run?.flags?.is_live)
 
     return hasCustomStep && !isOnlineSource && !isLive
+}
+
+type ExportableColumn = {
+    header: string
+    column: ColumnType<EvaluationRow>
+}
+
+const decodeHtmlEntities = (value: string): string =>
+    value
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&#39;/gi, "'")
+        .replace(/&quot;/gi, '"')
+
+const stripHtml = (markup: string): string => {
+    if (!markup) return ""
+    const withoutTags = markup.replace(/<[^>]+>/g, " ")
+    return decodeHtmlEntities(withoutTags).replace(/\s+/g, " ").trim()
+}
+
+const nodeToText = (node: any): string => {
+    if (node === null || node === undefined) return ""
+    if (typeof node === "string" || typeof node === "number") return String(node)
+    if (typeof node === "boolean") return node ? "true" : "false"
+    if (Array.isArray(node)) {
+        return node.map((item) => nodeToText(item)).filter(Boolean).join(" ")
+    }
+    if (isValidElement(node)) {
+        return stripHtml(renderToStaticMarkup(node))
+    }
+    if (typeof node === "object") {
+        try {
+            return stripHtml(renderToStaticMarkup(<>{node}</>))
+        } catch (_error) {
+            return ""
+        }
+    }
+    return ""
+}
+
+const getValueFromDataIndex = (
+    record: EvaluationRow,
+    dataIndex: ColumnType<EvaluationRow>["dataIndex"],
+): any => {
+    if (dataIndex === undefined || dataIndex === null) return undefined
+    const path =
+        typeof dataIndex === "number"
+            ? [dataIndex]
+            : Array.isArray(dataIndex)
+              ? dataIndex
+              : String(dataIndex).split(".")
+
+    return path.reduce((acc: any, key) => {
+        if (acc === null || acc === undefined) return undefined
+        if (typeof key === "number") {
+            return acc?.[key]
+        }
+        const candidate = acc?.[key]
+        if (candidate !== undefined) return candidate
+        if (typeof key === "string") {
+            const numericKey = Number.isNaN(Number(key)) ? key : Number(key)
+            return acc?.[numericKey as keyof typeof acc]
+        }
+        return undefined
+    }, record)
+}
+
+const resolveColumnTitle = (title: ColumnType<EvaluationRow>["title"]): string => {
+    if (title === null || title === undefined) return ""
+    if (typeof title === "string") return title
+    if (typeof title === "number" || typeof title === "boolean") return String(title)
+    if (typeof title === "function") {
+        try {
+            const node = title({})
+            return nodeToText(node)
+        } catch (_error) {
+            return ""
+        }
+    }
+    if (isValidElement(title)) {
+        return nodeToText(title)
+    }
+    return ""
+}
+
+const flattenColumnsForExport = (
+    columns: ColumnsType<EvaluationRow>,
+    parentTitles: string[] = [],
+): ExportableColumn[] => {
+    const flattened: ExportableColumn[] = []
+    columns.forEach((col) => {
+        const currentTitle = resolveColumnTitle(col.title)
+        const nextParentTitles = currentTitle ? [...parentTitles, currentTitle] : parentTitles
+
+        if ("children" in col && col.children && col.children.length) {
+            flattened.push(...flattenColumnsForExport(col.children, nextParentTitles))
+            return
+        }
+
+        const header =
+            nextParentTitles.join(" / ") ||
+            String(
+                col.key ??
+                    (Array.isArray(col.dataIndex)
+                        ? col.dataIndex.join(".")
+                        : col.dataIndex ?? ""),
+            )
+
+        if (!header.trim()) return
+        if (String(col.key ?? "").toLowerCase() === "key") return
+
+        flattened.push({
+            header,
+            column: col,
+        })
+    })
+    return flattened
+}
+
+const extractColumnValue = (
+    column: ColumnType<EvaluationRow>,
+    record: EvaluationRow,
+    index: number,
+): string => {
+    const baseValue = getValueFromDataIndex(record, column.dataIndex)
+    const rendered = column.render ? column.render(baseValue, record, index) : baseValue
+    let text = nodeToText(rendered)
+
+    if (!text && baseValue !== undefined) {
+        text = nodeToText(baseValue)
+    }
+
+    return text
 }
 
 const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvaluationProps) => {
@@ -129,6 +268,8 @@ const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvalua
             baseAppURL,
             extractAppId: extractEvaluationAppId,
             projectURL,
+            preferRunStepSlugs: true,
+            disableVariantAction: true,
         })
     }, [
         mergedEvaluations,
@@ -144,6 +285,11 @@ const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvalua
     const visibleColumns = useMemo(
         () => filterColumns(columns, hiddenColumns),
         [columns, hiddenColumns],
+    )
+
+    const exportColumns = useMemo(
+        () => flattenColumnsForExport(visibleColumns),
+        [visibleColumns],
     )
 
     const handleDelete = useCallback(
@@ -177,16 +323,57 @@ const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvalua
         return viewType === "overview" ? mergedEvaluations.slice(0, 5) : mergedEvaluations
     }, [mergedEvaluations, viewType])
 
-    const selectedEvaluationsLabel = useMemo(() => {
+    const selectedKeySet = useMemo(() => {
+        const set = new Set<string>()
+        selectedRowKeys.forEach((key) => {
+            if (key == null) return
+            const value = key.toString()
+            if (value) set.add(value)
+        })
+        return set
+    }, [selectedRowKeys])
+
+    const recordIndexLookup = useMemo(() => {
+        const map = new Map<string, number>()
+        mergedEvaluations.forEach((evaluation, idx) => {
+            const key = (
+                "id" in evaluation ? evaluation.id : evaluation.key
+            )?.toString()
+            if (key) {
+                map.set(key, idx)
+            }
+        })
+        return map
+    }, [mergedEvaluations])
+
+    const selectedEvaluations = useMemo(() => {
         if (selectedEvalRecord) {
-            return selectedEvalRecord.name ?? selectedEvalRecord.key
+            const selectedId = (
+                "id" in selectedEvalRecord ? selectedEvalRecord.id : selectedEvalRecord.key
+            )?.toString()
+            const matched = selectedId
+                ? mergedEvaluations.find((evaluation) => {
+                      const evalId = (
+                          "id" in evaluation ? evaluation.id : evaluation.key
+                      )?.toString()
+                      return evalId === selectedId
+                  })
+                : undefined
+            return matched ? [matched] : [selectedEvalRecord]
         }
-        const selectedItems = mergedEvaluations.filter((evaluation) =>
-            selectedRowKeys.includes("id" in evaluation ? evaluation.id : evaluation.key),
-        )
-        if (selectedItems.length === 0) return "Custom evaluation"
-        return selectedItems.map((item) => ("name" in item ? item.name : item.key)).join(" | ")
-    }, [selectedEvalRecord, selectedRowKeys, mergedEvaluations])
+        if (!selectedKeySet.size) return []
+        return mergedEvaluations.filter((evaluation) => {
+            const key = ("id" in evaluation ? evaluation.id : evaluation.key)?.toString()
+            return key ? selectedKeySet.has(key) : false
+        })
+    }, [selectedEvalRecord, selectedKeySet, mergedEvaluations])
+
+    const selectedEvaluationsLabel = useMemo(() => {
+        if (!selectedEvaluations.length) return "Custom evaluation"
+        return selectedEvaluations
+            .map((item) => ("name" in item ? item.name : item.key))
+            .join(" | ")
+    }, [selectedEvaluations])
 
     const handleRowNavigation = useCallback(
         (record: EvaluationRow) => {
@@ -217,30 +404,93 @@ const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvalua
             if (scope === "project") {
                 router.push({
                     pathname: targetPath,
-                    query: recordAppId ? {app_id: recordAppId} : undefined,
+                    query: recordAppId
+                        ? {app_id: recordAppId, eval_type: "custom"}
+                        : {eval_type: "custom"},
                 })
             } else {
-                router.push(targetPath)
+                router.push({
+                    pathname: targetPath,
+                    query: {eval_type: "custom"},
+                })
             }
         },
         [activeAppId, scope, baseAppURL, projectURL, router],
     )
 
+    const handleExportSelected = useCallback(() => {
+        if (!selectedEvaluations.length) {
+            message.warning("Select at least one evaluation to export")
+            return
+        }
+
+        if (!exportColumns.length) {
+            message.warning("There are no visible columns to export")
+            return
+        }
+
+        try {
+            const rows = selectedEvaluations.map((item) => {
+                const key = ("id" in item ? item.id : item.key)?.toString()
+                const recordIndex = key ? recordIndexLookup.get(key) ?? 0 : 0
+                const row: Record<string, string> = {}
+
+                exportColumns.forEach(({header, column}) => {
+                    row[header] = extractColumnValue(column, item, recordIndex) || ""
+                })
+
+                return row
+            })
+
+            const headers = exportColumns.map(({header}) => header)
+
+            const csvData = convertToCsv(rows, headers)
+            if (!csvData) {
+                message.error("Failed to prepare export")
+                return
+            }
+
+            const {currentApp} = getAppValues()
+            const filenameBase =
+                currentApp?.app_name ||
+                (scope === "project" ? "all_applications" : "evaluations")
+            const filename = `${filenameBase.replace(/\s+/g, "_")}_custom_evaluations.csv`
+            downloadCsv(filename, csvData)
+        } catch (error) {
+            console.error("Failed to export custom evaluations", error)
+            message.error("Failed to export evaluations")
+        }
+    }, [
+        selectedEvaluations,
+        exportColumns,
+        recordIndexLookup,
+        scope,
+    ])
+
     return (
         <section className="flex flex-col gap-2 pb-4">
             <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <Space size={8} wrap>
                     <Button
+                        type="text"
+                        className="flex items-center"
+                        onClick={handleExportSelected}
+                        disabled={selectedEvaluations.length === 0}
+                        icon={<Export size={14} className="mt-0.5" />}
+                    >
+                        Export as CSV
+                    </Button>
+                    <Button
+                        type="text"
                         danger
-                        disabled={
-                            selectedRowKeys.length === 0 &&
-                            (!selectedEvalRecord || !selectedEvalRecord.id)
-                        }
+                        className="flex items-center"
+                        disabled={selectedEvaluations.length === 0}
+                        icon={<Trash size={14} />}
                         onClick={() => setIsDeleteEvalModalOpen(true)}
                     >
                         Delete
                     </Button>
-                </div>
+                </Space>
                 <EditColumns
                     columns={columns as any}
                     uniqueKey="custom-evaluations-table-columns"
@@ -290,15 +540,17 @@ const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvalua
                     setSelectedEvalRecord(undefined)
                 }}
                 onOk={async () => {
-                    const ids = selectedEvalRecord
-                        ? [selectedEvalRecord.id]
-                        : selectedRowKeys.map((key) => key?.toString()).filter(Boolean)
+                    const ids = selectedEvaluations
+                        .map((evaluation) =>
+                            "id" in evaluation ? evaluation.id : evaluation.key?.toString(),
+                        )
+                        .filter(Boolean) as string[]
                     if (ids.length) {
-                        await handleDelete(ids as string[])
+                        await handleDelete(ids)
                     }
                 }}
                 evaluationType={selectedEvaluationsLabel}
-                isMultiple={!selectedEvalRecord && selectedRowKeys.length > 0}
+                isMultiple={selectedEvaluations.length > 1}
             />
         </section>
     )

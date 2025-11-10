@@ -129,7 +129,7 @@ const useEvaluationRunData = (evaluationTableId: string | null, debug = false, r
                 )
             ).filter(Boolean) as PreviewTestset[]
 
-            if (!fetchedTestsets.length && evalType === "auto") {
+            if (!fetchedTestsets.length && (evalType === "auto" || evalType === "custom")) {
                 evalAtomStore().set(
                     evaluationRunStateFamily(runId || evaluationTableId),
                     (draft: any) => {
@@ -215,7 +215,7 @@ const useEvaluationRunData = (evaluationTableId: string | null, debug = false, r
                 : await fetchLegacyEvaluationData(evaluationTableId as string)
         if (!rawRun) return null
 
-        if (evalType === "auto") {
+        if (evalType === "auto" || evalType === "custom") {
             return rawRun
         }
 

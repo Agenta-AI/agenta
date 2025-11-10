@@ -103,6 +103,230 @@ export interface DrawerEvaluatorMetric {
     fallbackKeys?: string[]
 }
 
+const normalizeMetricPrimaryKey = (slug: string | undefined, rawKey: string): string => {
+    const normalizedSlug = slug && slug.trim().length > 0 ? slug.trim() : undefined
+    const trimmed = rawKey.trim()
+    if (!trimmed) return normalizedSlug ?? ""
+    if (normalizedSlug) {
+        const prefix = `${normalizedSlug}.`
+        if (trimmed.startsWith(prefix)) return trimmed
+    }
+    if (trimmed.includes(".")) return trimmed
+    return normalizedSlug ? `${normalizedSlug}.${trimmed}` : trimmed
+}
+
+const INVOCATION_METRIC_PREFIX = "attributes.ag.metrics"
+const INVOCATION_METRIC_SIGNATURE = `.attributes.ag.metrics`
+
+const isInvocationMetricKey = (key?: string): boolean => {
+    if (!key) return false
+    return key.startsWith(INVOCATION_METRIC_PREFIX) || key.includes(INVOCATION_METRIC_SIGNATURE)
+}
+
+const filterInvocationMetricDefinitions = (
+    metrics: DrawerEvaluatorMetric[],
+): DrawerEvaluatorMetric[] => metrics.filter((metric) => !isInvocationMetricKey(metric.metricKey))
+
+const stripOutputsPrefixes = (key: string): string => {
+    let result = key
+    const OUTPUT_PREFIX = "attributes.ag.data.outputs."
+    const METRIC_PREFIX = "attributes.ag.metrics."
+    while (result.startsWith(OUTPUT_PREFIX)) {
+        result = result.slice(OUTPUT_PREFIX.length)
+    }
+    while (result.startsWith(METRIC_PREFIX)) {
+        result = result.slice(METRIC_PREFIX.length)
+    }
+    return result
+}
+
+const normalizeMetricKeyForSlug = (key: string | undefined, slug?: string): string => {
+    if (!key) return ""
+    let result = key.trim()
+    if (!result) return ""
+    if (slug && result.startsWith(`${slug}.`)) {
+        result = result.slice(slug.length + 1)
+    }
+    result = stripOutputsPrefixes(result)
+    return result
+}
+
+const dedupeEvaluatorMetricDefinitions = (
+    metrics: DrawerEvaluatorMetric[],
+    slug?: string,
+): DrawerEvaluatorMetric[] => {
+    const map = new Map<string, DrawerEvaluatorMetric>()
+    metrics.forEach((metric) => {
+        const normalizedKey = normalizeMetricKeyForSlug(metric.metricKey ?? metric.id, slug)
+        const existing = map.get(normalizedKey)
+        if (!existing) {
+            map.set(normalizedKey, metric)
+            return
+        }
+        const fallbackKeys = new Set<string>([
+            ...(existing.fallbackKeys || []),
+            ...(metric.fallbackKeys || []),
+        ])
+        const preferred =
+            isInvocationMetricKey(existing.metricKey) && !isInvocationMetricKey(metric.metricKey)
+                ? metric
+                : existing
+        map.set(normalizedKey, {
+            ...preferred,
+            fallbackKeys: fallbackKeys.size ? Array.from(fallbackKeys) : preferred.fallbackKeys,
+        })
+    })
+    return Array.from(map.values())
+}
+
+const collectMetricFallbackKeys = (
+    slug: string | undefined,
+    rawKey: string,
+    primaryKey: string,
+    meta: any,
+): string[] => {
+    const set = new Set<string>()
+    const normalizedSlug = slug && slug.trim().length > 0 ? slug.trim() : undefined
+    const push = (value?: string) => {
+        if (!value) return
+        const trimmed = String(value).trim()
+        if (!trimmed) return
+        if (trimmed.includes(".") || !normalizedSlug) {
+            set.add(trimmed)
+        } else {
+            set.add(`${normalizedSlug}.${trimmed}`)
+        }
+    }
+
+    push(rawKey)
+
+    const aliases = Array.isArray(meta?.aliases)
+        ? meta?.aliases
+        : meta?.aliases
+          ? [meta.aliases]
+          : meta?.alias
+            ? [meta.alias]
+            : []
+    aliases.forEach(push)
+
+    const extraKeys = [
+        meta?.metricKey,
+        meta?.metric_key,
+        meta?.key,
+        meta?.path,
+        meta?.fullKey,
+        meta?.full_key,
+        meta?.canonicalKey,
+        meta?.canonical_key,
+        meta?.statsKey,
+        meta?.stats_key,
+        meta?.metric,
+    ]
+    extraKeys.forEach(push)
+
+    const fallbackKeys = Array.from(set).filter((value) => value !== rawKey && value !== primaryKey)
+    return fallbackKeys
+}
+
+// const buildDrawerMetricDefinition = (
+//     slug: string | undefined,
+//     rawKey: string,
+//     meta: any,
+// ): DrawerEvaluatorMetric => {
+//     const normalizedSlug = slug && slug.trim().length > 0 ? slug.trim() : undefined
+//     const normalizedDisplayBase =
+//         normalizedSlug && rawKey.startsWith(`${normalizedSlug}.`)
+//             ? rawKey.slice(normalizedSlug.length + 1)
+//             : rawKey
+//     const normalizedDisplay = stripOutputsPrefixes(normalizedDisplayBase)
+//     const primaryKey = normalizeMetricPrimaryKey(slug, rawKey)
+//     const fallbackKeys = collectMetricFallbackKeys(slug, rawKey, primaryKey, meta)
+//     const id = canonicalizeMetricKey(primaryKey) || primaryKey
+
+//     return {
+//         id,
+//         displayName: normalizedDisplay || primaryKey,
+//         metricKey: primaryKey,
+//         fallbackKeys: fallbackKeys.length ? fallbackKeys : undefined,
+//     }
+// }
+
+const collectCandidateSteps = (data?: UseEvaluationRunScenarioStepsFetcherResult): any[] => {
+    if (!data) return []
+    const buckets: any[] = []
+    if (Array.isArray(data.annotationSteps)) buckets.push(...(data.annotationSteps as any[]))
+    if (Array.isArray(data.steps)) buckets.push(...(data.steps as any[]))
+    if (Array.isArray(data.invocationSteps)) buckets.push(...(data.invocationSteps as any[]))
+    return buckets
+}
+
+// const collectSlugCandidates = (
+//     data: UseEvaluationRunScenarioStepsFetcherResult | undefined,
+//     evaluatorSlug: string,
+// ): string[] => {
+//     const set = new Set<string>()
+//     const push = (value?: string | null) => {
+//         if (!value) return
+//         const normalized = String(value).trim()
+//         if (!normalized) return
+//         set.add(normalized)
+//     }
+
+//     push(evaluatorSlug)
+
+//     const steps = collectCandidateSteps(data)
+//     steps.forEach((step) => {
+//         if (!step) return
+//         const ref: any = step?.references?.evaluator
+//         push(step?.stepKey as any)
+//         push(step?.stepkey as any)
+//         push(step?.step_key as any)
+//         push(ref?.slug)
+//         push(ref?.key)
+//         push(ref?.id)
+//     })
+
+//     return Array.from(set)
+// }
+
+// const findAnnotationStepKey = (
+//     data: UseEvaluationRunScenarioStepsFetcherResult | undefined,
+//     slugCandidates: string[],
+// ): string | undefined => {
+//     if (!data) return undefined
+
+//     const steps = collectCandidateSteps(data)
+//     if (!steps.length) return undefined
+
+//     const loweredCandidates = slugCandidates
+//         .map((slug) => String(slug).toLowerCase())
+//         .filter((slug) => slug.length > 0)
+
+//     const matched = steps.find((step) => {
+//         if (!step) return false
+//         const possible: string[] = [
+//             (step as any)?.stepKey,
+//             (step as any)?.stepkey,
+//             (step as any)?.step_key,
+//             (step as any)?.references?.evaluator?.slug,
+//             (step as any)?.references?.evaluator?.key,
+//             (step as any)?.references?.evaluator?.id,
+//         ]
+
+//         return possible
+//             .filter(Boolean)
+//             .map((value) => String(value).toLowerCase())
+//             .some((candidate) => loweredCandidates.includes(candidate))
+//     })
+
+//     return (
+//         (matched as any)?.stepKey ??
+//         (matched as any)?.stepkey ??
+//         (matched as any)?.step_key ??
+//         undefined
+//     )
+// }
+
 const EvaluatorFailureDisplay = ({
     status,
     error,
@@ -945,6 +1169,12 @@ const FocusDrawerContent = () => {
             : false
 
     const enricedRun = evaluationRunData?.enrichedRun
+
+    const annotationSteps = useMemo(() => {
+        const steps = (enricedRun?.data?.steps || []) as any[]
+        if (!Array.isArray(steps)) return []
+        return steps.filter((step) => step?.type === "annotation")
+    }, [enricedRun?.data?.steps])
     const runIndex = evaluationRunData?.runIndex
     const invocationStep = useMemo(
         () => scenarioStepsData?.invocationSteps?.[0],
@@ -1218,9 +1448,13 @@ const FocusDrawerContent = () => {
         const rawEvaluators = enricedRun?.evaluators
         const list = asEvaluatorArray(rawEvaluators)
         return list.map((entry: any, idx: number) => {
-            const identifiers = collectEvaluatorIdentifiers(entry)
+            const identifierSet = new Set<string>()
+            collectEvaluatorIdentifiers(entry).forEach((identifier) =>
+                identifierSet.add(identifier),
+            )
+
             let matchedFallback: any
-            for (const identifier of identifiers) {
+            for (const identifier of identifierSet) {
                 const candidate = evaluatorLookupByIdentifier.get(identifier)
                 if (candidate) {
                     matchedFallback = candidate
@@ -1228,8 +1462,16 @@ const FocusDrawerContent = () => {
                 }
             }
 
+            if (matchedFallback) {
+                collectEvaluatorIdentifiers(matchedFallback).forEach((identifier) =>
+                    identifierSet.add(identifier),
+                )
+            }
+
             const slug = extractEvaluatorSlug(entry) ?? extractEvaluatorSlug(matchedFallback)
             const resolvedSlug = slug ?? `evaluator-${idx}`
+            if (resolvedSlug) identifierSet.add(resolvedSlug)
+
             const displayName =
                 extractEvaluatorName(entry) ??
                 extractEvaluatorName(matchedFallback) ??
@@ -1241,13 +1483,39 @@ const FocusDrawerContent = () => {
                 resolveEvaluatorMetricsMap(matchedFallback) ??
                 {}
 
+            const aliasSet = new Set<string>(identifierSet)
+            annotationSteps.forEach((step) => {
+                const stepEvaluatorSlug = pickString(step?.references?.evaluator?.slug)
+                const stepEvaluatorId = pickString(step?.references?.evaluator?.id)
+                const matches =
+                    (stepEvaluatorSlug && identifierSet.has(stepEvaluatorSlug)) ||
+                    (stepEvaluatorId && identifierSet.has(stepEvaluatorId))
+                if (!matches) return
+                const stepKey = pickString(step?.key)
+                if (stepKey) {
+                    aliasSet.add(stepKey)
+                    if (step.origin === "human") {
+                        const parts = stepKey.split(".")
+                        if (parts.length > 1) aliasSet.add(parts[1])
+                    }
+                }
+                if (stepEvaluatorSlug) aliasSet.add(stepEvaluatorSlug)
+            })
+
             return {
                 name: displayName,
                 metrics,
                 slug: resolvedSlug,
+                aliases: Array.from(aliasSet),
             }
         })
-    }, [enricedRun?.evaluators, evaluatorLookupByIdentifier])
+    }, [annotationSteps, enricedRun?.evaluators, evaluatorLookupByIdentifier])
+
+    const focusRunMetricsStatsAtom = useMemo(() => {
+        if (!runId) return emptyStatsAtom
+        return runMetricsStatsCacheFamily(runId)
+    }, [runId])
+    const focusRunMetricsStatsMap = useAtomValue(focusRunMetricsStatsAtom)
 
     const scenarioMetricDefinitions = useMemo(() => {
         const columns =
@@ -1262,6 +1530,9 @@ const FocusDrawerContent = () => {
                 const rawKey = String(column.path || column.name || "").trim()
                 if (!rawKey) return undefined
                 const definition = buildDrawerMetricDefinition(undefined, rawKey, column)
+                if (isInvocationMetricKey(definition.metricKey)) {
+                    return undefined
+                }
                 const fallback = new Set<string>(definition.fallbackKeys || [])
                 fallback.add(rawKey)
                 const canonical = canonicalizeMetricKey(rawKey)
@@ -1291,6 +1562,77 @@ const FocusDrawerContent = () => {
                 return true
             })
     }, [evalType])
+
+    const evaluatorAliasToSlug = useMemo(() => {
+        const map = new Map<string, string>()
+        evaluatorMetrics.forEach((entry) => {
+            const slug = entry?.slug
+            if (!slug) return
+            const aliases = new Set<string>(entry?.aliases || [])
+            aliases.add(slug)
+            aliases.forEach((alias) => {
+                const normalized = pickString(alias)
+                if (!normalized) return
+                if (!map.has(normalized)) {
+                    map.set(normalized, slug)
+                }
+            })
+        })
+        return map
+    }, [evaluatorMetrics])
+
+    const aggregatedMetricKeys = useMemo(() => {
+        const sources = new Set<string>()
+        if (focusRunMetricsStatsMap && typeof focusRunMetricsStatsMap === "object") {
+            Object.keys(focusRunMetricsStatsMap).forEach((key) => {
+                const normalized = pickString(key)
+                if (normalized) sources.add(normalized)
+            })
+        }
+        return sources
+    }, [focusRunMetricsStatsMap])
+
+    const inferredEvaluatorMetricDefinitions = useMemo(() => {
+        const map = new Map<string, DrawerEvaluatorMetric[]>()
+        if (!aggregatedMetricKeys.size || !evaluatorAliasToSlug.size) return map
+
+        const recordDefinition = (slug: string, definition: DrawerEvaluatorMetric) => {
+            const existing = map.get(slug)
+            if (!existing) {
+                map.set(slug, [definition])
+                return
+            }
+            if (!existing.some((entry) => entry.id === definition.id)) {
+                existing.push(definition)
+            }
+        }
+
+        aggregatedMetricKeys.forEach((rawKey) => {
+            const canonical = canonicalizeMetricKey(rawKey)
+            if (!canonical || !canonical.includes(".")) return
+            if (canonical.startsWith("attributes.ag.metrics")) return
+
+            const segments = canonical.split(".").filter(Boolean)
+            for (let idx = 0; idx < segments.length; idx += 1) {
+                const prefix = segments.slice(0, idx + 1).join(".")
+                const slug = evaluatorAliasToSlug.get(prefix)
+                if (!slug) continue
+                const metricSegments = segments.slice(idx + 1)
+                const metricName = metricSegments.join(".")
+                const baseKey = metricName && metricName.length ? `${slug}.${metricName}` : slug
+                const aliasCandidates = [canonical, rawKey].filter(
+                    (candidate): candidate is string => Boolean(candidate && candidate !== baseKey),
+                )
+                const definition = buildDrawerMetricDefinition(slug, baseKey, {
+                    aliases: aliasCandidates.length ? aliasCandidates : undefined,
+                })
+                recordDefinition(slug, definition)
+                break
+            }
+        })
+
+        return map
+    }, [aggregatedMetricKeys, evaluatorAliasToSlug])
 
     const openAndScrollTo = useCallback((key: string) => {
         // Ensure the related section is expanded when navigating via hash
@@ -1426,28 +1768,6 @@ const FocusDrawerContent = () => {
                 ),
                 children: (
                     <div className="flex flex-col gap-4 min-h-0 h-fit scroll-mt-2">
-                        {/* {shouldShowTraceSummary ? (
-                            <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                                {traceJson ? (
-                                    <div className="border-t border-slate-200">
-                                        <SimpleSharedEditor
-                                            key={`trace-json-${traceEditorKey}`}
-                                            handleChange={() => {}}
-                                            headerName="Trace payload"
-                                            initialValue={traceJson}
-                                            editorType="borderless"
-                                            state="readOnly"
-                                            disabled
-                                            readOnly
-                                            editorClassName="!text-xs"
-                                            className="!w-full"
-                                            defaultMinimized
-                                            editorProps={{codeOnly: true, language: "json"} as any}
-                                        />
-                                    </div>
-                                ) : null}
-                            </div>
-                        ) : null} */}
                         {hasEntryData ? (
                             <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
                                 <VirtualizedSharedEditors
@@ -1748,10 +2068,12 @@ const FocusDrawerContent = () => {
 
                                               Object.entries(metricsMeta).forEach(
                                                   ([rawKey, meta]) => {
+                                                      const keyString = String(rawKey)
+                                                      if (isInvocationMetricKey(keyString)) return
                                                       const definition =
                                                           buildDrawerMetricDefinition(
                                                               slug,
-                                                              String(rawKey),
+                                                              keyString,
                                                               meta,
                                                           )
                                                       const mapKey = `${slug}::${definition.id}`
@@ -1777,7 +2099,22 @@ const FocusDrawerContent = () => {
                                               )
                                           })
 
-                                          const metricDefs = Array.from(metricKeyOrder.values())
+                                          const inferredDefs =
+                                              inferredEvaluatorMetricDefinitions.get(slug) || []
+                                          inferredDefs.forEach((definition) => {
+                                              const mapKey = `${slug}::${definition.id}`
+                                              if (!metricKeyOrder.has(mapKey)) {
+                                                  metricKeyOrder.set(mapKey, definition)
+                                              }
+                                          })
+
+                                          const metricDefs = dedupeEvaluatorMetricDefinitions(
+                                              filterInvocationMetricDefinitions(
+                                                  Array.from(metricKeyOrder.values()),
+                                              ),
+                                              slug,
+                                          )
+                                          if (!metricDefs.length) return null
                                           const displayName = slugName[slug] || slug
 
                                           return (
@@ -1852,10 +2189,12 @@ const FocusDrawerContent = () => {
                       const isPrevOpen = !!(prevSlug && activeKeys.includes(prevSlug))
 
                       const metricMap = new Map<string, DrawerEvaluatorMetric>()
-                      const metricHelper = (meta: any, rawKey: string) => {
+                      Object.entries(metrics || {}).forEach(([rawKey, meta]) => {
+                          const keyString = String(rawKey)
+                          if (isInvocationMetricKey(keyString)) return
                           const definition = buildDrawerMetricDefinition(
                               evaluator.slug,
-                              String(rawKey),
+                              keyString,
                               meta,
                           )
                           const mapKey = `${evaluator.slug}::${definition.id}`
@@ -1875,18 +2214,30 @@ const FocusDrawerContent = () => {
                                       : undefined,
                               })
                           }
-                      }
+                      })
 
-                      Object.entries(metrics || {}).forEach(([rawKey, meta]) => {
-                          if (meta.properties) {
-                              Object.entries(meta.properties).forEach(([propKey, propMeta]) => {
-                                  metricHelper(propMeta, `${rawKey}.${propKey}`)
-                              })
-                          } else {
-                              metricHelper(meta, rawKey)
+                      //   Object.entries(metrics || {}).forEach(([rawKey, meta]) => {
+                      //       if (meta.properties) {
+                      //           Object.entries(meta.properties).forEach(([propKey, propMeta]) => {
+                      //               metricHelper(propMeta, `${rawKey}.${propKey}`)
+                      //           })
+                      //       } else {
+                      //           metricHelper(meta, rawKey)
+                      //       }
+                      //   })
+                      const inferredDefs =
+                          inferredEvaluatorMetricDefinitions.get(evaluator.slug) || []
+                      inferredDefs.forEach((definition) => {
+                          const mapKey = `${evaluator.slug}::${definition.id}`
+                          if (!metricMap.has(mapKey)) {
+                              metricMap.set(mapKey, definition)
                           }
                       })
-                      const metricDefs = Array.from(metricMap.values())
+                      const metricDefs = dedupeEvaluatorMetricDefinitions(
+                          filterInvocationMetricDefinitions(Array.from(metricMap.values())),
+                          evaluator.slug,
+                      )
+                      if (!metricDefs.length) return null
 
                       if (!evaluator) return null
                       return {
@@ -1943,6 +2294,8 @@ const FocusDrawerContent = () => {
         baseRunId,
         invocationStepKey,
         invocationStep?.stepkey,
+        evaluatorMetrics,
+        inferredEvaluatorMetricDefinitions,
     ])
 
     if ((!scenarioStepsData && !hasResolvedSteps) || !enricedRun || !runId) {

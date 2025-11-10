@@ -298,7 +298,7 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
                                     query: recordAppId ? {app_id: recordAppId} : undefined,
                                 })
                             } else {
-                                router.push(targetPath)
+                                router.push({pathname: targetPath, query: {eval_type: "auto"}})
                             }
                         },
                     }

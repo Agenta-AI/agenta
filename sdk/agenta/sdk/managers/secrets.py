@@ -243,6 +243,8 @@ class SecretsManager:
             Dict: A dictionary containing all parameters needed for litellm.completion
         """
 
+        request_provider_model = model
+
         # STEP 1: get vault secrets from route context and transform it
         secrets = RunningContext.get().secrets
         if not secrets:

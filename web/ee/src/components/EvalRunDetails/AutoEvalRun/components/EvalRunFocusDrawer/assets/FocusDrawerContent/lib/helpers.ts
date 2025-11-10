@@ -196,16 +196,30 @@ export const collectMetricFallbackKeys = (
     return fallbackKeys
 }
 
+export const stripOutputsPrefixes = (key: string): string => {
+    let result = key
+    const OUTPUT_PREFIX = "attributes.ag.data.outputs."
+    const METRIC_PREFIX = "attributes.ag.metrics."
+    while (result.startsWith(OUTPUT_PREFIX)) {
+        result = result.slice(OUTPUT_PREFIX.length)
+    }
+    while (result.startsWith(METRIC_PREFIX)) {
+        result = result.slice(METRIC_PREFIX.length)
+    }
+    return result
+}
+
 export const buildDrawerMetricDefinition = (
     slug: string | undefined,
     rawKey: string,
     meta: any,
 ): DrawerEvaluatorMetric => {
     const normalizedSlug = slug && slug.trim().length > 0 ? slug.trim() : undefined
-    const normalizedDisplay =
+    const normalizedDisplayBase =
         normalizedSlug && rawKey.startsWith(`${normalizedSlug}.`)
             ? rawKey.slice(normalizedSlug.length + 1)
             : rawKey
+    const normalizedDisplay = stripOutputsPrefixes(normalizedDisplayBase)
     const primaryKey = normalizeMetricPrimaryKey(slug, rawKey)
     const fallbackKeys = collectMetricFallbackKeys(slug, rawKey, primaryKey, meta)
     const id = canonicalizeMetricKey(primaryKey) || primaryKey

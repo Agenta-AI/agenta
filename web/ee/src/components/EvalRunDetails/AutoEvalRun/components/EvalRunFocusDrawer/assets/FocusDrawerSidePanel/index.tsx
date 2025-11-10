@@ -114,7 +114,7 @@ const FocusDrawerSidePanel = () => {
                         icon: <Speedometer size={14} className="text-[#758391]" />,
                         children:
                             dedupedEvaluators?.map((e) => ({
-                                title: e.name,
+                                title: e.name ?? e.slug,
                                 key: e.slug,
                                 icon: <Speedometer size={14} className="text-[#758391]" />,
                             })) || [],
