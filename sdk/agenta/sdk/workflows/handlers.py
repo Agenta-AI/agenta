@@ -776,7 +776,9 @@ async def auto_ai_critique_v0(
             got=model,
         )
 
-    response_type = parameters.get("response_type") or "text"
+    response_type = parameters.get("response_type") or (
+        "json_schema" if template_version == "4" else "text"
+    )
 
     if not response_type in ["text", "json_object", "json_schema"]:
         raise InvalidConfigurationParameterV0Error(
