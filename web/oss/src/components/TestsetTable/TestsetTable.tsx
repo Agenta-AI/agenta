@@ -1,5 +1,13 @@
 // @ts-nocheck
-import {type FC, type ChangeEvent, ReactNode, useEffect, useState, useMemo, useCallback} from "react"
+import {
+    type FC,
+    type ChangeEvent,
+    ReactNode,
+    useEffect,
+    useState,
+    useMemo,
+    useCallback,
+} from "react"
 
 import {type IHeaderParams} from "@ag-grid-community/core"
 import {CheckCircleFilled} from "@ant-design/icons"
@@ -409,6 +417,7 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
                     onRowSelected={onRowSelectedOrDeselected}
                     onRowDataUpdated={onRowSelectedOrDeselected}
                     className="ph-no-capture"
+                    suppressFieldDotNotation={true}
                 />
             </div>
 

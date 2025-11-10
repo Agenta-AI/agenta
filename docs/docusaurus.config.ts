@@ -84,8 +84,8 @@ const config: Config = {
     navbar: {
       logo: {
         alt: "agenta-ai",
-        src: "images/light-complete-transparent-CROPPED.png",
-        srcDark: "images/dark-complete-transparent-CROPPED.png",
+        src: "images/Agenta-logo-full-light.png",
+        srcDark: "images/Agenta-logo-full-dark-accent.png",
       },
       hideOnScroll: false,
       items: [
