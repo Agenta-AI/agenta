@@ -5,19 +5,23 @@ import {ColumnsType} from "antd/es/table"
 import {useRouter} from "next/router"
 
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
-import useURL from "@/oss/hooks/useURL"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {ListAppsItem} from "@/oss/lib/Types"
 
 interface AppTableProps {
     filteredApps: ListAppsItem[]
-    openDeleteAppModal: (appDetails: ListAppsItem) => void
-    openEditAppModal: (appDetails: ListAppsItem) => void
+    setSelectedApp: React.Dispatch<React.SetStateAction<ListAppsItem | null>>
+    setIsDeleteAppModalOpen: (value: React.SetStateAction<boolean>) => void
+    setIsEditAppModalOpen: (value: React.SetStateAction<boolean>) => void
 }
 
-const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTableProps) => {
+const AppTable = ({
+    filteredApps,
+    setIsDeleteAppModalOpen,
+    setIsEditAppModalOpen,
+    setSelectedApp,
+}: AppTableProps) => {
     const router = useRouter()
-    const {baseAppURL} = useURL()
 
     const columns: ColumnsType<ListAppsItem> = [
         {
@@ -63,7 +67,7 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
                                     icon: <Note size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`${baseAppURL}/${record.app_id}/overview`)
+                                        router.push(`/apps/${record.app_id}/overview`)
                                     },
                                 },
                                 {type: "divider"},
@@ -73,7 +77,8 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
                                     icon: <PencilLine size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        openEditAppModal(record)
+                                        setSelectedApp(record)
+                                        setIsEditAppModalOpen(true)
                                     },
                                 },
                                 {
@@ -83,7 +88,8 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
                                     danger: true,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        openDeleteAppModal(record)
+                                        setSelectedApp(record)
+                                        setIsDeleteAppModalOpen(true)
                                     },
                                 },
                             ],
@@ -113,7 +119,7 @@ const AppTable = ({filteredApps, openDeleteAppModal, openEditAppModal}: AppTable
                 bordered
                 onRow={(record) => ({
                     style: {cursor: "pointer"},
-                    onClick: () => router.push(`${baseAppURL}/${record.app_id}/overview`),
+                    onClick: () => router.push(`/apps/${record.app_id}/overview`),
                 })}
                 locale={{emptyText: <NoResultsFound />}}
             />

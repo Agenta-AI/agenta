@@ -5,59 +5,72 @@ description: "Handle Events"
 sidebar_label: "Handle Events"
 hide_title: true
 hide_table_of_contents: true
-api: eJxdUk2PmzAQ/SvRO1sh7dGnplKljfbQaNOeIlRNzGzwrjGubaJSxH+vBpJ0AxcE82bmfcyATOcEfcRX65z1Z5QKbeBI2bZ+V0GjJl85/sUX9jlBIXIKrU+coAd83mzkVXEy0QbpgcahM4ZTeu3c6uUKhoJpfWafBU4hOGumFcVbkp4BydTcEPQwyqMWI58mEqtvNxIN57oVdqFNGQqBcg2N4jSrKFKONnAxky6gkDheOIrSAV10oivnkHRRGNd21ZrO7DOtyRYULMZSOkwXbe6nlu1+98z9E1PFEfpYfgQchPlsxyNsQO4DQ4OCfeYeCp4a+d52uW6j/Ts5AAUrEuu5S7Rb/9pO7Ta7CT+RW233OyiIjNmUzfrTeoOlVQ9gMZ3MZPpt91SGWrhw1w8FbshKLTM1X/4XhJnY3ZD/MG+ZzAOZuwOZ/+QiOLIe43X1cA3tiGtoktIUm1C4jZN7rCVjfcQwnCjxz+jGUX7/7jhKOqXChaKlk3h1LEd1s1KCe+deRBvDQe7kQq6bE1lcoAR6P6r998MPjOM/FmYOTA==
+api: eJx1Uk2PmzAQ/SvRO1sh7ZFTs1WljfbQqGlPCFUTMxvcNca1TVSK+O/VAMnuIpULgnkz8z5mQKJLRF7gwVhr3AWlQus5UDKtO1TIUZOrLP/kK7sUoRA4+tZFjsgHfNzt5FVx1MF46UGOU6c1x/jc2c23BQwF3brELgmcvLdGTyuyX1F6BkRdc0PIh1EetRr5OJHYfLmRaDjVrbDzbUxQ8JRq5MjOs4ospmA8ZzPpDAqRw5WDKB3QBSu6UvIxzzJt267a0oVdoi2ZjLzBev1+qm4+CxRjKeN0F0zqp3n74+GJ+0emigPyonwLOIms2av3sAGp94wc5M0T91Bw1Mj3vkt1G8zfyR4oGCFQz11ijHHP7dRukuVXbg+kX9hVUBCdM+3d9sN29z8xS8Nmfzws6ZCe0rnxmGBQK7vuRkGBGzJSS0zNp9eCsJRcGnJv5q0jfEfq7kbiPynzlozDuKwelnQLLOlKnFO+QuE2Tg63lmPICwzDmSL/CHYc5ffvjoMkVSpcKRg6i29FOaqbrRLiC/ciWmv2clBXst2czupUJdz79R2/nr5jHP8BBLsc2w==
 sidebar_class_name: "post api-method"
-info_path: reference/api/agenta-api
+info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
 
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import ParamsDetails from "@theme/ParamsDetails";
-import RequestSchema from "@theme/RequestSchema";
-import StatusCodes from "@theme/StatusCodes";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
-import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Handle Events"}
->
-</Heading>
+></Heading>
 
 <MethodEndpoint
   method={"post"}
   path={"/billing/stripe/events/"}
-  context={"endpoint"}
->
-  
-</MethodEndpoint>
-
-
+></MethodEndpoint>
 
 Handle Events
 
-<ParamsDetails
-  parameters={undefined}
->
-  
-</ParamsDetails>
-
-<RequestSchema
-  title={"Body"}
-  body={undefined}
->
-  
-</RequestSchema>
-
-<StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
->
-  
-</StatusCodes>
-
-
-      
+<div>
+  <div>
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>any</ul>
+                  </details>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>

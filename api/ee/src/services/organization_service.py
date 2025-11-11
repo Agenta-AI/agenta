@@ -1,5 +1,3 @@
-from urllib.parse import quote
-
 from ee.src.services import db_manager_ee
 from oss.src.services import email_service
 from oss.src.models.db_models import UserDB
@@ -15,9 +13,9 @@ from oss.src.utils.env import env
 
 
 async def update_an_organization(
-    organization_id: str, payload: OrganizationUpdate
+    org_id: str, payload: OrganizationUpdate
 ) -> OrganizationDB:
-    org = await db_manager_ee.get_organization(organization_id)
+    org = await db_manager_ee.get_organization(org_id)
     if org is not None:
         await db_manager_ee.update_organization(str(org.id), payload)
         return org
@@ -53,30 +51,11 @@ async def send_invitation_email(
     """
 
     html_template = email_service.read_email_template("./templates/send_email.html")
-
-    token_param = quote(token, safe="")
-    email_param = quote(email, safe="")
-    org_param = quote(str(organization.id), safe="")
-    workspace_param = quote(str(workspace.id), safe="")
-    project_param = quote(project_id, safe="")
-
-    invite_link = (
-        f"{env.AGENTA_WEB_URL}/auth"
-        f"?token={token_param}"
-        f"&email={email_param}"
-        f"&organization_id={org_param}"
-        f"&workspace_id={workspace_param}"
-        f"&project_id={project_param}"
-    )
-
     html_content = html_template.format(
         username_placeholder=user.username,
         action_placeholder="invited you to join",
         workspace_placeholder=workspace.name,
-        call_to_action=(
-            "Click the link below to accept the invitation:</p><br>"
-            f'<a href="{invite_link}">Accept Invitation</a>'
-        ),
+        call_to_action=f'Click the link below to accept the invitation:</p><br><a href="{env.AGENTA_WEB_URL}/auth?token={token}&email={email}&org_id={organization.id}&workspace_id={workspace.id}&project_id={project_id}">Accept Invitation</a>',
     )
 
     await email_service.send_email(
@@ -120,6 +99,6 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
     return True
 
 
-async def get_organization_details(organization_id: str) -> dict:
-    organization = await db_manager_ee.get_organization(organization_id)
+async def get_organization_details(org_id: str) -> dict:
+    organization = await db_manager_ee.get_organization(org_id)
     return await db_manager_ee.get_org_details(organization)

@@ -66,25 +66,11 @@ def upgrade() -> None:
         "ix_spans_project_id_trace_type",
         "spans",
         ["project_id", "trace_type"],
-        if_not_exists=True,
     )
     op.create_index(
         "ix_spans_project_id_span_type",
         "spans",
         ["project_id", "span_type"],
-        if_not_exists=True,
-    )
-    op.create_index(
-        "ix_spans_project_id_trace_id_created_at",
-        "spans",
-        ["project_id", "trace_id", sa.text("created_at DESC")],
-        if_not_exists=True,
-    )
-    op.create_index(
-        "ix_spans_project_id_trace_id_start_time",
-        "spans",
-        ["project_id", "trace_id", sa.text("start_time DESC")],
-        if_not_exists=True,
     )
     op.create_index(
         "ix_hashes_gin",
@@ -92,110 +78,29 @@ def upgrade() -> None:
         ["hashes"],
         postgresql_using="gin",
         postgresql_ops={"hashes": "jsonb_path_ops"},
-        if_not_exists=True,
-    )
-    op.drop_index(
-        "ix_events_gin",
-        table_name="spans",
-        if_exists=True,
     )
     op.create_index(
-        "ix_events_gin",
-        "spans",  # replace with your table name
-        ["events"],
-        postgresql_using="gin",
-        postgresql_ops={"events": "jsonb_path_ops"},
-        if_not_exists=True,
-    )
-    op.create_index(
-        "ix_spans_fts_attributes_gin",
+        "ix_spans_fts_gin",
         "spans",
         [sa.text("to_tsvector('simple', attributes)")],
         postgresql_using="gin",
-        if_not_exists=True,
-    )
-    op.create_index(
-        "ix_spans_fts_events_gin",
-        "spans",
-        [sa.text("to_tsvector('simple', events)")],
-        postgresql_using="gin",
-        if_not_exists=True,
     )
     # --------------------------------------------------------------------------
 
 
 def downgrade() -> None:
     # - SPANS ------------------------------------------------------------------
-    op.drop_index(
-        "ix_spans_fts_events_gin",
-        table_name="spans",
-        if_exists=True,
-    )
-    op.drop_index(
-        "ix_spans_fts_attributes_gin",
-        table_name="spans",
-        if_exists=True,
-    )
-    op.drop_index(
-        "ix_events_gin",
-        table_name="spans",
-        if_exists=True,
-    )
-    op.create_index(
-        "ix_events_gin",
-        "spans",
-        ["events"],
-        postgresql_using="gin",
-        if_not_exists=True,
-    )
-    op.drop_index(
-        "ix_hashes_gin",
-        table_name="spans",
-        if_exists=True,
-    )
-    op.drop_index(
-        "ix_spans_project_id_trace_id_start_time",
-        table_name="spans",
-        if_exists=True,
-    )
-    op.drop_index(
-        "ix_spans_project_id_trace_id_created_at",
-        table_name="spans",
-        if_exists=True,
-    )
-    op.drop_index(
-        "ix_spans_project_id_span_type",
-        table_name="spans",
-        if_exists=True,
-    )
-    op.drop_index(
-        "ix_spans_project_id_trace_type",
-        table_name="spans",
-        if_exists=True,
-    )
-    op.drop_column(
-        "spans",
-        "exception",
-        if_exists=True,
-    )
-    op.drop_column(
-        "spans",
-        "hashes",
-        if_exists=True,
-    )
-    op.drop_column(
-        "spans",
-        "span_type",
-        if_exists=True,
-    )
-    op.drop_column(
-        "spans",
-        "trace_type",
-        if_exists=True,
-    )
+    # op.drop_index("ix_spans_fts", table_name="spans")
+    op.drop_index("ix_hashes_gin", table_name="spans")
+    op.drop_index("ix_spans_project_id_span_type", table_name="spans")
+    op.drop_index("ix_spans_project_id_trace_type", table_name="spans")
+    op.drop_column("spans", "exception")
+    op.drop_column("spans", "hashes")
+    op.drop_column("spans", "span_type")
+    op.drop_column("spans", "trace_type")
 
-    span_type_enum = sa.Enum(SpanType, name="spantype")
-    trace_type_enum = sa.Enum(TraceType, name="tracetype")
+    span_type_enum = sa.Enum(SpanType, name="tracetype")
+    trace_type_enum = sa.Enum(TraceType, name="spantype")
 
     span_type_enum.drop(op.get_bind(), checkfirst=True)
     trace_type_enum.drop(op.get_bind(), checkfirst=True)

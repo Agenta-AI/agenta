@@ -29,17 +29,14 @@ class OrganizationClient:
         return self._raw_client
 
     def fetch_organization_details(
-        self,
-        organization_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, org_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> OrganizationDetails:
         """
         Return the details of the organization.
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -57,11 +54,11 @@ class OrganizationClient:
             api_key="YOUR_API_KEY",
         )
         client.organization.fetch_organization_details(
-            organization_id="organization_id",
+            org_id="org_id",
         )
         """
         _response = self._raw_client.fetch_organization_details(
-            organization_id, request_options=request_options
+            org_id, request_options=request_options
         )
         return _response.data
 
@@ -101,7 +98,7 @@ class OrganizationClient:
 
     def invite_user_to_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         request: typing.Sequence[InviteRequest],
@@ -111,7 +108,7 @@ class OrganizationClient:
         Assigns a role to a user in an organization.
 
         Args:
-            organization_id (str): The ID of the organization.
+            org_id (str): The ID of the organization.
             payload (InviteRequest): The payload containing the organization id, user email, and role to assign.
             workspace_id (str): The ID of the workspace.
 
@@ -124,7 +121,7 @@ class OrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -146,7 +143,7 @@ class OrganizationClient:
             api_key="YOUR_API_KEY",
         )
         client.organization.invite_user_to_workspace(
-            organization_id="organization_id",
+            org_id="org_id",
             workspace_id="workspace_id",
             request=[
                 InviteRequest(
@@ -156,16 +153,13 @@ class OrganizationClient:
         )
         """
         _response = self._raw_client.invite_user_to_workspace(
-            organization_id,
-            workspace_id,
-            request=request,
-            request_options=request_options,
+            org_id, workspace_id, request=request, request_options=request_options
         )
         return _response.data
 
     def resend_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         email: str,
@@ -184,7 +178,7 @@ class OrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -206,19 +200,19 @@ class OrganizationClient:
             api_key="YOUR_API_KEY",
         )
         client.organization.resend_invitation(
-            organization_id="organization_id",
+            org_id="org_id",
             workspace_id="workspace_id",
             email="email",
         )
         """
         _response = self._raw_client.resend_invitation(
-            organization_id, workspace_id, email=email, request_options=request_options
+            org_id, workspace_id, email=email, request_options=request_options
         )
         return _response.data
 
     def accept_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         project_id: str,
@@ -239,7 +233,7 @@ class OrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -265,7 +259,7 @@ class OrganizationClient:
             api_key="YOUR_API_KEY",
         )
         client.organization.accept_invitation(
-            organization_id="organization_id",
+            org_id="org_id",
             workspace_id="workspace_id",
             project_id="project_id",
             token="token",
@@ -273,7 +267,7 @@ class OrganizationClient:
         )
         """
         _response = self._raw_client.accept_invitation(
-            organization_id,
+            org_id,
             workspace_id,
             project_id=project_id,
             token=token,
@@ -299,17 +293,14 @@ class AsyncOrganizationClient:
         return self._raw_client
 
     async def fetch_organization_details(
-        self,
-        organization_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, org_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> OrganizationDetails:
         """
         Return the details of the organization.
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -332,14 +323,14 @@ class AsyncOrganizationClient:
 
         async def main() -> None:
             await client.organization.fetch_organization_details(
-                organization_id="organization_id",
+                org_id="org_id",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._raw_client.fetch_organization_details(
-            organization_id, request_options=request_options
+            org_id, request_options=request_options
         )
         return _response.data
 
@@ -389,7 +380,7 @@ class AsyncOrganizationClient:
 
     async def invite_user_to_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         request: typing.Sequence[InviteRequest],
@@ -399,7 +390,7 @@ class AsyncOrganizationClient:
         Assigns a role to a user in an organization.
 
         Args:
-            organization_id (str): The ID of the organization.
+            org_id (str): The ID of the organization.
             payload (InviteRequest): The payload containing the organization id, user email, and role to assign.
             workspace_id (str): The ID of the workspace.
 
@@ -412,7 +403,7 @@ class AsyncOrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -439,7 +430,7 @@ class AsyncOrganizationClient:
 
         async def main() -> None:
             await client.organization.invite_user_to_workspace(
-                organization_id="organization_id",
+                org_id="org_id",
                 workspace_id="workspace_id",
                 request=[
                     InviteRequest(
@@ -452,16 +443,13 @@ class AsyncOrganizationClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.invite_user_to_workspace(
-            organization_id,
-            workspace_id,
-            request=request,
-            request_options=request_options,
+            org_id, workspace_id, request=request, request_options=request_options
         )
         return _response.data
 
     async def resend_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         email: str,
@@ -480,7 +468,7 @@ class AsyncOrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -507,7 +495,7 @@ class AsyncOrganizationClient:
 
         async def main() -> None:
             await client.organization.resend_invitation(
-                organization_id="organization_id",
+                org_id="org_id",
                 workspace_id="workspace_id",
                 email="email",
             )
@@ -516,13 +504,13 @@ class AsyncOrganizationClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.resend_invitation(
-            organization_id, workspace_id, email=email, request_options=request_options
+            org_id, workspace_id, email=email, request_options=request_options
         )
         return _response.data
 
     async def accept_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         project_id: str,
@@ -543,7 +531,7 @@ class AsyncOrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -574,7 +562,7 @@ class AsyncOrganizationClient:
 
         async def main() -> None:
             await client.organization.accept_invitation(
-                organization_id="organization_id",
+                org_id="org_id",
                 workspace_id="workspace_id",
                 project_id="project_id",
                 token="token",
@@ -585,7 +573,7 @@ class AsyncOrganizationClient:
         asyncio.run(main())
         """
         _response = await self._raw_client.accept_invitation(
-            organization_id,
+            org_id,
             workspace_id,
             project_id=project_id,
             token=token,

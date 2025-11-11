@@ -1,5 +1,6 @@
-from typing import Dict, List, Union, Literal, Optional
+from typing import Dict, List, Union, Literal, Tuple
 from uuid import UUID
+from asyncio import sleep
 
 from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
 from fastapi.responses import Response
@@ -21,6 +22,7 @@ from oss.src.core.observability.dtos import (
     FilteringDTO,
     ConditionDTO,
     Focus,
+    SpanDTO,
 )
 
 from oss.src.core.tracing.dtos import OTelFlatSpan
@@ -32,7 +34,7 @@ from oss.src.apis.fastapi.observability.opentelemetry.otlp import (
     parse_otlp_stream,
 )
 from oss.src.apis.fastapi.observability.utils.processing import (
-    parse_query_from_params_request,
+    parse_query_request,
     parse_analytics_dto,
     parse_from_otel_span_dto,
     parse_to_otel_span_dto,
@@ -50,7 +52,7 @@ from oss.src.apis.fastapi.observability.models import (
     AgentaTreeDTO,
     AgentaRootDTO,
     LegacyAnalyticsResponse,
-    OldAnalyticsResponse,
+    AnalyticsResponse,
 )
 
 if is_ee():
@@ -86,10 +88,12 @@ else:
 
 
 class ObservabilityRouter:
+    VERSION = "1.0.0"
+
     def __init__(
         self,
         observability_service: ObservabilityService,
-        tracing_service: Optional[TracingService] = None,
+        tracing_service: TracingService,
     ):
         self.service = observability_service
         self.tracing = tracing_service
@@ -159,7 +163,7 @@ class ObservabilityRouter:
             status_code=status.HTTP_200_OK,
             response_model=Union[
                 LegacyAnalyticsResponse,
-                OldAnalyticsResponse,
+                AnalyticsResponse,
             ],
             response_model_exclude_none=True,
         )
@@ -200,7 +204,7 @@ class ObservabilityRouter:
         Status of OTLP endpoint.
         """
 
-        return CollectStatusResponse(status="ready")
+        return CollectStatusResponse(version=self.VERSION, status="ready")
 
     @intercept_exceptions()
     async def otlp_receiver(
@@ -208,227 +212,441 @@ class ObservabilityRouter:
         request: Request,
     ):
         """
-        Receive traces via OTLP.
+        Receive traces via OTLP and enqueue spans for batch processing.
         """
+        organization_id = UUID(request.state.organization_id)
+        project_id = UUID(request.state.project_id)
+        user_id = UUID(request.state.user_id)
 
-        otlp_stream = None
+        # ---------------------------------------------------------------- #
+        # 1. Read OTLP stream body
+        # ---------------------------------------------------------------- #
         try:
-            # ---------------------------------------------------------------- #
             otlp_stream = await request.body()
-            # ---------------------------------------------------------------- #
+
         except Exception as e:
             log.error(
-                "Failed to process OTLP stream from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
+                "Failed to process OTLP stream from project %s: %s",
+                str(project_id),
+                e,
             )
+
             err_status = ProtoStatus(
-                message="Invalid request body: not a valid OTLP stream."
+                message="Invalid request body: not a valid OTLP stream.",
             )
+
             return Response(
                 content=err_status.SerializeToString(),
                 media_type="application/x-protobuf",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
 
+        # ---------------------------------------------------------------- #
+        # 2. Enforce payload size limit
+        # ---------------------------------------------------------------- #
         if len(otlp_stream) > MAX_OTLP_BATCH_SIZE:
-            log.error(
-                "OTLP batch too large (%s bytes > %s bytes) from project %s",
+            log.warning(
+                "OTLP batch too large (%s bytes > %s) from project %s",
                 len(otlp_stream),
                 MAX_OTLP_BATCH_SIZE,
-                request.state.project_id,
+                str(project_id),
             )
+
             err_status = ProtoStatus(
-                message=f"OTLP batch size exceeds {MAX_OTLP_BATCH_SIZE_MB}MB limit."
+                message=f"OTLP batch size exceeds {MAX_OTLP_BATCH_SIZE_MB}MB limit.",
             )
+
             return Response(
                 content=err_status.SerializeToString(),
                 media_type="application/x-protobuf",
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             )
 
-        otel_spans = None
+        # ---------------------------------------------------------------- #
+        # 3. Parse OTLP spans
+        # ---------------------------------------------------------------- #
         try:
-            # ---------------------------------------------------------------- #
-            otel_spans = parse_otlp_stream(otlp_stream)
-            # ---------------------------------------------------------------- #
+            otel_spans = parse_otlp_stream(
+                otlp_stream=otlp_stream,
+            )
+
         except Exception as e:
             log.error(
-                "Failed to parse OTLP stream from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
+                "Failed to parse OTLP stream from project %s: %s",
+                str(project_id),
+                e,
             )
+
             log.error(
                 "OTLP stream: %s",
                 otlp_stream,
             )
-            err_status = ProtoStatus(message="Failed to parse OTLP stream.")
+
+            err_status = ProtoStatus(
+                message="Failed to parse OTLP stream.",
+            )
+
             return Response(
                 content=err_status.SerializeToString(),
                 media_type="application/x-protobuf",
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # -------------------------------------------------------------------- #
-        feature_flag = "create-spans-from-nodes"
-
-        cache_key = {
-            "feature_flag": feature_flag,
-        }
-
-        flag_create_spans_from_nodes = await get_cache(
-            namespace="posthog:flags",
-            key=cache_key,
-            retry=False,
-        )
-
-        if flag_create_spans_from_nodes is None:
-            if env.POSTHOG_API_KEY:
-                flag_create_spans_from_nodes = posthog.feature_enabled(
-                    feature_flag,
-                    "user distinct id",
-                )
-
-                await set_cache(
-                    namespace="posthog:flags",
-                    key=cache_key,
-                    value=flag_create_spans_from_nodes,
-                )
-        # -------------------------------------------------------------------- #
-
-        # for otel_span in otel_spans:
-        #     log.debug(
-        #         "Receiving trace... ",
-        #         project_id=request.state.project_id,
-        #         trace_id=str(UUID(otel_span.context.trace_id[2:])),
-        #     )
-
-        span_dtos = None
+        # ---------------------------------------------------------------- #
+        # 4. Convert OTLP → SpanDTOs + OTelFlatSpans
+        # ---------------------------------------------------------------- #
         try:
-            # ---------------------------------------------------------------- #
             parsed_spans = [
                 parse_from_otel_span_dto(
-                    otel_span,
-                    flag_create_spans_from_nodes,
+                    otel_span_dto=otel_span,
                 )
                 for otel_span in otel_spans
             ]
 
-            span_dtos = [
-                parsed_span.get("nodes")
-                for parsed_span in parsed_spans
-                if parsed_span.get("nodes")
-            ]
-            tracing_spans = [
-                parsed_span.get("spans")
-                for parsed_span in parsed_spans
-                if parsed_span.get("spans")
-            ]
+            span_dtos = [s for s, _ in parsed_spans if s is not None]
+            tracing_spans = [s for _, s in parsed_spans if s is not None]
 
-            # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
-                "Failed to parse spans from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
+                "Failed to parse spans from project %s: %s",
+                str(project_id),
+                e,
             )
+
             for otel_span in otel_spans:
                 log.error(
                     "Span: [%s] %s",
                     UUID(otel_span.context.trace_id[2:]),
                     otel_span,
                 )
-            err_status = ProtoStatus(message="Failed to parse OTEL span.")
+
+            err_status = ProtoStatus(
+                message="Failed to parse OTEL spans.",
+            )
+
             return Response(
                 content=err_status.SerializeToString(),
                 media_type="application/x-protobuf",
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        # -------------------------------------------------------------------- #
-        delta = sum([1 for span_dto in span_dtos if span_dto.parent is None])
+        # ---------------------------------------------------------------- #
+        # 5. Enforce entitlements (soft limits)
+        # ---------------------------------------------------------------- #
+        delta = sum(1 for span_dto in span_dtos if span_dto.parent is None)
 
         if is_ee():
-            check, _, _ = await check_entitlements(
-                organization_id=request.state.organization_id,
-                key=Counter.TRACES,
+            check, _, _ = await check_entitlements(  # type:ignore
+                organization_id=organization_id,
+                key=Counter.TRACES,  # type:ignore
                 delta=delta,
+                #
+                use_cache=True,
             )
 
             if not check:
-                err_status = ProtoStatus(
-                    message="You have reached your quota limit. Please upgrade your plan to continue."
+                log.warning(
+                    "Project %s in Organization %s has reached its quota limit.",
+                    str(project_id),
+                    str(organization_id),
                 )
+
+                err_status = ProtoStatus(
+                    message="You have reached your quota limit."
+                    " Please upgrade your plan to continue.",
+                )
+
                 return Response(
                     content=err_status.SerializeToString(),
                     media_type="application/x-protobuf",
                     status_code=status.HTTP_403_FORBIDDEN,
                 )
-        # -------------------------------------------------------------------- #
 
+        # ---------------------------------------------------------------- #
+        # 6. Serialize spans for observability + enqueue
+        # ---------------------------------------------------------------- #
         try:
-            # ---------------------------------------------------------------- #
-            await self.service.ingest(
-                project_id=UUID(request.state.project_id),
-                span_dtos=span_dtos,
-            )
-            # ---------------------------------------------------------------- #
+            observability_items = [
+                self.service.serialize(
+                    organization_id=organization_id,
+                    project_id=project_id,
+                    span_dto=span,
+                )
+                for span in span_dtos
+            ]
+
         except Exception as e:
             log.error(
-                "Failed to ingest spans from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
+                "Failed to serialize nodes for project %s: %s",
+                str(project_id),
+                e,
             )
+
             for span_dto in span_dtos:
                 log.error(
                     "Span: [%s] %s",
                     span_dto.tree.id,
                     span_dto,
                 )
-            err_status = ProtoStatus(message="Failed to ingest spans.")
+
+            err_status = ProtoStatus(
+                message="Failed to serialize nodes.",
+            )
+
             return Response(
                 content=err_status.SerializeToString(),
                 media_type="application/x-protobuf",
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        try:
-            # ---------------------------------------------------------------- #
-            if flag_create_spans_from_nodes:
-                await self.tracing.create(
-                    project_id=UUID(request.state.project_id),
-                    user_id=UUID(request.state.user_id),
-                    span_dtos=tracing_spans,
-                )
-            # ---------------------------------------------------------------- #
-        except Exception as e:
-            log.warn(
-                "Failed to create spans from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
+        if not await self.service.enqueue_batch(
+            items=observability_items,
+        ):
+            log.warning(
+                "Failed to enqueue nodes from project %s",
+                str(project_id),
             )
-            for span in tracing_spans:
-                span: OTelFlatSpan
-                log.warn(
-                    "Span: [%s] %s",
-                    span.trace_id,
-                    span,
+
+            for span_dto in span_dtos:
+                log.warning(
+                    "Node: [%s] %s",
+                    span_dto.tree.id,
+                    span_dto,
                 )
 
-        # ------------------------------------------------------------------ #
-        # According to the OTLP/HTTP spec a full-success response must be an
-        # HTTP 200 with a serialized ExportTraceServiceResponse protobuf and
-        # the same Content-Type that the client used (we only support binary
-        # protobuf at the moment).
-        # ------------------------------------------------------------------ #
+            err_status = ProtoStatus(
+                message="Observability buffer full, retry later.",
+            )
 
-        export_response = ExportTraceServiceResponse()  # empty == full success
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        # ---------------------------------------------------------------- #
+        # 7. Serialize tracing spans + enqueue
+        # ---------------------------------------------------------------- #
+        try:
+            tracing_items = [
+                self.tracing.serialize(
+                    organization_id=organization_id,
+                    project_id=project_id,
+                    user_id=user_id,
+                    span_dto=span,
+                )
+                for span in tracing_spans
+            ]
+
+        except Exception as e:
+            log.error(
+                "Failed to serialize spans for project %s: %s",
+                str(project_id),
+                e,
+            )
+
+            for span_dto in span_dtos:
+                log.error(
+                    "Span: [%s] %s",
+                    span_dto.tree.id,
+                    span_dto,
+                )
+
+            err_status = ProtoStatus(
+                message="Failed to serialize spans.",
+            )
+
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        if not await self.tracing.enqueue_batch(
+            items=tracing_items,
+        ):
+            log.warning(
+                "Failed to enqueue spans from project %s",
+                str(project_id),
+            )
+
+            for span_dto in span_dtos:
+                log.warning(
+                    "Span: [%s] %s",
+                    span_dto.tree.id,
+                    span_dto,
+                )
+
+            err_status = ProtoStatus(
+                message="Tracing buffer full, retry later.",
+            )
+
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        # ---------------------------------------------------------------- #
+        # 8. Respond success immediately
+        # ---------------------------------------------------------------- #
+
+        export_response = ExportTraceServiceResponse()  # Empty == success
 
         return Response(
             content=export_response.SerializeToString(),
             media_type="application/x-protobuf",
             status_code=status.HTTP_200_OK,
         )
+
+    ### WORKERS
+
+    async def store_nodes(self):
+        """
+        Background worker:
+        - Dequeues observability nodes in batches
+        - Groups by organization_id → project_id
+        - Calls ObservabilityService.ingest() per project
+        """
+        log.info("[ObservabilityWorker] store_nodes() started")
+
+        while True:
+            try:
+                batch = await self.service.dequeue_batch()
+                if not batch:
+                    continue
+            except Exception as e:
+                log.error("[ObservabilityWorker] Failed to dequeue batch: %s", e)
+                continue
+
+            # Nested dict: org → project → spans
+            spans_by_org: Dict[UUID, Dict[UUID, List[SpanDTO]]] = {}
+
+            for span_bytes in batch:
+                try:
+                    organization_id, project_id, span_dto = self.service.deserialize(
+                        span_bytes=span_bytes,
+                    )
+                    spans_by_org.setdefault(organization_id, {}).setdefault(
+                        project_id, []
+                    ).append(span_dto)
+                except Exception as e:
+                    log.error("[ObservabilityWorker] Failed to deserialize span: %s", e)
+
+            if not spans_by_org:
+                continue
+
+            for organization_id, projects in spans_by_org.items():
+                # ⚡️ Future: here we can adjust org meters once per batch
+                for project_id, span_dtos in projects.items():
+                    try:
+                        await self.service.ingest(
+                            project_id=project_id,
+                            span_dtos=span_dtos,
+                        )
+                    except Exception as e:
+                        log.error(
+                            "[ObservabilityWorker] Failed to ingest nodes "
+                            "for org %s project %s: %s",
+                            organization_id,
+                            project_id,
+                            e,
+                        )
+                        await sleep(0.05)
+
+    async def store_spans(self):
+        """
+        Background worker:
+        - Dequeues tracing spans in batches
+        - Groups by organization_id → (project_id, user_id)
+        - Checks entitlements per org (authoritative, Layer 2)
+        - Calls TracingService.create() per project/user if allowed
+        """
+        log.info("[TracingWorker] store_spans() started")
+
+        while True:
+            try:
+                batch = await self.tracing.dequeue_batch()
+                if not batch:
+                    continue
+            except Exception as e:
+                log.error("[TracingWorker] Failed to dequeue batch: %s", e)
+                continue
+
+            # Outer dict: org → (project, user) → spans
+            spans_by_org: dict[UUID, dict[Tuple[UUID, UUID], list[OTelFlatSpan]]] = {}
+
+            # 1. Deserialize & group by org + project/user
+            for span_bytes in batch:
+                try:
+                    (
+                        organization_id,
+                        project_id,
+                        user_id,
+                        span_dto,
+                    ) = self.tracing.deserialize(
+                        span_bytes=span_bytes,
+                    )
+
+                    spans_by_org.setdefault(organization_id, {}).setdefault(
+                        (project_id, user_id), []
+                    ).append(span_dto)
+
+                except Exception as e:
+                    log.error("[TracingWorker] Failed to deserialize span: %s", e)
+
+            if not spans_by_org:
+                continue
+
+            # 2. Enforce entitlements per org (Layer 2, authoritative)
+            for organization_id, spans_by_proj_user in spans_by_org.items():
+                # Count root spans (delta)
+                delta = sum(
+                    1
+                    for spans in spans_by_proj_user.values()
+                    for span in spans
+                    if span.parent_id is None
+                )
+
+                try:
+                    check, _, _ = await check_entitlements(  # type: ignore
+                        organization_id=organization_id,
+                        key=Counter.TRACES,  # type: ignore
+                        delta=delta,
+                        use_cache=False,  # authoritative adjustment
+                    )
+                except Exception as e:
+                    log.error(
+                        "[TracingWorker] Entitlements check failed for org %s: %s",
+                        organization_id,
+                        e,
+                    )
+                    continue
+
+                # 3. If not allowed → skip entire org
+                if not check:
+                    log.warning(
+                        "[TracingWorker] Organization %s exceeded TRACES quota (Δ=%d). Skipping batch.",
+                        organization_id,
+                        delta,
+                    )
+                    continue
+
+                # 4. Create spans project-by-project
+                for (project_id, user_id), span_dtos in spans_by_proj_user.items():
+                    try:
+                        await self.tracing.create(
+                            project_id=project_id,
+                            user_id=user_id,
+                            span_dtos=span_dtos,
+                        )
+                    except Exception as e:
+                        log.error(
+                            "[TracingWorker] Failed to store spans for project %s: %s",
+                            project_id,
+                            e,
+                        )
+                        await sleep(0.05)
 
     ### QUERIES
 
@@ -437,7 +655,7 @@ class ObservabilityRouter:
     async def query_traces(
         self,
         request: Request,
-        query_dto: QueryDTO = Depends(parse_query_from_params_request),
+        query_dto: QueryDTO = Depends(parse_query_request),
         format: Literal[  # pylint: disable=W0622
             "opentelemetry",
             "agenta",
@@ -468,6 +686,7 @@ class ObservabilityRouter:
             spans = [parse_to_otel_span_dto(span_dto) for span_dto in span_dtos]
 
             return OTelTracingResponse(
+                version=self.VERSION,
                 count=count,
                 spans=spans,
             )
@@ -494,6 +713,7 @@ class ObservabilityRouter:
                 # focus = tree
                 if query_dto.grouping.focus.value == "tree":
                     return AgentaTreesResponse(
+                        version=self.VERSION,
                         count=count,
                         trees=[
                             AgentaTreeDTO(
@@ -521,6 +741,7 @@ class ObservabilityRouter:
 
                         _nodes_by_root[nodes[0].root.id].append(
                             AgentaTreeDTO(
+                                version=self.VERSION,
                                 tree=TreeDTO(
                                     id=tree_id,
                                     type=_types_by_tree[tree_id],
@@ -532,6 +753,7 @@ class ObservabilityRouter:
                         )
 
                     return AgentaRootsResponse(
+                        version=self.VERSION,
                         count=count,
                         roots=[
                             AgentaRootDTO(
@@ -544,6 +766,7 @@ class ObservabilityRouter:
 
             # focus = node
             return AgentaNodesResponse(
+                version=self.VERSION,
                 count=count,
                 nodes=[AgentaNodeDTO(**span.model_dump()) for span in spans],
             )
@@ -576,7 +799,8 @@ class ObservabilityRouter:
                     **summary.model_dump(),
                 )
 
-            return OldAnalyticsResponse(
+            return AnalyticsResponse(
+                version=self.VERSION,
                 count=count,
                 buckets=bucket_dtos,
             )
@@ -663,4 +887,4 @@ class ObservabilityRouter:
             node_ids=node_ids,
         )
 
-        return CollectStatusResponse(status="deleted")
+        return CollectStatusResponse(version=self.VERSION, status="deleted")

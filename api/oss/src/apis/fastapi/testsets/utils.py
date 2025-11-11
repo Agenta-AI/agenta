@@ -1,651 +1,31 @@
-from typing import Optional, Literal, List
-from uuid import UUID
-from datetime import datetime
-
-from fastapi import Query
-
-from oss.src.utils.logging import get_module_logger
-
-from oss.src.core.shared.dtos import (
-    Windowing,
-    Reference,
-)
-from oss.src.core.testsets.dtos import (
-    TestsetFlags,
-    #
-    TestsetQuery,
-    TestsetVariantQuery,
-    TestsetRevisionQuery,
-)
-
-from oss.src.apis.fastapi.shared.utils import (
-    parse_metadata,
-)
-from oss.src.apis.fastapi.testsets.models import (
-    TestsetQueryRequest,
-    TestsetVariantQueryRequest,
-    TestsetRevisionQueryRequest,
-    TestsetRevisionRetrieveRequest,
-)
-
-
-log = get_module_logger(__name__)
-
-
-def parse_testset_query_request_from_params(
-    testset_id: Optional[UUID] = Query(None),
-    testset_ids: Optional[List[UUID]] = Query(None),
-    testset_slug: Optional[str] = Query(None),
-    testset_slugs: Optional[List[str]] = Query(None),
-    #
-    name: Optional[str] = Query(None),
-    description: Optional[str] = Query(None),
-    #
-    flags: Optional[str] = Query(None),
-    tags: Optional[str] = Query(None),
-    meta: Optional[str] = Query(None),
-    #
-    include_archived: Optional[bool] = Query(None),
-    #
-    next: Optional[UUID] = Query(None),  # pylint disable=redefined-builtin
-    newest: Optional[datetime] = Query(None),
-    oldest: Optional[datetime] = Query(None),
-    limit: Optional[int] = Query(None),
-    order: Optional[Literal["ascending", "descending"]] = Query(None),
-) -> TestsetQueryRequest:
-    _flags, _tags, _meta = parse_metadata(flags, tags, meta)
-
-    __flags = TestsetFlags(**_flags) if _flags else None  # type: ignore
-
-    testset = (
-        TestsetQuery(
-            name=name,
-            description=description,
-            #
-            flags=__flags,
-            meta=_meta,
-            tags=_tags,
-        )
-        if __flags or _meta or _tags
-        else None
-    )
-
-    testset_refs = (
-        (
-            [
-                Reference(
-                    id=testset_id,
-                    slug=testset_slug,
-                )
-            ]
-            if testset_id or testset_slug
-            else []
-        )
-        + (
-            [
-                Reference(
-                    id=testset_id,
-                    slug=testset_slug,
-                )
-                for testset_id, testset_slug in zip(
-                    testset_ids,
-                    testset_slugs,
-                )
-            ]
-            if testset_ids and testset_slugs
-            else []
-        )
-    ) or None
-
-    windowing = (
-        Windowing(
-            next=next,
-            newest=newest,
-            oldest=oldest,
-            limit=limit,
-            order=order,
-        )
-        if next or newest or oldest or limit or order
-        else None
-    )
-
-    return parse_testset_query_request_from_body(
-        testset=testset,
-        #
-        testset_refs=testset_refs,
-        #
-        include_archived=include_archived,
-        #
-        windowing=windowing,
-    )
-
-
-def parse_testset_query_request_from_body(
-    testset: Optional[TestsetQuery] = None,
-    #
-    testset_refs: Optional[List[Reference]] = None,
-    #
-    include_archived: Optional[bool] = None,
-    #
-    windowing: Optional[Windowing] = None,
-) -> TestsetQueryRequest:
-    testset_query_request = None
-
-    try:
-        testset_query_request = TestsetQueryRequest(
-            testset=testset,
-            #
-            testset_refs=testset_refs,
-            #
-            include_archived=include_archived,
-            #
-            windowing=windowing,
-        )
-    except Exception as e:  # pylint: disable=broad-except
-        testset_query_request = TestsetQueryRequest()
-
-    return testset_query_request
-
-
-def merge_testset_query_requests(
-    query_request_params: Optional[TestsetQueryRequest] = None,
-    query_request_body: Optional[TestsetQueryRequest] = None,
-) -> TestsetQueryRequest:
-    if query_request_params and not query_request_body:
-        return query_request_params
-
-    if not query_request_params and query_request_body:
-        return query_request_body
-
-    if query_request_params and query_request_body:
-        return TestsetQueryRequest(
-            testset=query_request_body.testset or query_request_params.testset,
-            #
-            testset_refs=query_request_body.testset_refs
-            or query_request_params.testset_refs,
-            #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
-            #
-            windowing=query_request_body.windowing or query_request_params.windowing,
-        )
-
-    return TestsetQueryRequest()
-
-
-def parse_testset_variant_query_request_from_params(
-    testset_id: Optional[UUID] = Query(None),
-    testset_ids: Optional[List[UUID]] = Query(None),
-    testset_slug: Optional[str] = Query(None),
-    testset_slugs: Optional[List[str]] = Query(None),
-    #
-    testset_variant_id: Optional[UUID] = Query(None),
-    testset_variant_ids: Optional[List[UUID]] = Query(None),
-    testset_variant_slug: Optional[str] = Query(None),
-    testset_variant_slugs: Optional[List[str]] = Query(None),
-    #
-    name: Optional[str] = Query(None),
-    description: Optional[str] = Query(None),
-    #
-    flags: Optional[str] = Query(None),
-    tags: Optional[str] = Query(None),
-    meta: Optional[str] = Query(None),
-    #
-    include_archived: Optional[bool] = Query(None),
-    #
-    next: Optional[UUID] = Query(None),  # pylint disable=redefined-builtin
-    newest: Optional[datetime] = Query(None),
-    oldest: Optional[datetime] = Query(None),
-    limit: Optional[int] = Query(None),
-    order: Optional[Literal["ascending", "descending"]] = Query(None),
-) -> TestsetVariantQueryRequest:
-    _flags, _tags, _meta = parse_metadata(flags, tags, meta)
-
-    __flags = TestsetFlags(**_flags) if _flags else None  # type: ignore
-
-    testset_variant = (
-        TestsetVariantQuery(
-            name=name,
-            description=description,
-            #
-            flags=__flags,
-            meta=_meta,
-            tags=_tags,
-        )
-        if __flags or _meta or _tags
-        else None
-    )
-
-    testset_refs = (
-        (
-            [
-                Reference(
-                    id=testset_id,
-                    slug=testset_slug,
-                )
-            ]
-            if testset_id or testset_slug
-            else []
-        )
-        + (
-            [
-                Reference(
-                    id=testset_id,
-                    slug=testset_slug,
-                )
-                for testset_id, testset_slug in zip(
-                    testset_ids,
-                    testset_slugs,
-                )
-            ]
-            if testset_ids and testset_slugs
-            else []
-        )
-    ) or None
-
-    testset_variant_refs = (
-        (
-            [
-                Reference(
-                    id=testset_variant_id,
-                    slug=testset_variant_slug,
-                )
-            ]
-            if testset_variant_id or testset_variant_slug
-            else []
-        )
-        + (
-            [
-                Reference(
-                    id=testset_variant_id,
-                    slug=testset_variant_slug,
-                )
-                for testset_variant_id, testset_variant_slug in zip(
-                    testset_variant_ids,
-                    testset_variant_slugs,
-                )
-            ]
-            if testset_variant_ids and testset_variant_slugs
-            else []
-        )
-    ) or None
-
-    windowing = (
-        Windowing(
-            next=next,
-            newest=newest,
-            oldest=oldest,
-            limit=limit,
-            order=order,
-        )
-        if next or newest or oldest or limit or order
-        else None
-    )
-
-    return parse_testset_variant_query_request_from_body(
-        testset_variant=testset_variant,
-        #
-        testset_refs=testset_refs or None,
-        testset_variant_refs=testset_variant_refs or None,
-        #
-        include_archived=include_archived,
-        #
-        windowing=windowing,
-    )
-
-
-def parse_testset_variant_query_request_from_body(
-    testset_variant: Optional[TestsetVariantQuery] = None,
-    #
-    testset_refs: Optional[List[Reference]] = None,
-    testset_variant_refs: Optional[List[Reference]] = None,
-    #
-    include_archived: Optional[bool] = None,
-    #
-    windowing: Optional[Windowing] = None,
-) -> TestsetVariantQueryRequest:
-    testset_variant_query_request = None
-
-    try:
-        testset_variant_query_request = TestsetVariantQueryRequest(
-            testset_variant=testset_variant,
-            #
-            testset_refs=testset_refs,
-            testset_variant_refs=testset_variant_refs,
-            #
-            include_archived=include_archived,
-            #
-            windowing=windowing,
-        )
-    except Exception as e:  # pylint: disable=broad-except
-        testset_variant_query_request = TestsetVariantQueryRequest()
-
-    return testset_variant_query_request
-
-
-def merge_testset_variant_query_requests(
-    query_request_params: Optional[TestsetVariantQueryRequest] = None,
-    query_request_body: Optional[TestsetVariantQueryRequest] = None,
-) -> TestsetVariantQueryRequest:
-    if query_request_params and not query_request_body:
-        return query_request_params
-
-    if not query_request_params and query_request_body:
-        return query_request_body
-
-    if query_request_params and query_request_body:
-        return TestsetVariantQueryRequest(
-            testset_variant=query_request_body.testset_variant
-            or query_request_params.testset_variant,
-            #
-            testset_refs=query_request_body.testset_refs
-            or query_request_params.testset_refs,
-            testset_variant_refs=query_request_body.testset_variant_refs
-            or query_request_params.testset_variant_refs,
-            #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
-            #
-            windowing=query_request_body.windowing or query_request_params.windowing,
-        )
-
-    return TestsetVariantQueryRequest()
-
-
-def parse_testset_revision_query_request_from_params(
-    testset_id: Optional[UUID] = Query(None),
-    testset_ids: Optional[List[UUID]] = Query(None),
-    testset_slug: Optional[str] = Query(None),
-    testset_slugs: Optional[List[str]] = Query(None),
-    #
-    testset_variant_id: Optional[UUID] = Query(None),
-    testset_variant_ids: Optional[List[UUID]] = Query(None),
-    testset_variant_slug: Optional[str] = Query(None),
-    testset_variant_slugs: Optional[List[str]] = Query(None),
-    #
-    testset_revision_id: Optional[UUID] = Query(None),
-    testset_revision_ids: Optional[List[UUID]] = Query(None),
-    testset_revision_slug: Optional[str] = Query(None),
-    testset_revision_slugs: Optional[List[str]] = Query(None),
-    testset_revision_version: Optional[str] = Query(None),
-    testset_revision_versions: Optional[List[str]] = Query(None),
-    #
-    name: Optional[str] = Query(None),
-    description: Optional[str] = Query(None),
-    #
-    flags: Optional[str] = Query(None),
-    tags: Optional[str] = Query(None),
-    meta: Optional[str] = Query(None),
-    #
-    include_archived: Optional[bool] = Query(None),
-    #
-    next: Optional[UUID] = Query(None),  # pylint disable=redefined-builtin
-    newest: Optional[datetime] = Query(None),
-    oldest: Optional[datetime] = Query(None),
-    limit: Optional[int] = Query(None),
-    order: Optional[Literal["ascending", "descending"]] = Query(None),
-) -> TestsetRevisionQueryRequest:
-    _flags, _tags, _meta = parse_metadata(flags, tags, meta)
-
-    __flags = TestsetFlags(**_flags) if _flags else None  # type: ignore
-
-    testset_revision = (
-        TestsetRevisionQuery(
-            name=name,
-            description=description,
-            #
-            flags=__flags,
-            meta=_meta,
-            tags=_tags,
-        )
-        if __flags or _meta or _tags
-        else None
-    )
-
-    testset_refs = (
-        [
-            Reference(
-                id=testset_id,
-                slug=testset_slug,
-            )
-        ]
-        if testset_id or testset_slug
-        else []
-    ) + (
-        [
-            Reference(
-                id=testset_id,
-                slug=testset_slug,
-            )
-            for testset_id, testset_slug in zip(
-                testset_ids,
-                testset_slugs,
-            )
-        ]
-        if testset_ids and testset_slugs
-        else []
-    )
-
-    testset_variant_refs = (
-        [
-            Reference(
-                id=testset_variant_id,
-                slug=testset_variant_slug,
-            )
-        ]
-        if testset_variant_id or testset_variant_slug
-        else []
-    ) + (
-        [
-            Reference(
-                id=testset_variant_id,
-                slug=testset_variant_slug,
-            )
-            for testset_variant_id, testset_variant_slug in zip(
-                testset_variant_ids,
-                testset_variant_slugs,
-            )
-        ]
-        if testset_variant_ids and testset_variant_slugs
-        else []
-    )
-
-    testset_revision_refs = (
-        [
-            Reference(
-                id=testset_revision_id,
-                slug=testset_revision_slug,
-                version=testset_revision_version,
-            )
-        ]
-        if testset_revision_id or testset_revision_slug or testset_revision_version
-        else []
-    ) + (
-        [
-            Reference(
-                id=testset_revision_id,
-                slug=testset_revision_slug,
-                version=testset_revision_version,
-            )
-            for testset_revision_id, testset_revision_slug, testset_revision_version in zip(
-                testset_revision_ids,
-                testset_revision_slugs,
-                testset_revision_versions,
-            )
-        ]
-        if testset_revision_ids and testset_revision_slugs and testset_revision_versions
-        else []
-    )
-
-    windowing = (
-        Windowing(
-            next=next,
-            newest=newest,
-            oldest=oldest,
-            limit=limit,
-            order=order,
-        )
-        if next or newest or oldest or limit or order
-        else None
-    )
-
-    return parse_testset_revision_query_request_from_body(
-        testset_revision=testset_revision,
-        #
-        testset_refs=testset_refs,
-        testset_variant_refs=testset_variant_refs,
-        testset_revision_refs=testset_revision_refs,
-        #
-        include_archived=include_archived,
-        #
-        windowing=windowing,
-    )
-
-
-def parse_testset_revision_query_request_from_body(
-    testset_revision: Optional[TestsetRevisionQuery] = None,
-    #
-    testset_refs: Optional[List[Reference]] = None,
-    testset_variant_refs: Optional[List[Reference]] = None,
-    testset_revision_refs: Optional[List[Reference]] = None,
-    #
-    include_archived: Optional[bool] = None,
-    #
-    windowing: Optional[Windowing] = None,
-) -> TestsetRevisionQueryRequest:
-    testset_revision_query_request = None
-
-    try:
-        testset_revision_query_request = TestsetRevisionQueryRequest(
-            testset_revision=testset_revision,
-            #
-            testset_refs=testset_refs,
-            testset_variant_refs=testset_variant_refs,
-            testset_revision_refs=testset_revision_refs,
-            #
-            include_archived=include_archived,
-            #
-            windowing=windowing,
-        )
-
-    except Exception as e:  # pylint: disable=broad-except
-        log.warn(e)
-
-        testset_revision_query_request = TestsetRevisionQueryRequest()
-
-    return testset_revision_query_request
-
-
-def merge_testset_revision_query_requests(
-    query_request_params: Optional[TestsetRevisionQueryRequest] = None,
-    query_request_body: Optional[TestsetRevisionQueryRequest] = None,
-) -> TestsetRevisionQueryRequest:
-    if query_request_params and not query_request_body:
-        return query_request_params
-
-    if not query_request_params and query_request_body:
-        return query_request_body
-
-    if query_request_params and query_request_body:
-        return TestsetRevisionQueryRequest(
-            testset_revision=query_request_body.testset_revision
-            or query_request_params.testset_revision,
-            #
-            testset_refs=query_request_body.testset_refs
-            or query_request_params.testset_refs,
-            testset_variant_refs=query_request_body.testset_variant_refs
-            or query_request_params.testset_variant_refs,
-            testset_revision_refs=query_request_body.testset_revision_refs
-            or query_request_params.testset_revision_refs,
-            #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
-            #
-            windowing=query_request_body.windowing or query_request_params.windowing,
-        )
-
-    return TestsetRevisionQueryRequest()
-
-
-def parse_testset_revision_retrieve_request_from_params(
-    testset_id: Optional[UUID] = Query(None),
-    testset_slug: Optional[str] = Query(None),
-    #
-    testset_variant_id: Optional[UUID] = Query(None),
-    testset_variant_slug: Optional[str] = Query(None),
-    #
-    testset_revision_id: Optional[UUID] = Query(None),
-    testset_revision_slug: Optional[str] = Query(None),
-    testset_revision_version: Optional[str] = Query(None),
-):
-    testset_ref = (
-        Reference(
-            id=testset_id,
-            slug=testset_slug,
-        )
-        if testset_id or testset_slug
-        else None
-    )
-
-    testset_variant_ref = (
-        Reference(
-            id=testset_variant_id,
-            slug=testset_variant_slug,
-        )
-        if testset_variant_id or testset_variant_slug
-        else None
-    )
-
-    testset_revision_ref = (
-        Reference(
-            id=testset_revision_id,
-            slug=testset_revision_slug,
-            version=testset_revision_version,
-        )
-        if testset_revision_id or testset_revision_slug or testset_revision_version
-        else None
-    )
-
-    return parse_testset_revision_retrieve_request_from_body(
-        testset_ref=testset_ref,
-        testset_variant_ref=testset_variant_ref,
-        testset_revision_ref=testset_revision_ref,
-    )
-
-
-def parse_testset_revision_retrieve_request_from_body(
-    testset_ref: Optional[Reference] = None,
-    testset_variant_ref: Optional[Reference] = None,
-    testset_revision_ref: Optional[Reference] = None,
-) -> TestsetRevisionRetrieveRequest:
-    return TestsetRevisionRetrieveRequest(
-        testset_ref=testset_ref,
-        testset_variant_ref=testset_variant_ref,
-        testset_revision_ref=testset_revision_ref,
-    )
-
-
-# ---------------------------------------------------------------------------- #
-
-from typing import Dict, Any
-from uuid import uuid4
+from typing import Optional, List, Dict, Any
 from json import loads, dumps
+from uuid import UUID, uuid4
 from io import BytesIO
 from hashlib import blake2b as digest
 
 import orjson
 import pandas
 
-from fastapi import HTTPException
+from fastapi import Query, HTTPException
 
 from oss.src.core.blobs.utils import compute_blob_id
+
+from oss.src.utils.logging import get_module_logger
+from oss.src.core.shared.dtos import Reference, Meta
+from oss.src.core.testsets.dtos import TestsetFlags
+
+from oss.src.apis.fastapi.testsets.models import SimpleTestsetQuery as TestsetQuery
+
+
+log = get_module_logger(__name__)
 
 
 TESTSETS_COUNT_LIMIT = 10 * 1_000  # 10,000 testcases per testset
 TESTSETS_SIZE_LIMIT = 10 * 1024 * 1024  # 10 MB per testset
 
-TESTSETS_COUNT_WARNING = f"Testset exceeds the maximum count of {TESTSETS_COUNT_LIMIT} testcases per testset."
-TESTSETS_SIZE_WARNING = f"Testset exceeds the maximum size of {TESTSETS_SIZE_LIMIT // (1024 * 1024)} MB per testset."
+TESTSETS_COUNT_WARNING = f"Test set exceeds the maximum count of {TESTSETS_COUNT_LIMIT} test cases per test set."
+TESTSETS_SIZE_WARNING = f"Test set exceeds the maximum size of {TESTSETS_SIZE_LIMIT // (1024 * 1024)} MB per test set."
 
 TESTSETS_SIZE_EXCEPTION = HTTPException(
     status_code=400,
@@ -673,6 +53,305 @@ def validate_testset_limits(rows: List[dict]) -> tuple[int, int]:
             log.error(TESTSETS_SIZE_WARNING)
             raise TESTSETS_SIZE_EXCEPTION
     return i + 1, total_size
+
+
+def format_validation_error(e, request_body=None):
+    formatted_errors = []
+
+    for error in e.errors():
+        loc = error.get("loc", [])
+
+        if not loc or loc[0] != "body":
+            loc = ["body"] + list(loc)
+
+        error_detail = {
+            "type": error.get("type", "value_error"),
+            "loc": loc,
+            "msg": error.get("msg", "Validation error"),
+        }
+
+        if "input" in error:
+            error_detail["input"] = error.get("input")
+        elif request_body is not None:
+            error_detail["input"] = request_body
+
+        formatted_errors.append(error_detail)
+
+    return formatted_errors
+
+
+def parse_testset_query_request(
+    testset_ref: Optional[str] = Query(
+        None,
+        description='JSON string of ref, e.g. {"key": value}',
+    ),
+    testset_flags: Optional[str] = Query(
+        None, description='JSON string of flags, e.g. {"key": value}'
+    ),
+    testset_meta: Optional[str] = Query(
+        None, description='JSON string of meta, e.g. {"key": value}'
+    ),
+    include_archived: Optional[bool] = Query(None),
+) -> TestsetQuery:
+    if testset_ref:
+        try:
+            testset_ref = Reference(**loads(testset_ref))
+        except Exception:  # pylint: disable=broad-except
+            testset_ref = None
+
+            log.error("Failed to parse testset_ref (%s)", testset_ref)
+
+    if testset_flags:
+        try:
+            testset_flags = TestsetFlags(**loads(testset_flags))
+        except Exception:  # pylint: disable=broad-except
+            testset_flags = None
+
+            log.error("Failed to parse testset_flags (%s)", testset_flags)
+
+    if testset_meta:
+        try:
+            testset_meta = loads(testset_meta)
+        except Exception:  # pylint: disable=broad-except
+            testset_meta = None
+
+            log.error(f"Failed to parse testset_meta ({testset_meta})")
+
+    return parse_testset_body_request(
+        testset_ref=testset_ref,
+        #
+        testset_flags=testset_flags,
+        testset_meta=testset_meta,
+        #
+        include_archived=include_archived,
+    )
+
+
+def parse_testset_body_request(
+    testset_ref: Optional[Reference] = None,
+    #
+    testset_flags: Optional[TestsetFlags] = None,
+    testset_meta: Optional[Meta] = None,
+    #
+    include_archived: Optional[bool] = None,
+) -> TestsetQuery:
+    _query = None
+
+    try:
+        _query = TestsetQuery(
+            testset_ref=testset_ref,
+            #
+            flags=testset_flags,
+            meta=testset_meta,
+            #
+            include_archived=include_archived,
+        )
+    except Exception as e:  # pylint: disable=broad-except
+        log.warn("Error parsing testset body request: %s", e)
+
+        _query = None
+
+    return _query
+
+
+def parse_variant_query_request(
+    testset_ref: Optional[str] = Query(
+        None,
+        description='JSON string of reference, e.g. {"key": value}',
+    ),
+    variant_ref: Optional[str] = Query(
+        None,
+        description='JSON string of reference, e.g. {"key": value}',
+    ),
+    variant_meta: Optional[str] = Query(
+        None, description='JSON string of meta, e.g. {"key": value}'
+    ),
+    variant_flags: Optional[str] = Query(
+        None, description='JSON string of flags, e.g. {"key": value}'
+    ),
+    include_archived: Optional[bool] = Query(None),
+) -> TestsetQuery:
+    if testset_ref:
+        try:
+            testset_ref = Reference(**loads(testset_ref))
+        except Exception:  # pylint: disable=broad-except
+            testset_ref = None
+
+            log.error("Failed to parse testset_ref (%s)", testset_ref)
+
+    if variant_ref:
+        try:
+            variant_ref = Reference(**loads(variant_ref))
+        except Exception:  # pylint: disable=broad-except
+            variant_ref = None
+
+            log.error("Failed to parse variant_ref (%s)", variant_ref)
+
+    if variant_flags:
+        try:
+            variant_flags = TestsetFlags(**loads(variant_flags))
+        except Exception:  # pylint: disable=broad-except
+            variant_flags = None
+
+            log.error("Failed to parse variant_flags (%s)", variant_flags)
+
+    if variant_meta:
+        try:
+            variant_meta = loads(variant_meta)
+        except Exception:  # pylint: disable=broad-except
+            variant_meta = None
+
+            log.error(f"Failed to parse variant_meta ({variant_meta})")
+
+    return parse_variant_body_request(
+        testset_ref=testset_ref,
+        variant_ref=variant_ref,
+        #
+        variant_flags=variant_flags,
+        variant_meta=variant_meta,
+        #
+        include_archived=include_archived,
+    )
+
+
+def parse_variant_body_request(
+    testset_ref: Optional[Reference] = None,
+    variant_ref: Optional[Reference] = None,
+    #
+    variant_flags: Optional[TestsetFlags] = None,
+    variant_meta: Optional[Meta] = None,
+    #
+    include_archived: Optional[bool] = None,
+) -> TestsetQuery:
+    _query = None
+
+    try:
+        _query = TestsetQuery(
+            artifact_ref=testset_ref,
+            variant_ref=variant_ref,
+            #
+            flags=variant_flags,
+            meta=variant_meta,
+            #
+            include_archived=include_archived,
+        )
+    except Exception as e:  # pylint: disable=broad-except
+        log.warn("Error parsing variant body request: %s", e)
+
+        _query = None
+
+    return _query
+
+
+def parse_revision_query_request(
+    variant_ref: Optional[str] = Query(
+        None,
+        description='JSON string of ref, e.g. {"key": value}',
+    ),
+    revision_ref: Optional[str] = Query(
+        None,
+        description='JSON string of ref, e.g. {"key": value}',
+    ),
+    revision_meta: Optional[str] = Query(
+        None, description='JSON string of meta, e.g. {"key": value}'
+    ),
+    revision_flags: Optional[str] = Query(
+        None, description='JSON string of flags, e.g. {"key": value}'
+    ),
+    include_archived: Optional[bool] = Query(None),
+) -> TestsetQuery:
+    if variant_ref:
+        try:
+            variant_ref = Reference(**loads(variant_ref))
+        except Exception:  # pylint: disable=broad-except
+            variant_ref = None
+
+            log.error("Failed to parse variant_ref (%s)", variant_ref)
+
+    if revision_ref:
+        try:
+            revision_ref = Reference(**loads(revision_ref))
+        except Exception:  # pylint: disable=broad-except
+            revision_ref = None
+
+            log.error("Failed to parse revision_ref (%s)", revision_ref)
+
+    if revision_flags:
+        try:
+            revision_flags = TestsetFlags(**loads(revision_flags))
+        except Exception:  # pylint: disable=broad-except
+            revision_flags = None
+
+            log.error("Failed to parse revision_flags (%s)", revision_flags)
+
+    if revision_meta:
+        try:
+            revision_meta = loads(revision_meta)
+        except Exception:  # pylint: disable=broad-except
+            revision_meta = None
+
+            log.error(f"Failed to parse revision_meta ({revision_meta})")
+
+    return parse_revision_body_request(
+        variant_ref=variant_ref,
+        revision_ref=revision_ref,
+        #
+        revision_flags=revision_flags,
+        revision_meta=revision_meta,
+        #
+        include_archived=include_archived,
+    )
+
+
+def parse_revision_body_request(
+    variant_ref: Optional[Reference] = None,
+    revision_ref: Optional[Reference] = None,
+    #
+    revision_flags: Optional[TestsetFlags] = None,
+    revision_meta: Optional[Meta] = None,
+    #
+    include_archived: Optional[bool] = None,
+) -> TestsetQuery:
+    _query = None
+
+    try:
+        _query = TestsetQuery(
+            variant_ref=variant_ref,
+            revision_ref=revision_ref,
+            #
+            flags=revision_flags,
+            meta=revision_meta,
+            #
+            include_archived=include_archived,
+        )
+    except Exception as e:  # pylint: disable=broad-except
+        log.warn(e)
+
+        _query = None
+
+    return _query
+
+
+def merge_requests(
+    query_param: Optional[TestsetQuery] = None,
+    query_body: Optional[TestsetQuery] = None,
+) -> TestsetQuery:
+    if query_body is None:
+        return query_param
+
+    if query_param is None:
+        return query_body
+
+    return TestsetQuery(
+        artifact_ref=query_body.artifact_ref or query_param.artifact_ref,
+        variant_ref=query_body.variant_ref or query_param.variant_ref,
+        revision_ref=query_body.revision_ref or query_param.revision_ref,
+        #
+        flags=query_body.flags or query_param.flags,
+        meta=query_body.meta or query_param.meta,
+        #
+        include_archived=query_body.include_archived or query_param.include_archived,
+    )
 
 
 def to_uuid(id, data):
@@ -860,8 +539,7 @@ def json_array_to_csv_file(
 
 
 def csv_data_to_json_array(
-    csv_data: List[Dict[str, Any]],
-    column_types: Dict[str, type] = {},
+    csv_data: List[Dict[str, Any]], column_types: Dict[str, type] = None
 ) -> List[Dict[str, Any]]:
     """
     Converts CSV-like data (list of dictionaries) into a JSON array, preserving JSON types if specified.
@@ -877,7 +555,7 @@ def csv_data_to_json_array(
         isinstance(row, dict) for row in csv_data
     ):
         print("Error: Expected a list of dictionaries (CSV-like structure).")
-        return []
+        return None
 
     # Convert column types if specified
     if column_types:

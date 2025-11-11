@@ -46,7 +46,7 @@ async def list_bases(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_i),
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."

@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from oss.src.apis.fastapi.shared.models import VersionedModel
+
 from oss.src.core.observability.dtos import (
     OTelSpanDTO,
     SpanDTO,
@@ -12,11 +14,11 @@ from oss.src.core.observability.dtos import (
 )
 
 
-class CollectStatusResponse(BaseModel):
+class CollectStatusResponse(VersionedModel):
     status: str
 
 
-class OTelTracingResponse(BaseModel):
+class OTelTracingResponse(VersionedModel):
     count: Optional[int] = None
     spans: List[OTelSpanDTO]
 
@@ -56,15 +58,15 @@ class AgentaRootsDTO(BaseModel):
     roots: Optional[List[AgentaRootDTO]] = []
 
 
-class AgentaNodesResponse(AgentaNodesDTO):
+class AgentaNodesResponse(VersionedModel, AgentaNodesDTO):
     count: Optional[int] = None
 
 
-class AgentaTreesResponse(AgentaTreesDTO):
+class AgentaTreesResponse(VersionedModel, AgentaTreesDTO):
     count: Optional[int] = None
 
 
-class AgentaRootsResponse(AgentaRootsDTO):
+class AgentaRootsResponse(VersionedModel, AgentaRootsDTO):
     count: Optional[int] = None
 
 
@@ -91,6 +93,6 @@ class LegacyAnalyticsResponse(LegacySummary):
     data: List[LegacyDataPoint]
 
 
-class OldAnalyticsResponse(BaseModel):
+class AnalyticsResponse(VersionedModel):
     count: Optional[int] = None
     buckets: List[BucketDTO]

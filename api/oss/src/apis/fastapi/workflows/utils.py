@@ -1,27 +1,20 @@
-from typing import Optional, Literal, List
+from typing import Optional
+from json import loads
 from uuid import UUID
 from datetime import datetime
 
 from fastapi import Query
 
 from oss.src.utils.logging import get_module_logger
-
-from oss.src.core.shared.dtos import (
-    Windowing,
-    Reference,
-)
+from oss.src.core.shared.dtos import Reference, Meta, Flags, Windowing
 from oss.src.core.workflows.dtos import (
     WorkflowFlags,
-    WorkflowQueryFlags,
     #
     WorkflowQuery,
     WorkflowVariantQuery,
     WorkflowRevisionQuery,
 )
 
-from oss.src.apis.fastapi.shared.utils import (
-    parse_metadata,
-)
 from oss.src.apis.fastapi.workflows.models import (
     WorkflowQueryRequest,
     WorkflowVariantQueryRequest,
@@ -35,13 +28,6 @@ log = get_module_logger(__name__)
 
 def parse_workflow_query_request_from_params(
     workflow_id: Optional[UUID] = Query(None),
-    workflow_ids: Optional[List[UUID]] = Query(None),
-    workflow_slug: Optional[str] = Query(None),
-    workflow_slugs: Optional[List[str]] = Query(None),
-    #
-    name: Optional[str] = Query(None),
-    description: Optional[str] = Query(None),
-    #
     flags: Optional[str] = Query(None),
     tags: Optional[str] = Query(None),
     meta: Optional[str] = Query(None),
@@ -49,101 +35,98 @@ def parse_workflow_query_request_from_params(
     include_archived: Optional[bool] = Query(None),
     #
     next: Optional[UUID] = Query(None),  # pylint disable=redefined-builtin
-    newest: Optional[datetime] = Query(None),
-    oldest: Optional[datetime] = Query(None),
+    start: Optional[datetime] = Query(None),
+    stop: Optional[datetime] = Query(None),
     limit: Optional[int] = Query(None),
-    order: Optional[Literal["ascending", "descending"]] = Query(None),
 ) -> WorkflowQueryRequest:
-    _flags, _tags, _meta = parse_metadata(flags, tags, meta)
+    if flags:
+        try:
+            flags = WorkflowFlags(**loads(flags)) if flags else WorkflowFlags()
 
-    __flags = WorkflowQueryFlags(**_flags) if _flags else None  # type: ignore
+        except Exception:  # pylint: disable=broad-except
+            flags = None
 
-    workflow = (
-        WorkflowQuery(
-            name=name,
-            description=description,
-            #
-            flags=__flags,
-            meta=_meta,
-            tags=_tags,
-        )
-        if __flags or _meta or _tags
-        else None
-    )
+            log.warn("Failed to parse flags (%s)", flags)
 
-    workflow_refs = (
-        (
-            [
-                Reference(
-                    id=workflow_id,
-                    slug=workflow_slug,
-                )
-            ]
-            if workflow_id or workflow_slug
-            else []
-        )
-        + (
-            [
-                Reference(
-                    id=workflow_id,
-                    slug=workflow_slug,
-                )
-                for workflow_id, workflow_slug in zip(
-                    workflow_ids,
-                    workflow_slugs,
-                )
-            ]
-            if workflow_ids and workflow_slugs
-            else []
-        )
-    ) or None
+    if tags:
+        try:
+            tags = loads(tags)
+        except Exception:  # pylint: disable=broad-except
+            tags = None
 
-    windowing = (
-        Windowing(
-            next=next,
-            newest=newest,
-            oldest=oldest,
-            limit=limit,
-            order=order,
-        )
-        if next or newest or oldest or limit or order
-        else None
-    )
+            log.warn("Failed to parse tags (%s)", tags)
+
+    if meta:
+        try:
+            meta = loads(meta)
+        except Exception:  # pylint: disable=broad-except
+            meta = None
+
+            log.warn(f"Failed to parse meta ({meta})")
 
     return parse_workflow_query_request_from_body(
-        workflow=workflow,
-        #
-        workflow_refs=workflow_refs,
+        workflow_id=workflow_id,
+        flags=flags,
+        tags=tags,
+        meta=meta,
         #
         include_archived=include_archived,
         #
-        windowing=windowing,
+        next=next,
+        start=start,
+        stop=stop,
+        limit=limit,
     )
 
 
 def parse_workflow_query_request_from_body(
-    workflow: Optional[WorkflowQuery] = None,
-    #
-    workflow_refs: Optional[List[Reference]] = None,
+    workflow_id: Optional[UUID] = None,
+    flags: Optional[WorkflowFlags] = None,
+    tags: Optional[dict] = None,
+    meta: Optional[Meta] = None,
     #
     include_archived: Optional[bool] = None,
     #
-    windowing: Optional[Windowing] = None,
+    next: Optional[UUID] = None,  # pylint disable=redefined-builtin
+    start: Optional[datetime] = None,
+    stop: Optional[datetime] = None,
+    limit: Optional[int] = None,
+    order: Optional[str] = None,
 ) -> WorkflowQueryRequest:
     workflow_query_request = None
 
     try:
         workflow_query_request = WorkflowQueryRequest(
-            workflow=workflow,
-            #
-            workflow_refs=workflow_refs,
+            workflow=(
+                WorkflowQuery(
+                    workflow_id=workflow_id,
+                    #
+                    flags=flags,
+                    meta=meta,
+                    tags=tags,
+                )
+                if workflow_id or flags or meta or tags
+                else None
+            ),
             #
             include_archived=include_archived,
             #
-            windowing=windowing,
+            windowing=(
+                Windowing(
+                    next=next,
+                    start=start,
+                    stop=stop,
+                    limit=limit,
+                    order=order,
+                )
+                if next or start or stop or limit
+                else None
+            ),
         )
     except Exception as e:  # pylint: disable=broad-except
-        workflow_query_request = WorkflowQueryRequest()
+        log.warn("Error parsing workflow query request: %s", e)
+
+        workflow_query_request = None
 
     return workflow_query_request
 
@@ -152,42 +135,25 @@ def merge_workflow_query_requests(
     query_request_params: Optional[WorkflowQueryRequest] = None,
     query_request_body: Optional[WorkflowQueryRequest] = None,
 ) -> WorkflowQueryRequest:
-    if query_request_params and not query_request_body:
+    if query_request_body is None:
         return query_request_params
 
-    if not query_request_params and query_request_body:
+    if query_request_params is None:
         return query_request_body
 
-    if query_request_params and query_request_body:
-        return WorkflowQueryRequest(
-            workflow=query_request_body.workflow or query_request_params.workflow,
-            #
-            workflow_refs=query_request_body.workflow_refs
-            or query_request_params.workflow_refs,
-            #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
-            #
-            windowing=query_request_body.windowing or query_request_params.windowing,
-        )
-
-    return WorkflowQueryRequest()
+    return WorkflowQueryRequest(
+        workflow=query_request_body.workflow or query_request_params.workflow,
+        #
+        include_archived=query_request_body.include_archived
+        or query_request_params.include_archived,
+        #
+        windowing=query_request_body.windowing or query_request_params.windowing,
+    )
 
 
 def parse_workflow_variant_query_request_from_params(
     workflow_id: Optional[UUID] = Query(None),
-    workflow_ids: Optional[List[UUID]] = Query(None),
-    workflow_slug: Optional[str] = Query(None),
-    workflow_slugs: Optional[List[str]] = Query(None),
-    #
     workflow_variant_id: Optional[UUID] = Query(None),
-    workflow_variant_ids: Optional[List[UUID]] = Query(None),
-    workflow_variant_slug: Optional[str] = Query(None),
-    workflow_variant_slugs: Optional[List[str]] = Query(None),
-    #
-    name: Optional[str] = Query(None),
-    description: Optional[str] = Query(None),
-    #
     flags: Optional[str] = Query(None),
     tags: Optional[str] = Query(None),
     meta: Optional[str] = Query(None),
@@ -195,131 +161,100 @@ def parse_workflow_variant_query_request_from_params(
     include_archived: Optional[bool] = Query(None),
     #
     next: Optional[UUID] = Query(None),  # pylint disable=redefined-builtin
-    newest: Optional[datetime] = Query(None),
-    oldest: Optional[datetime] = Query(None),
+    start: Optional[datetime] = Query(None),
+    stop: Optional[datetime] = Query(None),
     limit: Optional[int] = Query(None),
-    order: Optional[Literal["ascending", "descending"]] = Query(None),
 ) -> WorkflowVariantQueryRequest:
-    _flags, _tags, _meta = parse_metadata(flags, tags, meta)
+    if flags:
+        try:
+            flags = WorkflowFlags(**loads(flags)) if flags else WorkflowFlags()
 
-    __flags = WorkflowQueryFlags(**_flags) if _flags else None  # type: ignore
+        except Exception:  # pylint: disable=broad-except
+            flags = None
 
-    workflow_variant = (
-        WorkflowVariantQuery(
-            name=name,
-            description=description,
-            #
-            flags=__flags,
-            meta=_meta,
-            tags=_tags,
-        )
-        if __flags or _meta or _tags
-        else None
-    )
+            log.warn("Failed to parse flags (%s)", flags)
 
-    workflow_refs = (
-        (
-            [
-                Reference(
-                    id=workflow_id,
-                    slug=workflow_slug,
-                )
-            ]
-            if workflow_id or workflow_slug
-            else []
-        )
-        + (
-            [
-                Reference(
-                    id=workflow_id,
-                    slug=workflow_slug,
-                )
-                for workflow_id, workflow_slug in zip(
-                    workflow_ids,
-                    workflow_slugs,
-                )
-            ]
-            if workflow_ids and workflow_slugs
-            else []
-        )
-    ) or None
+    if tags:
+        try:
+            tags = loads(tags)
+        except Exception:  # pylint: disable=broad-except
+            tags = None
 
-    workflow_variant_refs = (
-        (
-            [
-                Reference(
-                    id=workflow_variant_id,
-                    slug=workflow_variant_slug,
-                )
-            ]
-            if workflow_variant_id or workflow_variant_slug
-            else []
-        )
-        + (
-            [
-                Reference(
-                    id=workflow_variant_id,
-                    slug=workflow_variant_slug,
-                )
-                for workflow_variant_id, workflow_variant_slug in zip(
-                    workflow_variant_ids,
-                    workflow_variant_slugs,
-                )
-            ]
-            if workflow_variant_ids and workflow_variant_slugs
-            else []
-        )
-    ) or None
+            log.warn("Failed to parse tags (%s)", tags)
 
-    windowing = (
-        Windowing(
-            next=next,
-            newest=newest,
-            oldest=oldest,
-            limit=limit,
-            order=order,
-        )
-        if next or newest or oldest or limit or order
-        else None
-    )
+    if meta:
+        try:
+            meta = loads(meta)
+        except Exception:  # pylint: disable=broad-except
+            meta = None
+
+            log.warn(f"Failed to parse meta ({meta})")
 
     return parse_workflow_variant_query_request_from_body(
-        workflow_variant=workflow_variant,
-        #
-        workflow_refs=workflow_refs or None,
-        workflow_variant_refs=workflow_variant_refs or None,
+        workflow_id=workflow_id,
+        workflow_variant_id=workflow_variant_id,
+        flags=flags,
+        tags=tags,
+        meta=meta,
         #
         include_archived=include_archived,
         #
-        windowing=windowing,
+        next=next,
+        start=start,
+        stop=stop,
+        limit=limit,
     )
 
 
 def parse_workflow_variant_query_request_from_body(
-    workflow_variant: Optional[WorkflowVariantQuery] = None,
-    #
-    workflow_refs: Optional[List[Reference]] = None,
-    workflow_variant_refs: Optional[List[Reference]] = None,
+    workflow_id: Optional[UUID] = None,
+    workflow_variant_id: Optional[UUID] = None,
+    flags: Optional[WorkflowFlags] = None,
+    tags: Optional[dict] = None,
+    meta: Optional[Meta] = None,
     #
     include_archived: Optional[bool] = None,
     #
-    windowing: Optional[Windowing] = None,
+    next: Optional[UUID] = None,  # pylint disable=redefined-builtin
+    start: Optional[datetime] = None,
+    stop: Optional[datetime] = None,
+    limit: Optional[int] = None,
+    order: Optional[str] = None,
 ) -> WorkflowVariantQueryRequest:
     workflow_variant_query_request = None
 
     try:
         workflow_variant_query_request = WorkflowVariantQueryRequest(
-            workflow_variant=workflow_variant,
-            #
-            workflow_refs=workflow_refs,
-            workflow_variant_refs=workflow_variant_refs,
+            workflow_variant=(
+                WorkflowVariantQuery(
+                    workflow_id=workflow_id,
+                    workflow_variant_id=workflow_variant_id,
+                    flags=flags,
+                    meta=meta,
+                    tags=tags,
+                )
+                if workflow_id or workflow_variant_id or flags or meta or tags
+                else None
+            ),
             #
             include_archived=include_archived,
             #
-            windowing=windowing,
+            windowing=(
+                Windowing(
+                    next=next,
+                    start=start,
+                    stop=stop,
+                    limit=limit,
+                    order=order,
+                )
+                if next or start or stop or limit
+                else None
+            ),
         )
     except Exception as e:  # pylint: disable=broad-except
-        workflow_variant_query_request = WorkflowVariantQueryRequest()
+        log.warn("Error parsing workflow variant body request: %s", e)
+
+        workflow_variant_query_request = None
 
     return workflow_variant_query_request
 
@@ -328,52 +263,27 @@ def merge_workflow_variant_query_requests(
     query_request_params: Optional[WorkflowVariantQueryRequest] = None,
     query_request_body: Optional[WorkflowVariantQueryRequest] = None,
 ) -> WorkflowVariantQueryRequest:
-    if query_request_params and not query_request_body:
+    if query_request_body is None:
         return query_request_params
 
-    if not query_request_params and query_request_body:
+    if query_request_params is None:
         return query_request_body
 
-    if query_request_params and query_request_body:
-        return WorkflowVariantQueryRequest(
-            workflow_variant=query_request_body.workflow_variant
-            or query_request_params.workflow_variant,
-            #
-            workflow_refs=query_request_body.workflow_refs
-            or query_request_params.workflow_refs,
-            workflow_variant_refs=query_request_body.workflow_variant_refs
-            or query_request_params.workflow_variant_refs,
-            #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
-            #
-            windowing=query_request_body.windowing or query_request_params.windowing,
-        )
-
-    return WorkflowVariantQueryRequest()
+    return WorkflowVariantQueryRequest(
+        workflow_variant=query_request_body.workflow_variant
+        or query_request_params.workflow_variant,
+        #
+        include_archived=query_request_body.include_archived
+        or query_request_params.include_archived,
+        #
+        windowing=query_request_body.windowing or query_request_params.windowing,
+    )
 
 
 def parse_workflow_revision_query_request_from_params(
     workflow_id: Optional[UUID] = Query(None),
-    workflow_ids: Optional[List[UUID]] = Query(None),
-    workflow_slug: Optional[str] = Query(None),
-    workflow_slugs: Optional[List[str]] = Query(None),
-    #
     workflow_variant_id: Optional[UUID] = Query(None),
-    workflow_variant_ids: Optional[List[UUID]] = Query(None),
-    workflow_variant_slug: Optional[str] = Query(None),
-    workflow_variant_slugs: Optional[List[str]] = Query(None),
-    #
     workflow_revision_id: Optional[UUID] = Query(None),
-    workflow_revision_ids: Optional[List[UUID]] = Query(None),
-    workflow_revision_slug: Optional[str] = Query(None),
-    workflow_revision_slugs: Optional[List[str]] = Query(None),
-    workflow_revision_version: Optional[str] = Query(None),
-    workflow_revision_versions: Optional[List[str]] = Query(None),
-    #
-    name: Optional[str] = Query(None),
-    description: Optional[str] = Query(None),
-    #
     flags: Optional[str] = Query(None),
     tags: Optional[str] = Query(None),
     meta: Optional[str] = Query(None),
@@ -381,198 +291,137 @@ def parse_workflow_revision_query_request_from_params(
     include_archived: Optional[bool] = Query(None),
     #
     next: Optional[UUID] = Query(None),  # pylint disable=redefined-builtin
-    newest: Optional[datetime] = Query(None),
-    oldest: Optional[datetime] = Query(None),
+    start: Optional[datetime] = Query(None),
+    stop: Optional[datetime] = Query(None),
     limit: Optional[int] = Query(None),
-    order: Optional[Literal["ascending", "descending"]] = Query(None),
 ) -> WorkflowRevisionQueryRequest:
-    _flags, _tags, _meta = parse_metadata(flags, tags, meta)
+    if flags:
+        try:
+            flags = WorkflowFlags(**loads(flags)) if flags else WorkflowFlags()
 
-    __flags = WorkflowQueryFlags(**_flags) if _flags else None  # type: ignore
+        except Exception:  # pylint: disable=broad-except
+            flags = None
 
-    workflow_revision = (
-        WorkflowRevisionQuery(
-            name=name,
-            description=description,
-            #
-            flags=__flags,
-            meta=_meta,
-            tags=_tags,
-        )
-        if __flags or _meta or _tags
-        else None
-    )
+            log.warn("Failed to parse flags (%s)", flags)
 
-    workflow_refs = (
-        [
-            Reference(
-                id=workflow_id,
-                slug=workflow_slug,
-            )
-        ]
-        if workflow_id or workflow_slug
-        else []
-    ) + (
-        [
-            Reference(
-                id=workflow_id,
-                slug=workflow_slug,
-            )
-            for workflow_id, workflow_slug in zip(
-                workflow_ids,
-                workflow_slugs,
-            )
-        ]
-        if workflow_ids and workflow_slugs
-        else []
-    )
+    if tags:
+        try:
+            tags = loads(tags)
+        except Exception:
+            tags = None
 
-    workflow_variant_refs = (
-        [
-            Reference(
-                id=workflow_variant_id,
-                slug=workflow_variant_slug,
-            )
-        ]
-        if workflow_variant_id or workflow_variant_slug
-        else []
-    ) + (
-        [
-            Reference(
-                id=workflow_variant_id,
-                slug=workflow_variant_slug,
-            )
-            for workflow_variant_id, workflow_variant_slug in zip(
-                workflow_variant_ids,
-                workflow_variant_slugs,
-            )
-        ]
-        if workflow_variant_ids and workflow_variant_slugs
-        else []
-    )
+            log.warn("Failed to parse tags (%s)", tags)
 
-    workflow_revision_refs = (
-        [
-            Reference(
-                id=workflow_revision_id,
-                slug=workflow_revision_slug,
-                version=workflow_revision_version,
-            )
-        ]
-        if workflow_revision_id or workflow_revision_slug or workflow_revision_version
-        else []
-    ) + (
-        [
-            Reference(
-                id=workflow_revision_id,
-                slug=workflow_revision_slug,
-                version=workflow_revision_version,
-            )
-            for workflow_revision_id, workflow_revision_slug, workflow_revision_version in zip(
-                workflow_revision_ids,
-                workflow_revision_slugs,
-                workflow_revision_versions,
-            )
-        ]
-        if workflow_revision_ids
-        and workflow_revision_slugs
-        and workflow_revision_versions
-        else []
-    )
+    if meta:
+        try:
+            meta = loads(meta)
+        except Exception:
+            meta = None
 
-    windowing = (
-        Windowing(
-            next=next,
-            newest=newest,
-            oldest=oldest,
-            limit=limit,
-            order=order,
-        )
-        if next or newest or oldest or limit or order
-        else None
-    )
+            log.warn(f"Failed to parse meta ({meta})")
 
     return parse_workflow_revision_query_request_from_body(
-        workflow_revision=workflow_revision,
-        #
-        workflow_refs=workflow_refs,
-        workflow_variant_refs=workflow_variant_refs,
-        workflow_revision_refs=workflow_revision_refs,
+        workflow_id=workflow_id,
+        workflow_variant_id=workflow_variant_id,
+        workflow_revision_id=workflow_revision_id,
+        flags=flags,
+        tags=tags,
+        meta=meta,
         #
         include_archived=include_archived,
         #
-        windowing=windowing,
+        next=next,
+        start=start,
+        stop=stop,
+        limit=limit,
     )
 
 
 def parse_workflow_revision_query_request_from_body(
-    workflow_revision: Optional[WorkflowRevisionQuery] = None,
-    #
-    workflow_refs: Optional[List[Reference]] = None,
-    workflow_variant_refs: Optional[List[Reference]] = None,
-    workflow_revision_refs: Optional[List[Reference]] = None,
+    workflow_id: Optional[UUID] = None,
+    workflow_variant_id: Optional[UUID] = None,
+    workflow_revision_id: Optional[UUID] = None,
+    flags: Optional[WorkflowFlags] = None,
+    tags: Optional[dict] = None,
+    meta: Optional[Meta] = None,
     #
     include_archived: Optional[bool] = None,
     #
-    windowing: Optional[Windowing] = None,
+    next: Optional[UUID] = None,  # pylint disable=redefined-builtin
+    start: Optional[datetime] = None,
+    stop: Optional[datetime] = None,
+    limit: Optional[int] = None,
+    order: Optional[str] = None,
 ) -> WorkflowRevisionQueryRequest:
     workflow_revision_query_request = None
 
     try:
         workflow_revision_query_request = WorkflowRevisionQueryRequest(
-            workflow_revision=workflow_revision,
-            #
-            workflow_refs=workflow_refs,
-            workflow_variant_refs=workflow_variant_refs,
-            workflow_revision_refs=workflow_revision_refs,
+            workflow_revision=(
+                WorkflowRevisionQuery(
+                    workflow_id=workflow_id,
+                    workflow_variant_id=workflow_variant_id,
+                    workflow_revision_id=workflow_revision_id,
+                    flags=flags,
+                    meta=meta,
+                    tags=tags,
+                )
+                if workflow_id
+                or workflow_variant_id
+                or workflow_revision_id
+                or flags
+                or meta
+                or tags
+                else None
+            ),
             #
             include_archived=include_archived,
             #
-            windowing=windowing,
+            windowing=(
+                Windowing(
+                    next=next,
+                    start=start,
+                    stop=stop,
+                    limit=limit,
+                    order=order,
+                )
+                if next or start or stop or limit
+                else None
+            ),
         )
 
     except Exception as e:  # pylint: disable=broad-except
         log.warn(e)
 
-        workflow_revision_query_request = WorkflowRevisionQueryRequest()
+        workflow_revision_query_request = None
 
     return workflow_revision_query_request
 
 
 def merge_workflow_revision_query_requests(
-    query_request_params: Optional[WorkflowRevisionQueryRequest] = None,
+    query_request_param: Optional[WorkflowRevisionQueryRequest] = None,
     query_request_body: Optional[WorkflowRevisionQueryRequest] = None,
 ) -> WorkflowRevisionQueryRequest:
-    if query_request_params and not query_request_body:
-        return query_request_params
+    if query_request_body is None:
+        return query_request_param
 
-    if not query_request_params and query_request_body:
+    if query_request_param is None:
         return query_request_body
 
-    if query_request_params and query_request_body:
-        return WorkflowRevisionQueryRequest(
-            workflow_revision=query_request_body.workflow_revision
-            or query_request_params.workflow_revision,
-            #
-            workflow_refs=query_request_body.workflow_refs
-            or query_request_params.workflow_refs,
-            workflow_variant_refs=query_request_body.workflow_variant_refs
-            or query_request_params.workflow_variant_refs,
-            workflow_revision_refs=query_request_body.workflow_revision_refs
-            or query_request_params.workflow_revision_refs,
-            #
-            include_archived=query_request_body.include_archived
-            or query_request_params.include_archived,
-            #
-            windowing=query_request_body.windowing or query_request_params.windowing,
-        )
-
-    return WorkflowRevisionQueryRequest()
+    return WorkflowRevisionQueryRequest(
+        workflow_revision=query_request_body.workflow_revision
+        or query_request_param.workflow_revision,
+        #
+        include_archived=query_request_body.include_archived
+        or query_request_param.include_archived,
+        #
+        windowing=query_request_body.windowing or query_request_param.windowing,
+    )
 
 
 def parse_workflow_revision_retrieve_request_from_params(
     workflow_id: Optional[UUID] = Query(None),
-    workflow_slug: Optional[str] = Query(None),
+    workflow_slug: Optional[UUID] = Query(None),
     #
     workflow_variant_id: Optional[UUID] = Query(None),
     workflow_variant_slug: Optional[str] = Query(None),
@@ -581,48 +430,68 @@ def parse_workflow_revision_retrieve_request_from_params(
     workflow_revision_slug: Optional[str] = Query(None),
     workflow_revision_version: Optional[str] = Query(None),
 ):
-    workflow_ref = (
-        Reference(
-            id=workflow_id,
-            slug=workflow_slug,
-        )
-        if workflow_id or workflow_slug
-        else None
-    )
-
-    workflow_variant_ref = (
-        Reference(
-            id=workflow_variant_id,
-            slug=workflow_variant_slug,
-        )
-        if workflow_variant_id or workflow_variant_slug
-        else None
-    )
-
-    workflow_revision_ref = (
-        Reference(
-            id=workflow_revision_id,
-            slug=workflow_revision_slug,
-            version=workflow_revision_version,
-        )
-        if workflow_revision_id or workflow_revision_slug or workflow_revision_version
-        else None
-    )
-
     return parse_workflow_revision_retrieve_request_from_body(
-        workflow_ref=workflow_ref,
-        workflow_variant_ref=workflow_variant_ref,
-        workflow_revision_ref=workflow_revision_ref,
+        workflow_id=workflow_id,
+        workflow_slug=workflow_slug,
+        #
+        workflow_variant_id=workflow_variant_id,
+        workflow_variant_slug=workflow_variant_slug,
+        #
+        workflow_revision_id=workflow_revision_id,
+        workflow_revision_slug=workflow_revision_slug,
+        workflow_revision_version=workflow_revision_version,
     )
 
 
 def parse_workflow_revision_retrieve_request_from_body(
-    workflow_ref: Optional[Reference] = None,
-    workflow_variant_ref: Optional[Reference] = None,
-    workflow_revision_ref: Optional[Reference] = None,
-) -> WorkflowRevisionRetrieveRequest:
-    return WorkflowRevisionRetrieveRequest(
-        workflow_ref=workflow_ref,
-        workflow_variant_ref=workflow_variant_ref,
-        workflow_revision_ref=workflow_revision_ref,
+    workflow_id: Optional[UUID] = None,
+    workflow_slug: Optional[UUID] = None,
+    #
+    workflow_variant_id: Optional[UUID] = None,
+    workflow_variant_slug: Optional[str] = None,
+    #
+    workflow_revision_id: Optional[UUID] = None,
+    workflow_revision_slug: Optional[str] = None,
+    workflow_revision_version: Optional[str] = None,
+) -> Optional[WorkflowRevisionRetrieveRequest]:
+    return (
+        WorkflowRevisionRetrieveRequest(
+            workflow_ref=(
+                Reference(
+                    id=workflow_id,
+                    slug=workflow_slug,
+                )
+                if workflow_id or workflow_slug
+                else None
+            ),
+            #
+            workflow_variant_ref=(
+                Reference(
+                    id=workflow_variant_id,
+                    slug=workflow_variant_slug,
+                )
+                if workflow_variant_id or workflow_variant_slug
+                else None
+            ),
+            #
+            workflow_revision_ref=(
+                Reference(
+                    id=workflow_revision_id,
+                    slug=workflow_revision_slug,
+                    version=workflow_revision_version,
+                )
+                if workflow_revision_id
+                or workflow_revision_slug
+                or workflow_revision_version
+                else None
+            ),
+        )
+        if (
+            workflow_variant_id
+            or workflow_variant_slug
+            or workflow_revision_id
+            or workflow_revision_slug
+            or workflow_revision_version
+        )
+        else None
     )

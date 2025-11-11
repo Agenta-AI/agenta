@@ -10,28 +10,28 @@ The main test fixture extends the base test fixture with Playground-specific fun
 
 ```typescript
 interface VariantFixtures {
-    // Navigate to the Playground for a specific app
-    navigateToPlayground: (appId: string) => Promise<void>
-
-    // Run a completion variant test with the given messages
-    runCompletionSingleViewVariant: (appId: string, messages: string[]) => Promise<void>
-
-    // Run a chat variant test with the given messages
-    runChatSingleViewVariant: (appId: string, messages: string[]) => Promise<void>
-
-    // Add a new prompt with the specified role and content
-    addNewPrompt: (promptMessages: {prompt: string; role: RoleType}[]) => Promise<void>
-
-    // Change variable keys in the Playground
-    changeVariableKeys: (variables: {oldKey: string; newKey: string}[]) => Promise<void>
-
-    // Save a variant or version
-    saveVariant: (
-        type: "version" | "variant",
-        note?: string,
-        revisionId?: string,
-        variantName?: string,
-    ) => Promise<void>
+  // Navigate to the Playground for a specific app
+  navigateToPlayground: (appId: string) => Promise<void>;
+  
+  // Run a completion variant test with the given messages
+  runCompletionSingleViewVariant: (appId: string, messages: string[]) => Promise<void>;
+  
+  // Run a chat variant test with the given messages
+  runChatSingleViewVariant: (appId: string, messages: string[]) => Promise<void>;
+  
+  // Add a new prompt with the specified role and content
+  addNewPrompt: (promptMessages: {prompt: string; role: RoleType}[]) => Promise<void>;
+  
+  // Change variable keys in the Playground
+  changeVariableKeys: (variables: {oldKey: string; newKey: string}[]) => Promise<void>;
+  
+  // Save a variant or version
+  saveVariant: (
+    type: "version" | "variant",
+    note?: string,
+    revisionId?: string,
+    variantName?: string,
+  ) => Promise<void>;
 }
 ```
 
@@ -43,14 +43,14 @@ interface VariantFixtures {
 ## Usage Example
 
 ```typescript
-import {test} from "./tests.spec"
-import {COMPLETION_MESSAGES} from "./assets/constants"
+import {test} from "./tests.spec";
+import {COMPLETION_MESSAGES} from "./assets/constants";
 
-test("run completion variant", async ({navigateToPlayground, runCompletionSingleViewVariant}) => {
-    const appId = "your-app-id"
-    await navigateToPlayground(appId)
-    await runCompletionSingleViewVariant(appId, COMPLETION_MESSAGES)
-})
+test('run completion variant', async ({navigateToPlayground, runCompletionSingleViewVariant}) => {
+  const appId = "your-app-id";
+  await navigateToPlayground(appId);
+  await runCompletionSingleViewVariant(appId, COMPLETION_MESSAGES);
+});
 ```
 
 ## Test Structure

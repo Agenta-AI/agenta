@@ -1,0 +1,87 @@
+---
+title: "Configure Evaluators"
+description: "Set up evaluators for your use case"
+---
+
+import Image from "@theme/IdealImage";
+
+In this guide will show you how to configure evaluators for your LLM application.
+
+### What are evaluators?
+
+Evaluators are functions that assess the output of an LLM application.
+
+Evaluators typically take as input:
+
+- The output of the LLM application
+- (Optional) The reference answer (i.e., expected output or ground truth)
+- (Optional) The inputs to the LLM application
+- Any other relevant data, such as context
+
+Evaluators return either a float or a boolean value.
+
+<Image
+  img={require("/images/evaluation/evaluators-inout.png")}
+  alt="Figure showing the inputs and outputs of an evaluator."
+  loading="lazy"
+/>
+
+### Configuring evaluators
+
+To create a new evaluator, click on the `Configure Evaluators` button in the `Evaluations` view.
+
+![The configure evaluators button in agenta.](/images/evaluation/configure-evaluators-1.png)
+
+### Selecting evaluators
+
+Agenta offers a growing list of pre-built evaluators suitable for most use cases. We also provide options for [creating custom evaluators](/evaluation/evaluators/custom-evaluator) (by writing your own Python function) or [using webhooks](/evaluation/evaluators/webhook-evaluator) for evaluation.
+
+<details id="available-evaluators">
+<summary>Available Evaluators</summary>
+
+| **Evaluator Name**                                                                                | **Use Case**                     | **Type**           | **Description**                                                                  |
+| ------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------ | -------------------------------------------------------------------------------- |
+| [Exact Match](/evaluation/evaluators/classification-entiry-extraction#exact-match)                | Classification/Entity Extraction | Pattern Matching   | Checks if the output exactly matches the expected result.                        |
+| [Contains JSON](/evaluation/evaluators/classification-entiry-extraction#contains-json)            | Classification/Entity Extraction | Pattern Matching   | Ensures the output contains valid JSON.                                          |
+| [Regex Test](/evaluation/evaluators/pattern-matching#regular-expression)                          | Classification/Entity Extraction | Pattern Matching   | Checks if the output matches a given regex pattern.                              |
+| [JSON Field Match](/evaluation/evaluators/classification-entiry-extraction#json-field-match)      | Classification/Entity Extraction | Pattern Matching   | Compares specific fields within JSON data.                                       |
+| [JSON Diff Match](/evaluation/evaluators/classification-entiry-extraction#json-diff-match)        | Classification/Entity Extraction | Similarity Metrics | Compares generated JSON with a ground truth JSON based on schema or values.      |
+| [Similarity Match](/evaluation/evaluators/semantic-similarity#similarity-match)                   | Text Generation / Chatbot        | Similarity Metrics | Compares generated output with expected using Jaccard similarity.                |
+| [Semantic Similarity Match](/evaluation/evaluators/semantic-similarity#semantic-similarity-match) | Text Generation / Chatbot        | Semantic Analysis  | Compares the meaning of the generated output with the expected result.           |
+| [Starts With](/evaluation/evaluators/pattern-matching#starts-with)                                | Text Generation / Chatbot        | Pattern Matching   | Checks if the output starts with a specified prefix.                             |
+| [Ends With](/evaluation/evaluators/pattern-matching#ends-with)                                    | Text Generation / Chatbot        | Pattern Matching   | Checks if the output ends with a specified suffix.                               |
+| [Contains](/evaluation/evaluators/pattern-matching#contains)                                      | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains a specific substring.                              |
+| [Contains Any](/evaluation/evaluators/pattern-matching#contains-any)                              | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains any of a list of substrings.                       |
+| [Contains All](/evaluation/evaluators/pattern-matching#contains-all)                              | Text Generation / Chatbot        | Pattern Matching   | Checks if the output contains all of a list of substrings.                       |
+| [Levenshtein Distance](/evaluation/evaluators/semantic-similarity#levenshtein-distance)           | Text Generation / Chatbot        | Similarity Metrics | Calculates the Levenshtein distance between output and expected result.          |
+| [LLM-as-a-judge](/evaluation/evaluators/llm-as-a-judge)                                           | Text Generation / Chatbot        | LLM-based          | Sends outputs to an LLM model for critique and evaluation.                       |
+| [RAG Faithfulness](/evaluation/evaluators/rag-evaluators)                                         | RAG / Text Generation / Chatbot  | LLM-based          | Evaluates if the output is faithful to the retrieved documents in RAG workflows. |
+| [RAG Context Relevancy](/evaluation/evaluators/rag-evaluators)                                    | RAG / Text Generation / Chatbot  | LLM-based          | Measures the relevancy of retrieved documents to the given question in RAG.      |
+| [Custom Code Evaluation](/evaluation/evaluators/custom-evaluator)                                 | Custom Logic                     | Custom             | Allows users to define their own evaluator in Python.                            |
+| [Webhook Evaluator](/evaluation/evaluators/webhook-evaluator)                                     | Custom Logic                     | Custom             | Sends output to a webhook for external evaluation.                               |
+
+</details>
+
+![Screen for selecting an evaluator.](/images/evaluation/configure-evaluators-2.png)
+
+## Evaluators' settings
+
+Each evaluator comes with it's unique settings. For instance in the screen below, the JSON field match evaluator requires you to specify which field in the output JSON you need to consider for evaluation. You'll find detailed information about these parameters on each evaluator's documentation page.
+
+![Screen for configuring an evaluator.](/images/evaluation/configure-evaluators-3.png)
+
+## Mappings evaluator's inputs to the LLM data
+
+Evaluators need to know which parts of the data contain the output and the reference answer. Most evaluators allow you to configure this mapping, typically by specifying the name of the column in the test set that contains the `reference answer`.
+
+For more sophisticated evaluators, such as `RAG evaluators` (_available only in cloud and enterprise versions_), you need to define more complex mappings (see figure below).
+
+<Image
+  img={require("/images/evaluation/evaluator-mapping.png")}
+  alt="Figure showing how RAGAS faithfulness evaluator is configured in agenta."
+  loading="lazy"
+/>
+
+Configuring the evaluator is done by mapping the evaluator inputs to the generation data:
+
+![Figure showing how RAGAS faithfulness evaluator is configured in agenta.](/images/evaluation/configure_mapping.png)
