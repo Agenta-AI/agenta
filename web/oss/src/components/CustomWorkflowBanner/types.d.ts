@@ -1,4 +1,8 @@
+import {Dispatch, SetStateAction} from "react"
+
+import {Variant} from "@/oss/lib/Types"
+
 export interface CustomWorkflowBannerProps {
-    showInPlayground?: boolean
-    layout?: "banner" | "card"
+    setIsCustomWorkflowModalOpen: Dispatch<SetStateAction<boolean>>
+    variant: Variant | undefined
 }

@@ -5,65 +5,144 @@ description: "Get all testsets."
 sidebar_label: "Get Testsets"
 hide_title: true
 hide_table_of_contents: true
-api: eJzNVE1PGzEQ/SvWnN0kVJz21KhCECG1CMIpRDDsTrKmG9vYY0q62v9ezX4kWQ6ox+7FK897no/37BoYtxGyFSwpciSOsNZQUMyD8WychQwuiRVWleIeMXmwD/aWOAUbswf7Rc1VZSIrtxkgyj2/UD4g0UTqgE9Xy+XNxXtO7dFP6rfhUkVGTlHlriB1PjtXZqOsOyRTGEhtXLLFBDQ4TwGFuygggy3x44ADDYGidzZShKyGr7OZLONO7lKeU4ybVKnbHgwacmeZLAscva9M3maYvkTh1BDzknYof4Zp1x7ugxTCpkv1aApZeO8JMogcjN2CBjZcycaigEaDxR19hvoh8UZDHgiZikfkz9DfO5Sas3CSL/6Bc9+hWk6jB1inVDu912QCFeIF6agveVTRKNX6eLR45474Z2Kf+DDZYxIMAfcnpQwQJdY6GK+RT8OOuHS9vKDBI5eQwfRE6EjhjYK4toYUKsigZPYxm07zyqVigluyjBM0U/QGmrUw8hQM71vK/GZxTfsrwoICZKv1KeBOxO5kHcMOc0Vvrmk/jCeDeeLSBfOnNQ1oMGK0smNJO8ZuXEvve5+3xan5zQI0SBudNWeTs8kMPl69EVh8inmr8ZC7DYssoykc+gcNtEMjMSbcfTsGpDLvIu/Qnpw3kuNDLfXxnvxPL0KvCtM7T32FxrYXQsZR99ZZAZ88baWLLHt1/YyR7kPVNLL9miiIO9Ya3jAYfBatVutGD1KKcX7RXoaeS7UiHlapc8SHR0MMdXDx5cUSmuYvFW3aMA==
+api: eJzNVE1PGzEQ/SvWnLdJqDjtqSlCECG1CMIpRDB4J1nDxjb2mJKu9r9Xsx/5QCrqsXvxyn4z82bes2tgXEfIFzCnyJE4wjKDgqIOxrNxFnK4IFZYVYp7xOje3tsb4hRszO/tFzVVlYms3GqAKPf0THpAoonUAR8v5/Pr83dNbepH9ctwqSIjp6i0K0idTk6VWSnrdsUUBlIrl2wxggycp4ASOysghzXxw4CDDAJF72ykCHkNXycTWY47uU1aU4yrVKmbHgwZaGeZLAscva+MbiuMn6PE1BB1SRuUP8O0aZP7IETYdKUeTCELbz1BDpGDsWvIgA1XsjEroMnA4oY+Q/2Q8yYDHQiZigfkz9BnHUpNWWKSL/4h5q5DtTFNNsA6pdrpvSYTqBAvSEc95SNGR6WW+9TinVvin4l94t1k90UwBNweUBkgSqy1M14jXwYb4tL18kIGHrmEHMYHQkcKbxTEtTWkUEEOJbOP+XisK5eKEa7JMo7QjNEb+GjnaXuqzgQKzVLS6RQMb9t80+vZFW0vCQsKkC+Wh4BbcUKn+TFsN3T05oq2w+xymCYuXTC/W0dBBkYIlF2U9GrsyrXh/WB6bt9Rv5AVDaTPjvZkdDKa/K2ZPkBNr2e9oVG3Zhh4tDDR72hcu0FBBrRBI2dMuPm2PxCW3kXeoD3Id6TbB071/kL9T09HrxDTO499hca2N0fGUfceWwAfvIGliyx7df2Eke5C1TSy/ZooiFOWGbxhMPgkui2WTTbIKiZ6oa0MXQtbERGr1Lnjw+si5trZ/eJ8Dk3zB3r16L8=
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-api
+info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
 
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import ParamsDetails from "@theme/ParamsDetails";
-import RequestSchema from "@theme/RequestSchema";
-import StatusCodes from "@theme/StatusCodes";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
-import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Get Testsets"}
->
-</Heading>
+></Heading>
 
-<MethodEndpoint
-  method={"get"}
-  path={"/testsets"}
-  context={"endpoint"}
->
-  
-</MethodEndpoint>
-
-
+<MethodEndpoint method={"get"} path={"/testsets"}></MethodEndpoint>
 
 Get all testsets.
 
 Returns:
+
 - A list of testset objects.
 
 Raises:
+
 - `HTTPException` with status code 404 if no testsets are found.
 
-<ParamsDetails
-  parameters={undefined}
->
-  
-</ParamsDetails>
-
-<RequestSchema
-  title={"Body"}
-  body={undefined}
->
-  
-</RequestSchema>
-
-<StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"_id":{"type":"string","title":"Id"},"name":{"type":"string","title":"Name"},"created_at":{"type":"string","title":"Created At"},"updated_at":{"type":"string","title":"Updated At"}},"type":"object","required":["_id","name","created_at","updated_at"],"title":"TestSetOutputResponse"},"type":"array","title":"Response Get Testsets"}}}}}}
->
-  
-</StatusCodes>
-
-
-      
+<div>
+  <div>
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>
+                      <li>
+                        <div
+                          style={{
+                            fontSize: "var(--ifm-code-font-size)",
+                            opacity: "0.6",
+                            marginLeft: "-.5rem",
+                            paddingBottom: ".5rem",
+                          }}
+                        >
+                          Array [
+                        </div>
+                      </li>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"_id"}
+                        required={true}
+                        schemaName={"Id (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Id" }}
+                      ></SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"name"}
+                        required={true}
+                        schemaName={"Name (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Name" }}
+                      ></SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"created_at"}
+                        required={true}
+                        schemaName={"Created At (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Created At" }}
+                      ></SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"updated_at"}
+                        required={true}
+                        schemaName={"Updated At (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Updated At" }}
+                      ></SchemaItem>
+                      <li>
+                        <div
+                          style={{
+                            fontSize: "var(--ifm-code-font-size)",
+                            opacity: "0.6",
+                            marginLeft: "-.5rem",
+                          }}
+                        >
+                          ]
+                        </div>
+                      </li>
+                    </ul>
+                  </details>
+                </TabItem>
+                <TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={
+                      '[\n  {\n    "_id": "string",\n    "name": "string",\n    "created_at": "string",\n    "updated_at": "string"\n  }\n]'
+                    }
+                    language={"json"}
+                  ></ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>

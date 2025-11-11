@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.secrets.services import VaultService
@@ -31,7 +31,7 @@ class VaultRouter:
         self.router = APIRouter()
 
         self.router.add_api_route(
-            "/secrets/",
+            "/secrets",
             self.create_secret,
             methods=["POST"],
             operation_id="create_secret",
@@ -39,7 +39,7 @@ class VaultRouter:
             response_model=SecretResponseDTO,
         )
         self.router.add_api_route(
-            "/secrets/",
+            "/secrets",
             self.list_secrets,
             methods=["GET"],
             operation_id="list_secrets",

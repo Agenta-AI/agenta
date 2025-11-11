@@ -16,17 +16,13 @@ def create_dbe_from_dto(
     DBE: Type[DBE_T],
     project_id: UUID,
     dto: DTO_T,
-    **kwargs,
 ) -> DBE_T:
     """Map a Pydantic DTO instance to a SQLAlchemy DBE, with extra project_id."""
 
-    attributes = dto.model_dump(
-        # mode="json",
-        exclude_none=True,
-    )
+    attributes = dto.model_dump(exclude_none=True)
     attributes["project_id"] = project_id
 
-    dbe = DBE(**attributes, **kwargs)
+    dbe = DBE(**attributes)
 
     return dbe
 
@@ -35,18 +31,23 @@ def edit_dbe_from_dto(
     *,
     dbe: DBE_T,
     dto: DTO_T,
-    **kwargs,
+    timestamp: Optional[datetime] = None,
+    updated_at: Optional[datetime] = None,
+    deleted_at: Optional[datetime] = None,
+    updated_by_id: Optional[UUID] = None,
+    deleted_by_id: Optional[UUID] = None,
 ) -> DBE_T:
     """Edit a SQLAlchemy DBE instance with a Pydantic DTO."""
 
-    for field, value in dto.model_dump(
-        # mode="json",
-    ).items():
+    for field, value in dto.model_dump().items():
         setattr(dbe, field, value)
 
-    for field, value in kwargs.items():
-        if hasattr(dbe, field):
-            setattr(dbe, field, value)
+    if timestamp is not None:
+        dbe.timestamp = timestamp
+    dbe.updated_at = updated_at
+    dbe.deleted_at = deleted_at
+    dbe.updated_by_id = updated_by_id
+    dbe.deleted_by_id = deleted_by_id
 
     return dbe
 

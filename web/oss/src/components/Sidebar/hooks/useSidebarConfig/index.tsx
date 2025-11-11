@@ -14,56 +14,45 @@ import {
     Rocket,
     CloudArrowUp,
     ChatCircle,
-    Gauge,
 } from "@phosphor-icons/react"
 
+import {useAppsData} from "@/oss/contexts/app.context"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useAppId} from "@/oss/hooks/useAppId"
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
-import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {useAppsData} from "@/oss/state/app"
-import {useOrgData} from "@/oss/state/org"
 
 import {SidebarConfig} from "../../types"
 
 export const useSidebarConfig = () => {
+    const appId = useAppId()
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
-    const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
+
     const sidebarConfig: SidebarConfig[] = [
         {
             key: "app-management-link",
             title: "App Management",
-            link: baseAppURL,
+            tooltip: "Create new applications or switch between your existing projects.",
+            link: "/apps",
             icon: <AppstoreOutlined size={16} />,
         },
         {
             key: "app-testsets-link",
-            title: "Testsets",
-            link: `${projectURL}/testsets`,
+            title: "Test Sets",
+            tooltip: "Create and manage testsets for evaluation purposes.",
+            link: `/testsets`,
             icon: <DatabaseOutlined size={16} />,
         },
         {
             key: "app-observability-link",
             title: "Observability",
-            link: `${projectURL}/observability`,
+            link: `/observability`,
             icon: <ChartLineUp size={16} />,
-        },
-        {
-            key: "project-evaluators-link",
-            title: "Evaluators",
-            link: `${projectURL}/evaluators`,
-            // isHidden: !isDemo(),
-            icon: <Gauge size={16} />,
-        },
-        {
-            key: "project-evaluations-link",
-            title: "Evaluations",
-            link: `${projectURL}/evaluations`,
-            // isHidden: !isDemo(),
-            icon: <ChartDonut size={16} />,
+            divider: true,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,
@@ -74,61 +63,62 @@ export const useSidebarConfig = () => {
         {
             key: "overview-link",
             title: "Overview",
-            link: `${appURL || recentlyVisitedAppURL}/overview`,
+            link: `/apps/${appId || recentlyVisitedAppId}/overview`,
             icon: <Desktop size={16} />,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-playground-link",
             title: "Playground",
-            link: `${appURL || recentlyVisitedAppURL}/playground`,
+            tooltip:
+                "Experiment with real data and optimize your parameters including prompts, methods, and configuration settings.",
+            link: `/apps/${appId || recentlyVisitedAppId}/playground`,
             icon: <Rocket size={16} />,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-variants-link",
             title: "Registry",
-            link: `${appURL || recentlyVisitedAppURL}/variants`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            link: `/apps/${appId || recentlyVisitedAppId}/variants`,
+            isHidden: !appId && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
         },
         {
             key: "app-evaluations-link",
             title: "Evaluations",
-            link: `${appURL || recentlyVisitedAppURL}/evaluations`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            link: `/apps/${appId || recentlyVisitedAppId}/evaluations`,
+            isHidden: (!appId && !recentlyVisitedAppId) || !isDemo(),
             icon: <ChartDonut size={16} />,
         },
         {
             key: "app-traces-link",
             title: "Traces",
             icon: <TreeView size={16} />,
-            isHidden: !currentApp && !recentlyVisitedAppId,
-            link: `${appURL || recentlyVisitedAppURL}/traces`,
+            isHidden: !appId && !recentlyVisitedAppId,
+            link: `/apps/${appId || recentlyVisitedAppId}/traces`,
         },
         {
             key: "app-deployments-link",
             title: "Deployments",
-            link: `${appURL || recentlyVisitedAppURL}/deployments`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            link: `/apps/${appId || recentlyVisitedAppId}/deployments`,
+            isHidden: !appId && !recentlyVisitedAppId,
             icon: <CloudArrowUp size={16} />,
-        },
-        {
-            key: "settings-link",
-            title: "Settings",
-            link: `${projectURL}/settings`,
-            icon: <Gear size={16} />,
-            isBottom: true,
-            tooltip: "Settings",
         },
         {
             key: "invite-teammate-link",
             title: "Invite Teammate",
-            link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
+            link: "/settings?tab=workspace&inviteModal=open",
             icon: <PaperPlane size={16} />,
             isBottom: true,
-            tooltip: "Invite Teammate",
             isHidden: !doesSessionExist || !selectedOrg,
+        },
+        {
+            key: "settings-link",
+            title: "Settings",
+            link: "/settings",
+            icon: <Gear size={16} />,
+            isBottom: true,
+            isHidden: true,
         },
         {
             key: "support-chat-link",
@@ -152,7 +142,6 @@ export const useSidebarConfig = () => {
                     title: "Documentation",
                     link: "https://docs.agenta.ai/",
                     icon: <Scroll size={16} />,
-                    divider: true,
                 },
                 {
                     key: "github-support",
@@ -165,7 +154,6 @@ export const useSidebarConfig = () => {
                     title: "Slack Support",
                     link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
                     icon: <SlackLogo size={16} />,
-                    divider: true,
                 },
                 {
                     key: "book-call",

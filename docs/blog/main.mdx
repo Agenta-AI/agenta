@@ -9,215 +9,6 @@ import Image from "@theme/IdealImage";
 ```
 
 <section class="changelog">
-
-### [Documentation Overhaul](/changelog/documentation-architecture-overhaul)
-
-_3 November 2025_
-
-**v0.59.10**
-
-<Image img={require('/static/images/changelog/agenta_askai.png')} alt="Ask AI feature in documentation" style={{display: 'block', margin: '20px auto', textAlign: 'center'}} />
-
-We've completely rewritten and restructured our documentation with a new architecture. This is one of the largest updates we've made, involving a near-complete rewrite of existing content.
-
-Key improvements include:
-- **[Diataxis Framework](https://diataxis.fr/)**: Organized content into Tutorials, How-to Guides, Reference, and Explanation sections for better discoverability
-- **[Expanded Observability Docs](/observability/overview)**: Added missing documentation for tracing, annotations, and observability features
-- **[JavaScript/TypeScript Support](/observability/quick-start-opentelemetry)**: Added code examples and documentation for JavaScript developers alongside Python
-- **Ask AI Feature**: Ask questions directly to the documentation for instant answers
-
----
-
-### [Vertex AI Provider Support](/changelog/vertex-ai-provider-support)
-
-_24 October 2025_
-
-**v0.59.6**
-
-We've added support for Google Cloud's Vertex AI platform. You can now use Gemini models and other Vertex AI partner models in the playground, configure them in the Model Hub, and access them through the Gateway using InVoke endpoints.
-
-Check out the documentation for [configuring Vertex AI models](/prompt-engineering/playground/custom-providers#configuring-vertex-ai).
-
----
-
-### [Filtering Traces by Annotation](/changelog/filtering-traces-by-annotation)
-
-_14 October 2025_
-
-**v0.58.0**
-<Image img={require('/static/images/changelog/changelog-annotation-filter.png')} alt="Annotation filtering interface" style={{display: 'block', margin: '20px auto', textAlign: 'center'}} />
-
-
-You can now filter and search traces based on their annotations. This helps you find traces with low scores or bad feedback quickly.
-
-We rebuilt the filtering system in observability with a simpler dropdown and more options. You can now filter by span status, input keys, app or environment references, and any key within your span.
-
-The new annotation filtering lets you find:
-- Spans evaluated by a specific evaluator
-- Spans with user feedback like `success=True`
-
-
-This enables powerful workflows: [capture user feedback](/tutorials/cookbooks/capture-user-feedback) from your app, filter to find traces with bad feedback, add them to test sets, and improve your prompts based on real user data.
-
----
-
-### [New Evaluation Results Dashboard](/changelog/new-evaluation-results-dashboard)
-
-_26 September 2025_
-
-**v0.54.0**
-
-We've completely redesigned the evaluation results dashboard. You can analyse your evaluation results more easily and understand performance across different metrics.
-
-Here's what's new:
-
-- **Metrics plots**: We've added plots for all the evaluator metrics. You can not see the distribution of the results and easily spot outliers.
-- **Side-by-side comparison**: You can now compare multiple evaluations simultaneously. You can compare the plots but also the single outputs.
-- **Improved test cases view**: The results are now displayed in a tabular format works both for small and large datasets.
-- **Focused detail view**: A new focused drawer lets you examine individual data points in more details. It's very helpful if your data is large.
-- **Configuration view**: See exactly which configurations were used in each evaluation
-- **Evaluation Run naming and descriptions**: Add names and descriptions to your evaluation runs to organize things better.
-
-<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
-  <iframe
-    width="100%"
-    height="500"
-    src="https://www.youtube.com/embed/HxY6lZ9HIyw"
-    title="New Evaluation Results Dashboard - Demonstration"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  ></iframe>
-</div>
-
----
-
-### [Deep URL Support for Sharable Links](/changelog/deep-url-support-for-sharable-links)
-
-_24 September 2025_
-
-**v0.53.0**
-
-URLs across Agenta now include workspace context, making them fully shareable between team members. Previously, URLs would always point to the default workspace, causing issues when refreshing pages or sharing links.
-
-Now you can deep link to almost anything in the platform - prompts, evaluations, and more - in any workspace. Share links directly with team members and they'll see exactly what you intended, regardless of their default workspace settings.
-
----
-
-### [Major Speed Improvements and Bug Fixes](/changelog/speed-improvements-in-the-playground)
-
-_19 September 2025_
-
-**v0.52.5**
-
-We rewrote most of Agenta's frontend. You'll see much faster speeds when you create prompts or use the playground.
-
-We also made many improvements and fixed bugs:
-
-**Improvements:**
-
-- [LLM-as-a-judge](/evaluation/configure-evaluators/llm-as-a-judge) now uses double curly braces `{{}}` instead of single curly braces `{` and `}`. This matches how normal prompts work. Old LLM-as-a-judge prompts with single curly braces still work. We updated the LLM-as-a-judge playground to make editing prompts easier.
-
-**Self-hosting:**
-
-- You can now use [an external Redis instance](/self-host/configuration#redis-caching) for caching by setting it as an environment variable
-
-**Bug fixes:**
-
-- Fixed the [custom workflow quick start tutorial](/custom-workflows/quick-start) and examples
-- Fixed SDK compatibility issues with Python 3.9
-- Fixed default filtering in observability dashboard
-- Fixed error handling in the evaluator playground
-- Fixed the Tracing SDK to allow instrumenting streaming responses and overriding OTEL environment variables
----
-
-### [Multiple Metrics in Human Evaluation](/changelog/multiple-metrics-in-human-evaluation)
-
-_9 September 2025_
-
-**v0.51.0**
-
-We rebuilt the human evaluation workflow from scratch. Now you can set multiple evaluators and metrics and use them to score the outputs. 
-
-This lets you evaluate the same output on different metrics like **relevance** or **completeness**. You can also create binary, numerical scores, or even use strings for **comments** or **expected answer**. 
-
-Watch the video below and read the [post](/changelog/multiple-metrics-in-human-evaluation) for more details. Or check out the [docs](/evaluation/human-evaluation/quick-start) to learn how to use the new human evaluation workflow.
-
-<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
-  <iframe
-    width="100%"
-    height="500"
-    src="https://www.youtube.com/embed/zpoAbQlsfcw"
-    title="Major Playground Improvements - Demonstration"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  ></iframe>
-</div>
-
----
-
-### [DSPy Integration](/observability/integrations/dspy)
-
-_29 August 2025_
-
-We've added DSPy integration to Agenta. You can now trace and debug your DSPy applications with Agenta.
-
-<Image
-  style={{
-    display: "block",
-    textAlign: "center",
-  }}
-  img={require("/images/changelog/agenta_dspy.png")}
-  alt="DSPy integration with Agenta" 
-  loading="lazy"
-/>
-
-[**View the full DSPy integration →**](/observability/integrations/dspy)
-
----
-
-### [Open-sourcing our Product Roadmap](/roadmap)
-
-_12 August 2025_
-
-We've made our product roadmap completely transparent and community-driven.
-
-You can now see exactly what we're building, what's shipped, and what's coming next. Plus vote on features that matter most to you.
-
-**Why we're doing this:** We believe open-source startups succeed when they create the most value possible, and the best way to do that is by building with our community, not in isolation. Up until now, we've been secretive with our roadmap, but we're losing something important: your feedback and the ability to let you shape our direction. Today we're open-sourcing our roadmap because we want to build a community of owners, not just passive users.
-
-[**View the full roadmap →**](/roadmap)
-
----
-
-### [Major Playground Improvements and Enhancements](/changelog/major-playground-improvements-and-enhancements)
-_7 August 2025_
-**v0.50.5**
-
-We've made significant improvements to the playground. Key features include:
-- Improving the error handling in JSON editor for structured output
-- Preventing the JSON field order from being changed
-- Visual diff when committing changes
-- Markdown and text view toggle
-- Collapsible interface elements
-- Collapsible test cases for large sets
-
-<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
-  <iframe
-    width="100%"
-    height="500"
-    src="https://www.youtube.com/embed/zaiMuWLwC5s"
-    title="Major Playground Improvements - Demonstration"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  ></iframe>
-</div>
-
-
----
-
 ### [Support for Images in the Playground](/changelog/support-for-images-in-playground)
 _29 July 2025_
 **v0.50.0**
@@ -270,7 +61,7 @@ This is useful to:
 - Run custom evaluation workflows
 - Measure application performance in real-time
 
-Check out the how to [annotate traces from API](/observability/trace-with-python-sdk/annotate-traces) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
+Check out the how to [annotate traces from API](/evaluation/annotate-api) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
 
 <Image
   style={{
@@ -467,7 +258,7 @@ Agenta is now fully OpenTelemetry-compliant. This means you can seamlessly integ
 
 We've enhanced distributed tracing capabilities to better debug complex distributed agent systems. All HTTP interactions between agents—whether running within Agenta's SDK or externally—are automatically traced, making troubleshooting and monitoring easier.
 
-Detailed instructions and examples are available in our [distributed tracing documentation](/observability/trace-with-opentelemetry/distributed-tracing).
+Detailed instructions and examples are available in our [distributed tracing documentation](/observability/opentelemetry).
 
 **Improved Custom Workflows**:
 
@@ -600,6 +391,8 @@ We've redesigned our platform's onboarding to make getting started simpler and m
 - Enhanced frontend performance
 - Fixed scroll behavior in trace view
 
+You can check out the tutorial for the RAG demo project [here](/tutorials/cookbooks/RAG-QA-docs).
+
 ---
 
 ### [Add Spans to Test Sets](/changelog/add-spans-to-test-sets)
@@ -646,6 +439,7 @@ We’ve strengthened authentication for deployed applications. As you know, Agen
 We’ve added new cookbooks and updated existing documentation:
 
 - New [cookbook for observability with LangChain](/tutorials/cookbooks/observability_langchain)
+- New [cookbook for custom workflows](/tutorials/cookbooks/AI-powered-code-reviews) where we build an AI powered code reviewer
 - Updated the [custom workflows documentation](/custom-workflows/overview) and added [reference](/reference/sdk/custom-workflow)
 - Updated the [reference for the observability SDK](/reference/sdk/observability) and [for the prompt management SDK](/reference/sdk/configuration-management)
 
@@ -691,11 +485,11 @@ We’ll publish a full blog post soon, but here’s a quick look at what the new
 
 **Next: Prompt Management**
 
-We’ve completely rewritten the [prompt management SDK](/prompt-engineering/managing-prompts-programatically/setup), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
+We’ve completely rewritten the [prompt management SDK](/prompt-engineering/overview), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
 
 **And finally: LLM-as-a-Judge Overhaul**
 
-We've made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/configure-evaluators/llm-as-a-judge). It now supports prompts with multiple messages and has access to all variables in a test case. You can also switch models (currently supporting OpenAI and Anthropic). These changes make the evaluator much more flexible, and we're seeing better results with it.
+We’ve made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/evaluators/llm-as-a-judge). It now supports prompts with multiple messages and has access to all variables in a test case. You can also switch models (currently supporting OpenAI and Anthropic). These changes make the evaluator much more flexible, and we’re seeing better results with it.
 
 <Image
   style={{
@@ -837,7 +631,7 @@ We're excited to announce two major features this week:
 
 1. We've integrated [RAGAS evaluators](https://docs.ragas.io/) into agenta. Two new evaluators have been added: **RAG Faithfulness** (measuring how consistent the LLM output is with the context) and **Context Relevancy** (assessing how relevant the retrieved context is to the question). Both evaluators use intermediate outputs within the trace to calculate the final score.
 
-   [Check out the tutorial](/evaluation/configure-evaluators/rag-evaluators) to learn how to use RAG evaluators.
+   [Check out the tutorial](/evaluation/evaluators/rag-evaluators) to learn how to use RAG evaluators.
 
 {" "}
 
@@ -913,6 +707,8 @@ We have worked extensively on improving the **reliability of evaluations**. Spec
 - We fixed issues in the calculation of scores in human evaluations.
 - We fixed small UI issues with large output in human evaluations.
 - We have added a new export button in the evaluation view to export the results as a CSV file.
+
+Additionally, we have added a new [Cookbook for run evaluation using the SDK](/tutorials/sdk/evaluate-with-SDK).
 
 In **observability**:
 
@@ -1012,7 +808,7 @@ config = agenta.get_config(base_id="xxxxx", environment="production", cache_time
 
 ```
 
-You can find additional documentation [here](/prompt-engineering/integrating-prompts/integrating-with-agenta).
+You can find additional documentation [here](/prompt-engineering/prompt-management/how-to-integrate-with-agenta).
 
 **Improvements**
 

@@ -14,6 +14,4 @@ export interface LanguageCodeBlockProps {
     selectedLang: string
     fetchConfigCodeSnippet: Record<string, string>
     invokeLlmAppCodeSnippet: Record<string, string>
-    handleOpenSelectDeployVariantModal: () => void
-    invokeLlmUrl: string | undefined
 }

@@ -99,17 +99,13 @@ class AgentaApi:
         self._client_wrapper = SyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=(
-                httpx_client
-                if httpx_client is not None
-                else (
-                    httpx.Client(
-                        timeout=_defaulted_timeout, follow_redirects=follow_redirects
-                    )
-                    if follow_redirects is not None
-                    else httpx.Client(timeout=_defaulted_timeout)
-                )
-            ),
+            httpx_client=httpx_client
+            if httpx_client is not None
+            else httpx.Client(
+                timeout=_defaulted_timeout, follow_redirects=follow_redirects
+            )
+            if follow_redirects is not None
+            else httpx.Client(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
         )
         self.admin = AdminClient(client_wrapper=self._client_wrapper)
@@ -546,10 +542,7 @@ class AgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     def fetch_organization_details(
-        self,
-        organization_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, org_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> typing.Optional[typing.Any]:
         """
         Get an organization's details.
@@ -563,7 +556,7 @@ class AgentaApi:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -582,11 +575,11 @@ class AgentaApi:
             base_url="https://yourhost.com/path/to/api",
         )
         client.fetch_organization_details(
-            organization_id="organization_id",
+            org_id="org_id",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}",
+            f"organizations/{jsonable_encoder(org_id)}",
             method="GET",
             request_options=request_options,
         )
@@ -616,7 +609,7 @@ class AgentaApi:
 
     def update_organization(
         self,
-        organization_id: str,
+        org_id: str,
         *,
         name: typing.Optional[str] = OMIT,
         description: typing.Optional[str] = OMIT,
@@ -626,7 +619,7 @@ class AgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         name : typing.Optional[str]
 
@@ -651,11 +644,11 @@ class AgentaApi:
             base_url="https://yourhost.com/path/to/api",
         )
         client.update_organization(
-            organization_id="organization_id",
+            org_id="org_id",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}",
+            f"organizations/{jsonable_encoder(org_id)}",
             method="PUT",
             json={
                 "name": name,
@@ -694,7 +687,7 @@ class AgentaApi:
 
     def invite_user_to_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         request: typing.Sequence[InviteRequest],
@@ -703,7 +696,7 @@ class AgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -726,7 +719,7 @@ class AgentaApi:
             base_url="https://yourhost.com/path/to/api",
         )
         client.invite_user_to_workspace(
-            organization_id="organization_id",
+            org_id="org_id",
             workspace_id="workspace_id",
             request=[
                 InviteRequest(
@@ -737,7 +730,7 @@ class AgentaApi:
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
             method="POST",
             json=convert_and_respect_annotation_metadata(
                 object_=request,
@@ -773,7 +766,7 @@ class AgentaApi:
 
     def resend_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         email: str,
@@ -792,7 +785,7 @@ class AgentaApi:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -815,13 +808,13 @@ class AgentaApi:
             base_url="https://yourhost.com/path/to/api",
         )
         client.resend_invitation(
-            organization_id="organization_id",
+            org_id="org_id",
             workspace_id="workspace_id",
             email="email",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/resend",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/resend",
             method="POST",
             json={
                 "email": email,
@@ -858,7 +851,7 @@ class AgentaApi:
 
     def accept_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         project_id: str,
@@ -878,7 +871,7 @@ class AgentaApi:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -903,14 +896,14 @@ class AgentaApi:
             base_url="https://yourhost.com/path/to/api",
         )
         client.accept_invitation(
-            organization_id="organization_id",
+            org_id="org_id",
             workspace_id="workspace_id",
             project_id="project_id",
             token="token",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
             method="POST",
             params={
                 "project_id": project_id,
@@ -950,7 +943,7 @@ class AgentaApi:
 
     def create_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         *,
         name: str,
         description: typing.Optional[str] = OMIT,
@@ -960,7 +953,7 @@ class AgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         name : str
 
@@ -985,12 +978,12 @@ class AgentaApi:
             base_url="https://yourhost.com/path/to/api",
         )
         client.create_workspace(
-            organization_id="organization_id",
+            org_id="org_id",
             name="name",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces",
             method="POST",
             json={
                 "name": name,
@@ -1029,7 +1022,7 @@ class AgentaApi:
 
     def update_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         name: typing.Optional[str] = OMIT,
@@ -1040,7 +1033,7 @@ class AgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -1067,12 +1060,12 @@ class AgentaApi:
             base_url="https://yourhost.com/path/to/api",
         )
         client.update_workspace(
-            organization_id="organization_id",
+            org_id="org_id",
             workspace_id="workspace_id",
         )
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}",
             method="PUT",
             json={
                 "name": name,
@@ -1314,7 +1307,7 @@ class AgentaApi:
         workspace_id: str,
         *,
         email: str,
-        organization_id: str,
+        org_id: str,
         role: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
@@ -1324,7 +1317,7 @@ class AgentaApi:
         Args:
             workspace_id (str): The ID of the workspace.
             email (str): The email of the user to remove the role from.
-            organization_id (str): The ID of the organization.
+            org_id (str): The ID of the organization.
             role (str): The role to remove from the user.
             request (Request): The FastAPI request object.
 
@@ -1341,7 +1334,7 @@ class AgentaApi:
 
         email : str
 
-        organization_id : str
+        org_id : str
 
         role : str
 
@@ -1364,7 +1357,7 @@ class AgentaApi:
         client.unassign_role_from_user(
             workspace_id="workspace_id",
             email="email",
-            organization_id="organization_id",
+            org_id="org_id",
             role="role",
         )
         """
@@ -1373,7 +1366,7 @@ class AgentaApi:
             method="DELETE",
             params={
                 "email": email,
-                "organization_id": organization_id,
+                "org_id": org_id,
                 "role": role,
             },
             request_options=request_options,
@@ -1406,7 +1399,7 @@ class AgentaApi:
         self,
         workspace_id: str,
         *,
-        organization_id: str,
+        org_id: str,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkspaceResponse:
@@ -1429,7 +1422,7 @@ class AgentaApi:
         ----------
         workspace_id : str
 
-        organization_id : str
+        org_id : str
 
         email : str
 
@@ -1451,7 +1444,7 @@ class AgentaApi:
         )
         client.remove_user_from_workspace(
             workspace_id="workspace_id",
-            organization_id="organization_id",
+            org_id="org_id",
             email="email",
         )
         """
@@ -1459,7 +1452,7 @@ class AgentaApi:
             f"workspaces/{jsonable_encoder(workspace_id)}/users",
             method="DELETE",
             params={
-                "organization_id": organization_id,
+                "org_id": org_id,
                 "email": email,
             },
             request_options=request_options,
@@ -1637,17 +1630,13 @@ class AsyncAgentaApi:
         self._client_wrapper = AsyncClientWrapper(
             base_url=base_url,
             api_key=api_key,
-            httpx_client=(
-                httpx_client
-                if httpx_client is not None
-                else (
-                    httpx.AsyncClient(
-                        timeout=_defaulted_timeout, follow_redirects=follow_redirects
-                    )
-                    if follow_redirects is not None
-                    else httpx.AsyncClient(timeout=_defaulted_timeout)
-                )
-            ),
+            httpx_client=httpx_client
+            if httpx_client is not None
+            else httpx.AsyncClient(
+                timeout=_defaulted_timeout, follow_redirects=follow_redirects
+            )
+            if follow_redirects is not None
+            else httpx.AsyncClient(timeout=_defaulted_timeout),
             timeout=_defaulted_timeout,
         )
         self.admin = AsyncAdminClient(client_wrapper=self._client_wrapper)
@@ -2144,10 +2133,7 @@ class AsyncAgentaApi:
         raise ApiError(status_code=_response.status_code, body=_response_json)
 
     async def fetch_organization_details(
-        self,
-        organization_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, org_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> typing.Optional[typing.Any]:
         """
         Get an organization's details.
@@ -2161,7 +2147,7 @@ class AsyncAgentaApi:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -2185,14 +2171,14 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.fetch_organization_details(
-                organization_id="organization_id",
+                org_id="org_id",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}",
+            f"organizations/{jsonable_encoder(org_id)}",
             method="GET",
             request_options=request_options,
         )
@@ -2222,7 +2208,7 @@ class AsyncAgentaApi:
 
     async def update_organization(
         self,
-        organization_id: str,
+        org_id: str,
         *,
         name: typing.Optional[str] = OMIT,
         description: typing.Optional[str] = OMIT,
@@ -2232,7 +2218,7 @@ class AsyncAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         name : typing.Optional[str]
 
@@ -2262,14 +2248,14 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.update_organization(
-                organization_id="organization_id",
+                org_id="org_id",
             )
 
 
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}",
+            f"organizations/{jsonable_encoder(org_id)}",
             method="PUT",
             json={
                 "name": name,
@@ -2308,7 +2294,7 @@ class AsyncAgentaApi:
 
     async def invite_user_to_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         request: typing.Sequence[InviteRequest],
@@ -2317,7 +2303,7 @@ class AsyncAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -2345,7 +2331,7 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.invite_user_to_workspace(
-                organization_id="organization_id",
+                org_id="org_id",
                 workspace_id="workspace_id",
                 request=[
                     InviteRequest(
@@ -2359,7 +2345,7 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
             method="POST",
             json=convert_and_respect_annotation_metadata(
                 object_=request,
@@ -2395,7 +2381,7 @@ class AsyncAgentaApi:
 
     async def resend_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         email: str,
@@ -2414,7 +2400,7 @@ class AsyncAgentaApi:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -2442,7 +2428,7 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.resend_invitation(
-                organization_id="organization_id",
+                org_id="org_id",
                 workspace_id="workspace_id",
                 email="email",
             )
@@ -2451,7 +2437,7 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/resend",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/resend",
             method="POST",
             json={
                 "email": email,
@@ -2488,7 +2474,7 @@ class AsyncAgentaApi:
 
     async def accept_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         project_id: str,
@@ -2508,7 +2494,7 @@ class AsyncAgentaApi:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -2538,7 +2524,7 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.accept_invitation(
-                organization_id="organization_id",
+                org_id="org_id",
                 workspace_id="workspace_id",
                 project_id="project_id",
                 token="token",
@@ -2548,7 +2534,7 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
             method="POST",
             params={
                 "project_id": project_id,
@@ -2588,7 +2574,7 @@ class AsyncAgentaApi:
 
     async def create_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         *,
         name: str,
         description: typing.Optional[str] = OMIT,
@@ -2598,7 +2584,7 @@ class AsyncAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         name : str
 
@@ -2628,7 +2614,7 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.create_workspace(
-                organization_id="organization_id",
+                org_id="org_id",
                 name="name",
             )
 
@@ -2636,7 +2622,7 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces",
             method="POST",
             json={
                 "name": name,
@@ -2675,7 +2661,7 @@ class AsyncAgentaApi:
 
     async def update_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         name: typing.Optional[str] = OMIT,
@@ -2686,7 +2672,7 @@ class AsyncAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -2718,7 +2704,7 @@ class AsyncAgentaApi:
 
         async def main() -> None:
             await client.update_workspace(
-                organization_id="organization_id",
+                org_id="org_id",
                 workspace_id="workspace_id",
             )
 
@@ -2726,7 +2712,7 @@ class AsyncAgentaApi:
         asyncio.run(main())
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}",
             method="PUT",
             json={
                 "name": name,
@@ -2992,7 +2978,7 @@ class AsyncAgentaApi:
         workspace_id: str,
         *,
         email: str,
-        organization_id: str,
+        org_id: str,
         role: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> typing.Optional[typing.Any]:
@@ -3002,7 +2988,7 @@ class AsyncAgentaApi:
         Args:
             workspace_id (str): The ID of the workspace.
             email (str): The email of the user to remove the role from.
-            organization_id (str): The ID of the organization.
+            org_id (str): The ID of the organization.
             role (str): The role to remove from the user.
             request (Request): The FastAPI request object.
 
@@ -3019,7 +3005,7 @@ class AsyncAgentaApi:
 
         email : str
 
-        organization_id : str
+        org_id : str
 
         role : str
 
@@ -3047,7 +3033,7 @@ class AsyncAgentaApi:
             await client.unassign_role_from_user(
                 workspace_id="workspace_id",
                 email="email",
-                organization_id="organization_id",
+                org_id="org_id",
                 role="role",
             )
 
@@ -3059,7 +3045,7 @@ class AsyncAgentaApi:
             method="DELETE",
             params={
                 "email": email,
-                "organization_id": organization_id,
+                "org_id": org_id,
                 "role": role,
             },
             request_options=request_options,
@@ -3092,7 +3078,7 @@ class AsyncAgentaApi:
         self,
         workspace_id: str,
         *,
-        organization_id: str,
+        org_id: str,
         email: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> WorkspaceResponse:
@@ -3115,7 +3101,7 @@ class AsyncAgentaApi:
         ----------
         workspace_id : str
 
-        organization_id : str
+        org_id : str
 
         email : str
 
@@ -3142,7 +3128,7 @@ class AsyncAgentaApi:
         async def main() -> None:
             await client.remove_user_from_workspace(
                 workspace_id="workspace_id",
-                organization_id="organization_id",
+                org_id="org_id",
                 email="email",
             )
 
@@ -3153,7 +3139,7 @@ class AsyncAgentaApi:
             f"workspaces/{jsonable_encoder(workspace_id)}/users",
             method="DELETE",
             params={
-                "organization_id": organization_id,
+                "org_id": org_id,
                 "email": email,
             },
             request_options=request_options,

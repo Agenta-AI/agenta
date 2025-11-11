@@ -1,13 +1,7 @@
-import {createRequire} from "module"
 import path from "path"
 
 import type {NextConfig} from "next"
 
-const require = createRequire(import.meta.url)
-const reduxToolkitCjsEntry = path.join(
-    path.dirname(require.resolve("@reduxjs/toolkit/package.json")),
-    "dist/cjs/index.js",
-)
 const isDevelopment = process.env.NODE_ENV === "development"
 
 const COMMON_CONFIG: NextConfig = {
@@ -15,7 +9,6 @@ const COMMON_CONFIG: NextConfig = {
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx", "js", "jsx"],
     productionBrowserSourceMaps: true,
-    outputFileTracingRoot: path.resolve(__dirname, ".."),
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
     },
@@ -28,28 +21,13 @@ const COMMON_CONFIG: NextConfig = {
     async redirects() {
         return [
             {
-                source: "/apps",
-                destination: "/w",
+                source: "/",
+                destination: "/apps",
                 permanent: true,
             },
             {
                 source: "/apps/:app_id",
-                destination: "/w",
-                permanent: true,
-            },
-            {
-                source: "/apps/:app_id/:path*",
-                destination: "/w",
-                permanent: true,
-            },
-            {
-                source: "/",
-                destination: "/w",
-                permanent: true,
-            },
-            {
-                source: "/:workspace_id/apps/:app_id",
-                destination: "/:workspace_id/apps/:app_id/overview/",
+                destination: "/apps/:app_id/overview/",
                 permanent: true,
             },
         ]
@@ -68,12 +46,6 @@ const COMMON_CONFIG: NextConfig = {
                   "@ant-design/icons-svg",
               ],
               webpack: (config, {webpack, isServer}) => {
-                  config.resolve ??= {}
-                  config.resolve.alias = {
-                      ...(config.resolve.alias ?? {}),
-                      "@reduxjs/toolkit": reduxToolkitCjsEntry,
-                  }
-
                   const envs: Record<string, string | undefined> = {}
                   config.cache = false
 

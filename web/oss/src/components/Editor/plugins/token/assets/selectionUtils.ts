@@ -1,6 +1,6 @@
 import {$createRangeSelection, $setSelection, NodeKey} from "lexical"
 
-export const $navigateCursor = ({
+export const navigateCursor = ({
     nodeKey,
     offset,
     type,
@@ -14,5 +14,3 @@ export const $navigateCursor = ({
     newSelection.focus.set(nodeKey, offset, type ?? "text")
     $setSelection(newSelection)
 }
-/** @deprecated renamed to {@link $navigateCursor} by @lexical/eslint-plugin rules-of-lexical */
-export const navigateCursor = $navigateCursor

@@ -1,0 +1,15 @@
+export const STATUS_COLOR: Record<string, string> = {
+    success: "text-green-600",
+    done: "text-green-600",
+    failure: "text-red-500",
+    failed: "text-red-500",
+    EVALUATION_FAILED: "text-red-500",
+    EVALUATION_FINISHED_WITH_ERRORS: "text-orange-500",
+    cancelled: "text-yellow-500",
+    EVALUATION_AGGREGATION_FAILED: "text-orange-500",
+    pending: "text-gray-400",
+    EVALUATION_INITIALIZED: "text-gray-400",
+    running: "text-blue-500",
+    EVALUATION_STARTED: "text-blue-500",
+    revalidating: "text-purple-500",
+}

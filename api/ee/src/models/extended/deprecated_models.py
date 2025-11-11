@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 import uuid_utils.compat as uuid
+from sqlalchemy_json import mutable_json_type
 
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base

@@ -1,6 +1,5 @@
 import {forwardRef, useCallback, useEffect, useRef, ReactNode, memo, useState} from "react"
 
-import {$isCodeNode} from "@lexical/code"
 import {$convertFromMarkdownString, TRANSFORMERS} from "@lexical/markdown"
 import {LexicalComposer} from "@lexical/react/LexicalComposer"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
@@ -25,9 +24,10 @@ import EditorPlugins from "./plugins"
 import {createHighlightedNodes, TOGGLE_FORM_VIEW} from "./plugins/code"
 import {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
 import {$getEditorCodeAsString} from "./plugins/code/plugins/RealTimeValidationPlugin"
-import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
-import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
 import type {EditorProps} from "./types"
+import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
+import {$isCodeNode} from "@lexical/code"
+import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
 
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
     hydrateWithRemoteContent: string
@@ -67,7 +67,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             singleLine = false,
             codeOnly = false,
             language,
-            templateFormat,
             customRender,
             showToolbar = true,
             enableTokens = false,
@@ -291,15 +290,10 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             )
         }, [editor])
 
-        const lastHydratedRef = useRef<string>("")
-
         useEffect(() => {
             if (codeOnly) return
-            const next = initialValue || ""
-            if (lastHydratedRef.current === next) return
-            lastHydratedRef.current = next
             editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
-                hydrateWithRemoteContent: next,
+                hydrateWithRemoteContent: initialValue || "",
                 parentId: "",
             })
         }, [initialValue])
@@ -323,7 +317,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 >
                     {view === "code" ? (
                         <EditorPlugins
-                            id={id}
                             autoFocus={autoFocus}
                             showToolbar={showToolbar}
                             singleLine={singleLine}
@@ -331,7 +324,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             enableTokens={enableTokens}
                             debug={debug}
                             language={language}
-                            templateFormat={templateFormat}
                             placeholder={placeholder}
                             handleUpdate={handleUpdate}
                             initialValue={initialValue}
@@ -448,7 +440,6 @@ const Editor = ({
     singleLine = false,
     codeOnly = false,
     language,
-    templateFormat,
     customRender,
     showToolbar = true,
     enableTokens = false,
@@ -473,7 +464,12 @@ const Editor = ({
     })
 
     return (
-        <div className="agenta-editor-wrapper w-full relative" ref={setContainerElm}>
+        <div
+            className="agenta-editor-wrapper w-full relative"
+            ref={(el) => {
+                setContainerElm(el)
+            }}
+        >
             {noProvider ? (
                 <EditorInner
                     dimensions={dimension}
@@ -485,7 +481,6 @@ const Editor = ({
                     singleLine={singleLine}
                     codeOnly={codeOnly}
                     language={language}
-                    templateFormat={templateFormat}
                     showToolbar={showToolbar}
                     enableTokens={enableTokens}
                     debug={debug}
@@ -543,7 +538,6 @@ const Editor = ({
                         singleLine={singleLine}
                         codeOnly={codeOnly}
                         language={language}
-                        templateFormat={templateFormat}
                         showToolbar={showToolbar}
                         enableTokens={enableTokens}
                         debug={debug}

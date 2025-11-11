@@ -10,7 +10,7 @@ from sqlalchemy.future import select
 from sqlalchemy import func, or_, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 from supertokens_python.types import AccountInfo
-from sqlalchemy.orm import joinedload, load_only, aliased
+from sqlalchemy.orm import joinedload, load_only, selectinload
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound, SQLAlchemyError
 from supertokens_python.asyncio import list_users_by_account_info
 from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
@@ -22,6 +22,7 @@ from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.services.json_importer_helper import get_json
 
+
 if is_ee():
     from ee.src.models.db_models import ProjectDB, WorkspaceDB
 else:
@@ -31,7 +32,7 @@ from oss.src.models.db_models import (
     AppDB,
     UserDB,
     APIKeyDB,
-    TestsetDB,
+    TestSetDB,
     IDsMappingDB,
     DeploymentDB,
     InvitationDB,
@@ -47,25 +48,6 @@ from oss.src.models.shared_models import (
     AppType,
     ConfigDB,
 )
-from oss.src.models.shared_models import (
-    Result,
-    CorrectAnswer,
-    AggregatedResult,
-    EvaluationScenarioResult,
-    EvaluationScenarioInput,
-    EvaluationScenarioOutput,
-    HumanEvaluationScenarioInput,
-)
-from oss.src.models.db_models import (
-    EvaluationDB,
-    HumanEvaluationDB,
-    EvaluationScenarioDB,
-    HumanEvaluationScenarioDB,
-    HumanEvaluationVariantDB,
-    EvaluationScenarioResultDB,
-    EvaluationEvaluatorConfigDB,
-    EvaluationAggregatedResultDB,
-)
 
 
 log = get_module_logger(__name__)
@@ -76,7 +58,7 @@ PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 async def fetch_project_by_id(
     project_id: str,
-) -> Optional[ProjectDB]:
+) -> ProjectDB:
     async with engine.core_session() as session:
         project = (
             (
@@ -91,44 +73,6 @@ async def fetch_project_by_id(
         )
 
         return project
-
-
-async def fetch_workspace_by_id(
-    workspace_id: str,
-) -> Optional[WorkspaceDB]:
-    async with engine.core_session() as session:
-        workspace = (
-            (
-                await session.execute(
-                    select(WorkspaceDB).filter_by(
-                        id=uuid.UUID(workspace_id),
-                    )
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-        return workspace
-
-
-async def fetch_organization_by_id(
-    organization_id: str,
-) -> Optional[OrganizationDB]:
-    async with engine.core_session() as session:
-        organization = (
-            (
-                await session.execute(
-                    select(OrganizationDB).filter_by(
-                        id=uuid.UUID(organization_id),
-                    )
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-        return organization
 
 
 async def add_testset_to_app_variant(
@@ -157,7 +101,7 @@ async def add_testset_to_app_variant(
                     "name": f"{app_name}_testset",
                     "csvdata": csvdata,
                 }
-                testset_db = TestsetDB(
+                testset_db = TestSetDB(
                     **testset,
                     project_id=uuid.UUID(project_id),
                 )
@@ -186,27 +130,6 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
         if not app:
             raise NoResultFound(f"No application with ID '{app_uuid}' found")
         return app
-
-
-async def fetch_latest_app_variant(app_id: str) -> Optional[AppVariantDB]:
-    """Fetches the latest app variant for a given app ID.
-
-    Args:
-        app_id (str): The ID of the app to fetch the latest variant for.
-
-    Returns:
-        AppVariantDB: The latest app variant, or None if no app variant was found.
-    """
-
-    async with engine.core_session() as session:
-        base_query = (
-            select(AppVariantDB)
-            .filter_by(app_id=uuid.UUID(app_id))
-            .order_by(AppVariantDB.created_at.desc())
-        )
-        result = await session.execute(base_query)
-        app_variant = result.scalars().first()
-        return app_variant
 
 
 async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]:
@@ -658,7 +581,6 @@ async def get_app_type_from_template_key(template_key: Optional[str]) -> Optiona
         AppType.CHAT_SERVICE,
         AppType.COMPLETION_SERVICE,
         AppType.CUSTOM,
-        AppType.SDK_CUSTOM,
     ]:
         return template_key
 
@@ -678,7 +600,6 @@ async def create_app_and_envs(
     app_name: str,
     template_key: Optional[str] = None,
     project_id: Optional[str] = None,
-    user_id: Optional[str] = None,
 ) -> AppDB:
     """
     Create a new app with the given name and organization ID.
@@ -694,9 +615,8 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    app = await fetch_app_by_name(
-        app_name=app_name,
-        project_id=project_id,
+    app = await fetch_app_by_name_and_parameters(
+        app_name=app_name, project_id=project_id
     )
     if app is not None:
         raise ValueError("App with the same name already exists")
@@ -707,10 +627,7 @@ async def create_app_and_envs(
 
     async with engine.core_session() as session:
         app = AppDB(
-            project_id=uuid.UUID(project_id),
-            app_name=app_name,
-            app_type=app_type,
-            modified_by_id=uuid.UUID(user_id) if user_id else None,
+            app_name=app_name, project_id=uuid.UUID(project_id), app_type=app_type
         )
 
         session.add(app)
@@ -721,7 +638,7 @@ async def create_app_and_envs(
         return app
 
 
-async def update_app(app_id: str, values_to_update: dict):
+async def update_app(app_id: str, values_to_update: dict) -> None:
     """Update the app in the database.
 
     Arguments:
@@ -759,7 +676,6 @@ async def update_app(app_id: str, values_to_update: dict):
                 setattr(app, key, value)
 
         await session.commit()
-        return app
 
 
 async def get_deployment_by_id(deployment_id: str) -> DeploymentDB:
@@ -851,7 +767,9 @@ async def list_app_variants_by_app_slug(
     """
 
     assert app_slug is not None, "app_slug cannot be None"
-    app_db = await fetch_app_by_name(app_name=app_slug, project_id=project_id)
+    app_db = await fetch_app_by_name_and_parameters(
+        app_name=app_slug, project_id=project_id
+    )
     if app_db is None:
         raise NoResultFound(f"App with name {app_slug} not found.")
 
@@ -1231,7 +1149,7 @@ async def create_workspace(name: str, organization_id: str):
         workspace_db = WorkspaceDB(
             name=name,
             organization_id=uuid.UUID(organization_id),
-            description="Default Workspace",
+            description="My Default Workspace",
             type="default",
         )
 
@@ -1925,7 +1843,9 @@ async def list_apps(
     """
 
     if app_name is not None:
-        app_db = await fetch_app_by_name(app_name=app_name, project_id=project_id)
+        app_db = await fetch_app_by_name_and_parameters(
+            app_name=app_name, project_id=project_id
+        )
         return [converters.app_db_to_pydantic(app_db)]
 
     else:
@@ -2555,17 +2475,14 @@ async def list_app_variant_revisions_by_variant(
         return app_variant_revisions
 
 
-async def fetch_app_variant_revision(
-    app_variant: str, revision_number: int
-) -> Optional[AppVariantRevisionsDB]:
-    """Returns a specific app variant revision for the given app variant and revision number.
+async def fetch_app_variant_revision(app_variant: str, revision_number: int):
+    """Returns list of app variant revision for the given app variant
 
     Args:
-        app_variant (str): The ID of the app variant to retrieve the revision for.
-        revision_number (int): The revision number to retrieve.
+        app_variant (AppVariantDB): The app variant to retrieve environments for.
 
     Returns:
-        AppVariantRevisionsDB: The app variant revision object, or None if not found.
+        List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
 
     async with engine.core_session() as session:
@@ -2587,8 +2504,8 @@ async def fetch_app_variant_revision(
                 )  # type: ignore
             )
         result = await session.execute(query)
-        app_variant_revision = result.scalars().first()
-        return app_variant_revision
+        app_variant_revisions = result.scalars().first()
+        return app_variant_revisions
 
 
 async def remove_environment(environment_db: AppEnvironmentDB):
@@ -2611,38 +2528,20 @@ async def remove_environment(environment_db: AppEnvironmentDB):
         await session.commit()
 
 
-async def remove_testsets(
-    project_id: str,
-    #
-    testset_ids: List[str],
-):
+async def remove_testsets(testset_ids: List[str]):
     """
     Removes testsets.
 
     Args:
-        project_id (str): The ID of the project.
         testset_ids (List[str]):  The testset identifiers
     """
 
     async with engine.core_session() as session:
-        query = select(TestsetDB).where(
-            TestsetDB.project_id == uuid.UUID(project_id),
-            TestsetDB.id.in_(testset_ids),
-        )
+        query = select(TestSetDB).where(TestSetDB.id.in_(testset_ids))
         result = await session.execute(query)
         testsets = result.scalars().all()
-
-        for i, testset in enumerate(testsets):
-            log.info(
-                f"[TESTSET] DELETE ({i}):",
-                project_id=testset.project_id,
-                testset_id=testset.id,
-                count=len(testset.csvdata),
-                size=len(dumps(testset.csvdata).encode("utf-8")),
-            )
-
+        for testset in testsets:
             await session.delete(testset)
-
         await session.commit()
 
 
@@ -2786,116 +2685,82 @@ async def get_app_variant_instance_by_id(
         return app_variant_db
 
 
-async def fetch_testset_by_id(
-    project_id: str,
-    #
-    testset_id: str,
-) -> Optional[TestsetDB]:
+async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
     """Fetches a testset by its ID.
     Args:
-        project_id (str): The ID of the project.
         testset_id (str): The ID of the testset to fetch.
     Returns:
-        TestsetDB: The fetched testset, or None if no testset was found.
+        TestSetDB: The fetched testset, or None if no testset was found.
     """
 
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(TestsetDB).filter_by(
-                project_id=uuid.UUID(project_id),
-                id=uuid.UUID(testset_id),
-            )
-        )
-        testset = result.scalars().first()
+    if not isinstance(testset_id, str) or not testset_id:
+        raise ValueError(f"testset_id {testset_id} must be a non-empty string")
 
+    try:
+        testset_uuid = uuid.UUID(testset_id)
+    except ValueError as e:
+        raise ValueError(f"testset_id {testset_id} is not a valid UUID") from e
+
+    async with engine.core_session() as session:
+        result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
+        testset = result.scalars().first()
         if not testset:
             raise NoResultFound(f"Testset with id {testset_id} not found")
-
-        log.info(
-            "[TESTSET] READ:",
-            project_id=testset.project_id,
-            testset_id=testset.id,
-            count=len(testset.csvdata),
-            size=len(dumps(testset.csvdata).encode("utf-8")),
-        )
-
         return testset
 
 
-async def create_testset(
-    project_id: str,
-    #
-    testset_data: Dict[str, Any],
-    #
-    testset_id: Optional[str] = None,
-) -> TestsetDB:
+async def create_testset(project_id: str, testset_data: Dict[str, Any]):
     """
     Creates a testset.
 
     Args:
+        app (AppDB): The app object
         project_id (str): The ID of the project
         testset_data (dict): The data of the testset to create with
-        testset_id (Optional[str]): The ID of the testset to create
 
     Returns:
         returns the newly created TestsetDB
     """
 
     async with engine.core_session() as session:
-        testset = TestsetDB(
-            **testset_data,
-            project_id=uuid.UUID(project_id),
-            id=uuid.UUID(testset_id) if testset_id else None,
-        )
+        testset_db = TestSetDB(**testset_data, project_id=uuid.UUID(project_id))
 
         log.info(
-            "[TESTSET] CREATE:",
-            project_id=testset.project_id,
-            testset_id=testset.id,
-            count=len(testset.csvdata),
-            size=len(dumps(testset.csvdata).encode("utf-8")),
+            "Saving testset:",
+            project_id=testset_db.project_id,
+            testset_id=testset_db.id,
+            count=len(testset_db.csvdata),
+            size=len(dumps(testset_db.csvdata).encode("utf-8")),
         )
 
-        session.add(testset)
+        session.add(testset_db)
         await session.commit()
-        await session.refresh(testset)
+        await session.refresh(testset_db)
 
-        return testset
+        return testset_db
 
 
-async def update_testset(
-    project_id: str,
-    #
-    testset_id: str,
-    #
-    values_to_update: dict,
-) -> None:
+async def update_testset(testset_id: str, values_to_update: dict) -> None:
     """Update a testset.
 
     Args:
-        project_id (str): The ID of the project
-        testset_id (str): The ID of the testset to update
         testset (TestsetDB): the testset object to update
         values_to_update (dict):  The values to update
     """
 
     async with engine.core_session() as session:
         result = await session.execute(
-            select(TestsetDB).filter_by(
-                project_id=uuid.UUID(project_id),
-                id=uuid.UUID(testset_id),
-            )
+            select(TestSetDB).filter_by(id=uuid.UUID(testset_id))
         )
         testset = result.scalars().first()
 
         # Validate keys in values_to_update and update attributes
         valid_keys = [key for key in values_to_update.keys() if hasattr(testset, key)]
-
         for key in valid_keys:
             setattr(testset, key, values_to_update[key])
 
         log.info(
-            "[TESTSET] UPDATE:",
+            "Saving testset:",
             project_id=testset.project_id,
             testset_id=testset.id,
             count=len(testset.csvdata),
@@ -2906,44 +2771,21 @@ async def update_testset(
         await session.refresh(testset)
 
 
-async def fetch_testsets_by_project_id(
-    project_id: str,
-    name: Optional[str] = None,
-) -> List[TestsetDB]:
+async def fetch_testsets_by_project_id(project_id: str):
     """Fetches all testsets for a given project.
 
     Args:
         project_id (str): The ID of the project.
 
     Returns:
-        List[TestsetDB]: The fetched testsets.
+        List[TestSetDB]: The fetched testsets.
     """
 
     async with engine.core_session() as session:
-        if not name:
-            result = await session.execute(
-                select(TestsetDB).filter_by(
-                    project_id=uuid.UUID(project_id),
-                )
-            )
-        else:
-            result = await session.execute(
-                select(TestsetDB).filter_by(
-                    project_id=uuid.UUID(project_id),
-                    name=name if name else None,
-                )
-            )
+        result = await session.execute(
+            select(TestSetDB).filter_by(project_id=uuid.UUID(project_id))
+        )
         testsets = result.scalars().all()
-
-        for i, testset in enumerate(testsets):
-            log.info(
-                f"[TESTSET] READ ({i}):",
-                project_id=testset.project_id,
-                testset_id=testset.id,
-                count=len(testset.csvdata),
-                size=len(dumps(testset.csvdata).encode("utf-8")),
-            )
-
         return testsets
 
 
@@ -2976,7 +2818,7 @@ async def find_previous_variant_from_base_id(
 async def update_base(
     base_id: str,
     **kwargs: dict,
-) -> Optional[VariantBaseDB]:
+) -> VariantBaseDB:
     """Update the base object in the database with the provided id.
 
     Arguments:
@@ -3044,7 +2886,7 @@ async def update_app_variant(
         return app_variant
 
 
-async def fetch_app_by_name(
+async def fetch_app_by_name_and_parameters(
     app_name: str,
     project_id: Optional[str] = None,
 ):
@@ -3084,9 +2926,7 @@ async def fetch_evaluators_configs(project_id: str):
         return evaluators_configs
 
 
-async def fetch_evaluator_config(
-    evaluator_config_id: str,
-) -> Optional[EvaluatorConfigDB]:
+async def fetch_evaluator_config(evaluator_config_id: str):
     """Fetch evaluator configurations from the database.
 
     Args:
@@ -3139,7 +2979,7 @@ async def check_if_evaluators_exist_in_list_of_evaluators_configs(
 
 async def fetch_evaluator_config_by_appId(
     app_id: str, evaluator_name: str
-) -> Optional[EvaluatorConfigDB]:
+) -> EvaluatorConfigDB:
     """Fetch the evaluator config from the database using the app Id and evaluator name.
 
     Args:
@@ -3164,14 +3004,16 @@ async def create_evaluator_config(
     project_id: str,
     name: str,
     evaluator_key: str,
+    app_name: Optional[str] = None,
     settings_values: Optional[Dict[str, Any]] = None,
 ) -> EvaluatorConfigDB:
     """Create a new evaluator configuration in the database."""
 
     async with engine.core_session() as session:
+        name_suffix = f" ({app_name})" if app_name else ""
         new_evaluator_config = EvaluatorConfigDB(
             project_id=uuid.UUID(project_id),
-            name=name,
+            name=f"{name}{name_suffix}",
             evaluator_key=evaluator_key,
             settings_values=settings_values,
         )
@@ -3253,8 +3095,7 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
     """
 
     from bson import ObjectId
-
-    # from bson.errors import InvalidId
+    from bson.errors import InvalidId
 
     try:
         # Ensure the object_id is a valid MongoDB ObjectId
@@ -3262,7 +3103,7 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
             object_uuid_as_str = await fetch_corresponding_object_uuid(
                 table_name=table_name, object_id=object_id
             )
-    except:
+    except InvalidId:
         # Use the object_id directly if it is not a valid MongoDB ObjectId
         object_uuid_as_str = object_id
 
@@ -3290,7 +3131,7 @@ async def fetch_corresponding_object_uuid(table_name: str, object_id: str) -> st
         return str(object_mapping.uuid)
 
 
-async def fetch_default_project() -> Optional[ProjectDB]:
+async def fetch_default_project() -> ProjectDB:
     """
     Fetch the default project from the database.
     Returns:
@@ -3303,9 +3144,7 @@ async def fetch_default_project() -> Optional[ProjectDB]:
         return default_project
 
 
-async def get_user_api_key_by_prefix(
-    api_key_prefix: str, user_id: str
-) -> Optional[APIKeyDB]:
+async def get_user_api_key_by_prefix(api_key_prefix: str, user_id: str) -> APIKeyDB:
     """
     Gets the user api key by prefix.
 
@@ -3351,755 +3190,3 @@ async def update_api_key_timestamp(api_key_id: str) -> None:
 
         await session.commit()
         await session.refresh(api_key)
-
-
-async def fetch_evaluation_status_by_id(
-    project_id: str,
-    evaluation_id: str,
-) -> Optional[str]:
-    """Fetch only the status of an evaluation by its ID."""
-    assert evaluation_id is not None, "evaluation_id cannot be None"
-
-    async with engine.core_session() as session:
-        query = (
-            select(EvaluationDB)
-            .filter_by(project_id=project_id, id=uuid.UUID(evaluation_id))
-            .options(load_only(EvaluationDB.status))
-        )
-
-        result = await session.execute(query)
-        evaluation = result.scalars().first()
-        return evaluation.status if evaluation else None
-
-
-async def fetch_evaluation_by_id(
-    project_id: str,
-    evaluation_id: str,
-) -> Optional[EvaluationDB]:
-    """Fetches a evaluation by its ID.
-
-    Args:
-        evaluation_id (str): The ID of the evaluation to fetch.
-
-    Returns:
-        EvaluationDB: The fetched evaluation, or None if no evaluation was found.
-    """
-
-    assert evaluation_id is not None, "evaluation_id cannot be None"
-    async with engine.core_session() as session:
-        base_query = select(EvaluationDB).filter_by(
-            project_id=project_id,
-            id=uuid.UUID(evaluation_id),
-        )
-        query = base_query.options(
-            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
-        )
-
-        result = await session.execute(
-            query.options(
-                joinedload(EvaluationDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
-                joinedload(EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)).load_only(AppVariantRevisionsDB.revision),  # type: ignore
-                joinedload(
-                    EvaluationDB.aggregated_results.of_type(
-                        EvaluationAggregatedResultDB
-                    )
-                ).joinedload(EvaluationAggregatedResultDB.evaluator_config),
-            )
-        )
-        evaluation = result.unique().scalars().first()
-        return evaluation
-
-
-async def list_human_evaluations(app_id: str, project_id: str):
-    """
-    Fetches human evaluations belonging to an App.
-
-    Args:
-        app_id (str):  The application identifier
-    """
-
-    async with engine.core_session() as session:
-        base_query = (
-            select(HumanEvaluationDB)
-            .filter_by(app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id))
-            .filter(HumanEvaluationDB.testset_id.isnot(None))
-        )
-        query = base_query.options(
-            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
-        )
-
-        result = await session.execute(query)
-        human_evaluations = result.scalars().all()
-        return human_evaluations
-
-
-async def create_human_evaluation(
-    app: AppDB,
-    status: str,
-    evaluation_type: str,
-    testset_id: str,
-    variants_ids: List[str],
-):
-    """
-    Creates a human evaluation.
-
-    Args:
-        app (AppDB: The app object
-        status (str): The status of the evaluation
-        evaluation_type (str): The evaluation type
-        testset_id (str): The ID of the evaluation testset
-        variants_ids (List[str]): The IDs of the variants for the evaluation
-    """
-
-    async with engine.core_session() as session:
-        human_evaluation = HumanEvaluationDB(
-            app_id=app.id,
-            project_id=app.project_id,
-            status=status,
-            evaluation_type=evaluation_type,
-            testset_id=testset_id,
-        )
-
-        session.add(human_evaluation)
-        await session.commit()
-        await session.refresh(human_evaluation, attribute_names=["testset"])
-
-        # create variants for human evaluation
-        await create_human_evaluation_variants(
-            human_evaluation_id=str(human_evaluation.id),
-            variants_ids=variants_ids,
-        )
-        return human_evaluation
-
-
-async def fetch_human_evaluation_variants(human_evaluation_id: str):
-    """
-    Fetches human evaluation variants.
-
-    Args:
-        human_evaluation_id (str): The human evaluation ID
-
-    Returns:
-        The human evaluation variants.
-    """
-
-    async with engine.core_session() as session:
-        base_query = select(HumanEvaluationVariantDB).filter_by(
-            human_evaluation_id=uuid.UUID(human_evaluation_id)
-        )
-        query = base_query.options(
-            joinedload(HumanEvaluationVariantDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
-            joinedload(HumanEvaluationVariantDB.variant_revision.of_type(AppVariantRevisionsDB)).load_only(AppVariantRevisionsDB.id, AppVariantRevisionsDB.revision),  # type: ignore
-        )
-
-        result = await session.execute(query)
-        evaluation_variants = result.scalars().all()
-        return evaluation_variants
-
-
-async def create_human_evaluation_variants(
-    human_evaluation_id: str, variants_ids: List[str]
-):
-    """
-    Creates human evaluation variants.
-
-    Args:
-        human_evaluation_id (str):  The human evaluation identifier
-        variants_ids (List[str]):  The variants identifiers
-        project_id (str): The project ID
-    """
-
-    variants_dict = {}
-    for variant_id in variants_ids:
-        variant = await fetch_app_variant_by_id(app_variant_id=variant_id)
-        if variant:
-            variants_dict[variant_id] = variant
-
-    variants_revisions_dict = {}
-    for variant_id, variant in variants_dict.items():
-        variant_revision = await fetch_app_variant_revision_by_variant(
-            app_variant_id=str(variant.id), project_id=str(variant.project_id), revision=variant.revision  # type: ignore
-        )
-        if variant_revision:
-            variants_revisions_dict[variant_id] = variant_revision
-
-    if set(variants_dict.keys()) != set(variants_revisions_dict.keys()):
-        raise ValueError("Mismatch between variants and their revisions")
-
-    async with engine.core_session() as session:
-        for variant_id in variants_ids:
-            variant = variants_dict[variant_id]
-            variant_revision = variants_revisions_dict[variant_id]
-            human_evaluation_variant = HumanEvaluationVariantDB(
-                human_evaluation_id=uuid.UUID(human_evaluation_id),
-                variant_id=variant.id,  # type: ignore
-                variant_revision_id=variant_revision.id,  # type: ignore
-            )
-            session.add(human_evaluation_variant)
-
-        await session.commit()
-
-
-async def fetch_human_evaluation_by_id(
-    evaluation_id: str,
-) -> Optional[HumanEvaluationDB]:
-    """
-    Fetches a evaluation by its ID.
-
-    Args:
-        evaluation_id (str): The ID of the evaluation to fetch.
-
-    Returns:
-        EvaluationDB: The fetched evaluation, or None if no evaluation was found.
-    """
-
-    assert evaluation_id is not None, "evaluation_id cannot be None"
-    async with engine.core_session() as session:
-        base_query = select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
-        query = base_query.options(
-            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
-        )
-        result = await session.execute(query)
-        evaluation = result.scalars().first()
-        return evaluation
-
-
-async def update_human_evaluation(evaluation_id: str, values_to_update: dict):
-    """Updates human evaluation with the specified values.
-
-    Args:
-        evaluation_id (str): The evaluation ID
-        values_to_update (dict):  The values to update
-
-    Exceptions:
-        NoResultFound: if human evaluation is not found
-    """
-
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
-        )
-        human_evaluation = result.scalars().first()
-        if not human_evaluation:
-            raise NoResultFound(f"Human evaluation with id {evaluation_id} not found")
-
-        for key, value in values_to_update.items():
-            if hasattr(human_evaluation, key):
-                setattr(human_evaluation, key, value)
-
-        await session.commit()
-        await session.refresh(human_evaluation)
-
-
-async def delete_human_evaluation(evaluation_id: str):
-    """Delete the evaluation by its ID.
-
-    Args:
-        evaluation_id (str): The ID of the evaluation to delete.
-    """
-
-    assert evaluation_id is not None, "evaluation_id cannot be None"
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
-        )
-        evaluation = result.scalars().first()
-        if not evaluation:
-            raise NoResultFound(f"Human evaluation with id {evaluation_id} not found")
-
-        await session.delete(evaluation)
-        await session.commit()
-
-
-async def create_human_evaluation_scenario(
-    inputs: List[HumanEvaluationScenarioInput],
-    project_id: str,
-    evaluation_id: str,
-    evaluation_extend: Dict[str, Any],
-):
-    """
-    Creates a human evaluation scenario.
-
-    Args:
-        inputs (List[HumanEvaluationScenarioInput]): The inputs.
-        evaluation_id (str): The evaluation identifier.
-        evaluation_extend (Dict[str, any]): An extended required payload for the evaluation scenario. Contains score, vote, and correct_answer.
-    """
-
-    async with engine.core_session() as session:
-        evaluation_scenario = HumanEvaluationScenarioDB(
-            **evaluation_extend,
-            project_id=uuid.UUID(project_id),
-            evaluation_id=uuid.UUID(evaluation_id),
-            inputs=[input.model_dump() for input in inputs],
-            outputs=[],
-        )
-
-        session.add(evaluation_scenario)
-        await session.commit()
-
-
-async def update_human_evaluation_scenario(
-    evaluation_scenario_id: str, values_to_update: dict
-):
-    """Updates human evaluation scenario with the specified values.
-
-    Args:
-        evaluation_scenario_id (str): The evaluation scenario ID
-        values_to_update (dict):  The values to update
-
-    Exceptions:
-        NoResultFound: if human evaluation scenario is not found
-    """
-
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(HumanEvaluationScenarioDB).filter_by(
-                id=uuid.UUID(evaluation_scenario_id)
-            )
-        )
-        human_evaluation_scenario = result.scalars().first()
-        if not human_evaluation_scenario:
-            raise NoResultFound(
-                f"Human evaluation scenario with id {evaluation_scenario_id} not found"
-            )
-
-        for key, value in values_to_update.items():
-            if hasattr(human_evaluation_scenario, key):
-                setattr(human_evaluation_scenario, key, value)
-
-        await session.commit()
-        await session.refresh(human_evaluation_scenario)
-
-
-async def fetch_human_evaluation_scenarios(evaluation_id: str):
-    """
-    Fetches human evaluation scenarios.
-
-    Args:
-        evaluation_id (str):  The evaluation identifier
-
-    Returns:
-        The evaluation scenarios.
-    """
-
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(HumanEvaluationScenarioDB)
-            .filter_by(evaluation_id=uuid.UUID(evaluation_id))
-            .order_by(asc(HumanEvaluationScenarioDB.created_at))
-        )
-        evaluation_scenarios = result.scalars().all()
-        return evaluation_scenarios
-
-
-async def fetch_evaluation_scenarios(evaluation_id: str, project_id: str):
-    """
-    Fetches evaluation scenarios.
-
-    Args:
-        evaluation_id (str):  The evaluation identifier
-        project_id (str): The ID of the project
-
-    Returns:
-        The evaluation scenarios.
-    """
-
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(EvaluationScenarioDB)
-            .filter_by(
-                evaluation_id=uuid.UUID(evaluation_id), project_id=uuid.UUID(project_id)
-            )
-            .options(joinedload(EvaluationScenarioDB.results))
-        )
-        evaluation_scenarios = result.unique().scalars().all()
-        return evaluation_scenarios
-
-
-async def fetch_evaluation_scenario_by_id(
-    evaluation_scenario_id: str,
-) -> Optional[EvaluationScenarioDB]:
-    """Fetches and evaluation scenario by its ID.
-
-    Args:
-        evaluation_scenario_id (str): The ID of the evaluation scenario to fetch.
-
-    Returns:
-        EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
-    """
-
-    assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(EvaluationScenarioDB).filter_by(id=uuid.UUID(evaluation_scenario_id))
-        )
-        evaluation_scenario = result.scalars().first()
-        return evaluation_scenario
-
-
-async def fetch_human_evaluation_scenario_by_id(
-    evaluation_scenario_id: str,
-) -> Optional[HumanEvaluationScenarioDB]:
-    """Fetches and evaluation scenario by its ID.
-
-    Args:
-        evaluation_scenario_id (str): The ID of the evaluation scenario to fetch.
-
-    Returns:
-        EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
-    """
-
-    assert evaluation_scenario_id is not None, "evaluation_scenario_id cannot be None"
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(HumanEvaluationScenarioDB).filter_by(
-                id=uuid.UUID(evaluation_scenario_id)
-            )
-        )
-        evaluation_scenario = result.scalars().first()
-        return evaluation_scenario
-
-
-async def fetch_human_evaluation_scenario_by_evaluation_id(
-    evaluation_id: str,
-) -> Optional[HumanEvaluationScenarioDB]:
-    """Fetches and evaluation scenario by its ID.
-    Args:
-        evaluation_id (str): The ID of the evaluation object to use in fetching the human evaluation.
-    Returns:
-        EvaluationScenarioDB: The fetched evaluation scenario, or None if no evaluation scenario was found.
-    """
-
-    evaluation = await fetch_human_evaluation_by_id(evaluation_id)
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(HumanEvaluationScenarioDB).filter_by(
-                evaluation_id=evaluation.id  # type: ignore
-            )
-        )
-        human_eval_scenario = result.scalars().first()
-        return human_eval_scenario
-
-
-async def create_new_evaluation(
-    app: AppDB,
-    project_id: str,
-    testset: TestsetDB,
-    status: Result,
-    variant: str,
-    variant_revision: str,
-) -> EvaluationDB:
-    """Create a new evaluation scenario.
-    Returns:
-        EvaluationScenarioDB: The created evaluation scenario.
-    """
-
-    async with engine.core_session() as session:
-        evaluation = EvaluationDB(
-            app_id=app.id,
-            project_id=uuid.UUID(project_id),
-            testset_id=testset.id,
-            status=status.model_dump(),
-            variant_id=uuid.UUID(variant),
-            variant_revision_id=uuid.UUID(variant_revision),
-        )
-
-        session.add(evaluation)
-        await session.commit()
-        await session.refresh(
-            evaluation,
-            attribute_names=[
-                "testset",
-                "variant",
-                "variant_revision",
-                "aggregated_results",
-            ],
-        )
-
-        return evaluation
-
-
-async def list_evaluations(app_id: str, project_id: str):
-    """Retrieves evaluations of the specified app from the db.
-
-    Args:
-        app_id (str): The ID of the app
-        project_id (str): The ID of the project
-    """
-
-    async with engine.core_session() as session:
-        base_query = select(EvaluationDB).filter_by(
-            app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
-        )
-        query = base_query.options(
-            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
-        )
-
-        result = await session.execute(
-            query.options(
-                joinedload(EvaluationDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
-                joinedload(EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)).load_only(AppVariantRevisionsDB.revision),  # type: ignore
-                joinedload(
-                    EvaluationDB.aggregated_results.of_type(
-                        EvaluationAggregatedResultDB
-                    )
-                ).joinedload(EvaluationAggregatedResultDB.evaluator_config),
-            )
-        )
-        evaluations = result.unique().scalars().all()
-        return evaluations
-
-
-async def fetch_evaluations_by_resource(
-    resource_type: str, project_id: str, resource_ids: List[str]
-):
-    """
-    Fetches an evaluations by resource.
-
-    Args:
-        resource_type (str):  The resource type
-        project_id (str): The ID of the project
-        resource_ids (List[str]):   The resource identifiers
-
-    Returns:
-        The evaluations by resource.
-
-    Raises:
-        HTTPException:400 resource_type {type} is not supported
-    """
-
-    ids = list(map(uuid.UUID, resource_ids))
-
-    async with engine.core_session() as session:
-        if resource_type == "variant":
-            result_evaluations = await session.execute(
-                select(EvaluationDB)
-                .filter(
-                    EvaluationDB.variant_id.in_(ids),
-                    EvaluationDB.project_id == uuid.UUID(project_id),
-                )
-                .options(load_only(EvaluationDB.id))  # type: ignore
-            )
-            result_human_evaluations = await session.execute(
-                select(HumanEvaluationDB)
-                .join(HumanEvaluationVariantDB)
-                .filter(
-                    HumanEvaluationVariantDB.variant_id.in_(ids),
-                    HumanEvaluationDB.project_id == uuid.UUID(project_id),
-                )
-                .options(load_only(HumanEvaluationDB.id))  # type: ignore
-            )
-            res_evaluations = list(result_evaluations.scalars().all())
-            res_human_evaluations = list(result_human_evaluations.scalars().all())
-            return res_evaluations + res_human_evaluations
-
-        elif resource_type == "testset":
-            result_evaluations = await session.execute(
-                select(EvaluationDB)
-                .filter(
-                    EvaluationDB.testset_id.in_(ids),
-                    EvaluationDB.project_id == uuid.UUID(project_id),
-                )
-                .options(load_only(EvaluationDB.id))  # type: ignore
-            )
-            result_human_evaluations = await session.execute(
-                select(HumanEvaluationDB)
-                .filter(
-                    HumanEvaluationDB.testset_id.in_(ids),
-                    HumanEvaluationDB.project_id
-                    == uuid.UUID(project_id),  # Fixed to match HumanEvaluationDB
-                )
-                .options(load_only(HumanEvaluationDB.id))  # type: ignore
-            )
-            res_evaluations = list(result_evaluations.scalars().all())
-            res_human_evaluations = list(result_human_evaluations.scalars().all())
-            return res_evaluations + res_human_evaluations
-
-        elif resource_type == "evaluator_config":
-            query = (
-                select(EvaluationDB)
-                .join(EvaluationDB.evaluator_configs)
-                .filter(
-                    EvaluationEvaluatorConfigDB.evaluator_config_id.in_(ids),
-                    EvaluationDB.project_id == uuid.UUID(project_id),
-                )
-            )
-            result = await session.execute(query)
-            res = result.scalars().all()
-            return res
-
-        raise HTTPException(
-            status_code=400,
-            detail=f"resource_type {resource_type} is not supported",
-        )
-
-
-async def delete_evaluations(evaluation_ids: List[str]) -> None:
-    """Delete evaluations based on the ids provided from the db.
-
-    Args:
-        evaluations_ids (list[str]): The IDs of the evaluation
-    """
-
-    async with engine.core_session() as session:
-        query = select(EvaluationDB).where(EvaluationDB.id.in_(evaluation_ids))
-        result = await session.execute(query)
-        evaluations = result.scalars().all()
-        for evaluation in evaluations:
-            await session.delete(evaluation)
-        await session.commit()
-
-
-async def create_new_evaluation_scenario(
-    project_id: str,
-    evaluation_id: str,
-    variant_id: str,
-    inputs: List[EvaluationScenarioInput],
-    outputs: List[EvaluationScenarioOutput],
-    correct_answers: Optional[List[CorrectAnswer]],
-    is_pinned: Optional[bool],
-    note: Optional[str],
-    results: List[EvaluationScenarioResult],
-) -> EvaluationScenarioDB:
-    """Create a new evaluation scenario.
-
-    Returns:
-        EvaluationScenarioDB: The created evaluation scenario.
-    """
-
-    async with engine.core_session() as session:
-        evaluation_scenario = EvaluationScenarioDB(
-            project_id=uuid.UUID(project_id),
-            evaluation_id=uuid.UUID(evaluation_id),
-            variant_id=uuid.UUID(variant_id),
-            inputs=[input.model_dump() for input in inputs],
-            outputs=[output.model_dump() for output in outputs],
-            correct_answers=(
-                [correct_answer.model_dump() for correct_answer in correct_answers]
-                if correct_answers is not None
-                else []
-            ),
-            is_pinned=is_pinned,
-            note=note,
-        )
-
-        session.add(evaluation_scenario)
-        await session.commit()
-        await session.refresh(evaluation_scenario)
-
-        # create evaluation scenario result
-        for result in results:
-            evaluation_scenario_result = EvaluationScenarioResultDB(
-                evaluation_scenario_id=evaluation_scenario.id,
-                evaluator_config_id=uuid.UUID(result.evaluator_config),
-                result=result.result.model_dump(),
-            )
-
-            session.add(evaluation_scenario_result)
-
-        await session.commit()  # ensures that scenario results insertion is committed
-        await session.refresh(evaluation_scenario)
-
-        return evaluation_scenario
-
-
-async def update_evaluation_with_aggregated_results(
-    evaluation_id: str, aggregated_results: List[AggregatedResult]
-):
-    async with engine.core_session() as session:
-        for result in aggregated_results:
-            aggregated_result = EvaluationAggregatedResultDB(
-                evaluation_id=uuid.UUID(evaluation_id),
-                evaluator_config_id=uuid.UUID(result.evaluator_config),
-                result=result.result.model_dump(),
-            )
-            session.add(aggregated_result)
-
-        await session.commit()
-
-
-async def fetch_eval_aggregated_results(evaluation_id: str):
-    """
-    Fetches an evaluation aggregated results by evaluation identifier.
-
-    Args:
-        evaluation_id (str):  The evaluation identifier
-
-    Returns:
-        The evaluation aggregated results by evaluation identifier.
-    """
-
-    async with engine.core_session() as session:
-        base_query = select(EvaluationAggregatedResultDB).filter_by(
-            evaluation_id=uuid.UUID(evaluation_id)
-        )
-        query = base_query.options(
-            joinedload(
-                EvaluationAggregatedResultDB.evaluator_config.of_type(EvaluatorConfigDB)
-            ).load_only(
-                EvaluatorConfigDB.id,  # type: ignore
-                EvaluatorConfigDB.name,  # type: ignore
-                EvaluatorConfigDB.evaluator_key,  # type: ignore
-                EvaluatorConfigDB.settings_values,  # type: ignore
-                EvaluatorConfigDB.created_at,  # type: ignore
-                EvaluatorConfigDB.updated_at,  # type: ignore
-            )
-        )
-
-        result = await session.execute(query)
-        aggregated_results = result.scalars().all()
-        return aggregated_results
-
-
-async def update_evaluation(
-    evaluation_id: str, project_id: str, updates: Dict[str, Any]
-) -> Optional[EvaluationDB]:
-    """
-    Update an evaluator configuration in the database with the provided id.
-
-    Arguments:
-        evaluation_id (str): The ID of the evaluator configuration to be updated.
-        project_id (str): The ID of the project.
-        updates (Dict[str, Any]): The updates to apply to the evaluator configuration.
-
-    Returns:
-        EvaluatorConfigDB: The updated evaluator configuration object.
-    """
-
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(EvaluationDB).filter_by(
-                id=uuid.UUID(evaluation_id), project_id=uuid.UUID(project_id)
-            )
-        )
-        evaluation = result.scalars().first()
-        for key, value in updates.items():
-            if hasattr(evaluation, key):
-                setattr(evaluation, key, value)
-
-        await session.commit()
-        await session.refresh(evaluation)
-
-        return evaluation
-
-
-async def check_if_evaluation_contains_failed_evaluation_scenarios(
-    evaluation_id: str,
-) -> bool:
-    async with engine.core_session() as session:
-        EvaluationResultAlias = aliased(EvaluationScenarioResultDB)
-        query = (
-            select(func.count(EvaluationScenarioDB.id))
-            .join(EvaluationResultAlias, EvaluationScenarioDB.results)
-            .where(
-                EvaluationScenarioDB.evaluation_id == uuid.UUID(evaluation_id),
-                EvaluationResultAlias.result["type"].astext == "error",
-            )
-        )
-
-        result = await session.execute(query)
-        count = result.scalar()
-        if not count:
-            return False
-        return count > 0

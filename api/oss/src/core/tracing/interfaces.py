@@ -1,15 +1,8 @@
-from typing import List, Optional, Dict, Any
 from uuid import UUID
+from typing import List, Optional
 from abc import ABC, abstractmethod
 
-from oss.src.core.tracing.dtos import (
-    OTelLink,
-    OTelFlatSpan,
-    TracingQuery,
-    Bucket,
-    MetricSpec,
-    MetricsBucket,
-)
+from oss.src.core.tracing.dtos import OTelLink, OTelFlatSpan, Query, Bucket
 
 
 class TracingDAOInterface(ABC):
@@ -152,21 +145,11 @@ class TracingDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        query: TracingQuery,
+        query: Query,
     ) -> List[OTelFlatSpan]:
         raise NotImplementedError
 
     ### ANALYTICS
-
-    @abstractmethod
-    async def legacy_analytics(
-        self,
-        *,
-        project_id: UUID,
-        #
-        query: TracingQuery,
-    ) -> List[Bucket]:
-        raise NotImplementedError
 
     @abstractmethod
     async def analytics(
@@ -174,7 +157,6 @@ class TracingDAOInterface(ABC):
         *,
         project_id: UUID,
         #
-        query: TracingQuery,
-        specs: List[MetricSpec],
-    ) -> List[MetricsBucket]:
+        query: Query,
+    ) -> List[Bucket]:
         raise NotImplementedError

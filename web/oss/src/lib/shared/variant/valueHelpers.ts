@@ -7,9 +7,7 @@ export function shouldIncludeValue(value: unknown): boolean {
     if (value === null || value === undefined) return false
 
     // Handle empty strings
-    if (value === "") {
-        return false
-    }
+    if (value === "") return false
 
     // Handle empty arrays
     if (Array.isArray(value) && value.length === 0) return false
@@ -65,10 +63,8 @@ export const checkValidity = (obj: Record<string, any>, metadata: ConfigMetadata
 export function extractValueByMetadata(
     _enhanced: Record<string, any> | null | undefined,
     allMetadata: Record<string, ConfigMetadata>,
-    debug = false,
 ): unknown {
     const enhanced = structuredClone(_enhanced)
-
     // Handle null/undefined
     if (enhanced === null || enhanced === undefined) return null
 
@@ -87,13 +83,13 @@ export function extractValueByMetadata(
             metadata.type === "number" ||
             metadata.type === "boolean")
     ) {
-        return shouldIncludeValue(enhanced.value, metadata) ? enhanced.value : undefined
+        return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
     }
 
     if (!metadata) {
         if (Array.isArray(enhanced)) {
             return enhanced
-                .map((item) => extractValueByMetadata(item, allMetadata, debug))
+                .map((item) => extractValueByMetadata(item, allMetadata))
                 .filter(shouldIncludeValue)
         }
 
@@ -102,7 +98,7 @@ export function extractValueByMetadata(
             .filter(([key]) => !key.startsWith("__"))
             .reduce(
                 (acc, [key, val]) => {
-                    const extracted = extractValueByMetadata(val, allMetadata, debug)
+                    const extracted = extractValueByMetadata(val, allMetadata)
                     if (shouldIncludeValue(extracted)) {
                         acc[key] = extracted
                     }
@@ -116,117 +112,78 @@ export function extractValueByMetadata(
         return obj
     }
 
-    const extract = () => {
-        switch (metadata.type) {
-            case "function": {
-                return undefined
-            }
-            case "array": {
-                if (!Array.isArray(enhanced.value)) return undefined
-                const arr = enhanced.value
-                    .map((item: Record<string, any>) => {
-                        return extractValueByMetadata(item, allMetadata, debug)
-                    })
-                    .filter(shouldIncludeValue)
-                    .filter(Boolean)
-
-                return arr.length > 0 ? arr : undefined
-            }
-            case "object": {
-                const obj = Object.entries(enhanced)
-                    .filter(([key]) => !key.startsWith("__"))
-                    .reduce(
-                        (acc, [key, val]) => {
-                            if (key === "tools") {
-                                acc[key] = val.value
-                            } else if (
-                                key === "toolCalls" &&
-                                val.value &&
-                                Array.isArray(val.value)
-                            ) {
-                                const cloned = (structuredClone(val.value) || []).map(
-                                    (call: Record<string, any>) => {
-                                        call.id = call.id
-                                        delete call.__id
-                                        delete call.__metadata
-
-                                        call.function.parameters = JSON.stringify(
-                                            call.function.parameters,
-                                        )
-                                        return call
-                                    },
-                                )
-                                delete cloned.__id
-                                delete cloned.__metadata
-                                acc[toSnakeCase(key)] = cloned
-                            } else {
-                                const extracted = extractValueByMetadata(val, allMetadata, debug)
-                                if (shouldIncludeValue(extracted)) {
-                                    acc[toSnakeCase(key)] = extracted
-                                }
-                            }
-                            if (key === "tools") {
-                                acc[key] = (acc[key] || []).map((tool) => {
-                                    return tool.value
-                                })
-                            }
-                            return acc
-                        },
-                        {} as Record<string, unknown>,
-                    )
-
-                if (obj.role === "tool") {
-                    if (!obj.content) {
-                        obj.content = ""
-                    } else if (Array.isArray(obj.content)) {
-                        obj.content = obj.content.map((item: any) => {
-                            if (!item) return item
-                            const typeValue =
-                                typeof item.type === "object" && item.type
-                                    ? (item.type.value ?? item.type)
-                                    : item.type
-                            const textValue =
-                                typeof item.text === "object" && item.text
-                                    ? (item.text.value ?? item.text)
-                                    : (item.text ?? item.content ?? "")
-                            return {
-                                type: typeValue || "text",
-                                text:
-                                    typeof textValue === "string"
-                                        ? textValue
-                                        : String(textValue ?? ""),
-                            }
-                        })
-                    }
-
-                    if ((obj as any).toolCallId && typeof (obj as any).toolCallId === "string") {
-                        obj.tool_call_id = (obj as any).toolCallId
-                        delete (obj as any).toolCallId
-                    } else if (
-                        (obj as any).tool_call_id &&
-                        typeof (obj as any).tool_call_id !== "string"
-                    ) {
-                        obj.tool_call_id = String((obj as any).tool_call_id ?? "")
-                    }
-                }
-
-                return Object.keys(obj).length > 0 &&
-                    checkValidity(obj, allMetadata[enhanced.__metadata])
-                    ? obj
-                    : undefined
-            }
-            case "compound": {
-                const option = metadata.options.find(
-                    (o) => o.value === (enhanced.selected || metadata.options[0].value),
-                )
-                if (!option) return undefined
-                return extractValueByMetadata(enhanced.value, allMetadata, debug)
-            }
-            default:
-                return shouldIncludeValue(enhanced.value, metadata) ? enhanced.value : undefined
+    switch (metadata.type) {
+        case "function": {
+            return undefined
         }
-    }
+        case "array": {
+            if (!Array.isArray(enhanced.value)) return undefined
+            const arr = enhanced.value
+                .map((item: Record<string, any>) => {
+                    return extractValueByMetadata(item, allMetadata)
+                })
+                .filter(shouldIncludeValue)
+                .filter(Boolean)
 
-    const extracted = extract()
-    return extracted
+            return arr.length > 0 ? arr : undefined
+        }
+        case "object": {
+            const obj = Object.entries(enhanced)
+                .filter(([key]) => !key.startsWith("__"))
+                .reduce(
+                    (acc, [key, val]) => {
+                        if (key === "tools") {
+                            acc[key] = val.value
+                        } else if (key === "toolCalls" && val.value && Array.isArray(val.value)) {
+                            const cloned = (structuredClone(val.value) || []).map(
+                                (call: Record<string, any>) => {
+                                    call.id = call.id
+                                    delete call.__id
+                                    delete call.__metadata
+
+                                    call.function.parameters = JSON.stringify(
+                                        call.function.parameters,
+                                    )
+                                    return call
+                                },
+                            )
+                            delete cloned.__id
+                            delete cloned.__metadata
+                            acc[toSnakeCase(key)] = cloned
+                        } else {
+                            const extracted = extractValueByMetadata(val, allMetadata)
+                            if (shouldIncludeValue(extracted)) {
+                                acc[toSnakeCase(key)] = extracted
+                            }
+                        }
+                        if (key === "tools") {
+                            acc[key] = (acc[key] || []).map((tool) => {
+                                return tool.value
+                            })
+                        }
+                        return acc
+                    },
+                    {} as Record<string, unknown>,
+                )
+
+            if (obj.role === "tool") {
+                if (!obj.content) {
+                    obj.content = ""
+                }
+            }
+            return Object.keys(obj).length > 0 &&
+                checkValidity(obj, allMetadata[enhanced.__metadata])
+                ? obj
+                : undefined
+        }
+        case "compound": {
+            const option = metadata.options.find(
+                (o) => o.value === (enhanced.selected || metadata.options[0].value),
+            )
+            if (!option) return undefined
+            return extractValueByMetadata(enhanced.value, allMetadata)
+        }
+        default:
+            return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
+    }
 }
