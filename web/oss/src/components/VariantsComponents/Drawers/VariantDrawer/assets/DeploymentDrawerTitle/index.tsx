@@ -1,6 +1,6 @@
 import {memo, useCallback} from "react"
 
-import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
+import {CloseOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
 import {Button, Tag} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -14,12 +14,7 @@ import {deployedRevisionByEnvironmentAtomFamily} from "@/oss/state/variant/atoms
 
 import {DeploymentDrawerTitleProps} from "../types"
 
-const DeploymentDrawerTitle = ({
-    variantId,
-    onClose,
-    onToggleWidth,
-    isExpanded,
-}: DeploymentDrawerTitleProps) => {
+const DeploymentDrawerTitle = ({variantId, onClose}: DeploymentDrawerTitleProps) => {
     const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId))
     const [envName] = useQueryParam("selectedEnvName")
     const {isPending: isPublishing, mutateAsync: publish} = useAtomValue(publishMutationAtom)
@@ -49,12 +44,6 @@ const DeploymentDrawerTitle = ({
         <section className="flex items-center justify-between">
             <div className="flex items-center gap-3">
                 <Button onClick={onClose} type="text" icon={<CloseOutlined />} size="small" />
-                <Button
-                    onClick={onToggleWidth}
-                    type="text"
-                    size="small"
-                    icon={isExpanded ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                />
 
                 <div className="flex items-center gap-2">
                     {/*TODO: update this with select variant deployment */}

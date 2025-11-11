@@ -23,7 +23,7 @@ from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.core.testcases.service import TestcasesService
 from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
 from oss.src.models.deprecated_models import (
-    DeprecatedTestsetDB,
+    DeprecatedTestSetDB,
     DeprecatedOrganizationDB,
 )
 
@@ -84,8 +84,8 @@ async def migration_old_testsets_to_new_testsets(
         # Count total rows with a non-null project_id
         total_query = (
             select(func.count())
-            .select_from(DeprecatedTestsetDB)
-            .filter(DeprecatedTestsetDB.project_id.isnot(None))
+            .select_from(DeprecatedTestSetDB)
+            .filter(DeprecatedTestSetDB.project_id.isnot(None))
         )
         result = await connection.execute(total_query)
         total_rows = result.scalar()
@@ -101,8 +101,8 @@ async def migration_old_testsets_to_new_testsets(
         while offset < total_testsets:
             # STEP 1: Fetch evaluator configurations with non-null project_id
             result = await connection.execute(
-                select(DeprecatedTestsetDB)
-                .filter(DeprecatedTestsetDB.project_id.isnot(None))
+                select(DeprecatedTestSetDB)
+                .filter(DeprecatedTestSetDB.project_id.isnot(None))
                 .offset(offset)
                 .limit(DEFAULT_BATCH_SIZE)
             )

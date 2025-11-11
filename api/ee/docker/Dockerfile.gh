@@ -18,11 +18,10 @@ RUN pip install --upgrade pip \
 COPY ./ee /app/ee/
 COPY ./oss /app/oss/
 COPY ./entrypoint.py ./pyproject.toml /app/
-COPY ./sdk /sdk/
 
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi \
-    && pip install --force-reinstall --upgrade /sdk/
+    && poetry install --no-interaction --no-ansi
+#
 
 #
 
@@ -34,8 +33,8 @@ RUN cat -A /etc/cron.d/meters-cron
 RUN chmod +x /meters.sh \
     && chmod 0644 /etc/cron.d/meters-cron
 
-COPY ./oss/src/crons/queries.sh /queries.sh
-COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
+COPY ./ee/src/crons/queries.sh /queries.sh
+COPY ./ee/src/crons/queries.txt /etc/cron.d/queries-cron
 RUN sed -i -e '$a\' /etc/cron.d/queries-cron
 RUN cat -A /etc/cron.d/queries-cron
 

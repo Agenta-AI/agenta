@@ -47,14 +47,12 @@ const AppWithVariants = memo(
         classes,
         isPlayground,
         isHumanEval,
-        isEvaluator,
         appTheme,
         ...props
     }: {
         children: ReactNode
         isAppRoute: boolean
         isHumanEval: boolean
-        isEvaluator: boolean
         classes: StyleClasses
         appTheme: string
         isPlayground?: boolean
@@ -82,7 +80,7 @@ const AppWithVariants = memo(
         }
 
         return (
-            <div className={clsx([{"flex flex-col grow min-h-0": isHumanEval || isEvaluator}])}>
+            <div className={clsx([{"flex flex-col grow min-h-0": isHumanEval}])}>
                 {project?.is_demo && (
                     <div className={classes.banner}>
                         You are in <span>a view-only</span> demo workspace. To go back to your
@@ -99,11 +97,7 @@ const AppWithVariants = memo(
                     />
 
                     <Layout className={classes.layout}>
-                        <div
-                            className={clsx([
-                                {"grow flex flex-col min-h-0": isHumanEval || isEvaluator},
-                            ])}
-                        >
+                        <div className={clsx([{"grow flex flex-col min-h-0": isHumanEval}])}>
                             <BreadcrumbContainer
                                 appTheme={appTheme}
                                 appName={currentApp?.app_name || ""}
@@ -113,10 +107,9 @@ const AppWithVariants = memo(
                                     <CustomWorkflowBanner />
                                     <Content
                                         className={clsx(classes.content, {
-                                            "flex flex-col min-h-0 grow":
-                                                isHumanEval || isEvaluator,
+                                            "flex flex-col min-h-0 grow": isHumanEval,
                                             "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground || isEvaluator,
+                                                isPlayground,
                                         })}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -137,8 +130,8 @@ const AppWithVariants = memo(
                                 <Content
                                     className={clsx(classes.content, {
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                            isPlayground || isEvaluator,
-                                        "flex flex-col min-h-0 grow": isHumanEval || isEvaluator,
+                                            isPlayground,
+                                        "flex flex-col min-h-0 grow": isHumanEval,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -156,7 +149,6 @@ const AppWithVariants = memo(
                                 </Content>
                             )}
                         </div>
-                        <div className="w-full h-[20px]"></div>
                         <FooterIsland className={classes.footer}>
                             <Space className={classes.footerLeft} size={10}>
                                 <Link href={"https://github.com/Agenta-AI/agenta"} target="_blank">
@@ -224,7 +216,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [appTheme])
 
-    const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator} = useMemo(() => {
+    const {isHumanEval, isPlayground, isAppRoute, isAuthRoute} = useMemo(() => {
         const pathname = appState.pathname
         const asPath = appState.asPath
         const selectedEvaluation = Array.isArray(query.selectedEvaluation)
@@ -238,7 +230,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
             isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
             isPlayground:
                 pathname.includes("/playground") || pathname.includes("/evaluations/results"),
-            isEvaluator: pathname.includes("/evaluators/configure"),
             isHumanEval:
                 pathname.includes("/evaluations/single_model_test") ||
                 selectedEvaluation === "human_annotation",
@@ -262,7 +253,6 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         appTheme={appTheme}
                         isPlayground={isPlayground}
                         isHumanEval={isHumanEval}
-                        isEvaluator={isEvaluator}
                     >
                         {children}
                         {contextHolder}

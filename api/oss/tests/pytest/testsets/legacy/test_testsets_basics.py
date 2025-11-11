@@ -232,7 +232,7 @@ class TestLegacyTestsetsBasics:
 
             response = authed_api(
                 "POST",
-                "/testsets/upload",
+                "/testsets/upload/",
                 files=files,
                 data=data,
             )
@@ -270,7 +270,7 @@ class TestLegacyTestsetsBasics:
 
             response = authed_api(
                 "POST",
-                "/testsets/upload",
+                "/testsets/upload/",
                 files=files,
                 data=data,
             )

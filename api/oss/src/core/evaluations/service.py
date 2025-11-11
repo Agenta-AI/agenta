@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from celery import current_app as celery_dispatch
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta, Data
@@ -58,7 +59,7 @@ from oss.src.core.evaluations.types import (
     SimpleEvaluationEdit,
     SimpleEvaluationQuery,
 )
-from oss.src.core.evaluations.types import CURRENT_VERSION
+
 from oss.src.core.tracing.dtos import (
     TracingQuery,
     Filtering,
@@ -93,7 +94,6 @@ from oss.src.services.db_manager import (
 )
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.core.evaluations.utils import get_metrics_keys_from_schema
-
 
 log = get_module_logger(__name__)
 
@@ -178,7 +178,7 @@ class EvaluationsService:
 
             try:
                 log.info(
-                    "[LIVE] Dispatching...",
+                    "[LIVE]",
                     project_id=project_id,
                     run_id=run.id,
                     #
@@ -186,24 +186,19 @@ class EvaluationsService:
                     oldest=oldest,
                 )
 
-                celery_dispatch.send_task(  # type: ignore
-                    "src.tasks.evaluations.live.evaluate",
-                    kwargs=dict(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        run_id=run.id,
-                        #
-                        newest=newest,
-                        oldest=oldest,
-                    ),
-                )
-
-                log.info(
-                    "[LIVE] Dispatched.   ",
-                    project_id=project_id,
-                    run_id=run.id,
-                )
+                if is_ee():
+                    celery_dispatch.send_task(  # type: ignore
+                        "src.tasks.evaluations.live.evaluate",
+                        kwargs=dict(
+                            project_id=project_id,
+                            user_id=user_id,
+                            #
+                            run_id=run.id,
+                            #
+                            newest=newest,
+                            oldest=oldest,
+                        ),
+                    )
 
             except Exception as e:  # pylint: disable=broad-exception-caught
                 log.error(f"[LIVE] Error refreshing run {run.id}: {e}", exc_info=True)
@@ -229,8 +224,6 @@ class EvaluationsService:
         #
         run: EvaluationRunCreate,
     ) -> Optional[EvaluationRun]:
-        run.version = CURRENT_VERSION
-
         return await self.evaluations_dao.create_run(
             project_id=project_id,
             user_id=user_id,
@@ -246,9 +239,6 @@ class EvaluationsService:
         #
         runs: List[EvaluationRunCreate],
     ) -> List[EvaluationRun]:
-        for run in runs:
-            run.version = CURRENT_VERSION
-
         return await self.evaluations_dao.create_runs(
             project_id=project_id,
             user_id=user_id,
@@ -290,8 +280,6 @@ class EvaluationsService:
         #
         run: EvaluationRunEdit,
     ) -> Optional[EvaluationRun]:
-        run.version = CURRENT_VERSION
-
         return await self.evaluations_dao.edit_run(
             project_id=project_id,
             user_id=user_id,
@@ -307,9 +295,6 @@ class EvaluationsService:
         #
         runs: List[EvaluationRunEdit],
     ) -> List[EvaluationRun]:
-        for run in runs:
-            run.version = CURRENT_VERSION
-
         return await self.evaluations_dao.edit_runs(
             project_id=project_id,
             user_id=user_id,
@@ -350,16 +335,12 @@ class EvaluationsService:
         user_id: UUID,
         #
         run_id: UUID,
-        #
-        status: Optional[EvaluationStatus] = None,
     ) -> Optional[EvaluationRun]:
         return await self.evaluations_dao.close_run(
             project_id=project_id,
             user_id=user_id,
             #
             run_id=run_id,
-            #
-            status=status,
         )
 
     async def close_runs(
@@ -434,8 +415,6 @@ class EvaluationsService:
         #
         scenario: EvaluationScenarioCreate,
     ) -> Optional[EvaluationScenario]:
-        scenario.version = CURRENT_VERSION
-
         return await self.evaluations_dao.create_scenario(
             project_id=project_id,
             user_id=user_id,
@@ -451,9 +430,6 @@ class EvaluationsService:
         #
         scenarios: List[EvaluationScenarioCreate],
     ) -> List[EvaluationScenario]:
-        for scenario in scenarios:
-            scenario.version = CURRENT_VERSION
-
         return await self.evaluations_dao.create_scenarios(
             project_id=project_id,
             user_id=user_id,
@@ -495,8 +471,6 @@ class EvaluationsService:
         #
         scenario: EvaluationScenarioEdit,
     ) -> Optional[EvaluationScenario]:
-        scenario.version = CURRENT_VERSION
-
         return await self.evaluations_dao.edit_scenario(
             project_id=project_id,
             user_id=user_id,
@@ -512,9 +486,6 @@ class EvaluationsService:
         #
         scenarios: List[EvaluationScenarioEdit],
     ) -> List[EvaluationScenario]:
-        for scenario in scenarios:
-            scenario.version = CURRENT_VERSION
-
         return await self.evaluations_dao.edit_scenarios(
             project_id=project_id,
             user_id=user_id,
@@ -573,8 +544,6 @@ class EvaluationsService:
         #
         result: EvaluationResultCreate,
     ) -> Optional[EvaluationResult]:
-        result.version = CURRENT_VERSION
-
         return await self.evaluations_dao.create_result(
             project_id=project_id,
             user_id=user_id,
@@ -590,9 +559,6 @@ class EvaluationsService:
         #
         results: List[EvaluationResultCreate],
     ) -> List[EvaluationResult]:
-        for result in results:
-            result.version = CURRENT_VERSION
-
         return await self.evaluations_dao.create_results(
             project_id=project_id,
             user_id=user_id,
@@ -634,8 +600,6 @@ class EvaluationsService:
         #
         result: EvaluationResultEdit,
     ) -> Optional[EvaluationResult]:
-        result.version = CURRENT_VERSION
-
         return await self.evaluations_dao.edit_result(
             project_id=project_id,
             user_id=user_id,
@@ -651,9 +615,6 @@ class EvaluationsService:
         #
         results: List[EvaluationResultEdit],
     ) -> List[EvaluationResult]:
-        for result in results:
-            result.version = CURRENT_VERSION
-
         return await self.evaluations_dao.edit_results(
             project_id=project_id,
             user_id=user_id,
@@ -714,9 +675,6 @@ class EvaluationsService:
         #
         metrics: List[EvaluationMetricsCreate],
     ) -> List[EvaluationMetrics]:
-        for metric in metrics:
-            metric.version = CURRENT_VERSION
-
         return await self.evaluations_dao.create_metrics(
             project_id=project_id,
             user_id=user_id,
@@ -745,9 +703,6 @@ class EvaluationsService:
         #
         metrics: List[EvaluationMetricsEdit],
     ) -> List[EvaluationMetrics]:
-        for metric in metrics:
-            metric.version = CURRENT_VERSION
-
         return await self.evaluations_dao.edit_metrics(
             project_id=project_id,
             user_id=user_id,
@@ -912,14 +867,12 @@ class EvaluationsService:
 
                 if len(buckets) != 1:
                     log.warning("[WARN] There should be one and only one bucket")
-                    log.warning("[WARN] Buckets:", buckets)
                     continue
 
                 bucket = buckets[0]
 
                 if not bucket.metrics:
                     log.warning("[WARN] Bucket metrics should not be empty")
-                    log.warning("[WARN] Bucket:", bucket)
                     continue
 
                 metrics_data |= {step_key: bucket.metrics}
@@ -963,8 +916,6 @@ class EvaluationsService:
         #
         queue: EvaluationQueueCreate,
     ) -> Optional[EvaluationQueue]:
-        queue.version = CURRENT_VERSION
-
         return await self.evaluations_dao.create_queue(
             project_id=project_id,
             user_id=user_id,
@@ -980,9 +931,6 @@ class EvaluationsService:
         #
         queues: List[EvaluationQueueCreate],
     ) -> List[EvaluationQueue]:
-        for queue in queues:
-            queue.version = CURRENT_VERSION
-
         return await self.evaluations_dao.create_queues(
             project_id=project_id,
             user_id=user_id,
@@ -1024,8 +972,6 @@ class EvaluationsService:
         #
         queue: EvaluationQueueEdit,
     ) -> Optional[EvaluationQueue]:
-        queue.version = CURRENT_VERSION
-
         return await self.evaluations_dao.edit_queue(
             project_id=project_id,
             user_id=user_id,
@@ -1041,9 +987,6 @@ class EvaluationsService:
         #
         queues: List[EvaluationQueueEdit],
     ) -> List[EvaluationQueue]:
-        for queue in queues:
-            queue.version = CURRENT_VERSION
-
         return await self.evaluations_dao.edit_queues(
             project_id=project_id,
             user_id=user_id,
@@ -1199,8 +1142,6 @@ class SimpleEvaluationsService:
                 log.info("[EVAL] [failure] invalid simple evaluation flags")
                 return None
 
-            evaluation_jit = evaluation.jit or {"testsets": True, "evaluators": True}
-
             run_data = await self._make_evaluation_run_data(
                 project_id=project_id,
                 user_id=user_id,
@@ -1212,7 +1153,7 @@ class SimpleEvaluationsService:
                 #
                 repeats=evaluation.data.repeats,
                 #
-                jit=evaluation_jit,
+                jit_migration=True,
             )
 
             if not run_data:
@@ -1259,7 +1200,7 @@ class SimpleEvaluationsService:
                 log.error("[EVAL] [failure] could not start evaluation run")
                 return None
 
-            log.info("[EVAL] [success]     ", id=run.id)
+            log.info("[EVAL] [success]      ", id=run.id)
             return _evaluation
 
         except:  # pylint: disable=bare-except
@@ -1561,26 +1502,29 @@ class SimpleEvaluationsService:
                     return None
 
                 if _evaluation.data.query_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_queries",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
-                    )
+                    if is_ee():
+                        celery_dispatch.send_task(  # type: ignore
+                            "src.tasks.evaluations.batch.evaluate_queries",
+                            kwargs=dict(
+                                project_id=project_id,
+                                user_id=user_id,
+                                #
+                                run_id=run.id,
+                            ),
+                        )
 
                 elif _evaluation.data.testset_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_testsets",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
-                    )
+                    if is_ee():
+                        # TODO: Fix typing ?
+                        celery_dispatch.send_task(  # type: ignore
+                            "src.tasks.evaluations.batch.evaluate_testsets",
+                            kwargs=dict(
+                                project_id=project_id,
+                                user_id=user_id,
+                                #
+                                run_id=run.id,
+                            ),
+                        )
 
                 return _evaluation
 
@@ -1674,7 +1618,7 @@ class SimpleEvaluationsService:
         #
         repeats: Optional[int] = None,
         #
-        jit: Optional[Dict[str, bool]] = None,
+        jit_migration: bool = False,
     ) -> Optional[EvaluationRunData]:
         # IMPLICIT FLAG: is_multivariate=False
         # IMPLICIT FLAG: all_inputs=True
@@ -1779,10 +1723,10 @@ class SimpleEvaluationsService:
                 }
 
             # JIT MIGRATION ================================================== #
-            if jit and jit.get("testsets"):
-                _testset_steps = deepcopy(testset_steps or {})
-                testset_steps = dict()
+            _testset_steps = deepcopy(testset_steps or {})
+            testset_steps = dict()
 
+            if jit_migration:
                 for testset_id, origin in _testset_steps.items():
                     testset_ref = Reference(id=testset_id)
 
@@ -2010,10 +1954,10 @@ class SimpleEvaluationsService:
                 }
 
             # JIT MIGRATION ================================================== #
-            if jit and jit.get("evaluators"):
-                _evaluator_steps = deepcopy(evaluator_steps or {})
-                evaluator_steps = dict()
+            _evaluator_steps = deepcopy(evaluator_steps or {})
+            evaluator_steps = dict()
 
+            if jit_migration:
                 for evaluator_id, origin in _evaluator_steps.items():
                     evaluator_ref = Reference(id=evaluator_id)
 

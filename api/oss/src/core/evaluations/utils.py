@@ -1,8 +1,5 @@
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict
 from uuid import UUID
-from asyncio import sleep
-
-from oss.src.core.tracing.dtos import OTelSpansTree
 
 # Divides cleanly into 1, 2, 3, 4, 5, 6, 8, 10, ...
 BLOCKS = 1 * 2 * 3 * 4 * 5
@@ -124,30 +121,3 @@ def get_metrics_keys_from_schema(
         metrics.append({"path": ".".join(path), "type": metric_type})
 
     return metrics
-
-
-async def fetch_trace(
-    tracing_router,
-    request,
-    #
-    trace_id: str,
-    max_retries: int = 15,
-    delay: float = 1.0,
-) -> Optional[OTelSpansTree]:
-    for attempt in range(max_retries):
-        try:
-            response = await tracing_router.fetch_trace(
-                request=request,
-                trace_id=trace_id,
-            )
-
-            if response and response.traces:
-                return next(iter(response.traces.values()), None)
-
-        except Exception:
-            pass
-
-        if attempt < max_retries - 1:
-            await sleep(delay)
-
-    return None

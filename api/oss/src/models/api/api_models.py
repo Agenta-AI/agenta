@@ -1,10 +1,22 @@
 from enum import Enum
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from oss.src.models.shared_models import ConfigDB
+
+from oss.src.services.variants_manager import (
+    BaseModel,
+    ReferenceDTO,
+    ConfigDTO,
+)
+
+from oss.src.models.api.evaluation_model import (
+    Result,  # export
+    Error,  # export
+)
 
 
 class TimestampModel(BaseModel):
@@ -26,17 +38,6 @@ class WithPagination(BaseModel):
     total: int
     page: int
     pageSize: int
-
-
-class Error(BaseModel):
-    message: str
-    stacktrace: Optional[str] = None
-
-
-class Result(BaseModel):
-    type: str
-    value: Optional[Any] = None
-    error: Optional[Error] = None
 
 
 class GetConfigResponse(BaseModel):
@@ -64,9 +65,6 @@ class CreateApp(BaseModel):
 class CreateAppOutput(BaseModel):
     app_id: str
     app_name: str
-    app_type: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
 
 
 class UpdateApp(BaseModel):
@@ -230,7 +228,7 @@ class DeployToEnvironmentPayload(BaseModel):
     commit_message: Optional[str] = None
 
 
-class TestsetOutput(BaseModel):
+class TestSetOutput(BaseModel):
     id: str
     name: str
     csvdata: List[Dict[str, Any]]
@@ -256,3 +254,31 @@ class ListAPIKeysResponse(BaseModel):
     created_at: str
     last_used_at: Optional[str] = None
     expiration_date: Optional[str] = None
+
+
+class ReferenceRequest(BaseModel):
+    application_ref: ReferenceDTO
+
+
+class ConfigRequest(BaseModel):
+    config: ConfigDTO
+
+
+class ReferenceRequestModel(ReferenceDTO):
+    id: Optional[UUID] = None
+
+
+class ConfigRequestModel(ConfigDTO):
+    pass
+
+
+class ConfigResponseModel(ConfigDTO):
+    pass
+
+
+class ConfigsResolveRequest(BaseModel):
+    params: Dict[str, Any]
+
+
+class ConfigsResolveResponse(BaseModel):
+    params: Dict[str, Any]

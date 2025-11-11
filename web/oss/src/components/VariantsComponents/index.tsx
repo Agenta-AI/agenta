@@ -135,7 +135,7 @@ const VariantsDashboard = () => {
     return (
         <>
             <div className={classes.container}>
-                <Typography.Text className="text-[16px] font-medium">Variants</Typography.Text>
+                <Typography.Text className={classes.title}>Variants</Typography.Text>
 
                 <Space direction="vertical">
                     <div className="flex items-center justify-between">

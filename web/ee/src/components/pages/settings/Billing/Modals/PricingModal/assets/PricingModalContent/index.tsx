@@ -7,7 +7,6 @@ import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {Plan} from "@/oss/lib/Types"
 import {
     checkoutNewSubscription,
-    switchSubscription,
     usePricingPlans,
     useSubscriptionData,
     useUsageData,
@@ -36,15 +35,13 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
                 if (plan.plan === Plan.Hobby && subscription?.plan !== Plan.Hobby) {
                     onCancelSubscription()
                     return
-                } else if (!subscription || subscription?.plan === Plan.Hobby) {
+                } else {
                     const data = await checkoutNewSubscription({
                         plan: plan.plan,
                         success_url: `${getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")}${projectURL || ""}/settings?tab=billing`,
                     })
 
                     window.open(data.data.checkout_url, "_blank")
-                } else {
-                    await switchSubscription({plan: plan.plan})
                 }
 
                 setTimeout(() => {
@@ -63,7 +60,6 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
         [
             onCancelSubscription,
             checkoutNewSubscription,
-            switchSubscription,
             mutateSubscription,
             mutateUsage,
             projectURL,

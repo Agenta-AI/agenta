@@ -7,7 +7,7 @@ import agenta as ag
 
 log = get_module_logger(__name__)
 
-AppType = Literal["SERVICE:completion", "SERVICE:chat", "CUSTOM"]
+AppType = Literal["SERVICE:completion", "SERVICE:chat", "CUSTOM", "SNIPPET"]
 
 DEFAULT_APP_TYPE = "SERVICE:completion"
 

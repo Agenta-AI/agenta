@@ -41,8 +41,3 @@ We had many zombie issues and PRs (assigned but inactive) in the past. We want t
 - Any pull request (PR) left inactive by the author for over a week will be closed. The author can reopen it if they wish to continue.
 
 We look forward to seeing your contributions to Agenta!
-
-## Contributor License Agreement
-If you want to contribute, we need you to sign a Contributor License Agreement. We need this to avoid potential intellectual property problems in the future. You can sign the agreement by clicking a button. Here is how it works:
-
-After you open a PR, a bot will automatically comment asking you to sign the agreement. Click on the link in the comment, login with your Github account, and sign the agreement.

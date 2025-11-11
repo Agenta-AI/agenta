@@ -1,12 +1,10 @@
 from typing import Optional, List
 from uuid import UUID, uuid4
-from json import loads
 
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.services.db_manager import fetch_evaluator_config
 from oss.src.core.workflows.dtos import (
     WorkflowFlags,
-    WorkflowQueryFlags,
     #
     WorkflowCreate,
     WorkflowEdit,
@@ -34,13 +32,11 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorCreate,
     SimpleEvaluatorEdit,
     SimpleEvaluatorQuery,
+    SimpleEvaluatorQQuery,
     SimpleEvaluatorFlags,
-    SimpleEvaluatorQueryFlags,
-    #
-    EvaluatorFlags,
-    EvaluatorQueryFlags,
     #
     Evaluator,
+    EvaluatorFlags,
     EvaluatorQuery,
     EvaluatorRevisionsLog,
     EvaluatorCreate,
@@ -789,15 +785,13 @@ class SimpleEvaluatorsService:
                 **(
                     simple_evaluator_create.flags.model_dump(
                         mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                        exclude={"is_evaluator"},
                     )
-                ),
-                is_evaluator=True,
+                )
             )
             if simple_evaluator_create.flags
             else SimpleEvaluatorFlags(
+                is_custom=False,
+                is_human=False,
                 is_evaluator=True,
             )
         )
@@ -833,7 +827,7 @@ class SimpleEvaluatorsService:
         if evaluator is None:
             return None
 
-        evaluator_variant_slug = uuid4().hex[-12:]
+        evaluator_variant_slug = uuid4().hex
 
         evaluator_variant_create = EvaluatorVariantCreate(
             slug=evaluator_variant_slug,
@@ -860,38 +854,7 @@ class SimpleEvaluatorsService:
         if evaluator_variant is None:
             return None
 
-        evaluator_revision_slug = uuid4().hex[-12:]
-
-        evaluator_revision_commit = EvaluatorRevisionCommit(
-            slug=evaluator_revision_slug,
-            #
-            name=evaluator_create.name,
-            description=evaluator_create.description,
-            #
-            flags=evaluator_flags,
-            tags=evaluator_create.tags,
-            meta=evaluator_create.meta,
-            #
-            data=None,
-            #
-            message="Initial commit",
-            #
-            evaluator_id=evaluator.id,
-            evaluator_variant_id=evaluator_variant.id,
-        )
-
-        evaluator_revision: Optional[
-            EvaluatorRevision
-        ] = await self.evaluators_service.commit_evaluator_revision(
-            project_id=project_id,
-            user_id=user_id,
-            evaluator_revision_commit=evaluator_revision_commit,
-        )
-
-        if evaluator_revision is None:
-            return None
-
-        evaluator_revision_slug = uuid4().hex[-12:]
+        evaluator_revision_slug = uuid4().hex
 
         evaluator_revision_commit = EvaluatorRevisionCommit(
             slug=evaluator_revision_slug,
@@ -1060,12 +1023,8 @@ class SimpleEvaluatorsService:
                 **(
                     simple_evaluator_edit.flags.model_dump(
                         mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                        exclude={"is_evaluator"},
                     )
-                ),
-                is_evaluator=True,
+                )
             )
             if simple_evaluator_edit.flags
             else SimpleEvaluatorFlags()
@@ -1146,7 +1105,7 @@ class SimpleEvaluatorsService:
         if evaluator_variant is None:
             return None
 
-        evaluator_revision_slug = uuid4().hex[-12:]
+        evaluator_revision_slug = uuid4().hex
 
         evaluator_revision_commit = EvaluatorRevisionCommit(
             slug=evaluator_revision_slug,
@@ -1250,6 +1209,8 @@ class SimpleEvaluatorsService:
                 name=name,
                 description=None,
                 flags=SimpleEvaluatorFlags(
+                    is_custom=False,
+                    is_human=False,
                     is_evaluator=True,
                 ),
                 tags=None,
@@ -1277,8 +1238,6 @@ class SimpleEvaluatorsService:
                 SimpleEvaluatorFlags(
                     **new_evaluator.flags.model_dump(
                         mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
                     )
                 )
                 if new_evaluator.flags
@@ -1313,7 +1272,7 @@ class SimpleEvaluatorsService:
         include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[SimpleEvaluator]:
+    ) -> List[SimpleEvaluatorQQuery]:
         evaluator_query = EvaluatorQuery(
             **(
                 simple_evaluator_query.model_dump(
@@ -1339,7 +1298,7 @@ class SimpleEvaluatorsService:
         if not evaluator_queries:
             return []
 
-        simple_evaluators: List[SimpleEvaluator] = []
+        simple_evaluators_qqueries: List[SimpleEvaluatorQQuery] = []
 
         for evaluator_query in evaluator_queries:
             evaluator_ref = Reference(
@@ -1376,14 +1335,10 @@ class SimpleEvaluatorsService:
                 **(
                     evaluator_query.flags.model_dump(
                         mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                        exclude={"is_evaluator"},
                     )
                     if evaluator_query.flags
                     else {}
                 ),
-                is_evaluator=True,
             )
 
             simple_evaluator_data = SimpleEvaluatorData(
@@ -1396,7 +1351,7 @@ class SimpleEvaluatorsService:
                 ),
             )
 
-            evaluator_query = SimpleEvaluator(
+            evaluator_query = SimpleEvaluatorQQuery(
                 id=evaluator_query.id,
                 slug=evaluator_query.slug,
                 #
@@ -1417,9 +1372,9 @@ class SimpleEvaluatorsService:
                 data=simple_evaluator_data,
             )
 
-            simple_evaluators.append(evaluator_query)
+            simple_evaluators_qqueries.append(evaluator_query)
 
-        return simple_evaluators
+        return simple_evaluators_qqueries
 
     # internals ----------------------------------------------------------------
 
@@ -1435,57 +1390,49 @@ class SimpleEvaluatorsService:
             else None
         )
         headers = None
-        outputs_schema = None
-        if str(old_evaluator.evaluator_key) == "auto_ai_critique":
-            json_schema = old_evaluator.settings_values.get("json_schema", None)
-            if json_schema and isinstance(json_schema, dict):
-                outputs_schema = json_schema.get("schema", None)
-        if not outputs_schema:
-            properties = (
-                {"score": {"type": "number"}, "success": {"type": "boolean"}}
-                if old_evaluator.evaluator_key
-                in (
-                    "auto_levenshtein_distance",
-                    "auto_semantic_similarity",
-                    "auto_similarity_match",
-                    "auto_json_diff",
-                    "auto_webhook_test",
-                    "auto_custom_code_run",
-                    "auto_ai_critique",
-                    "rag_faithfulness",
-                    "rag_context_relevancy",
-                )
-                else {"success": {"type": "boolean"}}
+        mappings = None
+        properties = (
+            {"score": {"type": "number"}, "success": {"type": "boolean"}}
+            if old_evaluator.evaluator_key
+            in (
+                "auto_levenshtein_distance",
+                "auto_semantic_similarity",
+                "auto_similarity_match",
+                "auto_json_diff",
+                "auto_webhook_test",
+                "auto_custom_code_run",
+                "auto_ai_critique",
+                "rag_faithfulness",
+                "rag_context_relevancy",
             )
-            required = (
-                list(properties.keys())
-                if old_evaluator.evaluator_key
-                not in (
-                    "auto_levenshtein_distance",
-                    "auto_semantic_similarity",
-                    "auto_similarity_match",
-                    "auto_json_diff",
-                    "auto_webhook_test",
-                    "auto_custom_code_run",
-                    "auto_ai_critique",
-                    "rag_faithfulness",
-                    "rag_context_relevancy",
-                )
-                else []
-            )
-            outputs_schema = {
+            else {"success": {"type": "boolean"}}
+        )
+        schemas = {
+            "outputs": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": properties,
-                "required": required,
+                "required": (
+                    list(properties.keys())
+                    if old_evaluator.evaluator_key
+                    not in (
+                        "auto_levenshtein_distance",
+                        "auto_semantic_similarity",
+                        "auto_similarity_match",
+                        "auto_json_diff",
+                        "auto_webhook_test",
+                        "auto_custom_code_run",
+                        "auto_ai_critique",
+                        "rag_faithfulness",
+                        "rag_context_relevancy",
+                    )
+                    else []
+                ),
                 "additionalProperties": False,
             }
-        schemas = {"outputs": outputs_schema}
+        }
         script = (
-            {
-                "content": old_evaluator.settings_values.get("code", None),
-                "runtime": "python",
-            }
+            old_evaluator.settings_values.get("code", None)
             if old_evaluator.evaluator_key == "auto_custom_code_run"  # type: ignore
             else None
         )
@@ -1508,6 +1455,7 @@ class SimpleEvaluatorsService:
             uri=uri,
             url=url,
             headers=headers,
+            mappings=mappings,
             schemas=schemas,
             script=script,
             parameters=parameters,  # type: ignore

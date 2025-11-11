@@ -5,16 +5,23 @@ from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 
 from oss.src.utils import traces
-from oss.src.models.api.api_models import Result
 
-from oss.src.core.shared.dtos import Tags, Meta
+
+class Error(BaseModel):
+    message: str
+    stacktrace: Optional[str] = None
+
+
+class Result(BaseModel):
+    type: str
+    value: Optional[Any] = None
+    error: Optional[Error] = None
 
 
 class LegacyEvaluator(BaseModel):
     name: str
     key: str
     direct_use: bool
-    settings_presets: Optional[list[dict]] = None
     settings_template: dict
     description: Optional[str] = None
     oss: Optional[bool] = False

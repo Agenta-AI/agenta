@@ -1,5 +1,5 @@
 /**
- * Shared Testsetup Utilities
+ * Shared Test Setup Utilities
  *
  * Common functionality shared between test-apps.ts and test-revision-centric.ts:
  * - Environment validation and setup

@@ -305,7 +305,9 @@ const TurnMessageAdapter: React.FC<Props> = ({
 
     const effectivePlaceholder = useMemo(() => {
         if (placeholder) return placeholder
-        return kind === "user" ? "Type your message…" : "Enter tool call result here and hit run"
+        return kind === "user"
+            ? "Type your message…"
+            : "Assistant response will appear below after run."
     }, [placeholder, kind])
 
     // TODO: IMPROVE THIS

@@ -1,5 +1,4 @@
-import os
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
@@ -258,13 +257,7 @@ async def create_app(
         project_id=request.state.project_id,
     )
 
-    return CreateAppOutput(
-        app_id=str(app_db.id),
-        app_name=str(app_db.app_name),
-        app_type=AppType.friendly_tag(app_db.app_type),
-        created_at=str(app_db.created_at),
-        updated_at=str(app_db.updated_at),
-    )
+    return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
 
 
 @router.get("/{app_id}/", response_model=ReadAppOutput, operation_id="read_app")
@@ -305,13 +298,7 @@ async def read_app(
                 status_code=403,
             )
 
-    return ReadAppOutput(
-        app_id=str(app.id),
-        app_name=str(app.app_name),
-        app_type=AppType.friendly_tag(app.app_type),
-        created_at=str(app.created_at),
-        updated_at=str(app.updated_at),
-    )
+    return ReadAppOutput(app_id=str(app.id), app_name=str(app.app_name))
 
 
 @router.patch("/{app_id}/", response_model=UpdateAppOutput, operation_id="update_app")
@@ -355,25 +342,18 @@ async def update_app(
             )
     await db_manager.update_app(app_id=app_id, values_to_update=payload.model_dump())
 
-    app = await db_manager.fetch_app_by_id(app_id)
-
     await invalidate_cache(
         project_id=request.state.project_id,
     )
 
-    return UpdateAppOutput(
-        app_id=str(app.id),
-        app_name=str(app.app_name),
-        app_type=AppType.friendly_tag(app.app_type),
-        created_at=str(app.created_at),
-        updated_at=str(app.updated_at),
-    )
+    return UpdateAppOutput(app_id=app_id, app_name=payload.app_name)
 
 
 @router.get("/", response_model=List[App], operation_id="list_apps")
 async def list_apps(
     request: Request,
     app_name: Optional[str] = None,
+    snippets: Literal["exclude", "include", "only"] = "exclude",
 ) -> List[App]:
     """
     Retrieve a list of apps filtered by app_name.
@@ -404,7 +384,11 @@ async def list_apps(
     apps = await db_manager.list_apps(
         project_id=request.state.project_id,
         app_name=app_name,
+        snippets=snippets,
     )
+
+    apps = [converters.app_db_to_pydantic(app) for app in apps]
+
     return apps
 
 
@@ -474,7 +458,7 @@ async def add_variant_from_url(
         return app_variant_dto
 
     except Exception as e:
-        log.error(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -506,11 +490,11 @@ async def add_variant_from_key_route(
         url = app_manager.get_service_url_from_template_key(payload.key)
 
     except NotImplementedError as e:
-        log.error(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
-        log.error(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     if not url:

@@ -87,7 +87,7 @@ const SingleView = ({
                                             // disabled={disableForCustom}
                                             // placeholder={
                                             //     disableForCustom
-                                            //         ? "Insert a {{variable}} in your template to create an input."
+                                            //         ? "Insert a {{ variable }} in your template to create an input."
                                             //         : "Enter value"
                                             // }
                                             editorProps={{enableTokens: false}}

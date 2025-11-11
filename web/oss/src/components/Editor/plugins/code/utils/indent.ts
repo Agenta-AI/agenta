@@ -24,7 +24,7 @@ export function calculateLineIndentation(
     lineText: string,
     previousLineText: string,
     baseIndentLevel: number,
-    language: "json" | "yaml" | "code",
+    language: "json" | "yaml",
 ): number {
     const trimmedLine = lineText.trim()
     const trimmedPrevious = previousLineText.trim()
@@ -65,7 +65,7 @@ export function calculateLineIndentation(
 export function calculateMultiLineIndentation(
     lines: string[],
     baseIndentLevel: number,
-    language: "json" | "yaml" | "code",
+    language: "json" | "yaml",
 ): number[] {
     const indentLevels: number[] = []
 
@@ -93,7 +93,7 @@ export function calculateMultiLineIndentation(
  */
 export function isFoldableLine(text: string, language: string): boolean {
     const trimmed = text.trim()
-    if (language === "json" || language === "code") {
+    if (language === "json") {
         return trimmed.endsWith("{")
     }
     if (language === "yaml") {

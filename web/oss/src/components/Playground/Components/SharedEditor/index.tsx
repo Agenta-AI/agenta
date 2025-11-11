@@ -31,15 +31,12 @@ const SharedEditor = ({
     propertyId,
     baseProperty,
     variantId,
-    syncWithInitialValueChanges = false,
     ...props
 }: SharedEditorProps) => {
-    const normalizedInitialValue = initialValue ?? ""
-
     const [isEditorFocused, setIsEditorFocused] = useState(false)
 
     const [localValue, setLocalValue] = useDebounceInput<string>(
-        normalizedInitialValue,
+        initialValue,
         handleChange,
         300,
         "",
@@ -59,11 +56,7 @@ const SharedEditor = ({
     )
     const editorId = editorIdRef.current
 
-    const mountInitialValueRef = useRef<string>(normalizedInitialValue)
-
-    if (syncWithInitialValueChanges) {
-        mountInitialValueRef.current = normalizedInitialValue
-    }
+    const mountInitialValueRef = useRef<string>(initialValue)
 
     return (
         <div

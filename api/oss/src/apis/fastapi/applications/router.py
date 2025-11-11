@@ -104,14 +104,13 @@ class LegacyApplicationsRouter:
         *,
         application_revision_retrieve_request: ApplicationRevisionRetrieveRequest,
     ):
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
-                user_uid=request.state.user_id,
-                #
-                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            project_id=request.state.project_id,
+            user_uid=request.state.user_id,
+            #
+            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         cache_key = {
             "artifact_ref": application_revision_retrieve_request.application_ref,  # type: ignore
@@ -119,14 +118,13 @@ class LegacyApplicationsRouter:
             "revision_ref": application_revision_retrieve_request.application_revision_ref,  # type: ignore
         }
 
-        application_revision = None
-        # application_revision = await get_cache(
-        #     namespace="applications:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=ApplicationRevision,
-        # )
+        application_revision = await get_cache(
+            namespace="applications:retrieve",
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            key=cache_key,
+            model=ApplicationRevision,
+        )
 
         if not application_revision:
             application_revision = await self.legacy_applications_service.retrieve(

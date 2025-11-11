@@ -8,14 +8,10 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 from oss.src.core.applications.dtos import (
-    LegacyApplicationFlags,
-    #
     LegacyApplication,
     LegacyApplicationCreate,
     LegacyApplicationEdit,
     LegacyApplicationData,
-    #
-    ApplicationFlags,
     #
     Application,
     ApplicationCreate,
@@ -57,15 +53,7 @@ class LegacyApplicationsService:
             #
             name=legacy_application_create.name,
             #
-            flags=(
-                ApplicationFlags(
-                    **legacy_application_create.flags.model_dump(
-                        mode="json", exclude_none=True
-                    )
-                )
-                if legacy_application_create.flags
-                else ApplicationFlags()
-            ),
+            tags=legacy_application_create.tags,
         )
 
         user = await db_manager.get_user_with_id(
@@ -79,11 +67,9 @@ class LegacyApplicationsService:
         app_db = await db_manager.create_app_and_envs(
             project_id=str(project_id),
             #
-            app_name=application_create.slug
-            or application_create.name
-            or uuid4().hex[-12:],
+            app_name=application_create.name or uuid4().hex,
             #
-            template_key=AppType.SDK_CUSTOM,
+            template_key=AppType.CUSTOM,
             #
             user_id=str(user_id),
         )
@@ -107,14 +93,14 @@ class LegacyApplicationsService:
         # ------------------------------------------------------------------
         # Application variant
         # ------------------------------------------------------------------
-        application_variant_slug = uuid4().hex[-12:]
+        application_variant_slug = uuid4().hex
 
         application_variant_create = ApplicationVariantCreate(
             slug=application_variant_slug,
             #
-            name=application_create.name or uuid4().hex[-12:],
+            name=application_create.name or uuid4().hex,
             #
-            flags=application_create.flags,
+            tags=application_create.tags,
             #
             application_id=app_db.id,  # type: ignore[arg-type]
         )
@@ -123,7 +109,7 @@ class LegacyApplicationsService:
         app_variant_db = await db_manager.create_new_app_variant(
             project_id=str(project_id),
             #
-            variant_name="default",  # type: ignore
+            variant_name=application_variant_create.name,  # type: ignore
             #
             base_name=db_base.base_name,  # type: ignore
             commit_message="initial commit",
@@ -137,14 +123,14 @@ class LegacyApplicationsService:
         # -----------------------------------------------------------------
         # Second revision commit
         # ------------------------------------------------------------------
-        application_revision_slug = uuid4().hex[-12:]
+        application_revision_slug = uuid4().hex
 
         application_revision_commit = ApplicationRevisionCommit(
             slug=application_revision_slug,
             #
-            # name=application_create.name or uuid4().hex[-12:],
+            name=application_create.name or uuid4().hex,
             #
-            flags=application_create.flags,
+            tags=application_create.tags,
             #
             data=ApplicationRevisionData(
                 **(
@@ -173,7 +159,7 @@ class LegacyApplicationsService:
             project_id=str(project_id),
             #
             app_id=str(app_variant_db.app.id),
-            uri="" if app_db.app_type == AppType.SDK_CUSTOM else url,  # type: ignore
+            uri="" if app_db.app_type == AppType.CUSTOM else url,  # type: ignore
         )
 
         # Update variant base
@@ -218,7 +204,7 @@ class LegacyApplicationsService:
             updated_at=app_db.updated_at,  # type: ignore
             created_by_id=app_db.modified_by_id,  # type: ignore
             #
-            flags={"is_custom": True},  # type: ignore
+            tags={"type": app_db.app_type},  # type: ignore
             #
             data=application_revision_data,
         )
@@ -246,6 +232,8 @@ class LegacyApplicationsService:
             created_at=app_db.created_at,  # type: ignore
             updated_at=app_db.updated_at,  # type: ignore
             created_by_id=app_db.modified_by_id,  # type: ignore
+            #
+            tags={"type": app_db.app_type},  # type: ignore
         )
 
         # Fetch application variant details --------------------------------------------------
@@ -281,7 +269,7 @@ class LegacyApplicationsService:
                 else None
             ),
             #
-            flags=application.flags,
+            tags=application.tags,
             #
             application_id=application.id,
         )
@@ -343,7 +331,7 @@ class LegacyApplicationsService:
                 else None
             ),
             #
-            flags=application_variant.flags,
+            tags=application_variant.tags,
             #
             data=ApplicationRevisionData(
                 **(
@@ -367,7 +355,7 @@ class LegacyApplicationsService:
             updated_at=application.updated_at,
             created_by_id=application.created_by_id,
             #
-            flags={"is_custom": True},  # type: ignore
+            tags=application_variant.tags,
             #
             data=LegacyApplicationData(
                 **(
@@ -426,7 +414,7 @@ class LegacyApplicationsService:
         # -----------------------------------------------------------------
         # Second revision commit
         # ------------------------------------------------------------------
-        application_revision_slug = uuid4().hex[-12:]
+        application_revision_slug = uuid4().hex
 
         application_revision_commit = ApplicationRevisionCommit(
             slug=application_revision_slug,
@@ -485,7 +473,7 @@ class LegacyApplicationsService:
             updated_at=app_db.updated_at,  # type: ignore
             created_by_id=app_db.modified_by_id,  # type: ignore
             #
-            flags={"is_custom": True},  # type: ignore
+            tags={"type": app_db.app_type},  # type: ignore
             #
             data=application_revision_data,
         )
@@ -502,82 +490,55 @@ class LegacyApplicationsService:
         application_revision_ref: Optional[Reference] = None,
     ) -> Optional[ApplicationRevision]:
         if (
-            application_variant_ref
+            application_ref
+            and not application_ref.id
+            or application_variant_ref
             and not application_variant_ref.id
             or application_revision_ref
             and not application_revision_ref.id
         ):
             return None
 
-        if application_revision_ref:
-            if application_revision_ref.id:
-                # Fetch application revision details --------------------------------------------------
-                variant_revision_db = await db_manager.fetch_app_variant_revision_by_id(
-                    variant_revision_id=str(application_revision_ref.id)
-                )
-                if not variant_revision_db:
-                    return None
+        if application_revision_ref and application_revision_ref.id:
+            # Fetch application revision details --------------------------------------------------
+            variant_revision_db = await db_manager.fetch_app_variant_revision_by_id(
+                variant_revision_id=str(application_revision_ref.id)
+            )
+            if not variant_revision_db:
+                return None
 
-                # Fetch application variant details ---------------------------------------------------
-                app_variant_db = await db_manager.fetch_app_variant_by_id(
-                    app_variant_id=str(variant_revision_db.variant_id)
-                )
-                if not app_variant_db:
-                    return None
+            # Fetch application variant details ---------------------------------------------------
+            app_variant_db = await db_manager.fetch_app_variant_by_id(
+                app_variant_id=str(variant_revision_db.variant_id)
+            )
+            if not app_variant_db:
+                return None
 
-                # Fetch application details ----------------------------------------------------------
-                app_db = await db_manager.fetch_app_by_id(
-                    app_id=str(app_variant_db.app_id)
-                )
-                if not app_db:
-                    return None
+            # Fetch application details ----------------------------------------------------------
+            app_db = await db_manager.fetch_app_by_id(app_id=str(app_variant_db.app_id))
+            if not app_db:
+                return None
 
-        elif application_ref:
-            if application_ref.id:
-                # Fetch application details ----------------------------------------------------------
-                app_db = await db_manager.fetch_app_by_id(
-                    app_id=str(application_ref.id)
-                )
-                if not app_db:
-                    return None
+        elif application_ref and application_ref.id:
+            # Fetch application details ----------------------------------------------------------
+            app_db = await db_manager.fetch_app_by_id(app_id=str(application_ref.id))
+            if not app_db:
+                return None
 
-                # Fetch application variant details ---------------------------------------------------
-                app_variant_db = await db_manager.fetch_latest_app_variant(
-                    app_id=str(app_db.id)
-                )
-                if not app_variant_db:
-                    return None
+            # Fetch application variant details ---------------------------------------------------
+            app_variant_db = await db_manager.fetch_latest_app_variant(
+                app_id=str(app_db.id)
+            )
+            if not app_variant_db:
+                return None
 
-                # Fetch application revision details --------------------------------------------------
-                variant_revision_db = await db_manager.fetch_app_variant_revision(
-                    app_variant=str(app_variant_db.id),
-                    revision_number=app_variant_db.revision,  # type: ignore
-                )
-                if not variant_revision_db:
-                    return None
-            elif application_ref.slug:
-                # Fetch application details ----------------------------------------------------------
-                app_db = await db_manager.fetch_app_by_name(
-                    project_id=str(project_id),
-                    app_name=application_ref.slug,
-                )
-                if not app_db:
-                    return None
-
-                # Fetch application variant details ---------------------------------------------------
-                app_variant_db = await db_manager.fetch_latest_app_variant(
-                    app_id=str(app_db.id)
-                )
-                if not app_variant_db:
-                    return None
-
-                # Fetch application revision details --------------------------------------------------
-                variant_revision_db = await db_manager.fetch_app_variant_revision(
-                    app_variant=str(app_variant_db.id),
-                    revision_number=app_variant_db.revision,  # type: ignore
-                )
-                if not variant_revision_db:
-                    return None
+            # Fetch application revision details --------------------------------------------------
+            variant_revision_db = await db_manager.fetch_app_variant_revision(
+                app_variant=str(app_variant_db.id),
+                revision_number=app_variant_db.revision,  # type: ignore
+            )
+            if not variant_revision_db:
+                return None
 
         elif application_variant_ref and application_variant_ref.id:
             # Fetch application variant details ---------------------------------------------------
@@ -607,7 +568,7 @@ class LegacyApplicationsService:
             created_at=app_db.created_at,  # type: ignore
             updated_at=app_db.updated_at,  # type: ignore
             created_by_id=app_db.modified_by_id,  # type: ignore
-            flags={"is_custom": True},  # type: ignore
+            tags={"type": app_db.app_type},  # type: ignore
         )
 
         application_variant_slug = get_slug_from_name_and_id(
@@ -633,7 +594,7 @@ class LegacyApplicationsService:
                 if app_variant_db.hidden  # type: ignore
                 else None
             ),
-            flags=application.flags,
+            tags=application.tags,
             application_id=application.id,
         )
 
@@ -664,7 +625,7 @@ class LegacyApplicationsService:
                 if variant_revision_db.hidden  # type: ignore
                 else None
             ),
-            flags=application_variant.flags,
+            tags=application_variant.tags,
             application_id=application.id,
             application_variant_id=application_variant.id,
         )

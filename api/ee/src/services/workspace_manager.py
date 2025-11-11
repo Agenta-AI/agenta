@@ -128,7 +128,7 @@ async def get_all_workspace_permissions() -> List[Permission]:
 
 async def invite_user_to_workspace(
     payload: List[InviteRequest],
-    organization_id: str,
+    org_id: str,
     project_id: str,
     workspace_id: str,
     user_uid: str,
@@ -138,7 +138,7 @@ async def invite_user_to_workspace(
 
     Args:
         user_uid (str): The user uid.
-        organization_id (str): The ID of the organization that the workspace belongs to.
+        org_id (str): The ID of the organization that the workspace belongs to.
         project_id (str): The ID of the project that belongs to the workspace.
         workspace_id (str): The ID of the workspace.
         payload (InviteRequest): The payload containing the email address of the user to invite.
@@ -152,7 +152,7 @@ async def invite_user_to_workspace(
 
     try:
         workspace = await get_workspace(workspace_id)
-        organization = await db_manager_ee.get_organization(organization_id)
+        organization = await db_manager_ee.get_organization(org_id)
         user_performing_action = await db_manager.get_user(user_uid)
 
         for payload_invite in payload:
@@ -216,7 +216,7 @@ async def invite_user_to_workspace(
 async def resend_user_workspace_invite(
     payload: ReseendInviteRequest,
     project_id: str,
-    organization_id: str,
+    org_id: str,
     workspace_id: str,
     user_uid: str,
 ) -> JSONResponse:
@@ -224,7 +224,7 @@ async def resend_user_workspace_invite(
     Resend an invitation to a user to a workspace.
 
     Args:
-        organization_id (str): The ID of the organization that the workspace belongs to.
+        org_id (str): The ID of the organization that the workspace belongs to.
         project_id (str): The ID of the project.
         workspace_id (str): The ID of the workspace.
         payload (ReseendInviteRequest): The payload containing the email address of the user to invite.
@@ -238,7 +238,7 @@ async def resend_user_workspace_invite(
 
     try:
         workspace = await get_workspace(workspace_id)
-        organization = await db_manager_ee.get_organization(organization_id)
+        organization = await db_manager_ee.get_organization(org_id)
         user_performing_action = await db_manager.get_user(user_uid)
 
         # Check if the email address already has a valid, unused invitation for the workspace

@@ -12,7 +12,6 @@ import {sessionExistsAtom} from "@/oss/state/session"
 import {logAtom} from "@/oss/state/utils/logAtom"
 
 const WORKSPACE_ORG_MAP_KEY = "workspaceOrgMap"
-const LAST_USED_WORKSPACE_ID_KEY = "lastUsedWorkspaceId"
 
 const readWorkspaceOrgMap = (): Record<string, string> => {
     if (typeof window === "undefined") return {}
@@ -26,37 +25,11 @@ const readWorkspaceOrgMap = (): Record<string, string> => {
     }
 }
 
-const readLastUsedWorkspaceId = (): string | null => {
-    if (typeof window === "undefined") return null
-    try {
-        const raw = window.localStorage.getItem(LAST_USED_WORKSPACE_ID_KEY)
-        if (!raw) return null
-        const trimmed = raw.trim()
-        return trimmed || null
-    } catch {
-        return null
-    }
-}
-
-const cacheLastWorkspaceId = (workspaceId: string | null) => {
+export const cacheWorkspaceOrgPair = (workspaceId: string | null, orgId: string | null) => {
     if (typeof window === "undefined") return
-    if (!workspaceId) return
-    try {
-        window.localStorage.setItem(LAST_USED_WORKSPACE_ID_KEY, workspaceId)
-    } catch {
-        // ignore storage exceptions
-    }
-}
-
-export const cacheWorkspaceOrgPair = (
-    workspaceId: string | null,
-    organizationId: string | null,
-) => {
-    if (typeof window === "undefined") return
-    if (!workspaceId || !organizationId) return
-    cacheLastWorkspaceId(workspaceId)
+    if (!workspaceId || !orgId) return
     const map = readWorkspaceOrgMap()
-    map[workspaceId] = organizationId
+    map[workspaceId] = orgId
     try {
         window.localStorage.setItem(WORKSPACE_ORG_MAP_KEY, JSON.stringify(map))
     } catch {
@@ -94,57 +67,10 @@ export const orgsAtom = eagerAtom<Org[]>((get) => {
 
 export const selectedOrgIdAtom = atom((get) => {
     const snapshot = get(appStateSnapshotAtom)
-    const queryOrgId = snapshot.query["organization_id"]
+    const queryOrgId = snapshot.query["org_id"]
     if (typeof queryOrgId === "string" && queryOrgId) return queryOrgId
     const {workspaceId} = get(appIdentifiersAtom)
-    const userId = (get(userAtom) as User | null)?.id
-    const orgs = get(orgsAtom)
-
-    // helper: validate a candidate workspace/org id against current org list
-    const isValidForUser = (candidate: string | null): boolean => {
-        if (!candidate) return false
-
-        // direct org match
-        if (orgs && Array.isArray(orgs) && orgs.some((org) => org.id === candidate)) return true
-
-        // mapped org match
-        const mappedOrgId = resolveOrgId(candidate)
-        if (
-            mappedOrgId &&
-            orgs &&
-            Array.isArray(orgs) &&
-            orgs.some((org) => org.id === mappedOrgId)
-        ) {
-            return true
-        }
-
-        return false
-    }
-
-    // 1. If we already have a workspaceId from runtime state, prefer it.
-    //    This respects direct navigation (/w/:id) even if we haven't cached a mapping yet.
-    if (workspaceId) {
-        const resolvedNow = resolveOrgId(workspaceId) ?? workspaceId
-        return resolvedNow
-    }
-
-    // 2. Fallback: use lastUsedWorkspaceId from localStorage,
-    //    but ONLY if it's still valid for this signed-in user.
-    const cachedLast = readLastUsedWorkspaceId()
-    if (cachedLast && isValidForUser(cachedLast)) {
-        const resolved = resolveOrgId(cachedLast) ?? cachedLast
-        return resolved
-    }
-
-    // 3. Final fallback: pick a "preferred" workspace/org for this user
-    //    (owned orgs first, then non-demo, etc), and normalize it to orgId if we can.
-    const preferred = resolvePreferredWorkspaceId(userId ?? null, orgs)
-    if (preferred) {
-        const resolved = resolveOrgId(preferred) ?? preferred
-        return resolved
-    }
-
-    return null
+    return resolveOrgId(workspaceId) ?? workspaceId
 })
 
 export const selectedOrgNavigationAtom = atom(null, (get, set, next: string | null) => {
@@ -187,21 +113,6 @@ export const pickOwnedOrg = (userId: string | null, orgs?: Org[], nonDemoOnly = 
 export const resolvePreferredWorkspaceId = (userId: string | null, orgs?: Org[]) => {
     if (!Array.isArray(orgs) || orgs.length === 0) return null
 
-    const lastWorkspaceId = readLastUsedWorkspaceId()
-    if (lastWorkspaceId) {
-        const hasDirectOrgMatch = orgs.some((org) => org.id === lastWorkspaceId)
-        if (hasDirectOrgMatch) {
-            return lastWorkspaceId
-        }
-        const mappedOrgId = resolveOrgId(lastWorkspaceId)
-        if (mappedOrgId) {
-            const orgExists = orgs.some((org) => org.id === mappedOrgId)
-            if (orgExists) {
-                return lastWorkspaceId
-            }
-        }
-    }
-
     const ownedPreferred = pickOwnedOrg(userId, orgs, true) ?? pickOwnedOrg(userId, orgs, false)
     if (ownedPreferred?.id) {
         return ownedPreferred.id
@@ -213,7 +124,7 @@ export const resolvePreferredWorkspaceId = (userId: string | null, orgs?: Org[])
 
 export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
     const snapshot = get(appStateSnapshotAtom)
-    const queryOrgId = snapshot.query["organization_id"]
+    const queryOrgId = snapshot.query["org_id"]
     const id = (typeof queryOrgId === "string" && queryOrgId) || get(selectedOrgIdAtom)
     const userId = (get(userAtom) as User | null)?.id
     const isWorkspaceRoute =
@@ -233,7 +144,7 @@ export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
         queryKey: ["selectedOrg", id],
         queryFn: async () => {
             if (!id) return null
-            const org = await fetchSingleOrg({organizationId: id})
+            const org = await fetchSingleOrg({orgId: id})
             return org
         },
         staleTime: 60_000,

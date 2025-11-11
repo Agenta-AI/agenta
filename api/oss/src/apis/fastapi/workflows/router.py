@@ -1,8 +1,7 @@
-from typing import Optional, Union
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request, status, HTTPException, Depends
-from fastapi.responses import Response, JSONResponse, StreamingResponse
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -15,6 +14,10 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.workflows.dtos import (
     WorkflowRevisionData,
     WorkflowRevision,
+    #
+    WorkflowServiceRequest,
+    WorkflowServiceResponse,
+    WorkflowServiceInterface,
 )
 from oss.src.core.workflows.service import (
     WorkflowsService,
@@ -55,18 +58,6 @@ from oss.src.apis.fastapi.workflows.utils import (
     merge_workflow_revision_query_requests,
     parse_workflow_revision_retrieve_request_from_params,
     parse_workflow_revision_retrieve_request_from_body,
-)
-
-from agenta.sdk.models.workflows import (
-    WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
-)
-from agenta.sdk.decorators.routing import (
-    handle_invoke_success,
-    handle_invoke_failure,
-    handle_inspect_success,
-    handle_inspect_failure,
 )
 
 if is_ee():
@@ -320,9 +311,7 @@ class WorkflowsRouter:
             methods=["POST"],
             operation_id="invoke_workflow",
             status_code=status.HTTP_200_OK,
-            response_model=Union[
-                WorkflowServiceBatchResponse, WorkflowServiceStreamResponse
-            ],
+            response_model=WorkflowServiceResponse,
             response_model_exclude_none=True,
         )
 
@@ -332,7 +321,7 @@ class WorkflowsRouter:
             methods=["POST"],
             operation_id="inspect_workflow",
             status_code=status.HTTP_200_OK,
-            response_model=WorkflowServiceRequest,
+            response_model=WorkflowServiceInterface,
             response_model_exclude_none=True,
         )
 
@@ -1079,14 +1068,13 @@ class WorkflowsRouter:
             "revision_ref": workflow_revision_retrieve_request.workflow_revision_ref,
         }
 
-        workflow_revision = None
-        # workflow_revision = await get_cache(
-        #     namespace="workflows:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=WorkflowRevision,
-        # )
+        workflow_revision = await get_cache(
+            namespace="workflows:retrieve",
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            key=cache_key,
+            model=WorkflowRevision,
+        )
 
         if not workflow_revision:
             workflow_revision = await self.workflows_service.fetch_workflow_revision(
@@ -1115,13 +1103,19 @@ class WorkflowsRouter:
     # WORKFLOW SERVICES --------------------------------------------------------
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowServiceBatchResponse())
+    @suppress_exceptions(default=WorkflowServiceResponse())
     async def invoke_workflow(
         self,
         request: Request,
         *,
         workflow_service_request: WorkflowServiceRequest,
-    ):
+        #
+        workflow_revision_data: Optional[WorkflowRevisionData] = None,
+        #
+        workflow_retrieve_request: Optional[WorkflowRevisionRetrieveRequest] = Depends(
+            parse_workflow_revision_retrieve_request_from_params
+        ),
+    ) -> WorkflowServiceResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1130,27 +1124,63 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        try:
-            response = await self.workflows_service.invoke_workflow(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                request=workflow_service_request,
+        workflow_revision = None
+
+        if not workflow_revision_data:
+            if not workflow_retrieve_request:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Workflow revision data or retrieve request must be provided.",
+                )
+
+            workflow_revision_response = await self.retrieve_workflow_revision(
+                request=request,
+                retrieve_request_params=workflow_retrieve_request,
             )
 
-            return await handle_invoke_success(request, response)
+            workflow_revision = workflow_revision_response.workflow_revision
 
-        except Exception as exception:
-            return await handle_invoke_failure(exception)
+        else:
+            workflow_revision = WorkflowRevision(
+                data=workflow_revision_data,
+            )
+
+        if not workflow_revision:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workflow revision could not be found.",
+            )
+
+        if workflow_revision.data and workflow_revision.data.url:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workflows with URLs cannot be invoked with this endpoint. Please send a request directly to the URL.",
+            )
+
+        if workflow_revision.data and not workflow_revision.data.uri:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Workflows without URIs cannot be invoked with this endpoint. Please use a workflow revision with URI.",
+            )
+
+        workflow_service_response = await self.workflows_service.invoke_workflow(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            request=workflow_service_request,
+            revision=workflow_revision,
+        )
+
+        return workflow_service_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=WorkflowServiceRequest())
+    @suppress_exceptions(default=WorkflowServiceInterface())
     async def inspect_workflow(
         self,
         request: Request,
         *,
-        workflow_service_request: WorkflowServiceRequest,
-    ):
+        workflow_service_interface: WorkflowServiceInterface,
+    ) -> WorkflowServiceInterface:
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1159,15 +1189,33 @@ class WorkflowsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        try:
-            workflow_service_request = await self.workflows_service.inspect_workflow(
+        cache_key = {
+            "uri": workflow_service_interface.uri,
+            "url": workflow_service_interface.url,
+        }
+
+        _workflow_service_interface = await get_cache(
+            namespace="workflows:inspect",
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            key=cache_key,
+            model=WorkflowServiceInterface,
+        )
+
+        if not _workflow_service_interface:
+            _workflow_service_interface = await self.workflows_service.inspect_workflow(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(request.state.user_id),
                 #
-                request=workflow_service_request,
+                interface=workflow_service_interface,
             )
 
-            return await handle_inspect_success(workflow_service_request)
+            await set_cache(
+                namespace="workflows:inspect",
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                key=cache_key,
+                value=_workflow_service_interface,
+            )
 
-        except Exception as exception:
-            return await handle_inspect_failure(exception)
+        return _workflow_service_interface

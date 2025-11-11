@@ -125,7 +125,7 @@ const SetupTracingModalContent = ({
                 <Space direction="vertical">
                     <Title>Tracing</Title>
                     <Text>
-                        Debug effectively, bootstrap testsets, monitor and compare app versions
+                        Debug effectively, bootstrap test sets, monitor and compare app versions
                     </Text>
                 </Space>
                 <Tabs defaultActiveKey="openai" items={items} className={classes.tabs} />

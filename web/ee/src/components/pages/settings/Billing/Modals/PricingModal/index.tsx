@@ -11,7 +11,7 @@ const PricingModal = ({onCancelSubscription, ...props}: PricingModalProps) => {
     return (
         <EnhancedModal
             className={clsx("[&_.ant-modal-close]:top-[19px]", props.className)}
-            width={1200}
+            width={900}
             title={<PricingModalTitle />}
             footer={null}
             {...props}

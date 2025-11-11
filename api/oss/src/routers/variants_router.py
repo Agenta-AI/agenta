@@ -1,8 +1,7 @@
 from typing import Any, Optional, Union, List
-from uuid import UUID
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, status, Query
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -33,11 +32,30 @@ from oss.src.models.api.api_models import (
     UpdateVariantURLPayload,
     AddVariantFromBasePayload,
     UpdateVariantParameterPayload,
+    ConfigsResolveRequest,
+    ConfigsResolveResponse,
+    ConfigRequest,
+    ConfigResponseModel,
+    ReferenceRequestModel,
+    ReferenceRequest,
+)
+
+
+from oss.src.services.embeds_service import (
+    retrieve_and_maybe_resolve,
+    resolve_by_value,
+    #
+    ResolutionEmbedsError,
+    ResolutionDepthError,
+    ResolutionCycleError,
+    ResolutionMissingError,
 )
 
 router = APIRouter()
 
 log = get_module_logger(__name__)
+
+DEFAULT_RESOLVE = False
 
 
 @router.post("/from-base/", operation_id="add_variant_from_base_and_config")
@@ -333,23 +351,29 @@ async def get_variant(
     response_model=List[AppVariantRevision],
 )
 async def get_variant_revisions(
-    variant_id: str,
     request: Request,
+    #
+    variant_id: str,
+    #
+    resolve: Optional[bool] = Query(DEFAULT_RESOLVE),
 ):
-    cache_key = {
-        "variant_id": variant_id,
-    }
+    app_variant_revisions = None
 
-    app_variant_revisions = await get_cache(
-        project_id=request.state.project_id,
-        namespace="get_variant_revisions",
-        key=cache_key,
-        model=AppVariantRevision,
-        is_list=True,
-    )
+    # cache_key = {
+    #     "variant_id": variant_id,
+    #     "resolve": resolve,
+    # }
 
-    if app_variant_revisions is not None:
-        return app_variant_revisions
+    # app_variant_revisions = await get_cache(
+    #     project_id=request.state.project_id,
+    #     namespace="get_variant_revisions",
+    #     key=cache_key,
+    #     model=AppVariantRevision,
+    #     is_list=True,
+    # )
+
+    # if app_variant_revisions is not None:
+    #     return app_variant_revisions
 
     if is_ee():
         has_permission = await check_action_access(
@@ -373,12 +397,20 @@ async def get_variant_revisions(
         app_variant_revisions
     )
 
-    await set_cache(
-        project_id=request.state.project_id,
-        namespace="get_variant_revisions",
-        key=cache_key,
-        value=app_variant_revisions,
-    )
+    if resolve:
+        for revision in app_variant_revisions:
+            revision.config.parameters = await resolve_by_value(
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                params=revision.config.parameters or {},
+            )
+
+    # await set_cache(
+    #     project_id=request.state.project_id,
+    #     namespace="get_variant_revisions",
+    #     key=cache_key,
+    #     value=app_variant_revisions,
+    # )
 
     return app_variant_revisions
 
@@ -389,9 +421,12 @@ async def get_variant_revisions(
     response_model=AppVariantRevision,
 )
 async def get_variant_revision(
+    request: Request,
+    #
     variant_id: str,
     revision_number: int,
-    request: Request,
+    #
+    resolve: Optional[bool] = Query(DEFAULT_RESOLVE),
 ):
     assert (
         variant_id != "undefined"
@@ -415,13 +450,25 @@ async def get_variant_revision(
     app_variant_revision = await db_manager.fetch_app_variant_revision(
         variant_id, revision_number
     )
+
     if not app_variant_revision:
         raise HTTPException(
             404,
             detail=f"Revision {revision_number} does not exist for variant '{app_variant.variant_name}'. Please check the available revisions and try again.",
         )
 
-    return await converters.app_variant_db_revision_to_output(app_variant_revision)
+    app_variant_revision = await converters.app_variant_db_revision_to_output(
+        app_variant_revision
+    )
+
+    if resolve:
+        app_variant_revision.config.parameters = await resolve_by_value(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            params=app_variant_revision.config.parameters or {},
+        )
+
+    return app_variant_revision
 
 
 @router.delete(
@@ -481,14 +528,8 @@ async def remove_variant_revision(
 ### --- CONFIGS --- ###
 
 from oss.src.services.variants_manager import (
-    BaseModel,
-    ReferenceDTO,
-    ConfigDTO,
-)
-from oss.src.services.variants_manager import (
     add_config,
     fetch_config_by_variant_ref,
-    fetch_config_by_environment_ref,
     fork_config_by_variant_ref,
     fork_config_by_environment_ref,
     commit_config,
@@ -497,26 +538,6 @@ from oss.src.services.variants_manager import (
     list_configs,
     history_configs,
 )
-
-
-class ReferenceRequest(BaseModel):
-    application_ref: ReferenceDTO
-
-
-class ConfigRequest(BaseModel):
-    config: ConfigDTO
-
-
-class ReferenceRequestModel(ReferenceDTO):
-    id: Optional[UUID] = None
-
-
-class ConfigRequestModel(ConfigDTO):
-    pass
-
-
-class ConfigResponseModel(ConfigDTO):
-    pass
 
 
 @router.post(
@@ -558,94 +579,6 @@ async def configs_add(
     await invalidate_cache(
         project_id=request.state.project_id,
     )
-
-    return config
-
-
-@router.post(
-    "/configs/fetch",
-    operation_id="configs_fetch",
-    response_model=ConfigResponseModel,
-)
-@intercept_exceptions()
-async def configs_fetch(
-    request: Request,
-    variant_ref: Optional[ReferenceRequestModel] = None,
-    environment_ref: Optional[ReferenceRequestModel] = None,
-    application_ref: Optional[ReferenceRequestModel] = None,
-):
-    """Fetch configuration for a variant or environment.
-
-    Either variant_ref OR environment_ref must be provided (if neither is provided,
-    a default environment_ref with slug="production" will be used).
-
-    For each reference object (variant_ref, environment_ref, application_ref):
-    - Provide either 'slug' or 'id' field
-    - 'version' is optional and can be set to null
-    - If 'id' is provided, it will be used directly to fetch the resource
-    - Otherwise, 'slug' will be used along with application_ref
-
-    Returns:
-        ConfigResponseModel: The configuration for the requested variant or environment.
-
-    Raises:
-        HTTPException: If the configuration is not found.
-    """
-    cache_key = {
-        "variant_ref": (variant_ref.model_dump() if variant_ref else None),
-        "environment_ref": (environment_ref.model_dump() if environment_ref else None),
-        "application_ref": (application_ref.model_dump() if application_ref else None),
-    }
-
-    config = await get_cache(
-        project_id=request.state.project_id,
-        namespace="configs_fetch",
-        key=cache_key,
-        model=ConfigDTO,
-    )
-
-    if config is not None:
-        return config
-
-    if variant_ref:
-        config = await fetch_config_by_variant_ref(
-            project_id=request.state.project_id,
-            variant_ref=variant_ref,
-            application_ref=application_ref,
-            user_id=request.state.user_id,
-        )
-
-    elif environment_ref:
-        config = await fetch_config_by_environment_ref(
-            project_id=request.state.project_id,
-            environment_ref=environment_ref,
-            application_ref=application_ref,
-            user_id=request.state.user_id,
-        )
-
-    else:
-        environment_ref = ReferenceRequestModel(
-            slug="production", id=None, version=None
-        )
-        config = await fetch_config_by_environment_ref(
-            project_id=request.state.project_id,
-            environment_ref=environment_ref,
-            application_ref=application_ref,
-            user_id=request.state.user_id,
-        )
-
-    await set_cache(
-        project_id=request.state.project_id,
-        namespace="configs_fetch",
-        key=cache_key,
-        value=config,
-    )
-
-    if not config:
-        raise HTTPException(
-            status_code=404,
-            detail="Config not found.",
-        )
 
     return config
 
@@ -817,3 +750,185 @@ async def configs_history(
     )
 
     return configs
+
+
+# ---------------------------------------------------------------------------- #
+# cache_key = {
+#     "variant_ref": (variant_ref.model_dump() if variant_ref else None),
+#     "environment_ref": (environment_ref.model_dump() if environment_ref else None),
+#     "application_ref": (application_ref.model_dump() if application_ref else None),
+# }
+
+# config = await get_cache(
+#     project_id=project_id,
+#     namespace="configs_fetch",
+#     key=cache_key,
+#     model=ConfigDTO,
+# )
+
+# if config is not None:
+#     return config
+
+# await set_cache(
+#     project_id=project_id,
+#     namespace="configs_fetch",
+#     key=cache_key,
+#     value=config,
+# )
+
+# ---------------------------------------------------------------------------- #
+
+# ---------------------------------------------------------------------------- #
+# FASTAPI ENDPOINT
+# ---------------------------------------------------------------------------- #
+
+
+@router.post(
+    "/configs/fetch",
+    operation_id="configs_fetch",
+    response_model=ConfigResponseModel,
+)
+@intercept_exceptions()
+async def configs_fetch(
+    request: Request,
+    #
+    revision_ref: Optional[ReferenceRequestModel] = None,  # UNUSED FOR NOW
+    variant_ref: Optional[ReferenceRequestModel] = None,
+    application_ref: Optional[ReferenceRequestModel] = None,
+    environment_ref: Optional[ReferenceRequestModel] = None,
+    #
+    resolve: Optional[bool] = None,
+):
+    """
+    Fetch a configuration. If `resolve` is True, resolve both in-string and in-object
+    @ag.references(...) embeddings within the returned config.params.
+    """
+    try:
+        config = await retrieve_and_maybe_resolve(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            #
+            revision_ref=revision_ref,
+            variant_ref=variant_ref,
+            artifact_ref=application_ref,  # internal naming
+            environment_ref=environment_ref,
+            #
+            resolve=bool(resolve),
+        )
+    except ResolutionEmbedsError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "tokens",
+                "message": str(e),
+                "limit": e.limit,
+                "count": e.count,
+            },
+        )
+    except ResolutionDepthError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "depth",
+                "message": str(e),
+                "token": e.token,
+                "canonical": e.canonical,
+                "path": e.path,
+            },
+        )
+    except ResolutionCycleError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "cycle",
+                "message": str(e),
+                "token": e.token,
+                "canonical": e.canonical,
+                "path": e.path,
+            },
+        )
+    except ResolutionMissingError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "missing",
+                "message": str(e),
+                "token": e.token,
+                "canonical": e.canonical,
+                "path": e.path,
+            },
+        )
+
+    if not config:
+        raise HTTPException(status_code=404, detail="Config not found.")
+
+    return config
+
+
+@router.post(
+    "/configs/resolve",
+    operation_id="configs_resolve",
+    response_model=ConfigsResolveResponse,
+)
+@intercept_exceptions()
+async def configs_resolve(
+    request: Request,
+    payload: ConfigsResolveRequest,
+):
+    """
+    Resolve @ag.references(...) embeddings inside a provided `params` object
+    (both in-string tokens and in-object embeds). Uses the same policies and
+    guards as /configs/fetch?resolve=true, and the same internal _retrieve_by_ref
+    for fetching referenced configs.
+    """
+    try:
+        resolved = await resolve_by_value(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            params=payload.params or {},
+        )
+    except ResolutionEmbedsError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "tokens",
+                "message": str(e),
+                "limit": e.limit,
+                "count": e.count,
+            },
+        )
+    except ResolutionDepthError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "depth",
+                "message": str(e),
+                "token": e.token,
+                "canonical": e.canonical,
+                "path": e.path,
+            },
+        )
+    except ResolutionCycleError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "cycle",
+                "message": str(e),
+                "token": e.token,
+                "canonical": e.canonical,
+                "path": e.path,
+            },
+        )
+    except ResolutionMissingError as e:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "missing",
+                "message": str(e),
+                "token": e.token,
+                "canonical": e.canonical,
+                "path": e.path,
+            },
+        )
+
+    return ConfigsResolveResponse(params=resolved)

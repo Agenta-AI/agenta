@@ -32,7 +32,7 @@ const WorkspaceManage: FC = () => {
     })
     const [queryInviteModalOpen, setQueryInviteModalOpen] = useQueryParam("inviteModal")
 
-    const organizationId = selectedOrg?.id
+    const orgId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
     const workspace = selectedOrg?.default_workspace
 
@@ -81,7 +81,7 @@ const WorkspaceManage: FC = () => {
                                   <Roles
                                       member={member}
                                       signedInUser={signedInUser!}
-                                      organizationId={organizationId!}
+                                      orgId={orgId!}
                                       workspaceId={workspaceId!}
                                   />
                               ),
@@ -128,7 +128,7 @@ const WorkspaceManage: FC = () => {
                                         member.user.email === signedInUser?.email ||
                                         member.user.id === selectedOrg?.owner
                                     }
-                                    organizationId={organizationId!}
+                                    orgId={orgId!}
                                     workspaceId={workspaceId!}
                                     onResendInvite={(data: any) => {
                                         if (!isDemo() && data.uri) {
@@ -146,10 +146,10 @@ const WorkspaceManage: FC = () => {
     )
 
     const handleSaveWorkspaceName = async () => {
-        if (!workspaceId || !organizationId) return
+        if (!workspaceId || !orgId) return
 
         await updateWorkspaceName({
-            organizationId,
+            orgId,
             workspaceId,
             name: workspaceNameInput,
             onSuccess: () => {

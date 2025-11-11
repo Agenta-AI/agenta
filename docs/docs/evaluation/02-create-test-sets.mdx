@@ -1,0 +1,192 @@
+---
+title: "Create Test Sets"
+---
+
+```mdx-code-block
+import { Stream } from '@cloudflare/stream-react';
+import Image from "@theme/IdealImage";
+```
+
+This guide outlines the various methods for creating test sets in Agenta and provides specifications for the test set schema.
+
+Test sets are one of the most critical components for building reliable LLM-powered applications. They allow you to evaluate your application, find edge cases, prevent regressions, and systematically improve performance over time.
+
+## What is a Test Set?
+
+A test set is a collection of test cases, each containing:
+
+- **Inputs**: The data your LLM application expects (required)
+- **Ground Truth**: The expected answer from your application (optional, often stored as "correct_answer")
+- **Annotations**: Additional metadata or rules about the test case (optional)
+
+You can create a test set in Agenta using the following methods:
+
+- [By uploading a CSV or JSON file](#creating-a-test-set-from-a-csv-or-json)
+- [Using the API](#creating-a-test-set-using-the-api)
+- [Using the UI](#creatingediting-a-test-set-from-the-ui)
+- [From the playground](#creating-a-test-set-from-the-playground)
+- [From traces in observability](#adding-data-from-traces)
+
+## Creating a Test Set from a CSV or JSON
+
+To create a test set from a CSV or JSON file:
+
+1. Go to `Test sets`
+2. Click `Upload test sets`
+3. Select either `CSV` or `JSON`
+
+<Image img={require("/images/test-sets/upload_test_set.png")} />
+
+### CSV Format
+
+We use CSV with commas (,) as separators and double quotes (") as quote characters. The first row should contain the header with column names. Each input should have its own column. The column containing the reference answer can have any name, but we use "correct_answer" by default.
+
+:::info
+If you choose a different column name for the reference answer, you'll need to configure the evaluator later with that specific name.
+:::
+
+Here's an example of a valid CSV:
+
+```csv
+text,instruction,correct_answer
+Hello,How are you?,I'm good.
+"Tell me a joke.",Sure, here's one:...
+```
+
+### JSON Format
+
+The test set should be in JSON format with the following structure:
+
+1. A JSON file containing an array of objects.
+2. Each object in the array represents a row, with keys as column headers and values as row data. Here's an example of a valid JSON file:
+
+```json
+[
+  { "recipe_name": "Chicken Parmesan", "correct_answer": "Chicken" },
+  { "recipe_name": "a, special, recipe", "correct_answer": "Beef" }
+]
+```
+
+### Test set schema for Chat Applications
+
+For chat applications created using the chat template in Agenta, the input should be saved in the column called `messages`, which would contain the input list of messages:
+
+```json
+[
+  { "content": "message.", "role": "user" },
+  { "content": "message.", "role": "assistant" }
+  // Add more messages if necessary
+]
+```
+
+In case the prompt include other variables (e.g. `context`), make sure to have a column with the same name and the value of the variable.
+
+The reference answer column (by default `correct_answer`) should follow the same format:
+
+```json
+{ "content": "message.", "role": "assistant" }
+```
+
+Here is an example of a valid CSV for testing the default chat prompt template:
+
+```csv chat_test_set.csv
+context,messages,correct_answer
+test,"[{""role"":""user"",""content"":""hi""}]","{""content"":""Hello! How can I assist you today?"",""role"":""assistant"",""annotations"":[]}"
+```
+
+## Creating a Test Set Using the API
+
+You can upload a test set using our API. Find the [API endpoint reference here](/reference/api/upload-file).
+
+Here's an example of such a call:
+
+**HTTP Request:**
+
+```
+POST /testsets
+
+```
+
+**Request Body:**
+
+```json
+{
+  "name": "testsetname",
+  "csvdata": [
+    { "column1": "row1col1", "column2": "row1col2" },
+    { "column1": "row2col1", "column2": "row2col2" }
+  ]
+}
+```
+
+## Creating/Editing a Test Set from the UI
+
+To create or edit a test set from the UI:
+
+1. Go to `Test sets`
+2. Choose `Create a test set with UI` or select the test set
+3. Name your test set and specify the columns for input types.
+4. Add the dataset.
+
+Remember to click `Save test set`
+
+<Image img={require("/images/test-sets/add_test_set_ui.png")} />
+
+## Creating a Test Set from the Playground
+
+<Stream controls src="27668e5d4c08c8211d4d808af16090bd" height="400px" />
+<br />
+
+The playground offers a convenient way to create and add data to a test set. This workflow is useful when you discover interesting cases or edge cases while experimenting with your LLM application.
+
+To add a data point to a test set from the playground:
+
+1. Work with your application in the playground
+2. When you find an interesting case, click the `Add to test set` button located near the `Run` button
+3. A drawer will display showing the inputs and outputs from the playground
+4. You can modify inputs and correct answers if needed
+5. Select an existing test set to add to, or choose `+Add new` to create a new one
+6. Once you're satisfied, click `Add` to finalize
+
+## Adding Data From Traces
+
+One of the most valuable sources of test cases is your production data. Traces captured in the Observability view represent real user interactions with your LLM application.
+
+<Stream controls src="03031e0bf0b33319923d5dadbf5d5e5a" height="400px" />
+<br />
+
+### Adding a Single Trace
+
+To add a single trace to a test set:
+
+1. Navigate to the **Observability** view in Agenta
+2. Find a trace you want to add to a test set
+3. Click the **Add to test set** button at the top of the trace
+4. Choose to create a new test set or select an existing one
+5. Review the mapping between trace data and test set columns
+   - Agenta will automatically map the inputs and outputs to appropriate columns
+   - You can edit the expected answer if you don't agree with the output
+6. Click **Save** to add the trace to your test set
+
+### Adding Multiple Traces at Once
+
+To efficiently add multiple traces:
+
+1. In the Observability view, use the search function to filter traces
+   - For example, search for specific response patterns like "I don't have enough information"
+2. Select all relevant traces by checking the boxes next to them
+3. Click **Add to test set**
+4. Choose an existing test set or create a new one
+5. Review the mapping for the traces
+6. Click **Save** to add all selected traces to your test set
+
+## Using Your Test Sets
+
+Once you have created test sets, you can use them for:
+
+1. **Playground Iteration**: Load test sets in the playground to test and refine your prompts
+2. **Automated Evaluation**: Run systematic evaluations comparing outputs against expected answers
+3. **Human Evaluation**: Collect human feedback on your application's performance
+4. **Regression Testing**: Ensure new changes don't break existing functionality
+
+To learn more about using your test sets for evaluation, see our [Evaluation documentation](/evaluation/overview).
