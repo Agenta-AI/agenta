@@ -5,7 +5,7 @@ description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = [
     "Mahmoud Mabrouk <mahmoud@agenta.ai>",
-    "Juan Vega <jp@agenta.ai>"
+    "Juan Pablo Vega <jp@agenta.ai>"
 ]
 classifiers = [
     "Intended Audience :: Developers",
