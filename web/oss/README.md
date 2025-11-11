@@ -183,11 +183,13 @@ Our folder structure follows a module-based architecture that prioritizes mainta
 #### Core Principles
 
 1. **Modular Organization**
+
     - Modules represent distinct feature areas (similar to pages)
     - Each module is self-contained with its own components, hooks, and assets
     - Shared functionality is elevated to appropriate hierarchy levels
 
 2. **Component Structure**
+
     - Components are organized by their scope of use
     - Each component may contain:
         - Presentational logic (`Component.tsx`)
@@ -207,12 +209,14 @@ Our folder structure follows a module-based architecture that prioritizes mainta
 #### State Management
 
 1. **Store Organization**
+
     - Each module can have its own `store` folder containing:
         - Jotai atoms for reactive state
         - Context providers for complex state/dependency injection
     - Global store at root level for cross-module state
 
 2. **State Movement Guidelines**
+
     - State used only within a component stays as local state
     - State shared between components in a module uses module-level store
     - State shared across modules moves to root `/store`
@@ -229,27 +233,27 @@ Our folder structure follows a module-based architecture that prioritizes mainta
 
 #### Implementation Strategy
 
-- **Current Approach**: Gradual adoption during regular development
-- **Migration**: Update components to follow this structure as they are modified
-- **No Big Bang**: Avoid large-scale refactoring
-- **Progressive Enhancement**: Easy to implement incrementally
+-   **Current Approach**: Gradual adoption during regular development
+-   **Migration**: Update components to follow this structure as they are modified
+-   **No Big Bang**: Avoid large-scale refactoring
+-   **Progressive Enhancement**: Easy to implement incrementally
 
 This structure supports:
 
-- Clear ownership and responsibility
-- Easy code review and modification
-- Identification of reusable patterns
-- Natural code organization based on usage
-- Scalable architecture that grows with the application
+-   Clear ownership and responsibility
+-   Easy code review and modification
+-   Identification of reusable patterns
+-   Natural code organization based on usage
+-   Scalable architecture that grows with the application
 
 ### Data Fetching Best Practices
 
 We recommend using SWR with Axios for data fetching instead of useEffect patterns. This helps achieve cleaner code while,
 
-- simplifying management of fetch states.
-- handling cache better
-- having a more interactive UI by revalidating in background
-- utilizing optimistic mutations.
+-   simplifying management of fetch states.
+-   handling cache better
+-   having a more interactive UI by revalidating in background
+-   utilizing optimistic mutations.
 
 #### Example: Converting useEffect Data Fetching to SWR with Axios
 

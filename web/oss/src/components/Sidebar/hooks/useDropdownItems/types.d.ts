@@ -6,7 +6,6 @@ export interface UseDropdownItemsProps {
     selectedOrg: OrgDetails | null
     orgs: Org[]
     project: ProjectsResponse | null
-    projects: ProjectsResponse[]
-    interactive?: boolean
     logout: () => void
+    projects: ProjectsResponse[]
 }

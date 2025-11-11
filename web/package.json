@@ -1,15 +1,13 @@
 {
     "name": "agenta-web",
-    "version": "0.62.0",
+    "version": "0.51.6",
     "workspaces": [
         "ee",
         "oss",
-        "tests",
-        "variants-state"
+        "tests"
     ],
     "dependencies": {
         "ajv-formats": "^3.0.1",
-        "jotai-eager": "^0.2.3",
         "json5": "^2.2.3",
         "next": "15.5.2"
     },
@@ -29,15 +27,12 @@
         "eslint-plugin-react": "^7.37.5",
         "eslint-plugin-react-hooks": "^5.1.0",
         "husky": "^9.1.7",
-        "node-fetch": "^3.3.2",
         "prettier": "3.6.0",
         "prettier-eslint": "^16.4.0",
         "prettier-plugin-tailwindcss": "^0.1",
-        "ts-node": "^10.9.2",
-        "tsconfig-paths": "^4.2.0",
-        "tsx": "^4.20.3",
         "turbo": "2.5.4",
-        "typescript-eslint": "^8.34.1"
+        "typescript-eslint": "^8.34.1",
+        "tsx": "^4.19.4"
     },
     "packageManager": "pnpm@10.4.1",
     "scripts": {
@@ -47,18 +42,6 @@
         "dev-oss": "turbo run dev --filter=@agenta/oss",
         "lint": "turbo run lint",
         "lint-fix": "turbo run lint -- --fix",
-        "test:revision-centric": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-revision-centric.ts",
-        "test:apps": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-apps.ts",
-        "test:environments": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-environments.ts",
-        "test:deployments": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-deployments.ts",
-        "test:orgs": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-orgs.ts",
-        "test:profile": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-profile.ts",
-        "test:workspace": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-workspace.ts",
-        "test:project": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-project.ts",
-        "test:newPlayground": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-newPlayground.ts",
-        "test:playground-dev": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/run-playground-tests.ts",
-        "test:observability": "tsx --tsconfig oss/tsconfig.json oss/tests/datalayer/test-observability.ts",
-        "test:datalayer": "pnpm test:revision-centric && pnpm test:apps && pnpm test:environments && pnpm test:deployments && pnpm test:orgs && pnpm test:profile && pnpm test:workspace && pnpm test:project && pnpm test:newPlayground && pnpm test:observability",
         "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "generate:tailwind-tokens": "tsx scripts/generate-tailwind-tokens.ts"

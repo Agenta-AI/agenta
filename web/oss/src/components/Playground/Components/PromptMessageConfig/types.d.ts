@@ -1,5 +1,4 @@
 import {EditorProps} from "@/oss/components/Editor/types"
-
 import type {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
 import type {SharedEditorProps} from "../SharedEditor/types"
 import type {BaseContainerProps} from "../types"

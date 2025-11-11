@@ -1,166 +1,171 @@
 import {memo, useCallback, useMemo} from "react"
 
-import {CloseOutlined, FullscreenExitOutlined, FullscreenOutlined} from "@ant-design/icons"
+import {CloseOutlined} from "@ant-design/icons"
 import {CaretDown, CaretUp, Rocket} from "@phosphor-icons/react"
 import {Button} from "antd"
-import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import CommitVariantChangesButton from "@/oss/components/Playground/Components/Modals/CommitVariantChangesModal/assets/CommitVariantChangesButton"
 import DeployVariantButton from "@/oss/components/Playground/Components/Modals/DeployVariantModal/assets/DeployVariantButton"
-import {
-    revisionListAtom,
-    variantByRevisionIdAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
-import {variantIsDirtyAtomFamily} from "@/oss/components/Playground/state/atoms"
-import VariantNameCell from "@/oss/components/VariantNameCell"
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
-import {currentVariantAppStatusAtom} from "@/oss/state/variant/atoms/fetcher"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import {useAppsData} from "@/oss/contexts/app.context"
+import {useAppId} from "@/oss/hooks/useAppId"
+import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useVariants} from "@/oss/lib/hooks/useVariants"
 
 import {VariantDrawerTitleProps} from "../types"
-import {drawerVariantIsLoadingAtomFamily} from "../VariantDrawerContent"
 
-// Local, focused subcomponents to reduce subscriptions and re-renders
-const NavControls = memo(
-    ({
-        variantId,
-        variantIds,
-        variants,
-        isLoading,
-    }: Pick<VariantDrawerTitleProps, "variantId" | "variantIds" | "variants" | "isLoading">) => {
-        const [, updateQuery] = useQuery("replace")
-        const [displayMode] = useQueryParam("displayMode")
-        const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
-        const selectedParent = useMemo(() => {
-            const parentId =
-                typeof selectedVariant?._parentVariant === "string"
-                    ? selectedVariant?._parentVariant
-                    : selectedVariant?._parentVariant?.id
-            return variants.find((v) => v.id === parentId)
-        }, [variants, selectedVariant])
+const VariantDrawerTitle = ({
+    selectedVariant,
+    onClose,
+    variants,
+    isDirty,
+    selectedDrawerVariant,
+    isLoading,
+    viewAs,
+}: VariantDrawerTitleProps) => {
+    const {appStatus} = usePlayground({
+        stateSelector: (state) => ({
+            appStatus: state.appStatus,
+        }),
+    })
+    const appId = useAppId()
+    const router = useRouter()
+    const {currentApp} = useAppsData()
+    // @ts-ignore
+    const {mutate: fetchAllVariants} = useVariants(currentApp)({appId})
+    const [_, setQueryVariant] = useQueryParam("revisions")
+    const [displayMode] = useQueryParam("displayMode")
 
-        const selectedVariantIndex = useMemo(() => {
-            if (variantIds && variantIds.length > 1) {
-                return variantIds.findIndex((id) => id === variantId)
+    const selectedParent = useMemo(
+        () => variants.find((v) => v.id === selectedVariant?._parentVariant.id),
+        [variants, selectedVariant],
+    )
+
+    const selectedVariantIndex = useMemo(() => {
+        if (selectedDrawerVariant && !selectedDrawerVariant._parentVariant) {
+            return variants?.findIndex((v) => v.id === selectedVariant?._parentVariant?.id)
+        }
+        if (displayMode && displayMode !== "flat") {
+            if (selectedParent) {
+                return selectedParent.revisions?.findIndex((r) => r.id === selectedVariant?.id)
             }
-            if (displayMode && displayMode !== "flat") {
-                if (selectedParent) {
-                    return selectedParent.revisions?.findIndex((r) => r.id === variantId)
-                }
-                return variants?.findIndex((v) => v.id === variantId)
-            }
-            return variants?.findIndex((v) => v.id === variantId)
-        }, [variantId, variants, selectedParent, displayMode, variantIds])
+            return variants?.findIndex((v) => v.id === selectedVariant?.id)
+        }
+        return variants?.findIndex((v) => v.id === selectedVariant?.id)
+    }, [selectedVariant, variants, selectedDrawerVariant, selectedParent, displayMode])
 
-        const isDisableNext = useMemo(() => {
-            if (variantIds && variantIds.length > 1) {
-                return selectedVariantIndex === (variantIds.length ?? 0) - 1
-            }
-            if (displayMode && displayMode !== "flat") {
-                if (selectedParent) {
-                    return selectedVariantIndex === (selectedParent?.revisions?.length ?? 0) - 1
-                }
-                return selectedVariantIndex === (variants?.length ?? 0) - 1
-            }
-            return selectedVariantIndex === (variants?.length ?? 0) - 1
-        }, [selectedVariantIndex, variants, selectedParent, displayMode, variantIds])
-
-        const isDisablePrev = useMemo(() => selectedVariantIndex === 0, [selectedVariantIndex])
-
-        const loadPrevVariant = useCallback(() => {
-            if (selectedVariantIndex === undefined || selectedVariantIndex <= 0) return
-            let nextId: string | undefined
-            if (variantIds && variantIds.length > 1) {
-                nextId = variantIds[selectedVariantIndex - 1]
-            } else if (displayMode && displayMode !== "flat") {
-                if (selectedParent) {
-                    nextId = selectedParent?.revisions?.[selectedVariantIndex - 1]?.id
-                } else {
-                    nextId = variants?.[selectedVariantIndex - 1]?.id
-                }
+    const loadPrevVariant = useCallback(() => {
+        if (selectedVariantIndex === undefined || selectedVariantIndex <= 0) return
+        if (displayMode && displayMode !== "flat") {
+            if (selectedDrawerVariant && selectedDrawerVariant._parentVariant) {
+                setQueryVariant(
+                    JSON.stringify([selectedParent?.revisions?.[selectedVariantIndex - 1]?.id]),
+                )
             } else {
-                nextId = variants?.[selectedVariantIndex - 1]?.id
+                setQueryVariant(JSON.stringify([variants?.[selectedVariantIndex - 1]?.id]))
             }
-            if (!nextId) return
-            // Shallow URL update for shareable deep link
-            updateQuery({revisionId: nextId, drawerType: "variant"})
-        }, [selectedVariantIndex, displayMode, selectedParent, variants, updateQuery, variantIds])
+        } else {
+            setQueryVariant(JSON.stringify([variants?.[selectedVariantIndex - 1]?.id]))
+        }
+    }, [
+        selectedVariantIndex,
+        displayMode,
+        selectedDrawerVariant,
+        selectedParent,
+        variants,
+        setQueryVariant,
+    ])
 
-        const loadNextVariant = useCallback(() => {
-            if (selectedVariantIndex === undefined) return
-            let nextId: string | undefined
-            if (variantIds && variantIds.length > 1) {
-                if (selectedVariantIndex < variantIds.length - 1) {
-                    nextId = variantIds[selectedVariantIndex + 1]
-                }
-            } else if (displayMode && displayMode !== "flat") {
-                if (selectedParent) {
-                    if (
-                        selectedParent?.revisions &&
-                        selectedVariantIndex < (selectedParent.revisions?.length ?? 0) - 1
-                    ) {
-                        nextId = selectedParent.revisions[selectedVariantIndex + 1]?.id
-                    }
-                } else if (selectedVariantIndex < (variants?.length ?? 0) - 1) {
-                    nextId = variants[selectedVariantIndex + 1]?.id
+    const loadNextVariant = useCallback(() => {
+        if (selectedVariantIndex === undefined) return
+        if (displayMode && displayMode !== "flat") {
+            if (selectedDrawerVariant && selectedDrawerVariant._parentVariant) {
+                if (
+                    selectedParent?.revisions &&
+                    selectedVariantIndex < selectedParent.revisions.length - 1
+                ) {
+                    setQueryVariant(
+                        JSON.stringify([selectedParent.revisions[selectedVariantIndex + 1]?.id]),
+                    )
                 }
             } else if (selectedVariantIndex < (variants?.length ?? 0) - 1) {
-                nextId = variants[selectedVariantIndex + 1]?.id
+                setQueryVariant(JSON.stringify([variants[selectedVariantIndex + 1]?.id]))
             }
-            if (!nextId) return
-            // Shallow URL update for shareable deep link
-            updateQuery({revisionId: nextId, drawerType: "variant"})
-        }, [selectedVariantIndex, displayMode, selectedParent, variants, updateQuery, variantIds])
-
-        return (
-            <div className="flex items-center gap-1">
-                <Button
-                    icon={<CaretUp size={16} />}
-                    size="small"
-                    type="text"
-                    onClick={loadPrevVariant}
-                    disabled={isDisablePrev || isLoading}
-                />
-                <Button
-                    icon={<CaretDown size={16} />}
-                    size="small"
-                    type="text"
-                    onClick={loadNextVariant}
-                    disabled={isDisableNext || isLoading}
-                />
-            </div>
-        )
-    },
-)
-
-const VariantSummary = memo(({variantId}: {variantId: string}) => {
-    return <VariantNameCell revisionId={variantId} showBadges />
-})
-
-const TitleActions = memo(
-    ({
-        variantId,
-        viewAs,
+        } else if (selectedVariantIndex < (variants?.length ?? 0) - 1) {
+            setQueryVariant(JSON.stringify([variants[selectedVariantIndex + 1]?.id]))
+        }
+    }, [
+        selectedVariantIndex,
+        displayMode,
+        selectedDrawerVariant,
+        selectedParent,
         variants,
-        isLoading,
-    }: Pick<VariantDrawerTitleProps, "variantId" | "viewAs" | "variants" | "isLoading">) => {
-        const appStatus = useAtomValue(currentVariantAppStatusAtom)
-        const selectedVariant = useAtomValue(variantByRevisionIdAtomFamily(variantId)) as any
-        const isDirty = useAtomValue(variantIsDirtyAtomFamily(variantId))
-        const {goToPlayground} = usePlaygroundNavigation()
-        const {appURL} = useURL()
-        const router = useRouter()
+        setQueryVariant,
+    ])
 
-        return (
+    const isDisableNext = useMemo(() => {
+        if (displayMode && displayMode !== "flat") {
+            if (selectedDrawerVariant && selectedDrawerVariant._parentVariant) {
+                return selectedVariantIndex === (selectedParent?.revisions?.length ?? 0) - 1
+            }
+            return selectedVariantIndex === (variants?.length ?? 0) - 1
+        }
+        return selectedVariantIndex === (variants?.length ?? 0) - 1
+    }, [selectedVariantIndex, variants, selectedParent, selectedDrawerVariant, displayMode])
+
+    const isDisablePrev = useMemo(() => selectedVariantIndex === 0, [selectedVariantIndex])
+
+    return (
+        <section className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+                <Button onClick={onClose} type="text" icon={<CloseOutlined />} size="small" />
+
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                        <Button
+                            icon={<CaretUp size={16} />}
+                            size="small"
+                            type="text"
+                            onClick={loadPrevVariant}
+                            disabled={isDisablePrev || isLoading}
+                        />
+                        <Button
+                            icon={<CaretDown size={16} />}
+                            size="small"
+                            type="text"
+                            onClick={loadNextVariant}
+                            disabled={isDisableNext || isLoading}
+                        />
+                    </div>
+
+                    <VariantDetailsWithStatus
+                        variantName={selectedVariant?.variantName}
+                        revision={selectedVariant?.revision}
+                        variant={{
+                            deployedIn: selectedVariant?.deployedIn,
+                            isLatestRevision: selectedVariant?.isLatestRevision ?? false,
+                            isDraft: isDirty ?? false,
+                        }}
+                    />
+                </div>
+            </div>
+
             <div className="flex items-center gap-2">
                 <Button
                     className="flex items-center gap-2"
                     size="small"
                     disabled={!appStatus || isLoading}
                     onClick={() => {
-                        goToPlayground(selectedVariant ?? variantId)
+                        router.push({
+                            pathname: `/apps/${appId}/playground`,
+                            query: selectedVariant
+                                ? {
+                                      revisions: JSON.stringify([selectedVariant?.id]),
+                                  }
+                                : {},
+                        })
                     }}
                 >
                     <Rocket size={14} />
@@ -172,7 +177,9 @@ const TitleActions = memo(
                     type="default"
                     size="small"
                     variantId={
-                        !selectedVariant?._parentVariant ? selectedVariant?.variantId : undefined
+                        !selectedVariant?._parentVariant
+                            ? selectedVariant?._parentVariant?.id
+                            : undefined
                     }
                     revisionId={selectedVariant?._parentVariant ? selectedVariant?.id : undefined}
                     disabled={isLoading}
@@ -185,51 +192,19 @@ const TitleActions = memo(
                     size="small"
                     disabled={!isDirty || isLoading}
                     commitType={viewAs}
+                    onSuccess={({revisionId, variantId}) => {
+                        fetchAllVariants()
+
+                        if (variants[0]?.revisions && variants[0]?.revisions.length > 0) {
+                            if (variantId) {
+                                setQueryVariant(JSON.stringify([variantId]))
+                            }
+                        } else {
+                            setQueryVariant(JSON.stringify([revisionId]))
+                        }
+                    }}
                 />
             </div>
-        )
-    },
-)
-
-const VariantDrawerTitle = ({
-    onClose,
-    variantId,
-    variants,
-    viewAs,
-    variantIds,
-    onToggleWidth,
-    isExpanded,
-}: VariantDrawerTitleProps) => {
-    const isLoading = useAtomValue(drawerVariantIsLoadingAtomFamily(variantId))
-    return (
-        <section className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-                <Button onClick={onClose} type="text" icon={<CloseOutlined />} size="small" />
-                <Button
-                    onClick={onToggleWidth}
-                    type="text"
-                    size="small"
-                    icon={isExpanded ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-                />
-
-                <div className="flex items-center gap-2">
-                    <NavControls
-                        variantId={variantId}
-                        variantIds={variantIds}
-                        variants={variants}
-                        isLoading={isLoading}
-                    />
-
-                    <VariantSummary variantId={variantId} />
-                </div>
-            </div>
-
-            <TitleActions
-                variantId={variantId}
-                viewAs={viewAs}
-                variants={variants}
-                isLoading={isLoading}
-            />
         </section>
     )
 }

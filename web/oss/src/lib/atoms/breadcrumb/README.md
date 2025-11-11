@@ -23,12 +23,12 @@ The breadcrumb system uses Jotai atoms to manage breadcrumb state, allowing page
 
 ```typescript
 interface BreadcrumbItem {
-    label: string // Display text
-    href?: string // Optional link URL
-    icon?: ReactNode // Optional icon component
-    disabled?: boolean // Optional disabled state
+    label: string          // Display text
+    href?: string         // Optional link URL
+    icon?: ReactNode      // Optional icon component
+    disabled?: boolean    // Optional disabled state
     menu?: BreadcrumbAtom // Optional menu items
-    value?: string // Optional value for dynamic(especially useful for uuids)
+    value?: string        // Optional value for dynamic(especially useful for uuids) 
 }
 ```
 
@@ -40,10 +40,10 @@ Returns breadcrumb control functions:
 
 ```typescript
 const {
-    setBreadcrumbs, // Set complete breadcrumb array
-    appendBreadcrumb, // Add item to end
-    prependBreadcrumb, // Add item to beginning
-    clearBreadcrumbs, // Reset to URL-based
+    setBreadcrumbs,      // Set complete breadcrumb array
+    appendBreadcrumb,    // Add item to end
+    prependBreadcrumb,   // Add item to beginning
+    clearBreadcrumbs     // Reset to URL-based
 } = useBreadcrumbs()
 ```
 
@@ -52,14 +52,14 @@ const {
 Sets breadcrumbs and automatically clears them on component unmount:
 
 ```typescript
-useBreadcrumbsEffect(
-    {
-        breadcrumbs: [{label: "Home", href: "/"}, {label: "Settings"}],
-        type: "new",
-        condition: true,
-    },
-    [dependency],
-)
+useBreadcrumbsEffect({
+    breadcrumbs: [
+        {label: "Home", href: "/"},
+        {label: "Settings"}
+    ],
+    type: "new",
+    condition: true
+}, [dependency])
 ```
 
 ## Usage Examples
@@ -142,8 +142,8 @@ export const AdminDashboard = ({hasPermission}: {hasPermission: boolean}) => {
     const breadcrumbs = [
         {label: "Home", href: "/"},
         {
-            label: "Admin",
-            href: hasPermission ? "/admin" : undefined,
+            label: "Admin", 
+            href: hasPermission ? "/admin" : undefined, 
             disabled: !hasPermission
         },
         ...(hasPermission ? [{label: "Dashboard"}] : []),

@@ -1,5 +1,4 @@
 import {useEffect} from "react"
-
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
     $getSelection,
@@ -12,10 +11,9 @@ import {
     $createTextNode,
     $isElementNode,
 } from "lexical"
-
-import {navigateCursor} from "./assets/selectionUtils"
-import {$isTokenInputNode} from "./TokenInputNode"
 import {$isTokenNode} from "./TokenNode"
+import {$isTokenInputNode} from "./TokenInputNode"
+import {navigateCursor} from "./assets/selectionUtils"
 
 /**
  * Plugin that auto inserts and removes curly brace pairs.

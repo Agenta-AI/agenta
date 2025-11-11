@@ -1,3 +1,0 @@
-openai-agents
-openinference-instrumentation-openai-agents
-dotenv

@@ -1,84 +1,82 @@
-import {useEffect, useMemo} from "react"
+import {useCallback} from "react"
 
-import {useAtomValue} from "jotai"
-import {SWRConfiguration} from "swr"
+import useSWR, {SWRResponse} from "swr"
 
-import {evaluatorsQueryAtomFamily} from "@/oss/state/evaluators"
+import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {DEFAULT_UUID, getCurrentProject} from "@/oss/contexts/project.context"
+import {fetchAllEvaluators} from "@/oss/services/evaluators"
 
+import axios from "../../api/assets/axiosConfig"
 import {Evaluator} from "../../Types"
+import {transformApiData} from "../useAnnotations/assets/transformer"
 
-import {EvaluatorPreviewDto, UseEvaluatorsOptions} from "./types"
+import {
+    EvaluatorDto,
+    EvaluatorsResponseDto,
+    EvaluatorPreviewDto,
+    UseEvaluatorsOptions,
+} from "./types"
 
-export interface UseEvaluatorsReturn<Preview extends boolean> {
-    data: (Preview extends true ? EvaluatorPreviewDto[] : Evaluator[]) | undefined
-    error: unknown
-    isLoading: boolean
-    isPending: boolean
-    isError: boolean
-    isSuccess: boolean
-    refetch: () => Promise<any>
-    mutate: () => Promise<any>
-}
+type UseEvaluatorsReturn<Preview extends boolean> = SWRResponse<
+    Preview extends true ? EvaluatorPreviewDto[] : Evaluator[],
+    any
+>
 
 const useEvaluators = <Preview extends boolean = false>({
     preview,
     queries,
-    onSuccess,
-    onError,
-    projectId,
+    ...options
 }: UseEvaluatorsOptions & {
     preview?: Preview
     queries?: {is_human: boolean}
-    onSuccess?: (
-        data: (Preview extends true ? EvaluatorPreviewDto[] : Evaluator[]) | undefined,
-        key: readonly unknown[],
-        config: SWRConfiguration | undefined,
-    ) => void
-    onError?: (error: unknown) => void
-} = {}): UseEvaluatorsReturn<Preview> => {
-    const queriesKey = useMemo(() => JSON.stringify(queries ?? null), [queries])
+}): UseEvaluatorsReturn<Preview> => {
+    const {selectedOrg} = useOrgData()
+    const projectId = options?.projectId || getCurrentProject()?.projectId || ""
+    const workspace = selectedOrg?.default_workspace
+    const members = workspace?.members || []
 
-    const atomParams = useMemo(
-        () => ({
-            projectId: projectId ?? null,
-            preview: Boolean(preview),
-            queriesKey,
-        }),
-        [projectId, preview, queriesKey],
+    type Data = Preview extends true ? EvaluatorPreviewDto[] : Evaluator[]
+
+    const fetcher = useCallback(async (): Promise<Data> => {
+        if (preview) {
+            const response = await axios.post<EvaluatorsResponseDto>(
+                `/preview/simple/evaluators/query?project_id=${projectId}`,
+                queries
+                    ? {
+                          evaluator: {
+                              flags: queries,
+                          },
+                      }
+                    : {},
+            )
+            const data =
+                (response?.data?.evaluators || []).map((evaluator) =>
+                    transformApiData<EvaluatorDto>({data: evaluator, members}),
+                ) || []
+            const withMetrics = data.map((d) => ({
+                ...d,
+                metrics: getMetricsFromEvaluator(d as EvaluatorDto),
+            }))
+            return withMetrics as unknown as Data
+        } else {
+            // Non-preview mode returns full Evaluator objects
+            const data = await fetchAllEvaluators()
+            return data as Data
+        }
+    }, [projectId, preview, queries])
+
+    return useSWR<Preview extends true ? EvaluatorPreviewDto[] : Evaluator[]>(
+        projectId && projectId !== DEFAULT_UUID
+            ? `/api${preview ? "/preview" : ""}/evaluators/?project_id=${projectId}&queries=${JSON.stringify(queries)}`
+            : null,
+        fetcher,
+        {
+            revalidateOnFocus: false,
+            shouldRetryOnError: false,
+            ...options,
+        },
     )
-
-    const queryAtom = useMemo(() => evaluatorsQueryAtomFamily(atomParams), [atomParams])
-
-    const queryResult = useAtomValue(queryAtom)
-
-    useEffect(() => {
-        if (!onSuccess || !queryResult.isSuccess) return
-        onSuccess(
-            queryResult.data as
-                | (Preview extends true ? EvaluatorPreviewDto[] : Evaluator[])
-                | undefined,
-            queryResult.queryKey ?? [],
-            undefined,
-        )
-    }, [onSuccess, queryResult.data, queryResult.isSuccess, queryResult.queryKey])
-
-    useEffect(() => {
-        if (!onError || !queryResult.isError) return
-        onError(queryResult.error)
-    }, [onError, queryResult.error, queryResult.isError])
-
-    return {
-        data: queryResult.data as
-            | (Preview extends true ? EvaluatorPreviewDto[] : Evaluator[])
-            | undefined,
-        error: queryResult.error,
-        isLoading: queryResult.isPending,
-        isPending: queryResult.isPending,
-        isError: queryResult.isError,
-        isSuccess: queryResult.isSuccess,
-        refetch: queryResult.refetch,
-        mutate: queryResult.refetch,
-    }
 }
 
 export default useEvaluators

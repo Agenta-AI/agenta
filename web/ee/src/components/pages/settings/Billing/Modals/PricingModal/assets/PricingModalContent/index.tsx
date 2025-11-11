@@ -2,12 +2,10 @@ import {useCallback, useState} from "react"
 
 import {message, Spin, Typography} from "antd"
 
-import useURL from "@/oss/hooks/useURL"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 import {Plan} from "@/oss/lib/Types"
 import {
     checkoutNewSubscription,
-    switchSubscription,
     usePricingPlans,
     useSubscriptionData,
     useUsageData,
@@ -21,7 +19,6 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
     const {plans, isLoadingPlan} = usePricingPlans()
     const {subscription, mutateSubscription} = useSubscriptionData()
     const {mutateUsage} = useUsageData()
-    const {projectURL} = useURL()
 
     const [isLoading, setIsLoading] = useState<string | null>(null)
 
@@ -33,18 +30,16 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
                 // 2. subscription-pan is cloud_v0_hobby then we trigger the checkout endpoint
                 // 3. if the user can custom plan like cloud_v0_business then we trigger the switch endpoint
 
-                if (plan.plan === Plan.Hobby && subscription?.plan !== Plan.Hobby) {
+                if (plan.plan === Plan.Hobby && subscription.plan !== Plan.Hobby) {
                     onCancelSubscription()
                     return
-                } else if (!subscription || subscription?.plan === Plan.Hobby) {
+                } else {
                     const data = await checkoutNewSubscription({
                         plan: plan.plan,
-                        success_url: `${getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")}${projectURL || ""}/settings?tab=billing`,
+                        success_url: `${getEnv("NEXT_PUBLIC_AGENTA_WEB_URL")}/settings?tab=billing`,
                     })
 
                     window.open(data.data.checkout_url, "_blank")
-                } else {
-                    await switchSubscription({plan: plan.plan})
                 }
 
                 setTimeout(() => {
@@ -60,14 +55,7 @@ const PricingModalContent = ({onCancelSubscription, onCloseModal}: PricingModalC
                 setIsLoading(null)
             }
         },
-        [
-            onCancelSubscription,
-            checkoutNewSubscription,
-            switchSubscription,
-            mutateSubscription,
-            mutateUsage,
-            projectURL,
-        ],
+        [onCancelSubscription, checkoutNewSubscription, mutateSubscription, mutateUsage],
     )
 
     if (isLoadingPlan) {

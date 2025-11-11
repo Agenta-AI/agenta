@@ -1,92 +1,31 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {Org, OrgDetails} from "@/oss/lib/Types"
 
-import {fetchJson, getBaseUrl} from "../../../lib/api/assets/fetchClient"
-import {Org, OrgDetails} from "../../../lib/Types"
+//Prefix convention:
+//  - fetch: GET single entity from server
+//  - fetchAll: GET all entities from server
+//  - create: POST data to server
+//  - update: PUT data to server
+//  - delete: DELETE data from server
 
-/**
- * Fetch all organizations using modern fetchJson
- * Replaces the old axios-based fetchAllOrgsList
- */
-export const fetchAllOrgsList = async (): Promise<Org[]> => {
-    const base = getBaseUrl()
-    const url = new URL("api/organizations", base)
-
-    console.log("🔍 Organizations fetcher debug:", {
-        base,
-        url: url.toString(),
-    })
-
-    try {
-        console.log("🚀 Calling fetchJson with URL:", url.toString())
-        const data = await fetchJson(url)
-        console.log("✅ Organizations fetcher success:", {
-            count: data?.length || 0,
-        })
-        return data || []
-    } catch (error: any) {
-        console.error("❌ Organizations fetcher failed:", {
-            message: error?.message,
-            status: error?.status,
-            statusText: error?.statusText,
-            url: url.toString(),
-            stack: error?.stack?.split("\n").slice(0, 3).join("\n"),
-        })
-        // Return empty array instead of throwing to prevent test failures
-        return []
-    }
+export const fetchAllOrgsList = async (ignoreAxiosError = false) => {
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+    return response.data as Org[]
 }
 
-/**
- * Fetch single organization details using modern fetchJson
- * Replaces the old axios-based fetchSingleOrg
- */
-export const fetchSingleOrg = async ({
-    organizationId,
-}: {
-    organizationId: string
-}): Promise<OrgDetails | null> => {
-    const base = getBaseUrl()
-    const url = new URL(`api/organizations/${organizationId}`, base)
-
-    console.log("🔍 Single organization fetcher debug:", {
-        base,
-        organizationId,
-        url: url.toString(),
-    })
-
-    try {
-        console.log("🚀 Calling fetchJson with URL:", url.toString())
-        const data = await fetchJson(url)
-        console.log("✅ Single organization fetcher success:", {
-            organizationId,
-            name: data?.name,
-        })
-        return data
-    } catch (error: any) {
-        console.error("❌ Single organization fetcher failed:", {
-            message: error?.message,
-            status: error?.status,
-            statusText: error?.statusText,
-            url: url.toString(),
-            stack: error?.stack?.split("\n").slice(0, 3).join("\n"),
-        })
-        // Return null instead of throwing to prevent test failures
-        return null
-    }
+export const fetchSingleOrg = async ({orgId}: {orgId: string}, ignoreAxiosError = false) => {
+    const response = await axios.get(`${getAgentaApiUrl()}/organizations/${orgId}/`, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
+    return response.data as OrgDetails
 }
 
-export const updateOrganization = async (
-    organizationId: string,
-    name: string,
-    ignoreAxiosError = false,
-) => {
-    const response = await axios.put(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/`,
-        {name},
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
+export const updateOrganization = async (orgId: string, name: string, ignoreAxiosError = false) => {
+    const response = await axios.put(`${getAgentaApiUrl()}/organizations/${orgId}/`, {name}, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
     return response.data
 }

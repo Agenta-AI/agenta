@@ -1,21 +1,23 @@
-import {memo, useMemo} from "react"
+import {memo, useEffect, useMemo} from "react"
 
-import {Sidebar} from "@phosphor-icons/react"
 import {Breadcrumb, Typography} from "antd"
-import clsx from "clsx"
 import {useAtom, useAtomValue} from "jotai"
 import Link from "next/link"
+import {useRouter} from "next/router"
 
 import {breadcrumbAtom, type BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb"
+import {useBreadcrumbs} from "@/oss/lib/hooks/useBreadcrumbs"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
-import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
-import {useAppState} from "@/oss/state/appState"
-
 import packageJsonData from "../../../../package.json"
 import EnhancedButton from "../../Playground/assets/EnhancedButton"
-import TooltipWithCopyAction from "../../TooltipWithCopyAction"
 
 import {useStyles, type StyleProps} from "./styles"
+import {useAppsData} from "@/oss/contexts/app.context"
+import clsx from "clsx"
+import TooltipWithCopyAction from "../../TooltipWithCopyAction"
+import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
+import {generateSegmentsForBreadcrumb} from "./utils"
+import {Sidebar} from "@phosphor-icons/react"
 
 const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.ReactNode}[] => {
     if (!breadcrumbs) return []
@@ -42,9 +44,7 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
                     copyText={getUniquePartOfId(item.value)}
                     tooltipProps={{placement: "right"}}
                 >
-                    <span className="font-mono">
-                        {isUuid(item.label) ? getUniquePartOfId(item.label) : item.label}
-                    </span>
+                    <span>{isUuid(item.label) ? getUniquePartOfId(item.label) : item.label}</span>
                 </TooltipWithCopyAction>
             </span>
         ) : (
@@ -68,25 +68,40 @@ const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.Re
 
 const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
+    const {apps} = useAppsData()
+    const router = useRouter()
     const breadcrumbs = useAtomValue(breadcrumbAtom)
+    const {setBreadcrumbs, clearBreadcrumbs} = useBreadcrumbs()
     const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
-    const appState = useAppState()
+
+    const urlBasedBreadcrumbs = useMemo(() => {
+        return generateSegmentsForBreadcrumb({
+            uriPath: router.asPath,
+            apps: apps.slice(0, 5),
+        })
+    }, [router.pathname, apps])
+
+    useEffect(() => {
+        if (Object.keys(urlBasedBreadcrumbs).length > 0) {
+            setBreadcrumbs(urlBasedBreadcrumbs)
+        }
+
+        return () => {
+            clearBreadcrumbs()
+        }
+    }, [urlBasedBreadcrumbs])
+
     const breadcrumbItems = useMemo(
         () => breadcrumbItemsGenerator(breadcrumbs || {}),
         [breadcrumbs],
     )
 
     return (
-        <section
-            className={clsx(
-                classes.breadcrumbContainer,
-                "sticky top-0 z-10 bg-white max-w-full overflow-hidden gap-4 !px-3",
-            )}
-        >
-            <div className="flex flex-nowrap items-center shrink-1 min-w-0">
+        <section className={classes.breadcrumbContainer}>
+            <div className="flex items-center gap-4">
                 <EnhancedButton
                     type="text"
-                    className="-ml-1 shrink-0"
+                    className="-ml-1"
                     icon={
                         <Sidebar
                             size={14}
@@ -99,29 +114,17 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
                         mouseEnterDelay: 1,
                     }}
                 />
-                <div className="min-w-0 flex-1 overflow-hidden">
-                    <Breadcrumb
-                        items={breadcrumbItems}
-                        className={clsx(
-                            // Outer: single line with ellipsis when overflowing
-                            "whitespace-nowrap overflow-hidden text-ellipsis w-full max-w-full",
-                            "[&_ol]:flex-nowrap [&_ol]:mx-2",
-                            "[&_ol_*]:min-w-[min-content]",
-                            // Ensure each li can shrink and not force wrapping
-                            "[&_li]:min-w-0",
-                            // Prevent wrapping within link/overlay-link and enable truncation
-                            "[&_.ant-breadcrumb-link]:whitespace-nowrap [&_.ant-breadcrumb-link]:overflow-hidden [&_.ant-breadcrumb-link]:text-ellipsis",
-                            "[&_.ant-breadcrumb-overlay-link]:whitespace-nowrap [&_.ant-breadcrumb-overlay-link]:overflow-hidden [&_.ant-breadcrumb-overlay-link]:text-ellipsis",
-                            "[&_.ant-breadcrumb-overlay-link]:hover:!bg-transparent",
-                            // Keep flex for icon alignment but disallow wrapping inside
-                            "[&_.ant-breadcrumb-overlay-link]:flex [&_.ant-breadcrumb-overlay-link]:items-center [&_.ant-breadcrumb-overlay-link]:gap-1",
-                            "[&_.ant-dropdown-trigger:hover_.anticon-down]:rotate-180 [&_.ant-dropdown-open_.anticon-down]:rotate-180 [&_.anticon-down]:transition-transform [&_.anticon-down]:duration-200",
-                        )}
-                    />
-                </div>
+                <Breadcrumb
+                    items={breadcrumbItems}
+                    className={clsx(
+                        "[&_.ant-breadcrumb-overlay-link]:hover:!bg-transparent",
+                        "[&_.ant-breadcrumb-overlay-link]:flex [&_.ant-breadcrumb-overlay-link]:items-center [&_.ant-breadcrumb-overlay-link]:gap-1",
+                        "[&_.ant-dropdown-trigger:hover_.anticon-down]:rotate-180 [&_.ant-dropdown-open_.anticon-down]:rotate-180 [&_.anticon-down]:transition-transform [&_.anticon-down]:duration-200",
+                    )}
+                />
             </div>
 
-            <div className={clsx(classes.topRightBar, "shrink-0")}>
+            <div className={classes.topRightBar}>
                 <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>

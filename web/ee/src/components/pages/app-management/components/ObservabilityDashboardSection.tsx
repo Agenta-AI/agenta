@@ -1,14 +1,17 @@
-import {useMemo, type ComponentProps} from "react"
+import {useEffect, useState, type ComponentProps} from "react"
 
 import {AreaChart} from "@tremor/react"
 import {Spin, Typography} from "antd"
 import round from "lodash/round"
 import {createUseStyles} from "react-jss"
 
-import {formatCurrency, formatLatency, formatNumber} from "@/oss/lib/helpers/formatters"
+import type {TimeRange} from "@/oss/components/TimeFilter"
+import {useAppId} from "@/oss/hooks/useAppId"
+import {formatCurrency, formatNumber} from "@/oss/lib/helpers/formatters"
 import {JSSTheme} from "@/oss/lib/Types"
+import {GenerationDashboardData} from "@/oss/lib/types_ee"
+import {fetchGenerationsDashboardData} from "@/oss/services/observability/api"
 
-import {useObservabilityDashboard} from "../../../../state/observability"
 import WidgetCard from "../../observability/dashboard/widgetCard"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -43,31 +46,44 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-const ObservabilityDashboardSection = () => {
+interface ObservabilityDashboardSectionProps {
+    timeRange?: TimeRange
+}
+
+const ObservabilityDashboardSection: React.FC<ObservabilityDashboardSectionProps> = ({
+    timeRange = "30_days",
+}) => {
     const classes = useStyles()
-    const {data, loading, isFetching} = useObservabilityDashboard()
+    const appId = useAppId()
+    const [loading, setLoading] = useState(false)
+    const [data, setData] = useState<GenerationDashboardData>()
 
-    const chartData = useMemo(() => (data?.data?.length ? data.data : [{}]), [data])
+    const defaultGraphProps: ComponentProps<typeof AreaChart> = {
+        className: "h-[168px] p-0",
+        colors: ["blue-400", "red"],
+        connectNulls: true,
+        tickGap: 15,
+        curveType: "linear",
+        showGridLines: false,
+        showLegend: false,
+        index: "timestamp",
+        data: data?.data?.length ? data.data : [{}],
+        categories: [],
+    }
 
-    const defaultGraphProps = useMemo<ComponentProps<typeof AreaChart>>(
-        () => ({
-            className: "h-[168px] p-0",
-            colors: ["cyan", "red"],
-            connectNulls: true,
-            tickGap: 15,
-            curveType: "monotone",
-            showGridLines: false,
-            showLegend: false,
-            index: "timestamp",
-            data: chartData,
-            categories: [],
-        }),
-        [chartData],
-    )
+    useEffect(() => {
+        setLoading(true)
+        fetchGenerationsDashboardData(appId, {range: timeRange})
+            .then((data) => {
+                setData(data)
+            })
+            .catch(console.error)
+            .finally(() => setLoading(false))
+    }, [appId, timeRange])
 
     return (
         <div className={classes.container}>
-            <Spin spinning={loading || isFetching}>
+            <Spin spinning={loading}>
                 <div className={classes.widgetContainer}>
                     <div className="flex-1">
                         <WidgetCard
@@ -112,7 +128,7 @@ const ObservabilityDashboardSection = () => {
                                     <Typography.Text>Avg:</Typography.Text>{" "}
                                     <span>
                                         {data?.avg_latency
-                                            ? `${formatNumber(data.avg_latency)}ms`
+                                            ? `${round(data?.avg_latency ?? 0, 3)}s`
                                             : "-"}
                                     </span>
                                 </div>

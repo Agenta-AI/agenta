@@ -2,18 +2,11 @@ import {useCallback, useMemo} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise, Copy, PencilSimple, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps, message} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {Button, Dropdown, MenuProps} from "antd"
 
-import {selectedVariantsAtom} from "@/oss/components/Playground/state/atoms"
-import {parametersOverrideAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {clearLocalCustomPropsForRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {
-    clearLocalPromptsForRevisionAtomFamily,
-    clearLocalTransformedPromptsForRevisionAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {PlaygroundStateData} from "@/oss/components/Playground/hooks/usePlayground/types"
 
-import {removeVariantFromSelectionMutationAtom} from "../../../state/atoms/variantCrudMutations"
 import DeleteVariantButton from "../../Modals/DeleteVariantModal/assets/DeleteVariantButton"
 
 import {PlaygroundVariantHeaderMenuProps} from "./types"
@@ -22,43 +15,31 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
     variantId,
     ...props
 }) => {
-    const selectedVariants = useAtomValue(selectedVariantsAtom)
-    const removeVariantFromSelection = useSetAtom(removeVariantFromSelectionMutationAtom)
-
-    const closePanelDisabled = useMemo(() => {
-        return selectedVariants.length === 1 && selectedVariants.includes(variantId)
-    }, [selectedVariants, variantId])
+    const {mutate, closePanelDisabled} = usePlayground({
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                return {
+                    closePanelDisabled:
+                        state.selected.length === 1 && state.selected.includes(variantId),
+                }
+            },
+            [variantId],
+        ),
+    })
 
     const handleClosePanel = useCallback(() => {
-        removeVariantFromSelection(variantId)
-    }, [removeVariantFromSelection, variantId])
+        mutate((clonedState) => {
+            if (!clonedState) return clonedState
+            const previousSelected = [...clonedState.selected]
+            previousSelected.splice(
+                previousSelected.findIndex((id) => id === variantId),
+                1,
+            )
 
-    const clearPrompts = useSetAtom(clearLocalPromptsForRevisionAtomFamily(variantId || "") as any)
-    const clearTransformed = useSetAtom(
-        clearLocalTransformedPromptsForRevisionAtomFamily(variantId || "") as any,
-    )
-    const clearCustomProps = useSetAtom(
-        clearLocalCustomPropsForRevisionAtomFamily(variantId || "") as any,
-    )
-    const setParamsOverride = useSetAtom(parametersOverrideAtomFamily(variantId || "") as any)
-
-    const handleDiscardDraft: NonNullable<MenuProps["onClick"]> = (e) => {
-        e?.domEvent?.stopPropagation()
-        if (!variantId) return
-        try {
-            clearPrompts()
-            clearCustomProps()
-            clearTransformed()
-            setParamsOverride(null)
-            // Prune dynamically added variables and re-add current ones based on prompts
-
-            message.success("Draft changes discarded")
-        } catch (err) {
-            message.error("Failed to discard draft changes")
-
-            console.error(err)
-        }
-    }
+            clonedState.selected = previousSelected
+            return clonedState
+        })
+    }, [variantId])
 
     const items: MenuProps["items"] = useMemo(
         () => [
@@ -81,13 +62,6 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 },
             },
             {type: "divider"},
-            {
-                key: "revert",
-                label: "Revert Changes",
-                icon: <ArrowCounterClockwise size={14} />,
-                onClick: handleDiscardDraft,
-                disabled: !variantId,
-            },
             {
                 key: "clone",
                 label: "Clone",
@@ -126,7 +100,7 @@ const PlaygroundVariantHeaderMenu: React.FC<PlaygroundVariantHeaderMenuProps> = 
                 },
             },
         ],
-        [handleClosePanel, closePanelDisabled, variantId, handleDiscardDraft],
+        [handleClosePanel, closePanelDisabled, variantId],
     )
 
     return (

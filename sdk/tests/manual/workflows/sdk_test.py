@@ -79,13 +79,12 @@ async def exact_match_v1(
 
 from asyncio import run as run_async
 
-from agenta.sdk.models.workflows import (
+from agenta.sdk.workflows.types import (
     WorkflowRevision,
     WorkflowRevisionData,
-    WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceResponse,
+    WorkflowServiceData,
     Status,
     Data,
 )
@@ -119,7 +118,7 @@ async def main():
     # create the workflow request
     workflow_service_request = WorkflowServiceRequest(
         flags={"is_annotation": True},
-        data=WorkflowServiceRequestData(
+        data=WorkflowServiceData(
             inputs=TEST_INPUTS,
             outputs=TEST_OUTPUTS,
         ),

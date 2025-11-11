@@ -6,8 +6,8 @@ from .. import core
 from ..core.client_wrapper import AsyncClientWrapper, SyncClientWrapper
 from ..core.request_options import RequestOptions
 from ..types.meta_request import MetaRequest
-from ..types.testset_output_response import TestsetOutputResponse
-from ..types.testset_simple_response import TestsetSimpleResponse
+from ..types.test_set_output_response import TestSetOutputResponse
+from ..types.test_set_simple_response import TestSetSimpleResponse
 from ..types.testcase_response import TestcaseResponse
 from ..types.testset import Testset
 from ..types.testset_response import TestsetResponse
@@ -49,7 +49,7 @@ class TestsetsClient:
         upload_type: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetSimpleResponse:
+    ) -> TestSetSimpleResponse:
         """
         Uploads a CSV or JSON file and saves its data to Postgres.
 
@@ -75,7 +75,7 @@ class TestsetsClient:
 
         Returns
         -------
-        TestsetSimpleResponse
+        TestSetSimpleResponse
             Successful Response
 
         Examples
@@ -102,7 +102,7 @@ class TestsetsClient:
         endpoint: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetSimpleResponse:
+    ) -> TestSetSimpleResponse:
         """
         Import JSON testset data from an endpoint and save it to Postgres.
 
@@ -126,7 +126,7 @@ class TestsetsClient:
 
         Returns
         -------
-        TestsetSimpleResponse
+        TestSetSimpleResponse
             Successful Response
 
         Examples
@@ -148,7 +148,7 @@ class TestsetsClient:
 
     def get_testsets(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[TestsetOutputResponse]:
+    ) -> typing.List[TestSetOutputResponse]:
         """
         Get all testsets.
 
@@ -165,7 +165,7 @@ class TestsetsClient:
 
         Returns
         -------
-        typing.List[TestsetOutputResponse]
+        typing.List[TestSetOutputResponse]
             Successful Response
 
         Examples
@@ -313,11 +313,11 @@ class TestsetsClient:
         Update a testset with given id, update the testset in Postgres.
 
         Args:
-        testset_id (str): id of the testset to be updated.
+        testset_id (str): id of the test set to be updated.
         csvdata (NewTestset): New data to replace the old testset.
 
         Returns:
-        str: The id of the testset updated.
+        str: The id of the test set updated.
 
         Parameters
         ----------
@@ -749,7 +749,7 @@ class AsyncTestsetsClient:
         upload_type: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetSimpleResponse:
+    ) -> TestSetSimpleResponse:
         """
         Uploads a CSV or JSON file and saves its data to Postgres.
 
@@ -775,7 +775,7 @@ class AsyncTestsetsClient:
 
         Returns
         -------
-        TestsetSimpleResponse
+        TestSetSimpleResponse
             Successful Response
 
         Examples
@@ -810,7 +810,7 @@ class AsyncTestsetsClient:
         endpoint: typing.Optional[str] = OMIT,
         testset_name: typing.Optional[str] = OMIT,
         request_options: typing.Optional[RequestOptions] = None,
-    ) -> TestsetSimpleResponse:
+    ) -> TestSetSimpleResponse:
         """
         Import JSON testset data from an endpoint and save it to Postgres.
 
@@ -834,7 +834,7 @@ class AsyncTestsetsClient:
 
         Returns
         -------
-        TestsetSimpleResponse
+        TestSetSimpleResponse
             Successful Response
 
         Examples
@@ -864,7 +864,7 @@ class AsyncTestsetsClient:
 
     async def get_testsets(
         self, *, request_options: typing.Optional[RequestOptions] = None
-    ) -> typing.List[TestsetOutputResponse]:
+    ) -> typing.List[TestSetOutputResponse]:
         """
         Get all testsets.
 
@@ -881,7 +881,7 @@ class AsyncTestsetsClient:
 
         Returns
         -------
-        typing.List[TestsetOutputResponse]
+        typing.List[TestSetOutputResponse]
             Successful Response
 
         Examples
@@ -1061,11 +1061,11 @@ class AsyncTestsetsClient:
         Update a testset with given id, update the testset in Postgres.
 
         Args:
-        testset_id (str): id of the testset to be updated.
+        testset_id (str): id of the test set to be updated.
         csvdata (NewTestset): New data to replace the old testset.
 
         Returns:
-        str: The id of the testset updated.
+        str: The id of the test set updated.
 
         Parameters
         ----------

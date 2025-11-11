@@ -1,32 +1,25 @@
 export const transformDataInputs = (data: any) => {
-    if (!data) {
-        return {}
-    }
+    return Object.keys(data).reduce((acc, curr) => {
+        if (curr === "prompt") {
+            acc[curr] = data[curr]
+        }
 
-    const transformed: Record<string, any> = {}
+        if (!acc.tools) {
+            acc.tools = []
+        }
 
-    if (data.prompt) {
-        transformed.prompt = data.prompt
-    }
+        if (curr === "functions") {
+            const functions = data[curr].map((item: any) => ({
+                type: "function",
+                function: item,
+            }))
+            acc.tools.push(...functions)
+        }
 
-    const tools: any[] = []
+        if (curr === "tools") {
+            acc.tools.push(...data[curr])
+        }
 
-    if (Array.isArray(data.functions)) {
-        const functions = data.functions.map((item: any) => ({
-            type: "function",
-            function: item,
-        }))
-
-        tools.push(...functions)
-    }
-
-    if (Array.isArray(data.tools)) {
-        tools.push(...data.tools)
-    }
-
-    if (tools.length > 0) {
-        transformed.tools = tools
-    }
-
-    return transformed
+        return acc
+    }, {} as any)
 }

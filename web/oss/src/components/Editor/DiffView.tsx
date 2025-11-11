@@ -201,52 +201,6 @@ export interface DiffViewProps {
     foldThreshold?: number
     /** Show count of folded lines in fold indicators */
     showFoldedLineCount?: boolean
-    /** If true, compute diff only once on mount and never debounce or recompute */
-    computeOnMountOnly?: boolean
-}
-
-function computeProcessed(
-    languageProp: DiffViewProps["language"],
-    originalProp: DiffViewProps["original"],
-    modifiedProp: DiffViewProps["modified"],
-) {
-    // Normalize content to strings
-    const originalStr = normalizeContent(originalProp, languageProp || "json")
-    const modifiedStr = normalizeContent(modifiedProp, languageProp || "json")
-
-    // Determine final language
-    let finalLanguage: "json" | "yaml"
-    if (languageProp) {
-        finalLanguage = languageProp
-    } else {
-        const originalLang = detectLanguage(originalStr)
-        const modifiedLang = detectLanguage(modifiedStr)
-        finalLanguage = originalLang === "yaml" || modifiedLang === "yaml" ? "yaml" : "json"
-    }
-
-    // Convert content to target language if needed
-    let processedOriginal = originalStr
-    let processedModified = modifiedStr
-
-    if (typeof originalProp === "string" && languageProp) {
-        const detectedOriginal = detectLanguage(originalStr)
-        if (detectedOriginal !== finalLanguage) {
-            processedOriginal = convertContent(originalStr, detectedOriginal, finalLanguage)
-        }
-    }
-
-    if (typeof modifiedProp === "string" && languageProp) {
-        const detectedModified = detectLanguage(modifiedStr)
-        if (detectedModified !== finalLanguage) {
-            processedModified = convertContent(modifiedStr, detectedModified, finalLanguage)
-        }
-    }
-
-    return {
-        original: processedOriginal,
-        modified: processedModified,
-        language: finalLanguage,
-    }
 }
 
 const DiffView: React.FC<DiffViewProps> = ({
@@ -259,7 +213,6 @@ const DiffView: React.FC<DiffViewProps> = ({
     enableFolding = false,
     foldThreshold = 5,
     showFoldedLineCount = true,
-    computeOnMountOnly = false,
 }) => {
     const [diffKey, setDiffKey] = useState(0)
     const [error, setError] = useState<string | null>(null)
@@ -267,49 +220,73 @@ const DiffView: React.FC<DiffViewProps> = ({
         original: string
         modified: string
         language: "json" | "yaml"
-    }>(() => computeProcessed(language, original, modified))
+    }>({original: "", modified: "", language: "json"})
 
     // Process content and determine language
     useEffect(() => {
-        if (computeOnMountOnly) return
         try {
             setError(null)
-            const next = computeProcessed(language, original, modified)
-            setProcessedContent(next)
+
+            // Normalize content to strings
+            const originalStr = normalizeContent(original, language || "json")
+            const modifiedStr = normalizeContent(modified, language || "json")
+
+            // Determine final language
+            let finalLanguage: "json" | "yaml"
+            if (language) {
+                // Language explicitly provided
+                finalLanguage = language
+            } else {
+                // Infer language from content
+                const originalLang = detectLanguage(originalStr)
+                const modifiedLang = detectLanguage(modifiedStr)
+                // Use the detected language, preferring YAML if mixed
+                finalLanguage = originalLang === "yaml" || modifiedLang === "yaml" ? "yaml" : "json"
+            }
+
+            // Convert content to target language if needed
+            let processedOriginal = originalStr
+            let processedModified = modifiedStr
+
+            if (typeof original === "string" && language) {
+                const detectedOriginal = detectLanguage(originalStr)
+                if (detectedOriginal !== finalLanguage) {
+                    processedOriginal = convertContent(originalStr, detectedOriginal, finalLanguage)
+                }
+            }
+
+            if (typeof modified === "string" && language) {
+                const detectedModified = detectLanguage(modifiedStr)
+                if (detectedModified !== finalLanguage) {
+                    processedModified = convertContent(modifiedStr, detectedModified, finalLanguage)
+                }
+            }
+
+            setProcessedContent({
+                original: processedOriginal,
+                modified: processedModified,
+                language: finalLanguage,
+            })
         } catch (parseError) {
             if (showErrors) {
                 setError(`Failed to process content. Please check your syntax.`)
             }
         }
-    }, [
-        original,
-        modified,
-        language,
-        showErrors,
-        enableFolding,
-        foldThreshold,
-        showFoldedLineCount,
-        computeOnMountOnly,
-    ])
+    }, [original, modified, language, showErrors, enableFolding, foldThreshold, showFoldedLineCount])
 
     // Trigger diff computation with debouncing for content, immediate for folding
     useEffect(() => {
-        if (computeOnMountOnly) return
-        if (debounceMs && debounceMs > 0) {
-            const timeout = setTimeout(() => {
-                setDiffKey((prev) => prev + 1)
-            }, debounceMs)
-            return () => clearTimeout(timeout)
-        }
-        // No debounce: update immediately without timeouts
-        setDiffKey((prev) => prev + 1)
-    }, [processedContent, debounceMs, computeOnMountOnly])
+        const timeout = setTimeout(() => {
+            setDiffKey((prev) => prev + 1)
+        }, debounceMs)
+
+        return () => clearTimeout(timeout)
+    }, [processedContent, debounceMs])
 
     // Trigger immediate diff computation when folding options change
     useEffect(() => {
-        if (computeOnMountOnly) return
         setDiffKey((prev) => prev + 1)
-    }, [enableFolding, foldThreshold, showFoldedLineCount, computeOnMountOnly])
+    }, [enableFolding, foldThreshold, showFoldedLineCount])
 
     return (
         <div className={className}>

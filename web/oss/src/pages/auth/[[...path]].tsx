@@ -10,9 +10,9 @@ import {getLoginAttemptInfo} from "supertokens-auth-react/recipe/passwordless"
 import {useLocalStorage} from "usehooks-ts"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
+import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 
 const PasswordlessAuth = dynamic(() => import("@/oss/components/pages/auth/PasswordlessAuth"))
 const EmailPasswordAuth = dynamic(() => import("@/oss/components/pages/auth/EmailPasswordAuth"))
@@ -23,6 +23,7 @@ const SideBanner = dynamic(() => import("@/oss/components/pages/auth/SideBanner"
 const {Text, Title} = Typography
 
 const Auth = () => {
+    const [email, setEmail] = useState("")
     const [isAuthLoading, setIsAuthLoading] = useState(false)
     const [isSocialAuthLoading, setIsSocialAuthLoading] = useState(false)
     const [isLoginCodeVisible, setIsLoginCodeVisible] = useState(false)
@@ -30,41 +31,25 @@ const Auth = () => {
     const [invite, setInvite] = useLocalStorage("invite", {})
     const router = useRouter()
 
-    const firstString = (value: string | string[] | undefined): string | undefined => {
-        if (Array.isArray(value)) return value[0]
-        return typeof value === "string" ? value : undefined
-    }
-
-    const token = firstString(router.query.token)
-    const organizationId = firstString(router.query.organization_id)
-    const projectId = firstString(router.query.project_id)
-    const workspaceId = firstString(router.query.workspace_id)
-    const emailFromQuery = firstString(router.query.email)
+    const token = router.query.token as string
+    const orgId = router.query.org_id as string
+    const projectId = router.query.project_id as string
+    const workspaceId = router.query.workspace_id as string
+    const _email = router.query.email as string
     const {redirectToPath, ...queries} = router.query
     const isInvitedUser = Object.keys(queries.token ? queries : invite).length > 0
-
-    const [email, setEmail] = useState(emailFromQuery ?? "")
 
     useEffect(() => {
         if (isInvitedUser && Object.keys(invite).length === 0) {
             setInvite({
                 token,
-                organization_id: organizationId,
+                org_id: orgId,
                 project_id: projectId,
                 workspace_id: workspaceId,
-                email: emailFromQuery,
+                email: _email,
             })
         }
-    }, [
-        isInvitedUser,
-        invite,
-        setInvite,
-        token,
-        organizationId,
-        projectId,
-        workspaceId,
-        emailFromQuery,
-    ])
+    }, [isInvitedUser, invite])
 
     const authErrorMsg = (error: any) => {
         if (error.isSuperTokensGeneralError === true) {
@@ -123,7 +108,7 @@ const Auth = () => {
                 )}
             >
                 <Image
-                    src="/assets/Agenta-logo-full-light.png"
+                    src="/assets/light-complete-transparent-CROPPED.png"
                     alt="agenta-ai"
                     width={114}
                     height={40}
@@ -169,7 +154,6 @@ const Auth = () => {
                             message={message}
                             setMessage={setMessage}
                             authErrorMsg={authErrorMsg}
-                            initialEmail={emailFromQuery}
                         />
                     ) : !isLoginCodeVisible ? (
                         <>

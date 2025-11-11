@@ -1,5 +1,9 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
-
+import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
+import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
+import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
+import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
+import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
+import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {mergeRegister} from "@lexical/utils"
 import {
     BracketsCurly,
@@ -16,16 +20,8 @@ import {Button, MenuProps} from "antd"
 import clsx from "clsx"
 import {$getRoot} from "lexical"
 import dynamic from "next/dynamic"
-
-import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
-import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
-import {$isCodeBlockNode} from "@/oss/components/Editor/plugins/code/nodes/CodeBlockNode"
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
-
+import {useCallback, useEffect, useMemo, useState} from "react"
 import {checkIsHTML, checkIsJSON, checkIsYAML, getDisplayedContent} from "../assets/helper"
-
 import {Format, SimpleSharedEditorProps} from "./types"
 
 const Dropdown = dynamic(() => import("antd").then((mod) => mod.Dropdown), {ssr: false})
@@ -45,10 +41,9 @@ const SimpleSharedEditorContent = ({
     disableFormatItems,
     showTextToMdOutside = false,
     minimizedHeight = 68,
-    defaultMinimized = false,
     ...props
 }: SimpleSharedEditorProps) => {
-    const [minimized, setMinimized] = useState(() => Boolean(defaultMinimized))
+    const [minimized, setMinimized] = useState(false)
     const [isCopied, setIsCopied] = useState(false)
     const [language, setLanguage] = useState<Format>(() =>
         isJSON ? "json" : isYAML ? "yaml" : "text",
@@ -268,7 +263,7 @@ const SimpleSharedEditorContent = ({
                                 type="text"
                                 size="small"
                                 onClick={() => setMinimized((c) => !c)}
-                                tooltipProps={{title: minimized ? "Maximize" : "Minimize"}}
+                                tooltipProps={{title: !minimized ? "Minimize" : "Maximize"}}
                             />
                         )}
                     </div>

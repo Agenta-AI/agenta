@@ -9,7 +9,7 @@ import {
 } from "@agenta/web-tests/playwright/config/testTags"
 
 const playgroundTests = () => {
-    ;((basePlaygroundTest(
+    ;(basePlaygroundTest(
         "Should run single view variant for completion",
         {
             tag: [
@@ -84,7 +84,7 @@ const playgroundTests = () => {
                 // 5. save variant
                 await saveVariant("version")
             },
-        ))
+        )
 }
 
 export default playgroundTests

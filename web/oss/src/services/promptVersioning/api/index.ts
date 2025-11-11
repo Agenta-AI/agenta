@@ -1,6 +1,6 @@
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {getProjectValues} from "@/oss/state/project"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -11,7 +11,7 @@ import {getProjectValues} from "@/oss/state/project"
 
 // versioning
 export const fetchAllPromptVersioning = async (variantId: string, ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const {data} = await axios.get(
         `${getAgentaApiUrl()}/variants/${variantId}/revisions?project_id=${projectId}`,
@@ -27,7 +27,7 @@ export const fetchPromptRevision = async (
     revisionNumber: number,
     ignoreAxiosError = false,
 ) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const {data} = await axios.get(
         `${getAgentaApiUrl()}/variants/${variantId}/revisions/${revisionNumber}?project_id=${projectId}`,

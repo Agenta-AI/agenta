@@ -15,31 +15,10 @@ RUN apt-get update && \
 RUN pip install --upgrade pip \
     && pip install poetry
 
-#
 COPY ./oss /app/oss/
 COPY ./entrypoint.py ./pyproject.toml /app/
-COPY ./sdk /sdk/
 
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi \
-    && pip install --force-reinstall --upgrade /sdk/
-
-#
-
-#
-#
-#
-#
-
-#
-#
-
-COPY ./oss/src/crons/queries.sh /queries.sh
-COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
-RUN sed -i -e '$a\' /etc/cron.d/queries-cron
-RUN cat -A /etc/cron.d/queries-cron
-
-RUN chmod +x /queries.sh \
-    && chmod 0644 /etc/cron.d/queries-cron
+    && poetry install --no-interaction --no-ansi
 
 EXPOSE 8000

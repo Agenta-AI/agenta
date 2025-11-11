@@ -9,24 +9,18 @@ import {v4 as uuidv4} from "uuid"
 
 import {tryParsePartialJson} from "@/oss/components/Editor/plugins/code/tryParsePartialJson"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {waitForValidURL} from "@/oss/state/url"
 
 import {EvaluationType} from "../enums"
 import {GenericObject} from "../Types"
 
 import {getEnv} from "./dynamicEnv"
 import {getErrorMessage} from "./errorHandler"
-import {isEE} from "./isEE"
 
 if (typeof window !== "undefined") {
-    // @ts-ignore
+    //@ts-ignore
     if (!window.Cypress) {
         dayjs.extend(utc)
     }
-}
-
-export const isDemo = () => {
-    return isEE()
 }
 
 export const renameVariables = (name: string) => {
@@ -79,6 +73,16 @@ export const capitalize = (s: string) => {
         .join(" ")
 }
 
+export const randString = (len = 8) =>
+    window
+        .btoa(
+            Array.from(window.crypto.getRandomValues(new Uint8Array(len * 2)))
+                .map((b) => String.fromCharCode(b))
+                .join(""),
+        )
+        .replace(/[+/]/g, "")
+        .substring(0, len)
+
 export const isAppNameInputValid = (input: string) => {
     return /^[a-zA-Z0-9_-]+$/.test(input)
 }
@@ -106,6 +110,13 @@ export const stringToNumberInRange = (text: string, min: number, max: number) =>
     const result = min + mappedValue
 
     return result
+}
+
+export const isDemo = () => {
+    if (getEnv("NEXT_PUBLIC_AGENTA_LICENSE")) {
+        return ["cloud", "ee", "cloud-dev"].includes(getEnv("NEXT_PUBLIC_AGENTA_LICENSE"))
+    }
+    return false
 }
 
 export const removeKeys = (obj: GenericObject, keys: string[]) => {
@@ -180,6 +191,16 @@ const formatMessages = (messages: any) => {
     return Array.isArray(messages)
         ? messages.map(({role, content, id}) => ({role, content, id}))
         : []
+}
+
+export const getAgentaApiUrl = () => {
+    const apiUrl = getEnv("NEXT_PUBLIC_AGENTA_API_URL")
+
+    if (!apiUrl && typeof window !== "undefined") {
+        return `${window.location.protocol}//${window.location.hostname}`
+    }
+
+    return apiUrl
 }
 
 export function promisifyFunction(fn: Function, ...args: any[]) {
@@ -269,7 +290,9 @@ export const shortPoll = (
 
     const executor = async () => {
         while (shouldContinue && Date.now() - startTime < timeoutMs) {
-            await func()
+            try {
+                await func()
+            } catch {}
             await delay(delayMs)
         }
         if (Date.now() - startTime >= timeoutMs) throw new Error("timeout")
@@ -338,9 +361,7 @@ export const redirectIfNoLLMKeys = async ({secrets: providerKeys}: {secrets: Llm
             description: "Please provide at least one LLM key to access this feature.",
             duration: 5,
         })
-        // Ensure project-scoped URL is ready, then redirect to project settings (secrets tab)
-        const {projectURL} = await waitForValidURL({requireProject: true})
-        Router.push(`${projectURL}/settings?tab=secrets`)
+        Router.push("/settings?tab=secrets")
         return true
     }
     return false
@@ -411,7 +432,6 @@ export const formatVariantIdWithHash = (variantId: string) => {
 
 export const collectKeyPathsFromObject = (obj: any, prefix = ""): string[] => {
     const paths: string[] = []
-    if (!obj || typeof obj !== "object") return paths
 
     for (const [key, value] of Object.entries(obj)) {
         const fullPath = prefix ? `${prefix}.${key}` : key

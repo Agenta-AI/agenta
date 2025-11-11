@@ -1,35 +1,42 @@
-import deepEqual from "fast-deep-equal"
-import {useAtomValue} from "jotai"
-import {selectAtom} from "jotai/utils"
+import {useMemo} from "react"
 
-import type {Environment} from "@/oss/lib/Types"
-import {
-    environmentsAtom as _environmentsAtom,
-    environmentsLoadableAtom,
-} from "@/oss/state/environment/atoms/fetcher"
+import Router from "next/router"
+import type {SWRConfiguration} from "swr"
+import useSWR from "swr"
 
-interface UseEnvironmentOptions {
-    // kept for backward-compatibility, currently unused
+import {getCurrentProject} from "@/oss/contexts/project.context"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {Environment} from "@/oss/lib/Types"
+
+interface UseEnvironmentOptions extends SWRConfiguration {
     appId?: string
 }
 
 const DEFAULT_ENVIRONMENTS: Environment[] = []
 
-export const environmentsAtom = selectAtom(
-    _environmentsAtom,
-    (envs) => envs ?? DEFAULT_ENVIRONMENTS,
-    deepEqual,
-)
+export const useEnvironments = ({appId: propsAppId, ...rest}: UseEnvironmentOptions = {}) => {
+    const {projectId} = getCurrentProject()
+    const appId = propsAppId || (Router.query.app_id as string)
 
-export const useEnvironments = ({}: UseEnvironmentOptions = {}) => {
-    // atom selectors already scope to current app / project, so we can ignore appId here
-    const environments = useAtomValue(environmentsAtom)
-    const loadable = useAtomValue(environmentsLoadableAtom) as any
+    const {data, error, mutate, isLoading} = useSWR(
+        appId && projectId
+            ? `${getAgentaApiUrl()}/apps/${appId}/environments?project_id=${projectId}`
+            : null,
+        {
+            ...rest,
+            revalidateOnFocus: false,
+            shouldRetryOnError: false,
+        },
+    )
+
+    const environments = useMemo(() => {
+        return (data || DEFAULT_ENVIRONMENTS) as Environment[]
+    }, [data])
 
     return {
         environments,
-        isEnvironmentsLoading: loadable.isLoading ?? loadable.isFetching,
-        isEnvironmentsLoadingError: loadable.isError ?? loadable.error,
-        mutate: loadable.refetch,
+        isEnvironmentsLoading: isLoading,
+        isEnvironmentsLoadingError: error,
+        mutate,
     }
 }

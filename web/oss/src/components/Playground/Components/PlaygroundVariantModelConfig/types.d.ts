@@ -19,8 +19,6 @@ export interface PlaygroundVariantModelConfigModalProps extends BaseContainerPro
     /** List of configurable model properties */
     propertyIds: string[]
     disabled?: boolean
-    /** Optional: prompt id for read-only fallback rendering */
-    promptId?: EnhancedVariant["prompts"][number]["id"] | string
 }
 
 /**

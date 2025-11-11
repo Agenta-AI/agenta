@@ -18,8 +18,8 @@ declare namespace PlaywrightConfig {
         (typeof import("./testTags").TestPermissionType)[keyof typeof import("./testTags").TestPermissionType]
     type TestLensType =
         (typeof import("./testTags").TestLensType)[keyof typeof import("./testTags").TestLensType]
-    type TestcaseType =
-        (typeof import("./testTags").TestcaseType)[keyof typeof import("./testTags").TestcaseType]
+    type TestCaseType =
+        (typeof import("./testTags").TestCaseType)[keyof typeof import("./testTags").TestCaseType]
 
     /** Test tag system configuration */
     type TestTagType =

@@ -1,7 +1,8 @@
-from typing import List, Dict, Any, Union, Optional
-from datetime import datetime, timezone
-from uuid import uuid4
+import random
+import string
 from enum import Enum
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Union, Optional
 
 from pydantic import BaseModel, model_validator, Field
 
@@ -16,9 +17,6 @@ from oss.src.core.shared.dtos import (
     Data,
     Reference,
     Hashes,
-    Windowing,
-    FullJson,
-    Link,
 )
 
 
@@ -73,7 +71,7 @@ class AgTypeAttributes(BaseModel):
 
 class AgDataAttributes(BaseModel):
     parameters: Optional[Dict[str, Any]] = None
-    inputs: Optional[Any] = None
+    inputs: Optional[Dict[str, Any]] = None
     outputs: Optional[Any] = None
     internals: Optional[Dict[str, Any]] = None
 
@@ -214,7 +212,9 @@ class OTelFlatSpan(Lifecycle):
             self.start_time = now
             self.end_time = now
         if self.span_name is None:
-            self.span_name = uuid4().hex[-12:]
+            self.span_name = "".join(
+                random.choices(string.ascii_letters + string.digits, k=8)
+            )
         return self
 
 
@@ -233,9 +233,7 @@ OTelSpans = List[OTelSpan]
 
 class Fields(str, Enum):
     TRACE_ID = "trace_id"
-    TRACE_TYPE = "trace_type"
     SPAN_ID = "span_id"
-    SPAN_TYPE = "span_type"
     PARENT_ID = "parent_id"
     SPAN_NAME = "span_name"
     SPAN_KIND = "span_kind"
@@ -329,7 +327,7 @@ class Condition(BaseModel):
 
 
 class Filtering(BaseModel):
-    operator: LogicalOperator = LogicalOperator.AND
+    operator: Optional[LogicalOperator] = LogicalOperator.AND
     conditions: List[Union[Condition, "Filtering"]] = list()
 
 
@@ -343,12 +341,19 @@ class Format(str, Enum):
     OPENTELEMETRY = "opentelemetry"
 
 
+class Windowing(BaseModel):
+    oldest: Optional[datetime] = None
+    newest: Optional[datetime] = None
+    limit: Optional[int] = None
+    window: Optional[int] = None
+
+
 class Formatting(BaseModel):
-    focus: Optional[Focus] = None
-    format: Optional[Format] = None
+    focus: Optional[Focus] = Focus.SPAN
+    format: Optional[Format] = Format.AGENTA
 
 
-class TracingQuery(BaseModel):
+class Query(BaseModel):
     formatting: Optional[Formatting] = None
     windowing: Optional[Windowing] = None
     filtering: Optional[Filtering] = None
@@ -383,128 +388,12 @@ class Analytics(BaseModel):
 
 class Bucket(BaseModel):
     timestamp: datetime
-    interval: int
+    window: int
     total: Analytics
     errors: Analytics
-
-
-class MetricType(str, Enum):
-    NUMERIC_CONTINUOUS = "numeric/continuous"
-    NUMERIC_DISCRETE = "numeric/discrete"
-    BINARY = "binary"
-    CATEGORICAL_SINGLE = "categorical/single"
-    CATEGORICAL_MULTIPLE = "categorical/multiple"
-    STRING = "string"
-    JSON = "json"
-    NONE = "none"
-    WILDCARD = "*"
-
-
-class MetricSpec(BaseModel):
-    type: MetricType = MetricType.NONE
-    path: str = "*"
-    # OPTS
-    bins: Optional[int] = None
-    vmin: Optional[float] = None
-    vmax: Optional[float] = None
-    edge: Optional[bool] = None
-
-
-class MetricsBucket(BaseModel):
-    timestamp: datetime
-    interval: int
-    metrics: Optional[Dict[str, FullJson]] = None
 
 
 # WORKFLOWS --------------------------------------------------------------------
 
 
-Trace = OTelSpansTree
-
-
-# SIMPLE TRACE: INVOCATIONS & ANNOTATIONS --------------------------------------
-
-
-class SimpleTraceOrigin(str, Enum):
-    CUSTOM = "custom"  # custom
-    HUMAN = "human"  # human
-    AUTO = "auto"  # automatic
-
-
-class SimpleTraceKind(str, Enum):
-    ADHOC = "adhoc"  # adhoc
-    EVAL = "eval"  # evaluation
-    PLAY = "play"  # playground
-
-
-class SimpleTraceChannel(str, Enum):
-    OTLP = "otlp"  # otlp
-    WEB = "web"  # react
-    SDK = "sdk"  # python vs typescript ?
-    API = "api"  # http
-
-
-class SimpleTraceReferences(BaseModel):
-    query: Optional[Reference] = None
-    query_variant: Optional[Reference] = None
-    query_revision: Optional[Reference] = None
-    testset: Optional[Reference] = None
-    testset_variant: Optional[Reference] = None
-    testset_revision: Optional[Reference] = None
-    application: Optional[Reference] = None
-    application_variant: Optional[Reference] = None
-    application_revision: Optional[Reference] = None
-    evaluator: Optional[Reference] = None
-    evaluator_variant: Optional[Reference] = None
-    evaluator_revision: Optional[Reference] = None
-    testcase: Optional[Reference] = None
-
-
-SimpleTraceLinks = Union[Dict[str, Link], List[Link]]
-
-
-class SimpleTrace(Link, Lifecycle):
-    origin: SimpleTraceOrigin = SimpleTraceOrigin.CUSTOM
-    kind: SimpleTraceKind = SimpleTraceKind.ADHOC
-    channel: SimpleTraceChannel = SimpleTraceChannel.API
-
-    tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
-
-    data: Data
-
-    references: SimpleTraceReferences
-    links: SimpleTraceLinks
-
-
-class SimpleTraceCreate(BaseModel):
-    origin: SimpleTraceOrigin = SimpleTraceOrigin.CUSTOM
-    kind: SimpleTraceKind = SimpleTraceKind.ADHOC
-    channel: SimpleTraceChannel = SimpleTraceChannel.API
-
-    tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
-
-    data: Data
-
-    references: SimpleTraceReferences
-    links: SimpleTraceLinks
-
-
-class SimpleTraceEdit(BaseModel):
-    tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
-
-    data: Data
-
-
-class SimpleTraceQuery(BaseModel):
-    origin: Optional[SimpleTraceOrigin] = None
-    kind: Optional[SimpleTraceKind] = None
-    channel: Optional[SimpleTraceChannel] = None
-
-    tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
-
-    references: Optional[SimpleTraceReferences] = None
-    links: Optional[SimpleTraceLinks] = None
+Trace = OTelTraceTree

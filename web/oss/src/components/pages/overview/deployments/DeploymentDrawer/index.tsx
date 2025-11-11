@@ -13,7 +13,6 @@ import {
 } from "@phosphor-icons/react"
 import {Button, Drawer, DrawerProps, Dropdown, Space, Tabs, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
@@ -24,12 +23,10 @@ import invokeLlmAppcURLCode from "@/oss/code_snippets/endpoints/invoke_llm_app/c
 import invokeLlmApppythonCode from "@/oss/code_snippets/endpoints/invoke_llm_app/python"
 import invokeLlmApptsCode from "@/oss/code_snippets/endpoints/invoke_llm_app/typescript"
 import VariantPopover from "@/oss/components/pages/overview/variants/VariantPopover"
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
+import {useAppsData} from "@/oss/contexts/app.context"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVarziants"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
-import {createParams} from "@/oss/pages/w/[workspace_id]/p/[project_id]/apps/[app_id]/endpoints"
-import {currentAppAtom} from "@/oss/state/app"
+import {useVariants} from "@/oss/lib/hooks/useVariants"
+import {createParams} from "@/oss/pages/apps/[app_id]/endpoints"
 
 import LanguageCodeBlock from "./assets/LanguageCodeBlock"
 import {useStyles} from "./assets/styles"
@@ -53,9 +50,8 @@ const DeploymentDrawer = ({
     const classes = useStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
-    const currentApp = useAtomValue(currentAppAtom)
+    const {currentApp} = useAppsData()
     const [selectedLang, setSelectedLang] = useState("python")
-    const {goToPlayground} = usePlaygroundNavigation()
     const {data: uri} = useURI(appId, selectedEnvironment?.deployed_app_variant_id)
     const variant = useMemo(() => {
         return (
@@ -66,26 +62,31 @@ const DeploymentDrawer = ({
     }, [variants, selectedEnvironment.deployed_app_variant_id])
     const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
 
-    // We no longer need variant.inputParams from useVariants; keep commented for reference
-    // const {data} = useVariants(currentApp, [variant!].filter(Boolean))
-    const {specMap, uriMap} = useStatelessVariants()
+    const {data} = useVariants(currentApp)({appId}, [variant!].filter(Boolean))
 
     const params = useMemo(() => {
-        // Derive inputs from app-level OpenAPI schema
-        const vId = variant?.variantId
-        const spec = (vId && (specMap?.[vId] as any)) || undefined
-        const routePath = (vId && uriMap?.[vId]?.routePath) || ""
-        const inputKeys = spec ? extractInputKeysFromSchema(spec, routePath) : []
-        const synthesized = inputKeys.map((name) => ({name, input: name === "messages"}))
+        const _variant = (data?.variants || []).find(
+            (item) =>
+                (item?.variant?.id || item?.variant?.variantId) ===
+                selectedEnvironment.deployed_app_variant_revision_id,
+        )
+        const {inputParams, isChatVariant} = _variant || {}
 
-        const built = createParams(
-            synthesized,
+        const params = createParams(
+            inputParams,
             selectedEnvironment?.name || "none",
             "add_a_value",
+            isChatVariant,
             currentApp,
         )
-        return built
-    }, [variant?.variantId, specMap, uriMap, currentApp, selectedEnvironment?.name])
+
+        return params
+    }, [
+        data?.variants,
+        currentApp,
+        selectedEnvironment.deployed_app_variant_revision_id,
+        selectedEnvironment?.name,
+    ])
 
     const invokeLlmAppCodeSnippet: Record<string, string> = {
         python: invokeLlmApppythonCode(uri!, params),
@@ -154,9 +155,14 @@ const DeploymentDrawer = ({
                                                 label: "Open in playground",
                                                 icon: <Rocket size={16} />,
                                                 onClick: () =>
-                                                    goToPlayground(
-                                                        selectedEnvironment.deployed_app_variant_revision_id,
-                                                    ),
+                                                    router.push({
+                                                        pathname: `/apps/${appId}/playground`,
+                                                        query: {
+                                                            revisions: JSON.stringify([
+                                                                selectedEnvironment.deployed_app_variant_revision_id,
+                                                            ]),
+                                                        },
+                                                    }),
                                             },
                                         ],
                                     }}
@@ -190,7 +196,7 @@ const DeploymentDrawer = ({
                             ])}
                         >
                             <Tabs
-                                destroyOnHidden
+                                destroyInactiveTabPane
                                 defaultActiveKey={selectedLang}
                                 items={[
                                     {

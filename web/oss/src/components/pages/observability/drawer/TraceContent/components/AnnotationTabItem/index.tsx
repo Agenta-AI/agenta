@@ -32,8 +32,9 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
     const classes = useStyles()
-    const {data: evaluators = []} = useEvaluators({
+    const {data: evaluators} = useEvaluators({
         preview: true,
+        queries: {is_human: true},
     })
 
     // Last minute changes to display multiselect values in the table. This is not the best way to do it but it works for now.

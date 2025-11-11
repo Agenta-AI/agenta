@@ -1,6 +1,6 @@
 import {memo} from "react"
 
-import {LinkSimple} from "@phosphor-icons/react"
+import {Play} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 
 const ConfigureProviderDrawerTitle = () => {
@@ -8,11 +8,9 @@ const ConfigureProviderDrawerTitle = () => {
         <div className="flex items-center justify-between">
             <Typography.Text className="text-sm font-medium">Configure provider</Typography.Text>
             <Button
-                type="link"
-                icon={<LinkSimple size={14} className="mt-1" />}
+                icon={<Play size={14} className="mt-1" />}
                 href="https://docs.agenta.ai/prompt-engineering/playground/adding-custom-providers"
                 target="_blank"
-                rel="noreferrer"
             >
                 How to use
             </Button>
