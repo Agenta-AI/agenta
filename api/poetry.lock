@@ -2,15 +2,15 @@
 
 [[package]]
 name = "agenta"
-version = "0.61.0"
+version = "0.61.2"
 description = "The SDK for agenta is an open-source LLMOps platform."
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["main"]
 markers = "python_version == \"3.11\" or python_version >= \"3.12\""
 files = [
-    {file = "agenta-0.61.0-py3-none-any.whl", hash = "sha256:b530a174b01ea76b1a9773a6982c31a243f7927801c753c3a0ad78455b250522"},
-    {file = "agenta-0.61.0.tar.gz", hash = "sha256:525699f4d34326cdff7baefbdd1439ff989e7ee15ba8faf5acad94e144b59d8a"},
+    {file = "agenta-0.61.2-py3-none-any.whl", hash = "sha256:22d91004562ef803b0538c2a7bc5f78126ed0d7fd4f16e9bf65988804f0695f6"},
+    {file = "agenta-0.61.2.tar.gz", hash = "sha256:397dffdd54f5455a6f2ccb798795d01e8c07a2b1956b78bb53fc43d9b36533bf"},
 ]
 
 [package.dependencies]
@@ -2454,15 +2454,15 @@ files = [
 
 [[package]]
 name = "openai"
-version = "2.7.1"
+version = "2.7.2"
 description = "The official Python library for the openai API"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 markers = "python_version == \"3.11\" or python_version >= \"3.12\""
 files = [
-    {file = "openai-2.7.1-py3-none-any.whl", hash = "sha256:2f2530354d94c59c614645a4662b9dab0a5b881c5cd767a8587398feac0c9021"},
-    {file = "openai-2.7.1.tar.gz", hash = "sha256:df4d4a3622b2df3475ead8eb0fbb3c27fd1c070fa2e55d778ca4f40e0186c726"},
+    {file = "openai-2.7.2-py3-none-any.whl", hash = "sha256:116f522f4427f8a0a59b51655a356da85ce092f3ed6abeca65f03c8be6e073d9"},
+    {file = "openai-2.7.2.tar.gz", hash = "sha256:082ef61163074d8efad0035dd08934cf5e3afd37254f70fc9165dd6a8c67dcbd"},
 ]
 
 [package.dependencies]
@@ -4483,15 +4483,15 @@ telegram = ["requests"]
 
 [[package]]
 name = "twilio"
-version = "9.8.5"
+version = "9.8.6"
 description = "Twilio API client and TwiML generator"
 optional = false
 python-versions = ">=3.7.0"
 groups = ["main"]
 markers = "python_version == \"3.11\" or python_version >= \"3.12\""
 files = [
-    {file = "twilio-9.8.5-py2.py3-none-any.whl", hash = "sha256:7e1d04bb2cd480a97937f1fbea5fe35377925b6f70745baade08bde9cd4fb319"},
-    {file = "twilio-9.8.5.tar.gz", hash = "sha256:b69dc2226294ef579fcdd92b502aef7982a60577110a0799f8c2b739428e1dcf"},
+    {file = "twilio-9.8.6-py2.py3-none-any.whl", hash = "sha256:ad610db78a403766fc83fb24a01b7df839ed48cbf6efb268105de52525402eb9"},
+    {file = "twilio-9.8.6.tar.gz", hash = "sha256:ef38c02d9011b39516bc3dea7c9356e8417b01dd11890b63a888bbda4024ce3f"},
 ]
 
 [package.dependencies]
@@ -4970,4 +4970,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "02b458d29498290917a02277daf00235fe7c5eeb349c80697aa740c0806f665d"
+content-hash = "868ad730f47146dac81338813c6f84903f24a9d6ffb038989c9d02ce1d132401"
