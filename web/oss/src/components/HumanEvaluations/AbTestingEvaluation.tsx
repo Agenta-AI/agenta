@@ -1,23 +1,19 @@
 import {type Key, useEffect, useState} from "react"
 
-import VariantDetailsWithStatus from "@agenta/oss/src/components/VariantDetailsWithStatus"
 import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
 import {Database, Export, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {useAtomValue} from "jotai"
-import Link from "next/link"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import HumanEvaluationModal from "@/oss/components/HumanEvaluationModal/HumanEvaluationModal"
-import useURL from "@/oss/hooks/useURL"
+import {getAppValues} from "@/oss/contexts/app.context"
 import {EvaluationType} from "@/oss/lib/enums"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {getVotesPercentage} from "@/oss/lib/helpers/evaluate"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
-import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {abTestingEvaluationTransformer} from "@/oss/lib/transformers"
 import {HumanEvaluationListTableDataType, JSSTheme} from "@/oss/lib/Types"
@@ -26,8 +22,8 @@ import {
     fetchAllLoadEvaluations,
     fetchEvaluationResults,
 } from "@/oss/services/human-evaluations/api"
-import {getAppValues, selectedAppIdAtom} from "@/oss/state/app"
-import {projectIdAtom} from "@/oss/state/project"
+
+import VariantDetailsWithStatus from "../VariantDetailsWithStatus"
 
 const {Title} = Typography
 
@@ -82,9 +78,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) => {
     const classes = useStyles()
     const router = useRouter()
-    const {appURL, projectURL} = useURL()
-    const projectId = useAtomValue(projectIdAtom)
-    const appId = useAtomValue(selectedAppIdAtom)
+    const appId = router.query.app_id as string
 
     const [evaluationsList, setEvaluationsList] = useState<HumanEvaluationListTableDataType[]>([])
     const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
@@ -95,12 +89,12 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
     const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
 
     useEffect(() => {
-        if (!appId || !projectId) return
+        if (!appId) return
 
         const fetchEvaluations = async () => {
             try {
                 setFetchingEvaluations(true)
-                const evals = await fetchAllLoadEvaluations(appId, projectId)
+                const evals = await fetchAllLoadEvaluations(appId)
 
                 const fetchPromises = evals.map(async (item: any) => {
                     return fetchEvaluationResults(item.id)
@@ -131,15 +125,10 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
         }
 
         fetchEvaluations()
-    }, [appId, projectId])
+    }, [appId])
 
-    const handleNavigation = (variantRevisionId: string) => {
-        router.push({
-            pathname: `${appURL}/playground`,
-            query: {
-                revisions: buildRevisionsQueryParam([variantRevisionId]),
-            },
-        })
+    const handleNavigation = (variantName: string, revisionNum: string) => {
+        router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
     }
 
     const rowSelection = {
@@ -216,7 +205,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
             },
         },
         {
-            title: "Testset",
+            title: "Test set",
             dataIndex: "testsetName",
             key: "testsetName",
             onHeaderCell: () => ({
@@ -329,7 +318,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()
                                             router.push(
-                                                `${appURL}/evaluations/human_a_b_testing/${record.key}`,
+                                                `/apps/${appId}/evaluations/human_a_b_testing/${record.key}`,
                                             )
                                         },
                                     },
@@ -339,7 +328,10 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                         icon: <Rocket size={16} />,
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()
-                                            handleNavigation(record.variant_revision_ids[0])
+                                            handleNavigation(
+                                                record.variantNames[0],
+                                                record.revisions[0],
+                                            )
                                         },
                                     },
                                     {
@@ -348,18 +340,19 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                         icon: <Rocket size={16} />,
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()
-                                            handleNavigation(record.variant_revision_ids[1])
+                                            handleNavigation(
+                                                record.variantNames[1],
+                                                record.revisions[1],
+                                            )
                                         },
                                     },
                                     {
                                         key: "view_testset",
-                                        label: "View testset",
+                                        label: "View test set",
                                         icon: <Database size={16} />,
                                         onClick: (e) => {
                                             e.domEvent.stopPropagation()
-                                            router.push(
-                                                `${projectURL}/testsets/${record.testset._id}`,
-                                            )
+                                            router.push(`/testsets/${record.testset._id}`)
                                         },
                                     },
                                     {type: "divider"},
@@ -410,7 +403,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                                 variant_name: item.variantNames[1] ?? "",
                                 revision: item.revisions[1],
                             }),
-                            Testset: item.testset.name,
+                            "Test set": item.testset.name,
                             "Result 1": `${getVotesPercentage(item, 0) || 0}%`,
                             "Result 2": `${getVotesPercentage(item, 1) || 0}%`,
                             "Both are good": `${item.votesData.positive_votes.percentage}%`,
@@ -440,12 +433,10 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                 <div className="flex items-center justify-between">
                     <Space>
                         <Title>Human A/B Testing</Title>
-                        <Button>
-                            <Link
-                                href={`${appURL}/evaluations?selectedEvaluation=ab_testing_evaluation`}
-                            >
-                                View all
-                            </Link>
+                        <Button
+                            href={`/apps/${appId}/evaluations?selectedEvaluation=ab_testing_evaluation`}
+                        >
+                            View all
                         </Button>
                     </Space>
 
@@ -460,6 +451,7 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                         icon={<Plus size={14} />}
                         className={classes.button}
                         onClick={() => setIsEvalModalOpen(true)}
+                        data-cy="new-human-eval-modal-button"
                     >
                         Start new evaluation
                     </Button>
@@ -503,14 +495,15 @@ const AbTestingEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) 
                     className="ph-no-capture"
                     columns={columns}
                     dataSource={evaluationsList}
-                    loading={fetchingEvaluations}
                     scroll={{x: true}}
                     bordered
                     pagination={false}
                     onRow={(record) => ({
                         style: {cursor: "pointer"},
                         onClick: () =>
-                            router.push(`${appURL}/evaluations/human_a_b_testing/${record.key}`),
+                            router.push(
+                                `/apps/${appId}/evaluations/human_a_b_testing/${record.key}`,
+                            ),
                     })}
                 />
             </Spin>

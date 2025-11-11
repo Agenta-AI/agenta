@@ -3,7 +3,6 @@ from oss.src.utils.common import is_ee
 if is_ee():
     from ee.src.models.db_models import (
         APIKeyDB,
-        ProjectDB,
         WorkspaceDB,
         OrganizationDB,
         InvitationDB,
@@ -30,7 +29,7 @@ else:
 
 from oss.src.models.db_models import (
     UserDB,
-    TestsetDB,
+    TestSetDB,
     AppVariantDB,
     VariantBaseDB,
     AppEnvironmentDB,
@@ -43,7 +42,7 @@ models = [
     AppDB,
     UserDB,
     ProjectDB,
-    TestsetDB,
+    TestSetDB,
     AppVariantDB,
     DeploymentDB,
     EvaluationDB,

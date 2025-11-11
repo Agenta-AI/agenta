@@ -9,7 +9,7 @@ Core test infrastructure managing user state, authentication, and test resources
 - Maintains per-worker user state via global Map
 - Each worker gets dedicated email address
 - Tracks authentication status and environment settings
-- Automatically determines environment from worker info
+- Automatically determines environment (local/cloud) from worker info
 
 ### Authentication Handling
 

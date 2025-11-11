@@ -1,5 +1,6 @@
 import {type PropsWithChildren, useState, useCallback} from "react"
 
+import {Transition} from "@headlessui/react"
 import {Typography, Button, theme} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
@@ -29,11 +30,8 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
         (bounds: DOMRectReadOnly) => {
             setShouldDisplay(() => {
                 if (dismissed) return false // keep hidden if already dismissed by the user
-                const pathSegments = pathname.split("/").filter(Boolean)
-                const isMobileUnoptimizedRoute = MOBILE_UNOPTIMIZED_APP_ROUTES.some((route) =>
-                    pathSegments.includes(route),
-                )
-                if (!isMobileUnoptimizedRoute) return false
+                if (!MOBILE_UNOPTIMIZED_APP_ROUTES.some((route) => pathname.startsWith(route)))
+                    return false
 
                 return bounds.width < token.screenMD
             })
@@ -47,14 +45,24 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
         setDismissed(true)
     }
 
-    return shouldDisplay ? (
-        <div
+    return (
+        // @ts-ignore
+        <Transition
+            show={!dismissed && shouldDisplay}
+            enter="transition-opacity duration-75"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="transition-opacity duration-150"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+            as="div"
             className={clsx([
                 "fixed top-0 left-0 right-0 bottom-0", // overlay the entire screen
                 "flex flex-col items-center justify-center gap-4", // flex config
                 "z-[9999]",
                 overlay, // TODO: better theme connected tailwind color classes
             ])}
+            unmount
         >
             <Typography.Text className="w-8/12 text-center leading-1 text-lg">
                 Agenta works better in larger laptop or desktop screens.
@@ -62,8 +70,8 @@ const NoMobilePageWrapper: React.FC<PropsWithChildren> = ({children}) => {
             <Button type="primary" size="large" onClick={handleDismiss}>
                 View anyway
             </Button>
-        </div>
-    ) : null
+        </Transition>
+    )
 }
 
 export default NoMobilePageWrapper

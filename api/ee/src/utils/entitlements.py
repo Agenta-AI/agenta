@@ -2,21 +2,13 @@ from typing import Union, Optional, Callable
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache
 
 log = get_module_logger(__name__)
 
 from fastapi.responses import JSONResponse
 
 from ee.src.core.subscriptions.service import SubscriptionsService
-from ee.src.core.entitlements.types import (
-    Tracker,
-    Flag,
-    Counter,
-    Gauge,
-    Plan,
-    ENTITLEMENTS,
-)
+from ee.src.core.entitlements.types import Tracker, Flag, Counter, Gauge, ENTITLEMENTS
 from ee.src.core.meters.service import MetersService
 from ee.src.core.meters.types import MeterDTO
 from ee.src.dbs.postgres.meters.dao import MetersDAO
@@ -84,36 +76,15 @@ async def check_entitlements(
     if flag is None and counter is None and gauge is None:
         raise EntitlementsException(f"Invalid key [{key}]")
 
-    cache_key = {
-        "organization_id": organization_id,
-    }
+    subscription = await subscriptions_service.read(organization_id=organization_id)
 
-    subscription_data = await get_cache(
-        namespace="entitlements:subscription",
-        key=cache_key,
-    )
-
-    if subscription_data is None:
-        subscription = await subscriptions_service.read(organization_id=organization_id)
-
-        if not subscription:
-            raise EntitlementsException(
-                f"No subscription found for organization [{organization_id}]"
-            )
-
-        subscription_data = {
-            "plan": subscription.plan.value,
-            "anchor": subscription.anchor,
-        }
-
-        await set_cache(
-            namespace="entitlements:subscription",
-            key=cache_key,
-            value=subscription_data,
+    if not subscription:
+        raise EntitlementsException(
+            f"No subscription found for organization [{organization_id}]"
         )
 
-    plan = Plan(subscription_data.get("plan"))
-    anchor = subscription_data.get("anchor")
+    plan = subscription.plan
+    anchor = subscription.anchor
 
     if plan not in ENTITLEMENTS:
         raise EntitlementsException(f"Missing plan [{plan}] in entitlements")

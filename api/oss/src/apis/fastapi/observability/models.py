@@ -1,7 +1,9 @@
 from typing import List, Optional
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+
+from oss.src.apis.fastapi.shared.models import VersionedModel
 
 from oss.src.core.observability.dtos import (
     OTelSpanDTO,
@@ -12,15 +14,13 @@ from oss.src.core.observability.dtos import (
 )
 
 
-class CollectStatusResponse(BaseModel):
+class CollectStatusResponse(VersionedModel):
     status: str
 
 
-class OTelTracingResponse(BaseModel):
+class OTelTracingResponse(VersionedModel):
     count: Optional[int] = None
     spans: List[OTelSpanDTO]
-
-    model_config = ConfigDict(title="OTelTracingDataResponse")
 
 
 class AgentaNodeDTO(SpanDTO):
@@ -34,11 +34,6 @@ class AgentaNodesDTO(BaseModel):
 class AgentaTreeDTO(BaseModel):
     tree: TreeDTO
 
-    nodes: List[AgentaNodeDTO]
-
-
-class AgentaVersionedTreeDTO(BaseModel):
-    version: str
     nodes: List[AgentaNodeDTO]
 
 
@@ -56,15 +51,15 @@ class AgentaRootsDTO(BaseModel):
     roots: Optional[List[AgentaRootDTO]] = []
 
 
-class AgentaNodesResponse(AgentaNodesDTO):
+class AgentaNodesResponse(VersionedModel, AgentaNodesDTO):
     count: Optional[int] = None
 
 
-class AgentaTreesResponse(AgentaTreesDTO):
+class AgentaTreesResponse(VersionedModel, AgentaTreesDTO):
     count: Optional[int] = None
 
 
-class AgentaRootsResponse(AgentaRootsDTO):
+class AgentaRootsResponse(VersionedModel, AgentaRootsDTO):
     count: Optional[int] = None
 
 
@@ -91,6 +86,6 @@ class LegacyAnalyticsResponse(LegacySummary):
     data: List[LegacyDataPoint]
 
 
-class OldAnalyticsResponse(BaseModel):
+class AnalyticsResponse(VersionedModel):
     count: Optional[int] = None
     buckets: List[BucketDTO]

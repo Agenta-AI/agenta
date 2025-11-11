@@ -1,204 +1,73 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
-from oss.src.core.shared.dtos import (
-    sync_alias,
-    AliasConfig,
-)
-from oss.src.core.shared.dtos import (
-    Identifier,
-    Slug,
-    Lifecycle,
-    Header,
-    Metadata,
-)
-from oss.src.core.git.dtos import (
-    Artifact,
-    ArtifactCreate,
-    ArtifactEdit,
-    ArtifactQuery,
-    #
-    Variant,
-    VariantCreate,
-    VariantEdit,
-    VariantQuery,
-    #
-    Revision,
-    RevisionsLog,
-    RevisionCreate,
-    RevisionEdit,
-    RevisionQuery,
-    RevisionCommit,
-)
-from oss.src.core.testcases.dtos import (
-    Testcase,
-)
+from oss.src.core.shared.dtos import Tags, Data
+from oss.src.core.git.dtos import Artifact, Variant, Revision
+from oss.src.core.tracing.dtos import Link
+from oss.src.core.blobs.dtos import Blob
 
 
-class TestsetIdAlias(AliasConfig):
-    testset_id: Optional[UUID] = None
-    artifact_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="testset_id",
-    )
+class Testcase(Blob):
+    pass
 
 
-class TestsetVariantIdAlias(AliasConfig):
-    testset_variant_id: Optional[UUID] = None
-    variant_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="testset_variant_id",
-    )
+class TestsetData(BaseModel):
+    testcase_ids: Optional[List[UUID]] = None
+    testcases: Optional[List[Data]] = None
+    links: Optional[List[Link]] = None
+    mapping: Optional[Dict[str, str]] = None
 
+    class Config:
+        json_encoders = {UUID: str}
 
-class TestsetRevisionIdAlias(AliasConfig):
-    testset_revision_id: Optional[UUID] = None
-    revision_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="testset_revision_id",
-    )
+    def encode(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self.encode(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.encode(item) for item in data]
+        for type_, encoder in self.Config.json_encoders.items():
+            if isinstance(data, type_):
+                return encoder(data)
+        return data
 
+    def model_dump(self, *args, **kwargs) -> dict:
+        kwargs.setdefault("exclude_none", True)
 
-class TestsetLog(
-    RevisionsLog,
-    TestsetVariantIdAlias,
-    TestsetRevisionIdAlias,
-):
-    testset_variant_id: Optional[UUID] = None
-
-    def model_post_init(self, _context) -> None:
-        sync_alias("testset_variant_id", "variant_id", self)
-        sync_alias("testset_revision_id", "revision_id", self)
+        return self.encode(super().model_dump(*args, **kwargs))
 
 
 class TestsetFlags(BaseModel):
-    has_testcases: Optional[bool] = None
-    has_traces: Optional[bool] = None
+    has_testcases: bool = False
+    has_links: bool = False
 
 
-class Testset(Artifact):
+class TestsetArtifact(Artifact):
     flags: Optional[TestsetFlags] = None
 
 
-class TestsetCreate(ArtifactCreate):
+class TestsetVariant(Variant):
     flags: Optional[TestsetFlags] = None
 
+    artifact_id: Optional[UUID] = None
+    artifact: Optional[TestsetArtifact] = None
 
-class TestsetEdit(ArtifactEdit):
+
+class TestsetRevision(Revision):
+    data: Optional[TestsetData] = None
     flags: Optional[TestsetFlags] = None
 
+    variant_id: Optional[UUID] = None
+    variant: Optional[TestsetVariant] = None
 
-class TestsetQuery(ArtifactQuery):
+
+class TestsetQuery(BaseModel):
+    artifact_ref: Optional[TestsetArtifact] = None
+    variant_ref: Optional[TestsetVariant] = None
+    revision_ref: Optional[TestsetRevision] = None
+
+    tags: Optional[Tags] = None
     flags: Optional[TestsetFlags] = None
 
-
-class TestsetVariant(
-    Variant,
-    TestsetIdAlias,
-):
-    flags: Optional[TestsetFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("testset_id", "artifact_id", self)
-
-
-class TestsetVariantCreate(
-    VariantCreate,
-    TestsetIdAlias,
-):
-    flags: Optional[TestsetFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("testset_id", "artifact_id", self)
-
-
-class TestsetVariantEdit(VariantEdit):
-    flags: Optional[TestsetFlags] = None
-
-
-class TestsetVariantQuery(VariantQuery):
-    flags: Optional[TestsetFlags] = None
-
-
-class TestsetRevisionData(BaseModel):
-    testcase_ids: Optional[List[UUID]] = None
-    testcases: Optional[List[Testcase]] = None
-
-    # trace_ids: Optional[List[str]] = None
-    # traces: Optional[List[Link]] = None
-    # mappings: Optional[Dict[str, str]] = None
-
-
-class TestsetRevision(
-    Revision,
-    TestsetIdAlias,
-    TestsetVariantIdAlias,
-):
-    flags: Optional[TestsetFlags] = None
-
-    data: Optional[TestsetRevisionData] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("testset_id", "artifact_id", self)
-        sync_alias("testset_variant_id", "variant_id", self)
-
-
-class TestsetRevisionCreate(
-    RevisionCreate,
-    TestsetIdAlias,
-    TestsetVariantIdAlias,
-):
-    flags: Optional[TestsetFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("testset_id", "artifact_id", self)
-        sync_alias("testset_variant_id", "variant_id", self)
-
-
-class TestsetRevisionEdit(RevisionEdit):
-    flags: Optional[TestsetFlags] = None
-
-
-class TestsetRevisionQuery(RevisionQuery):
-    flags: Optional[TestsetFlags] = None
-
-
-class TestsetRevisionCommit(
-    RevisionCommit,
-    TestsetIdAlias,
-    TestsetVariantIdAlias,
-):
-    flags: Optional[TestsetFlags] = None
-
-    data: Optional[TestsetRevisionData] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("testset_id", "artifact_id", self)
-        sync_alias("testset_variant_id", "variant_id", self)
-
-
-class SimpleTestset(Identifier, Slug, Lifecycle, Header, Metadata):
-    flags: Optional[TestsetFlags] = None  # type: ignore
-
-    data: Optional[TestsetRevisionData] = None
-
-
-class SimpleTestsetCreate(Slug, Header, Metadata):
-    flags: Optional[TestsetFlags] = None  # type: ignore
-
-    data: Optional[TestsetRevisionData] = None
-
-
-class SimpleTestsetEdit(Identifier, Header, Metadata):
-    flags: Optional[TestsetFlags] = None  # type: ignore
-
-    data: Optional[TestsetRevisionData] = None
-
-
-class SimpleTestsetQuery(Metadata):
-    flags: Optional[TestsetFlags] = None  # type: ignore
+    include_archived: Optional[bool] = None

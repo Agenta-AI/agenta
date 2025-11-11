@@ -99,6 +99,7 @@ async def verify_permissions(
                 namespace="verify_permissions",
                 key=cache_key,
                 value="deny",
+                ttl=5 * 60,  # seconds
             )
             raise Deny()
 
@@ -118,6 +119,7 @@ async def verify_permissions(
                     namespace="verify_permissions",
                     key=cache_key,
                     value="deny",
+                    ttl=5 * 60,  # seconds
                 )
                 raise Deny()
 
@@ -134,6 +136,7 @@ async def verify_permissions(
                 namespace="verify_permissions",
                 key=cache_key,
                 value="deny",
+                ttl=5 * 60,  # seconds
             )
             raise Deny()
 
@@ -143,6 +146,7 @@ async def verify_permissions(
             namespace="verify_permissions",
             key=cache_key,
             value="allow",
+            ttl=5 * 60,  # seconds
         )
         return Allow(request.state.credentials)
 
@@ -154,6 +158,7 @@ async def verify_permissions(
             namespace="verify_permissions",
             key=cache_key,
             value="deny",
+            ttl=5 * 60,  # seconds
         )
         raise Deny() from exc
 

@@ -1,6 +1,6 @@
 import {js as beautify} from "js-beautify"
 
-export default function tsCode(uri: string, params: string, apiKey: string): string {
+export default function tsCode(uri: string, params: string): string {
     const codeString = `import axios from 'axios';
 
 const generate = async () => {
@@ -8,7 +8,7 @@ const generate = async () => {
     const data = ${params};
     const headers = {
         "Content-Type": "application/json",
-        "Authorization": "ApiKey ${apiKey}" // Add your API key here
+        "Authorization": "ApiKey x.xxxxxxxx" // Add your API key here, when using cloud
     };
 
     const response = await axios.post(url, data, { headers });

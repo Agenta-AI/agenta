@@ -43,7 +43,7 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
             <section className="flex flex-col mt-4">
                 <div className={classes.image}>
                     <Image
-                        src="/assets/Agenta-logo-full-dark-accent.png"
+                        src="/assets/dark-complete-transparent_white_logo.png"
                         alt="aenta-ai"
                         width={226}
                         height={60}
@@ -65,7 +65,7 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
                 <div className="flex items-center justify-end gap-2 mt-5">
                     <Button onClick={() => props.onCancel?.({} as any)}>Cancel</Button>
                     <Link
-                        href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw"
+                        href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
                         target="_blank"
                     >
                         <Button icon={<SlackLogo size={14} className="mt-0.5" />}>

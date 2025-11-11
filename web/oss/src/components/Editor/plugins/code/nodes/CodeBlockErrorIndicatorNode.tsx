@@ -38,10 +38,6 @@ export class CodeBlockErrorIndicatorNode extends DecoratorNode<JSX.Element> {
         return <CodeBlockErrorIndicator errors={this.__errors} />
     }
 
-    isKeyboardSelectable(): boolean {
-        return false
-    }
-
     isInline(): boolean {
         return false
     }

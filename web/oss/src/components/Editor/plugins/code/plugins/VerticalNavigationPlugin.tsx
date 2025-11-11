@@ -4,9 +4,7 @@
  * This plugin improves vertical navigation in code blocks by:
  * 1. Maintaining cursor horizontal position when moving between lines
  * 2. Handling Alt+Up/Down for line movement
- * 3. Handling Cmd+Up/Down (macOS) for document navigation (jump to top/bottom)
- * 4. Preventing selection from moving out of code blocks
- * 5. Supporting Shift+Cmd+Up/Down for selection extension to document boundaries
+ * 3. Preventing selection from moving out of code blocks
  */
 import {useEffect} from "react"
 
@@ -16,7 +14,7 @@ import {
     $isRangeSelection,
     $createRangeSelection,
     $setSelection,
-    COMMAND_PRIORITY_HIGH,
+    COMMAND_PRIORITY_CRITICAL,
     KEY_ARROW_UP_COMMAND,
     KEY_ARROW_DOWN_COMMAND,
     KEY_DOWN_COMMAND,
@@ -28,10 +26,9 @@ import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeLineNode} from "../nodes/CodeLineNode"
 import {createLogger} from "../utils/createLogger"
 import {$fixCodeBlockIndentation} from "../utils/indentationUtils"
-import {getNodeAtOffset} from "../utils/navigation"
 
 const PLUGIN_NAME = "VerticalNavigationPlugin"
-const log = createLogger(PLUGIN_NAME, {disabled: true})
+const log = createLogger(PLUGIN_NAME, {disabled: false})
 
 /**
  * Handles line movement with Alt+Up/Down
@@ -200,30 +197,6 @@ function $handleShiftLines(
     // Log indentation after fix
     logIndentationState("Indentation AFTER auto-fix", parent)
 
-    // Trigger validation after line movement to update error indicators
-    // This ensures that validation errors are repositioned to match the moved lines
-    const textContent = parent.getTextContent()
-
-    if (textContent.length > 3) {
-        // Clean the text content by removing empty lines for validation
-        const originalLines = textContent.split("\n")
-        const cleanedLines: string[] = []
-        const cleanedToOriginalLineMap = new Map<number, number>()
-
-        originalLines.forEach((line: string, originalIndex: number) => {
-            if (line.trim() !== "") {
-                cleanedLines.push(line)
-                const cleanedLineNumber = cleanedLines.length
-                const originalLineNumber = originalIndex + 1
-                cleanedToOriginalLineMap.set(cleanedLineNumber, originalLineNumber)
-            }
-        })
-
-        log(
-            `🔄 [VerticalNavigationPlugin] Line movement completed - validation will be handled automatically`,
-        )
-    }
-
     return shouldHandle
 }
 
@@ -273,74 +246,21 @@ export function VerticalNavigationPlugin() {
                 const currentLine = anchorNode.getParents().find($isCodeLineNode)
                 if (!currentLine) return false
 
-                const getUnfoldedLine = (line: any, direction: "up" | "down") => {
-                    if (!line) return null
-                    const target =
-                        direction === "up" ? line.getPreviousSibling() : line.getNextSibling()
-
-                    if (target && !target.isHidden()) return target
-                    return getUnfoldedLine(target, direction)
-                }
-
                 const targetLine = isArrowUp
-                    ? getUnfoldedLine(currentLine, "up")
-                    : getUnfoldedLine(currentLine, "down")
+                    ? currentLine.getPreviousSibling()
+                    : currentLine.getNextSibling()
 
-                if (!targetLine || !$isCodeLineNode(targetLine)) return false
-
-                // Handle Cmd+Arrow (metaKey) for document navigation (VSCode-like)
-                if (event.metaKey) {
-                    log("🎮 Cmd+Arrow detected, handling document navigation")
-                    event.preventDefault()
-
-                    // Find the code block containing the current line
-                    const codeBlock = currentLine.getParents().find($isCodeBlockNode)
-                    if (!codeBlock) return false
-
-                    // Get all lines in the code block
-                    const allLines = codeBlock.getChildren().filter($isCodeLineNode)
-                    if (allLines.length === 0) return false
-
-                    // Determine target line (first or last)
-                    const targetLine = isArrowUp ? allLines[0] : allLines[allLines.length - 1]
-                    if (!targetLine) return false
-
-                    // Position cursor at beginning or end of target line
-                    const targetNodes = targetLine.getChildren()
-                    if (targetNodes.length === 0) return false
-
-                    let targetNode, targetOffset
-                    if (isArrowUp) {
-                        // Go to beginning of first line
-                        targetNode = targetNodes[0]
-                        targetOffset = 0
-                    } else {
-                        // Go to end of last line
-                        const lastNode = targetNodes[targetNodes.length - 1]
-                        targetNode = lastNode
-                        targetOffset = lastNode.getTextContentSize()
+                if (!targetLine || !$isCodeLineNode(targetLine)) {
+                    // If at the top/bottom of code block, prevent selection from moving out
+                    if (
+                        (isArrowUp && !currentLine.getPreviousSibling()) ||
+                        (!isArrowUp && !currentLine.getNextSibling())
+                    ) {
+                        log("🎮 At edge of code block, preventing default")
+                        event.preventDefault()
+                        return true
                     }
-
-                    // Create and set the selection
-                    const newSelection = $createRangeSelection()
-                    if (event.shiftKey) {
-                        // Extend selection from current position to target
-                        newSelection.anchor.set(anchor.getNode().getKey(), anchor.offset, "text")
-                        newSelection.focus.set(targetNode.getKey(), targetOffset, "text")
-                    } else {
-                        // Move cursor to target position
-                        newSelection.anchor.set(targetNode.getKey(), targetOffset, "text")
-                        newSelection.focus.set(targetNode.getKey(), targetOffset, "text")
-                    }
-
-                    $setSelection(newSelection)
-                    log("🎮 Document navigation completed", {
-                        direction: isArrowUp ? "top" : "bottom",
-                        targetNodeKey: targetNode.getKey(),
-                        targetOffset,
-                        shiftKey: event.shiftKey,
-                    })
-                    return true
+                    return false
                 }
 
                 // Handle Alt+Arrow for line movement
@@ -382,16 +302,9 @@ export function VerticalNavigationPlugin() {
                 })
 
                 // Get target line information
-                // const isTargetLineFolded = targetLine?.isCollapsed()
-
-                // if (isTargetLineFolded) {
-
-                //     // editor.dispatchCommand(KEY_DOWN_COMMAND, event)
-                //     // return true
-                // }
-                const targetLineContent = targetLine?.getTextContent()
-                const targetLineLength = targetLineContent?.length
-                const targetLineNodes = targetLine?.getChildren()
+                const targetLineContent = targetLine.getTextContent()
+                const targetLineLength = targetLineContent.length
+                const targetLineNodes = targetLine.getChildren()
 
                 log("🎮 Target line info:", {
                     targetLineLength,
@@ -403,11 +316,21 @@ export function VerticalNavigationPlugin() {
                 // If that's not possible, position at the end
                 const targetOffset = Math.min(currentPositionInLine, targetLineLength)
 
-                // Resolve node + inner offset via helper (O(children) worst-case but no manual loop here)
-                const {node: targetNode, innerOffset: offsetInTargetNode} = getNodeAtOffset(
-                    targetLine as any,
-                    targetOffset,
-                )
+                // Find the node and offset within that node for the target position
+                let accumulatedLength = 0
+                let targetNode = targetLineNodes[targetLineNodes.length - 1] // Default to last node
+                let offsetInTargetNode = targetNode ? targetNode.getTextContentSize() : 0
+
+                for (const node of targetLineNodes) {
+                    const nodeLength = node.getTextContentSize()
+                    if (accumulatedLength + nodeLength >= targetOffset) {
+                        // We found the node containing our target position
+                        targetNode = node
+                        offsetInTargetNode = targetOffset - accumulatedLength
+                        break
+                    }
+                    accumulatedLength += nodeLength
+                }
 
                 if (!targetNode) {
                     log("🎮 No target node found")
@@ -417,7 +340,7 @@ export function VerticalNavigationPlugin() {
                 log("🎮 Setting selection to:", {
                     targetNodeKey: targetNode.getKey(),
                     offsetInTargetNode,
-                    targetNodeType: targetNode!.getType(),
+                    targetNodeType: targetNode.getType(),
                 })
 
                 // Create and set the selection
@@ -427,7 +350,7 @@ export function VerticalNavigationPlugin() {
                     newSelection.anchor.set(anchor.getNode().getKey(), anchor.offset, "text")
                     newSelection.focus.set(targetNode.getKey(), offsetInTargetNode, "text")
                 } else {
-                    newSelection.anchor.set(targetNode!.getKey(), offsetInTargetNode, "text")
+                    newSelection.anchor.set(targetNode.getKey(), offsetInTargetNode, "text")
                     newSelection.focus.set(targetNode.getKey(), offsetInTargetNode, "text")
                 }
                 $setSelection(newSelection)
@@ -435,7 +358,7 @@ export function VerticalNavigationPlugin() {
 
                 return false
             },
-            COMMAND_PRIORITY_HIGH,
+            COMMAND_PRIORITY_CRITICAL,
         )
     }, [editor])
 

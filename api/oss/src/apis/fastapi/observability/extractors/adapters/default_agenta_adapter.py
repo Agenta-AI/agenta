@@ -1,3 +1,5 @@
+from typing import Any, Dict, Tuple
+
 from oss.src.apis.fastapi.observability.extractors.base_adapter import BaseAdapter
 from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
     CanonicalAttributes,
@@ -10,7 +12,7 @@ from oss.src.apis.fastapi.observability.utils.serialization import (
 )
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__name__)
+log = get_module_logger(__file__)
 
 
 class DefaultAgentaAdapter(BaseAdapter):
@@ -68,14 +70,3 @@ class DefaultAgentaAdapter(BaseAdapter):
                         if "attributes" not in features.exception:
                             features.exception["attributes"] = {}
                         features.exception["attributes"][attr_key] = decoded_attr_val
-
-        try:
-            features.links = attributes.links
-        except Exception as e:
-            log.error(
-                "Failed to set links on features. Links from attributes: %s. Error: %s",
-                attributes.links,
-                str(e),
-                exc_info=True,
-            )
-            pass

@@ -1,96 +1,65 @@
-import {useCallback, useEffect, useRef} from "react"
+import {ParsedUrlQuery, parse} from "querystring"
 
-import {ParsedUrlQuery} from "querystring"
-
-import {useAppNavigation, useAppQuery} from "@/oss/state/appState"
+import {NextRouter, useRouter} from "next/router"
 
 type Method = "push" | "replace"
 
-const normalizeValue = (
-    value: string | string[] | number | boolean | null | undefined,
-): string | string[] | undefined => {
-    if (value === null || value === undefined) return undefined
-    if (Array.isArray(value)) {
-        const normalizedArray = value
-            .map((item) => {
-                if (item === null || item === undefined) return undefined
-                const str = String(item)
-                return str === "" ? undefined : str
-            })
-            .filter((item): item is string => item !== undefined)
+function getUpdateQuery(router: NextRouter, method: Method) {
+    return (queryObj: ParsedUrlQuery) => {
+        const query = parse(window.location.search.replace("?", ""))
 
-        return normalizedArray.length > 0 ? normalizedArray : undefined
+        //do not update query if the value is the same
+        let changed = false
+        for (const key in queryObj) {
+            if (query[key]?.toString() !== queryObj[key]?.toString()) {
+                changed = true
+                break
+            }
+        }
+        if (!changed) return
+
+        const newQuery = {
+            ...query,
+            ...queryObj,
+        }
+        //delete keys with undefined values
+        Object.keys(newQuery).forEach((key) => {
+            if (newQuery[key] === undefined || newQuery[key] === "") {
+                delete newQuery[key]
+            }
+        })
+
+        router[method](
+            {
+                pathname: window.location.pathname,
+                query: newQuery,
+            },
+            undefined,
+            {scroll: false},
+        )
     }
-
-    const normalized = String(value)
-    return normalized === "" ? undefined : normalized
-}
-
-const valuesAreEqual = (
-    current: string | string[] | undefined,
-    next: string | string[] | undefined,
-) => {
-    if (current === next) return true
-    if (Array.isArray(current) && Array.isArray(next)) {
-        if (current.length !== next.length) return false
-        return current.every((value, index) => value === next[index])
-    }
-    return !Array.isArray(current) && !Array.isArray(next) && current === next
 }
 
 export function useQuery(
     method: Method = "push",
 ): [ParsedUrlQuery, (query: ParsedUrlQuery) => void] {
-    const query = useAppQuery()
-    const navigation = useAppNavigation()
-    const queryRef = useRef(query)
+    const router = useRouter()
+    const {query} = router
 
-    useEffect(() => {
-        queryRef.current = query
-    }, [query])
-
-    const updateQuery = useCallback(
-        (queryObj: ParsedUrlQuery) => {
-            const nextQuery: Record<string, string | string[] | undefined> = {}
-            let hasChanged = false
-            const currentQuery = queryRef.current
-
-            Object.keys(queryObj).forEach((key) => {
-                const requestedValue = normalizeValue(queryObj[key] as any)
-                const currentValue = normalizeValue(currentQuery[key] as any)
-
-                if (!valuesAreEqual(currentValue, requestedValue)) {
-                    hasChanged = true
-                }
-
-                nextQuery[key] = requestedValue
-            })
-
-            if (!hasChanged) return
-
-            navigation.patchQuery(nextQuery, {method, shallow: true})
-        },
-        [method, navigation],
-    )
-
-    return [query, updateQuery]
+    return [query, getUpdateQuery(router, method)]
 }
 
 export function useQueryParam(
     paramName: string,
     defaultValue?: string,
     method?: Method,
-): [string | undefined, (val: string | undefined) => void] {
+): [string, (val: string) => void] {
     const [query, updateQuery] = useQuery(method)
-    const rawValue = query[paramName]
-    const value = Array.isArray(rawValue) ? rawValue[0] : (rawValue as string | undefined)
+    const value = (query as Record<string, any>)[paramName] || defaultValue
 
-    const setValue = useCallback(
-        (val: string | undefined) => {
-            updateQuery({[paramName]: val})
-        },
-        [paramName, updateQuery],
-    )
+    const setValue = (val: string) => {
+        updateQuery({[paramName]: val})
+    }
 
-    return [value ?? defaultValue, setValue]
+    return [value, setValue]
 }

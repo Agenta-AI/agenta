@@ -1,5 +1,3 @@
-import {memo} from "react"
-
 import {Input} from "antd"
 import {TextAreaProps} from "antd/es/input"
 import clsx from "clsx"
@@ -15,12 +13,7 @@ const LabelInput = ({label, className, multiLine = false, ...props}: LabelInputP
                     variant="borderless"
                     className={clsx("px-0 rounded-none", className)}
                     autoSize={{minRows: 1}}
-                    style={{
-                        overflowY: "hidden",
-                        overflowX: "hidden",
-                        maxHeight: "none",
-                        resize: "none",
-                    }}
+                    style={{overflow: "hidden", maxHeight: "none", resize: "none"}}
                     {...(props as TextAreaProps)}
                 />
             ) : (
@@ -34,4 +27,4 @@ const LabelInput = ({label, className, multiLine = false, ...props}: LabelInputP
     )
 }
 
-export default memo(LabelInput)
+export default LabelInput

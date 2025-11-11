@@ -1,32 +1,20 @@
-from typing import Dict, Union, Any, Optional, Tuple, List
+from typing import Dict, Union, Any
 from uuid import UUID
 from datetime import datetime
 from collections import OrderedDict
 
-from litellm import cost_calculator
-
-
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.shared.dtos import (
-    Flags,
-    Tags,
-    Meta,
-    Data,
-    Reference,
-    Link,
-)
+from oss.src.core.shared.dtos import Reference
 
 from oss.src.core.tracing.dtos import (
-    Attributes,
     OTelSpanKind,
     OTelStatusCode,
     OTelSpan,
-    OTelReference,
-    OTelFlatSpan,
     OTelLink,
     OTelFlatSpans,
-    TracingQuery,
+    Link,
+    Query,
     FilteringException,
     Filtering,
     Condition,
@@ -37,8 +25,6 @@ from oss.src.core.tracing.dtos import (
     DictOperator,
     ExistenceOperator,
     Fields,
-    TraceType,
-    SpanType,
     _C_OPS,
     _N_OPS,
     _S_OPS,
@@ -55,11 +41,11 @@ log = get_module_logger(__name__)
 # ATTRIBUTES
 
 
-def unmarshall_attributes(
+def unmarshal_attributes(
     marshalled: OTelAttributes,
 ) -> OTelAttributes:
     """
-    Unmarshalls a dictionary of marshalled attributes into a nested dictionary
+    Unmarshals a dictionary of marshalled attributes into a nested dictionary
 
     Example:
     marshalled = {
@@ -89,34 +75,42 @@ def unmarshall_attributes(
 
     for key, value in marshalled.items():
         keys = key.split(".")
-        current = unmarshalled
 
-        for i, key in enumerate(keys):
-            is_last = i == len(keys) - 1
-            next_key = keys[i + 1] if not is_last else None
-            is_index = key.isdigit()
-            key = int(key) if is_index else key
+        level = unmarshalled
 
-            if is_last:
-                if isinstance(current, list) and isinstance(key, int):
-                    while len(current) <= key:
-                        current.append(None)
-                    current[key] = value
-                elif isinstance(current, dict):
-                    current[key] = value
+        for i, part in enumerate(keys[:-1]):
+            if part.isdigit():
+                part = int(part)
+
+                if not isinstance(level, list):
+                    level = []
+
+                while len(level) <= part:
+                    level.append({})
+
+                level = level[part]
+
             else:
-                next_is_index = next_key.isdigit() if next_key else False
+                if part not in level:
+                    level[part] = {} if not keys[i + 1].isdigit() else []
 
-                if isinstance(current, list) and isinstance(key, int):
-                    while len(current) <= key:
-                        current.append([] if next_is_index else {})
-                    if current[key] is None:
-                        current[key] = [] if next_is_index else {}
-                    current = current[key]
-                elif isinstance(current, dict):
-                    if key not in current:
-                        current[key] = [] if next_is_index else {}
-                    current = current[key]
+                level = level[part]
+
+        last_key = keys[-1]
+
+        if last_key.isdigit():
+            last_key = int(last_key)
+
+            if not isinstance(level, list):
+                level = []
+
+            while len(level) <= last_key:
+                level.append(None)
+
+            level[last_key] = value
+
+        else:
+            level[last_key] = value
 
     return unmarshalled
 
@@ -191,21 +185,13 @@ def unmarshall(
 # TREE
 
 
-def parse_span_dtos_to_span_idx(
-    span_dtos: List[OTelFlatSpan],
-) -> Dict[str, OTelFlatSpan]:
-    span_idx = {span.span_id: span for span in span_dtos}
-
-    return span_idx
-
-
 def parse_span_idx_to_span_id_tree(
-    span_idx: Dict[str, OTelFlatSpan],
+    span_idx: Dict[str, OTelSpan],
 ) -> OrderedDict:
     span_id_tree = OrderedDict()
     index = {}
 
-    def push(span_dto: OTelFlatSpan) -> None:
+    def push(span_dto: OTelSpan) -> None:
         if span_dto.parent_id is None:
             span_id_tree[span_dto.span_id] = OrderedDict()
             index[span_dto.span_id] = span_id_tree[span_dto.span_id]
@@ -255,361 +241,6 @@ def _connect_tree_dfs(
             parent_span.spans = None
 
 
-def cumulate_costs(
-    spans_id_tree: OrderedDict,
-    spans_idx: Dict[str, OTelFlatSpan],
-) -> None:
-    def _get_incremental(span: OTelFlatSpan):
-        _costs = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _costs
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _get_cumulative(span: OTelFlatSpan):
-        _costs = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _costs
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("cumulative", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("cumulative", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("cumulative", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _accumulate(a: dict, b: dict):
-        return {
-            "prompt": a.get("prompt", 0.0) + b.get("prompt", 0.0),
-            "completion": a.get("completion", 0.0) + b.get("completion", 0.0),
-            "total": a.get("total", 0.0) + b.get("total", 0.0),
-        }
-
-    def _set_cumulative(span: OTelFlatSpan, costs: dict):
-        if span.attributes is None:
-            span.attributes = {}
-
-        if (
-            costs.get("prompt", 0.0) != 0.0
-            or costs.get("completion", 0.0) != 0.0
-            or costs.get("total", 0.0) != 0.0
-        ):
-            if "ag" not in span.attributes or not isinstance(
-                span.attributes["ag"],
-                dict,
-            ):
-                span.attributes["ag"] = {}
-
-            if "metrics" not in span.attributes["ag"] or not isinstance(
-                span.attributes["ag"]["metrics"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"] = {}
-
-            if "costs" not in span.attributes["ag"]["metrics"] or not isinstance(
-                span.attributes["ag"]["metrics"]["costs"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"]["costs"] = {}
-
-            span.attributes["ag"]["metrics"]["costs"]["cumulative"] = costs
-
-    _cumulate_tree_dfs(
-        spans_id_tree,
-        spans_idx,
-        _get_incremental,
-        _get_cumulative,
-        _accumulate,
-        _set_cumulative,
-    )
-
-
-def cumulate_tokens(
-    spans_id_tree: OrderedDict,
-    spans_idx: Dict[str, OTelFlatSpan],
-) -> None:
-    def _get_incremental(span: OTelFlatSpan):
-        _tokens = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _tokens
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _get_cumulative(span: OTelFlatSpan):
-        _tokens = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _tokens
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("cumulative", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("cumulative", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("cumulative", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _accumulate(a: dict, b: dict):
-        return {
-            "prompt": a.get("prompt", 0.0) + b.get("prompt", 0.0),
-            "completion": a.get("completion", 0.0) + b.get("completion", 0.0),
-            "total": a.get("total", 0.0) + b.get("total", 0.0),
-        }
-
-    def _set_cumulative(span: OTelFlatSpan, tokens: dict):
-        if span.attributes is None:
-            span.attributes = {}
-
-        if (
-            tokens.get("prompt", 0.0) != 0.0
-            or tokens.get("completion", 0.0) != 0.0
-            or tokens.get("total", 0.0) != 0.0
-        ):
-            if "ag" not in span.attributes or not isinstance(
-                span.attributes["ag"],
-                dict,
-            ):
-                span.attributes["ag"] = {}
-
-            if "metrics" not in span.attributes["ag"] or not isinstance(
-                span.attributes["ag"]["metrics"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"] = {}
-
-            if "tokens" not in span.attributes["ag"]["metrics"] or not isinstance(
-                span.attributes["ag"]["metrics"]["tokens"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"]["tokens"] = {}
-
-            span.attributes["ag"]["metrics"]["tokens"]["cumulative"] = tokens
-
-    _cumulate_tree_dfs(
-        spans_id_tree,
-        spans_idx,
-        _get_incremental,
-        _get_cumulative,
-        _accumulate,
-        _set_cumulative,
-    )
-
-
-def _cumulate_tree_dfs(
-    spans_id_tree: OrderedDict,
-    spans_idx: Dict[str, OTelFlatSpan],
-    get_incremental,
-    get_cumulative,
-    accumulate,
-    set_cumulative,
-):
-    for span_id, children_spans_id_tree in spans_id_tree.items():
-        children_spans_id_tree: OrderedDict
-
-        cumulated_metric = get_incremental(spans_idx[span_id])
-
-        _cumulate_tree_dfs(
-            children_spans_id_tree,
-            spans_idx,
-            get_incremental,
-            get_cumulative,
-            accumulate,
-            set_cumulative,
-        )
-
-        for child_span_id in children_spans_id_tree.keys():
-            marginal_metric = get_cumulative(spans_idx[child_span_id])
-            cumulated_metric = accumulate(cumulated_metric, marginal_metric)
-
-        set_cumulative(spans_idx[span_id], cumulated_metric)
-
-
-TYPES_WITH_COSTS = [
-    "embedding",
-    "query",
-    "completion",
-    "chat",
-    "rerank",
-]
-
-
-def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
-    for span in span_idx.values():
-        if (
-            span.span_type
-            and span.span_type.name.lower() in TYPES_WITH_COSTS
-            and span.attributes
-        ):
-            attr: dict = span.attributes
-            model = attr.get("ag", {}).get("meta", {}).get("response", {}).get(
-                "model"
-            ) or attr.get("ag", {}).get("data", {}).get("parameters", {}).get("model")
-
-            prompt_tokens = (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("prompt", 0.0)
-            )
-
-            completion_tokens = (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("completion", 0.0)
-            )
-
-            try:
-                costs = cost_calculator.cost_per_token(
-                    model=model,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                )
-
-                if not costs:
-                    continue
-
-                prompt_cost, completion_cost = costs
-                total_cost = prompt_cost + completion_cost
-
-                if "ag" not in span.attributes or not isinstance(
-                    span.attributes["ag"],
-                    dict,
-                ):
-                    span.attributes["ag"] = {}
-                if "metrics" not in span.attributes["ag"] or not isinstance(
-                    span.attributes["ag"]["metrics"],
-                    dict,
-                ):
-                    span.attributes["ag"]["metrics"] = {}
-
-                if "costs" not in span.attributes["ag"]["metrics"] or not isinstance(
-                    span.attributes["ag"]["metrics"]["costs"],
-                    dict,
-                ):
-                    span.attributes["ag"]["metrics"]["costs"] = {}
-
-                span.attributes["ag"]["metrics"]["costs"]["incremental"] = {
-                    "prompt": prompt_cost,
-                    "completion": completion_cost,
-                    "total": total_cost,
-                }
-
-            except:  # pylint: disable=bare-except
-                log.warn(
-                    "Failed to calculate costs",
-                    model=model,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                )
-
-
 # VALUES
 
 
@@ -653,42 +284,6 @@ def parse_ref_slug_to_str(
         raise TypeError() from e
 
     return clean_ref_slug
-
-
-def parse_ref_version_to_str(
-    ref_version: str,
-):
-    clean_ref_version = None
-
-    try:
-        clean_ref_version = str(ref_version)
-    except Exception as e:
-        log.error(
-            "ref_version must be a string, got %s [%s]",
-            type(ref_version),
-            ref_version,
-        )
-        raise TypeError() from e
-
-    return clean_ref_version
-
-
-def parse_evt_name_to_str(
-    evt_name: str,
-):
-    clean_evt_name = None
-
-    try:
-        clean_evt_name = str(evt_name)
-    except Exception as e:
-        log.error(
-            "evt_name must be a string, got %s [%s]",
-            type(evt_name),
-            evt_name,
-        )
-        raise TypeError() from e
-
-    return clean_evt_name
 
 
 def parse_trace_id_to_uuid(
@@ -800,9 +395,7 @@ def parse_value_to_enum(value: str, enum: type) -> type:
         ) from e
 
 
-def parse_timestamp_to_datetime(
-    ts: Optional[Union[str, int, datetime]],
-) -> Optional[datetime]:
+def parse_timestamp_to_datetime(ts):
     if isinstance(ts, datetime):
         return ts
 
@@ -810,7 +403,7 @@ def parse_timestamp_to_datetime(
         try:
             ts = int(ts)
         except ValueError:
-            return datetime.fromisoformat(str(ts))
+            return datetime.fromisoformat(ts)
 
     if isinstance(ts, int):
         digits = len(str(ts))
@@ -937,7 +530,7 @@ def _parse_links_condition(condition: Condition) -> None:
                 condition.value[i] = Link(
                     trace_id=parse_trace_id_to_uuid(trace_id) if trace_id else None,
                     span_id=parse_span_id_to_uuid(span_id) if span_id else None,
-                ).model_dump(mode="json")
+                ).model_dump()
         except Exception as e:  # pylint: disable=broad-exception-caught
             raise FilteringException(
                 "'links' value must be one or more (possibly partial) links.",
@@ -997,27 +590,19 @@ def _parse_references_condition(condition: Condition) -> None:
 
                 ref_id = v.get("id")
                 ref_slug = v.get("slug")
-                ref_version = v.get("version")
 
                 if ref_id:
                     _values.append(
                         Reference(
                             id=parse_ref_id_to_uuid(ref_id),
-                        ).model_dump(mode="json", exclude_none=True)
+                        ).model_dump(exclude_none=True)
                     )
 
                 if ref_slug:
                     _values.append(
                         Reference(
                             slug=parse_ref_slug_to_str(ref_slug),
-                        ).model_dump(mode="json", exclude_none=True)
-                    )
-
-                if ref_version:
-                    _values.append(
-                        Reference(
-                            version=parse_ref_version_to_str(ref_version),
-                        ).model_dump(mode="json", exclude_none=True)
+                        ).model_dump(exclude_none=True)
                     )
 
             condition.value = _values
@@ -1035,68 +620,7 @@ def _parse_references_condition(condition: Condition) -> None:
             ) from e
 
 
-def _parse_events_condition(condition: Condition) -> None:
-    if condition.operator not in _L_OPS + _D_OPS + _E_OPS:
-        raise FilteringException(
-            "'events' only supports list, dict, and existence operators.",
-        )
-
-    if condition.operator in _L_OPS + _E_OPS and condition.key is not None:
-        raise FilteringException(
-            "'events' key is only supported for dict operators.",
-        )
-
-    if condition.operator in _E_OPS and condition.value is not None:
-        raise FilteringException(
-            "'events' value is not supported for existence operators.",
-        )
-
-    if condition.operator in _L_OPS:
-        if not isinstance(condition.value, list):
-            raise FilteringException(
-                "'events' value must be one or more (possibly partial) events.",
-            )
-
-        if not all(isinstance(v, dict) for v in condition.value):
-            raise FilteringException(
-                "'events' value must be one or more (possibly partial) events.",
-            )
-
-    if condition.operator in _D_OPS:
-        if not isinstance(condition.key, str) or not condition.key.startswith(
-            "attributes."
-        ):
-            raise FilteringException(
-                "'events' key must be a string in dot notation starting with 'attributes'.",
-            )
-
-    if condition.operator in _E_OPS:
-        pass
-    elif condition.operator in _L_OPS:
-        try:
-            _values = []
-
-            for v in condition.value:
-                v: dict
-
-                name = v.get("name")
-
-                if name:
-                    _values.append(dict(name=parse_evt_name_to_str(name)))
-
-            condition.value = _values
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            log.error(e)
-            raise FilteringException(
-                "'events' value must be one or more (possibly partial) events.",
-            ) from e
-    elif condition.operator in _D_OPS:
-        try:
-            unmarshall({condition.key: condition.value})
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            raise FilteringException(
-                "'events' key must be a string in dot notation.",
-            ) from e
+# def _parse_events_condition(condition: Condition) -> None: ...
 
 
 def _parse_enum_field_condition(condition: Condition, enum: type) -> None:
@@ -1179,32 +703,10 @@ def _parse_uuid_field_condition(condition: Condition) -> None:
         condition.value = parse_trace_id_to_uuid(condition.value)
 
 
-def _parse_fts_field_condition(condition: Condition) -> None:
-    if condition.operator != StringOperator.CONTAINS:
-        raise FilteringException(
-            f"'{condition.field}' only supports full-text search operator: 'contains'.",
-        )
-
-    if condition.value is None:
-        raise FilteringException(
-            f"'{condition.field}' value is required and thus never null for full-text search.",
-        )
-
-    if not isinstance(condition.value, str):
-        raise FilteringException(
-            f"'{condition.field}' value must be a string for full-text search.",
-        )
-
-
 # FILTERING / CONDITION
 
 
-def parse_filtering(
-    filtering: Optional[Filtering] = None,
-) -> None:
-    if filtering is None:
-        return
-
+def parse_filtering(filtering: Filtering) -> None:
     for condition in filtering.conditions:
         if isinstance(condition, Filtering):
             parse_filtering(condition)
@@ -1216,20 +718,11 @@ def parse_filtering(
             )
 
 
-def parse_condition(
-    condition: Optional[Condition] = None,
-) -> None:
-    if condition is None:
-        return
-
+def parse_condition(condition: Condition) -> None:
     if condition.field == Fields.TRACE_ID:
         _parse_trace_id_condition(condition)
-    elif condition.field == Fields.TRACE_TYPE:
-        _parse_enum_field_condition(condition, TraceType)
     elif condition.field == Fields.SPAN_ID:
         _parse_span_id_condition(condition)
-    elif condition.field == Fields.SPAN_TYPE:
-        _parse_enum_field_condition(condition, SpanType)
     elif condition.field == Fields.PARENT_ID:
         _parse_parent_id_condition(condition)
     elif condition.field == Fields.SPAN_KIND:
@@ -1250,8 +743,8 @@ def parse_condition(
         _parse_links_condition(condition)
     elif condition.field == Fields.REFERENCES:
         _parse_references_condition(condition)
-    elif condition.field == Fields.EVENTS:
-        _parse_events_condition(condition)
+    # elif condition.field == Fields.EVENTS:
+    #     _parse_events_condition(condition)
     elif condition.field == Fields.CREATED_AT:
         _parse_timestamp_field_condition(condition)
     elif condition.field == Fields.UPDATED_AT:
@@ -1264,13 +757,10 @@ def parse_condition(
         _parse_uuid_field_condition(condition)
     elif condition.field == Fields.DELETED_BY_ID:
         _parse_uuid_field_condition(condition)
-    elif condition.field == Fields.CONTENT:
-        _parse_fts_field_condition(condition)
     else:
-        # raise FilteringException(
-        #     f"Unsupported condition field '{condition.field}'.",
-        # )
-        log.warning(f"Unsupported condition field: {condition.field}")
+        raise FilteringException(
+            f"Unsupported condition field '{condition.field}'.",
+        )
 
 
 # INGEST / QUERY
@@ -1280,64 +770,5 @@ def parse_ingest(span_dtos: OTelFlatSpans) -> None:
     pass
 
 
-def parse_query(query: TracingQuery) -> None:
+def parse_query(query: Query) -> None:
     parse_filtering(query.filtering)
-
-
-# INVOCATIONS / ANNOTATIONS
-
-
-def parse_into_attributes(
-    *,
-    type: Optional[Dict[str, str]] = None,
-    flags: Optional[Flags] = None,
-    tags: Optional[Tags] = None,
-    meta: Optional[Meta] = None,
-    data: Optional[Data] = None,
-    references: Optional[Dict[str, Dict[str, Any]]] = None,
-) -> Attributes:
-    attributes = dict(
-        ag=(
-            dict(
-                type=type,
-                flags=flags,
-                tags=tags,
-                meta=meta,
-                data=data,
-                references=references,
-            )
-            if type or flags or tags or meta or data or references
-            else None
-        )
-    )
-
-    return attributes  # type: ignore
-
-
-def parse_from_attributes(
-    attributes: Attributes,
-) -> Tuple[
-    Optional[Dict[str, str]],  # type
-    Optional[Flags],  # flags
-    Optional[Tags],  # tags
-    Optional[Meta],  # meta
-    Optional[Data],  # data
-    Optional[Dict[str, Dict[str, Any]]],  # references
-]:
-    # TODO - add error handling
-    ag: dict = attributes.get("ag", {})  # type: ignore
-    type: dict = ag.get("type", {})  # type: ignore
-    flags: dict = ag.get("flags")  # type: ignore
-    tags: dict = ag.get("tags")  # type: ignore
-    meta: dict = ag.get("meta")  # type: ignore
-    data: dict = ag.get("data")  # type: ignore
-    references = ag.get("references")  # type: ignore
-
-    return (
-        type,
-        flags,
-        tags,
-        meta,
-        data,
-        references,
-    )

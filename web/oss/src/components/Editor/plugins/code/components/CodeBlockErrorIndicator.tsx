@@ -7,15 +7,9 @@ export function CodeBlockErrorIndicator({errors}: {errors: string[]}) {
     return (
         <span
             ref={ref}
-            className="absolute top-1 right-1 text-red-600 cursor-help text-xs select-none"
+            className="absolute top-1 right-1 text-red-600 cursor-help text-xs"
             onMouseEnter={() => setHovering(true)}
             onMouseLeave={() => setHovering(false)}
-            style={{
-                userSelect: "none",
-                WebkitUserSelect: "none",
-                MozUserSelect: "none",
-                msUserSelect: "none",
-            }}
         >
             ⚠️
             {hovering && (

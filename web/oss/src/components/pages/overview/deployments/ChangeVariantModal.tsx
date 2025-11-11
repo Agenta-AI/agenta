@@ -60,7 +60,7 @@ const ChangeVariantModal = ({
 
     return (
         <>
-            <Modal width={520} centered destroyOnHidden footer={null} {...props}>
+            <Modal width={520} centered destroyOnClose footer={null} {...props}>
                 <div>
                     <Typography.Text className={classes.title}>
                         Deploy to {selectedEnvironment.name}

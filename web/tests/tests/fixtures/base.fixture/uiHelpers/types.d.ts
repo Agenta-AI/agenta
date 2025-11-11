@@ -1,4 +1,5 @@
-import {Page, Locator} from "@playwright/test"
+import type {Page, Locator} from "@playwright/test"
+import type {UseFn} from "../types"
 
 // Extract AriaRole from Playwright's types
 type GetByRoleOptions = Parameters<Page["getByRole"]>[1]
@@ -22,30 +23,6 @@ export interface SelectOptionConfig {
 }
 
 export interface UIHelpers {
-    /**
-     * Clicks a tab by its visible name (role=tab)
-     */
-    clickTab(name: string): Promise<void>
-    /**
-     * Clicks a table row by its visible name (role=row)
-     */
-    clickTableRow(rowText: string): Promise<void>
-
-    /**
-     * Clicks a button inside a specific table row by row text and button name
-     */
-    clickTableRowButton(config: {rowText: string; buttonName: string}): Promise<void>
-
-    /**
-     * Clicks an icon (e.g., edit/delete) inside a specific table row by row text and icon aria-label or title
-     */
-    clickTableRowIcon(config: {rowText: string; icon: string}): Promise<void>
-
-    /**
-     * Confirms a modal dialog by clicking a button with the given text (case-insensitive by default).
-     * @param buttonText - The button text or regex to match (defaults to /Confirm/i)
-     */
-    confirmModal(buttonText?: string | RegExp): Promise<void>
     // Text assertions
     /**
      * Verifies text content is visible on the page
@@ -109,16 +86,4 @@ export interface UIHelpers {
      * @param text Text content of the loading indicator
      */
     waitForLoadingState(text: string): Promise<void>
-
-    /**
-     * Selects a checkbox or radio button in a table row based on row text
-     * @param config.rowText The text content or regex pattern to identify the row
-     * @param config.inputType The type of input to select ('checkbox' or 'radio')
-     * @param config.checked Whether the input should be checked (default: true)
-     */
-    selectTableRowInput(config: {
-        rowText?: string | RegExp
-        inputType: "checkbox" | "radio"
-        checked: boolean
-    }): Promise<void>
 }

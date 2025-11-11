@@ -43,6 +43,4 @@ for filename in os.listdir(MIGRATIONS_DIR):
 # head(s) = revisions that are not anyone's down_revision
 heads = [rev for rev in revisions if rev not in all_down_revisions]
 
-print("---------")
-print()
 print("Heads:", heads)

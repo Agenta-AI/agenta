@@ -6,28 +6,24 @@ import {Button, DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd
 import {useAtom} from "jotai"
 import uniqBy from "lodash/uniqBy"
 import Link from "next/link"
-import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import AgCustomHeader from "@/oss/components/AgCustomHeader/AgCustomHeader"
 import CompareOutputDiff from "@/oss/components/CompareOutputDiff/CompareOutputDiff"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
+import {getAppValues} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import AgGridReact, {type AgGridReactType} from "@/oss/lib/helpers/agGrid"
 import {getColorPairFromStr, getRandomColors} from "@/oss/lib/helpers/colors"
 import {getFilterParams, getTypedValue, removeCorrectAnswerPrefix} from "@/oss/lib/helpers/evaluate"
 import {escapeNewlines} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
-import {isValidId} from "@/oss/lib/helpers/serviceValidations"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {ComparisonResultRow, EvaluatorConfig, JSSTheme, Testset, _Evaluation} from "@/oss/lib/Types"
+import {ComparisonResultRow, EvaluatorConfig, JSSTheme, TestSet, _Evaluation} from "@/oss/lib/Types"
 import {fetchAllComparisonResults} from "@/oss/services/evaluations/api"
-import {getAppValues} from "@/oss/state/app"
 
 import {LongTextCellRenderer} from "../cellRenderers/cellRenderers"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
@@ -75,56 +71,24 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 interface Props {}
 
 const EvaluationCompareMode: FC<Props> = () => {
-    const router = useRouter()
     const appId = useAppId()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const [evaluationIdsStr = ""] = useQueryParam("evaluations")
-    const evaluationIdsArray = evaluationIdsStr
-        .split(",")
-        .filter((item) => !!item && isValidId(item))
+    const evaluationIdsArray = evaluationIdsStr.split(",").filter((item) => !!item)
     const [evalIds, setEvalIds] = useState(evaluationIdsArray)
     const [hiddenVariants, setHiddenVariants] = useState<string[]>([])
     const [fetching, setFetching] = useState(false)
     const [scenarios, setScenarios] = useState<_Evaluation[]>([])
     const [rows, setRows] = useState<ComparisonResultRow[]>([])
-    const [testset, setTestset] = useState<Testset>()
+    const [testset, setTestset] = useState<TestSet>()
     const [evaluators] = useAtom(evaluatorsAtom)
     const [gridRef, setGridRef] = useState<AgGridReactType<ComparisonResultRow>>()
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
-    const [modalErrorMsg, setModalErrorMsg] = useState({
-        message: "",
-        stackTrace: "",
-        errorType: "invoke" as "invoke" | "evaluation",
-    })
+    const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
-    const {baseAppURL, projectURL} = useURL()
-    // breadcrumbs
-    const isAppScope = router.asPath.includes("/apps/")
-    const evaluationsHref =
-        isAppScope && appId
-            ? `${baseAppURL}/${appId}/evaluations?selectedEvaluation=auto_evaluation`
-            : `${projectURL}/evaluations?selectedEvaluation=auto_evaluation`
-    const breadcrumbKey = isAppScope && appId ? "appPage" : "projectPage"
-
-    useBreadcrumbsEffect(
-        {
-            breadcrumbs: {
-                [breadcrumbKey]: {
-                    label: "auto evaluation",
-                    href: evaluationsHref,
-                },
-                "eval-compare": {
-                    label: "compare",
-                },
-            },
-            type: "append",
-            condition: evaluationIdsArray.length > 0,
-        },
-        [evaluationIdsArray, evaluationsHref, breadcrumbKey],
-    )
 
     const handleOpenChangeDiff: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
@@ -154,7 +118,7 @@ const EvaluationCompareMode: FC<Props> = () => {
     }, [variants])
 
     const evaluationIds = useMemo(
-        () => evaluationIdsStr.split(",").filter((item) => !!item && isValidId(item)),
+        () => evaluationIdsStr.split(",").filter((item) => !!item),
         [evaluationIdsStr],
     )
 
@@ -239,7 +203,6 @@ const EvaluationCompareMode: FC<Props> = () => {
                                     setModalErrorMsg({
                                         message: result.error?.message || "",
                                         stackTrace: result.error?.stacktrace || "",
-                                        errorType: "invoke",
                                     })
                                     setIsErrorModalOpen(true)
                                 }}
@@ -326,7 +289,6 @@ const EvaluationCompareMode: FC<Props> = () => {
                                     setModalErrorMsg({
                                         message: result.error?.message || "",
                                         stackTrace: result.error?.stacktrace || "",
-                                        errorType: "evaluation",
                                     })
                                     setIsErrorModalOpen(true)
                                 }}
@@ -493,8 +455,7 @@ const EvaluationCompareMode: FC<Props> = () => {
                 <Space size="large">
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        // TODO: REPLACE WITH NEXT/LINK
-                        <Typography.Link href={`${projectURL}/testsets/${testset?.id}`}>
+                        <Typography.Link href={`/testsets/${testset?.id}`}>
                             {testset?.name || ""}
                         </Typography.Link>
                     </Space>
@@ -532,7 +493,7 @@ const EvaluationCompareMode: FC<Props> = () => {
                                         }
                                     >
                                         <Link
-                                            href={`${baseAppURL}/${appId}/playground?variant=${v.variants[0].variantName}`}
+                                            href={`/apps/${appId}/playground?variant=${v.variants[0].variantName}`}
                                         >
                                             {variantNameWithRev({
                                                 variant_name: v.variants[0].variantName ?? "",
@@ -609,6 +570,7 @@ const EvaluationCompareMode: FC<Props> = () => {
                     className={`${
                         appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"
                     } ${classes.table}`}
+                    data-cy="evaluation-compare-table"
                 >
                     <AgGridReact<ComparisonResultRow>
                         gridRef={setGridRef}

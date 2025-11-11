@@ -8,8 +8,7 @@ import {AnnotationDto} from "../types"
  * @param uuid - The UUID string to convert (e.g., '442d8202-a01b-fe43-f024-5be0780eae9f').
  * @returns The hexadecimal string representation of the UUID without dashes, or undefined if parsing fails.
  */
-export const uuidToTraceId = (uuid?: string) => {
-    if (!uuid) return undefined
+export const uuidToTraceId = (uuid: string) => {
     const parsed = UUID.parse(uuid)
     return parsed?.hexNoDelim
 }
@@ -20,8 +19,7 @@ export const uuidToTraceId = (uuid?: string) => {
  * @param uuid - The UUID string to convert.
  * @returns The concatenated hexadecimal string of clock sequence and node fields, or undefined if parsing fails.
  */
-export const uuidToSpanId = (uuid?: string) => {
-    if (!uuid) return undefined
+export const uuidToSpanId = (uuid: string) => {
     const parsed = UUID.parse(uuid)
     return `${parsed?.hexFields.clockSeqHiAndReserved}${parsed?.hexFields.clockSeqLow}${parsed?.hexFields.node}`
 }
@@ -168,21 +166,11 @@ export const groupAnnotationsByReferenceId = (
 
 export function attachAnnotationsToTraces(traces: any[], annotations: AnnotationDto[] = []) {
     function attach(trace: any): any {
-        const invocationIds = trace.invocationIds
-
-        const matchingAnnotations = annotations.filter((annotation: AnnotationDto) => {
-            // Check if annotation links to this trace via ANY link key (including "invocation" and dynamic keys like "test-xxx")
-            if (annotation.links && typeof annotation.links === "object") {
-                const linkValues = Object.values(annotation.links)
-                return linkValues.some(
-                    (link: any) =>
-                        link?.trace_id === (invocationIds?.trace_id || "") &&
-                        link?.span_id === (invocationIds?.span_id || ""),
-                )
-            }
-            return false
-        })
-
+        const matchingAnnotations = annotations.filter(
+            (annotation: AnnotationDto) =>
+                annotation.links?.invocation?.trace_id === (trace.invocationIds?.trace_id || "") &&
+                annotation.links?.invocation?.span_id === (trace.invocationIds?.span_id || ""),
+        )
         return {
             ...trace,
             annotations: matchingAnnotations,

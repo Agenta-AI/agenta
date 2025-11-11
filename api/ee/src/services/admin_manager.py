@@ -1,5 +1,6 @@
-from typing import Optional, Literal, Any
+from typing import Any
 from uuid import UUID
+from typing import Optional, Literal
 
 from pydantic import BaseModel
 import uuid_utils.compat as uuid
@@ -7,12 +8,7 @@ from sqlalchemy.future import select
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
-
-from oss.src.dbs.postgres.shared.engine import engine
-
-from oss.src.models.db_models import UserDB
-from oss.src.services.api_key_service import create_api_key
-
+from oss.src.models.db.postgres_engine import db_engine
 from ee.src.models.db_models import (
     WorkspaceDB,
     ProjectDB,
@@ -20,6 +16,12 @@ from ee.src.models.db_models import (
     ProjectMemberDB as ProjectMembershipDB,
     WorkspaceMemberDB as WorkspaceMembershipDB,
     OrganizationMemberDB as OrganizationMembershipDB,
+)
+from oss.src.models.db_models import (
+    UserDB,
+)
+from oss.src.services.api_key_service import (
+    create_api_key,
 )
 
 log = get_module_logger(__name__)
@@ -139,7 +141,7 @@ Credentials = str
 async def check_user(
     request: UserRequest,
 ) -> Optional[UserRequest]:
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         result = await session.execute(
             select(UserDB).filter_by(
                 email=request.email,
@@ -156,7 +158,7 @@ async def check_user(
 async def create_user(
     request: UserRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         user_db = UserDB(
             # id=uuid7()  # use default
             #
@@ -182,7 +184,7 @@ async def create_user(
 async def create_organization(
     request: OrganizationRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         organization_db = OrganizationDB(
             # id=uuid7()  # use default
             #
@@ -213,7 +215,7 @@ async def create_organization(
 async def create_workspace(
     request: WorkspaceRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         workspace_db = WorkspaceDB(
             # id=uuid7()  # use default
             #
@@ -242,7 +244,7 @@ async def create_workspace(
 async def create_project(
     request: ProjectRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         project_db = ProjectDB(
             # id=uuid7()  # use default
             #
@@ -273,7 +275,7 @@ async def create_project(
 async def create_organization_membership(
     request: OrganizationMembershipRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         membership_db = OrganizationMembershipDB(
             # id=uuid7()  # use default
             #
@@ -316,7 +318,7 @@ async def create_organization_membership(
 async def create_workspace_membership(
     request: WorkspaceMembershipRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         workspace = await session.execute(
             select(WorkspaceDB).filter_by(
                 id=request.workspace_ref.id,
@@ -354,7 +356,7 @@ async def create_workspace_membership(
 async def create_project_membership(
     request: ProjectMembershipRequest,
 ) -> Reference:
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         project = await session.execute(
             select(ProjectDB).filter_by(
                 id=request.project_ref.id,

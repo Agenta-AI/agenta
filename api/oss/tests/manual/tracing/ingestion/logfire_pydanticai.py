@@ -3,18 +3,19 @@
 # ///
 
 from dataclasses import dataclass
+
 from pydantic import BaseModel, Field
 
 from pydantic_ai import Agent, RunContext
 import logfire
 import agenta as ag
 from dotenv import load_dotenv
+import os
 
 load_dotenv(override=True)
 
 # os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost/api/otlp/"
 # os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = f"Authorization=ApiKey {os.environ['AGENTA_API_KEY']}"
-
 ag.init()
 logfire.configure(
     service_name="my_logfire_service", send_to_logfire=False, scrubbing=False
@@ -33,7 +34,6 @@ class DatabaseConn:
     async def customer_name(cls, *, id: int) -> str | None:
         if id == 123:
             return "John"
-        return None
 
     @classmethod
     async def customer_balance(cls, *, id: int, include_pending: bool) -> float:
@@ -46,7 +46,6 @@ class DatabaseConn:
 @dataclass
 class SupportDependencies:
     customer_id: int
-    including_pending: bool
     db: DatabaseConn
 
 
@@ -76,44 +75,27 @@ async def add_customer_name(ctx: RunContext[SupportDependencies]) -> str:
 
 
 @support_agent.tool
-async def customer_balance(ctx: RunContext[SupportDependencies]) -> str:
+async def customer_balance(
+    ctx: RunContext[SupportDependencies], include_pending: bool
+) -> str:
     """Returns the customer's current account balance."""
     balance = await ctx.deps.db.customer_balance(
         id=ctx.deps.customer_id,
-        include_pending=ctx.deps.including_pending,
+        include_pending=include_pending,
     )
     return f"${balance:.2f}"
 
 
-@ag.instrument()
-def bank_balance(customer_id: int, query: str, include_pending: bool = True):
-    """Returns the customer's current account balance."""
-    deps = SupportDependencies(
-        customer_id=customer_id,
-        including_pending=include_pending,
-        db=DatabaseConn(),
-    )
-    result = support_agent.run_sync(query, deps=deps)
-    return result
-
-
-@ag.instrument()
-def block_card(customer_id: int, query: str, include_pending: bool = True):
-    """Blocks the customer's card if they report it lost."""
-    deps = SupportDependencies(
-        customer_id=customer_id,
-        including_pending=include_pending,
-        db=DatabaseConn(),
-    )
-    result = support_agent.run_sync(query, deps=deps)
-    return result
-
-
 if __name__ == "__main__":
-    # Agenta 1: get user's account balance
-    result = bank_balance(123, "What is my balance?", True)
+    deps = SupportDependencies(customer_id=123, db=DatabaseConn())
+    result = support_agent.run_sync("What is my balance?", deps=deps)
     print(result.output)
+    """
+    support_advice='Hello John, your current account balance, including pending transactions, is $123.45.' block_card=False risk=1
+    """
 
-    # Agent 2: block user's card if they report it lost
-    result = block_card(123, "I just lost my card!", True)
+    result = support_agent.run_sync("I just lost my card!", deps=deps)
     print(result.output)
+    """
+    support_advice="I'm sorry to hear that, John. We are temporarily blocking your card to prevent unauthorized transactions." block_card=True risk=8
+    """

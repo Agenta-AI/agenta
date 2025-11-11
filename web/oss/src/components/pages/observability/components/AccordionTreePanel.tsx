@@ -1,21 +1,17 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
-import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
+import Editor from "@monaco-editor/react"
 import {Collapse, Radio, Space} from "antd"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
-import {EditorProvider, useLexicalComposerContext} from "@/oss/components/Editor/Editor"
-import EditorWrapper from "@/oss/components/Editor/Editor"
-import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
+import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
 
 type AccordionTreePanelProps = {
-    value: Record<string, any> | string
+    value: Record<string, any>
     label: string
     enableFormatSwitcher?: boolean
     bgColor?: string
@@ -25,6 +21,7 @@ type AccordionTreePanelProps = {
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     collapseContainer: ({bgColor}: {bgColor?: string}) => ({
         backgroundColor: "unset",
+        height: "100%",
         display: "flex",
         flexDirection: "column",
         "& .ant-collapse-item": {
@@ -59,70 +56,20 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         },
     }),
     editor: ({bgColor}: {bgColor?: string}) => ({
-        "& .agenta-editor-wrapper": {
+        "& .monaco-editor .monaco-editor-background": {
             backgroundColor: bgColor,
         },
-        "& .editor-code": {
-            backgroundColor: "transparent",
-            margin: 0,
+        "& .monaco-editor .margin": {
+            backgroundColor: bgColor,
+        },
+        "& .monaco-editor .scrollbar.vertical .slider": {
+            borderRadius: 6,
+        },
+        "& .monaco-editor .scrollbar.vertical": {
+            backgroundColor: theme.colorBgContainerDisabled,
         },
     }),
 }))
-
-const LanguageAwareViewer = ({
-    initialValue,
-    language,
-}: {
-    initialValue: string
-    language: "json" | "yaml"
-}) => {
-    const [editor] = useLexicalComposerContext()
-    const changeLanguage = useCallback(
-        (lang: "json" | "yaml") => {
-            editor.dispatchCommand(ON_CHANGE_LANGUAGE, {language: lang})
-        },
-        [editor],
-    )
-
-    useEffect(() => {
-        if (language === "json" || language === "yaml") {
-            changeLanguage(language)
-        }
-        editor.setEditable(false)
-    }, [language, changeLanguage, editor])
-
-    return (
-        <EditorWrapper
-            initialValue={initialValue}
-            language={language as "json" | "yaml"}
-            codeOnly={true}
-            showToolbar={false}
-            enableTokens={false}
-            disabled
-            noProvider
-            readOnly
-        />
-    )
-}
-
-const MarkdownToggleButton = () => {
-    const [editor] = useLexicalComposerContext()
-    const [markdownView, setMarkdownView] = useState(false)
-
-    return (
-        <EnhancedButton
-            icon={!markdownView ? <TextAa size={14} /> : <MarkdownLogoIcon size={14} />}
-            type="text"
-            onClick={() => {
-                setMarkdownView((prev) => !prev)
-                editor.dispatchCommand(TOGGLE_MARKDOWN_VIEW, undefined)
-            }}
-            tooltipProps={{
-                title: !markdownView ? "Preview text" : "Preview markdown",
-            }}
-        />
-    )
-}
 
 const AccordionTreePanel = ({
     value,
@@ -133,11 +80,13 @@ const AccordionTreePanel = ({
     ...props
 }: AccordionTreePanelProps) => {
     const classes = useStyles({bgColor})
-    const [segmentedValue, setSegmentedValue] = useState<"json" | "yaml">("json")
+    const {appTheme} = useAppTheme()
+    const [segmentedValue, setSegmentedValue] = useState("JSON")
     const editorRef = useRef<HTMLDivElement>(null)
+    const [editorHeight, setEditorHeight] = useState(200)
 
     const yamlOutput = useMemo(() => {
-        if (segmentedValue === "yaml" && value && Object.keys(value).length) {
+        if (segmentedValue === "YAML" && value && Object.keys(value).length) {
             try {
                 const jsonObject = JSON.parse(getStringOrJson(value))
                 return yaml.dump(jsonObject)
@@ -149,7 +98,11 @@ const AccordionTreePanel = ({
         return ""
     }, [segmentedValue, value])
 
-    const collapse = (
+    useEffect(() => {
+        setEditorHeight(Math.min(editorRef.current?.clientHeight || 200, 800))
+    }, [value, label, segmentedValue, yamlOutput])
+
+    return (
         <Collapse
             {...props}
             defaultActiveKey={[label]}
@@ -161,43 +114,59 @@ const AccordionTreePanel = ({
                         <div
                             ref={editorRef}
                             style={{
-                                height: fullEditorHeight ? "100%" : "auto",
+                                height: fullEditorHeight ? "100%" : `${editorHeight}px`,
                                 maxHeight: fullEditorHeight ? "none" : 800,
                                 overflowY: "auto",
                             }}
                         >
-                            {typeof value === "string" ? (
-                                <div className="p-2">
-                                    <EditorWrapper
-                                        initialValue={value}
-                                        disabled
-                                        codeOnly={false}
-                                        showToolbar={false}
-                                        boundHeight={false}
-                                        noProvider
-                                        readOnly
-                                    />
-                                </div>
-                            ) : (
-                                <EditorProvider
-                                    codeOnly={true}
-                                    enableTokens={false}
-                                    showToolbar={false}
-                                    className={classes.editor}
-                                    readOnly
-                                    disabled
-                                    noProvider
-                                >
-                                    <LanguageAwareViewer
-                                        initialValue={
-                                            segmentedValue === "json"
-                                                ? getStringOrJson(value)
-                                                : yamlOutput
+                            <Editor
+                                className={classes.editor}
+                                height={fullEditorHeight ? "100%" : `${editorHeight}px`}
+                                language={
+                                    typeof value === "string"
+                                        ? "markdown"
+                                        : segmentedValue === "JSON"
+                                          ? "json"
+                                          : "yaml"
+                                }
+                                theme={`vs-${appTheme}`}
+                                value={
+                                    segmentedValue === "JSON" ? getStringOrJson(value) : yamlOutput
+                                }
+                                options={{
+                                    wordWrap: "on",
+                                    minimap: {enabled: false},
+                                    scrollBeyondLastLine: false,
+                                    automaticLayout: true,
+                                    readOnly: true,
+                                    lineNumbers: "off",
+                                    lineDecorationsWidth: 0,
+                                    padding: {
+                                        top: 10,
+                                        bottom: 10,
+                                    },
+                                    scrollbar: {
+                                        verticalScrollbarSize: 8,
+                                        horizontalScrollbarSize: 8,
+                                        alwaysConsumeMouseWheel: false,
+                                    },
+                                    stickyScroll: {
+                                        scrollWithEditor: true,
+                                    },
+                                }}
+                                onMount={(editor) => {
+                                    const model = editor.getModel()
+
+                                    if (model) {
+                                        const updateHeight = () => {
+                                            const contentHeight = editor.getContentHeight()
+                                            setEditorHeight(contentHeight)
                                         }
-                                        language={segmentedValue}
-                                    />
-                                </EditorProvider>
-                            )}
+                                        editor.onDidContentSizeChange(updateHeight)
+                                        updateHeight()
+                                    }
+                                }}
+                            />
                         </div>
                     ),
                     extra: (
@@ -205,18 +174,15 @@ const AccordionTreePanel = ({
                             {enableFormatSwitcher && typeof value !== "string" && (
                                 <Radio.Group
                                     value={segmentedValue}
-                                    onChange={(e) =>
-                                        setSegmentedValue(e.target.value as "json" | "yaml")
-                                    }
+                                    onChange={(e) => setSegmentedValue(e.target.value)}
                                 >
-                                    <Radio.Button value="json">JSON</Radio.Button>
-                                    <Radio.Button value="yaml">YAML</Radio.Button>
+                                    <Radio.Button value="JSON">JSON</Radio.Button>
+                                    <Radio.Button value="YAML">YAML</Radio.Button>
                                 </Radio.Group>
                             )}
-                            {typeof value === "string" && <MarkdownToggleButton />}
                             <CopyButton
                                 text={
-                                    segmentedValue === "json" ? getStringOrJson(value) : yamlOutput
+                                    segmentedValue === "JSON" ? getStringOrJson(value) : yamlOutput
                                 }
                                 icon={true}
                                 buttonText={null}
@@ -230,22 +196,6 @@ const AccordionTreePanel = ({
             bordered={false}
         />
     )
-
-    if (typeof value === "string") {
-        return (
-            <EditorProvider
-                initialValue={value}
-                disabled
-                showToolbar={false}
-                className={classes.editor}
-                readOnly
-            >
-                {collapse}
-            </EditorProvider>
-        )
-    }
-
-    return collapse
 }
 
 export default AccordionTreePanel

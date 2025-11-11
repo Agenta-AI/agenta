@@ -7,409 +7,74 @@
 
 /* You can override the default Infima variables here. */
 :root {
-  /* Brand colors - Light mode */
-  --brand-main-black: #000;
-  --brand-heading-black: #242424;
-  --brand-secondary-text: #676771;
-  --brand-border-grey: #DCD5D1;
-  --brand-grey-bg: #413F40;
-  --brand-white-bg: #FFF;
-
-  /* Primary color mapping */
-  --ifm-color-primary: #676771;
-  --ifm-color-primary-dark: #676771;
-  --ifm-color-primary-darker: #242424;
-  --ifm-color-primary-darkest: #242424;
-  --ifm-color-primary-light: #676771;
-  --ifm-color-primary-lighter: #DCD5D1;
-  --ifm-color-primary-lightest: #DCD5D1;
-
-  /* Background colors */
-  --ifm-background-color: #FFF;
-  --ifm-navbar-background-color: #FFF;
-
-  /* Border colors */
-  --ifm-toc-border-color: #DCD5D1;
-  --ifm-color-emphasis-200: #DCD5D1;
-
-  /* Text colors */
-  --ifm-font-color-base: #000;
-  --ifm-heading-color: #242424;
-  --ifm-link-color: #242424;
-
-  /* Code highlighting */
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.05);
-
-  /* Typography */
+  --ifm-color-primary: #6b7280;
+  --ifm-color-primary-dark: hsl(209, 13%, 40%);
+  --ifm-color-primary-darker: hsl(210, 21%, 28%);
+  --ifm-color-primary-darkest: hsl(211, 37%, 17%);
+  --ifm-color-primary-light: hsl(209, 14%, 55%);
+  --ifm-color-primary-lighter: hsl(210, 18%, 78%);
+  --ifm-color-primary-lightest: hsl(210, 24%, 87%);
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.274);
   --ifm-font-weight-normal: 400;
-  --ifm-font-weight-semibold: 500;
-  --ifm-font-weight-bold: 600;
-  --ifm-heading-font-weight: 600;
-  --ifm-h1-font-weight: 600;
-  --ifm-h2-font-weight: 500;
-  --ifm-h3-font-weight: 500;
-  --ifm-h4-font-weight: 500;
-  --ifm-navbar-height: 6.5rem;
+  --ifm-navbar-height: 3.9rem;
   --ifm-link-color: var(--ifm-color-primary-darker);
   --ifm-heading-color: var(--ifm-color-primary-darkest);
   --ifm-heading-h1-font-size: 32px;
   --ifm-heading-h2-font-size: 26px;
   --ifm-heading-h3-font-size: 20px;
   --ifm-heading-h4-font-size: 16px;
-
-  /* Spacing scale */
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --spacing-xl: 40px;
-
-  /* Border radius scale */
-  --border-radius-sm: 4px;
-  --border-radius-md: 6px;
-  --border-radius-lg: 8px;
-
-  /* UI element colors - Light mode */
-  --navbar-link-color: var(--brand-secondary-text);
-  --navbar-link-active-color: var(--brand-heading-black);
-  --sidebar-link-color: var(--brand-secondary-text);
-  --sidebar-link-active-color: var(--brand-heading-black);
-  --toc-link-color: var(--brand-secondary-text);
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
 [data-theme="dark"] {
-  /* Brand colors - Dark mode */
-  --brand-black-bg: #1E1C1D;
-  --brand-main-text-dark: #FFF;
-  --brand-secondary-text-dark: #787777;
-
-  /* Primary color mapping for dark mode */
-  --ifm-color-primary: #787777;
-  --ifm-color-primary-dark: #787777;
-  --ifm-color-primary-darker: #FFF;
-  --ifm-color-primary-darkest: #FFF;
-  --ifm-color-primary-light: #787777;
-  --ifm-color-primary-lighter: #413F40;
-  --ifm-color-primary-lightest: #2A2A2A;
-
-  /* Background colors */
-  --ifm-background-color: #1E1C1D;
-  --ifm-navbar-background-color: #1E1C1D;
-  --ifm-background-surface-color: #1E1C1D;
-
-  /* Border colors */
-  --ifm-toc-border-color: #413F40;
-  --ifm-color-emphasis-200: #413F40;
-
-  /* Text colors */
-  --ifm-font-color-base: #D0D0D0;
-  --ifm-heading-color: #FFF;
-  --ifm-link-color: #FFF;
-
-  /* Code highlighting */
-  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.05);
-
-  /* UI element colors - Dark mode */
-  --navbar-link-color: #C0C0C0;
-  --navbar-link-active-color: var(--brand-main-text-dark);
-  --sidebar-link-color: #C0C0C0;
-  --sidebar-link-active-color: var(--brand-main-text-dark);
-  --toc-link-color: #C0C0C0;
+  --ifm-color-primary: #758391;
+  --ifm-color-primary-dark: #bdc7d1;
+  --ifm-color-primary-darker: #d6dee6;
+  --ifm-color-primary-darkest: #eaeff5;
+  --ifm-color-primary-light: #758391;
+  --ifm-color-primary-lighter: #586673;
+  --ifm-color-primary-lightest: #394857;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
 }
 
 *:not(code *):not(pre) {
   font-family: "Inter", sans-serif !important;
 }
-
 body {
-  color: var(--ifm-font-color-base);
+  color: var(--ifm-color-primary-darker);
   font-size: 16px;
-  line-height: 1.6;
 }
-
-/* Lighter bold text weight for better readability */
-strong,
-b {
-  font-weight: var(--ifm-font-weight-bold) !important;
-}
-
 code *,
 pre {
   font-family: "IBM Plex Mono", monospace !important;
 }
-
-/* Code block typography improvements */
-pre {
-  font-size: 14px;
-  line-height: 1.7;
-  padding: 1.25rem;
-}
-
-pre code {
-  font-size: 14px;
-  letter-spacing: -0.01em;
-}
-
-/* Inline code */
-code:not(pre code) {
-  font-size: 0.9em;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  padding: 0.2em 0.4em;
-  background-color: rgba(0, 0, 0, 0.05);
-  border-radius: 3px;
-}
-
-[data-theme="dark"] code:not(pre code) {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-/* Clean 2D code block styling - remove shadows, add border */
-pre,
-div[class*="codeBlock"],
-div[class*="prism"] {
-  box-shadow: none !important;
-  border: 0.5px solid rgba(203, 203, 203, 0.3) !important;
-  border-radius: var(--border-radius-md);
-  background-color: #FAFAFA !important;
-}
-
-[data-theme="dark"] pre,
-[data-theme="dark"] div[class*="codeBlock"],
-[data-theme="dark"] div[class*="prism"] {
-  border: 0.5px solid rgba(255, 255, 255, 0.1) !important;
-  background-color: #1A1A1A !important;
-}
-
-/* Custom refined syntax highlighting - Light mode */
-[data-theme="light"] .token.comment,
-[data-theme="light"] .token.prolog,
-[data-theme="light"] .token.doctype,
-[data-theme="light"] .token.cdata {
-  color: #6A737D;
-  font-style: italic;
-}
-
-[data-theme="light"] .token.punctuation {
-  color: #5E6687;
-}
-
-[data-theme="light"] .token.property,
-[data-theme="light"] .token.tag,
-[data-theme="light"] .token.boolean,
-[data-theme="light"] .token.number,
-[data-theme="light"] .token.constant,
-[data-theme="light"] .token.symbol,
-[data-theme="light"] .token.deleted {
-  color: #0184BC;
-}
-
-[data-theme="light"] .token.selector,
-[data-theme="light"] .token.attr-name,
-[data-theme="light"] .token.string,
-[data-theme="light"] .token.char,
-[data-theme="light"] .token.builtin,
-[data-theme="light"] .token.inserted {
-  color: #0C7C59;
-}
-
-[data-theme="light"] .token.operator,
-[data-theme="light"] .token.entity,
-[data-theme="light"] .token.url,
-[data-theme="light"] .language-css .token.string,
-[data-theme="light"] .style .token.string {
-  color: #A626A4;
-}
-
-[data-theme="light"] .token.atrule,
-[data-theme="light"] .token.attr-value,
-[data-theme="light"] .token.keyword {
-  color: #D73A49;
-}
-
-[data-theme="light"] .token.function,
-[data-theme="light"] .token.class-name {
-  color: #6F42C1;
-}
-
-[data-theme="light"] .token.regex,
-[data-theme="light"] .token.important,
-[data-theme="light"] .token.variable {
-  color: #E36209;
-}
-
-/* Custom refined syntax highlighting - Dark mode */
-[data-theme="dark"] .token.comment,
-[data-theme="dark"] .token.prolog,
-[data-theme="dark"] .token.doctype,
-[data-theme="dark"] .token.cdata {
-  color: #8B949E;
-  font-style: italic;
-}
-
-[data-theme="dark"] .token.punctuation {
-  color: #C9D1D9;
-}
-
-[data-theme="dark"] .token.property,
-[data-theme="dark"] .token.tag,
-[data-theme="dark"] .token.boolean,
-[data-theme="dark"] .token.number,
-[data-theme="dark"] .token.constant,
-[data-theme="dark"] .token.symbol,
-[data-theme="dark"] .token.deleted {
-  color: #79C0FF;
-}
-
-[data-theme="dark"] .token.selector,
-[data-theme="dark"] .token.attr-name,
-[data-theme="dark"] .token.string,
-[data-theme="dark"] .token.char,
-[data-theme="dark"] .token.builtin,
-[data-theme="dark"] .token.inserted {
-  color: #7EE787;
-}
-
-[data-theme="dark"] .token.operator,
-[data-theme="dark"] .token.entity,
-[data-theme="dark"] .token.url,
-[data-theme="dark"] .language-css .token.string,
-[data-theme="dark"] .style .token.string {
-  color: #D2A8FF;
-}
-
-[data-theme="dark"] .token.atrule,
-[data-theme="dark"] .token.attr-value,
-[data-theme="dark"] .token.keyword {
-  color: #FF7B72;
-}
-
-[data-theme="dark"] .token.function,
-[data-theme="dark"] .token.class-name {
-  color: #D2A8FF;
-}
-
-[data-theme="dark"] .token.regex,
-[data-theme="dark"] .token.important,
-[data-theme="dark"] .token.variable {
-  color: #FFA657;
-}
-
-/* Clean 2D admonition/callout styling - remove left accent and shadows */
-.theme-admonition,
-div[class*="admonition"] {
-  box-shadow: none !important;
-  border-left: none !important;
-  border-radius: var(--border-radius-md);
-}
-
-/* Note admonition - blue */
-.theme-admonition.alert--secondary,
-.theme-admonition-note {
-  border: 1px solid rgba(84, 104, 255, 0.4) !important;
-}
-
-[data-theme="dark"] .theme-admonition.alert--secondary,
-[data-theme="dark"] .theme-admonition-note {
-  border: 1px solid rgba(84, 104, 255, 0.5) !important;
-}
-
-/* Info admonition - cyan */
-.theme-admonition.alert--info,
-.theme-admonition-info {
-  border: 1px solid rgba(84, 199, 236, 0.5) !important;
-}
-
-[data-theme="dark"] .theme-admonition.alert--info,
-[data-theme="dark"] .theme-admonition-info {
-  border: 1px solid rgba(84, 199, 236, 0.6) !important;
-}
-
-/* Tip admonition - green */
-.theme-admonition.alert--success,
-.theme-admonition-tip {
-  border: 1px solid rgba(0, 184, 148, 0.5) !important;
-}
-
-[data-theme="dark"] .theme-admonition.alert--success,
-[data-theme="dark"] .theme-admonition-tip {
-  border: 1px solid rgba(0, 184, 148, 0.6) !important;
-}
-
-/* Caution/Warning admonition - orange */
-.theme-admonition.alert--warning,
-.theme-admonition-caution,
-.theme-admonition-warning {
-  border: 1px solid rgba(255, 165, 0, 0.6) !important;
-}
-
-[data-theme="dark"] .theme-admonition.alert--warning,
-[data-theme="dark"] .theme-admonition-caution,
-[data-theme="dark"] .theme-admonition-warning {
-  border: 1px solid rgba(255, 165, 0, 0.7) !important;
-}
-
-/* Danger admonition - red */
-.theme-admonition.alert--danger,
-.theme-admonition-danger {
-  border: 1px solid rgba(220, 38, 38, 0.6) !important;
-}
-
-[data-theme="dark"] .theme-admonition.alert--danger,
-[data-theme="dark"] .theme-admonition-danger {
-  border: 1px solid rgba(239, 68, 68, 0.7) !important;
-}
-
-h1:not([class*="openapi"]) {
+h1 {
   font-size: var(--ifm-heading-h1-font-size) !important;
-  line-height: 1.25;
-  font-weight: var(--ifm-h1-font-weight) !important;
-  letter-spacing: -0.01em;
+  line-height: 40px;
 }
-
-h2:not([class*="openapi"]) {
+h2 {
   font-size: var(--ifm-heading-h2-font-size) !important;
-  line-height: 1.3;
-  font-weight: var(--ifm-h2-font-weight) !important;
-  letter-spacing: -0.01em;
+  line-height: 34px;
 }
-
-
-h3:not([class*="openapi"]) {
+h3 {
   font-size: var(--ifm-heading-h3-font-size) !important;
-  line-height: 1.35;
-  font-weight: var(--ifm-h3-font-weight) !important;
+  line-height: 28px;
 }
-
-h4:not([class*="openapi"]) {
+h4 {
   font-size: var(--ifm-heading-h4-font-size) !important;
-  line-height: 1.5;
-  font-weight: var(--ifm-h4-font-weight) !important;
+  line-height: 28px;
 }
-
 /* link underline style */
 article a {
   text-decoration: underline !important;
-  text-underline-offset: 3px !important;
-  text-decoration-thickness: 1px !important;
-  text-decoration-color: rgba(0, 0, 0, 0.22) !important;
-  transition: text-decoration-color 200ms ease, text-underline-offset 200ms ease !important;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--ifm-color-primary);
 }
-
-[data-theme="dark"] article a {
-  text-decoration-color: rgba(255, 255, 255, 0.25) !important;
-}
-
 article a:hover {
-  text-decoration-color: rgba(0, 0, 0, 0.45) !important;
-  text-underline-offset: 4px !important;
+  text-decoration-thickness: 2px !important;
+  transition-duration: 400ms;
 }
-
-[data-theme="dark"] article a:hover {
-  text-decoration-color: rgba(255, 255, 255, 0.55) !important;
-}
-
 .cardContainer_node_modules-\@docusaurus-theme-classic-lib-theme-DocCard-styles-module,
 .title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module a,
 .cardContainer_fWXF,
@@ -418,62 +83,29 @@ article a:hover {
   text-decoration: none !important;
 }
 
-/* Remove underline from card container links */
-a[class*="cardContainer"],
-a[class*="cardContainer"]:hover {
-  text-decoration: none !important;
-}
-
 /** Navbar **/
-
-/* Two-row navbar layout */
-.two-row-navbar {
-  --ifm-navbar-height: 6.5rem;
-  padding: 0 !important;
-}
-
-.two-row-navbar .navbar__inner {
-  flex-direction: column;
-  align-items: stretch;
-  padding: 0 !important;
-}
-
-/* Hide mobile toggle on desktop for bottom row */
-@media (min-width: 997px) {
-  .two-row-navbar .navbar__toggle {
-    display: none;
-  }
-}
-
 @media (min-width: 1851px) {
-
   .main-wrapper,
   .navbar__inner {
     width: 1550px;
     margin: auto;
   }
 }
-
 @media (min-width: 1350px) and (max-width: 1850px) {
-
   .main-wrapper,
   .navbar__inner {
     width: 95%;
     margin: auto;
   }
 }
-
 @media (min-width: 1024px) and (max-width: 1350px) {
-
   .main-wrapper,
   .navbar__inner {
     width: 95%;
     margin: auto;
   }
 }
-
 @media (max-width: 1024px) {
-
   .main-wrapper,
   .navbar__inner {
     width: 100%;
@@ -481,119 +113,80 @@ a[class*="cardContainer"]:hover {
   }
 }
 
-/* Target CSS module classes properly - these override the module's own styles */
-.two-row-navbar :global(.navbarTopRow) {
-  padding: 10px 0 0 0 !important;
-}
-
-.two-row-navbar :global(.navbarBottomRow) {
-  padding: 0 !important;
-  margin-top: 17px !important;
-}
-
-/* Add left margin to logo in desktop two-row mode */
-@media (min-width: 997px) {
-  .two-row-navbar .navbar__logo {
-    margin-left: 8px;
-  }
-}
-
-/* Mobile: reset to single row with normal navbar height */
-@media (max-width: 996px) {
-  .two-row-navbar {
-    --ifm-navbar-height: 3.5rem;
-    padding: 8px 16px !important;
-  }
-
-  .two-row-navbar :global(.navbarTopRow) {
-    padding: 0 !important;
-  }
-}
-
 .navbar__link {
   font-size: 14px;
   padding: 0px 8px;
-  color: var(--navbar-link-color);
-  font-weight: var(--ifm-font-weight-normal);
-  letter-spacing: 0.01em;
+  color: var(--ifm-color-primary);
+  font-weight: 400;
 }
-
+[data-theme="dark"] .navbar__link {
+  color: var(--ifm-color-primary-darker);
+}
 .navbar__link--active {
-  color: var(--navbar-link-active-color);
-  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--ifm-color-primary-darkest);
+  font-weight: 500;
 }
-
+[data-theme="dark"] .navbar__link--active {
+  color: var(--ifm-color-primary-darkest);
+}
 .nav_github_icons,
 .nav_slack_icons {
   width: 22px;
   height: 22px;
 }
-
 .navbar__item:has(.nav_github_icons),
 .navbar__item:has(.nav_slack_icons) {
   display: flex;
   justify-content: center;
   align-items: center;
 }
-
 .theme-icon {
   color: var(--ifm-color-primary-darkest);
 }
-
 .navbar__item:has(.nav_slack_icons) {
   margin-right: 3px;
 }
-
 .nav_primary_button {
   background-color: var(--ifm-color-primary-darkest);
   color: var(--ifm-color-primary-lightest);
   margin-right: 25px;
   padding: 8px 16px;
 }
-
 [data-theme="dark"] .nav_primary_button {
   background-color: var(--ifm-color-primary-lightest);
   color: var(--ifm-color-primary-darkest);
 }
-
 .nav_secondary_button {
   background-color: transparent;
   color: var(--ifm-color-primary);
   margin-left: 10px;
   padding: 8px 12px;
 }
-
 [data-theme="dark"] .nav_secondary_button {
-  color: var(--navbar-link-color);
+  color: var(--ifm-color-primary-dark);
 }
-
 .nav_primary_button,
 .nav_secondary_button {
   font-size: 14px;
-  border-radius: var(--border-radius-md);
+  border-radius: 6px;
   outline: none;
   border: none;
   cursor: pointer;
 }
-
 @media (max-width: 995px) {
-
   .navbar__item:has(.nav_github_icons),
   .navbar__item:has(.nav_slack_icons) {
     display: none;
   }
-
   .navbar-sidebar .menu__link:has(.nav_github_icons),
   .navbar-sidebar .menu__link:has(.nav_slack_icons) {
     position: absolute;
     top: -48px;
     left: 172px;
   }
-
   .navbar-sidebar .menu__link:has(.nav_slack_icons) {
     left: 215px;
   }
-
   .navbar-sidebar .menu__link:has(.nav_secondary_button),
   .navbar-sidebar .menu__link:has(.nav_primary_button) {
     padding: 0px;
@@ -603,18 +196,15 @@ a[class*="cardContainer"]:hover {
     left: 50%;
     transform: translateX(-50%);
   }
-
   .navbar-sidebar .menu__link:has(.nav_secondary_button) {
     bottom: 65px;
   }
-
   .navbar-sidebar .menu__link:has(.nav_secondary_button):hover,
   .navbar-sidebar .menu__link:has(.nav_primary_button):hover,
   .navbar-sidebar .menu__link:has(.nav_github_icons):hover,
   .navbar-sidebar .menu__link:has(.nav_slack_icons):hover {
     background: transparent;
   }
-
   .nav_primary_button,
   .nav_secondary_button {
     width: 100%;
@@ -627,61 +217,41 @@ a[class*="cardContainer"]:hover {
 [data-theme="dark"] .DocSearch-Button {
   background-color: #181818;
 }
-
 [data-theme="dark"] .DocSearch-Button:hover {
   background-color: #1b1b1d;
 }
-
 [data-theme="dark"] .DocSearch-Modal {
   background-color: #1b1b1d;
 }
-
 [data-theme="dark"] .DocSearch-Footer {
   background-color: #242526;
   opacity: 0.9;
 }
-
 [data-theme="dark"] .DocSearch-Form {
   background-color: #181818;
   box-shadow: none;
   border: 2px solid #3d4144;
 }
-
 .DocSearch-Button {
-  border-radius: var(--border-radius-md) !important;
+  border-radius: 6px !important;
   padding: 0 2px 0px 8px !important;
 }
-
-/* Search bar in two-row navbar should be wider */
-.two-row-navbar .navbar__search {
-  width: auto !important;
-  flex: 1 1 auto !important;
+@media (min-width: 1350px) {
+  .DocSearch-Button {
+    width: 250px;
+  }
 }
-
-.two-row-navbar .DocSearch {
-  width: 100% !important;
-}
-
-.two-row-navbar .DocSearch-Button {
-  min-width: 400px !important;
-  max-width: 740px !important;
-  width: 100% !important;
-}
-
 @media (max-width: 768px) {
   .DocSearch-Button {
     padding: 0 8px 0px 8px !important;
   }
 }
-
 .DocSearch-Search-Icon {
   color: var(--ifm-color-primary) !important;
 }
-
 .DocSearch-Button-Placeholder {
   font-size: 14px !important;
 }
-
 .DocSearch-Button-Key {
   box-shadow: none !important;
   background: transparent !important;
@@ -690,137 +260,73 @@ a[class*="cardContainer"]:hover {
 }
 
 /*************************** Sidebar ***************************/
-
 @media (min-width: 1350px) {
   .theme-doc-sidebar-container {
     margin-right: 40px;
   }
 }
-
 @media (min-width: 1024px) and (max-width: 1350px) {
   .theme-doc-sidebar-container {
     margin-right: 20px;
   }
 }
-
-li.sidebar-section-title>div.menu__list-item-collapsible:hover {
+li.sidebar-section-title > div.menu__list-item-collapsible:hover {
   background-color: transparent !important;
 }
-
-li.sidebar-section-title>div.menu__list-item-collapsible {
+li.sidebar-section-title > div.menu__list-item-collapsible {
   margin-top: 25px !important;
 }
-
-li.sidebar-section-title>div.menu__list-item-collapsible a {
-  font-weight: var(--ifm-font-weight-bold) !important;
+li.sidebar-section-title > div.menu__list-item-collapsible a {
+  font-weight: 600 !important;
 }
-
 .menu__link {
   font-size: 14px;
   line-height: 22px;
-  font-weight: var(--ifm-font-weight-normal);
-  color: var(--sidebar-link-color);
+  font-weight: 400;
+  color: var(--ifm-color-primary);
   padding: 4px;
-  letter-spacing: 0.01em;
 }
-
 .menu__link--active {
-  font-weight: var(--ifm-font-weight-semibold);
-  color: var(--sidebar-link-active-color);
+  font-weight: 500;
+  color: var(--ifm-color-primary-darkest);
 }
-
-/* Flexbox layout for all collapsible items */
-.menu__list-item-collapsible {
-  display: flex !important;
-  align-items: center !important;
-  width: 100% !important;
-  padding: 0 !important;
+[data-theme="dark"] .menu__link {
+  color: var(--ifm-color-primary-darker);
 }
-
-/* Make links take available space */
-.menu__list-item-collapsible>.menu__link {
-  flex: 1 !important;
-  min-width: 0 !important;
-  padding-right: 0 !important;
+[data-theme="dark"] .menu__link--active {
+  color: var(--ifm-color-primary-darkest);
 }
-
-/* Position separate caret buttons at the right - adjusted to match built-in carets */
-.menu__list-item-collapsible>.menu__caret {
-  margin-left: auto !important;
-  margin-right: 0px !important;
-  flex-shrink: 0 !important;
-  padding: 0 !important;
-}
-
-/* For links with built-in caret (using ::after) */
-.menu__link--sublist-caret {
-  display: flex !important;
-  justify-content: space-between !important;
-  align-items: center !important;
-  padding-right: 4px !important;
-}
-
 .menu__link--sublist-caret:after,
 .menu__caret:before {
-  margin-left: auto !important;
+  margin: 0 10px;
   background: var(--ifm-menu-link-sublist-icon) 50% / 1.4rem 1.4rem;
   height: 10px;
   opacity: 0.8;
-  flex-shrink: 0 !important;
 }
-
 .menu__list {
   padding-right: 5px;
-  padding-left: 4px;
 }
-
-.menu {
-  padding-left: 0px !important;
-}
-
-/* Sidebar container - always hide border */
 .docSidebarContainer_node_modules-\@docusaurus-theme-classic-lib-theme-DocRoot-Layout-Sidebar-styles-module,
-.docSidebarContainer_YfHR,
-.theme-doc-sidebar-container,
-div[class*="docSidebarContainer"] {
+.docSidebarContainer_YfHR {
   border-right: none !important;
 }
 
 /**************************** Article section ****************************/
-.container>.row {
+.container > .row {
   justify-content: space-between;
 }
-
 .markdown img {
   margin-bottom: 24px;
 }
-
-/* Ensure IdealImage wrapper divs get bottom margin */
-.markdown div:has(img.medium-zoom-image) {
-  margin-bottom: 24px;
-}
-
-/* Target IdealImage wrapper divs - they have background-size in their inline styles */
-.markdown div[style*="background-size"] {
-  margin-bottom: 24px !important;
-}
-
-/* Override the negative margin on IdealImage img tags */
-.markdown img.medium-zoom-image {
-  margin-bottom: 0 !important;
-}
-
 .theme-doc-markdown h1:first-child,
 .title_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module,
 .title_kItE {
   padding-top: 40px;
 }
-
 .docItemCol_node_modules-docusaurus-theme-openapi-docs-lib-theme-ApiItem-Layout-styles-module {
   line-height: 24px;
 }
-
-.breadcrumbs__item--active>span {
+.breadcrumbs__item--active > span {
   padding: 3px 15px;
 }
 
@@ -828,23 +334,21 @@ div[class*="docSidebarContainer"] {
 .col--3 {
   --ifm-col-width: calc(2.8 / 12 * 100%);
 }
-
 @media (max-width: 995px) {
-
   .tocCollapsibleButton_node_modules-\@docusaurus-theme-classic-lib-theme-TOCCollapsible-CollapseButton-styles-module,
   .tocCollapsibleButtonExpanded_MG3E {
     color: var(--ifm-color-primary);
   }
 }
-
 .table-of-contents__link {
   font-size: 14px;
   line-height: 20px;
-  font-weight: var(--ifm-font-weight-normal);
-  color: var(--toc-link-color);
-  letter-spacing: 0.01em;
+  font-weight: 400;
+  color: var(--ifm-color-primary-light);
 }
-
+[data-theme="dark"] .table-of-contents__link {
+  color: var(--ifm-color-primary-dark);
+}
 .table-of-contents__left-border {
   border: none !important;
 }
@@ -853,55 +357,49 @@ div[class*="docSidebarContainer"] {
 [href="/reference/api/agenta-backend"],
 .list_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module article:first-child,
 .list_eTzJ article:first-child,
-.generatedIndexPage_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module header p,
+.generatedIndexPage_node_modules-\@docusaurus-theme-classic-lib-theme-DocCategoryGeneratedIndexPage-styles-module
+  header
+  p,
 .generatedIndexPage_vN6x header p {
   display: none;
 }
-
-.api-method>.menu__link {
+.api-method > .menu__link {
   align-items: center;
   justify-content: start;
 }
-
-.api-method>.menu__link::before {
+.api-method > .menu__link::before {
   width: 35px;
   height: 18px;
   font-size: 10px;
   line-height: 18px;
   text-transform: uppercase;
   font-weight: 600;
-  border-radius: var(--border-radius-sm);
+  border-radius: 0.25rem;
   margin-right: var(--ifm-spacing-horizontal);
   text-align: center;
   flex-shrink: 0;
   color: white;
 }
-
-.get>.menu__link::before {
+.get > .menu__link::before {
   content: "get";
   background-color: var(--ifm-color-primary);
 }
-
-.put>.menu__link::before {
+.put > .menu__link::before {
   content: "put";
   background-color: var(--openapi-code-blue);
 }
-
-.post>.menu__link::before {
+.post > .menu__link::before {
   content: "post";
   background-color: var(--openapi-code-green);
 }
-
-.delete>.menu__link::before {
+.delete > .menu__link::before {
   content: "del";
   background-color: var(--openapi-code-red);
 }
-
-.patch>.menu__link::before {
+.patch > .menu__link::before {
   content: "patch";
   background-color: var(--openapi-code-orange);
 }
-
 .openapi__method-endpoint-path,
 .openapi-markdown__details-summary-header-params,
 .openapi-markdown__details-summary-header-body {
@@ -912,127 +410,87 @@ div[class*="docSidebarContainer"] {
 /****************************** changelog file ******************************/
 .container_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Info-styles-module,
 .container_mt6G {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.9rem;
-  margin-bottom: 0;
-  margin-top: 10px;
-  max-width: 1030px;
-  margin-right: auto;
-  margin-left: auto;
+  display: none;
 }
-
 .title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
 .title_f1Hy {
   margin-top: 40px;
   margin-bottom: 10px;
-  max-width: 1030px;
-  margin-right: auto;
-  margin-left: auto;
+  padding-left: 20%;
 }
-
-/* center the changelog main header and hide its date */
-.changelog-main header .margin-vert--md {
-  display: none;
-}
-
-.changelog-main header h1 {
-  text-align: center;
-}
-
 .blog-post-page .col[class*="col--"] {
   flex: 0 !important;
   position: relative;
 }
-
 .blog-post-page .col--2 {
   display: none !important;
 }
-
 .blog-post-page .col {
   --ifm-col-width: 100% !important;
   flex: 0 0;
   margin-left: 0;
-  max-width: 1030px !important;
+  max-width: 100% !important;
   padding: 0 var(--ifm-spacing-horizontal);
   width: 100%;
-  margin-right: auto;
-  margin-left: auto;
 }
-
 .blog-post-page .row {
   display: block;
 }
-
 .changelog {
   width: 80%;
   margin-left: auto;
 }
-
 .changelog em {
   font-style: normal;
-  font-weight: var(--ifm-font-weight-semibold);
+  font-weight: 500;
   position: absolute;
   left: 15px;
   margin-top: -42px;
-  color: var(--sidebar-link-active-color);
+  color: var(--ifm-color-primary-darker);
 }
-
+[data-theme="dark"] .changelog em {
+  color: var(--ifm-color-primary-light);
+}
 .changelog hr {
   margin-top: 70px;
   width: 97%;
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  background-color: var(--brand-border-grey);
+  background-color: var(--ifm-color-primary-lightest);
 }
-
-[data-theme="dark"] .changelog hr {
-  background-color: var(--brand-grey-bg);
-}
-
 .changelog h3 {
   margin-top: 160px;
 }
-
 .changelog h3:first-child {
   margin-top: 60px;
 }
-
 @media (max-width: 995px) {
-
   .title_node_modules-\@docusaurus-theme-classic-lib-theme-BlogPostItem-Header-Title-styles-module,
   .title_f1Hy {
     padding-left: 0px;
   }
-
   .changelog {
     width: 100%;
     margin-left: auto;
   }
-
   .changelog hr {
     margin-top: 50px;
     width: 96%;
   }
-
   .changelog em {
     font-weight: 500;
     position: absolute;
     left: auto;
     margin-top: -100px !important;
   }
-
   .changelog h3 {
     margin-top: 195px;
   }
-
   .changelog h3:first-child {
     margin-top: 110px;
   }
 }
-
 @media (max-width: 520px) {
   .changelog hr {
     margin: 50px auto 28%;
@@ -1041,14 +499,12 @@ div[class*="docSidebarContainer"] {
     left: 0;
     transform: translateX(0);
   }
-
   .changelog em {
     font-weight: 500;
     position: absolute;
     left: auto;
     margin-top: -105px !important;
   }
-
   .changelog h3 {
     margin-top: 0px;
     height: auto;
@@ -1070,16 +526,13 @@ div[class*="docSidebarContainer"] {
 .medium-zoom-overlay {
   background-color: #0000009f !important;
 }
-
 [data-theme="dark"] .medium-zoom-overlay {
   background-color: #000000b4 !important;
 }
-
 .medium-zoom-image--opened,
 .medium-zoom-overlay {
   z-index: 9999999;
 }
-
 [data-theme="dark"] .medium-zoom-image--opened {
   border: 1px solid rgba(255, 255, 255, 0.096);
 }
@@ -1140,90 +593,28 @@ div[class*='scrollbar'] {
 }
 
 [class*="cardTitle"] {
-  font-size: var(--ifm-heading-h4-font-size) !important;
-  font-weight: var(--ifm-font-weight-normal) !important;
-  margin-bottom: 8px;
-  font-variant-emoji: no-emoji !important;
+    font-size: var(--ifm-heading-h4-font-size) !important;
+    font-weight: var(--ifm-font-weight-normal) !important;
+    margin-bottom: 8px;
+    font-variant-emoji: no-emoji !important;
 }
 
 
 [class*="cardDescription"] {
   font-size: 14px !important;
-}
-
+} 
 a[class*="cardContainer"] {
   /* --ifm-link-color: var(--ifm-color-emphasis-100); */
   /* --ifm-link-hover-color: var(--ifm-color-emphasis-100); */
   --ifm-link-hover-decoration: none;
 
   box-shadow: 0 0 0 1px rgba(50, 50, 93, 0.01);
-  border: 1px solid var(--brand-border-grey);
-  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: 4px;
   transition: all var(--ifm-transition-fast) ease-in-out;
   transition-property: border, box-shadow;
   padding: 18px;
   font-variant-emoji: no-emoji !important;
-  position: relative;
-}
-
-[data-theme="dark"] a[class*="cardContainer"] {
-  border: 1px solid var(--brand-grey-bg);
-}
-
-/* Custom icon support for cards using CSS custom properties */
-/* Usage: <CustomDocCard item={{...}} icon="🚀" /> */
-/* Or for no icon: <CustomDocCard item={{...}} noIcon={true} /> */
-
-/* First, hide the text content of the title that contains the emoji */
-.custom-icon [class*="cardTitle"],
-.no-icon [class*="cardTitle"],
-.icon-img [class*="cardTitle"] {
-  font-size: 0 !important;
-}
-
-/* Then restore the text size for actual title text */
-.custom-icon [class*="cardTitle"]::after,
-.no-icon [class*="cardTitle"]::after,
-.icon-img [class*="cardTitle"]::after {
-  content: attr(title) !important;
-  font-size: var(--ifm-heading-h4-font-size) !important;
-  display: inline !important;
-}
-
-/* Replace the default document emoji with custom icon */
-.custom-icon [class*="cardTitle"]::before {
-  content: var(--card-icon) !important;
-  font-size: 18px !important;
-  margin-right: 8px !important;
-  display: inline-block !important;
-  line-height: 1 !important;
-  flex-shrink: 0 !important;
-  vertical-align: text-bottom !important;
-  position: relative !important;
-  top: 2px !important;
-}
-
-/* For no-icon cards, hide the emoji completely by not showing before pseudo */
-.no-icon [class*="cardTitle"]::before {
-  content: '' !important;
-  display: none !important;
-}
-
-/* For SVG/image icons - replace the default emoji with background image */
-.icon-img [class*="cardTitle"]::before {
-  content: '' !important;
-  width: 18px !important;
-  height: 18px !important;
-  margin-right: 8px !important;
-  display: inline-block !important;
-  background-size: contain !important;
-  background-repeat: no-repeat !important;
-  background-position: center !important;
-  background-image: var(--card-icon-bg) !important;
-  flex-shrink: 0 !important;
-  vertical-align: text-bottom !important;
-  position: relative !important;
-  top: 2px !important;
 }
 
 
@@ -1232,7 +623,7 @@ a[class*="cardContainer"] {
   padding: 18px !important;
 }
 
-details:not([class*="openapi"]) {
+details {
   background-color: var(--background-color) !important;
   border: 1px solid var(--ifm-color-emphasis-200) !important;
   --docusaurus-details-decoration-color: grey !important;

@@ -20,8 +20,17 @@ class TestcaseBlobDBE(Base, ProjectScopeDBA, BlobDBA):
         ),
         UniqueConstraint(
             "project_id",
+            "slug",
+        ),
+        UniqueConstraint(
+            "project_id",
             "set_id",
             "id",
+        ),
+        UniqueConstraint(
+            "project_id",
+            "set_id",
+            "slug",
         ),
         ForeignKeyConstraint(
             ["project_id"],
@@ -34,6 +43,11 @@ class TestcaseBlobDBE(Base, ProjectScopeDBA, BlobDBA):
             ondelete="CASCADE",
         ),
         Index(
+            "ix_testcase_blobs_project_id_blob_slug",
+            "project_id",
+            "slug",
+        ),
+        Index(
             "ix_testcase_blobs_project_id_set_id",
             "project_id",
             "set_id",
@@ -43,5 +57,11 @@ class TestcaseBlobDBE(Base, ProjectScopeDBA, BlobDBA):
             "project_id",
             "set_id",
             "id",
+        ),
+        Index(
+            "ix_testcase_blobs_project_id_set_id_slug",
+            "project_id",
+            "set_id",
+            "slug",
         ),
     )

@@ -1,14 +1,12 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useState, useEffect} from "react"
 
 import {Plus} from "@phosphor-icons/react"
-import {Alert, Button, Form, Input, Typography} from "antd"
-import {message} from "@/oss/components/AppMessageContext"
+import {Alert, Button, Form, Input, message, Typography} from "antd"
 import {useDebounceValue} from "usehooks-ts"
 
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {createEvaluator, updateEvaluator} from "@/oss/services/evaluators"
+import {createEvaluator} from "@/oss/services/evaluators"
 
 import {AnnotateDrawerSteps} from "../enum"
 import {generateNewEvaluatorPayloadData} from "../transforms"
@@ -18,143 +16,21 @@ import CreateNewMetric from "./assets/CreateNewMetric"
 import {slugify} from "./assets/helper"
 import {MetricFormData} from "./assets/types"
 
-type EvaluatorWithMeta = EvaluatorPreviewDto & {
-    id?: string
-    flags?: Record<string, any>
-    meta?: Record<string, any>
-    tags?: Record<string, any>
-}
-
-const defaultMetric = {name: "", optional: false}
-
-const CreateEvaluator = ({
-    setSteps,
-    setSelectedEvaluators,
-    mode = "create",
-    evaluator,
-    onSuccess,
-    skipPostCreateStepChange = false,
-}: CreateEvaluatorProps) => {
+const CreateEvaluator = ({setSteps, setSelectedEvaluators}: CreateEvaluatorProps) => {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string[]>([])
     const [slugTouched, setSlugTouched] = useState(false)
 
     const [form] = Form.useForm()
     const name = Form.useWatch("evaluatorName", form)
-    const slugValue = Form.useWatch("evaluatorSlug", form)
     const [debouncedName] = useDebounceValue(name, 500)
-    const {mutate} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
-
-    const isEditMode = mode === "edit" && Boolean(evaluator?.id)
-
-    const metricsFromEvaluator = useMemo(() => {
-        if (!isEditMode || !evaluator) return []
-
-        const outputs =
-            evaluator.data?.service?.format?.properties?.outputs ||
-            (evaluator as EvaluatorWithMeta)?.data?.service?.format?.properties?.outputs
-
-        if (!outputs || typeof outputs !== "object") return []
-
-        const required = Array.isArray(outputs.required) ? outputs.required : []
-        const properties = outputs.properties ?? {}
-
-        return Object.entries(properties).map(([metricName, schema]) => {
-            const metricSchema = schema as Record<string, any>
-            const optional = !required.includes(metricName)
-
-            if (Array.isArray(metricSchema.anyOf) && metricSchema.anyOf.length > 0) {
-                const first = metricSchema.anyOf[0] || {}
-                const enums = Array.isArray(first.enum)
-                    ? first.enum.filter((value: any) => value !== null && value !== undefined)
-                    : []
-                return {
-                    name: metricName,
-                    type: "class",
-                    enum: enums.map(String).filter(Boolean),
-                    optional,
-                }
-            }
-
-            if (metricSchema.type === "array") {
-                const items = metricSchema.items || {}
-                const enums = Array.isArray(items.enum)
-                    ? items.enum.filter((value: any) => value !== null && value !== undefined)
-                    : []
-                return {
-                    name: metricName,
-                    type: "label",
-                    enum: enums.map(String).filter(Boolean),
-                    optional,
-                }
-            }
-
-            const metric: Record<string, any> = {
-                name: metricName,
-                type: metricSchema.type,
-                optional,
-            }
-
-            if (metricSchema.minimum !== undefined) {
-                metric.minimum = metricSchema.minimum
-            }
-
-            if (metricSchema.maximum !== undefined) {
-                metric.maximum = metricSchema.maximum
-            }
-
-            if (Array.isArray(metricSchema.enum)) {
-                metric.enum = metricSchema.enum.filter(
-                    (value: any) => value !== null && value !== undefined,
-                )
-            }
-
-            return metric
-        })
-    }, [evaluator, isEditMode])
-
-    const initialFormValues = useMemo(() => {
-        const metrics =
-            metricsFromEvaluator.length > 0
-                ? metricsFromEvaluator.map((metric) => ({...metric}))
-                : [{...defaultMetric}]
-
-        if (!isEditMode) {
-            return {
-                evaluatorName: "",
-                evaluatorSlug: "",
-                evaluatorDescription: "",
-                metrics,
-            }
-        }
-
-        return {
-            evaluatorName: evaluator?.name || "",
-            evaluatorSlug: evaluator?.slug || "",
-            evaluatorDescription: evaluator?.description || "",
-            metrics,
-        }
-    }, [evaluator, isEditMode, metricsFromEvaluator])
+    const {mutate} = useEvaluators()
 
     useEffect(() => {
-        form.setFieldsValue({metrics: []})
-        form.setFieldsValue(initialFormValues)
-        setErrorMessage([])
-        setSlugTouched(isEditMode)
-    }, [form, initialFormValues, isEditMode])
-
-    useEffect(() => {
-        if (isEditMode) return
-        if (slugTouched) return
-
-        const nextSlug = slugify(debouncedName || "")
-        if (slugValue !== nextSlug) {
-            form.setFieldValue("evaluatorSlug", nextSlug)
+        if (!slugTouched) {
+            form.setFieldValue("evaluatorSlug", slugify(debouncedName || ""))
         }
-    }, [debouncedName, slugTouched, form, slugValue, isEditMode])
+    }, [debouncedName, slugTouched, form])
 
     const onScrollTo = useCallback((direction: "top" | "bottom") => {
         setTimeout(() => {
@@ -167,13 +43,6 @@ const CreateEvaluator = ({
             }
         }, 100)
     }, [])
-
-    const normalizeTags = (input: unknown): Record<string, unknown> | null => {
-        if (input == null) return null
-        if (Array.isArray(input)) return {}
-        if (typeof input === "object") return input as Record<string, unknown>
-        return {}
-    }
 
     const onFinish = useCallback(
         async (values: any) => {
@@ -190,75 +59,28 @@ const CreateEvaluator = ({
 
                 if (!payloadData.evaluator) return
 
-                if (isEditMode && evaluator?.id) {
-                    const evaluatorWithMeta = evaluator as EvaluatorWithMeta
-                    const payload = {
-                        evaluator: {
-                            ...payloadData.evaluator,
-                            id: evaluator.id,
-                            flags: {
-                                ...(evaluatorWithMeta.flags || {}),
-                                is_human: true,
-                                is_custom: false,
-                            },
-                            meta: evaluatorWithMeta.meta || {},
-                            ...(evaluatorWithMeta.tags
-                                ? {tags: normalizeTags(evaluatorWithMeta.tags)}
-                                : {}),
-                        },
-                    }
-
-                    await updateEvaluator(evaluator.id, payload)
-                    await mutate()
-                    message.success("Evaluator updated successfully")
-                    await onSuccess?.(payload.evaluator.slug)
-                    return
-                }
-
                 await createEvaluator(payloadData)
-                await mutate()
 
+                mutate()
                 message.success("Evaluator created successfully")
-                if (!skipPostCreateStepChange) {
-                    setSteps?.(AnnotateDrawerSteps.SELECT_EVALUATORS)
-                    setSelectedEvaluators?.((prev) => [
-                        ...new Set([...prev, payloadData.evaluator.slug]),
-                    ])
-                }
-                await onSuccess?.(payloadData.evaluator.slug)
+                setSteps?.(AnnotateDrawerSteps.SELECT_EVALUATORS)
+                setSelectedEvaluators?.((prev) => [
+                    ...new Set([...prev, payloadData.evaluator.slug]),
+                ])
             } catch (error: any) {
-                if (error?.response?.status === 409) {
-                    setErrorMessage(["Evaluator with this slug already exists"])
-                    message.error("Evaluator with this slug already exists")
-                    onScrollTo("top")
-                } else {
-                    const errorMessages = Array.isArray(error?.response?.data?.detail)
-                        ? error.response?.data?.detail
-                              ?.map((item: any) => item?.msg)
-                              .filter(Boolean)
-                        : [error?.response?.data?.detail]
+                const errorMessages = Array.isArray(error.response?.data?.detail)
+                    ? error.response?.data?.detail?.map((item: any) => item?.msg).filter(Boolean)
+                    : [error.response?.data?.detail]
 
-                    onScrollTo("top")
-                    setErrorMessage((errorMessages || []).filter(Boolean))
-                }
+                onScrollTo("top")
+                setErrorMessage(errorMessages)
+                console.error("Error creating evaluator", error)
             } finally {
                 setIsSubmitting(false)
             }
         },
-        [
-            mutate,
-            setErrorMessage,
-            onScrollTo,
-            setSteps,
-            setSelectedEvaluators,
-            isEditMode,
-            evaluator,
-            onSuccess,
-            skipPostCreateStepChange,
-        ],
+        [mutate, setErrorMessage, onScrollTo, setSteps],
     )
-
-    const submitLabel = isEditMode ? "Update" : "Create"
 
     return (
         <Form
@@ -272,7 +94,12 @@ const CreateEvaluator = ({
                 }
             }}
             className="create-eval h-full flex flex-col overflow-y-auto gap-4 p-4"
-            initialValues={initialFormValues}
+            initialValues={{
+                evaluatorName: "",
+                evaluatorSlug: "",
+                evaluatorDescription: "",
+                metrics: [{name: "", optional: false}],
+            }}
         >
             {errorMessage?.map((msg, idx) => (
                 <Alert
@@ -332,7 +159,7 @@ const CreateEvaluator = ({
 
             <div className="w-full flex flex-col gap-2">
                 <Typography.Text className="font-medium">
-                    Evaluator description <span className="text-gray-500">(optional)</span>
+                    Evaluator Description <span className="text-gray-500">(optional)</span>
                 </Typography.Text>
                 <Form.Item name="evaluatorDescription" rules={[{required: false}]} className="mb-0">
                     <Input.TextArea placeholder="Enter a description" rows={2} />
@@ -371,7 +198,7 @@ const CreateEvaluator = ({
                                 }}
                                 loading={isSubmitting}
                             >
-                                {submitLabel}
+                                Save
                             </Button>
                         </div>
                     </div>

@@ -1,12 +1,20 @@
-import {useCallback, useState} from "react"
+import {useEffect, useState} from "react"
 
-import EnhancedModal from "@agenta/oss/src/components/EnhancedUIs/Modal"
-import {Input, message} from "antd"
+import {Form, Input, Modal} from "antd"
 
-import useFocusInput from "@/oss/hooks/useFocusInput"
+import {EvaluationFlow} from "@/oss/lib/enums"
+import {Evaluation, EvaluationScenario} from "@/oss/lib/Types"
 import {createNewTestset} from "@/oss/services/testsets/api"
 
-import {SaveTestsetModalProps} from "./types"
+type EvaluationRow = EvaluationScenario & {
+    evaluationFlow: EvaluationFlow
+} & Record<string, string>
+
+type SaveTestsetModalProps = {
+    evaluation: Evaluation
+    rows: EvaluationRow[]
+    onSuccess: (testsetName: string) => void
+} & React.ComponentProps<typeof Modal>
 
 const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
     evaluation,
@@ -14,72 +22,59 @@ const SaveTestsetModal: React.FC<SaveTestsetModalProps> = ({
     onSuccess,
     ...props
 }) => {
+    const [form] = Form.useForm()
     const [submitLoading, setSubmitLoading] = useState(false)
-    const [testsetName, setTestsetName] = useState("")
-    const {inputRef} = useFocusInput({isOpen: props.open as boolean})
 
-    const onClose = useCallback(() => {
-        setTestsetName("")
-        setSubmitLoading(false)
-        props.onCancel?.({} as any)
-    }, [props])
+    useEffect(() => {
+        form.resetFields()
+    }, [props.open])
 
-    const handleSave = useCallback(() => {
-        try {
-            setSubmitLoading(true)
-
-            const newRows = rows.map((row, index) => {
-                if (evaluation.testset.testsetChatColumn) {
-                    return {
-                        chat: evaluation.testset.csvdata[index].chat,
-                        correct_answer: row.correctAnswer,
-                        annotation: row.note,
-                    }
-                }
+    const handleSave = (values: {testset_name: string}) => {
+        setSubmitLoading(true)
+        const newRows = rows.map((row, index) => {
+            if (evaluation.testset.testsetChatColumn) {
                 return {
-                    [row.inputs[0].input_name]: row.inputs[0].input_value,
+                    chat: evaluation.testset.csvdata[index].chat,
                     correct_answer: row.correctAnswer,
                     annotation: row.note,
                 }
-            })
+            }
+            return {
+                [row.inputs[0].input_name]: row.inputs[0].input_value,
+                correct_answer: row.correctAnswer,
+                annotation: row.note,
+            }
+        })
 
-            createNewTestset(testsetName, newRows)
-                .then(() => onSuccess?.(testsetName))
-                .catch(console.error)
-                .finally(() => {
-                    setSubmitLoading(false)
-                })
-        } catch (error) {
-            console.error("Error creating testset:", error)
-            message.error("Failed to create testset. Please try again!")
-        } finally {
-            setSubmitLoading(false)
-        }
-    }, [rows, evaluation, testsetName, onSuccess])
+        createNewTestset(values.testset_name, newRows)
+            .then(() => onSuccess(values.testset_name))
+            .catch(console.error)
+            .finally(() => {
+                setSubmitLoading(false)
+            })
+    }
 
     return (
-        <EnhancedModal
-            title="Add new testset"
-            okText="Create"
-            onOk={handleSave}
-            confirmLoading={submitLoading}
-            okButtonProps={{disabled: !testsetName}}
-            onCancel={onClose}
-            afterOpenChange={(open) => {
-                if (open) {
-                    inputRef.current?.input?.focus()
-                }
-            }}
+        <Modal
+            title="Add new test set"
+            okText="Submit"
+            destroyOnClose
+            onOk={form.submit}
+            okButtonProps={{loading: submitLoading}}
             {...props}
         >
-            <Input
-                ref={inputRef}
-                placeholder="Testset name"
-                onChange={(e) => setTestsetName(e.target.value)}
-                value={testsetName}
-                className="my-3"
-            />
-        </EnhancedModal>
+            <Form form={form} onFinish={handleSave}>
+                <Form.Item
+                    rules={[{required: true, message: "Please enter test set name!"}]}
+                    name="testset_name"
+                >
+                    <Input
+                        placeholder="Test set name"
+                        data-cy="single-model-save-testset-modal-input"
+                    />
+                </Form.Item>
+            </Form>
+        </Modal>
     )
 }
 

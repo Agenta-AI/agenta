@@ -1,4 +1,4 @@
-import {MenuProps} from "antd"
+import {type Menu} from "antd"
 
 export interface SidebarConfig {
     key: string
@@ -9,7 +9,7 @@ export interface SidebarConfig {
     isHidden?: boolean
     isBottom?: boolean
     submenu?: Omit<SidebarConfig, "submenu">[]
-    onClick?: (e: React.MouseEvent) => void
+    onClick?: () => void
     tag?: string
     isCloudFeature?: boolean
     cloudFeatureTooltip?: string
@@ -20,6 +20,6 @@ export interface SidebarConfig {
 export interface SidebarMenuProps {
     items: SidebarConfig[]
     collapsed: boolean
-    menuProps?: MenuProps
+    menuProps?: React.ComponentProps<typeof Menu>
     mode?: "horizontal" | "vertical" | "inline"
 }

@@ -6,9 +6,8 @@ import type {
     CompoundMetadata,
 } from "../types"
 
-import {createBaseMetadata, createMetadata} from "./metadata"
-import {processObjectSchema} from "./objects"
-import {isSchema} from "./schema"
+import {createBaseMetadata} from "./metadata"
+import {extractNonNullSchema, isSchema} from "./schema"
 
 function isConstDiscriminatedObject(schema: SchemaProperty): schema is ConstDiscriminatedSchema {
     return (
@@ -25,36 +24,27 @@ function isConstDiscriminatedAnyOf(schema: AnyOfSchema): boolean {
 
 function processConstDiscriminatedSchema(schema: AnyOfSchema): CompoundMetadata {
     const options = schema.anyOf.filter(isConstDiscriminatedObject).map((option) => {
-        const processedObject = processObjectSchema(option)
-        if (
-            option.type === "object" &&
-            Object.keys(processedObject).length > 0 &&
-            !option.title?.startsWith("ResponseFormat")
-        ) {
-            return processedObject
-        } else {
-            const formatType = option.properties.type.const
-            const label = option.title || formatType
+        const formatType = option.properties.type.const
+        const label = option.title || formatType
 
-            // Extract additional configuration from other properties
-            const extraConfig = Object.entries(option.properties)
-                .filter(([key]) => key !== "type")
-                .reduce(
-                    (acc, [key, value]) => ({
-                        ...acc,
-                        [key]: value,
-                    }),
-                    {},
-                )
+        // Extract additional configuration from other properties
+        const extraConfig = Object.entries(option.properties)
+            .filter(([key]) => key !== "type")
+            .reduce(
+                (acc, [key, value]) => ({
+                    ...acc,
+                    [key]: value,
+                }),
+                {},
+            )
 
-            return {
-                label,
-                value: formatType,
-                config: {
-                    type: formatType,
-                    ...extraConfig,
-                },
-            }
+        return {
+            label,
+            value: formatType,
+            config: {
+                type: formatType,
+                ...extraConfig,
+            },
         }
     })
 
@@ -74,42 +64,23 @@ export function processAnyOfSchema(schema: SchemaProperty): ConfigMetadata {
 
     // Check if this is a const-discriminated union
     if (isConstDiscriminatedAnyOf(schema)) {
-        const result = processConstDiscriminatedSchema(schema)
-        return result
+        return processConstDiscriminatedSchema(schema)
     }
 
-    // ----- Generic mixed union handling -----
-    const nonNullSchemas = schema.anyOf.filter((s) => !("type" in s && s.type === "null"))
-
-    // If there is only one meaningful branch, fall back to previous behaviour
-    if (nonNullSchemas.length === 1) {
-        return {
-            ...createBaseMetadata(nonNullSchemas[0]),
-            title: schema.title ?? nonNullSchemas[0].title,
-            description: schema.description ?? nonNullSchemas[0].description,
-            nullable: schema.anyOf.length !== nonNullSchemas.length,
-        }
+    // Handle regular anyOf schemas (non-response-format)
+    const nonNullSchema = extractNonNullSchema(schema.anyOf)
+    if (!nonNullSchema) {
+        throw new Error("No valid schema found in anyOf")
     }
 
-    // Build compound metadata options for each distinct branch
-    const options = nonNullSchemas.map((branch, idx) => {
-        const branchMetadata = createMetadata(branch)
+    const baseMetadata = createBaseMetadata(nonNullSchema)
+    const nullableMetadata = {
+        ...baseMetadata,
+        title: schema.title ?? baseMetadata.title,
+        description: schema.description ?? baseMetadata.description,
+        nullable: schema.anyOf.some((s) => "type" in s && s.type === "null"),
+    } as const
 
-        const label =
-            branch.title || branchMetadata.title || branchMetadata.type || `Option ${idx + 1}`
-        const value = branchMetadata.type ?? `option_${idx}`
-        return {
-            label,
-            value,
-            config: branchMetadata,
-        }
-    })
-
-    return {
-        type: "compound",
-        title: schema.title,
-        description: schema.description,
-        nullable: schema.anyOf.length !== nonNullSchemas.length,
-        options,
-    }
+    // Type assertion to ensure the metadata type matches the schema type
+    return nullableMetadata as ConfigMetadata
 }

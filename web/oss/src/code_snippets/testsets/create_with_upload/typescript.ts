@@ -8,8 +8,8 @@ export default function tsCode(uri: string): string {
     const FormData = require('form-data');
 
     const url = '${uri}';
-    const filePath = '/path/to/your/file.csv';
-    const testsetName = 'your_testset_name';
+    const filePath = './cypress/data/countries-genders.csv';
+    const testsetName = 'tribalafa';
 
     const formData = new FormData();
     formData.append('file', fs.createReadStream(filePath));

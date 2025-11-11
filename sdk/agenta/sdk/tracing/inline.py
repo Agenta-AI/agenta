@@ -62,7 +62,6 @@ Attributes = Dict[str, AttributeValueType]
 class TreeType(Enum):
     # --- VARIANTS --- #
     INVOCATION = "invocation"
-    ANNOTATION = "annotation"
     # --- VARIANTS --- #
 
 
@@ -532,11 +531,11 @@ from json import loads, JSONDecodeError, dumps
 from copy import copy
 
 
-def _unmarshall_attributes(
+def _unmarshal_attributes(
     marshalled: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Unmarshalls a dictionary of marshalled attributes into a nested dictionary
+    Unmarshals a dictionary of marshalled attributes into a nested dictionary
 
     Example:
     marshalled = {
@@ -566,34 +565,42 @@ def _unmarshall_attributes(
 
     for key, value in marshalled.items():
         keys = key.split(".")
-        current = unmarshalled
 
-        for i, key in enumerate(keys):
-            is_last = i == len(keys) - 1
-            next_key = keys[i + 1] if not is_last else None
-            is_index = key.isdigit()
-            key = int(key) if is_index else key
+        level = unmarshalled
 
-            if is_last:
-                if isinstance(current, list) and isinstance(key, int):
-                    while len(current) <= key:
-                        current.append(None)
-                    current[key] = value
-                elif isinstance(current, dict):
-                    current[key] = value
+        for i, part in enumerate(keys[:-1]):
+            if part.isdigit():
+                part = int(part)
+
+                if not isinstance(level, list):
+                    level = []
+
+                while len(level) <= part:
+                    level.append({})
+
+                level = level[part]
+
             else:
-                next_is_index = next_key.isdigit() if next_key else False
+                if part not in level:
+                    level[part] = {} if not keys[i + 1].isdigit() else []
 
-                if isinstance(current, list) and isinstance(key, int):
-                    while len(current) <= key:
-                        current.append([] if next_is_index else {})
-                    if current[key] is None:
-                        current[key] = [] if next_is_index else {}
-                    current = current[key]
-                elif isinstance(current, dict):
-                    if key not in current:
-                        current[key] = [] if next_is_index else {}
-                    current = current[key]
+                level = level[part]
+
+        last_key = keys[-1]
+
+        if last_key.isdigit():
+            last_key = int(last_key)
+
+            if not isinstance(level, list):
+                level = []
+
+            while len(level) <= last_key:
+                level.append(None)
+
+            level[last_key] = value
+
+        else:
+            level[last_key] = value
 
     return unmarshalled
 
@@ -742,7 +749,7 @@ def _parse_from_attributes(
     for key in _data.keys():
         del otel_span_dto.attributes[_encode_key("data", key)]
 
-    # _data = _unmarshall_attributes(_data)
+    # _data = _unmarshal_attributes(_data)
     _data = _data if _data else None
 
     # METRICS
@@ -751,7 +758,7 @@ def _parse_from_attributes(
     for key in _metrics.keys():
         del otel_span_dto.attributes[_encode_key("metrics", key)]
 
-    # _metrics = _unmarshall_attributes(_metrics)
+    # _metrics = _unmarshal_attributes(_metrics)
     _metrics = _metrics if _metrics else None
 
     # META
@@ -760,7 +767,7 @@ def _parse_from_attributes(
     for key in _meta.keys():
         del otel_span_dto.attributes[_encode_key("meta", key)]
 
-    # _meta = _unmarshall_attributes(_meta)
+    # _meta = _unmarshal_attributes(_meta)
     _meta = _meta if _meta else None
 
     # TAGS
@@ -896,7 +903,7 @@ def parse_to_agenta_span_dto(
 ) -> SpanDTO:
     # DATA
     if span_dto.data:
-        span_dto.data = _unmarshall_attributes(span_dto.data)
+        span_dto.data = _unmarshal_attributes(span_dto.data)
 
         if "outputs" in span_dto.data:
             if "__default__" in span_dto.data["outputs"]:
@@ -904,19 +911,19 @@ def parse_to_agenta_span_dto(
 
     # METRICS
     if span_dto.metrics:
-        span_dto.metrics = _unmarshall_attributes(span_dto.metrics)
+        span_dto.metrics = _unmarshal_attributes(span_dto.metrics)
 
     # META
     if span_dto.meta:
-        span_dto.meta = _unmarshall_attributes(span_dto.meta)
+        span_dto.meta = _unmarshal_attributes(span_dto.meta)
 
     # TAGS
     if span_dto.tags:
-        span_dto.tags = _unmarshall_attributes(span_dto.tags)
+        span_dto.tags = _unmarshal_attributes(span_dto.tags)
 
     # REFS
     if span_dto.refs:
-        span_dto.refs = _unmarshall_attributes(span_dto.refs)
+        span_dto.refs = _unmarshal_attributes(span_dto.refs)
 
     if isinstance(span_dto.links, list):
         for link in span_dto.links:
@@ -1002,21 +1009,18 @@ def parse_inline_trace(
     ##############################################
 
     spans = [
-        span_dto.model_dump(
-            mode="json",
-            exclude_none=True,
-            exclude_defaults=True,
+        loads(
+            span_dto.model_dump_json(
+                exclude_none=True,
+                exclude_defaults=True,
+            )
         )
         for span_dto in agenta_span_dtos
     ]
     inline_trace = AgentaNodesResponse(
         version="1.0.0",
         nodes=[AgentaNodeDto(**span) for span in spans],
-    ).model_dump(
-        mode="json",
-        exclude_none=True,
-        exclude_unset=True,
-    )
+    ).model_dump(exclude_none=True, exclude_unset=True)
     return inline_trace
 
 

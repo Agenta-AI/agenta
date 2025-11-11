@@ -1,14 +1,13 @@
-import EnhancedModal from "@agenta/oss/src/components/EnhancedUIs/Modal"
 import {DeleteOutlined} from "@ant-design/icons"
-import {Typography} from "antd"
+import {ModalProps, Typography} from "antd"
 
-import {DeleteEvaluationModalProps} from "./types"
+import EnhancedModal from "../EnhancedUIs/Modal"
 
-const DeleteEvaluationModal = ({
-    evaluationType,
-    isMultiple = false,
-    ...props
-}: DeleteEvaluationModalProps) => {
+interface DeleteAutoEvalModalProps extends ModalProps {
+    evaluationType: string
+}
+
+const DeleteEvaluationModal = ({evaluationType, ...props}: DeleteAutoEvalModalProps) => {
     return (
         <EnhancedModal
             {...props}
@@ -25,29 +24,13 @@ const DeleteEvaluationModal = ({
 
                 <div className="flex flex-col gap-4">
                     <Typography.Text>
-                        {isMultiple
-                            ? `The selected ${evaluationType.split("|").length} evaluations will be permanently deleted.`
-                            : `A deleted ${evaluationType} cannot be restored.`}
+                        A deleted {evaluationType} cannot be restored.
                     </Typography.Text>
 
                     <div className="flex flex-col gap-1">
-                        <Typography.Text>
-                            {isMultiple
-                                ? "You are about to delete the following evaluations:"
-                                : "You are about to delete:"}
-                        </Typography.Text>
-                        <Typography.Text
-                            className={`text-sm font-medium ${
-                                isMultiple ? "max-h-40 overflow-y-auto" : ""
-                            }`}
-                        >
-                            {isMultiple
-                                ? evaluationType.split(" | ").map((item, index) => (
-                                      <div key={index} className="py-1">
-                                          • {item.trim()}
-                                      </div>
-                                  ))
-                                : evaluationType}
+                        <Typography.Text>You are about to delete:</Typography.Text>
+                        <Typography.Text className="text-sm font-medium capitalize">
+                            {evaluationType}
                         </Typography.Text>
                     </div>
                 </div>

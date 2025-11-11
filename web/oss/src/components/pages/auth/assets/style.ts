@@ -20,9 +20,6 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     otpFormContainer: {
         "& .ant-otp": {
             width: "100%",
-            "& .ant-otp-input-wrapper": {
-                width: "100%",
-            },
         },
     },
     textDisabled: {

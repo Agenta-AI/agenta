@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from copy import copy
 from datetime import datetime, timezone
 
@@ -13,7 +13,7 @@ from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
 )
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__name__)
+log = get_module_logger(__file__)
 
 
 class Normalizer:
@@ -48,7 +48,7 @@ class Normalizer:
                 except ValueError:
                     # Fallback or error handling for non-ISO timestamps if necessary
                     # For now, let's assume UTC now as a fallback, or log an error
-                    # log.warn(f"Could not parse event timestamp: {event_dto.timestamp}")
+                    # log.warning(f"Could not parse event timestamp: {event_dto.timestamp}")
                     dt_timestamp = datetime.now(timezone.utc)
 
                 events_data.append(
@@ -94,8 +94,8 @@ class Normalizer:
             ),  # Ensure default
             status_message=otel_span_dto.status_message,
             span_attributes=copy(otel_span_dto.attributes),
-            events=copy(events_data),
-            links=copy(links_data),
+            events=events_data,
+            links=links_data,
         )
 
         return attributes

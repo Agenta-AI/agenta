@@ -4,6 +4,10 @@ import {JSSTheme} from "@/oss/lib/Types"
 
 export const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
+        flex: 1,
+        display: "flex",
+        height: "100%",
+        width: "100%",
         "& .ant-tag": {
             margin: 0,
             display: "flex",
@@ -15,6 +19,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontSize: theme.fontSizeHeading5,
         fontWeight: theme.fontWeightMedium,
         lineHeight: theme.lineHeightHeading5,
+        textWrap: "nowrap",
     },
     subTitle: {
         fontSize: theme.fontSize,
@@ -22,9 +27,11 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontWeight: theme.fontWeightMedium,
     },
     tabs: {
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
         "& .ant-tabs-nav": {
             marginBottom: 8,
-            flexWrap: "wrap-reverse",
             "& .ant-tabs-nav-wrap": {
                 padding: "0 16px",
             },
@@ -38,14 +45,6 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
                     height: "100%",
                 },
             },
-        },
-        "& .ant-tabs-nav-operations": {
-            display: "none !important",
-        },
-        "& .ant-tabs-extra-content": {
-            paddingTop: 10,
-            paddingBottom: 10,
-            paddingLeft: 16,
         },
     },
 }))

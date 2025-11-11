@@ -1,32 +1,18 @@
-import {forwardRef, useCallback, useEffect, useRef, ReactNode, memo, useState} from "react"
+import {forwardRef, useCallback, useEffect, useRef, ReactNode, memo} from "react"
 
-import {$isCodeNode} from "@lexical/code"
-import {$convertFromMarkdownString, TRANSFORMERS} from "@lexical/markdown"
+import {$convertFromMarkdownString, $convertToMarkdownString, TRANSFORMERS} from "@lexical/markdown"
 import {LexicalComposer} from "@lexical/react/LexicalComposer"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {mergeRegister} from "@lexical/utils"
 import clsx from "clsx"
-import yaml from "js-yaml"
-import {
-    COMMAND_PRIORITY_HIGH,
-    COMMAND_PRIORITY_LOW,
-    EditorState,
-    LexicalEditor,
-    createCommand,
-} from "lexical"
-import {$getRoot} from "lexical"
+import {COMMAND_PRIORITY_LOW, EditorState, LexicalEditor, createCommand} from "lexical"
 import {v4 as uuidv4} from "uuid"
 
-import FormView from "./form/FormView"
 import useEditorConfig from "./hooks/useEditorConfig"
 import {useEditorInvariant} from "./hooks/useEditorInvariant"
 import {useEditorResize} from "./hooks/useEditorResize"
 import EditorPlugins from "./plugins"
-import {createHighlightedNodes, TOGGLE_FORM_VIEW} from "./plugins/code"
-import {$isCodeBlockNode} from "./plugins/code/nodes/CodeBlockNode"
 import {$getEditorCodeAsString} from "./plugins/code/plugins/RealTimeValidationPlugin"
-import {$convertToMarkdownStringCustom} from "./plugins/markdown/assets/transformers"
-import {ON_CHANGE_COMMAND} from "./plugins/markdown/commands"
 import type {EditorProps} from "./types"
 
 export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
@@ -67,8 +53,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             singleLine = false,
             codeOnly = false,
             language,
-            templateFormat,
-            customRender,
             showToolbar = true,
             enableTokens = false,
             debug = false,
@@ -79,14 +63,10 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             boundWidth = true, // New prop
             boundHeight, // New prop
             disabled = false,
-            tokens = [],
-            additionalCodePlugins = [],
             ...rest
         }: EditorProps,
         ref,
     ) => {
-        // EditorWrapper implementation
-
         useEditorInvariant({
             singleLine,
             enableResize,
@@ -96,167 +76,41 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             language,
         })
 
-        const [editor] = useLexicalComposerContext()
-
         const handleUpdate = useCallback(
             (editorState: EditorState, _editor: LexicalEditor) => {
-                editor.dispatchCommand(ON_CHANGE_COMMAND, {editorState, _editor})
+                editorState.read(() => {
+                    if (!_editor.isEditable()) return
+
+                    if (codeOnly) {
+                        const textContent = $getEditorCodeAsString(_editor)
+                        const result = {
+                            value: textContent,
+                            textContent,
+                            tokens: [], // You can extract tokens if needed
+                        }
+                        if (onChange) {
+                            onChange(result)
+                        }
+                    } else {
+                        const textContent = $convertToMarkdownString(TRANSFORMERS)
+                        const tokens: unknown[] = [] // Extract tokens if needed
+
+                        const result = {
+                            value: "", // Omit this for now
+                            textContent: textContent.replaceAll(/\\(.)/g, "$1"),
+                            tokens,
+                        }
+
+                        if (onChange) {
+                            onChange(result)
+                        }
+                    }
+                })
             },
-            [editor],
+            [onChange],
         )
 
-        useEffect(() => {
-            editor.registerCommand(
-                ON_CHANGE_COMMAND,
-                (payload: {editorState: EditorState; _editor: LexicalEditor}) => {
-                    const {editorState, _editor} = payload
-                    editorState.read(() => {
-                        if (!_editor.isEditable()) return false
-
-                        if (codeOnly) {
-                            const textContent = $getEditorCodeAsString(_editor)
-                            const result = {
-                                value: textContent,
-                                textContent,
-                                tokens: [], // You can extract tokens if needed
-                            }
-                            if (onChange) {
-                                onChange(result)
-                            }
-                        } else {
-                            const root = $getRoot()
-                            const firstChild = root.getFirstChild()
-                            let textContent: string
-
-                            if (
-                                $isCodeNode(firstChild) &&
-                                firstChild.getLanguage() === "markdown"
-                            ) {
-                                textContent = firstChild.getTextContent()
-                            } else {
-                                textContent = $convertToMarkdownStringCustom(
-                                    TRANSFORMERS,
-                                    undefined,
-                                    true,
-                                )
-                            }
-
-                            const tokens: unknown[] = [] // Extract tokens if needed
-
-                            const result = {
-                                value: "", // Omit this for now
-                                textContent: textContent.replaceAll(/\\(.)/g, "$1"),
-                                tokens,
-                            }
-
-                            if (onChange) {
-                                onChange(result)
-                            }
-                        }
-                    })
-                    return true
-                },
-                COMMAND_PRIORITY_HIGH,
-            )
-        }, [editor])
-
-        const [view, setView] = useState<"code" | "form">("code")
-        const [jsonValue, setJsonValue] = useState<Record<string, unknown>>({})
-        const lastTextRef = useRef<string>("")
-
-        // Keep underlying code block in sync when editing in Form view
-        useEffect(() => {
-            if (view !== "form") return
-            editor.update(() => {
-                const root = $getRoot()
-                const block = root.getChildren().find($isCodeBlockNode)
-                if (!block) return
-                const lang = (block as any).getLanguage?.() ?? "json"
-                const text =
-                    lang === "json"
-                        ? JSON.stringify(jsonValue, null, 2)
-                        : yaml.dump(jsonValue, {indent: 2})
-                block.clear()
-                createHighlightedNodes(text, lang).forEach((n) => block.append(n))
-            })
-            // propagate to consumer
-            const nextText = JSON.stringify(jsonValue, null, 2)
-            if (onChange && lastTextRef.current !== nextText) {
-                lastTextRef.current = nextText
-                onChange({
-                    textContent: nextText,
-                    value: nextText,
-                    tokens: [],
-                })
-            }
-        }, [jsonValue, view])
-
-        // Register toggle command
-        useEffect(() => {
-            return mergeRegister(
-                editor.registerCommand(
-                    TOGGLE_FORM_VIEW,
-                    () => {
-                        setView((v) => (v === "code" ? "form" : "code"))
-                        if (view === "code") {
-                            editor.update(() => {
-                                const root = $getRoot()
-                                const block = root.getChildren().find($isCodeBlockNode)
-                                if (!block) return
-                                const lang = (block as any).getLanguage?.() ?? "json"
-                                const codeLines = block
-                                    .getChildren()
-                                    .map((l: any) => l.getTextContent())
-                                    .join("\n")
-                                try {
-                                    let obj: any
-                                    if (lang === "json") {
-                                        obj = JSON.parse(codeLines)
-                                    } else {
-                                        try {
-                                            obj = yaml.load(codeLines)
-                                        } catch (e) {
-                                            // Fallback: YAML might actually be JSON
-                                            obj = JSON.parse(codeLines)
-                                        }
-                                    }
-                                    if (obj && typeof obj === "object") {
-                                        setJsonValue(obj as Record<string, unknown>)
-                                    }
-                                } catch {
-                                    // keep previous state to avoid empty form
-                                }
-                            })
-                        } else {
-                            // switching from form to code: serialize current jsonValue back into code block
-                            editor.update(() => {
-                                const root = $getRoot()
-                                const block = root.getChildren().find($isCodeBlockNode)
-                                if (!block) return
-                                const lang = (block as any).getLanguage?.() ?? "json"
-                                const newText =
-                                    lang === "json"
-                                        ? JSON.stringify(jsonValue, null, 2)
-                                        : yaml.dump(jsonValue, {indent: 2})
-                                const currentText = block
-                                    .getChildren()
-                                    .map((l: any) => l.getTextContent())
-                                    .join("\n")
-                                if (currentText === newText) {
-                                    return // no changes, keep existing nodes
-                                }
-                                block.clear()
-                                createHighlightedNodes(newText, lang).forEach((n) =>
-                                    block.append(n),
-                                )
-                            })
-                        }
-                        return true
-                    },
-                    COMMAND_PRIORITY_LOW,
-                ),
-            )
-        }, [editor, view])
+        const [editor] = useLexicalComposerContext()
 
         const isInitRef = useRef(false)
 
@@ -276,14 +130,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                     ({hydrateWithRemoteContent}) => {
                         if (editor.isEditable() && isInitRef.current) return false
                         isInitRef.current = true
-                        if (hydrateWithRemoteContent) {
-                            $convertFromMarkdownString(
-                                hydrateWithRemoteContent,
-                                TRANSFORMERS,
-                                undefined,
-                                true,
-                            )
-                        }
+                        $convertFromMarkdownString(hydrateWithRemoteContent, TRANSFORMERS)
                         return false
                     },
                     COMMAND_PRIORITY_LOW,
@@ -291,15 +138,10 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             )
         }, [editor])
 
-        const lastHydratedRef = useRef<string>("")
-
         useEffect(() => {
             if (codeOnly) return
-            const next = initialValue || ""
-            if (lastHydratedRef.current === next) return
-            lastHydratedRef.current = next
             editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
-                hydrateWithRemoteContent: next,
+                hydrateWithRemoteContent: initialValue || "",
                 parentId: "",
             })
         }, [initialValue])
@@ -321,41 +163,19 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             : undefined
                     }
                 >
-                    {view === "code" ? (
-                        <EditorPlugins
-                            id={id}
-                            autoFocus={autoFocus}
-                            showToolbar={showToolbar}
-                            singleLine={singleLine}
-                            codeOnly={codeOnly}
-                            enableTokens={enableTokens}
-                            debug={debug}
-                            language={language}
-                            templateFormat={templateFormat}
-                            placeholder={placeholder}
-                            handleUpdate={handleUpdate}
-                            initialValue={initialValue}
-                            validationSchema={validationSchema}
-                            tokens={tokens}
-                            additionalCodePlugins={additionalCodePlugins}
-                        />
-                    ) : (
-                        <FormView
-                            value={jsonValue}
-                            onChange={(v) => {
-                                setJsonValue(v)
-                            }}
-                            customRender={customRender}
-                        />
-                    )}
-                    {/* <Button
-                        size="small"
-                        type="text"
-                        className="absolute top-1 right-1 z-10"
-                        onClick={() => editor.dispatchCommand(TOGGLE_FORM_VIEW, undefined)}
-                    >
-                        {view === "code" ? "Form" : "Code"}
-                    </Button> */}
+                    <EditorPlugins
+                        autoFocus={autoFocus}
+                        showToolbar={showToolbar}
+                        singleLine={singleLine}
+                        codeOnly={codeOnly}
+                        enableTokens={enableTokens}
+                        debug={debug}
+                        language={language}
+                        placeholder={placeholder}
+                        handleUpdate={handleUpdate}
+                        initialValue={initialValue}
+                        validationSchema={validationSchema}
+                    />
                     {/* {!singleLine && enableResize && <div className="resize-handle" />} */}
                 </div>
             </div>
@@ -424,7 +244,7 @@ export const EditorProvider = ({
         <div
             className={clsx([
                 "agenta-rich-text-editor",
-                "min-h-[70px]",
+                "min-h-16",
                 "w-full",
                 "text-[#1C2C3D] relative flex flex-col rounded-lg",
                 {
@@ -448,8 +268,6 @@ const Editor = ({
     singleLine = false,
     codeOnly = false,
     language,
-    templateFormat,
-    customRender,
     showToolbar = true,
     enableTokens = false,
     autoFocus = false,
@@ -460,8 +278,6 @@ const Editor = ({
     showBorder = true,
     validationSchema,
     noProvider = false,
-    tokens = [],
-    additionalCodePlugins = [],
     ...rest
 }: EditorProps) => {
     const {setContainerElm, dimensions: dimension} = useEditorResize({
@@ -473,27 +289,28 @@ const Editor = ({
     })
 
     return (
-        <div className="agenta-editor-wrapper w-full relative" ref={setContainerElm}>
+        <div
+            className="agenta-editor-wrapper w-full relative"
+            ref={(el) => {
+                setContainerElm(el)
+            }}
+        >
             {noProvider ? (
                 <EditorInner
                     dimensions={dimension}
                     id={id}
-                    customRender={customRender}
                     initialValue={initialValue}
                     onChange={onChange}
                     placeholder={placeholder}
                     singleLine={singleLine}
                     codeOnly={codeOnly}
                     language={language}
-                    templateFormat={templateFormat}
                     showToolbar={showToolbar}
                     enableTokens={enableTokens}
                     debug={debug}
                     autoFocus={autoFocus}
                     disabled={disabled}
                     validationSchema={validationSchema}
-                    tokens={tokens}
-                    additionalCodePlugins={additionalCodePlugins}
                 />
             ) : (
                 <EditorProvider
@@ -535,7 +352,6 @@ const Editor = ({
                                       height: "auto",
                                   }
                         }
-                        customRender={customRender}
                         id={id}
                         initialValue={initialValue}
                         onChange={onChange}
@@ -543,15 +359,12 @@ const Editor = ({
                         singleLine={singleLine}
                         codeOnly={codeOnly}
                         language={language}
-                        templateFormat={templateFormat}
                         showToolbar={showToolbar}
                         enableTokens={enableTokens}
                         debug={debug}
                         autoFocus={autoFocus}
                         validationSchema={validationSchema}
                         disabled={disabled}
-                        tokens={tokens}
-                        additionalCodePlugins={additionalCodePlugins}
                     />
                 </EditorProvider>
             )}

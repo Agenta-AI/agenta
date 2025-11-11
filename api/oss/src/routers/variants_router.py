@@ -2,15 +2,13 @@ from typing import Any, Optional, Union, List
 from uuid import UUID
 
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, Body, status
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.models import converters
-from oss.src.utils.common import APIRouter
+from oss.src.utils.common import APIRouter, is_ee
 from oss.src.services import app_manager, db_manager
 
 if is_ee():
@@ -64,7 +62,7 @@ async def add_variant_from_base_and_config(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(base_db.project_id),
-            permission=Permission.EDIT_APPLICATIONS,
+            permission=Permission.CREATE_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -102,10 +100,6 @@ async def add_variant_from_base_and_config(
     app_variant_db = await db_manager.get_app_variant_instance_by_id(
         str(db_app_variant.id), str(db_app_variant.project_id)
     )
-    await invalidate_cache(
-        project_id=request.state.project_id,
-    )
-
     return await converters.app_variant_db_to_output(app_variant_db)
 
 
@@ -129,7 +123,7 @@ async def remove_variant(
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(variant.project_id),
-                permission=Permission.EDIT_APPLICATIONS_VARIANT,
+                permission=Permission.DELETE_APPLICATION_VARIANT,
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -148,19 +142,12 @@ async def remove_variant(
         )
 
         await db_manager.mark_app_variant_as_hidden(app_variant_id=variant_id)
-        await invalidate_cache(
-            project_id=request.state.project_id,
-        )
     except Exception as e:
         detail = f"Error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put(
-    "/{variant_id}/parameters/",
-    operation_id="update_variant_parameters",
-    response_model=AppVariantRevision,
-)
+@router.put("/{variant_id}/parameters/", operation_id="update_variant_parameters")
 async def update_variant_parameters(
     request: Request,
     variant_id: str,
@@ -211,21 +198,6 @@ async def update_variant_parameters(
             object_type="variant",
             project_id=str(variant_db.project_id),
         )
-        await invalidate_cache(
-            project_id=request.state.project_id,
-        )
-
-        variant = await get_variant(
-            variant_id=variant_id,
-            request=request,
-        )
-
-        return await get_variant_revision(
-            variant_id=variant_id,
-            revision_number=variant.revision,  # type: ignore
-            request=request,
-        )
-
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -256,7 +228,7 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(db_app_variant.project_id),
-                permission=Permission.EDIT_APPLICATIONS,
+                permission=Permission.CREATE_APPLICATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -280,9 +252,6 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
             object_id=str(db_app_variant.app_id),
             object_type="app",
             project_id=str(db_app_variant.project_id),
-        )
-        await invalidate_cache(
-            project_id=request.state.project_id,
         )
 
     except ValueError as e:
@@ -314,7 +283,7 @@ async def get_variant(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app_variant.project_id),
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -342,6 +311,7 @@ async def get_variant_revisions(
 
     app_variant_revisions = await get_cache(
         project_id=request.state.project_id,
+        user_id=request.state.user_id,
         namespace="get_variant_revisions",
         key=cache_key,
         model=AppVariantRevision,
@@ -355,7 +325,7 @@ async def get_variant_revisions(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -375,9 +345,11 @@ async def get_variant_revisions(
 
     await set_cache(
         project_id=request.state.project_id,
+        user_id=request.state.user_id,
         namespace="get_variant_revisions",
         key=cache_key,
         value=app_variant_revisions,
+        ttl=0.05,  # seconds
     )
 
     return app_variant_revisions
@@ -402,7 +374,7 @@ async def get_variant_revision(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app_variant.project_id),
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -449,7 +421,7 @@ async def remove_variant_revision(
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(variant.project_id),
-                permission=Permission.EDIT_APPLICATIONS_VARIANT,
+                permission=Permission.DELETE_APPLICATION_VARIANT,
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -470,9 +442,6 @@ async def remove_variant_revision(
         await db_manager.mark_app_variant_revision_as_hidden(
             variant_revision_id=revision_id
         )
-        await invalidate_cache(
-            project_id=request.state.project_id,
-        )
     except Exception as e:
         detail = f"Error while trying to remove the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -480,6 +449,7 @@ async def remove_variant_revision(
 
 ### --- CONFIGS --- ###
 
+from oss.src.utils.exceptions import handle_exceptions
 from oss.src.services.variants_manager import (
     BaseModel,
     ReferenceDTO,
@@ -524,7 +494,7 @@ class ConfigResponseModel(ConfigDTO):
     operation_id="configs_add",
     response_model=ConfigResponseModel,
 )
-@intercept_exceptions()
+@handle_exceptions()
 async def configs_add(
     request: Request,
     variant_ref: ReferenceRequestModel,
@@ -555,10 +525,6 @@ async def configs_add(
             detail="Config not found.",
         )
 
-    await invalidate_cache(
-        project_id=request.state.project_id,
-    )
-
     return config
 
 
@@ -567,7 +533,7 @@ async def configs_add(
     operation_id="configs_fetch",
     response_model=ConfigResponseModel,
 )
-@intercept_exceptions()
+@handle_exceptions()
 async def configs_fetch(
     request: Request,
     variant_ref: Optional[ReferenceRequestModel] = None,
@@ -599,6 +565,7 @@ async def configs_fetch(
 
     config = await get_cache(
         project_id=request.state.project_id,
+        user_id=request.state.user_id,
         namespace="configs_fetch",
         key=cache_key,
         model=ConfigDTO,
@@ -636,9 +603,11 @@ async def configs_fetch(
 
     await set_cache(
         project_id=request.state.project_id,
+        user_id=request.state.user_id,
         namespace="configs_fetch",
         key=cache_key,
         value=config,
+        ttl=0.05,  # seconds
     )
 
     if not config:
@@ -655,7 +624,7 @@ async def configs_fetch(
     operation_id="configs_fork",
     response_model=ConfigResponseModel,
 )
-@intercept_exceptions()
+@handle_exceptions()
 async def configs_fork(
     request: Request,
     variant_ref: Optional[ReferenceRequestModel] = None,
@@ -685,10 +654,6 @@ async def configs_fork(
             detail="Config not found.",
         )
 
-    await invalidate_cache(
-        project_id=request.state.project_id,
-    )
-
     return config
 
 
@@ -697,7 +662,7 @@ async def configs_fork(
     operation_id="configs_commit",
     response_model=ConfigResponseModel,
 )
-@intercept_exceptions()
+@handle_exceptions()
 async def configs_commit(
     request: Request,
     config: ConfigRequest,
@@ -714,10 +679,6 @@ async def configs_commit(
             detail="Config not found.",
         )
 
-    await invalidate_cache(
-        project_id=request.state.project_id,
-    )
-
     return config
 
 
@@ -726,7 +687,7 @@ async def configs_commit(
     operation_id="configs_deploy",
     response_model=ConfigResponseModel,
 )
-@intercept_exceptions()
+@handle_exceptions()
 async def configs_deploy(
     request: Request,
     variant_ref: ReferenceRequestModel,
@@ -747,10 +708,6 @@ async def configs_deploy(
             detail="Config not found.",
         )
 
-    await invalidate_cache(
-        project_id=request.state.project_id,
-    )
-
     return config
 
 
@@ -759,7 +716,7 @@ async def configs_deploy(
     operation_id="configs_delete",
     response_model=int,
 )
-@intercept_exceptions()
+@handle_exceptions()
 async def configs_delete(
     request: Request,
     variant_ref: ReferenceRequestModel,
@@ -772,10 +729,6 @@ async def configs_delete(
         user_id=request.state.user_id,
     )
 
-    await invalidate_cache(
-        project_id=request.state.project_id,
-    )
-
     return status.HTTP_204_NO_CONTENT
 
 
@@ -784,7 +737,7 @@ async def configs_delete(
     operation_id="configs_list",
     response_model=List[ConfigResponseModel],
 )
-@intercept_exceptions()
+@handle_exceptions()
 async def configs_list(
     request: Request,
     application_ref: ReferenceRequest,
@@ -803,7 +756,7 @@ async def configs_list(
     operation_id="configs_history",
     response_model=List[ConfigResponseModel],
 )
-@intercept_exceptions()
+@handle_exceptions()
 async def configs_history(
     request: Request,
     variant_ref: ReferenceRequestModel,

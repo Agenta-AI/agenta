@@ -4,12 +4,12 @@ from typing import List
 from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Request, status, HTTPException
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import get_cache, set_cache
 
+from oss.src.utils.common import is_ee
 from oss.src.core.secrets.services import VaultService
+from oss.src.apis.fastapi.shared.utils import handle_exceptions
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
     UpdateSecretDTO,
@@ -31,7 +31,7 @@ class VaultRouter:
         self.router = APIRouter()
 
         self.router.add_api_route(
-            "/secrets/",
+            "/secrets",
             self.create_secret,
             methods=["POST"],
             operation_id="create_secret",
@@ -39,7 +39,7 @@ class VaultRouter:
             response_model=SecretResponseDTO,
         )
         self.router.add_api_route(
-            "/secrets/",
+            "/secrets",
             self.list_secrets,
             methods=["GET"],
             operation_id="list_secrets",
@@ -70,7 +70,7 @@ class VaultRouter:
             operation_id="delete_secret",
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
         if is_ee():
             has_permission = await check_action_access(
@@ -90,17 +90,15 @@ class VaultRouter:
             project_id=UUID(request.state.project_id),
             create_secret_dto=body,
         )
-        await invalidate_cache(
-            project_id=request.state.project_id,
-        )
         return vault_secret
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def list_secrets(self, request: Request):
         cache_key = {}
 
         secrets_dtos = await get_cache(
             project_id=request.state.project_id,
+            user_id=request.state.user_id,
             namespace="list_secrets",
             key=cache_key,
             model=SecretResponseDTO,
@@ -130,14 +128,16 @@ class VaultRouter:
 
         await set_cache(
             project_id=request.state.project_id,
+            user_id=request.state.user_id,
             namespace="list_secrets",
             key=cache_key,
             value=secrets_dtos,
+            ttl=0.05,  # seconds
         )
 
         return secrets_dtos
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def read_secret(self, request: Request, secret_id: str):
         if is_ee():
             has_permission = await check_action_access(
@@ -163,7 +163,7 @@ class VaultRouter:
             )
         return secrets_dto
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def update_secret(
         self, request: Request, secret_id: str, body: UpdateSecretDTO
     ):
@@ -190,12 +190,9 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
             )
-        await invalidate_cache(
-            project_id=request.state.project_id,
-        )
         return secrets_dto
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def delete_secret(self, request: Request, secret_id: str):
         if is_ee():
             has_permission = await check_action_access(
@@ -214,8 +211,5 @@ class VaultRouter:
         await self.service.delete_secret(
             project_id=UUID(request.state.project_id),
             secret_id=UUID(secret_id),
-        )
-        await invalidate_cache(
-            project_id=request.state.project_id,
         )
         return status.HTTP_204_NO_CONTENT

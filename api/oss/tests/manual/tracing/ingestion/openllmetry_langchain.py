@@ -17,6 +17,7 @@ LangchainInstrumentor().instrument()
 
 
 def langchain_app():
+
     # LangChain will automatically use OpenTelemetry to send traces to LangSmith
     # because the LANGSMITH_OTEL_ENABLED environment variable is set
 

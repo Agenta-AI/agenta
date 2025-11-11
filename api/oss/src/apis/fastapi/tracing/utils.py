@@ -1,28 +1,11 @@
-from typing import Optional, Union, Dict, Tuple, List
-from json import loads, dumps
-from copy import deepcopy
-from hashlib import blake2b
-from traceback import format_exc
-from datetime import datetime
+from typing import Optional, Union, Dict
+from json import loads
 
-from fastapi import Query
+from fastapi import Query as _Query
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.tracing.dtos import (
-    TraceType,
-    SpanType,
-    AgMetricEntryAttributes,
-    AgMetricsAttributes,
-    AgTypeAttributes,
-    AgDataAttributes,
-    AgAttributes,
-)
-
-
-from oss.src.core.tracing.dtos import (
-    OTelHash,
-    OTelReference,
     OTelAttributes,
     OTelSpan,
     OTelNestedSpans,
@@ -31,60 +14,39 @@ from oss.src.core.tracing.dtos import (
     Formatting,
     Windowing,
     Filtering,
-    TracingQuery,
+    Query,
     Focus,
     Format,
-    MetricSpec,
 )
 
 from oss.src.core.tracing.utils import (
-    parse_ref_id_to_uuid,
-    parse_ref_slug_to_str,
     parse_timestamp_to_datetime,
     parse_trace_id_to_uuid,
     parse_span_id_to_uuid,
     parse_trace_id_from_uuid,
     parse_span_id_from_uuid,
-    unmarshall_attributes,
+    unmarshal_attributes,
     parse_span_idx_to_span_id_tree,
     connect_children,
 )
 
 log = get_module_logger(__name__)
 
-TRACE_DEFAULT_KEY = "__default__"
-
 # --- PARSE QUERY DTO ---
 
 
 def _parse_windowing(
-    oldest: Optional[Union[str, int, datetime]] = None,
-    newest: Optional[Union[str, int, datetime]] = None,
+    oldest: Optional[Union[str, int]] = None,
+    newest: Optional[Union[str, int]] = None,
     limit: Optional[int] = None,
-    interval: Optional[int] = None,
-    rate: Optional[float] = None,
 ) -> Optional[Windowing]:
-    if all(
-        [
-            oldest is None,
-            newest is None,
-            limit is None,
-            interval is None,
-            rate is None,
-        ]
-    ):
-        return None
+    # if not oldest and not newest:
+    #     oldest = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
 
     oldest = parse_timestamp_to_datetime(oldest)
     newest = parse_timestamp_to_datetime(newest)
 
-    _windowing = Windowing(
-        oldest=oldest,
-        newest=newest,
-        limit=limit,
-        interval=interval,
-        rate=rate,
-    )
+    _windowing = Windowing(oldest=oldest, newest=newest, limit=limit)
 
     return _windowing
 
@@ -116,45 +78,39 @@ def _parse_filtering(
 
 
 def _parse_formatting(
-    focus: Focus = Focus.TRACE,
-    format: Format = Format.AGENTA,  # pylint: disable=redefined-builtin
+    focus: Optional[Focus] = Focus.TRACE,
+    format: Optional[Format] = Format.AGENTA,  # pylint: disable=redefined-builtin
 ) -> Optional[Formatting]:
     _formatting = Formatting(
-        focus=focus or Focus.TRACE,
+        focus=focus or Focus.SPAN,
         format=format or Format.AGENTA,
     )
 
     return _formatting
 
 
-def parse_query_from_params_request(
+def parse_query_request(
     # GROUPING
-    focus: Optional[Focus] = Query(None),
-    format: Optional[Format] = Query(None),  # pylint: disable=redefined-builtin
+    focus: Optional[Focus] = _Query(None),
+    format: Optional[Format] = _Query(None),  # pylint: disable=redefined-builtin
     # WINDOWING
-    oldest: Optional[Union[str, int]] = Query(None),
-    newest: Optional[Union[str, int]] = Query(None),
-    limit: Optional[int] = Query(None),
-    interval: Optional[int] = Query(None),
-    rate: Optional[float] = Query(None),
+    oldest: Optional[Union[str, int]] = _Query(None),
+    newest: Optional[Union[str, int]] = _Query(None),
+    limit: Optional[int] = _Query(None),
     # FILTERING
-    filter=Query(None),  # pylint: disable=redefined-builtin
-) -> TracingQuery:
-    return parse_query_from_body_request(
+    filter=_Query(None),  # pylint: disable=redefined-builtin
+) -> Query:
+    return parse_body_request(
         focus=focus,
         format=format,
-        #
         oldest=oldest,
         newest=newest,
         limit=limit,
-        interval=interval,
-        rate=rate,
-        #
         filter=filter,
     )
 
 
-def parse_query_from_body_request(
+def parse_body_request(
     # GROUPING
     focus: Optional[Focus] = None,
     format: Optional[Format] = None,  # pylint: disable=redefined-builtin
@@ -162,366 +118,53 @@ def parse_query_from_body_request(
     oldest: Optional[Union[str, int]] = None,
     newest: Optional[Union[str, int]] = None,
     limit: Optional[int] = None,
-    interval: Optional[int] = None,
-    rate: Optional[float] = None,
     # FILTERING
     filter: Optional[Union[dict, str]] = None,  # pylint: disable=redefined-builtin
-) -> TracingQuery:
+) -> Query:
     try:
-        _query = TracingQuery(
-            formatting=_parse_formatting(
-                focus=focus,
-                format=format,
-            ),
-            windowing=_parse_windowing(
-                oldest=oldest,
-                newest=newest,
-                limit=limit,
-                interval=interval,
-                rate=rate,
-            ),
-            filtering=_parse_filtering(
-                filter=filter,
-            ),
+        _query = Query(
+            formatting=_parse_formatting(focus=focus, format=format),
+            windowing=_parse_windowing(oldest=oldest, newest=newest, limit=limit),
+            filtering=_parse_filtering(filter=filter),
         )
     except Exception as e:  # pylint: disable=broad-except
         log.warn(e)
 
-        _query = TracingQuery()
+        _query = None
 
     return _query
 
 
 def merge_queries(
-    query_param: Optional[TracingQuery] = None,
-    query_body: Optional[TracingQuery] = None,
-) -> TracingQuery:
-    if query_param is None and query_body is None:
-        return TracingQuery(
-            formatting=_parse_formatting(),
-            windowing=_parse_windowing(),
-            filtering=_parse_filtering(),
-        )
-
-    if query_body is None and query_param is not None:
-        query_param.filtering = query_param.filtering or Filtering()
-
+    query_param: Optional[Query] = None,
+    query_body: Optional[Query] = None,
+) -> Query:
+    if query_body is None:
+        if query_param.filtering is None:
+            query_param.filtering = Filtering()
         return query_param
 
-    if query_param is None and query_body is not None:
-        query_body.filtering = query_body.filtering or Filtering()
-
+    if query_param is None:
+        if query_body.filtering is None:
+            query_body.filtering = Filtering()
         return query_body
 
-    if query_param is not None and query_body is not None:
-        return TracingQuery(
-            formatting=query_body.formatting or query_param.formatting or Formatting(),
-            windowing=query_body.windowing or query_param.windowing or Windowing(),
-            filtering=query_body.filtering or query_param.filtering or Filtering(),
-        )
-
-    return TracingQuery(
-        formatting=_parse_formatting(),
-        windowing=_parse_windowing(),
-        filtering=_parse_filtering(),
+    return Query(
+        formatting=query_param.formatting or query_body.formatting or Formatting(),
+        windowing=query_param.windowing or query_body.windowing or Windowing(),
+        filtering=query_param.filtering or query_body.filtering or Filtering(),
     )
 
 
-# --- PARSE SPANS ---
+# --- PARSE TRACE/SPAN/PARENT ID ---
 
 
-def ensure_nested_dict(d: dict, *keys: str) -> dict:
-    """Ensure nested structure exists in dictionary `d`."""
-    for key in keys:
-        if key not in d or not isinstance(d[key], dict):
-            d[key] = {}
-        d = d[key]
-    return d
-
-
-"""Ensure `ag` is present and populate required structure, putting extra fields under 'unsupported'.
-
-Providing this:
-{
-    "ag": {
-        "type": {
-            "trace": "undefined",
-            "span": "undefined",
-            "extra_type": "x",  # unsupported
-        },
-        "flags": {"env": "True"},
-        "tags": {"foo": "bar"},
-        "meta": {"service": "api"},
-        "data": {
-            "inputs": {"text": "hello"},
-            "outputs": "world",
-            "internals": {"debug": True},
-            "extra_data": 42,  # unsupported
-        },
-        "metrics": {
-            "duration": {
-                "cumulative": 12.5,
-                "incremental": None,
-                "extra_duration": "bad",  # unsupported
-            },
-            "errors": {
-                "incremental": 1
-            },
-            "tokens": {
-                "cumulative": 100
-            },
-            "costs": {
-                "incremental": 0.02
-            },
-            "extra_metric": {  # unsupported full metric
-                "cumulative": 999
-            },
-        },
-        "references": {"trace_id": "abc"},
-        "exception": {"message": "boom"},
-        "custom": "oops",  # unsupported top-level
-    }
-}
-
-should return this:
-{
-    "ag": {
-        "type": {
-        "trace": "undefined",
-        "span": "undefined"
-        },
-        "flags": {"env": "True"},
-        "tags": {"foo": "bar"},
-        "meta": {"service": "api"},
-        "data": {
-        "inputs": {"text": "hello"},
-        "outputs": "world",
-        "internals": {"debug": True}
-        },
-        "metrics": {
-        "duration": {
-            "cumulative": 12.5
-        },
-        "errors": {
-            "incremental": 1
-        },
-        "tokens": {
-            "cumulative": 100
-        },
-        "costs": {
-            "incremental": 0.02
-        }
-        },
-        "references": {"trace_id": "abc"},
-        "exception": {"message": "boom"},
-        "unsupported": {
-        "type": {
-            "extra_type": "x"
-        },
-        "data": {
-            "extra_data": 42
-        },
-        "metrics": {
-            "duration": {
-            "extra_duration": "bad"
-            },
-            "extra_metric": {
-            "cumulative": 999
-            }
-        },
-        "custom": "oops"
-        }
-    }
-}
-"""
-
-
-def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
-    """Ensure structured and validated 'ag' block is always present and complete."""
-    if not attributes or not isinstance(attributes, dict):
-        attributes = {}
-
-    ag = deepcopy(attributes.get("ag", {})) or {}
-    unsupported = deepcopy(ag.get("unsupported", {})) or {}
-    cleaned_ag = {}
-
-    # --- type ---
-    type_dict = ensure_nested_dict(ag, "type")
-    cleaned_type = {
-        key: type_dict.get(key, None) for key in AgTypeAttributes.model_fields
-    }
-    for key in type_dict:
-        if key not in AgTypeAttributes.model_fields:
-            unsupported.setdefault("type", {})[key] = type_dict[key]
-    cleaned_ag["type"] = cleaned_type
-
-    # --- data ---
-    data_dict = ensure_nested_dict(ag, "data")
-    cleaned_data = {
-        key: data_dict.get(key, None) for key in AgDataAttributes.model_fields
-    }
-    for key in data_dict:
-        if key not in AgDataAttributes.model_fields:
-            unsupported.setdefault("data", {})[key] = data_dict[key]
-    cleaned_ag["data"] = cleaned_data
-
-    # --- metrics ---
-    metrics_dict = ensure_nested_dict(ag, "metrics")
-    cleaned_metrics = {}
-
-    for metric_key in AgMetricsAttributes.model_fields:
-        raw_entry = ensure_nested_dict(metrics_dict, metric_key)
-        cleaned_entry = {
-            subkey: raw_entry.get(subkey, None)
-            for subkey in AgMetricEntryAttributes.model_fields
-        }
-        cleaned_metrics[metric_key] = cleaned_entry
-
-        # remove unexpected subkeys from metric entry
-        for subkey in list(raw_entry.keys()):
-            if subkey not in AgMetricEntryAttributes.model_fields:
-                unsupported.setdefault("metrics", {}).setdefault(metric_key, {})[
-                    subkey
-                ] = raw_entry[subkey]
-
-    # detect fully unsupported metric keys
-    for metric_key in list(metrics_dict.keys()):
-        if metric_key not in AgMetricsAttributes.model_fields:
-            unsupported.setdefault("metrics", {})[metric_key] = metrics_dict[metric_key]
-
-    cleaned_ag["metrics"] = cleaned_metrics
-
-    # --- references ---
-    references_dict = ensure_nested_dict(ag, "references")
-    cleaned_references = {}
-
-    if isinstance(references_dict, dict):
-        for key in references_dict:
-            if key in REFERENCE_KEYS:
-                entry = {}
-                if references_dict[key].get("id") is not None:
-                    entry["id"] = str(references_dict[key]["id"])
-                if references_dict[key].get("slug") is not None:
-                    entry["slug"] = str(references_dict[key]["slug"])
-                if references_dict[key].get("version") is not None:
-                    entry["version"] = str(references_dict[key]["version"])
-
-                cleaned_references[key] = entry
-
-    cleaned_ag["references"] = cleaned_references or None
-
-    # --- passthrough simple optional fields ---
-    for key in ["flags", "tags", "meta", "exception", "hashes"]:
-        cleaned_ag[key] = ag.get(key, None)
-
-    # --- move ag.meta.configuration to ag.data.parameters ---
-    if "meta" in cleaned_ag and cleaned_ag["meta"] is not None:
-        if "configuration" in cleaned_ag["meta"]:
-            if cleaned_ag["data"]["parameters"] is None:
-                cleaned_ag["data"]["parameters"] = cleaned_ag["meta"]["configuration"]
-            del cleaned_ag["meta"]["configuration"]
-            if not cleaned_ag["meta"]:
-                cleaned_ag["meta"] = None
-
-    # --- unsupported top-level ---
-    for key in ag:
-        if key not in AgAttributes.model_fields:
-            if key == "refs":
-                continue
-            unsupported[key] = ag[key]
-
-    cleaned_ag["unsupported"] = unsupported or None
-
-    cleaned_ag = AgAttributes(**cleaned_ag).model_dump(mode="json", exclude_none=True)
-
-    attributes["ag"] = cleaned_ag
-
-    return attributes
-
-
-REFERENCE_KEYS = [
-    "testcase",
-    "testset",
-    "testset_variant",
-    "testset_revision",
-    "query",
-    "query_variant",
-    "query_revision",
-    "workflow",
-    "workflow_variant",
-    "workflow_revision",
-    "application",
-    "application_variant",
-    "application_revision",
-    "evaluator",
-    "evaluator_variant",
-    "evaluator_revision",
-    "environment",
-    "environment_variant",
-    "environment_revision",
-    "snippet",
-    "snippet_variant",
-    "snippet_revision",
-]
-
-
-def extract_references_and_links_from_span(span: OTelSpan) -> Tuple[Dict, Dict]:
-    references = {
-        ref.attributes["key"]: {
-            "id": str(ref.id) if ref.id else None,
-            "slug": str(ref.slug) if ref.slug else None,
-        }
-        for ref in span.references or []
-        if ref.attributes.get("key") in REFERENCE_KEYS
-    }
-    links = {
-        link.attributes["key"]: {
-            "trace_id": parse_trace_id_from_uuid(link.trace_id),
-            "span_id": parse_span_id_from_uuid(link.span_id),
-        }
-        for link in span.links or []
-        if link.attributes.get("key")
-    }
-    return references, links
-
-
-def make_hash_id(
-    *,
-    references: Optional[Dict[str, Dict[str, str]]] = None,
-    links: Optional[Dict[str, Dict[str, str]]] = None,
-) -> str:
-    if not references and not links:
-        return None
-
-    payload = dict()
-
-    for k, v in (references or {}).items():
-        if k in REFERENCE_KEYS:
-            entry = {}
-            if v.get("id") is not None:
-                entry["id"] = v["id"]
-            if v.get("slug") is not None:
-                entry["slug"] = v["slug"]
-            payload[k] = entry
-
-    for k, v in (links or {}).items():
-        payload[k] = {"span_id": v.get("span_id"), "trace_id": v.get("trace_id")}
-
-    hasher = blake2b(digest_size=16)
-
-    serialized = dumps(payload, sort_keys=True).encode("utf-8").replace(b" ", b"")
-
-    hasher.update(serialized)
-
-    digest = hasher.hexdigest()
-
-    return digest
-
-
-def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
+def _parse_span_from_request(
+    raw_span: OTelSpan,
+) -> Optional[OTelFlatSpans]:
     raw_span_dtos: OTelFlatSpans = []
 
-    # --- IDs ---
+    # HANDLE IDs (TRACE, SPAN, PARENT, LINKS)
     raw_span.trace_id = parse_trace_id_to_uuid(raw_span.trace_id)
     raw_span.span_id = parse_span_id_to_uuid(raw_span.span_id)
 
@@ -533,89 +176,45 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
             link.trace_id = parse_trace_id_to_uuid(link.trace_id)
             link.span_id = parse_span_id_to_uuid(link.span_id)
 
-    # --- Timestamps ---
+    # HANDLE TIMESTAMPS
     raw_span.start_time = parse_timestamp_to_datetime(raw_span.start_time)
     raw_span.end_time = parse_timestamp_to_datetime(raw_span.end_time)
 
-    # --- Attributes ---
-    raw_span.attributes = unmarshall_attributes(raw_span.attributes or {})
-    raw_span.attributes = initialize_ag_attributes(raw_span.attributes)
+    # HANDLE ATTRIBUTES
+    if not raw_span.attributes:
+        raw_span.attributes = dict()
 
-    ag = raw_span.attributes["ag"]
+    raw_span.attributes = unmarshal_attributes(raw_span.attributes)
 
-    # --- Types ---
-    raw_span.trace_type = TraceType(ag["type"].get("trace") or TraceType.INVOCATION)
-    raw_span.span_type = SpanType(ag["type"].get("span") or SpanType.TASK)
+    # HANDLE LATENCY
+    if not "agenta" in raw_span.attributes:
+        raw_span.attributes["agenta"] = {}
+    if not "metrics" in raw_span.attributes["agenta"]:
+        raw_span.attributes["agenta"]["metrics"] = {}
 
-    # --- Latency ---
-    if raw_span.start_time and raw_span.end_time:
-        duration_s = (raw_span.end_time - raw_span.start_time).total_seconds()
-        duration_ms = round(duration_s * 1_000, 3)
-        duration_ms = duration_ms if duration_ms > 0 else None
+    raw_span.attributes["agenta"]["metrics"]["latency"] = round(
+        (raw_span.end_time - raw_span.start_time).total_seconds() * 1_000,
+        3,
+    )  # milliseconds
 
-        if duration_ms is not None:
-            ag["metrics"]["duration"] = {"cumulative": duration_ms}
-
-    # --- Events / Exceptions ---
+    # HANDLE EVENTS (TIMESTAMPS AND EXCEPTIONS)
     if raw_span.events:
-        errors = ag["metrics"]["errors"] = {"incremental": 0}
-
         for event in raw_span.events:
             event.timestamp = parse_timestamp_to_datetime(event.timestamp)
+
             if event.name == "exception":
-                errors["incremental"] = (errors.get("incremental") or 0) + 1
+                if not "agenta" in raw_span.attributes:
+                    raw_span.attributes["agenta"] = {}
+                if not "metrics" in raw_span.attributes["agenta"]:
+                    raw_span.attributes["agenta"]["metrics"] = {}
 
-                raw_span.exception = {
-                    "message": event.attributes.get("message"),
-                    "type": event.attributes.get("type"),
-                    "stacktrace": event.attributes.get("stacktrace"),
-                }
+                raw_span.attributes["agenta"]["metrics"]["errors"] = 1
 
-    # --- References ---
-    ag_references = ag.get("references")
-    if isinstance(ag_references, dict):
-        raw_span.references = []
-        for ref_key, ref_value in ag_references.items():
-            if isinstance(ref_value, dict):
-                raw_span.references.append(
-                    OTelReference(
-                        id=(
-                            parse_ref_id_to_uuid(ref_value.get("id"))
-                            if ref_value.get("id")
-                            else None
-                        ),
-                        slug=(
-                            parse_ref_slug_to_str(ref_value.get("slug"))
-                            if ref_value.get("slug")
-                            else None
-                        ),
-                        attributes={"key": ref_key},
-                    )
-                )
-
-    # --- Hashes ---
-    if raw_span.references or raw_span.links:
-        references, links = extract_references_and_links_from_span(raw_span)
-
-        if references or links:
-            hash_id = make_hash_id(references=references, links=links)
-
-            if hash_id:
-                hashes = OTelHash(
-                    id=hash_id,
-                    attributes={
-                        "key": "indirect",
-                    },
-                )
-
-                raw_span.hashes = [hashes]
-
-    # --- Children ---
-    if isinstance(raw_span, OTelSpan) and raw_span.spans is not None:
+    # HANDLE CHILDREN
+    if raw_span.spans:
         raw_span_dtos.extend(parse_spans_from_request(raw_span.spans))
         raw_span.spans = None
 
-    # --- Final Append ---
     raw_span_dtos.append(raw_span)
 
     return raw_span_dtos
@@ -638,8 +237,8 @@ def parse_spans_from_request(
         for span in raw_span_dtos:
             span_dtos.extend(_parse_span_from_request(span))
 
-    except Exception:  # pylint:disable=broad-exception-caught
-        log.error(f"Error processing spans:\n {format_exc()}")
+    except Exception as e:  # pylint:disable=broad-exception-caught
+        log.error(f"Error processing spans: {e}")
 
         span_dtos = []  # FULL RESET OR RETURN PARTIAL?
 
@@ -669,20 +268,13 @@ def _parse_span_into_response(
     if marshall:
         pass  # TODO: MARSHALL ATTRIBUTES
 
-    ag = span_dto.attributes.get("ag")
-    if ag:
-        data = ag.get("data") if isinstance(ag, dict) else None
-        outputs = data.get("outputs") if isinstance(data, dict) else None
-        if isinstance(outputs, dict) and TRACE_DEFAULT_KEY in outputs:
-            data["outputs"] = outputs[TRACE_DEFAULT_KEY]
-
     return span_dto
 
 
 def parse_spans_into_response(
     span_dtos: OTelFlatSpans,
-    focus: Focus = Focus.TRACE,
-    format: Format = Format.AGENTA,
+    focus: Focus,
+    format: Format,
 ) -> Optional[Union[OTelFlatSpans, OTelTraceTree]]:
     clean_span_dtos: OTelFlatSpans = []
 
@@ -716,8 +308,8 @@ def parse_spans_into_response(
         else:
             spans: OTelFlatSpans = clean_span_dtos
 
-    except Exception:  # pylint:disable=broad-exception-caught
-        log.error(f"Error processing spans:\n {format_exc()}")
+    except Exception as e:  # pylint:disable=broad-exception-caught
+        log.error(f"Error processing spans: {e}")
 
         if format == Format.AGENTA and focus == Focus.TRACE:
             traces: OTelTraceTree = {}  # FULL RESET OR RETURN PARTIAL?
@@ -725,112 +317,3 @@ def parse_spans_into_response(
             spans: OTelFlatSpans = []
 
     return spans if spans else traces
-
-
-# -- ANALYTICS
-
-
-def parse_specs_from_body_request(
-    specs: Optional[Union[list, str]] = None,
-) -> Optional[List[MetricSpec]]:
-    if not specs:
-        return None
-
-    if isinstance(specs, str):
-        try:
-            specs = loads(specs)
-        except Exception as e:  # pylint: disable=broad-except
-            log.warn(f"Error parsing specs string to JSON: {e}")
-            return None
-
-    if isinstance(specs, list):
-        return [MetricSpec(**spec) for spec in specs if isinstance(spec, dict)]
-
-    log.warn("Specs should be a list or a JSON string")
-
-    return None
-
-
-def merge_specs(
-    specs_params: Optional[List[MetricSpec]],
-    specs_body: Optional[List[MetricSpec]],
-) -> List[MetricSpec]:
-    if not specs_params and not specs_body:
-        return []
-    if not specs_params:
-        return specs_body or []
-    if not specs_body:
-        return specs_params or []
-
-    return []
-
-
-def parse_analytics_from_params_request(
-    # GROUPING
-    focus: Optional[Focus] = Query(None),
-    format: Optional[Format] = Query(None),  # pylint: disable=redefined-builtin
-    # WINDOWING
-    oldest: Optional[Union[str, int]] = Query(None),
-    newest: Optional[Union[str, int]] = Query(None),
-    interval: Optional[int] = Query(None),
-    rate: Optional[float] = Query(None),
-    # FILTERING
-    filter=Query(None),  # pylint: disable=redefined-builtin
-    # METRICS SPECS
-    specs=Query(None),
-) -> Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]]:
-    return parse_analytics_from_body_request(
-        focus=focus,
-        format=format,
-        #
-        oldest=oldest,
-        newest=newest,
-        interval=interval,
-        rate=rate,
-        #
-        filter=filter,
-        #
-        specs=specs,
-    )
-
-
-def parse_analytics_from_body_request(
-    # GROUPING
-    focus: Optional[Focus] = None,
-    format: Optional[Format] = None,  # pylint: disable=redefined-builtin
-    # WINDOWING
-    oldest: Optional[Union[str, int]] = None,
-    newest: Optional[Union[str, int]] = None,
-    interval: Optional[int] = None,
-    rate: Optional[float] = None,
-    # FILTERING
-    filter: Optional[Union[dict, str]] = None,  # pylint: disable=redefined-builtin
-    # METRICS SPECS
-    specs: Optional[Union[list, str]] = None,
-) -> Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]]:
-    return (
-        parse_query_from_body_request(
-            focus=focus,
-            format=format,
-            #
-            oldest=oldest,
-            newest=newest,
-            interval=interval,
-            rate=rate,
-            #
-            filter=filter,
-        ),
-        parse_specs_from_body_request(
-            specs=specs,
-        ),
-    )
-
-
-def merge_analytics(
-    analytics_params: Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]],
-    analytics_body: Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]],
-) -> Tuple[TracingQuery, List[MetricSpec]]:
-    return (
-        merge_queries(analytics_params[0], analytics_body[0]),
-        merge_specs(analytics_params[1], analytics_body[1]),
-    )

@@ -1,178 +1,383 @@
-import {memo, useMemo, useCallback, useState, type Key} from "react"
+import {useEffect, useState, type Key} from "react"
 
+import {MoreOutlined, PlusOutlined} from "@ant-design/icons"
+import {Database, Export, GearSix, Note, Plus, Rocket, Trash} from "@phosphor-icons/react"
+import {Button, Dropdown, message, Space, Spin, Statistic, Table, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import clsx from "clsx"
 import {useRouter} from "next/router"
+import {createUseStyles} from "react-jss"
 
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import {useAppId} from "@/oss/hooks/useAppId"
-import useURL from "@/oss/hooks/useURL"
+import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
+import HumanEvaluationModal from "@/oss/components/HumanEvaluationModal/HumanEvaluationModal"
+import {getAppValues} from "@/oss/contexts/app.context"
 import {EvaluationType} from "@/oss/lib/enums"
-import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
-import useEvaluations from "@/oss/lib/hooks/useEvaluations"
-import useRunMetricsMap from "@/oss/lib/hooks/useRunMetricsMap"
-import {useAppsData} from "@/oss/state/app"
-
+import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
+import {calculateAvgScore} from "@/oss/lib/helpers/evaluate"
+import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
+import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {
-    buildAppScopedUrl,
-    buildEvaluationNavigationUrl,
-    extractEvaluationAppId,
-} from "../pages/evaluations/utils"
+    fromEvaluationResponseToEvaluation,
+    singleModelTestEvaluationTransformer,
+} from "@/oss/lib/transformers"
+import {Evaluation, JSSTheme, SingleModelEvaluationListTableDataType} from "@/oss/lib/Types"
+import {
+    deleteEvaluations,
+    fetchAllLoadEvaluations,
+    fetchEvaluationResults,
+} from "@/oss/services/human-evaluations/api"
 
-import SingleModelEvaluationHeader from "./assets/SingleModelEvaluationHeader"
-import {useStyles} from "./assets/styles"
-import {getColumns} from "./assets/utils"
-import {EvaluationRow} from "./types"
+import VariantDetailsWithStatus from "../VariantDetailsWithStatus"
 
-interface SingleModelEvaluationProps {
-    viewType: "evaluation" | "overview"
-    scope?: "app" | "project"
-}
+const {Title} = Typography
 
-const SingleModelEvaluation = ({viewType, scope = "app"}: SingleModelEvaluationProps) => {
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    container: {
+        display: "flex",
+        flexDirection: "column",
+        gap: theme.paddingXS,
+        "& > div h1.ant-typography": {
+            fontSize: theme.fontSize,
+        },
+    },
+    stat: {
+        lineHeight: theme.lineHeight,
+        "& .ant-statistic-content-value": {
+            fontSize: theme.fontSize,
+            color: theme.colorPrimary,
+        },
+        "& .ant-statistic-content-suffix": {
+            fontSize: theme.fontSize,
+            color: theme.colorPrimary,
+        },
+    },
+    button: {
+        display: "flex",
+        alignItems: "center",
+    },
+}))
+
+const SingleModelEvaluation = ({viewType}: {viewType: "evaluation" | "overview"}) => {
     const classes = useStyles()
     const router = useRouter()
-    const {appURL, projectURL, baseAppURL} = useURL()
-    const routeAppId = useAppId()
-    const activeAppId = scope === "app" ? routeAppId || undefined : undefined
-    const {apps: availableApps = []} = useAppsData()
+    const appId = router.query.app_id as string
 
-    const [selectedEvalRecord, setSelectedEvalRecord] = useState<EvaluationRow>()
+    const [evaluationsList, setEvaluationsList] = useState<
+        SingleModelEvaluationListTableDataType[]
+    >([])
+    const [fetchingEvaluations, setFetchingEvaluations] = useState(false)
+    const [isEvalModalOpen, setIsEvalModalOpen] = useState(false)
+    const [selectedEvalRecord, setSelectedEvalRecord] =
+        useState<SingleModelEvaluationListTableDataType>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
+    const [isDeleteEvalMultipleModalOpen, setIsDeleteEvalMultipleModalOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
 
-    const {mergedEvaluations, isLoadingPreview, isLoadingLegacy} = useEvaluations({
-        withPreview: true,
-        types: [EvaluationType.single_model_test],
-        evalType: "human",
-        appId: activeAppId,
-    })
+    useEffect(() => {
+        if (!appId) return
 
-    const runIds = useMemo(
-        () => mergedEvaluations.map((e) => ("id" in e ? e.id : e.key)),
-        [mergedEvaluations],
-    )
-    const evaluatorSlugs = useMemo(() => {
-        const evaSlugs = new Set<string>()
-        mergedEvaluations.forEach((e) => {
-            e?.data.steps?.forEach((step) => {
-                if (step.type === "annotation") {
-                    evaSlugs.add(step.key)
-                }
-            })
-        })
-        return evaSlugs
-    }, [mergedEvaluations])
+        const fetchEvaluations = async () => {
+            try {
+                setFetchingEvaluations(true)
+                const evals: Evaluation[] = (await fetchAllLoadEvaluations(appId)).map(
+                    fromEvaluationResponseToEvaluation,
+                )
+                const results = await Promise.all(evals.map((e) => fetchEvaluationResults(e.id)))
+                const newEvals = results.map((result, ix) => {
+                    const item = evals[ix]
+                    if ([EvaluationType.single_model_test].includes(item.evaluationType)) {
+                        return singleModelTestEvaluationTransformer({item, result})
+                    }
+                })
 
-    const {data: runMetricsMap} = useRunMetricsMap(runIds, evaluatorSlugs)
+                const newEvalResults = newEvals
+                    .filter((evaluation) => evaluation !== undefined)
+                    .filter(
+                        (item: any) =>
+                            item.resultsData !== undefined ||
+                            !(Object.keys(item.scoresData || {}).length === 0) ||
+                            item.avgScore !== undefined,
+                    )
+                    .sort(
+                        (a, b) =>
+                            new Date(b?.createdAt ?? 0).getTime() -
+                            new Date(a?.createdAt ?? 0).getTime(),
+                    )
 
-    const knownAppIds = useMemo(() => {
-        return new Set(
-            (availableApps as {app_id?: string}[])
-                .map((app) => app?.app_id)
-                .filter(Boolean) as string[],
-        )
-    }, [availableApps])
-
-    const resolveAppId = useCallback(
-        (record: EvaluationRow): string | undefined => {
-            const candidate = extractEvaluationAppId(record) || activeAppId
-            if (!candidate) return undefined
-            if (scope === "project" && !knownAppIds.has(candidate)) return undefined
-            return candidate
-        },
-        [activeAppId, knownAppIds, scope],
-    )
-
-    const isRecordNavigable = useCallback(
-        (record: EvaluationRow): boolean => {
-            const evaluationId = "id" in record ? record.id : record.key
-            const recordAppId = resolveAppId(record)
-            return Boolean(evaluationId && recordAppId)
-        },
-        [resolveAppId],
-    )
-
-    const rowSelection = useMemo(() => {
-        return {
-            onChange: (selectedRowKeys: Key[]) => {
-                setSelectedRowKeys(selectedRowKeys)
-            },
-            getCheckboxProps: (record: EvaluationRow) => ({
-                disabled: !isRecordNavigable(record),
-            }),
+                setEvaluationsList(
+                    viewType === "overview" ? newEvalResults.slice(0, 5) : (newEvalResults as any),
+                )
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setFetchingEvaluations(false)
+            }
         }
-    }, [isRecordNavigable])
 
-    const handleNavigation = useCallback(
-        ({revisionId, appId: recordAppId}: {revisionId: string; appId?: string}) => {
-            const targetAppId = recordAppId || activeAppId
-            if (!targetAppId) return
+        fetchEvaluations()
+    }, [appId])
 
-            router.push({
-                pathname: buildAppScopedUrl(baseAppURL, targetAppId, "/playground"),
-                query: {
-                    revisions: buildRevisionsQueryParam([revisionId]),
-                },
-            })
+    const rowSelection = {
+        onChange: (selectedRowKeys: Key[]) => {
+            setSelectedRowKeys(selectedRowKeys)
         },
-        [router, baseAppURL, activeAppId],
-    )
+    }
 
-    const columns: ColumnsType<EvaluationRow> = useMemo(() => {
-        return getColumns({
-            evaluations: mergedEvaluations,
-            onVariantNavigation: handleNavigation,
-            evalType: "human",
-            setSelectedEvalRecord,
-            setIsDeleteEvalModalOpen,
-            runMetricsMap,
-            scope,
-            baseAppURL,
-            extractAppId: extractEvaluationAppId,
-            projectURL,
-            resolveAppId,
-        })
-    }, [
-        mergedEvaluations,
-        handleNavigation,
-        setSelectedEvalRecord,
-        setIsDeleteEvalModalOpen,
-        runMetricsMap,
-        scope,
-        baseAppURL,
-        projectURL,
-        resolveAppId,
-    ])
+    const handleDeleteMultipleEvaluations = async () => {
+        const evaluationsIds = selectedRowKeys.map((key) => key.toString())
+        try {
+            setFetchingEvaluations(true)
+            await deleteEvaluations(evaluationsIds)
+            setEvaluationsList((prevEvaluationsList) =>
+                prevEvaluationsList.filter(
+                    (evaluation) => !evaluationsIds.includes(evaluation.key),
+                ),
+            )
+            setSelectedRowKeys([])
+            message.success("Evaluations Deleted")
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setFetchingEvaluations(false)
+        }
+    }
 
-    const dataSource = useMemo(() => {
-        return viewType === "overview" ? mergedEvaluations.slice(0, 5) : mergedEvaluations
-    }, [viewType, mergedEvaluations])
+    const handleNavigation = (variantName: string, revisionNum: string) => {
+        router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
+    }
+
+    const handleDeleteEvaluation = async (record: SingleModelEvaluationListTableDataType) => {
+        try {
+            setFetchingEvaluations(true)
+            await deleteEvaluations([record.key])
+            setEvaluationsList((prevEvaluationsList) =>
+                prevEvaluationsList.filter((evaluation) => ![record.key].includes(evaluation.key)),
+            )
+            message.success("Evaluation Deleted")
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setFetchingEvaluations(false)
+        }
+    }
+
+    const columns: ColumnsType<SingleModelEvaluationListTableDataType> = [
+        {
+            title: "Variant",
+            dataIndex: "variants",
+            key: "variants",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (value, record: SingleModelEvaluationListTableDataType) => {
+                return (
+                    <VariantDetailsWithStatus
+                        variantName={value[0].variantName}
+                        revision={record.revisions[0]}
+                    />
+                )
+            },
+        },
+        {
+            title: "Test set",
+            dataIndex: "testsetName",
+            key: "testsetName",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record) => {
+                return <span>{record.testset.name}</span>
+            },
+        },
+        {
+            title: "Average score",
+            dataIndex: "averageScore",
+            key: "averageScore",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record) => {
+                const score = calculateAvgScore(record)
+                return (
+                    <span>
+                        <Statistic
+                            className={classes.stat}
+                            value={score}
+                            precision={score <= 99 ? 2 : 1}
+                            suffix="%"
+                        />
+                    </span>
+                )
+            },
+        },
+        {
+            title: "Created on",
+            dataIndex: "createdAt",
+            key: "createdAt",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+        },
+        {
+            title: <GearSix size={16} />,
+            key: "key",
+            width: 56,
+            fixed: "right",
+            align: "center",
+            render: (_, record) => {
+                return (
+                    <Dropdown
+                        trigger={["click"]}
+                        overlayStyle={{width: 180}}
+                        menu={{
+                            items: [
+                                {
+                                    key: "details",
+                                    label: "Open details",
+                                    icon: <Note size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        router.push(
+                                            `/apps/${appId}/evaluations/single_model_test/${record.key}`,
+                                        )
+                                    },
+                                },
+                                {
+                                    key: "variant",
+                                    label: "View variant",
+                                    icon: <Rocket size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        handleNavigation(
+                                            record.variants[0].variantName,
+                                            record.revisions[0],
+                                        )
+                                    },
+                                },
+                                {
+                                    key: "view_testset",
+                                    label: "View test set",
+                                    icon: <Database size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        router.push(`/testsets/${record.testset._id}`)
+                                    },
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "delete_eval",
+                                    label: "Delete",
+                                    icon: <Trash size={16} />,
+                                    danger: true,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        setSelectedEvalRecord(record)
+                                        setIsDeleteEvalModalOpen(true)
+                                    },
+                                },
+                            ],
+                        }}
+                    >
+                        <Button
+                            onClick={(e) => e.stopPropagation()}
+                            type="text"
+                            icon={<MoreOutlined />}
+                        />
+                    </Dropdown>
+                )
+            },
+        },
+    ]
+
+    const onExport = () => {
+        const exportEvals = evaluationsList.filter((e) =>
+            selectedRowKeys.some((selected) => selected === e.key),
+        )
+
+        try {
+            if (exportEvals.length) {
+                const {currentApp} = getAppValues()
+                const filename = `${currentApp?.app_name}_human_annotation.csv`
+
+                const csvData = convertToCsv(
+                    exportEvals.map((item) => {
+                        return {
+                            Variant: variantNameWithRev({
+                                variant_name: item.variants[0].variantName ?? "",
+                                revision: item.revisions[0],
+                            }),
+                            "Test set": item.testset.name,
+                            "Average score": `${calculateAvgScore(item) || 0}%`,
+                            "Created on": formatDate24(item.createdAt),
+                        }
+                    }),
+                    columns
+                        .filter((col) => typeof col.title === "string")
+                        .map((col) => col.title as string),
+                )
+                downloadCsv(csvData, filename)
+                setSelectedRowKeys([])
+            }
+        } catch (error) {
+            message.error("Failed to export results. Plese try again later")
+        }
+    }
 
     return (
-        <div
-            className={clsx(classes.container, "grow flex flex-col min-h-0 overflow-hidden", {
-                "human-eval": viewType !== "overview",
-            })}
-        >
-            <SingleModelEvaluationHeader
-                viewType={viewType}
-                selectedRowKeys={selectedRowKeys}
-                mergedEvaluations={mergedEvaluations}
-                runMetricsMap={runMetricsMap}
-                setSelectedRowKeys={setSelectedRowKeys}
-                isDeleteEvalModalOpen={isDeleteEvalModalOpen}
-                setIsDeleteEvalModalOpen={setIsDeleteEvalModalOpen}
-                selectedEvalRecord={selectedEvalRecord}
-                setSelectedEvalRecord={setSelectedEvalRecord}
-                scope={scope}
-                projectURL={projectURL}
-                activeAppId={activeAppId}
-                extractAppId={extractEvaluationAppId}
-            />
+        <div className={classes.container}>
+            {viewType === "overview" ? (
+                <div className="flex items-center justify-between">
+                    <Space>
+                        <Title>Human Annotation</Title>
 
-            <div className="relative w-full h-full overflow-auto">
-                <EnhancedTable
+                        <Button
+                            href={`/apps/${appId}/evaluations?selectedEvaluation=single_model_evaluation`}
+                        >
+                            View all
+                        </Button>
+                    </Space>
+
+                    <Button icon={<PlusOutlined />} onClick={() => setIsEvalModalOpen(true)}>
+                        Create new
+                    </Button>
+                </div>
+            ) : (
+                <div className="flex items-center justify-between">
+                    <Button
+                        type="primary"
+                        icon={<Plus size={14} />}
+                        className={classes.button}
+                        onClick={() => setIsEvalModalOpen(true)}
+                        data-cy="new-human-eval-modal-button"
+                    >
+                        Start new evaluation
+                    </Button>
+
+                    <Space>
+                        <Button
+                            danger
+                            type="text"
+                            icon={<Trash size={14} />}
+                            className={classes.button}
+                            onClick={() => setIsDeleteEvalMultipleModalOpen(true)}
+                            disabled={selectedRowKeys.length == 0}
+                        >
+                            Delete
+                        </Button>
+                        <Button
+                            type="text"
+                            onClick={onExport}
+                            icon={<Export size={14} className="mt-0.5" />}
+                            className={classes.button}
+                            disabled={selectedRowKeys.length == 0}
+                        >
+                            Export as CSV
+                        </Button>
+                    </Space>
+                </div>
+            )}
+
+            <Spin spinning={fetchingEvaluations}>
+                <Table
                     rowSelection={
                         viewType === "evaluation"
                             ? {
@@ -183,50 +388,52 @@ const SingleModelEvaluation = ({viewType, scope = "app"}: SingleModelEvaluationP
                               }
                             : undefined
                     }
-                    rowKey={(record) => {
-                        return record.id || record.key
-                    }}
-                    className={clsx("ph-no-capture", "grow min-h-0", "eval-runs-table")}
-                    showHorizontalScrollBar={true}
+                    className="ph-no-capture"
                     columns={columns}
-                    dataSource={dataSource}
-                    virtualized
-                    loading={isLoadingPreview || isLoadingLegacy}
-                    uniqueKey="human-annotation"
-                    onRow={(record) => {
-                        const evaluationId = "id" in record ? record.id : record.key
-                        const recordAppId = resolveAppId(record)
-                        const isNavigable = isRecordNavigable(record)
-
-                        return {
-                            className: isNavigable ? undefined : "cursor-not-allowed opacity-60",
-                            style: {cursor: isNavigable ? "pointer" : "not-allowed"},
-                            onClick: () => {
-                                if (!isNavigable || !recordAppId || !evaluationId) return
-
-                                const pathname = buildEvaluationNavigationUrl({
-                                    scope,
-                                    baseAppURL,
-                                    projectURL,
-                                    appId: recordAppId,
-                                    path: `/evaluations/single_model_test/${evaluationId}`,
-                                })
-
-                                if (scope === "project") {
-                                    router.push({
-                                        pathname,
-                                        query: recordAppId ? {app_id: recordAppId} : undefined,
-                                    })
-                                } else {
-                                    router.push(pathname)
-                                }
-                            },
-                        }
-                    }}
+                    dataSource={evaluationsList}
+                    scroll={{x: true}}
+                    bordered
+                    pagination={false}
+                    onRow={(record) => ({
+                        style: {cursor: "pointer"},
+                        onClick: () =>
+                            router.push(
+                                `/apps/${appId}/evaluations/single_model_test/${record.key}`,
+                            ),
+                    })}
                 />
-            </div>
+            </Spin>
+
+            <HumanEvaluationModal
+                evaluationType={"single_model_test"}
+                isEvalModalOpen={isEvalModalOpen}
+                setIsEvalModalOpen={setIsEvalModalOpen}
+            />
+
+            {selectedEvalRecord && (
+                <DeleteEvaluationModal
+                    open={isDeleteEvalModalOpen}
+                    onCancel={() => setIsDeleteEvalModalOpen(false)}
+                    onOk={async () => {
+                        await handleDeleteEvaluation(selectedEvalRecord)
+                        setIsDeleteEvalModalOpen(false)
+                    }}
+                    evaluationType={"single model evaluation"}
+                />
+            )}
+            {isDeleteEvalMultipleModalOpen && (
+                <DeleteEvaluationModal
+                    open={isDeleteEvalMultipleModalOpen}
+                    onCancel={() => setIsDeleteEvalMultipleModalOpen(false)}
+                    onOk={async () => {
+                        await handleDeleteMultipleEvaluations()
+                        setIsDeleteEvalMultipleModalOpen(false)
+                    }}
+                    evaluationType={"single model evaluation"}
+                />
+            )}
         </div>
     )
 }
 
-export default memo(SingleModelEvaluation)
+export default SingleModelEvaluation

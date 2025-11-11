@@ -8,18 +8,9 @@ import {OnChangePlugin} from "@lexical/react/LexicalOnChangePlugin"
 import {RichTextPlugin} from "@lexical/react/LexicalRichTextPlugin"
 import {Skeleton} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 
-import {markdownViewAtom} from "../state/assets/atoms"
 import type {EditorPluginsProps} from "../types"
 
-import MarkdownPlugin from "./markdown/markdownPlugin"
-
-const CodeFoldingPlugin = lazy(() =>
-    import("./code/plugins/CodeFoldingPlugin").then((module) => ({
-        default: module.CodeFoldingPlugin,
-    })),
-)
 const TabIndentationPlugin = lazy(() =>
     import("@lexical/react/LexicalTabIndentationPlugin").then((module) => ({
         default: module.TabIndentationPlugin,
@@ -41,25 +32,13 @@ const SingleLinePlugin = lazy(() =>
     })),
 )
 const CodeEditorPlugin = lazy(() => import("./code"))
-
 const TokenPlugin = lazy(() =>
     import("./token/TokenPlugin").then((module) => ({
         default: module.TokenPlugin,
     })),
 )
-const AutoCloseTokenBracesPlugin = lazy(() =>
-    import("./token/AutoCloseTokenBracesPlugin").then((module) => ({
-        default: module.AutoCloseTokenBracesPlugin,
-    })),
-)
-const TokenTypeaheadPlugin = lazy(() =>
-    import("./token/TokenTypeaheadPlugin").then((module) => ({
-        default: module.TokenMenuPlugin,
-    })),
-)
 
 const EditorPlugins = ({
-    id,
     showToolbar,
     singleLine,
     codeOnly,
@@ -71,12 +50,7 @@ const EditorPlugins = ({
     handleUpdate,
     initialValue,
     validationSchema,
-    tokens,
-    templateFormat,
-    additionalCodePlugins = [],
 }: EditorPluginsProps) => {
-    const markdown = useAtomValue(markdownViewAtom(id))
-
     return (
         <Suspense
             fallback={
@@ -90,18 +64,13 @@ const EditorPlugins = ({
             <RichTextPlugin
                 contentEditable={
                     <ContentEditable
-                        className={clsx(
-                            `editor-input relative outline-none min-h-[inherit] ${
-                                singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""
-                            } ${codeOnly ? "code-only" : ""}`,
-                            {
-                                "markdown-view": markdown,
-                            },
-                        )}
+                        className={`editor-input relative outline-none min-h-[inherit] ${
+                            singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""
+                        } ${codeOnly ? "code-only" : ""}`}
                     />
                 }
                 placeholder={
-                    <div className="editor-placeholder absolute pointer-events-none text-[#BDC7D1]">
+                    <div className="editor-placeholder absolute top-[4px] left-[1px] pointer-events-none text-[#BDC7D1]">
                         {placeholder}
                     </div>
                 }
@@ -111,30 +80,20 @@ const EditorPlugins = ({
             {autoFocus ? <AutoFocusPlugin /> : null}
             <OnChangePlugin onChange={handleUpdate} ignoreSelectionChange={true} />
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
-            {enableTokens && (
-                <>
-                    <TokenPlugin templateFormat={templateFormat} />
-                    <AutoCloseTokenBracesPlugin />
-                    <TokenTypeaheadPlugin tokens={tokens || []} />
-                </>
-            )}
+            {enableTokens && <TokenPlugin />}
             {singleLine && <SingleLinePlugin />}
             {codeOnly && (
                 <>
-                    <CodeFoldingPlugin />
                     <CodeEditorPlugin
-                        editorId={id}
                         validationSchema={validationSchema}
                         initialValue={initialValue}
                         language={language}
                         debug={debug}
-                        additionalCodePlugins={additionalCodePlugins}
                     />
                     <TabIndentationPlugin />
                 </>
             )}
             {debug && <DebugPlugin />}
-            {singleLine || codeOnly ? null : <MarkdownPlugin id={id} />}
         </Suspense>
     )
 }

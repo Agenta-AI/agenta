@@ -76,6 +76,7 @@ const GetStartedSection = ({
                     onClick={() => {
                         setIsAddAppFromTemplatedModal(true)
                     }}
+                    data-cy="create-from-template"
                 >
                     <div className="flex items-center justify-between">
                         <Text>Create New Prompt</Text>

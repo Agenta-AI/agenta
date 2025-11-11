@@ -1,10 +1,13 @@
-"use client"
-
-import {memo} from "react"
+import {useCallback, memo} from "react"
 
 import clsx from "clsx"
 
-import PlaygroundVariantConfigEditors from "./assets/Editors"
+import type {EnhancedVariant} from "../../../../lib/shared/variant/transformer/types"
+import {componentLogger} from "../../assets/utilities/componentLogger"
+import usePlayground from "../../hooks/usePlayground"
+import PlaygroundVariantConfigPrompt from "../PlaygroundVariantConfigPrompt"
+import PlaygroundVariantCustomProperties from "../PlaygroundVariantCustomProperties"
+
 import PlaygroundVariantConfigHeader from "./assets/PlaygroundVariantConfigHeader"
 import type {VariantConfigComponentProps} from "./types"
 
@@ -23,13 +26,22 @@ import type {VariantConfigComponentProps} from "./types"
  * ```
  */
 
-const PlaygroundVariantConfig: React.FC<
-    VariantConfigComponentProps & {
-        embedded?: boolean
-        variantNameOverride?: string
-        revisionOverride?: number | string | null
-    }
-> = ({variantId, className, embedded, variantNameOverride, revisionOverride, ...divProps}) => {
+const PlaygroundVariantConfig: React.FC<VariantConfigComponentProps> = ({
+    variantId,
+    className,
+    ...divProps
+}) => {
+    const {promptIds = []} = usePlayground({
+        variantId,
+        hookId: "PlaygroundConfigVariantPrompts",
+        variantSelector: useCallback((variant: EnhancedVariant) => {
+            const promptIds = (variant?.prompts || [])?.map((prompt) => prompt.__id) ?? []
+            return {promptIds}
+        }, []),
+    })
+
+    componentLogger("PlaygroundVariantConfig", variantId, promptIds)
+
     return (
         <div
             className={clsx(
@@ -46,13 +58,18 @@ const PlaygroundVariantConfig: React.FC<
             )}
             {...divProps}
         >
-            <PlaygroundVariantConfigHeader
+            <PlaygroundVariantConfigHeader variantId={variantId} />
+            {promptIds.map((promptId) => (
+                <PlaygroundVariantConfigPrompt
+                    key={promptId as string}
+                    promptId={promptId}
+                    variantId={variantId}
+                />
+            ))}
+            <PlaygroundVariantCustomProperties
                 variantId={variantId}
-                embedded={embedded}
-                variantNameOverride={variantNameOverride}
-                revisionOverride={revisionOverride}
+                initialOpen={promptIds.length === 0}
             />
-            <PlaygroundVariantConfigEditors variantId={variantId} />
         </div>
     )
 }

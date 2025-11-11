@@ -10,7 +10,7 @@ from oss.src.core.secrets.enums import (
 from oss.src.core.shared.dtos import (
     Identifier,
     Header,
-    LegacyLifecycleDTO,
+    LifecycleDTO,
 )
 
 
@@ -52,7 +52,7 @@ class SecretDTO(BaseModel):
     @model_validator(mode="before")
     def validate_secret_data_based_on_kind(cls, values: Dict[str, Any]):
         kind = values.get("kind")
-        data = values.get("data", {})
+        data = values.get("data")
 
         if kind == SecretKind.PROVIDER_KEY.value:
             if not isinstance(data, dict):
@@ -69,11 +69,6 @@ class SecretDTO(BaseModel):
                 )
 
         elif kind == SecretKind.CUSTOM_PROVIDER.value:
-            # Fix inconsistent API naming - Users might enter 'togetherai' but the API requires 'together_ai'
-            # This ensures compatibility with LiteLLM which requires the provider in "together_ai" format
-            if data.get("kind", "") == "togetherai":
-                data["kind"] = "together_ai"
-
             if not isinstance(data, dict):
                 raise ValueError(
                     "The provided request secret dto is not a valid type for CustomProviderDTO"
@@ -137,7 +132,7 @@ class UpdateSecretDTO(BaseModel):
 
 class SecretResponseDTO(Identifier, SecretDTO):
     header: Header
-    lifecycle: Optional[LegacyLifecycleDTO] = None
+    lifecycle: Optional[LifecycleDTO] = None
 
     @model_validator(mode="before")
     def build_up_model_keys(cls, values: Dict[str, Any]) -> Dict[str, Any]:

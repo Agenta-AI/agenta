@@ -62,7 +62,7 @@ async def update_user(user_uid: str, payload: UserUpdate) -> UserDB:
         if not user:
             raise NoResultFound(f"User with session id {user_uid} not found.")
 
-        for key, value in payload.dict(exclude_unset=True).items():
+        for key, value in payload.dict(exclude_unset=True):
             if hasattr(user, key):
                 setattr(user, key, value)
 

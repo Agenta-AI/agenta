@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import sessionmaker, Session
 
 from oss.src.models.deprecated_models import (
-    DeprecatedEvaluatorConfigDBwApp as DeprecatedEvaluatorConfigDB,
+    DeprecatedEvaluatorConfigDB,
     DeprecatedAppDB,
 )
 

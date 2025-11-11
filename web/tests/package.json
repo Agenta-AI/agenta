@@ -6,18 +6,19 @@
         "node": ">=18"
     },
     "scripts": {
-        "test:e2e": "tsx playwright/scripts/run-tests.ts",
-        "test:e2e:ui": "tsx playwright/scripts/run-tests.ts --ui",
-        "test:e2e:debug": "tsx playwright/scripts/run-tests.ts --debug"
+        "test:e2e": "node --loader ts-node/esm playwright/scripts/run-tests.ts",
+        "test:e2e:ui": "node --loader ts-node/esm playwright/scripts/run-tests.ts --ui",
+        "test:e2e:debug": "node --loader ts-node/esm playwright/scripts/run-tests.ts --debug"
     },
     "devDependencies": {
-        "@playwright/test": "^1.53.1",
+        "@playwright/test": "^1.49.1",
         "@types/node": "^20.8.10",
-        "dotenv": "^16.5.0",
-        "tsx": "^4.20.3",
-        "typescript": "^5.8.3"
+        "dotenv": "^16.4.7",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.7.2"
     },
     "dependencies": {
-        "axios": "^1.12.2"
+        "axios": "^1.7.9",
+        "playwright": "^1.50.1"
     }
 }

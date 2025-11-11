@@ -1,20 +1,23 @@
 from sqlalchemy import (
     PrimaryKeyConstraint,
+    # ForeignKeyConstraint,
     Index,
-    desc,
-    text,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
-from oss.src.dbs.postgres.tracing.dbas import SpanDBA
-from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
+from oss.src.dbs.postgres.tracing.dbas import (
+    SpanDBA,
+    ProjectScopeDBA,
+    LifecycleDBA,
+    # FullTextSearchDBA,
+)
 
 
 class SpanDBE(
     Base,
     ProjectScopeDBA,
-    LifecycleDBA,
     SpanDBA,
+    LifecycleDBA,
     # FullTextSearchDBA,
 ):
     __tablename__ = "spans"
@@ -25,10 +28,11 @@ class SpanDBE(
             "trace_id",
             "span_id",
         ),  # for uniqueness
-        Index(
-            "ix_project_id",
-            "project_id",
-        ),  # for filtering
+        # ForeignKeyConstraint(
+        #     ["project_id"],
+        #     ["projects.id"],
+        #     ondelete="CASCADE",
+        # ),  # for project scope
         Index(
             "ix_project_id_trace_id",
             "project_id",
@@ -45,31 +49,18 @@ class SpanDBE(
             "start_time",
         ),  # for sorting and scrolling
         Index(
-            "ix_spans_project_id_trace_type",
+            "ix_project_id",
             "project_id",
-            "trace_type",
         ),  # for filtering
-        Index(
-            "ix_spans_project_id_span_type",
-            "project_id",
-            "span_type",
-        ),  # for filtering
-        Index(
-            "ix_spans_project_id_trace_id_created_at",
-            "project_id",
-            "trace_id",
-            desc("created_at"),
-        ),  # for sorting and scrolling within a trace
         Index(
             "ix_attributes_gin",
             "attributes",
             postgresql_using="gin",
         ),  # for filtering
         Index(
-            "ix_references_gin",
-            "references",
+            "ix_events_gin",
+            "events",
             postgresql_using="gin",
-            postgresql_ops={"references": "jsonb_path_ops"},
         ),  # for filtering
         Index(
             "ix_links_gin",
@@ -78,25 +69,9 @@ class SpanDBE(
             postgresql_ops={"links": "jsonb_path_ops"},
         ),  # for filtering
         Index(
-            "ix_hashes_gin",
-            "hashes",
+            "ix_references_gin",
+            "references",
             postgresql_using="gin",
-            postgresql_ops={"hashes": "jsonb_path_ops"},
+            postgresql_ops={"references": "jsonb_path_ops"},
         ),  # for filtering
-        Index(
-            "ix_events_gin",
-            "events",
-            postgresql_using="gin",
-            postgresql_ops={"events": "jsonb_path_ops"},
-        ),  # for filtering
-        Index(
-            "ix_spans_fts_attributes_gin",
-            text("to_tsvector('simple', attributes)"),
-            postgresql_using="gin",
-        ),  # for full-text search on attributes
-        Index(
-            "ix_spans_fts_events_gin",
-            text("to_tsvector('simple', events)"),
-            postgresql_using="gin",
-        ),  # for full-text search on events
     )

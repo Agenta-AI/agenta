@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.models import converters
 from oss.src.utils.common import APIRouter, is_ee
@@ -13,9 +13,8 @@ from oss.src.services import db_manager, app_manager
 from oss.src.models.api.api_models import (
     App,
     UpdateApp,
-    CreateAppOutput,
-    ReadAppOutput,
     UpdateAppOutput,
+    CreateAppOutput,
     AddVariantFromURLPayload,
     AddVariantFromKeyPayload,
 )
@@ -27,7 +26,7 @@ if is_ee():
     from ee.src.utils.permissions import (
         check_action_access,
         check_rbac_permission,
-        # check_apikey_action_access,
+        check_apikey_action_access,
     )
     from ee.src.models.shared_models import Permission
     from ee.src.models.api.api_models import (
@@ -85,6 +84,7 @@ async def list_app_variants(
 
     app_variants = await get_cache(
         project_id=request.state.project_id,
+        user_id=request.state.user_id,
         namespace="list_app_variants",
         key=cache_key,
         model=AppVariantResponse,
@@ -98,7 +98,7 @@ async def list_app_variants(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -116,9 +116,11 @@ async def list_app_variants(
 
     await set_cache(
         project_id=request.state.project_id,
+        user_id=request.state.user_id,
         namespace="list_app_variants",
         key=cache_key,
         value=app_variants,
+        ttl=0.05,  # seconds
     )
 
     return app_variants
@@ -156,7 +158,7 @@ async def get_variant_by_env(
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(app.project_id),
-                permission=Permission.VIEW_APPLICATIONS,
+                permission=Permission.VIEW_APPLICATION,
             )
             if not has_permission:
                 error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -200,6 +202,15 @@ async def create_app(
     """
 
     if is_ee():
+        api_key_from_headers = request.headers.get("Authorization", None)
+        if api_key_from_headers is not None:
+            api_key = api_key_from_headers.split(" ")[-1]  # ["ApiKey", "xxxxx.xxxxxx"]
+            await check_apikey_action_access(
+                api_key,
+                request.state.user_id,
+                Permission.CREATE_APPLICATION,
+            )
+
         try:
             user_org_workspace_data = await get_user_org_and_workspace_id(
                 request.state.user_id
@@ -213,7 +224,7 @@ async def create_app(
             has_permission = await check_rbac_permission(
                 user_org_workspace_data=user_org_workspace_data,
                 project_id=request.state.project_id,
-                permission=Permission.EDIT_APPLICATIONS,
+                permission=Permission.CREATE_APPLICATION,
             )
             if not has_permission:
                 error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -224,7 +235,7 @@ async def create_app(
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-        if await db_manager.get_app_type(payload.template_key) == AppType.CUSTOM:
+        if db_manager.get_app_type(payload.template_key) == AppType.CUSTOM:
             check, _, _ = await check_entitlements(
                 organization_id=request.state.organization_id,
                 key=Flag.HOOKS,
@@ -254,64 +265,7 @@ async def create_app(
             detail="App with the same name already exists",
         )
 
-    await invalidate_cache(
-        project_id=request.state.project_id,
-    )
-
-    return CreateAppOutput(
-        app_id=str(app_db.id),
-        app_name=str(app_db.app_name),
-        app_type=AppType.friendly_tag(app_db.app_type),
-        created_at=str(app_db.created_at),
-        updated_at=str(app_db.updated_at),
-    )
-
-
-@router.get("/{app_id}/", response_model=ReadAppOutput, operation_id="read_app")
-async def read_app(
-    request: Request,
-    app_id: str,
-) -> ReadAppOutput:
-    """
-    Retrieve an app by its ID.
-
-    Args:
-        app_id (str): The ID of the app to retrieve.
-
-    Returns:
-        ReadAppOutput: The output containing the app's ID and name.
-
-    Raises:
-        HTTPException: If there is an error retrieving the app or the user does not have permission to access the app.
-    """
-
-    try:
-        app = await db_manager.fetch_app_by_id(app_id)
-    except db_manager.NoResultFound:
-        raise HTTPException(
-            status_code=404, detail=f"No application with ID '{app_id}' found"
-        )
-
-    if is_ee():
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=str(app.project_id),
-            permission=Permission.VIEW_APPLICATIONS,
-        )
-        if not has_permission:
-            error_msg = "You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
-
-    return ReadAppOutput(
-        app_id=str(app.id),
-        app_name=str(app.app_name),
-        app_type=AppType.friendly_tag(app.app_type),
-        created_at=str(app.created_at),
-        updated_at=str(app.updated_at),
-    )
+    return CreateAppOutput(app_id=str(app_db.id), app_name=str(app_db.app_name))
 
 
 @router.patch("/{app_id}/", response_model=UpdateAppOutput, operation_id="update_app")
@@ -345,7 +299,7 @@ async def update_app(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_id),
-            permission=Permission.EDIT_APPLICATIONS,
+            permission=Permission.EDIT_APPLICATION,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -354,20 +308,7 @@ async def update_app(
                 status_code=403,
             )
     await db_manager.update_app(app_id=app_id, values_to_update=payload.model_dump())
-
-    app = await db_manager.fetch_app_by_id(app_id)
-
-    await invalidate_cache(
-        project_id=request.state.project_id,
-    )
-
-    return UpdateAppOutput(
-        app_id=str(app.id),
-        app_name=str(app.app_name),
-        app_type=AppType.friendly_tag(app.app_type),
-        created_at=str(app.created_at),
-        updated_at=str(app.updated_at),
-    )
+    return UpdateAppOutput(app_id=app_id, app_name=payload.app_name)
 
 
 @router.get("/", response_model=List[App], operation_id="list_apps")
@@ -393,7 +334,7 @@ async def list_apps(
         has_permission = await check_rbac_permission(  # type: ignore
             user_org_workspace_data=user_org_workspace_data,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+            permission=Permission.VIEW_APPLICATION,  # type: ignore
         )
         if not has_permission:
             raise HTTPException(
@@ -439,7 +380,7 @@ async def add_variant_from_url(
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(app.project_id),
-                permission=Permission.EDIT_APPLICATIONS,
+                permission=Permission.CREATE_APPLICATION,
             )
             if not has_permission:
                 error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -467,14 +408,10 @@ async def add_variant_from_url(
             app_variant_db,
         )
 
-        await invalidate_cache(
-            project_id=request.state.project_id,
-        )
-
         return app_variant_dto
 
     except Exception as e:
-        log.error(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -506,11 +443,11 @@ async def add_variant_from_key_route(
         url = app_manager.get_service_url_from_template_key(payload.key)
 
     except NotImplementedError as e:
-        log.error(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     except Exception as e:
-        log.error(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
     if not url:
@@ -549,7 +486,7 @@ async def remove_app(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app.project_id),
-            permission=Permission.EDIT_APPLICATIONS,
+            permission=Permission.DELETE_APPLICATION,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -565,10 +502,6 @@ async def remove_app(
         )
 
     await app_manager.remove_app(app)
-
-    await invalidate_cache(
-        project_id=request.state.project_id,
-    )
 
 
 @router.get(
@@ -596,6 +529,7 @@ async def list_environments(
 
     environments = await get_cache(
         project_id=request.state.project_id,
+        user_id=request.state.user_id,
         namespace="list_environments",
         key=cache_key,
         model=EnvironmentOutput,
@@ -609,7 +543,7 @@ async def list_environments(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -632,9 +566,11 @@ async def list_environments(
 
     await set_cache(
         project_id=request.state.project_id,
+        user_id=request.state.user_id,
         namespace="list_environments",
         key=cache_key,
         value=environments,
+        ttl=0.05,  # seconds
     )
 
     return environments
@@ -654,7 +590,7 @@ async def list_app_environment_revisions(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."

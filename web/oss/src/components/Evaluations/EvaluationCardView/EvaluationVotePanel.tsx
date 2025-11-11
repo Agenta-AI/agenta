@@ -95,7 +95,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
         <div className={classes.btnRow} style={{flexDirection: vertical ? "column" : undefined}}>
             {variants.map((variant, ix) => (
                 <ConfigProvider
-                    key={`${variant.variantId}-${ix}`}
+                    key={variant.variantId}
                     theme={{
                         components: {
                             Button: {
@@ -111,6 +111,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
                         onClick={getOnClick(variant.variantId)}
                         type={value === variant.variantId ? "primary" : undefined}
                         danger
+                        data-cy="evaluation-vote-panel-comparison-vote-button"
                         disabled={!outputs?.length}
                     >
                         {String.fromCharCode(65 + ix)}: {variant.variantName}
@@ -138,6 +139,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
                     type={value === goodId ? "primary" : undefined}
                     key={goodId}
                     onClick={getOnClick(goodId)}
+                    data-cy="evaluation-vote-panel-comparison-both-good-vote-button-button"
                     disabled={!outputs?.length}
                 >
                     Both are good
@@ -148,6 +150,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
                 type={value === badId ? "primary" : undefined}
                 key={badId}
                 onClick={getOnClick(badId)}
+                data-cy="evaluation-vote-panel-comparison-both-bad-vote-button-button"
                 disabled={!outputs?.length}
             >
                 Both are bad
@@ -186,8 +189,8 @@ const GradingVote: React.FC<GradingVoteProps> = ({
 
     return (
         <div className={classes.gradeRoot}>
-            {variants.map((variant, ix) => (
-                <div key={`${variant.variantId}-${ix}`}>
+            {variants.map((variant) => (
+                <div key={variant.variantId}>
                     <Typography.Text className={classes.variantName} strong>
                         {variant.variantName}
                     </Typography.Text>
@@ -252,8 +255,8 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
 
     return (
         <div className={classes.gradeRoot}>
-            {variants.map((variant, ix) => (
-                <div key={`${variant.variantId}-${ix}`}>
+            {variants.map((variant) => (
+                <div key={variant.variantId}>
                     {showVariantName && (
                         <Typography.Text className={classes.variantName} strong>
                             {variant.variantName}
@@ -273,6 +276,7 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
                             }
                             min={min}
                             max={max}
+                            data-cy="evaluation-vote-panel-numeric-vote-input"
                             onChange={(score) => _onChange(variant.variantId, score)}
                             disabled={!outputs?.length}
                         />
@@ -307,12 +311,12 @@ const RatingVote: React.FC<RatingVoteProps> = ({
 
     return (
         <div className={classes.gradeRoot}>
-            {variants.map((variant, ix) => {
+            {variants.map((variant) => {
                 const score = value.find((item) => item.variantId === variant.variantId)?.score
                 const finalValue = typeof score !== "number" ? null : score / 25 + 1
 
                 return (
-                    <div key={`${variant.variantId}-${ix}`}>
+                    <div key={variant.variantId}>
                         {showVariantName && (
                             <Typography.Text className={classes.variantName} strong>
                                 {variant.variantName}
@@ -329,6 +333,7 @@ const RatingVote: React.FC<RatingVoteProps> = ({
                                 defaultValue={finalValue || undefined}
                                 tooltips={["0%", "25%", "50%", "75%", "100%"]}
                                 allowClear={false}
+                                data-cy="evaluation-vote-panel-rating-vote-input"
                                 character={({index = 0, value = 0}) => {
                                     const rateColors: Record<number, string> = {
                                         1: "#D61010",

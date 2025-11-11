@@ -22,8 +22,8 @@ function transformObjectValue<T extends Record<string, any>>(
     value: T,
     properties: Record<string, SchemaProperty>,
     parentMetadata?: ConfigMetadata, // Add this parameter
-): Record<string, any> {
-    const result = Object.entries(properties).reduce(
+): Record<string, Enhanced<any>> {
+    return Object.entries(properties).reduce(
         (acc, [key, propSchema]) => {
             const camelKey = toCamelCase(key)
             const val = value?.[key] ?? null
@@ -37,29 +37,18 @@ function transformObjectValue<T extends Record<string, any>>(
             acc[camelKey] = transformValue(val, propSchema, propertyMetadata)
             return acc
         },
-        {} as Record<string, any>,
+        {} as Record<string, Enhanced<any>>,
     )
-
-    // Preserve any keys that are present in the value but not described in the schema
-    if (value && typeof value === "object") {
-        Object.keys(value).forEach((originalKey) => {
-            const camelKey = toCamelCase(originalKey)
-            if (camelKey in result) return
-            result[camelKey] = (value as Record<string, any>)[originalKey]
-        })
-    }
-
-    return result
 }
 
 function metadataToSchema(metadata: ConfigMetadata): SchemaProperty {
     const baseSchema = {
-        type: metadata?.type,
-        title: metadata?.title,
-        description: metadata?.description,
+        type: metadata.type,
+        title: metadata.title,
+        description: metadata.description,
     }
 
-    switch (metadata?.type) {
+    switch (metadata.type) {
         case "array":
             return {
                 ...baseSchema,
@@ -146,11 +135,6 @@ function transformArray<T>(value: T[], metadata: ConfigMetadata & {type: "array"
 
             const itemMetadataHash = hashMetadata(metadata.itemMetadata)
 
-            if (metadata.itemMetadata.type === "compound") {
-                const subSchema = metadataToSchema(metadata.itemMetadata)
-                return transformValue(item, subSchema, metadata.itemMetadata) as Enhanced<T>
-            }
-
             if (metadata.itemMetadata.type === "object" && typeof item === "object") {
                 const schema = metadataToSchema(metadata.itemMetadata)
                 const properties = isSchema.object(schema) ? schema.properties || {} : {}
@@ -194,32 +178,8 @@ function transformValue<T>(
     // Use parent property metadata if available, otherwise create new
     const metadata = parentPropertyMetadata || createMetadata(schema, key)
     // Handle arrays
-    if (!metadata) {
-        return value
-    }
     if (metadata.type === "array" && Array.isArray(value)) {
         return transformArray(value, metadata) as Enhanced<T>
-    }
-
-    if (metadata.type === "compound") {
-        const selectedOption =
-            (Array.isArray(value)
-                ? metadata.options.find((o) => (o.config as any).type === "array")
-                : typeof value === "string"
-                  ? metadata.options.find((o) => (o.config as any).type === "string")
-                  : undefined) || metadata.options[0]
-
-        const subMetadata = selectedOption?.config as ConfigMetadata
-        const subSchema = metadataToSchema(subMetadata)
-        const transformedValue = transformValue(value, subSchema, subMetadata)
-        const transformed = {
-            __id: generateId(),
-            __metadata: hashMetadata(metadata),
-            selected: selectedOption?.value,
-            value: transformedValue?.value || transformedValue,
-        } as Enhanced<T>
-
-        return transformed
     }
 
     // Handle objects
@@ -234,7 +194,7 @@ function transformValue<T>(
         return {
             __id: generateId(),
             __metadata: metadataHash,
-            ...transformObjectValue(value, properties, metadata),
+            ...transformObjectValue(value, properties),
         } as Enhanced<T>
     }
 
@@ -308,7 +268,6 @@ export function mergeWithSchema<T>(
                 schemaProperty,
                 (defaultValues[propertyKey] || {}) as any,
                 savedValues[propertyKey] as any,
-                ignoreKeys,
             )
         } else if (schemaProperty.type === "array") {
             // Handle arrays - prefer saved values, fallback to defaults
@@ -320,26 +279,6 @@ export function mergeWithSchema<T>(
             result[propertyKey] = (savedValues[propertyKey] ??
                 defaultValues[propertyKey]) as T[keyof T]
         }
-    }
-
-    // Preserve unknown keys from the saved config so they are not discarded when users
-    // edit JSON directly (e.g. adding new prompt properties).
-    for (const key of Object.keys(savedValues)) {
-        if (ignoreKeys?.includes(key)) continue
-        if (key in schemaProperties) continue
-
-        const propertyKey = key as keyof T
-        result[propertyKey] = savedValues[propertyKey] as T[keyof T]
-    }
-
-    // Ensure defaults remain available for non-schema keys when no saved value exists.
-    for (const key of Object.keys(defaultValues || {})) {
-        if (ignoreKeys?.includes(key)) continue
-        if (key in schemaProperties) continue
-        if (key in result) continue
-
-        const propertyKey = key as keyof T
-        result[propertyKey] = defaultValues[propertyKey] as T[keyof T]
     }
 
     return result as T

@@ -1,89 +1,74 @@
 import {expect} from "@playwright/test"
-
+import type {UIHelpers} from "./types"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
-
-import {
-    clickButton,
-    clickTab,
-    clickTableRowButton,
-    clickTableRowIcon,
-    confirmModal,
-    expectNoText,
-    expectText,
-    selectOption,
-    selectOptions,
-    typeWithDelay,
-    waitForPath,
-    clickTableRow,
-    selectTableRowInput,
-} from "./helpers"
-import {UIHelpers} from "./types"
 
 export const uiHelpers = () => {
     return async ({page}: FixtureContext, use: UseFn<UIHelpers>) => {
         await use({
-            clickTab: async (name) => {
-                await clickTab(page, name)
-            },
-            clickTableRow: async (rowText: string) => {
-                await clickTableRow(page, rowText)
-            },
-            clickTableRowButton: async ({
-                rowText,
-                buttonName,
-            }: {
-                rowText: string | RegExp
-                buttonName: string | RegExp
-            }) => {
-                await clickTableRowButton(page, {rowText, buttonName})
-            },
-            clickTableRowIcon: async ({rowText, icon}: {rowText: string; icon: string}) => {
-                await clickTableRowIcon(page, {rowText, icon})
-            },
-            confirmModal: async (buttonText?: string | RegExp) => {
-                await confirmModal(page, buttonText)
-            },
             expectText: async (text: string, options = {}) => {
-                await expectText(page, text, options)
+                let locator
+                const role = options.role
+                if (role) {
+                    locator = page.getByRole(role, {name: text})
+                } else {
+                    locator = page.getByText(text, {exact: options.exact})
+                }
+
+                if (options.multiple) {
+                    const count = await locator.count()
+                    expect(count).toBeGreaterThan(0)
+                } else {
+                    await expect(locator).toBeVisible()
+                }
             },
 
             expectNoText: async (text) => {
-                await expectNoText(page, text)
+                await expect(page.getByText(text)).not.toBeVisible()
             },
 
             typeWithDelay: async (selector, text, delay = 50) => {
-                await typeWithDelay(page, selector, text, delay)
+                const input = page.locator(selector)
+                await input.click()
+                await input.pressSequentially(text, {delay})
             },
 
             clickButton: async (name, locator) => {
-                await clickButton(page, name, locator)
+                const button = (locator || page).getByRole("button", {name}).first()
+                await button.click()
             },
 
             selectOption: async ({label, text}) => {
-                await selectOption(page, {label, text: text as string})
+                if (text) {
+                    if (Array.isArray(text)) {
+                        const [textValue, options] = text
+                        await page.getByText(textValue, options).click()
+                    } else {
+                        await page.getByText(text).click()
+                    }
+                } else if (label) {
+                    await page.getByLabel(label).check()
+                }
             },
 
             selectOptions: async (labels) => {
-                await selectOptions(page, labels)
+                for (const label of labels) {
+                    await page.getByLabel(label).check()
+                }
             },
 
             expectPath: async (path) => {
                 await expect(page).toHaveURL(new RegExp(path))
             },
 
-            waitForPath: async (path: string) => {
-                await waitForPath(page, path)
+            waitForPath: async (path) => {
+                await page.waitForURL(path, {waitUntil: "domcontentloaded"})
             },
 
             waitForLoadingState: async (text) => {
                 const loading = page.getByText(text)
                 await expect(loading).toBeVisible()
                 await expect(loading).not.toBeVisible()
-            },
-
-            selectTableRowInput: async ({rowText, inputType, checked}) => {
-                await selectTableRowInput({page, rowText, inputType, checked})
             },
         })
     }

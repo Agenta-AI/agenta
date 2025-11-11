@@ -9,9 +9,6 @@ export const TestScope = {
     PLAYGROUND: "playground", // Playground flows
     DATASETS: "datasets", // Dataset flows
     EVALUATIONS: "evaluations", // Evaluation flows
-    SETTINGS: "settings", // Settings flows
-    DEPLOYMENT: "deployment", // Deployment flows
-    OBSERVABILITY: "observability",
 } as const
 
 /**
@@ -36,65 +33,42 @@ export const TestPath = {
  * Deployment environments where tests can be executed
  */
 export const TestEnvironment = {
-    local: "local", // Local deployment
+    local: "local", // Local OSS deployment
+    "local-cloud": "local-cloud", // Local cloud deployment
     staging: "staging", // Staging environment
     beta: "beta", // Beta environment
-    oss: "oss", // OSS environment
-    demo: "demo", // Demo environment
-    prod: "prod", // Production environment
 } as const
 
 /**
  * Feature availability scope for different deployment types
  */
-export const TestFeatureLicenseScopeType = {
-    EE: "ee", // Features only available in ee
-} as const
-
-/**
- * Permission types for different test scenarios
- */
-export const TestPermissionType = {
-    Owner: "owner",
-    Editor: "editor",
-    Viewer: "viewer",
-} as const
-
-/**
- * Entitlement types for different test scenarios
- */
-export const TestEntitlementType = {
-    Hobby: "hobby",
-    Pro: "pro",
-} as const
-
-export const TestLensType = {
-    FUNCTIONAL: "functional",
-    PERFORMANCE: "performance",
-    SECURITY: "security",
-} as const
-
-export const TestcaseType = {
-    TYPICAL: "typical",
-    EDGE: "edge",
-} as const
-
-export const TestSpeedType = {
-    FAST: "fast",
-    SLOW: "slow",
+export const TestFeatureScope = {
+    CLOUD_ONLY: "cloud-only", // Features only available in cloud environments
+    COMMON: "common", // Features available in all environments
 } as const
 
 /**
  * Environment-specific feature configuration
  * Defines which features are available in each environment
+ * and whether cloud authentication is required
  */
 export const environmentFeatures: PlaywrightConfig.EnvironmentProjectConfig = {
-    local: {},
-    staging: {},
-    beta: {},
-    oss: {},
-    demo: {},
-    prod: {},
+    local: {
+        features: [TestFeatureScope.COMMON],
+        isCloudVariant: false, // No auto-auth required
+    },
+    "local-cloud": {
+        features: [TestFeatureScope.COMMON, TestFeatureScope.CLOUD_ONLY],
+        isCloudVariant: true, // Auto-auth required
+    },
+    staging: {
+        features: [TestFeatureScope.COMMON, TestFeatureScope.CLOUD_ONLY],
+        isCloudVariant: true, // Auto-auth required
+    },
+    beta: {
+        features: [TestFeatureScope.COMMON, TestFeatureScope.CLOUD_ONLY],
+        isCloudVariant: true, // Auto-auth required
+    },
 } as const
 
 /**
@@ -106,12 +80,7 @@ export const TAG_ARGUMENTS: Record<PlaywrightConfig.TestTagType, PlaywrightConfi
     coverage: {flag: "-coverage", prefix: "@coverage:"},
     path: {flag: "-path", prefix: "@path:"},
     env: {flag: "-env", prefix: "@env:"},
-    feature: {flag: "-feature", prefix: "@feature:"},
-    entitlement: {flag: "-entitlement", prefix: "@entitlement:"},
-    permission: {flag: "-permission", prefix: "@permission:"},
-    lens: {flag: "-lens", prefix: "@lens:"},
-    case: {flag: "-case", prefix: "@case:"},
-    speed: {flag: "-speed", prefix: "@speed:"},
+    "feature-scope": {flag: "-feature-scope", prefix: "@feature-scope:"},
 } as const
 
 /**
@@ -129,6 +98,7 @@ export type {
     TestTag,
     TagArgument,
     TestEnvironmentType,
+    TestFeatureScopeType,
     ProjectFeatureConfig,
     EnvironmentProjectConfig,
 } from "./types"

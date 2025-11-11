@@ -1,67 +1,7 @@
+import {$createTabNode} from "lexical"
+
 import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
-import {$createCodeTabNode, $isCodeTabNode} from "../nodes/CodeTabNode"
-
-/**
- * Analyzes and corrects the indentation of all lines in a code block node.
- * This utility can be used after a paste event or for bulk formatting.
- *
- * - Ensures correct indentation based on braces and nesting.
- * - Converts leading spaces to tabs for consistency.
- * - Handles nested blocks (e.g. JSON, JS, YAML).
- *
- * @param codeBlock The code block node to fix indentation for.
- */
-export function $fixCodeBlockIndentation(codeBlock: any) {
-    if (!$isCodeBlockNode(codeBlock)) return
-    const lines = codeBlock.getChildren().filter($isCodeLineNode) as CodeLineNode[]
-
-    let indentLevel = 0
-    for (const line of lines) {
-        const children = line.getChildren()
-        // Count current leading tab nodes
-        let currentTabs = 0
-        for (const child of children) {
-            if ((child.getType && child.getType() === "tab") || $isCodeTabNode(child)) {
-                currentTabs++
-            } else {
-                break
-            }
-        }
-
-        // Decrease indent before closing brace
-        const text = line.getTextContent()
-        const trimmed = text.trim()
-        if (/^[\]\}\)]/.test(trimmed)) {
-            indentLevel = Math.max(0, indentLevel - 1)
-        }
-
-        // Adjust tab nodes at the start
-        if (currentTabs < indentLevel) {
-            // Add missing tabs at the start
-            for (let t = 0; t < indentLevel - currentTabs; t++) {
-                const tabNode = $createCodeTabNode()
-                // Always add as a child of the line
-                const updatedChildren = line.getChildren()
-                if (updatedChildren.length > 0) {
-                    updatedChildren[0].insertBefore(tabNode)
-                } else {
-                    line.append(tabNode)
-                }
-            }
-        } else if (currentTabs > indentLevel) {
-            // Remove excess tabs
-            for (let t = 0; t < currentTabs - indentLevel; t++) {
-                children[t].remove()
-            }
-        }
-
-        // Increase indent after opening brace
-        if (/[\{\[\(]$/.test(trimmed)) {
-            indentLevel++
-        }
-    }
-}
 
 /**
  * Normalizes pasted lines to the target indentation level.
@@ -110,6 +50,68 @@ export function normalizePastedLinesIndentation(
         // Prepend baseIndentCount tabs
         return "\t".repeat(baseIndentCount) + l
     })
+}
+
+/**
+ * Analyzes and corrects the indentation of all lines in a code block node.
+ * This utility can be used after a paste event or for bulk formatting.
+ *
+ * - Ensures correct indentation based on braces and nesting.
+ * - Converts leading spaces to tabs for consistency.
+ * - Handles nested blocks (e.g. JSON, JS, YAML).
+ *
+ * @param codeBlock The code block node to fix indentation for.
+ */
+export function $fixCodeBlockIndentation(codeBlock: any) {
+    if (!$isCodeBlockNode(codeBlock)) return
+    const lines = codeBlock.getChildren().filter($isCodeLineNode) as CodeLineNode[]
+
+    let indentLevel = 0
+    for (const line of lines) {
+        const children = line.getChildren()
+        // Count current leading tab nodes
+        let currentTabs = 0
+        for (const child of children) {
+            // $isTabNode is from lexical, but not always imported. Use type or class check if needed.
+            if (child.getType && child.getType() === "tab") {
+                currentTabs++
+            } else {
+                break
+            }
+        }
+
+        // Decrease indent before closing brace
+        const text = line.getTextContent()
+        const trimmed = text.trim()
+        if (/^[\]\}\)]/.test(trimmed)) {
+            indentLevel = Math.max(0, indentLevel - 1)
+        }
+
+        // Adjust tab nodes at the start
+        if (currentTabs < indentLevel) {
+            // Add missing tabs at the start
+            for (let t = 0; t < indentLevel - currentTabs; t++) {
+                const tabNode = $createTabNode()
+                // Always add as a child of the line
+                const updatedChildren = line.getChildren()
+                if (updatedChildren.length > 0) {
+                    updatedChildren[0].insertBefore(tabNode)
+                } else {
+                    line.append(tabNode)
+                }
+            }
+        } else if (currentTabs > indentLevel) {
+            // Remove excess tabs
+            for (let t = 0; t < currentTabs - indentLevel; t++) {
+                children[t].remove()
+            }
+        }
+
+        // Increase indent after opening brace
+        if (/[\{\[\(]$/.test(trimmed)) {
+            indentLevel++
+        }
+    }
 }
 
 /** @deprecated renamed to {@link $fixCodeBlockIndentation} by @lexical/eslint-plugin rules-of-lexical */

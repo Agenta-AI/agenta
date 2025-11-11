@@ -4,25 +4,10 @@
     right: 0.25rem;
     font-size: 1rem;
     z-index: 20;
-    color: #dc2626;
+    color: red;
     cursor: help;
-    background: rgba(254, 226, 226, 0.9);
-    border: 1px solid rgba(220, 38, 38, 0.3);
-    border-radius: 50%;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    backdrop-filter: blur(2px);
-}
-
-.code-block-error-icon:hover {
-    background: rgba(254, 226, 226, 1);
-    border-color: rgba(220, 38, 38, 0.5);
-    transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+    z-index: 20;
+    background: orange;
 }
 
 .code-block-error-tooltip {
@@ -32,60 +17,17 @@
     background-color: #fff8f8;
     color: #d00000;
     border: 1px solid #faa;
-    border-radius: 6px;
-    padding: 0.75rem;
+    border-radius: 4px;
+    padding: 0.5rem;
     font-size: 0.875rem;
     white-space: pre-wrap;
-    max-width: 320px;
-    min-width: 200px;
-    box-shadow:
-        0 8px 24px rgba(0, 0, 0, 0.15),
-        0 4px 8px rgba(0, 0, 0, 0.1);
-    z-index: 9999;
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(220, 38, 38, 0.2);
-    font-weight: 500;
-    line-height: 1.4;
+    max-width: 300px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 30;
 }
 
 .code-block-error-tooltip-inner {
     & > div + div {
         margin-top: 0.25rem;
-    }
-}
-
-.editor-code-line,
-.editor-code-highlight {
-    /* Validation error highlighting for individual tokens */
-    &:global(.validation-error) {
-        /* Subtle background with gradient */
-        background: linear-gradient(
-            135deg,
-            rgba(220, 38, 38, 0.08) 0%,
-            rgba(220, 38, 38, 0.12) 100%
-        );
-
-        /* Enhanced wavy underline */
-        border-bottom: 2px wavy #dc2626;
-
-        /* Subtle text color adjustment */
-        color: #b91c1c;
-
-        /* Positioning for pseudo-elements */
-        position: relative;
-
-        /* Subtle border radius for modern look */
-        border-radius: 2px;
-    }
-}
-
-/* Subtle pulsing animation for unclosed blocks */
-@keyframes unclosed-block-pulse {
-    0%,
-    100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.8;
     }
 }

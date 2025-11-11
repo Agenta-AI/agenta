@@ -260,7 +260,7 @@ const DeploymentHistoryModal = ({
             <Modal
                 footer={null}
                 closeIcon={null}
-                destroyOnHidden
+                destroyOnClose
                 title={
                     <Space className={classes.modalTitle}>
                         <Button

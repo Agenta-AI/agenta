@@ -5,10 +5,6 @@ services:
         profiles:
             - with-web
 
-        # build:
-        #     context: ../../../web
-        #     dockerfile: oss/docker/Dockerfile.gh
-
         image: ghcr.io/agenta-ai/${AGENTA_WEB_IMAGE_NAME:-agenta-web}:${AGENTA_WEB_IMAGE_TAG:-latest}
 
         env_file:
@@ -72,33 +68,13 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
 
         command: >
-            celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1
+            celery -A entrypoint.celery_app worker --concurrency=1
 
         depends_on:
             - postgres
             - rabbitmq
             - redis
         restart: always
-
-    cron:
-        image: agenta-oss-dev-api:latest
-
-        env_file:
-            - ${ENV_FILE:-./.env.oss.dev}
-
-        depends_on:
-            - postgres
-            - api
-
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        
-        restart: always
-        
-        networks:
-            - agenta-network
-
-        command: cron -f
 
     alembic:
         build:
@@ -113,7 +89,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
 
-        command: sh -c "python -m oss.databases.postgres.migrations.runner"
+        command: sh -c "python -c 'from oss.databases.postgres.migrations.utils import split_core_and_tracing as split; split(); from oss.databases.postgres.migrations.core.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.tracing.utils import run_alembic_migration as run; run(); from oss.databases.postgres.migrations.utils import copy_nodes_from_core_to_tracing as copy; copy();'"
 
         depends_on:
             postgres:
@@ -268,7 +244,7 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
 
         ports:
-            - "${TRAEFIK_PORT:-80}:${TRAEFIK_PORT:-80}"
+            - "${TRAEFIK_PORT:-80}:80"
             - "${TRAEFIK_UI_PORT:-8080}:8080"
 
         restart: always

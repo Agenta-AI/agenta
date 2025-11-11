@@ -1,17 +1,19 @@
 import {useEffect, useMemo, useState, type FC} from "react"
 
-import {GearSix, PencilSimple, Plus} from "@phosphor-icons/react"
+import {GearSix, Plus} from "@phosphor-icons/react"
 import {Button, Input, Space, Spin, Table, Tag, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
+import {useAtom} from "jotai"
 import dynamic from "next/dynamic"
 
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
 import {useQueryParam} from "@/oss/hooks/useQuery"
+import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
-import {useOrgData} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
-import {useUpdateWorkspaceName, useWorkspaceMembers} from "@/oss/state/workspace"
+import {fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"
 
 import AvatarWithLabel from "./assets/AvatarWithLabel"
 import {Actions, Roles} from "./cellRenderers"
@@ -22,26 +24,34 @@ const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr
 const WorkspaceManage: FC = () => {
     const {user: signedInUser} = useProfileData()
     const {selectedOrg, loading, refetch} = useOrgData()
-    const {updateWorkspaceName} = useUpdateWorkspaceName()
-    const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
+    const [searchTerm, setSearchTerm] = useState("")
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
     const [isInvitedUserLinkModalOpen, setIsInvitedUserLinkModalOpen] = useState(false)
     const [invitedUserData, setInvitedUserData] = useState<{email: string; uri: string}>({
         email: "",
         uri: "",
     })
+    const setRoles = useAtom(workspaceRolesAtom)[1]
     const [queryInviteModalOpen, setQueryInviteModalOpen] = useQueryParam("inviteModal")
 
-    const organizationId = selectedOrg?.id
+    const orgId = selectedOrg?.id
     const workspaceId = selectedOrg?.default_workspace?.id
     const workspace = selectedOrg?.default_workspace
 
-    const [isEditingName, setIsEditingName] = useState(false)
-    const [workspaceNameInput, setWorkspaceNameInput] = useState(workspace?.name || "")
+    const members = workspace?.members || []
 
     useEffect(() => {
-        setWorkspaceNameInput(workspace?.name || "")
-    }, [workspace?.name])
+        fetchAllWorkspaceRoles().then(setRoles).catch(console.error)
+    }, [])
+
+    const filteredMembers = useMemo(() => {
+        if (searchTerm) {
+            return members.filter((member) =>
+                member.user.email.toLowerCase().includes(searchTerm.toLowerCase()),
+            )
+        }
+        return members
+    }, [members, searchTerm])
 
     const columns = useMemo(
         () =>
@@ -81,7 +91,7 @@ const WorkspaceManage: FC = () => {
                                   <Roles
                                       member={member}
                                       signedInUser={signedInUser!}
-                                      organizationId={organizationId!}
+                                      orgId={orgId!}
                                       workspaceId={workspaceId!}
                                   />
                               ),
@@ -128,7 +138,7 @@ const WorkspaceManage: FC = () => {
                                         member.user.email === signedInUser?.email ||
                                         member.user.id === selectedOrg?.owner
                                     }
-                                    organizationId={organizationId!}
+                                    orgId={orgId!}
                                     workspaceId={workspaceId!}
                                     onResendInvite={(data: any) => {
                                         if (!isDemo() && data.uri) {
@@ -145,65 +155,13 @@ const WorkspaceManage: FC = () => {
         [selectedOrg?.id],
     )
 
-    const handleSaveWorkspaceName = async () => {
-        if (!workspaceId || !organizationId) return
-
-        await updateWorkspaceName({
-            organizationId,
-            workspaceId,
-            name: workspaceNameInput,
-            onSuccess: () => {
-                // Only handle UI state - workspace data is updated by the mutation atom
-                setIsEditingName(false)
-            },
-        })
-    }
-
     return (
         <section className="flex flex-col gap-2">
-            <div className="flex items-center gap-2 group">
-                {!isEditingName ? (
-                    <>
-                        <Typography.Text className="font-medium" data-cy="workspace-name">
-                            {workspace?.name}
-                        </Typography.Text>
-                        <Button
-                            type="text"
-                            size="small"
-                            className="opacity-0 group-hover:opacity-100"
-                            icon={<PencilSimple size={14} />}
-                            onClick={() => setIsEditingName(true)}
-                        />
-                    </>
-                ) : (
-                    <>
-                        <Input
-                            value={workspaceNameInput}
-                            onChange={(e) => setWorkspaceNameInput(e.target.value)}
-                            className="w-[250px]"
-                            autoFocus
-                        />
-                        <Button type="primary" size="small" onClick={handleSaveWorkspaceName}>
-                            Save
-                        </Button>
-                        <Button
-                            size="small"
-                            onClick={() => {
-                                setIsEditingName(false)
-                                setWorkspaceNameInput(workspace?.name || "")
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                    </>
-                )}
-            </div>
             <div className="flex items-center justify-between gap-2">
                 <Input.Search
                     placeholder="Search"
                     className="w-[400px]"
                     allowClear
-                    value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
 
@@ -219,7 +177,6 @@ const WorkspaceManage: FC = () => {
             <Spin spinning={loading}>
                 <Table<WorkspaceMember>
                     dataSource={filteredMembers}
-                    rowKey={(record) => record.user.id}
                     columns={columns}
                     pagination={false}
                     bordered
