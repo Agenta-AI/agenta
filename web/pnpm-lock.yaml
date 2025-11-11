@@ -84,7 +84,7 @@ importers:
         version: 0.1.13(prettier@3.6.0)
       ts-node:
         specifier: ^10.9.2
-        version: 10.9.2(@swc/core@1.11.8(@swc/helpers@0.5.17))(@types/node@20.19.19)(typescript@5.8.3)
+        version: 10.9.2(@swc/core@1.11.8(@swc/helpers@0.5.17))(@types/node@20.19.13)(typescript@5.8.3)
       tsconfig-paths:
         specifier: ^4.2.0
         version: 4.2.0
@@ -267,7 +267,7 @@ importers:
         version: 21.1.0
       swc-loader:
         specifier: ^0.2.6
-        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17)))
+        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17))(esbuild@0.25.10))
       swr:
         specifier: ^2.3.0
         version: 2.3.3(react@19.0.0)
@@ -593,9 +593,6 @@ importers:
       react-window:
         specifier: ^1.8.11
         version: 1.8.11(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
-      recharts:
-        specifier: ^3.1.0
-        version: 3.1.0(@types/react@19.0.10)(react-dom@19.0.0(react@19.0.0))(react-is@18.3.1)(react@19.0.0)(redux@5.0.1)
       semver:
         specifier: ^7.7.2
         version: 7.7.2
@@ -613,7 +610,7 @@ importers:
         version: 21.1.0
       swc-loader:
         specifier: ^0.2.6
-        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17))(esbuild@0.25.10))
+        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17)))
       swr:
         specifier: ^2.3.0
         version: 2.3.3(react@19.0.0)
@@ -2053,6 +2050,9 @@ packages:
 
   '@types/node@20.19.11':
     resolution: {integrity: sha512-uug3FEEGv0r+jrecvUUpbY8lLisvIjg6AAic6a2bSP5OEOLeJsDSnvhCDov7ipFFMXS3orMpzlmi0ZcuGkBbow==}
+
+  '@types/node@20.19.13':
+    resolution: {integrity: sha512-yCAeZl7a0DxgNVteXFHt9+uyFbqXGy/ShC4BlcHkoE0AfGXYv/BUiplV72DjMYXHDBXFjhvr6DD1NiRVfB4j8g==}
 
   '@types/node@20.19.19':
     resolution: {integrity: sha512-pb1Uqj5WJP7wrcbLU7Ru4QtA0+3kAXrkutGiD26wUKzSMgNNaPARTUDQmElUXp64kh3cWdou3Q0C7qwwxqSFmg==}
@@ -3974,6 +3974,7 @@ packages:
     resolution: {integrity: sha512-Quz3MvAwHxVYNXsOByL7xI5EB2WYOeFswqaHIA3qOK3isRWTxiplBEocmmru6XmxDB2L7jDNYtYA4FyimoAFEw==}
     engines: {node: '>=8.17.0'}
     hasBin: true
+    bundledDependencies: []
 
   jsonpointer@5.0.1:
     resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
@@ -7280,6 +7281,10 @@ snapshots:
       undici-types: 6.19.8
 
   '@types/node@20.19.11':
+    dependencies:
+      undici-types: 6.21.0
+
+  '@types/node@20.19.13':
     dependencies:
       undici-types: 6.21.0
 
@@ -11368,14 +11373,14 @@ snapshots:
       '@swc/core': 1.11.8(@swc/helpers@0.5.17)
     optional: true
 
-  ts-node@10.9.2(@swc/core@1.11.8(@swc/helpers@0.5.17))(@types/node@20.19.19)(typescript@5.8.3):
+  ts-node@10.9.2(@swc/core@1.11.8(@swc/helpers@0.5.17))(@types/node@20.19.13)(typescript@5.8.3):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.11
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.4
-      '@types/node': 20.19.19
+      '@types/node': 20.19.13
       acorn: 8.15.0
       acorn-walk: 8.3.4
       arg: 4.1.3

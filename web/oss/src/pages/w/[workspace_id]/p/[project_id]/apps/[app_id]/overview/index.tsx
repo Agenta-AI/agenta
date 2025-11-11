@@ -15,6 +15,7 @@ import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
 import useURL from "@/oss/hooks/useURL"
+import {isDemo} from "@/oss/lib/helpers/utils"
 import type {JSSTheme} from "@/oss/lib/Types"
 import {deleteApp} from "@/oss/services/app-selector/api"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
@@ -125,10 +126,13 @@ const OverviewPage = () => {
                 <ObservabilityOverview />
                 <DeploymentOverview />
                 <VariantsOverview />
-
-                <AutoEvaluation viewType="overview" />
-                <AbTestingEvaluation viewType="overview" />
-                <SingleModelEvaluation viewType="overview" />
+                {isDemo() && (
+                    <>
+                        <AutoEvaluation viewType="overview" />
+                        <AbTestingEvaluation viewType="overview" />
+                        <SingleModelEvaluation viewType="overview" />
+                    </>
+                )}
             </div>
 
             <CustomWorkflowHistory

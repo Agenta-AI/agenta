@@ -48,20 +48,6 @@ export const updateEvaluator = async (
     }
 }
 
-export const fetchEvaluatorById = async (evaluatorId: string) => {
-    const {projectId} = getProjectValues()
-    if (!projectId) {
-        return null
-    }
-
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/preview/simple/evaluators/${evaluatorId}?project_id=${projectId}`,
-    )
-    const payload = (response?.data as any)?.evaluator ?? response?.data ?? null
-    if (!payload) return null
-    return payload as EvaluatorResponseDto<"response">["evaluator"]
-}
-
 const evaluatorIconsMap = {
     auto_exact_match: exactMatchImg,
     auto_similarity_match: similarityImg,

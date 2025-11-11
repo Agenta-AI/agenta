@@ -64,9 +64,6 @@ class CreateApp(BaseModel):
 class CreateAppOutput(BaseModel):
     app_id: str
     app_name: str
-    app_type: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
 
 
 class UpdateApp(BaseModel):
@@ -230,7 +227,7 @@ class DeployToEnvironmentPayload(BaseModel):
     commit_message: Optional[str] = None
 
 
-class TestsetOutput(BaseModel):
+class TestSetOutput(BaseModel):
     id: str
     name: str
     csvdata: List[Dict[str, Any]]

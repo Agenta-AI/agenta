@@ -12,7 +12,6 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     EvaluatorFlags,
-    EvaluatorQueryFlags,
     #
     EvaluatorQuery,
     EvaluatorVariantQuery,
@@ -56,7 +55,7 @@ def parse_evaluator_query_request_from_params(
 ) -> EvaluatorQueryRequest:
     _flags, _tags, _meta = parse_metadata(flags, tags, meta)
 
-    __flags = EvaluatorQueryFlags(**_flags) if _flags else None
+    __flags = EvaluatorFlags(**_flags) if _flags else None
 
     evaluator = (
         EvaluatorQuery(
@@ -202,7 +201,7 @@ def parse_evaluator_variant_query_request_from_params(
 ) -> EvaluatorVariantQueryRequest:
     _flags, _tags, _meta = parse_metadata(flags, tags, meta)
 
-    __flags = EvaluatorQueryFlags(**_flags) if _flags else None
+    __flags = EvaluatorFlags(**_flags) if _flags else None
 
     evaluator_variant = (
         EvaluatorVariantQuery(
@@ -388,7 +387,7 @@ def parse_evaluator_revision_query_request_from_params(
 ) -> EvaluatorRevisionQueryRequest:
     _flags, _tags, _meta = parse_metadata(flags, tags, meta)
 
-    __flags = EvaluatorQueryFlags(**_flags) if _flags else None
+    __flags = EvaluatorFlags(**_flags) if _flags else None
 
     evaluator_revision = (
         EvaluatorRevisionQuery(

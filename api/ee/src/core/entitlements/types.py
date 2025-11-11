@@ -60,7 +60,7 @@ CATALOG = [
             },
         },
         "features": [
-            "Unlimited prompts",
+            "2 prompts",
             "20 evaluations/month",
             "5k traces/month",
             "2 seats",
@@ -212,7 +212,7 @@ ENTITLEMENTS = {
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(limit=2, strict=True, free=2),
-            Gauge.APPLICATIONS: Quota(strict=True),
+            Gauge.APPLICATIONS: Quota(limit=2, strict=True, free=2),
         },
     },
     Plan.CLOUD_V0_PRO: {

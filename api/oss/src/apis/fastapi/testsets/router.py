@@ -713,14 +713,13 @@ class TestsetsRouter:
             "revision_ref": testset_revision_retrieve_request.testset_revision_ref,  # type: ignore
         }
 
-        testset_revision = None
-        # testset_revision = await get_cache(
-        #     namespace="testsets:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=TestsetRevision,
-        # )
+        testset_revision = await get_cache(
+            namespace="testsets:retrieve",
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            key=cache_key,
+            model=TestsetRevision,
+        )
 
         if not testset_revision:
             testset_revision = await self.testsets_service.fetch_testset_revision(
@@ -1554,7 +1553,7 @@ class SimpleTestsetsRouter:
 
         simple_testset_create_request = SimpleTestsetCreateRequest(
             testset=SimpleTestsetCreate(
-                slug=testset_slug or uuid4().hex[-12:],
+                slug=testset_slug or uuid4().hex,
                 #
                 name=testset_name or testset_slug or None,
                 description=testset_description,

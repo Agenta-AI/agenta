@@ -31,7 +31,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                     style: {minWidth: 160},
                 }),
                 render: (_, record) => {
-                    const Icon = LLMIcons[record.title as string]
+                    const Icon = LLMIcons[(record.title as string)?.replace(" ", "").toLowerCase()]
 
                     return isCustom ? (
                         record?.name

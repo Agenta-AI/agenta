@@ -24,8 +24,6 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.services.auth_helper import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
-from oss.src.routers import evaluation_router, human_evaluation_router
-
 # DBEs
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
@@ -110,13 +108,9 @@ from oss.src.routers import (
     container_router,
 )
 
-from oss.src.utils.env import env
-
 import agenta as ag
 
-ag.init(
-    api_url=env.AGENTA_API_URL,
-)
+ag.init()
 
 ee = None
 if is_ee():
@@ -475,18 +469,6 @@ app.include_router(
 )
 
 app.include_router(
-    evaluation_router.router,
-    prefix="/evaluations",
-    tags=["Evaluations"],
-)
-
-app.include_router(
-    human_evaluation_router.router,
-    prefix="/human-evaluations",
-    tags=["Human-Evaluations"],
-)
-
-app.include_router(
     admin_router.router,
     prefix="/admin",
     tags=["Admin"],
@@ -582,11 +564,7 @@ app.include_router(
 
 # ------------------------------------------------------------------------------
 
-
-import oss.src.tasks.evaluations.live
-import oss.src.tasks.evaluations.legacy
-import oss.src.tasks.evaluations.batch
-
-
 if ee and is_ee():
     app = ee.extend_app_schema(app)
+
+    ee.load_tasks()

@@ -53,7 +53,7 @@ const testAutoEval = () => {
     )
 
     baseAutoEvalTest(
-        "should show an error when attempting to create an evaluation with a mismatched testset",
+        "should show an error when attempting to create an evaluation with a mismatched test set",
         {
             tag: [
                 createTagString("scope", TestScope.EVALUATIONS),

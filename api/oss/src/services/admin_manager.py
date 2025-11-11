@@ -182,7 +182,7 @@ async def legacy_create_organization(
             name=payload.name,
             type=payload.type if payload.type else "",
             description=(
-                "Default Workspace"
+                "My Default Workspace"
                 if payload.type == "default"
                 else payload.description
                 if payload.description

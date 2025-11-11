@@ -17,7 +17,6 @@ from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.evaluations.interfaces import EvaluationsDAOInterface
 from oss.src.core.evaluations.types import EvaluationClosedConflict
 from oss.src.core.evaluations.types import (
-    EvaluationStatus,
     EvaluationRunFlags,
     EvaluationRun,
     EvaluationRunCreate,
@@ -516,8 +515,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         run_id: UUID,
-        #
-        status: Optional[EvaluationStatus] = None,
     ) -> Optional[EvaluationRun]:
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
@@ -537,17 +534,13 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if run_dbe is None:
                 return None
 
-            if status:
-                run_dbe.status = status.value
-                flag_modified(run_dbe, "status")
-
             if run_dbe.flags is None:
                 run_dbe.flags = EvaluationRunFlags().model_dump(  # type: ignore
                     mode="json",
                     exclude_none=True,
                 )
 
-            # run_dbe.flags["is_closed"] = True  # type: ignore
+            run_dbe.flags["is_closed"] = True  # type: ignore
             flag_modified(run_dbe, "flags")
 
             run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
@@ -596,7 +589,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         exclude_none=True,
                     )
 
-                # run_dbe.flags["is_closed"] = True  # type: ignore
+                run_dbe.flags["is_closed"] = True  # type: ignore
                 flag_modified(run_dbe, "flags")
 
                 run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
@@ -754,13 +747,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     )
 
                 if run.flags is not None:
-                    run_flags = run.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    )
-
                     stmt = stmt.filter(
-                        EvaluationRunDBE.flags.contains(run_flags),
+                        EvaluationRunDBE.flags.contains(run.flags),
                     )
 
                 if run.tags is not None:

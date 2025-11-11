@@ -1,4 +1,4 @@
-from typing import Callable, Union
+from typing import Callable
 from asyncio import run as run_async
 from time import time_ns
 from uuid import uuid4
@@ -9,21 +9,19 @@ from pydantic import BaseModel
 from aiohttp import ClientSession
 from fastapi import FastAPI
 
-from agenta.sdk.models.workflows import (
+from agenta.sdk.workflows.types import (
     WorkflowRevision,
     WorkflowRevisionData,
     WorkflowServiceRequest,
     WorkflowServiceResponse,
     WorkflowServiceInterface,
-    WorkflowServiceRequestData,
-    WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
+    WorkflowServiceData,
     Status,
     Data,
 )
 
 from agenta.sdk.workflows.utils import parse_service_uri
-from agenta.sdk.workflows.handlers import exact_match_v1
+from agenta.sdk.workflows.registry import exact_match_v1
 
 import agenta as ag
 
@@ -77,12 +75,10 @@ from uuid import uuid4
 from agenta.sdk.workflows.types import (
     WorkflowRevision,
     WorkflowRevisionData,
-    WorkflowServiceRequestData,
-    WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceResponse,
     WorkflowServiceInterface,
+    WorkflowServiceData,
     Status,
     Data,
 )
@@ -117,7 +113,7 @@ async def local_call(
             code=200,
             message="Success",
         ),
-        data=WorkflowServiceRequestData(
+        data=WorkflowServiceData(
             outputs=outputs,
             # trace=
         ),
@@ -229,7 +225,7 @@ async def run_script_locally(
     *,
     workflow_service_request: WorkflowServiceRequest,
     workflow_revision_data: WorkflowRevisionData,
-) -> Union[Data, str]:
+) -> Data | str:
     actual_script = (
         TEST_SCRIPT
         + "\n"
@@ -294,7 +290,7 @@ def workflow_decorator(
                 code=200,
                 message="Success",
             ),
-            data=WorkflowServiceRequestData(
+            data=WorkflowServiceData(
                 outputs=outputs,
                 # trace=
             ),
@@ -319,7 +315,7 @@ def workflow_decorator(
     return workflow_decorator_wrapper
 
 
-HANDLER_REGISTRY = {
+REGISTRY = {
     "agenta": {
         "function": {
             "exact_match": {
@@ -388,7 +384,7 @@ class WorkflowServiceHandler:
             )
 
         handler = (
-            HANDLER_REGISTRY.get(service_provider, {})
+            REGISTRY.get(service_provider, {})
             .get(service_kind, {})
             .get(service_key, {})
             .get(service_version, None)
@@ -469,7 +465,7 @@ async def test_local_function_workflow_by_value():
 
     # create the workflow request
     workflow_service_request = WorkflowServiceRequest(
-        data=WorkflowServiceRequestData(
+        data=WorkflowServiceData(
             inputs=TEST_INPUTS,
             outputs=TEST_OUTPUTS,
         )
@@ -516,7 +512,7 @@ async def test_remote_function_workflow_by_value():
 
     # create the workflow request
     workflow_service_request = WorkflowServiceRequest(
-        data=WorkflowServiceRequestData(
+        data=WorkflowServiceData(
             inputs=TEST_INPUTS,
             outputs=TEST_OUTPUTS,
         )
@@ -571,7 +567,7 @@ async def test_code_workflow_by_value():
 
     # create the workflow request
     workflow_service_request = WorkflowServiceRequest(
-        data=WorkflowServiceRequestData(
+        data=WorkflowServiceData(
             inputs=TEST_INPUTS,
             outputs=TEST_OUTPUTS,
         )
@@ -617,7 +613,7 @@ async def test_hook_workflow_by_value_direct():
 
     # create the workflow request
     workflow_service_request = WorkflowServiceRequest(
-        data=WorkflowServiceRequestData(
+        data=WorkflowServiceData(
             inputs=TEST_INPUTS,
             outputs=TEST_OUTPUTS,
         )

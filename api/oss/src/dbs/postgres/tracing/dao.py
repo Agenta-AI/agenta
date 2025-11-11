@@ -651,12 +651,7 @@ class TracingDAO(TracingDAOInterface):
                     stmt = (
                         select(SpanDBE)
                         .filter(SpanDBE.trace_id.in_(uniq))
-                        .order_by(
-                            func.max(SpanDBE.start_time)
-                            .over(partition_by=SpanDBE.trace_id)
-                            .desc(),
-                            SpanDBE.start_time.asc(),
-                        )
+                        .order_by(SpanDBE.created_at.desc(), SpanDBE.start_time.asc())
                     )
                 else:
                     if query.windowing:

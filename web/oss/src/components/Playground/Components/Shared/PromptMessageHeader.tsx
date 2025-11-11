@@ -98,7 +98,7 @@ const PromptMessageHeader: React.FC<PromptMessageHeaderProps> = ({
 
     if (isFunction) {
         return (
-            <div className={clsx("w-full flex flex-col items-center gap-2 mt-3", headerClassName)}>
+            <div className={clsx("w-full flex flex-col items-center gap-1", headerClassName)}>
                 <div className={headerCls}>
                     {rolePropertyId ? (
                         <PlaygroundVariantPropertyControl
@@ -112,14 +112,14 @@ const PromptMessageHeader: React.FC<PromptMessageHeaderProps> = ({
                     ) : null}
                     {!disabled && commonRight}
                 </div>
-                <div className="w-full pb-2 pt-0 flex items-center justify-between gap-4">
+                <div className="w-full pb-2 pt-0 flex items-center justify-between">
                     {functionNamePropertyId ? (
                         <PlaygroundVariantPropertyControl
                             propertyId={functionNamePropertyId}
                             variantId={variantId}
                             rowId={rowId}
                             as="SimpleInput"
-                            className="message-user-select px-2"
+                            className="message-user-select px-0"
                             disabled={disabled}
                             placeholder="Function name"
                         />
@@ -130,7 +130,7 @@ const PromptMessageHeader: React.FC<PromptMessageHeaderProps> = ({
                             variantId={variantId}
                             rowId={rowId}
                             as="SimpleInput"
-                            className="message-user-select px-2 text-right"
+                            className="message-user-select px-0 text-right"
                             disabled={disabled}
                             placeholder="Tool call id"
                         />

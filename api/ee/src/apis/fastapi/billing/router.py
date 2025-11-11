@@ -824,13 +824,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_portal(
             organization_id=request.state.organization_id,
@@ -852,13 +851,12 @@ class SubscriptionsRouter:
         plan: Plan = Query(...),
         success_url: str = Query(...),  # find a way to make this optional or moot
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_checkout(
             organization_id=request.state.organization_id,
@@ -884,13 +882,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_plans(
             organization_id=request.state.organization_id,
@@ -902,13 +899,12 @@ class SubscriptionsRouter:
         request: Request,
         plan: Plan = Query(...),
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.switch_plans(
             organization_id=request.state.organization_id,
@@ -931,13 +927,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_subscription(
             organization_id=request.state.organization_id,
@@ -948,13 +943,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.cancel_subscription(
             organization_id=request.state.organization_id,
@@ -974,13 +968,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_usage(
             organization_id=request.state.organization_id,

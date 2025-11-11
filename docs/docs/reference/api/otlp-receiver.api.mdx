@@ -5,59 +5,100 @@ description: "Receive traces via OTLP."
 sidebar_label: "Receive traces via OTLP"
 hide_title: true
 hide_table_of_contents: true
-api: eJx9U0Fu2zAQ/IoxZ8JyetSpRi8NUsBGnJ4MoVjTm4gpJTLkyqgr6O/FSo4dG2h0kUTOLHdnhj2EXjLKLVa7zOlAO+edHFEZ7Dnb5KK40KLEI1t2B55JIst5dnA0Wz39WM9hECInUtj9HiWC+PgrTegEg8Q5hjZzRtnjy2Khr+vSm85azvm587PHExgGNrTCrSicYvTOjkcUr1k5PbKtuSH9ikkbEDedkIWkG7/kGBklsiTXvsBAnHhd2EyIYTDvkLB7ZStjr2+dS7xXPU6FqgvxW/CerUz8c6eDPgYNSx10/hiylookNUoU4aOsxeGuUH2KSUUY6CYnNaBHlzxK1CIxl0Vhfej2c3rhVmhOrqDoMFTKsF1Si5SyXN8/8PE7054Tym31EbBRhSZRrmFnaSi6Bz7CoKVG/5ed1CG5v6PSMHDqTj2xdEbXPoeRfhJkOTY3W67vYaBjTH4u5nfzBW4DdAVWc8mO5r6fPW7D3Khwnh8G3JDTPWFqvl42tDMVvaH2Q73/5PW2rf6Ss88ifhJM+I8U0ZNrMZw67U9Ob3HltApyp3dDfFT+5HdlUGs8yi36fkeZfyY/DLr81nFSSyuDAyVHOxV4Ww3mXX91+zcfVSlrOWrEDuS7ycab66EpOOdxvdo8YRj+ARPcVac=
+api: eJx9U01vozAQ/SvRnK2Q9Mhps71s1JUSNd29ILSamGlwa7BrD2iziP++GiCfUssFsN+8Gb/33AHjIUKawWYfKbS4N9bwEXIFBUUdjGfjakjhmTSZlmYcUFOctQZnm5ef2zkocJ4CCmxdQAqOrf8TRnQABYGid3WkCGkHD4sHed1S7xqtKcbXxs6eJzAo0K5mqlng6L01emiRvEWp6SDqkiqULx9kADZjh5ZCNCOEj54ghcjB1AdQwIatLPyeIL2CyMhN/Aq8GxF9r04Qt38jzcPJPhoTqBD1Tm3PlPmF4tFZS5pHpvMJe3kUVMSlE928i0LqkUtIIXHXdiTtMhFdk1F96UJBWkKaddAECymUzD6mSaKta4o5HqhmnKNJ0Bu4N3M17M4eBQp9LnS6CeK78K226yc6/iAsKECa5deAncg+Kn0LOyuI3jzRERTUWMn/quHSBfNvsA8UGBmgHKtEAFO/uqF8Umua7Tvqd6oLUBdHYTFfzhefHWYqmK226yk9qIf0nOYYYKDu5DoLBQqoQiN7TFh9u2zIlOJOhfUV3ycX4n687hLkr+7QJB7TX068RTOkc5i0myKRwU0kRJilXD62XurHYOQKSslRmkHX7THSr2D7XpY/Ggpib66gxWBwL2Jnea9OXojz73QUpbQmL1ls0TajpXf3TxJxDu52s3uBvv8PXy53Zw==
 sidebar_class_name: "post api-method"
-info_path: reference/api/agenta-api
+info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
 
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import ParamsDetails from "@theme/ParamsDetails";
-import RequestSchema from "@theme/RequestSchema";
-import StatusCodes from "@theme/StatusCodes";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
-import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Receive traces via OTLP"}
->
-</Heading>
+></Heading>
 
 <MethodEndpoint
   method={"post"}
   path={"/observability/v1/otlp/traces"}
-  context={"endpoint"}
->
-  
-</MethodEndpoint>
-
-
+></MethodEndpoint>
 
 Receive traces via OTLP.
 
-<ParamsDetails
-  parameters={undefined}
->
-  
-</ParamsDetails>
-
-<RequestSchema
-  title={"Body"}
-  body={undefined}
->
-  
-</RequestSchema>
-
-<StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"status":{"type":"string","title":"Status"}},"type":"object","required":["status"],"title":"CollectStatusResponse"}}}}}}
->
-  
-</StatusCodes>
-
-
-      
+<div>
+  <div>
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"202"} value={"202"}>
+        <div>Successful Response</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"version"}
+                        required={true}
+                        schemaName={"Version (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Version" }}
+                      ></SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"status"}
+                        required={true}
+                        schemaName={"Status (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Status" }}
+                      ></SchemaItem>
+                    </ul>
+                  </details>
+                </TabItem>
+                <TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={
+                      '{\n  "version": "string",\n  "status": "string"\n}'
+                    }
+                    language={"json"}
+                  ></ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>

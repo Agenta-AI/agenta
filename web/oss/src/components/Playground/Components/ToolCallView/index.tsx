@@ -68,7 +68,7 @@ export const ToolCallViewHeader = ({
                 <span>{name}</span>
             </TooltipWithCopyAction>
             <TooltipWithCopyAction title={"Call id"}>
-                <span className="font-mono">{callId}</span>
+                <span>{callId}</span>
             </TooltipWithCopyAction>
         </div>
     )
