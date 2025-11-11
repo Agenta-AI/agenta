@@ -104,13 +104,14 @@ class LegacyApplicationsRouter:
         *,
         application_revision_retrieve_request: ApplicationRevisionRetrieveRequest,
     ):
-        if not await check_action_access(  # type: ignore
-            project_id=request.state.project_id,
-            user_uid=request.state.user_id,
-            #
-            permission=Permission.VIEW_APPLICATIONS,  # type: ignore
-        ):
-            raise FORBIDDEN_EXCEPTION  # type: ignore
+        if is_ee():
+            if not await check_action_access(  # type: ignore
+                project_id=request.state.project_id,
+                user_uid=request.state.user_id,
+                #
+                permission=Permission.VIEW_APPLICATIONS,  # type: ignore
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
 
         cache_key = {
             "artifact_ref": application_revision_retrieve_request.application_ref,  # type: ignore

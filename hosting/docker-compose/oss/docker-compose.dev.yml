@@ -103,6 +103,30 @@ services:
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1
 
+    cron:
+        image: agenta-oss-dev-api:latest
+
+        volumes:
+            #
+            - ../../../api/oss/src/crons/queries.sh:/queries.sh
+
+        env_file:
+            - ${ENV_FILE:-./.env.oss.dev}
+        
+        depends_on:
+            - postgres
+            - api
+
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        
+        restart: always
+        
+        networks:
+            - agenta-network
+
+        command: cron -f
+
     alembic:
         build: 
             context: ../../../api

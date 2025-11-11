@@ -55,14 +55,14 @@ export const useSidebarConfig = () => {
             key: "project-evaluators-link",
             title: "Evaluators",
             link: `${projectURL}/evaluators`,
-            isHidden: !isDemo(),
+            // isHidden: !isDemo(),
             icon: <Gauge size={16} />,
         },
         {
             key: "project-evaluations-link",
             title: "Evaluations",
             link: `${projectURL}/evaluations`,
-            isHidden: !isDemo(),
+            // isHidden: !isDemo(),
             icon: <ChartDonut size={16} />,
         },
         {
@@ -96,7 +96,7 @@ export const useSidebarConfig = () => {
             key: "app-evaluations-link",
             title: "Evaluations",
             link: `${appURL || recentlyVisitedAppURL}/evaluations`,
-            isHidden: (!currentApp && !recentlyVisitedAppId) || !isDemo(),
+            isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <ChartDonut size={16} />,
         },
         {
