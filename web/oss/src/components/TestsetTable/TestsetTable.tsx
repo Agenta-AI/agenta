@@ -1,18 +1,10 @@
 // @ts-nocheck
-import {
-    type FC,
-    type ChangeEvent,
-    ReactNode,
-    useEffect,
-    useState,
-    useMemo,
-    useCallback,
-} from "react"
+import {type FC, type ChangeEvent, ReactNode, useEffect, useState, useMemo, useCallback} from "react"
 
 import {type IHeaderParams} from "@ag-grid-community/core"
 import {CheckCircleFilled} from "@ant-design/icons"
-import {Link} from "@phosphor-icons/react"
 import {Button, Input, Typography, message, Space, Tag, Tooltip} from "antd"
+import {Link} from "@phosphor-icons/react"
 import {NoticeType} from "antd/es/message/interface"
 import {AxiosResponse} from "axios"
 import {useRouter} from "next/router"
@@ -417,7 +409,6 @@ const TestsetTable: FC<TestsetTableProps> = ({mode}) => {
                     onRowSelected={onRowSelectedOrDeselected}
                     onRowDataUpdated={onRowSelectedOrDeselected}
                     className="ph-no-capture"
-                    suppressFieldDotNotation={true}
                 />
             </div>
 

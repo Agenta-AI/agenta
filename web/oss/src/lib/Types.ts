@@ -831,16 +831,9 @@ export interface StyleProps {
     themeMode: "dark" | "light"
 }
 
-export interface SettingsPreset {
-    key: string
-    name: string
-    values: Record<string, any>
-}
-
 export interface Evaluator {
     name: string
     key: string
-    settings_presets?: SettingsPreset[]
     settings_template: Record<string, EvaluationSettingsTemplate>
     icon_url?: string | StaticImageData
     color?: string
@@ -983,7 +976,6 @@ type ValueTypeOptions =
     | "hidden"
     | "messages"
     | "multiple_choice"
-    | "llm_response_schema"
 
 export interface EvaluationSettingsTemplate {
     type: ValueTypeOptions

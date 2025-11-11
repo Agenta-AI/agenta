@@ -7,13 +7,12 @@ from agenta.sdk.models.workflows import (
     WorkflowServiceResponseData,
     WorkflowServiceRequest,
     WorkflowServiceInterface,
-    WorkflowServiceConfiguration,
 )
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.workflows.utils import (
     retrieve_handler,
     retrieve_interface,
-    retrieve_configuration,
+    retrieve_parameters,
 )
 from agenta.sdk.workflows.errors import InvalidInterfaceURIV0Error
 
@@ -43,18 +42,18 @@ async def resolve_interface(
     if interface is not None:
         return interface
 
-    if request and request.interface:
+    if request and request and request.interface:
         return request.interface
 
     ctx = RunningContext.get()
     return ctx.interface
 
 
-async def resolve_configuration(
+async def resolve_parameters(
     *,
     request: Optional[WorkflowServiceRequest] = None,
-    configuration: Optional[WorkflowServiceConfiguration] = None,
-) -> Optional[WorkflowServiceConfiguration]:
+    parameters: Optional[dict] = None,
+) -> Optional[dict]:
     """Resolve workflow parameters from multiple sources.
 
     Checks for parameters in this priority order:
@@ -69,14 +68,12 @@ async def resolve_configuration(
     Returns:
         The resolved parameters dict or None if not found
     """
-    if configuration is not None:
-        return configuration
-
-    if request and request.configuration:
-        return request.configuration
-
+    if parameters is not None:
+        return parameters
+    if request and request.data and request.data.parameters:
+        return request.data.parameters
     ctx = RunningContext.get()
-    return ctx.configuration
+    return ctx.parameters
 
 
 async def resolve_handler(
@@ -141,21 +138,17 @@ class ResolverMiddleware:
             InvalidInterfaceURIV0Error: If the handler cannot be resolved from the interface URI
         """
         interface = await resolve_interface(request=request)
-        configuration = await resolve_configuration(request=request)
+        parameters = await resolve_parameters(request=request)
         handler = await resolve_handler(uri=(interface.uri if interface else None))
 
         ctx = RunningContext.get()
         ctx.interface = interface
-        ctx.configuration = configuration
+        ctx.parameters = parameters
         ctx.handler = handler
 
         if not request.data:
             request.data = WorkflowServiceRequestData()
 
-        request.data.parameters = (
-            request.data.parameters or configuration.parameters
-            if configuration
-            else None
-        )
+        request.data.parameters = request.data.parameters or parameters
 
         return await call_next(request)

@@ -131,7 +131,7 @@ async def fetch_trace(
     request,
     #
     trace_id: str,
-    max_retries: int = 15,
+    max_retries: int = 5,
     delay: float = 1.0,
 ) -> Optional[OTelSpansTree]:
     for attempt in range(max_retries):

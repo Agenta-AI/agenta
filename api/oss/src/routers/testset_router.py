@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 from pydantic import ValidationError
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, UploadFile, File, Form, Request, Query
+from fastapi import HTTPException, UploadFile, File, Form, Request
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
@@ -252,9 +252,7 @@ async def import_testset(
         ) from error
 
 
-@router.post(
-    "/", response_model=TestsetSimpleResponse, operation_id="create_legacy_testset"
-)
+@router.post("/", response_model=TestsetSimpleResponse, operation_id="create_testset")
 async def create_testset(
     csvdata: NewTestset,
     request: Request,
@@ -375,8 +373,6 @@ async def update_testset(
 @router.get("/", operation_id="get_testsets")
 async def get_testsets(
     request: Request,
-    #
-    name: Optional[str] = Query(None),
 ) -> List[TestsetOutputResponse]:
     """
     Get all testsets.
@@ -387,6 +383,7 @@ async def get_testsets(
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
+
     try:
         if is_ee():
             has_permission = await check_action_access(
@@ -408,7 +405,6 @@ async def get_testsets(
 
         testsets = await db_manager.fetch_testsets_by_project_id(
             project_id=request.state.project_id,
-            name=name,
         )
 
         return [

@@ -1,6 +1,5 @@
 from typing import Optional, List
 from uuid import UUID, uuid4
-from json import loads
 
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.services.db_manager import fetch_evaluator_config
@@ -1435,52 +1434,46 @@ class SimpleEvaluatorsService:
             else None
         )
         headers = None
-        outputs_schema = None
-        if str(old_evaluator.evaluator_key) == "auto_ai_critique":
-            json_schema = old_evaluator.settings_values.get("json_schema", None)
-            if json_schema and isinstance(json_schema, dict):
-                outputs_schema = json_schema.get("schema", None)
-        if not outputs_schema:
-            properties = (
-                {"score": {"type": "number"}, "success": {"type": "boolean"}}
-                if old_evaluator.evaluator_key
-                in (
-                    "auto_levenshtein_distance",
-                    "auto_semantic_similarity",
-                    "auto_similarity_match",
-                    "auto_json_diff",
-                    "auto_webhook_test",
-                    "auto_custom_code_run",
-                    "auto_ai_critique",
-                    "rag_faithfulness",
-                    "rag_context_relevancy",
-                )
-                else {"success": {"type": "boolean"}}
+        properties = (
+            {"score": {"type": "number"}, "success": {"type": "boolean"}}
+            if old_evaluator.evaluator_key
+            in (
+                "auto_levenshtein_distance",
+                "auto_semantic_similarity",
+                "auto_similarity_match",
+                "auto_json_diff",
+                "auto_webhook_test",
+                "auto_custom_code_run",
+                "auto_ai_critique",
+                "rag_faithfulness",
+                "rag_context_relevancy",
             )
-            required = (
-                list(properties.keys())
-                if old_evaluator.evaluator_key
-                not in (
-                    "auto_levenshtein_distance",
-                    "auto_semantic_similarity",
-                    "auto_similarity_match",
-                    "auto_json_diff",
-                    "auto_webhook_test",
-                    "auto_custom_code_run",
-                    "auto_ai_critique",
-                    "rag_faithfulness",
-                    "rag_context_relevancy",
-                )
-                else []
-            )
-            outputs_schema = {
+            else {"success": {"type": "boolean"}}
+        )
+        schemas = {
+            "outputs": {
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": properties,
-                "required": required,
+                "required": (
+                    list(properties.keys())
+                    if old_evaluator.evaluator_key
+                    not in (
+                        "auto_levenshtein_distance",
+                        "auto_semantic_similarity",
+                        "auto_similarity_match",
+                        "auto_json_diff",
+                        "auto_webhook_test",
+                        "auto_custom_code_run",
+                        "auto_ai_critique",
+                        "rag_faithfulness",
+                        "rag_context_relevancy",
+                    )
+                    else []
+                ),
                 "additionalProperties": False,
             }
-        schemas = {"outputs": outputs_schema}
+        }
         script = (
             {
                 "content": old_evaluator.settings_values.get("code", None),

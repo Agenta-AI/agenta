@@ -1079,14 +1079,13 @@ class WorkflowsRouter:
             "revision_ref": workflow_revision_retrieve_request.workflow_revision_ref,
         }
 
-        workflow_revision = None
-        # workflow_revision = await get_cache(
-        #     namespace="workflows:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=WorkflowRevision,
-        # )
+        workflow_revision = await get_cache(
+            namespace="workflows:retrieve",
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            key=cache_key,
+            model=WorkflowRevision,
+        )
 
         if not workflow_revision:
             workflow_revision = await self.workflows_service.fetch_workflow_revision(

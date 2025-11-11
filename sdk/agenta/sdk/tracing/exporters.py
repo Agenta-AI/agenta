@@ -1,7 +1,6 @@
-from typing import Sequence, Dict, List, Optional, Any
+from typing import Sequence, Dict, List, Optional
 from threading import Thread
 from os import environ
-from uuid import UUID
 
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace.export import (
@@ -51,8 +50,6 @@ class InlineTraceExporter(SpanExporter):
 
                 self._registry[trace_id].append(span)
 
-            return
-
     def shutdown(self) -> None:
         self._shutdown = True
 
@@ -92,17 +89,17 @@ class OTLPExporter(OTLPSpanExporter):
         self.credentials = credentials
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
-        grouped_spans: Dict[Optional[str], List[ReadableSpan]] = dict()
+        grouped_spans: Dict[str, List[str]] = {}
 
         for span in spans:
             trace_id = span.get_span_context().trace_id
 
             credentials = None
             if self.credentials:
-                credentials = str(self.credentials.get(trace_id))
+                credentials = self.credentials.get(trace_id)
 
             if credentials not in grouped_spans:
-                grouped_spans[credentials] = list()
+                grouped_spans[credentials] = []
 
             grouped_spans[credentials].append(span)
 
@@ -114,16 +111,6 @@ class OTLPExporter(OTLPSpanExporter):
                     credentials=credentials,
                 )
             ):
-                for _span in _spans:
-                    trace_id = _span.get_span_context().trace_id
-                    span_id = _span.get_span_context().span_id
-
-                    # log.debug(
-                    #     "[SPAN]  [EXPORT]",
-                    #     trace_id=UUID(int=trace_id).hex,
-                    #     span_id=UUID(int=span_id).hex[-16:],
-                    # )
-
                 serialized_spans.append(super().export(_spans))
 
         if all(serialized_spans):
@@ -140,29 +127,17 @@ class OTLPExporter(OTLPSpanExporter):
 
             def __export():
                 with suppress():
-                    resp = None
                     if timeout_sec is not None:
-                        resp = super(OTLPExporter, self)._export(
-                            serialized_data,
-                            timeout_sec,
+                        return super(OTLPExporter, self)._export(
+                            serialized_data, timeout_sec
                         )
                     else:
-                        resp = super(OTLPExporter, self)._export(
-                            serialized_data,
-                        )
-
-                    # log.debug(
-                    #     "[SPAN] [_EXPORT]",
-                    #     data=serialized_data,
-                    #     resp=resp,
-                    # )
+                        return super(OTLPExporter, self)._export(serialized_data)
 
             if _ASYNC_EXPORT is True:
-                # log.debug("[SPAN] [ASYNC.X]")
                 thread = Thread(target=__export, daemon=True)
                 thread.start()
             else:
-                # log.debug("[SPAN] [ SYNC.X]")
                 return __export()
 
         except Exception as e:

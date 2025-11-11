@@ -44,10 +44,6 @@ from .sdk.managers.deployment import DeploymentManager
 from .sdk import assets as assets
 from .sdk import tracer
 
-# evaluations
-from .sdk import testsets as testsets
-
-
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
 
@@ -73,8 +69,7 @@ def init(
     global api, async_api, tracing, tracer  # pylint: disable=global-statement
 
     _init(
-        host=host,
-        api_url=api_url,
+        host=host or api_url,
         api_key=api_key,
         config_fname=config_fname,
         redact=redact,

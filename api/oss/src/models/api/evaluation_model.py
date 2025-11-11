@@ -14,7 +14,6 @@ class LegacyEvaluator(BaseModel):
     name: str
     key: str
     direct_use: bool
-    settings_presets: Optional[list[dict]] = None
     settings_template: dict
     description: Optional[str] = None
     oss: Optional[bool] = False

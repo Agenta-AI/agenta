@@ -76,153 +76,6 @@ def _compute_similarity(embedding_1: List[float], embedding_2: List[float]) -> f
     return dot / (norm1 * norm2)
 
 
-import json
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
-
-try:
-    import jsonpath  # ✅ use module API
-    from jsonpath import JSONPointer  # pointer class is fine to use
-except Exception:
-    jsonpath = None
-    JSONPointer = None
-
-# ========= Scheme detection =========
-
-
-def detect_scheme(expr: str) -> str:
-    """Return 'json-path', 'json-pointer', or 'dot-notation' based on the placeholder prefix."""
-    if expr.startswith("$"):
-        return "json-path"
-    if expr.startswith("/"):
-        return "json-pointer"
-    return "dot-notation"
-
-
-# ========= Resolvers =========
-
-
-def resolve_dot_notation(expr: str, data: dict) -> object:
-    if "[" in expr or "]" in expr:
-        raise KeyError(f"Bracket syntax is not supported in dot-notation: {expr!r}")
-
-    # First, check if the expression exists as a literal key (e.g., "topic.story" as a single key)
-    # This allows users to use dots in their variable names without nested access
-    if expr in data:
-        return data[expr]
-
-    # If not found as a literal key, try to parse as dot-notation path
-    cur = data
-    for token in (p for p in expr.split(".") if p):
-        if isinstance(cur, list) and token.isdigit():
-            cur = cur[int(token)]
-        else:
-            if not isinstance(cur, dict):
-                raise KeyError(
-                    f"Cannot access key {token!r} on non-dict while resolving {expr!r}"
-                )
-            if token not in cur:
-                raise KeyError(f"Missing key {token!r} while resolving {expr!r}")
-            cur = cur[token]
-    return cur
-
-
-def resolve_json_path(expr: str, data: dict) -> object:
-    if jsonpath is None:
-        raise ImportError("python-jsonpath is required for json-path ($...)")
-
-    if not (expr == "$" or expr.startswith("$.") or expr.startswith("$[")):
-        raise ValueError(
-            f"Invalid json-path expression {expr!r}. "
-            "Must start with '$', '$.' or '$[' (no implicit normalization)."
-        )
-
-    # Use package-level APIf
-    results = jsonpath.findall(expr, data)  # always returns a list
-    return results[0] if len(results) == 1 else results
-
-
-def resolve_json_pointer(expr: str, data: Dict[str, Any]) -> Any:
-    """Resolve a JSON Pointer; returns a single value."""
-    if JSONPointer is None:
-        raise ImportError("python-jsonpath is required for json-pointer (/...)")
-    return JSONPointer(expr).resolve(data)
-
-
-def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
-    """Dispatch to the right resolver based on detected scheme."""
-    scheme = detect_scheme(expr)
-    if scheme == "json-path":
-        return resolve_json_path(expr, data)
-    if scheme == "json-pointer":
-        return resolve_json_pointer(expr, data)
-    return resolve_dot_notation(expr, data)
-
-
-# ========= Placeholder & coercion helpers =========
-
-_PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
-
-
-def extract_placeholders(template: str) -> Iterable[str]:
-    """Yield the inner text of all {{ ... }} occurrences (trimmed)."""
-    for m in _PLACEHOLDER_RE.finditer(template):
-        yield m.group(1).strip()
-
-
-def coerce_to_str(value: Any) -> str:
-    """Pretty stringify values for embedding into templates."""
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False)
-    return str(value)
-
-
-def build_replacements(
-    placeholders: Iterable[str], data: Dict[str, Any]
-) -> Tuple[Dict[str, str], set]:
-    """
-    Resolve all placeholders against data.
-    Returns (replacements, unresolved_placeholders).
-    """
-    replacements: Dict[str, str] = {}
-    unresolved: set = set()
-    for expr in set(placeholders):
-        try:
-            val = resolve_any(expr, data)
-            # Escape backslashes to avoid regex replacement surprises
-            replacements[expr] = coerce_to_str(val).replace("\\", "\\\\")
-        except Exception:
-            unresolved.add(expr)
-    return replacements, unresolved
-
-
-def apply_replacements(template: str, replacements: Dict[str, str]) -> str:
-    """Replace {{ expr }} using a callback to avoid regex-injection issues."""
-
-    def _repl(m: re.Match) -> str:
-        expr = m.group(1).strip()
-        return replacements.get(expr, m.group(0))
-
-    return _PLACEHOLDER_RE.sub(_repl, template)
-
-
-def compute_truly_unreplaced(original: set, rendered: str) -> set:
-    """Only count placeholders that were in the original template and remain."""
-    now = set(extract_placeholders(rendered))
-    return original & now
-
-
-def missing_lib_hints(unreplaced: set) -> Optional[str]:
-    """Suggest installing python-jsonpath if placeholders indicate json-path or json-pointer usage."""
-    if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced) and (
-        jsonpath is None or JSONPointer is None
-    ):
-        return (
-            "Install python-jsonpath to enable json-path ($...) and json-pointer (/...)"
-        )
-    return None
-
-
 def _format_with_template(
     content: str,
     format: str,
@@ -237,24 +90,33 @@ def _format_with_template(
 
         try:
             return Template(content).render(**kwargs)
-        except TemplateError:
+        except TemplateError as e:
             return content
 
     elif format == "curly":
-        original_placeholders = set(extract_placeholders(content))
+        import re
 
-        replacements, _unresolved = build_replacements(original_placeholders, kwargs)
+        # Extract variables that exist in the original template before replacement
+        # This allows us to distinguish template variables from {{}} in user input values
+        original_variables = set(re.findall(r"\{\{(.*?)\}\}", content))
 
-        result = apply_replacements(content, replacements)
+        result = content
+        for key, value in kwargs.items():
+            pattern = r"\{\{" + re.escape(key) + r"\}\}"
+            old_result = result
+            # Escape backslashes in the replacement string to prevent regex interpretation
+            escaped_value = str(value).replace("\\", "\\\\")
+            result = re.sub(pattern, escaped_value, result)
 
-        truly_unreplaced = compute_truly_unreplaced(original_placeholders, result)
+        # Only check if ORIGINAL template variables remain unreplaced
+        # Don't error on {{}} that came from user input values
+        unreplaced_matches = set(re.findall(r"\{\{(.*?)\}\}", result))
+        truly_unreplaced = original_variables & unreplaced_matches
 
         if truly_unreplaced:
-            hint = missing_lib_hints(truly_unreplaced)
-            suffix = f" Hint: {hint}" if hint else ""
+            log.info(f"WORKFLOW Found unreplaced variables: {truly_unreplaced}")
             raise ValueError(
-                f"Template variables not found or unresolved: "
-                f"{', '.join(sorted(truly_unreplaced))}.{suffix}"
+                f"Template variables not found in inputs: {', '.join(sorted(truly_unreplaced))}"
             )
 
         return result
@@ -776,33 +638,6 @@ async def auto_ai_critique_v0(
             got=model,
         )
 
-    response_type = parameters.get("response_type") or (
-        "json_schema" if template_version == "4" else "text"
-    )
-
-    if not response_type in ["text", "json_object", "json_schema"]:
-        raise InvalidConfigurationParameterV0Error(
-            path="response_type",
-            expected=["text", "json_object", "json_schema"],
-            got=response_type,
-        )
-
-    json_schema = parameters.get("json_schema") or None
-
-    json_schema = json_schema if response_type == "json_schema" else None
-
-    if response_type == "json_schema" and not isinstance(json_schema, dict):
-        raise InvalidConfigurationParameterV0Error(
-            path="json_schema",
-            expected="dict",
-            got=json_schema,
-        )
-
-    response_format: dict = dict(type=response_type)
-
-    if response_type == "json_schema":
-        response_format["json_schema"] = json_schema
-
     correct_answer = None
 
     if inputs:
@@ -853,6 +688,13 @@ async def auto_ai_critique_v0(
         raise InvalidConfigurationParameterV0Error(
             path="threshold",
             expected="float",
+            got=threshold,
+        )
+
+    if not 0.0 < threshold <= 1.0:
+        raise InvalidConfigurationParameterV0Error(
+            path="threshold",
+            expected="float[0.0, 1.0]",
             got=threshold,
         )
 
@@ -923,7 +765,6 @@ async def auto_ai_critique_v0(
             model=model,
             messages=formatted_prompt_template,
             temperature=0.01,
-            response_format=response_format,
         )
 
         _outputs = response.choices[0].message.content.strip()  # type: ignore
@@ -947,20 +788,31 @@ async def auto_ai_critique_v0(
         pass
 
     if isinstance(_outputs, (int, float)):
-        return {
-            "score": _outputs,
-            "success": _outputs >= threshold,
-        }
+        return {"score": _outputs, "success": _outputs >= threshold}
 
     if isinstance(_outputs, bool):
-        return {
-            "success": _outputs,
-        }
+        return {"success": _outputs}
 
     if isinstance(_outputs, dict):
-        return _outputs
+        if "score" in _outputs and "success" in _outputs:
+            return {
+                "score": _outputs["score"],
+                "success": _outputs["success"],
+            }
 
-    raise InvalidOutputsV0Error(expected=["dict", "str", "int", "float"], got=_outputs)
+        elif "score" in _outputs:
+            return {
+                "score": _outputs["score"],
+                "success": _outputs["score"] >= threshold,
+            }
+
+        elif "success" in _outputs:
+            return {"success": _outputs}
+
+        else:
+            return _outputs
+
+    raise InvalidOutputsV0Error(expected=["dict", "int", "float"], got=_outputs)
 
 
 @instrument(annotate=True)

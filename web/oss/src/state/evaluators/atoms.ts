@@ -7,8 +7,6 @@ import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transforme
 import {
     EvaluatorDto,
     EvaluatorPreviewDto,
-    EvaluatorRevisionDto,
-    EvaluatorRevisionsResponseDto,
     EvaluatorsResponseDto,
 } from "@/oss/lib/hooks/useEvaluators/types"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
@@ -33,68 +31,6 @@ const extractKeyFromUri = (uri: unknown): string | undefined => {
             return candidate.replace(/-v\d+$/i, "")
         }
     }
-    return undefined
-}
-
-const isPlainObject = (value: unknown): value is Record<string, any> => {
-    return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-const mergePlainObjects = (primary: any, fallback: any): any => {
-    if (isPlainObject(primary) && isPlainObject(fallback)) {
-        const result: Record<string, any> = {...fallback}
-        Object.entries(primary).forEach(([key, value]) => {
-            result[key] = mergePlainObjects(value, fallback[key])
-        })
-        return result
-    }
-
-    if (primary === undefined || primary === null) {
-        return isPlainObject(fallback) ? {...fallback} : fallback
-    }
-
-    return primary
-}
-
-const normalizeTags = (candidate: unknown): string[] => {
-    if (!candidate) return []
-    if (Array.isArray(candidate)) {
-        return candidate
-            .map((value) => (typeof value === "string" ? value.trim() : String(value)))
-            .filter(Boolean)
-    }
-    if (typeof candidate === "object") {
-        return Object.entries(candidate as Record<string, unknown>)
-            .filter(([, value]) => Boolean(value))
-            .map(([key]) => key.trim())
-            .filter(Boolean)
-    }
-    if (typeof candidate === "string") {
-        const trimmed = candidate.trim()
-        return trimmed ? [trimmed] : []
-    }
-    return []
-}
-
-const mergeTags = (...sources: unknown[]): string[] => {
-    const set = new Set<string>()
-    sources.forEach((source) => {
-        normalizeTags(source).forEach((tag) => set.add(tag))
-    })
-    return Array.from(set)
-}
-
-const extractRequiresLlmApiKeys = (source: unknown): boolean | undefined => {
-    if (!source || typeof source !== "object") return undefined
-    const direct = (source as any).requires_llm_api_keys
-    if (direct !== undefined) return Boolean(direct)
-
-    const fromFlags = (source as any).flags?.requires_llm_api_keys
-    if (fromFlags !== undefined) return Boolean(fromFlags)
-
-    const fromMeta = (source as any).meta?.requires_llm_api_keys
-    if (fromMeta !== undefined) return Boolean(fromMeta)
-
     return undefined
 }
 
@@ -157,13 +93,22 @@ export const evaluatorsQueryAtomFamily = atomFamily(
                             `/preview/simple/evaluators/query?project_id=${projectId}`,
                             requestBody,
                         )
-                        let evaluators = (response?.data?.evaluators ?? []).map((item) => {
+                        const evaluators = (response?.data?.evaluators ?? []).map((item) => {
                             const transformed = transformApiData<EvaluatorDto>({
                                 data: item,
                                 members,
                             })
 
-                            const tags = mergeTags(item?.tags, transformed?.tags)
+                            const rawTags = item?.tags ?? transformed?.tags
+                            const tags = Array.isArray(rawTags)
+                                ? rawTags
+                                : rawTags && typeof rawTags === "object"
+                                  ? Object.values(rawTags as Record<string, unknown>)
+                                        .map((value) => String(value))
+                                        .filter(Boolean)
+                                  : typeof rawTags === "string"
+                                    ? [rawTags]
+                                    : []
 
                             const rawKey =
                                 item?.flags?.evaluator_key ??
@@ -179,8 +124,10 @@ export const evaluatorsQueryAtomFamily = atomFamily(
                                               (item as any)?.data?.service?.uri,
                                       )
                             const requiresLlmApiKeys =
-                                extractRequiresLlmApiKeys(item) ??
-                                extractRequiresLlmApiKeys(transformed) ??
+                                item?.requires_llm_api_keys ??
+                                item?.flags?.requires_llm_api_keys ??
+                                item?.meta?.requires_llm_api_keys ??
+                                transformed?.requires_llm_api_keys ??
                                 false
 
                             return {
@@ -191,117 +138,6 @@ export const evaluatorsQueryAtomFamily = atomFamily(
                                 metrics: getMetricsFromEvaluator(transformed as EvaluatorDto),
                             }
                         }) as EvaluatorPreviewDto[]
-
-                        if (evaluators.length) {
-                            const revisionRefs = evaluators
-                                .map((ev) => {
-                                    const version =
-                                        (ev as any)?.version ??
-                                        (ev.meta as any)?.version ??
-                                        undefined
-                                    const ref = {
-                                        id: ev.id,
-                                        slug: ev.slug,
-                                        version,
-                                    }
-                                    if (ref.id || ref.slug || ref.version) return ref
-                                    return null
-                                })
-                                .filter(Boolean) as {
-                                id?: string
-                                slug?: string
-                                version?: string
-                            }[]
-
-                            if (revisionRefs.length) {
-                                try {
-                                    const revisionResponse =
-                                        await axios.post<EvaluatorRevisionsResponseDto>(
-                                            `/preview/evaluators/revisions/query?project_id=${projectId}`,
-                                            {
-                                                evaluator_refs: revisionRefs,
-                                            },
-                                        )
-
-                                    const revisions =
-                                        revisionResponse?.data?.evaluator_revisions ?? []
-
-                                    if (revisions.length) {
-                                        const byEvaluatorId = new Map<
-                                            string,
-                                            EvaluatorRevisionDto
-                                        >()
-                                        const bySlug = new Map<string, EvaluatorRevisionDto>()
-                                        const byRevisionId = new Map<string, EvaluatorRevisionDto>()
-
-                                        revisions.forEach((revision) => {
-                                            if (revision.evaluator_id) {
-                                                byEvaluatorId.set(revision.evaluator_id, revision)
-                                            }
-                                            if (revision.slug) {
-                                                bySlug.set(revision.slug, revision)
-                                            }
-                                            if (revision.id) {
-                                                byRevisionId.set(revision.id, revision)
-                                            }
-                                        })
-
-                                        evaluators = evaluators.map((ev) => {
-                                            const revision =
-                                                (ev.id && byEvaluatorId.get(ev.id)) ||
-                                                (ev.slug && bySlug.get(ev.slug)) ||
-                                                (typeof ev.meta?.evaluator_revision_id ===
-                                                    "string" &&
-                                                    byRevisionId.get(
-                                                        ev.meta.evaluator_revision_id,
-                                                    )) ||
-                                                undefined
-
-                                            if (!revision) return ev
-
-                                            const mergedData = mergePlainObjects(
-                                                ev.data,
-                                                revision.data,
-                                            )
-                                            const mergedFlags = mergePlainObjects(
-                                                ev.flags,
-                                                revision.flags,
-                                            )
-                                            const mergedMeta = mergePlainObjects(
-                                                ev.meta,
-                                                revision.meta,
-                                            )
-                                            const mergedTags = mergeTags(ev.tags, revision.tags)
-
-                                            const withRevision: EvaluatorPreviewDto = {
-                                                ...ev,
-                                                data: mergedData,
-                                                flags: mergedFlags,
-                                                meta: mergedMeta,
-                                                tags: mergedTags,
-                                                revision,
-                                            }
-
-                                            const requiresLlmApiKeys =
-                                                extractRequiresLlmApiKeys(withRevision) ??
-                                                extractRequiresLlmApiKeys(revision) ??
-                                                extractRequiresLlmApiKeys(ev) ??
-                                                false
-
-                                            return {
-                                                ...withRevision,
-                                                requires_llm_api_keys: Boolean(requiresLlmApiKeys),
-                                                metrics: getMetricsFromEvaluator(
-                                                    withRevision as EvaluatorDto,
-                                                ),
-                                            }
-                                        })
-                                    }
-                                } catch (error) {
-                                    console.warn("Failed to fetch evaluator revisions", error)
-                                }
-                            }
-                        }
 
                         return evaluators
                     }

@@ -37,7 +37,6 @@ import {useTestsetsData} from "@/oss/state/testset"
 
 import {useStyles} from "./assets/styles"
 import {Mapping, Preview, TestsetColumn, TestsetDrawerProps, TestsetTraceData} from "./assets/types"
-import {getValueAtPath} from "./assets/helpers"
 
 const TestsetDrawer = ({
     onClose,
@@ -358,7 +357,8 @@ const TestsetDrawer = ({
                         continue // Skip duplicate columns for now
                     }
 
-                    const value = getValueAtPath(item, mapping.data)
+                    const keys = mapping.data.split(".")
+                    const value = keys.reduce((acc: any, key) => acc?.[key], item)
 
                     formattedItem[targetKey] =
                         value === undefined || value === null

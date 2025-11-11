@@ -1,7 +1,6 @@
 from typing import Optional, Dict, List
 from threading import Lock
 from json import dumps
-from uuid import UUID
 
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
@@ -55,15 +54,6 @@ class TraceProcessor(SpanProcessor):
         span: Span,
         parent_context: Optional[Context] = None,
     ) -> None:
-        trace_id = span.context.trace_id
-        span_id = span.context.span_id
-
-        # log.debug(
-        #     "[SPAN] [START] ",
-        #     trace_id=UUID(int=trace_id).hex,
-        #     span_id=UUID(int=span_id).hex[-16:],
-        # )
-
         for key in self.references.keys():
             span.set_attribute(f"ag.refs.{key}", self.references[key])
 
@@ -164,12 +154,6 @@ class TraceProcessor(SpanProcessor):
     ):
         trace_id = span.context.trace_id
         span_id = span.context.span_id
-
-        # log.debug(
-        #     "[SPAN] [END]   ",
-        #     trace_id=UUID(int=trace_id).hex,
-        #     span_id=UUID(int=span_id).hex[-16:],
-        # )
 
         self._spans.setdefault(trace_id, []).append(span)
         self._registry.setdefault(trace_id, {})

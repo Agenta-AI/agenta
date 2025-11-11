@@ -64,9 +64,6 @@ class CreateApp(BaseModel):
 class CreateAppOutput(BaseModel):
     app_id: str
     app_name: str
-    app_type: Optional[str] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
 
 
 class UpdateApp(BaseModel):

@@ -11,7 +11,7 @@ class TracingContext(BaseModel):
     #
     credentials: Optional[str] = None
     #
-    script: Optional[dict] = None
+    script: Optional[str] = None
     parameters: Optional[dict] = None
     #
     flags: Optional[dict] = None

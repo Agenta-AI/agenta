@@ -18,30 +18,12 @@ export interface EvaluatorData {
     }
 }
 
-export interface EvaluatorRevisionDto {
-    id?: string
-    slug?: string
-    evaluator_id?: string
-    evaluator_variant_id?: string
-    version?: string
-    data?: Record<string, any>
-    flags?: Record<string, any>
-    meta?: Record<string, any>
-    tags?: Record<string, unknown>
-}
-
-export interface EvaluatorRevisionsResponseDto {
-    count?: number
-    evaluator_revisions?: EvaluatorRevisionDto[]
-}
-
 export type EvaluatorPreviewDto = EvaluatorDto<"payload"> &
     EvaluatorDto<"response"> & {
         /**
          * Computed metrics schema derived from EvaluatorDto.data
          */
         metrics: Record<string, unknown>
-        revision?: EvaluatorRevisionDto
     }
 
 type EvaluatorDtoBase = {

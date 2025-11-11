@@ -1,6 +1,6 @@
 # /agenta/sdk/models/running.py
 
-from typing import Any, Dict, Optional, Union, List
+from typing import Any, Dict, Optional, Union
 from uuid import UUID
 from urllib.parse import urlparse
 
@@ -17,15 +17,12 @@ from pydantic import (
     ConfigDict,
     model_validator,
     ValidationError,
-    Field,
 )
 
 from agenta.sdk.models.shared import (
     TraceID,
     SpanID,
     Link,
-    Identifier,
-    Slug,
     Reference,
     Lifecycle,
     Header,
@@ -34,51 +31,7 @@ from agenta.sdk.models.shared import (
     Schema,
     Status,
     Commit,
-    AliasConfig,
-    sync_alias,
 )
-
-from agenta.sdk.models.git import (
-    Artifact,
-    ArtifactCreate,
-    ArtifactEdit,
-    ArtifactQuery,
-    ArtifactFork,
-    Variant,
-    VariantCreate,
-    VariantEdit,
-    VariantQuery,
-    VariantFork,
-    Revision,
-    RevisionCreate,
-    RevisionEdit,
-    RevisionQuery,
-    RevisionCommit,
-    RevisionsLog,
-    RevisionFork,
-)
-
-
-# oss.src.core.workflows.dtos
-from typing import Optional, Dict, Any
-from uuid import UUID, uuid4
-from urllib.parse import urlparse
-
-from pydantic import (
-    BaseModel,
-    Field,
-    model_validator,
-    ValidationError,
-)
-
-from jsonschema import (
-    Draft202012Validator,
-    Draft201909Validator,
-    Draft7Validator,
-    Draft4Validator,
-    Draft6Validator,
-)
-from jsonschema.exceptions import SchemaError
 
 
 class JsonSchemas(BaseModel):
@@ -88,9 +41,9 @@ class JsonSchemas(BaseModel):
 
 
 class WorkflowFlags(BaseModel):
-    is_custom: bool = False
-    is_evaluator: bool = False
-    is_human: bool = False
+    is_custom: Optional[bool] = None
+    is_evaluator: Optional[bool] = None
+    is_human: Optional[bool] = None
 
 
 class WorkflowServiceInterface(BaseModel):
@@ -181,6 +134,21 @@ class WorkflowRevisionData(
     pass
 
 
+class WorkflowRevision(
+    Reference,
+    Lifecycle,
+    Header,
+    Metadata,
+    Commit,
+):
+    flags: Optional[WorkflowFlags] = None  # type: ignore
+
+    data: Optional[WorkflowRevisionData] = None
+
+    artifact_id: Optional[UUID] = None
+    variant_id: Optional[UUID] = None
+
+
 class WorkflowServiceStatus(Status):
     type: Optional[str] = None
     stacktrace: Optional[Union[list[str], str]] = None
@@ -267,487 +235,3 @@ WorkflowServiceResponse = Union[
     WorkflowServiceBatchResponse,
     WorkflowServiceStreamResponse,
 ]
-
-
-# aliases ----------------------------------------------------------------------
-
-
-class WorkflowIdAlias(AliasConfig):
-    workflow_id: Optional[UUID] = None
-    artifact_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_id",
-    )
-
-
-class WorkflowVariantIdAlias(AliasConfig):
-    workflow_variant_id: Optional[UUID] = None
-    variant_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_variant_id",
-    )
-
-
-class WorkflowRevisionIdAlias(AliasConfig):
-    workflow_revision_id: Optional[UUID] = None
-    revision_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_revision_id",
-    )
-
-
-# workflows --------------------------------------------------------------------
-
-
-class Workflow(Artifact):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowCreate(ArtifactCreate):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowEdit(ArtifactEdit):
-    flags: Optional[WorkflowFlags] = None
-
-
-# workflow variants ------------------------------------------------------------
-
-
-class WorkflowVariant(
-    Variant,
-    WorkflowIdAlias,
-):
-    flags: Optional[WorkflowFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-
-
-class WorkflowVariantCreate(
-    VariantCreate,
-    WorkflowIdAlias,
-):
-    flags: Optional[WorkflowFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-
-
-class WorkflowVariantEdit(VariantEdit):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowVariantQuery(VariantQuery):
-    flags: Optional[WorkflowFlags] = None
-
-
-# workflow revisions -----------------------------------------------------------
-
-from agenta.sdk.models.workflows import WorkflowRevisionData
-
-
-class WorkflowRevision(
-    Revision,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-):
-    flags: Optional[WorkflowFlags] = None
-
-    data: Optional[WorkflowRevisionData] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
-
-
-class WorkflowRevisionCreate(
-    RevisionCreate,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-):
-    flags: Optional[WorkflowFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
-
-
-class WorkflowRevisionEdit(RevisionEdit):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowRevisionQuery(RevisionQuery):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowRevisionCommit(
-    RevisionCommit,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-):
-    flags: Optional[WorkflowFlags] = None
-
-    data: Optional[WorkflowRevisionData] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
-
-
-class WorkflowRevisionsLog(
-    RevisionsLog,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-    WorkflowRevisionIdAlias,
-):
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
-        sync_alias("workflow_revision_id", "revision_id", self)
-
-
-# forks ------------------------------------------------------------------------
-
-
-class WorkflowRevisionFork(RevisionFork):
-    flags: Optional[WorkflowFlags] = None
-
-    data: Optional[WorkflowRevisionData] = None
-
-
-class WorkflowRevisionForkAlias(AliasConfig):
-    workflow_revision: Optional[WorkflowRevisionFork] = None
-
-    revision: Optional[RevisionFork] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_revision",
-    )
-
-
-class WorkflowVariantFork(VariantFork):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowVariantForkAlias(AliasConfig):
-    workflow_variant: Optional[WorkflowVariantFork] = None
-
-    variant: Optional[VariantFork] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_variant",
-    )
-
-
-class WorkflowFork(
-    ArtifactFork,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-    WorkflowVariantForkAlias,
-    WorkflowRevisionIdAlias,
-    WorkflowRevisionForkAlias,
-):
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
-        sync_alias("workflow_variant", "variant", self)
-        sync_alias("workflow_revision_id", "revision_id", self)
-        sync_alias("workflow_revision", "revision", self)
-
-
-# ------------------------------------------------------------------------------
-
-
-class EvaluatorRevision(BaseModel):
-    id: Optional[UUID] = None
-    slug: Optional[str] = None
-    version: Optional[str] = None
-
-    data: Optional[WorkflowRevisionData] = None
-
-    evaluator_id: Optional[UUID] = None
-    evaluator_variant_id: Optional[UUID] = None
-
-
-class ApplicationServiceRequest(WorkflowServiceRequest):
-    pass
-
-
-class ApplicationServiceBatchResponse(WorkflowServiceBatchResponse):
-    pass
-
-
-class EvaluatorServiceRequest(WorkflowServiceRequest):
-    pass
-
-
-class EvaluatorServiceBatchResponse(WorkflowServiceBatchResponse):
-    pass
-
-
-# oss.src.core.evaluators.dtos
-
-
-class EvaluatorIdAlias(AliasConfig):
-    evaluator_id: Optional[UUID] = None
-    workflow_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="evaluator_id",
-    )
-
-
-class EvaluatorVariantIdAlias(AliasConfig):
-    evaluator_variant_id: Optional[UUID] = None
-    workflow_variant_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="evaluator_variant_id",
-    )
-
-
-class EvaluatorRevisionData(WorkflowRevisionData):
-    pass
-
-
-class EvaluatorFlags(WorkflowFlags):
-    def __init__(self, **data):
-        data["is_evaluator"] = True
-
-        super().__init__(**data)
-
-
-class SimpleEvaluatorFlags(EvaluatorFlags):
-    pass
-
-
-class SimpleEvaluatorData(EvaluatorRevisionData):
-    pass
-
-
-class Evaluator(Workflow):
-    flags: Optional[EvaluatorFlags] = None
-
-
-class SimpleEvaluatorRevision(
-    WorkflowRevision,
-    EvaluatorIdAlias,
-    EvaluatorVariantIdAlias,
-):
-    flags: Optional[EvaluatorFlags] = None
-
-    data: Optional[EvaluatorRevisionData] = None
-
-
-class SimpleEvaluator(Identifier, Slug, Lifecycle, Header, Metadata):
-    flags: Optional[SimpleEvaluatorFlags] = None
-
-    data: Optional[SimpleEvaluatorData] = None
-
-
-class SimpleEvaluatorCreate(Slug, Header, Metadata):
-    flags: Optional[SimpleEvaluatorFlags] = None
-
-    data: Optional[SimpleEvaluatorData] = None
-
-
-class SimpleEvaluatorEdit(Identifier, Header, Metadata):
-    flags: Optional[SimpleEvaluatorFlags] = None
-
-    data: Optional[SimpleEvaluatorData] = None
-
-
-class SimpleEvaluatorResponse(BaseModel):
-    count: int = 0
-    evaluator: Optional[SimpleEvaluator] = None
-
-
-class EvaluatorRevisionResponse(BaseModel):
-    count: int = 0
-    evaluator_revision: Optional[EvaluatorRevision] = None
-
-
-# oss.src.core.applications.dtos
-
-# aliases ----------------------------------------------------------------------
-
-
-class ApplicationIdAlias(AliasConfig):
-    application_id: Optional[UUID] = None
-    workflow_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="application_id",
-    )
-
-
-class ApplicationVariantIdAlias(AliasConfig):
-    application_variant_id: Optional[UUID] = None
-    workflow_variant_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="application_variant_id",
-    )
-
-
-class ApplicationRevisionIdAlias(AliasConfig):
-    application_revision_id: Optional[UUID] = None
-    workflow_revision_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="application_revision_id",
-    )
-
-
-# globals ----------------------------------------------------------------------
-
-
-class ApplicationFlags(WorkflowFlags):
-    def __init__(self, **data):
-        data["is_evaluator"] = False
-
-        super().__init__(**data)
-
-
-# applications -------------------------------------------------------------------
-
-
-class Application(Workflow):
-    flags: Optional[ApplicationFlags] = None
-
-
-class ApplicationCreate(WorkflowCreate):
-    flags: Optional[ApplicationFlags] = None
-
-
-class ApplicationEdit(WorkflowEdit):
-    flags: Optional[ApplicationFlags] = None
-
-
-# application variants -----------------------------------------------------------
-
-
-class ApplicationVariant(
-    WorkflowVariant,
-    ApplicationIdAlias,
-):
-    flags: Optional[ApplicationFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("application_id", "workflow_id", self)
-
-
-class ApplicationVariantCreate(
-    WorkflowVariantCreate,
-    ApplicationIdAlias,
-):
-    flags: Optional[ApplicationFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("application_id", "workflow_id", self)
-
-
-class ApplicationVariantEdit(WorkflowVariantEdit):
-    flags: Optional[ApplicationFlags] = None
-
-
-# application revisions -----------------------------------------------------
-
-
-class ApplicationRevisionData(WorkflowRevisionData):
-    pass
-
-
-class ApplicationRevision(
-    WorkflowRevision,
-    ApplicationIdAlias,
-    ApplicationVariantIdAlias,
-):
-    flags: Optional[ApplicationFlags] = None
-
-    data: Optional[ApplicationRevisionData] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("application_id", "workflow_id", self)
-        sync_alias("application_variant_id", "workflow_variant_id", self)
-
-
-class ApplicationRevisionCreate(
-    WorkflowRevisionCreate,
-    ApplicationIdAlias,
-    ApplicationVariantIdAlias,
-):
-    flags: Optional[ApplicationFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("application_id", "workflow_id", self)
-        sync_alias("application_variant_id", "workflow_variant_id", self)
-
-
-class ApplicationRevisionEdit(WorkflowRevisionEdit):
-    flags: Optional[ApplicationFlags] = None
-
-
-class ApplicationRevisionCommit(
-    WorkflowRevisionCommit,
-    ApplicationIdAlias,
-    ApplicationVariantIdAlias,
-):
-    flags: Optional[ApplicationFlags] = None
-
-    data: Optional[ApplicationRevisionData] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("application_id", "workflow_id", self)
-        sync_alias("application_variant_id", "workflow_variant_id", self)
-
-
-class ApplicationRevisionResponse(BaseModel):
-    count: int = 0
-    application_revision: Optional[ApplicationRevision] = None
-
-
-class ApplicationRevisionsResponse(BaseModel):
-    count: int = 0
-    application_revisions: List[ApplicationRevision] = []
-
-
-# simple applications ------------------------------------------------------------
-
-
-class LegacyApplicationFlags(WorkflowFlags):
-    pass
-
-
-class LegacyApplicationData(WorkflowRevisionData):
-    pass
-
-
-class LegacyApplication(Identifier, Slug, Lifecycle, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
-
-    data: Optional[LegacyApplicationData] = None
-
-
-class LegacyApplicationCreate(Slug, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
-
-    data: Optional[LegacyApplicationData] = None
-
-
-class LegacyApplicationEdit(Identifier, Header, Metadata):
-    flags: Optional[LegacyApplicationFlags] = None
-
-    data: Optional[LegacyApplicationData] = None
-
-
-class LegacyApplicationResponse(BaseModel):
-    count: int = 0
-    application: Optional[LegacyApplication] = None
-
-
-# end of oss.src.core.applications.dtos

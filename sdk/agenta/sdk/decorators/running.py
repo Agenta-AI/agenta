@@ -28,7 +28,7 @@ from agenta.sdk.middlewares.running.normalizer import (
 from agenta.sdk.middlewares.running.resolver import (
     ResolverMiddleware,
     resolve_interface,
-    resolve_configuration,
+    resolve_parameters,
 )
 from agenta.sdk.middlewares.running.vault import (
     VaultMiddleware,
@@ -39,12 +39,9 @@ from agenta.sdk.workflows.utils import (
     register_handler,
     retrieve_handler,
     retrieve_interface,
-    retrieve_configuration,
+    retrieve_parameters,
     is_custom_uri,
 )
-
-import agenta as ag
-
 
 log = get_module_logger(__name__)
 
@@ -126,6 +123,7 @@ class workflow:
         uri: Optional[str] = None,
         url: Optional[str] = None,
         headers: Optional[dict] = None,
+        runtime: Optional[str] = None,
         schemas: Optional[dict] = None,
         #
         interface: Optional[
@@ -135,7 +133,7 @@ class workflow:
             ]
         ] = None,
         # -------------------------------------------------------------------- #
-        script: Optional[dict] = None,
+        script: Optional[str] = None,
         parameters: Optional[dict] = None,
         #
         configuration: Optional[
@@ -169,6 +167,7 @@ class workflow:
         self.uri = uri
         self.url = url
         self.headers = headers
+        self.runtime = runtime
         self.schemas = schemas
         #
         self.interface = interface
@@ -201,21 +200,13 @@ class workflow:
 
             if self.handler:
                 self.interface = retrieve_interface(self.uri) or self.interface
+                self.parameters = self.parameters or retrieve_parameters(self.uri)
                 if isinstance(self.interface, WorkflowServiceInterface):
                     self.uri = self.interface.uri or self.uri
-                self.configuration = self.configuration or retrieve_configuration(
-                    self.uri
-                )
-                if not isinstance(self.configuration, WorkflowServiceConfiguration):
-                    self.configuration = WorkflowServiceConfiguration()
-                self.configuration.parameters = (
-                    self.parameters or self.configuration.parameters
-                )
-                self.parameters = self.configuration.parameters
 
         if is_custom_uri(self.uri):
             self.flags = self.flags or dict()
-            self.flags["is_custom"] = True
+            self.flags["custom"] = True
 
     def __call__(self, handler: Optional[Callable[..., Any]] = None) -> Workflow:
         if self.handler is None and handler is not None:
@@ -229,7 +220,7 @@ class workflow:
 
             if is_custom_uri(self.uri):
                 self.flags = self.flags or dict()
-                self.flags["is_custom"] = True
+                self.flags["custom"] = True
 
             return self.handler
 
@@ -321,16 +312,6 @@ class workflow:
         #
         **kwargs,
     ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
-        _flags = {**(self.flags or {}), **(request.flags or {})}
-        _tags = {**(self.tags or {}), **(request.tags or {})}
-        _meta = {**(self.meta or {}), **(request.meta or {})}
-
-        credentials = credentials or (
-            f"ApiKey {ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key}"
-            if ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_key
-            else None
-        )
-
         with tracing_context_manager(TracingContext.get()):
             tracing_ctx = TracingContext.get()
 
@@ -339,9 +320,9 @@ class workflow:
             tracing_ctx.aggregate = self.aggregate
             tracing_ctx.annotate = self.annotate
 
-            tracing_ctx.flags = _flags
-            tracing_ctx.tags = _tags
-            tracing_ctx.meta = _meta
+            tracing_ctx.flags = self.flags
+            tracing_ctx.tags = self.tags
+            tracing_ctx.meta = self.meta
 
             tracing_ctx.references = self.references
             tracing_ctx.links = self.links
@@ -353,9 +334,8 @@ class workflow:
                 running_ctx.credentials = credentials
 
                 running_ctx.interface = self.interface
-                running_ctx.schemas = self.schemas
-                running_ctx.configuration = self.configuration
                 running_ctx.parameters = self.parameters
+                running_ctx.schemas = self.schemas
 
                 running_ctx.aggregate = self.aggregate
                 running_ctx.annotate = self.annotate
@@ -404,27 +384,24 @@ class workflow:
                 running_ctx.credentials = credentials
 
                 running_ctx.interface = self.interface
-                running_ctx.schemas = self.schemas
-                running_ctx.configuration = self.configuration
                 running_ctx.parameters = self.parameters
+                running_ctx.schemas = self.schemas
 
                 running_ctx.aggregate = self.aggregate
                 running_ctx.annotate = self.annotate
 
                 if self.default_request is None:
                     interface = await resolve_interface(
-                        interface=self.interface,
-                        **self.kwargs,
+                        interface=self.interface, **self.kwargs
                     )
-                    configuration = await resolve_configuration(
-                        configuration=self.configuration,
-                        **self.kwargs,
-                    )
+                    parameters = await resolve_parameters(**self.kwargs)
 
                     self.default_request = WorkflowServiceRequest(
                         #
                         interface=interface,
-                        configuration=configuration,
+                        configuration=WorkflowServiceConfiguration(
+                            parameters=parameters,
+                        ),
                         #
                         references=self.references,
                         links=self.links,
@@ -475,7 +452,7 @@ async def invoke_workflow(
     credentials: Optional[str] = None,
     #
     **kwargs,
-) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
+) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse,]:
     return await workflow(
         data=request.data,
         #
@@ -530,13 +507,10 @@ class application(workflow):
     def __init__(
         self,
         #
-        slug: Optional[str] = None,
+        slug: str,
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        #
-        parameters: Optional[dict] = None,
-        schemas: Optional[dict] = None,
         #
         variant_slug: Optional[str] = None,
         #
@@ -548,98 +522,27 @@ class application(workflow):
             # is_human=False,  # None / False / missing is the same
         )
 
-        if not "references" in kwargs or not isinstance(kwargs["references"], dict):
-            kwargs["references"] = dict()
+        if "references" in kwargs:
+            if isinstance(kwargs["references"], dict):
+                for key in kwargs["references"]:
+                    if key.startswith("evaluator_"):
+                        del kwargs["references"][key]
 
-        for key in kwargs["references"]:
-            if key.startswith("evaluator_"):
-                del kwargs["references"][key]
+                kwargs["references"]["application"] = {"slug": slug}
+                if variant_slug is not None:
+                    kwargs["references"]["application_variant"] = {"slug": variant_slug}
 
-        if slug is not None:
-            kwargs["references"]["application"] = {"slug": slug}
-        if variant_slug is not None:
-            kwargs["references"]["application_variant"] = {"slug": variant_slug}
-
-        super().__init__(
-            name=name,
-            description=description,
-            #
-            parameters=parameters,
-            schemas=schemas,
-            #
-            **kwargs,
-        )
-
-
-async def invoke_application(
-    request: WorkflowServiceRequest,
-    #
-    secrets: Optional[list] = None,
-    credentials: Optional[str] = None,
-    #
-    **kwargs,
-) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
-    return await application(
-        data=request.data,
-        #
-        interface=request.interface,
-        configuration=request.configuration,
-        #
-        flags=request.flags,
-        tags=request.tags,
-        meta=request.meta,
-        #
-        references=request.references,
-        links=request.links,
-        #
-        **kwargs,
-    )().invoke(
-        request=request,
-        #
-        secrets=secrets,
-        credentials=credentials,
-        #
-        **kwargs,
-    )
-
-
-async def inspect_application(
-    request: WorkflowServiceRequest,
-    #
-    credentials: Optional[str] = None,
-    #
-    **kwargs,
-) -> WorkflowServiceRequest:
-    return await application(
-        data=request.data,
-        #
-        interface=request.interface,
-        configuration=request.configuration,
-        #
-        flags=request.flags,
-        tags=request.tags,
-        meta=request.meta,
-        #
-        references=request.references,
-        links=request.links,
-    )().inspect(
-        credentials=credentials,
-        #
-        **kwargs,
-    )
+        super().__init__(name=name, description=description, **kwargs)
 
 
 class evaluator(workflow):
     def __init__(
         self,
         #
-        slug: Optional[str] = None,
+        slug: str,
         *,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        #
-        parameters: Optional[dict] = None,
-        schemas: Optional[dict] = None,
         #
         variant_slug: Optional[str] = None,
         #
@@ -651,82 +554,14 @@ class evaluator(workflow):
             # is_human=False,  # None / False / missing is the same
         )
 
-        if not "references" in kwargs or not isinstance(kwargs["references"], dict):
-            kwargs["references"] = dict()
+        if "references" in kwargs:
+            if isinstance(kwargs["references"], dict):
+                for key in kwargs["references"]:
+                    if key.startswith("application_"):
+                        del kwargs["references"][key]
 
-        for key in kwargs["references"]:
-            if key.startswith("application_"):
-                del kwargs["references"][key]
+                kwargs["references"]["evaluator"] = {"slug": slug}
+                if variant_slug is not None:
+                    kwargs["references"]["evaluator_variant"] = {"slug": variant_slug}
 
-        if slug is not None:
-            kwargs["references"]["evaluator"] = {"slug": slug}
-        if variant_slug is not None:
-            kwargs["references"]["evaluator_variant"] = {"slug": variant_slug}
-
-        super().__init__(
-            name=name,
-            description=description,
-            #
-            parameters=parameters,
-            schemas=schemas,
-            #
-            **kwargs,
-        )
-
-
-async def invoke_evaluator(
-    request: WorkflowServiceRequest,
-    #
-    secrets: Optional[list] = None,
-    credentials: Optional[str] = None,
-    #
-    **kwargs,
-) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
-    return await evaluator(
-        data=request.data,
-        #
-        interface=request.interface,
-        configuration=request.configuration,
-        #
-        flags=request.flags,
-        tags=request.tags,
-        meta=request.meta,
-        #
-        references=request.references,
-        links=request.links,
-        #
-        **kwargs,
-    )().invoke(
-        request=request,
-        #
-        secrets=secrets,
-        credentials=credentials,
-        #
-        **kwargs,
-    )
-
-
-async def inspect_evaluator(
-    request: WorkflowServiceRequest,
-    #
-    credentials: Optional[str] = None,
-    #
-    **kwargs,
-) -> WorkflowServiceRequest:
-    return await evaluator(
-        data=request.data,
-        #
-        interface=request.interface,
-        configuration=request.configuration,
-        #
-        flags=request.flags,
-        tags=request.tags,
-        meta=request.meta,
-        #
-        references=request.references,
-        links=request.links,
-    )().inspect(
-        credentials=credentials,
-        #
-        **kwargs,
-    )
+        super().__init__(name=name, description=description, **kwargs)

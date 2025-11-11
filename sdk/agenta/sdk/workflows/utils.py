@@ -97,7 +97,7 @@ INTERFACE_REGISTRY: dict = dict(
     },
 )
 
-CONFIGURATION_REGISTRY: dict = dict(
+PARAMETERS_REGISTRY: dict = dict(
     agenta={
         "built-in": dict(
             echo=dict(v0=echo_v0_configuration),
@@ -149,7 +149,7 @@ CONFIGURATION_REGISTRY: dict = dict(
 #   - register_handler(fn, uri) - Registers a new handler with the given URI
 #   - retrieve_handler(uri) - Retrieves a handler by its URI
 #   - retrieve_interface(uri) - Retrieves the interface configuration for a handler
-#   - retrieve_configuration(uri) - Retrieves default parameters for a handler
+#   - retrieve_parameters(uri) - Retrieves default parameters for a handler
 #
 # The registry supports automatic URI generation for user-defined workflows:
 #   If no URI is provided, register_handler() generates: "user:custom:{module}.{name}:latest"
@@ -297,18 +297,17 @@ def retrieve_interface(uri: Optional[str] = None) -> Optional[WorkflowServiceInt
     return _get_with_latest(INTERFACE_REGISTRY, provider, kind, key, version)
 
 
-def retrieve_configuration(uri: Optional[str] = None) -> Optional[dict]:
+def retrieve_parameters(uri: Optional[str] = None) -> Optional[dict]:
     if not uri:
         return None
     provider, kind, key, version = parse_uri(uri)
 
-    return _get_with_latest(CONFIGURATION_REGISTRY, provider, kind, key, version)
+    return _get_with_latest(PARAMETERS_REGISTRY, provider, kind, key, version)
 
 
 def is_custom_uri(uri: Optional[str] = None) -> bool:
     if not uri:
-        return True
-
+        return False
     provider, kind, key, version = parse_uri(uri)
 
     return provider == "user" and kind == "custom"

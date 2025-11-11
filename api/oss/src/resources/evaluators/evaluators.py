@@ -205,78 +205,6 @@ evaluators = [
         "key": "auto_ai_critique",
         "direct_use": False,
         "requires_llm_api_keys": True,
-        "settings_presets": [
-            {
-                "key": "default",
-                "name": "Default",
-                "values": {
-                    "prompt_template": [
-                        {
-                            "role": "system",
-                            "content": "You are an expert evaluator grading model outputs. Your task is to grade the responses based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) assign a grade to the output. \n\n## Grading considerations\n- Evaluate the overall value provided in the model output\n- Verify all claims in the output meticulously\n- Differentiate between minor errors and major errors\n- Evaluate the outputs based on the inputs and whether they follow the instruction in the inputs if any\n- Give the highst and lowest score for cases where you have complete certainty about correctness and value\n\n## Scoring Criteria\n- The score should be a decimal value between 0.0 and 1.0\n- A score of 1.0 means that the answer is perfect. This is the highest (best) score \n- A score of 0.0 means that the answer does not meet any of the criteria. This is the lowest possible score you can give.\n\n## output format\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER\n",
-                        },
-                        {
-                            "role": "user",
-                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
-                        },
-                    ],
-                    "model": "gpt-4o-mini",
-                    "response_type": "json_schema",
-                    "json_schema": {
-                        "name": "schema",
-                        "schema": {
-                            "title": "extract",
-                            "description": "Extract information from the user's response.",
-                            "type": "object",
-                            "properties": {
-                                "correctness": {
-                                    "type": "boolean",
-                                    "description": "The grade results",
-                                }
-                            },
-                            "required": ["correctness"],
-                            "strict": True,
-                        },
-                    },
-                    "version": "4",
-                },
-            },
-            {
-                "key": "hallucination",
-                "name": "Hallucination Detection",
-                "values": {
-                    "prompt_template": [
-                        {
-                            "role": "system",
-                            "content": "You are an expert evaluator grading model outputs for hallucinations. Your task is to identify if the responses contain any hallucinated information based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) determine if the output contains hallucinations. \n\n## Hallucination considerations\n- Verify all factual claims in the output meticulously against the input data\n- Identify any information that is fabricated or not supported by the input data\n- Differentiate between minor inaccuracies and major hallucinations\n\n## Output format\nANSWER ONLY 'true' IF THE OUTPUT CONTAINS HALLUCINATIONS, OTHERWISE ANSWER 'false'. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN 'true' OR 'false'\n",
-                        },
-                        {
-                            "role": "user",
-                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
-                        },
-                    ],
-                    "model": "gpt-4o-mini",
-                    "response_type": "json_schema",
-                    "json_schema": {
-                        "name": "schema",
-                        "schema": {
-                            "title": "extract",
-                            "description": "Extract information from the user's response.",
-                            "type": "object",
-                            "properties": {
-                                "correctness": {
-                                    "type": "boolean",
-                                    "description": "The hallucination detection result",
-                                }
-                            },
-                            "required": ["correctness"],
-                            "strict": True,
-                        },
-                    },
-                    "version": "4",
-                },
-            },
-        ],
         "settings_template": {
             "prompt_template": {
                 "label": "Prompt Template",
@@ -323,39 +251,10 @@ evaluators = [
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
                 "description": "The LLM model to use for the evaluation",
             },
-            "response_type": {
-                "label": "Response Type",
-                "default": "json_schema",
-                "type": "hidden",
-                "advanced": True,
-                "description": "The format of the response from the LLM",
-            },
-            "json_schema": {
-                "label": "Feedback Configuration",
-                "default": {
-                    "name": "schema",
-                    "schema": {
-                        "title": "extract",
-                        "description": "Extract information from the user's response.",
-                        "type": "object",
-                        "properties": {
-                            "correctness": {
-                                "type": "boolean",
-                                "description": "The grade results",
-                            }
-                        },
-                        "required": ["correctness"],
-                        "strict": True,
-                    },
-                },
-                "type": "llm_response_schema",
-                "advanced": False,
-                "description": "Select a response format to structure how your evaluation results are returned.",
-            },
             "version": {
                 "label": "Version",
                 "type": "hidden",
-                "default": "4",
+                "default": "3",
                 "description": "The version of the evaluator",  # ignore by the FE
                 "advanced": False,  # ignore by the FE
             },
