@@ -9,15 +9,15 @@ import yaml from "js-yaml"
 import JSON5 from "json5"
 import {
     $getRoot,
+    $createTabNode,
     COMMAND_PRIORITY_LOW,
     createCommand,
     BLUR_COMMAND,
     FOCUS_COMMAND,
     $setSelection,
+    $isTabNode,
     LexicalNode,
 } from "lexical"
-
-import {safeJson5Parse} from "@/oss/lib/helpers/utils"
 
 import {INITIAL_CONTENT_COMMAND, InitialContentPayload} from "../../commands/InitialContentCommand"
 
@@ -26,7 +26,6 @@ export const store = createStore()
 import {$createCodeBlockNode, $isCodeBlockNode} from "./nodes/CodeBlockNode"
 import {$createCodeHighlightNode} from "./nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode, $isCodeLineNode} from "./nodes/CodeLineNode"
-import {$createCodeTabNode, $isCodeTabNode} from "./nodes/CodeTabNode"
 import {AutoCloseBracketsPlugin} from "./plugins/AutoCloseBracketsPlugin"
 import {AutoFormatAndValidateOnPastePlugin} from "./plugins/AutoFormatAndValidateOnPastePlugin"
 import {ClosingBracketIndentationPlugin} from "./plugins/ClosingBracketIndentationPlugin"
@@ -38,6 +37,7 @@ import VerticalNavigationPlugin from "./plugins/VerticalNavigationPlugin"
 import {tryParsePartialJson} from "./tryParsePartialJson"
 import {createLogger} from "./utils/createLogger"
 import {tokenizeCodeLine} from "./utils/tokenizer"
+import {validateAll} from "./utils/validationUtils"
 
 export const TOGGLE_FORM_VIEW = createCommand<void>("TOGGLE_FORM_VIEW")
 
@@ -84,12 +84,11 @@ function getTokenValidation(
 
 /**
  * Applies validation errors to code line nodes during initial content creation.
- * Uses the unified ValidationManager for consistent validation.
  *
  * @param codeLineNodes The array of code line nodes to apply validation to.
  * @param text The original text content.
  * @param validationSchema The schema to validate against.
- * @param editor The Lexical editor instance.
+ * @param editor The Lexical editor instance to store global errors.
  */
 function applyValidationToNodes(
     codeLineNodes: CodeLineNode[],
@@ -97,9 +96,57 @@ function applyValidationToNodes(
     validationSchema: any,
     editor?: any,
 ): void {
-    // Note: Validation is now handled automatically by the GlobalErrorIndicatorPlugin
-    // which listens to content changes and applies validation styling per editor instance.
-    // No need to manually trigger validation during initial content creation.
+    try {
+        // Run validation on the text content
+        const validationResult = validateAll(text, validationSchema)
+
+        // Create a map of errors by line number
+        const errorsByLine = new Map<number, any[]>()
+
+        // Add all types of errors to the map
+        ;[...validationResult.structuralErrors, ...validationResult.schemaErrors].forEach(
+            (error) => {
+                const lineNumber = error.line
+                if (lineNumber && !errorsByLine.has(lineNumber)) {
+                    errorsByLine.set(lineNumber, [])
+                }
+                if (lineNumber) {
+                    errorsByLine.get(lineNumber)!.push(error)
+                }
+            },
+        )
+
+        // Apply errors to the corresponding code line nodes
+        codeLineNodes.forEach((lineNode, index) => {
+            const lineNumber = index + 1 // Lines are 1-indexed
+            const lineErrors = errorsByLine.get(lineNumber) || []
+
+            if (lineErrors.length > 0) {
+                // Set validation errors on the line node
+                const writableLine = lineNode.getWritable()
+                writableLine.setValidationErrors(lineErrors)
+            }
+        })
+
+        // Store errors in editor state for GlobalErrorIndicatorPlugin
+        if (editor) {
+            ;(editor as any)._structuralErrors = validationResult.structuralErrors
+            ;(editor as any)._schemaErrors = validationResult.schemaErrors
+            ;(editor as any)._bracketErrors = validationResult.bracketErrors || []
+
+            console.log(`🎯 [applyValidationToNodes] Stored errors in editor state:`, {
+                structural: validationResult.structuralErrors.length,
+                schema: validationResult.schemaErrors.length,
+                bracket: (validationResult.bracketErrors || []).length,
+            })
+        }
+    } catch (error) {
+        // Silently ignore validation errors during initial content creation
+        console.warn(
+            "[createHighlightedNodes] Validation failed during initial content creation:",
+            error,
+        )
+    }
 }
 
 /**
@@ -136,7 +183,7 @@ export function createHighlightedNodes(
                 const codeLine = $createCodeLineNode()
                 let content = line
                 while (content.startsWith("  ")) {
-                    codeLine.append($createCodeTabNode())
+                    codeLine.append($createTabNode())
                     content = content.substring(2)
                 }
                 const tokens = tokenizeCodeLine(content, language)
@@ -172,7 +219,7 @@ export function createHighlightedNodes(
         const codeLine = $createCodeLineNode()
         let content = line
         while (content.startsWith("  ")) {
-            codeLine.append($createCodeTabNode())
+            codeLine.append($createTabNode())
             content = content.substring(2)
         }
         const tokens = tokenizeCodeLine(content, language)
@@ -209,19 +256,17 @@ export function createHighlightedNodes(
  * 3. Ensures the editor always has a valid code block to edit
  */
 function InsertInitialCodeBlockPlugin({
-    debug = false,
+    debug,
     initialValue,
     language = "json",
     validationSchema,
     additionalCodePlugins = [],
-    editorId,
 }: {
     debug?: boolean
     initialValue: string
     language?: "json" | "yaml"
     validationSchema: any
     additionalCodePlugins?: React.ReactNode[]
-    editorId: string
 }) {
     const [editor] = useLexicalComposerContext()
 
@@ -317,29 +362,14 @@ function InsertInitialCodeBlockPlugin({
                         try {
                             // For JSON/YAML content, parse and format
                             const objectValue =
-                                payload.language === "json"
+                                typeof payload.content === "string"
                                     ? JSON5.parse(payload.content)
                                     : payload.content
                             let value: string
                             if (payload.language === "json") {
                                 value = JSON.stringify(objectValue, null, 2)
                             } else {
-                                try {
-                                    const obj = yaml.load(objectValue)
-                                    if (obj !== undefined) {
-                                        value = yaml.dump(obj as any, {indent: 2})
-                                    } else {
-                                        value = objectValue
-                                    }
-                                } catch {
-                                    // Try JSON as a fallback and then dump to YAML for consistent highlighting
-                                    try {
-                                        const obj = JSON5.parse(objectValue)
-                                        value = yaml.dump(obj as any, {indent: 2})
-                                    } catch {
-                                        value = objectValue
-                                    }
-                                }
+                                value = yaml.dump(objectValue, {indent: 2})
                             }
                             log(" Reconstructing code block due to prop change", {
                                 language: payload.language,
@@ -409,7 +439,7 @@ function InsertInitialCodeBlockPlugin({
                         return line
                             .getChildren()
                             .map((child: LexicalNode) =>
-                                $isCodeTabNode(child) ? "  " : child.getTextContent(),
+                                $isTabNode(child) ? "  " : child.getTextContent(),
                             )
                             .join("")
                     })
@@ -503,15 +533,17 @@ function InsertInitialCodeBlockPlugin({
 
     useEffect(() => {
         // For JSON/YAML content, use semantic comparison
-        if (prevInitialRef.current) {
-            if (
-                isEqual(
-                    safeJson5Parse(prevInitialRef.current as string),
-                    safeJson5Parse(initialValue),
-                )
-            ) {
-                return // no semantic change
-            }
+        if (prevInitialRef.current !== undefined) {
+            try {
+                if (
+                    isEqual(
+                        JSON5.parse(prevInitialRef.current as string),
+                        JSON5.parse(initialValue),
+                    )
+                ) {
+                    return // no semantic change
+                }
+            } catch {}
         }
 
         prevInitialRef.current = initialValue
@@ -537,8 +569,8 @@ function InsertInitialCodeBlockPlugin({
             <IndentationPlugin />
             <ClosingBracketIndentationPlugin />
             <AutoCloseBracketsPlugin />
-            <GlobalErrorIndicatorPlugin editorId={editorId} />
-            <SyntaxHighlightPlugin editorId={editorId} schema={validationSchema} debug={debug} />
+            <SyntaxHighlightPlugin schema={validationSchema} debug={debug} />
+            <GlobalErrorIndicatorPlugin />
             {additionalCodePlugins?.map((plugin, index) => (
                 <Fragment key={index}>{plugin}</Fragment>
             ))}

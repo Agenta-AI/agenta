@@ -2,7 +2,7 @@ import os
 from typing import List, Dict
 import litellm
 from agenta.sdk.litellm import mockllm
-from agenta.sdk.contexts.routing import RoutingContext
+from agenta.sdk.context.routing import routing_context
 
 # Set up mockllm to use litellm
 mockllm.litellm = litellm
@@ -99,7 +99,7 @@ def search_docs(
 async def llm(query: str, results: List[Dict]):
     # Set the mock in the routing context to use the 'hello' mock
     # You can replace 'hello' with any mock defined in the MOCKS dictionary
-    ctx = RoutingContext.get()
+    ctx = routing_context.get()
     ctx.mock = "hello"
 
     config = Config()

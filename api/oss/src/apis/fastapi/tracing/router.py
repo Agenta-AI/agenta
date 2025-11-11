@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Dict, Union
+from typing import Union, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Depends, status, HTTPException
@@ -10,20 +10,16 @@ from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.apis.fastapi.tracing.utils import (
     merge_queries,
-    parse_query_from_params_request,
-    parse_query_from_body_request,
+    parse_query_request,
+    parse_body_request,
     parse_trace_id_to_uuid,
     parse_spans_from_request,
     parse_spans_into_response,
-    parse_analytics_from_params_request,
-    parse_analytics_from_body_request,
-    merge_analytics,
 )
 from oss.src.apis.fastapi.tracing.models import (
     OTelLinksResponse,
     OTelTracingRequest,
     OTelTracingResponse,
-    OldAnalyticsResponse,
     AnalyticsResponse,
 )
 from oss.src.core.tracing.service import TracingService
@@ -32,19 +28,19 @@ from oss.src.core.tracing.dtos import (
     OTelLinks,
     OTelSpan,
     OTelFlatSpans,
-    OTelFlatSpan,
     OTelTraceTree,
-    TracingQuery,
+    OTelSpansTree,
+    Query,
     Focus,
     Format,
-    MetricType,
-    MetricSpec,
 )
 
 log = get_module_logger(__name__)
 
 
 class TracingRouter:
+    VERSION = "1.0.0"
+
     def __init__(
         self,
         tracing_service: TracingService,
@@ -118,6 +114,16 @@ class TracingRouter:
         )
 
         self.router.add_api_route(
+            "/spans/",
+            self.query_spans,
+            methods=["GET"],
+            operation_id="query_spans",
+            status_code=status.HTTP_200_OK,
+            response_model=OTelTracingResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
             "/spans/query",
             self.query_spans,
             methods=["POST"],
@@ -129,19 +135,9 @@ class TracingRouter:
 
         self.router.add_api_route(
             "/spans/analytics",
-            self.fetch_legacy_analytics,
-            methods=["POST"],
-            operation_id="fetch_analytics",
-            status_code=status.HTTP_200_OK,
-            response_model=OldAnalyticsResponse,
-            response_model_exclude_none=True,
-        )
-
-        self.router.add_api_route(
-            "/analytics/query",
             self.fetch_analytics,
             methods=["POST"],
-            operation_id="fetch_new_analytics",
+            operation_id="fetch_analytics",
             status_code=status.HTTP_200_OK,
             response_model=AnalyticsResponse,
             response_model_exclude_none=True,
@@ -152,39 +148,22 @@ class TracingRouter:
     async def _upsert(
         self,
         project_id: UUID,
-        user_id: UUID,
-        #
         spans: Optional[OTelFlatSpans] = None,
         traces: Optional[OTelTraceTree] = None,
         strict: Optional[bool] = False,
+        user_id: Optional[UUID] = None,
     ) -> OTelLinks:
-        _spans: Dict[str, Union[OTelSpan, OTelFlatSpans]] = dict()
+        _spans = {}
 
         if spans:
-            _spans = {
-                "spans": [
-                    OTelFlatSpan(
-                        **span.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                            exclude_unset=True,
-                        )
-                    )
-                    for span in spans
-                ]
-            }
+            _spans = {"spans": [OTelSpan(**span.model_dump()) for span in spans]}
+
         elif traces:
-            for spans_tree in traces.values():
-                if spans_tree.spans:
-                    for span in spans_tree.spans.values():
-                        if not isinstance(span, list):
-                            _spans[span.span_id] = OTelSpan(
-                                **span.model_dump(
-                                    mode="json",
-                                    exclude_none=True,
-                                    exclude_unset=True,
-                                )
-                            )
+            for spans in traces.values():
+                spans: OTelSpansTree
+
+                for span in spans.spans.values():
+                    _spans[span.span_id] = OTelSpan(**span.model_dump())
 
         span_dtos = parse_spans_from_request(_spans)
 
@@ -192,9 +171,8 @@ class TracingRouter:
             links = (
                 await self.service.create(
                     project_id=project_id,
-                    user_id=user_id,
-                    #
                     span_dtos=span_dtos,
+                    user_id=user_id,
                 )
                 or []
             )
@@ -202,9 +180,8 @@ class TracingRouter:
             links = (
                 await self.service.update(
                     project_id=project_id,
-                    user_id=user_id,
-                    #
                     span_dtos=span_dtos,
+                    user_id=user_id,
                 )
                 or []
             )
@@ -223,15 +200,15 @@ class TracingRouter:
 
         if trace_request.traces:
             if len(trace_request.traces) == 0:
-                raise HTTPException(
+                return HTTPException(
                     status_code=400,
-                    detail="Missing trace",
+                    detail="Missing trace.",
                 )
 
             if len(trace_request.traces) > 1:
-                raise HTTPException(
+                return HTTPException(
                     status_code=400,
-                    detail="Too many traces",
+                    detail="Too many traces.",
                 )
 
             spans = list(trace_request.traces.values())[0].spans
@@ -240,47 +217,47 @@ class TracingRouter:
             spans = {span.span_id: span for span in trace_request.spans}
 
         else:
-            raise HTTPException(
+            return HTTPException(
                 status_code=400,
-                detail="Missing spans",
+                detail="Missing spans.",
             )
 
-        if not spans:
-            raise HTTPException(
+        if len(spans) == 0:
+            return HTTPException(
                 status_code=400,
-                detail="Missing spans",
+                detail="Missing spans.",
             )
 
         root_spans = 0
 
         for span in spans.values():
-            if not isinstance(span, list) and span.parent_id is None:
+            if span.parent_id is None:
                 root_spans += 1
 
         if root_spans == 0:
-            raise HTTPException(
+            return HTTPException(
                 status_code=400,
-                detail="Missing root span",
+                detail="Missing root span.",
             )
 
         if root_spans > 1:
-            raise HTTPException(
+            return HTTPException(
                 status_code=400,
-                detail="Too many root spans",
+                detail="Too many root spans.",
             )
 
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
             spans=trace_request.spans,
             traces=trace_request.traces,
             strict=True,
+            user_id=UUID(request.state.user_id),
         )
 
         link_response = OTelLinksResponse(
-            count=len(links),
+            version=self.VERSION,
             links=links,
+            count=len(links),
         )
 
         return link_response
@@ -290,7 +267,7 @@ class TracingRouter:
     async def fetch_trace(  # READ
         self,
         request: Request,
-        trace_id: str,
+        trace_id: Union[str, int],
     ) -> OTelTracingResponse:
         try:
             trace_id = parse_trace_id_to_uuid(trace_id)
@@ -300,11 +277,13 @@ class TracingRouter:
 
         spans = await self.service.read(
             project_id=UUID(request.state.project_id),
-            #
-            trace_id=UUID(trace_id),
+            trace_id=trace_id,
         )
 
-        trace_response = OTelTracingResponse()
+        trace_response = OTelTracingResponse(
+            version=self.VERSION,
+            count=0,
+        )
 
         if spans is not None:
             traces = parse_spans_into_response(
@@ -313,12 +292,10 @@ class TracingRouter:
                 format=Format.AGENTA,
             )
 
-            if not traces or isinstance(traces, list):
-                return OTelTracingResponse()
-
             trace_response = OTelTracingResponse(
-                count=len(traces.keys()),
+                version=self.VERSION,
                 traces=traces,
+                count=len(traces.values()),
             )
 
         return trace_response
@@ -327,24 +304,22 @@ class TracingRouter:
     async def edit_trace(  # UPDATE
         self,
         request: Request,
-        #
+        trace_id: Union[str, int],
         trace_request: OTelTracingRequest,
-        #
-        trace_id: str,
     ) -> OTelLinksResponse:
         spans = None
 
         if trace_request.traces:
             if len(trace_request.traces) == 0:
-                raise HTTPException(
+                return HTTPException(
                     status_code=400,
-                    detail="Missing trace",
+                    detail="Missing trace.",
                 )
 
             if len(trace_request.traces) > 1:
-                raise HTTPException(
+                return HTTPException(
                     status_code=400,
-                    detail="Too many traces",
+                    detail="Too many traces.",
                 )
 
             spans = list(trace_request.traces.values())[0].spans
@@ -353,47 +328,47 @@ class TracingRouter:
             spans = {span.span_id: span for span in trace_request.spans}
 
         else:
-            raise HTTPException(
+            return HTTPException(
                 status_code=400,
-                detail="Missing spans",
+                detail="Missing spans.",
             )
 
-        if not spans:
-            raise HTTPException(
+        if len(spans) == 0:
+            return HTTPException(
                 status_code=400,
-                detail="Missing spans",
+                detail="Missing spans.",
             )
 
         root_spans = 0
 
         for span in spans.values():
-            if not isinstance(span, list) and span.parent_id is None:
+            if span.parent_id is None:
                 root_spans += 1
 
         if root_spans == 0:
-            raise HTTPException(
+            return HTTPException(
                 status_code=400,
-                detail="Missing root span",
+                detail="Missing root span.",
             )
 
         if root_spans > 1:
-            raise HTTPException(
+            return HTTPException(
                 status_code=400,
-                detail="Too many root spans",
+                detail="Too many root spans.",
             )
 
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
             spans=trace_request.spans,
             traces=trace_request.traces,
             strict=False,
+            user_id=UUID(request.state.user_id),
         )
 
         link_response = OTelLinksResponse(
-            count=len(links),
+            version=self.VERSION,
             links=links,
+            count=len(links),
         )
 
         return link_response
@@ -402,26 +377,23 @@ class TracingRouter:
     async def delete_trace(  # DELETE
         self,
         request: Request,
-        trace_id: str,
+        trace_id: Union[str, int],
     ) -> OTelLinksResponse:
         try:
             trace_id = parse_trace_id_to_uuid(trace_id)
 
         except Exception as e:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid trace_id",
-            ) from e
+            raise HTTPException(status_code=400, detail="Invalid trace_id.") from e
 
         links = await self.service.delete(
             project_id=UUID(request.state.project_id),
-            #
-            trace_id=UUID(trace_id),
+            trace_id=trace_id,
         )
 
         link_response = OTelLinksResponse(
-            count=len(links),
+            version=self.VERSION,
             links=links,
+            count=len(links) if links else 0,
         )
 
         return link_response
@@ -436,16 +408,16 @@ class TracingRouter:
     ) -> OTelLinksResponse:
         links = await self._upsert(
             project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
             spans=spans_request.spans,
             traces=spans_request.traces,
             strict=True,
+            user_id=UUID(request.state.user_id),
         )
 
         link_response = OTelLinksResponse(
-            count=len(links),
+            version=self.VERSION,
             links=links,
+            count=len(links),
         )
 
         return link_response
@@ -455,7 +427,7 @@ class TracingRouter:
     async def query_spans(  # QUERY
         self,
         request: Request,
-        query: Optional[TracingQuery] = Depends(parse_query_from_params_request),
+        query: Optional[Query] = Depends(parse_query_request),
     ) -> OTelTracingResponse:
         body_json = None
         query_from_body = None
@@ -464,9 +436,9 @@ class TracingRouter:
             body_json = await request.json()
 
             if body_json:
-                query_from_body = parse_query_from_body_request(**body_json)
+                query_from_body = parse_body_request(**body_json)
 
-        except:
+        except:  # pylint: disable=bare-except
             pass
 
         merged_query = merge_queries(query, query_from_body)
@@ -474,7 +446,6 @@ class TracingRouter:
         try:
             span_dtos = await self.service.query(
                 project_id=UUID(request.state.project_id),
-                #
                 query=merged_query,
             )
         except FilteringException as e:
@@ -483,45 +454,54 @@ class TracingRouter:
                 detail=str(e),
             ) from e
 
-        spans_or_traces = parse_spans_into_response(
+        oldest = None
+        newest = None
+
+        for span in span_dtos:
+            if oldest is None or span.start_time < oldest:
+                oldest = span.start_time
+
+            if newest is None or span.start_time > newest:
+                newest = span.start_time
+
+        _spans_or_traces = parse_spans_into_response(
             span_dtos,
-            focus=(merged_query.formatting.focus if merged_query.formatting else None)
-            or Focus.TRACE,
-            format=(merged_query.formatting.format if merged_query.formatting else None)
-            or Format.AGENTA,
+            focus=query.formatting.focus,
+            format=query.formatting.format,
         )
 
-        spans: Optional[OTelFlatSpans] = None
-        traces: Optional[OTelTraceTree] = None
+        spans: OTelFlatSpans = None
+        traces: OTelTraceTree = None
 
-        if isinstance(spans_or_traces, list):
-            count = len(spans_or_traces)
-            spans = spans_or_traces
+        if isinstance(_spans_or_traces, list):
+            spans = _spans_or_traces
             traces = None
-        elif isinstance(spans_or_traces, dict):
-            count = len(spans_or_traces.values())
+            count = len(_spans_or_traces)
+        elif isinstance(_spans_or_traces, dict):
             spans = None
-            traces = spans_or_traces
+            traces = _spans_or_traces
+            count = len(_spans_or_traces.values())
         else:
-            count = 0
             spans = None
             traces = None
+            count = 0
 
         spans_response = OTelTracingResponse(
-            count=count,
+            version=self.VERSION,
             spans=spans,
             traces=traces,
+            count=count,
         )
 
         return spans_response
 
     @intercept_exceptions()
-    @suppress_exceptions(default=OldAnalyticsResponse())
-    async def fetch_legacy_analytics(
+    @suppress_exceptions(default=AnalyticsResponse())
+    async def fetch_analytics(
         self,
         request: Request,
-        query: Optional[TracingQuery] = Depends(parse_query_from_params_request),
-    ) -> OldAnalyticsResponse:
+        query: Optional[Query] = Depends(parse_query_request),
+    ) -> AnalyticsResponse:
         body_json = None
         query_from_body = None
 
@@ -529,104 +509,20 @@ class TracingRouter:
             body_json = await request.json()
 
             if body_json:
-                query_from_body = parse_query_from_body_request(
-                    **body_json,
-                )
+                query_from_body = parse_body_request(**body_json)
 
         except:  # pylint: disable=bare-except
             pass
 
-        merged_query = merge_queries(
-            query,
-            query_from_body,
-        )
+        merged_query = merge_queries(query, query_from_body)
 
-        # DEBUGGING
-        # log.trace(merged_query.model_dump(mode="json", exclude_none=True))
-        # ---------
-
-        buckets = await self.service.legacy_analytics(
+        buckets = await self.service.analytics(
             project_id=UUID(request.state.project_id),
             query=merged_query,
         )
 
-        # DEBUGGING
-        # log.trace([b.model_dump(mode="json", exclude_none=True) for b in buckets])
-        # ---------
-
-        return OldAnalyticsResponse(
-            count=len(buckets),
-            buckets=buckets,
-        )
-
-    @intercept_exceptions()
-    @suppress_exceptions(default=AnalyticsResponse())
-    async def fetch_analytics(
-        self,
-        request: Request,
-        analytics: Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]] = Depends(
-            parse_analytics_from_params_request
-        ),
-    ) -> AnalyticsResponse:
-        body_json = None
-        analytics_from_body = (None, None)
-
-        try:
-            body_json = await request.json()
-
-            if body_json:
-                analytics_from_body = parse_analytics_from_body_request(
-                    **body_json,
-                )
-
-        except:  # pylint: disable=bare-except
-            pass
-
-        (
-            query,
-            specs,
-        ) = merge_analytics(
-            analytics,
-            analytics_from_body,
-        )
-
-        if not specs:
-            specs = [
-                MetricSpec(
-                    type=MetricType.NUMERIC_CONTINUOUS,
-                    path="attributes.ag.metrics.duration.cumulative",
-                ),
-                MetricSpec(
-                    type=MetricType.NUMERIC_CONTINUOUS,
-                    path="attributes.ag.metrics.errors.cumulative",
-                ),
-                MetricSpec(
-                    type=MetricType.NUMERIC_CONTINUOUS,
-                    path="attributes.ag.metrics.costs.cumulative.total",
-                ),
-                MetricSpec(
-                    type=MetricType.NUMERIC_CONTINUOUS,
-                    path="attributes.ag.metrics.tokens.cumulative.total",
-                ),
-                MetricSpec(
-                    type=MetricType.CATEGORICAL_SINGLE,
-                    path="attributes.ag.type.trace",
-                ),
-                MetricSpec(
-                    type=MetricType.CATEGORICAL_SINGLE,
-                    path="attributes.ag.type.span",
-                ),
-            ]
-
-        buckets = await self.service.analytics(
-            project_id=UUID(request.state.project_id),
-            query=query,
-            specs=specs,
-        )
-
         return AnalyticsResponse(
+            version=self.VERSION,
             count=len(buckets),
             buckets=buckets,
-            query=query,
-            specs=specs,
         )

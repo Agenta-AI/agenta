@@ -15,39 +15,33 @@ export type ViewType = "prompt" | "parameters"
 
 export interface VariantDrawerProps extends DrawerProps {
     onClose?: (arg: any) => void
-    variants?: DrawerVariant[] | null
-    variantIds?: string[]
+    variants: DrawerVariant[]
     type: DrawerType
     revert?: Revert
 }
 
 export interface VariantDrawerTitleProps {
-    variantId: string
+    selectedVariant: DrawerVariant
     onClose: () => void
     variants: DrawerVariant[]
+    isDirty: boolean
     isLoading: boolean
-    variantIds?: string[]
+    selectedDrawerVariant?: EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>
     viewAs: ViewType
-    onToggleWidth: () => void
-    isExpanded: boolean
 }
 
 export interface VariantDrawerContentProps {
-    variantId: string
+    selectedVariant: DrawerVariant
+    promptIds: string[]
     isLoading: boolean
+    variants: DrawerVariant[]
     type: DrawerType
-    viewAs: ViewType
     onChangeViewAs: (view: ViewType) => void
-    // Controls whether to display original saved (stable) values
-    showOriginal?: boolean
-    onToggleOriginal?: (checked: boolean) => void
 }
 
 export interface DeploymentDrawerTitleProps {
-    variantId: string
+    selectedVariant: DrawerVariant
     onClose: () => void
     revert?: Revert
     isLoading: boolean
-    onToggleWidth: () => void
-    isExpanded: boolean
 }

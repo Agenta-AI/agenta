@@ -61,12 +61,11 @@ async def generate(
             detail=f"Credentials not found for model {config.prompt.llm_config.model}. Please configure them under settings.",
         )
 
-    with mockllm.user_aws_credentials_from(provider_settings):
-        response = await mockllm.acompletion(
-            **{
-                k: v for k, v in openai_kwargs.items() if k != "model"
-            },  # we should use the model_name from provider_settings
-            **provider_settings,
-        )
+    response = await mockllm.acompletion(
+        **{
+            k: v for k, v in openai_kwargs.items() if k != "model"
+        },  # we should use the model_name from provider_settings
+        **provider_settings,
+    )
 
     return response.choices[0].message.model_dump(exclude_none=True)

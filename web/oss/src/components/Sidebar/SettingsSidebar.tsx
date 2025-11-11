@@ -3,15 +3,12 @@ import {FC, useMemo} from "react"
 import {ApartmentOutlined, KeyOutlined} from "@ant-design/icons"
 import {ArrowLeft, Sparkle, Receipt} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
-import clsx from "clsx"
-import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
-import ListOfOrgs from "./components/ListOfOrgs"
+import {useStyles as useSidebarStyles} from "./assets/styles"
 import SidebarMenu from "./components/SidebarMenu"
 import {SidebarConfig} from "./types"
 
@@ -20,8 +17,8 @@ interface SettingsSidebarProps {
 }
 
 const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
+    const sidebarClasses = useSidebarStyles()
     const router = useRouter()
-    const [collapsed] = useAtom(sidebarCollapsedAtom)
     const [tab, setTab] = useQueryParam("tab", "workspace", "replace")
 
     const items = useMemo<SidebarConfig[]>(() => {
@@ -53,54 +50,39 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
     }, [])
 
     return (
-        <section
-            className={clsx([
-                "flex flex-col h-full",
-                {"w-[80px] items-center": collapsed},
-                {"w-[236px]": !collapsed},
-            ])}
-        >
-            <div
-                className={clsx(
-                    "w-full h-[44px] flex items-center",
-                    {"justify-center": collapsed},
-                    {"mx-1.5": !collapsed},
-                )}
-            >
+        <div className="flex-1">
+            <div className="mx-2 mb-3 mt-1">
                 <Button
-                    className={"gap-2 flex items-center justify-center"}
-                    type="text"
-                    icon={<ArrowLeft size={14} />}
+                    className={
+                        "gap-2 !text-left font-medium !px-3 flex items-center justify-center"
+                    }
                     onClick={() => {
                         if (lastPath) router.push(lastPath)
                         else router.back()
                     }}
                 >
-                    {!collapsed && "Back"}
+                    <ArrowLeft size={14} />
+                    Back
                 </Button>
             </div>
 
-            <Divider className="mb-1 mt-0" />
-            <div className="w-full flex flex-col gap-3">
-                <ListOfOrgs collapsed={collapsed} buttonProps={{type: "text"}} />
-                <SidebarMenu
-                    items={items}
-                    collapsed={collapsed}
-                    menuProps={{
-                        selectedKeys: [tab],
-                        className:
-                            "border-r-0 overflow-y-auto relative [&_.ant-menu-item-selected]:font-medium",
-                        openKeys: [tab],
-                        onClick: ({domEvent, key}) => {
-                            domEvent.preventDefault()
-                            if (key !== tab) {
-                                setTab(key)
-                            }
-                        },
-                    }}
-                />
-            </div>
-        </section>
+            <Divider className={"mb-3 mt-0 relative left-[-11px] w-[237px]"} />
+            <SidebarMenu
+                items={items}
+                collapsed={false}
+                menuProps={{
+                    selectedKeys: [tab],
+                    className: sidebarClasses.menuContainer,
+                    openKeys: [tab],
+                    onClick: ({domEvent, key}) => {
+                        domEvent.preventDefault()
+                        if (key !== tab) {
+                            setTab(key)
+                        }
+                    },
+                }}
+            />
+        </div>
     )
 }
 

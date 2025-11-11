@@ -8,17 +8,16 @@
  *
  * @module CodeLineNode
  */
-import {ElementNode, LexicalNode, SerializedElementNode, Spread} from "lexical"
+import {ElementNode, LexicalNode, SerializedElementNode, Spread, DOMExportOutput} from "lexical"
 
 import styles from "../components/assets/CodeBlockErrorIndicator.module.css"
 import diffStyles from "../components/assets/DiffCodeBlock.module.css"
-import {ErrorInfo, getValidationManager} from "../plugins/GlobalErrorIndicatorPlugin"
-import {getCurrentEditorId} from "../plugins/SyntaxHighlightPlugin"
+import {ErrorInfo} from "../plugins/GlobalErrorIndicatorPlugin"
 
 /**
  * Diff line types for code diff display
  */
-export type DiffType = "added" | "removed" | "context" | "fold" | null
+export type DiffType = "added" | "removed" | "context" | null
 
 /**
  * Represents the serialized form of a CodeLineNode.
@@ -188,33 +187,10 @@ export class CodeLineNode extends ElementNode {
 
     /**
      * Gets the validation errors for this line.
-     * Uses the unified ValidationManager as single source of truth.
      * @returns Array of validation errors for this line
      */
     getValidationErrors(): ErrorInfo[] {
-        try {
-            const editorId = getCurrentEditorId()
-            if (!editorId) {
-                // No active editor context; fall back to stored errors
-                return this.getLatest().__validationErrors
-            }
-
-            const manager = getValidationManager(editorId)
-            if (!manager) {
-                // Manager not registered yet for this editor; fall back
-                return this.getLatest().__validationErrors
-            }
-
-            const lineNumber = this.calculateActualLineNumber()
-            return manager.getErrorsForLine(lineNumber)
-        } catch (error) {
-            // Fallback to stored validation errors (for backward compatibility)
-            console.warn(
-                "Failed to retrieve ValidationManager from registry; using stored errors:",
-                error,
-            )
-            return this.getLatest().__validationErrors
-        }
+        return this.getLatest().__validationErrors
     }
 
     /**
@@ -255,6 +231,7 @@ export class CodeLineNode extends ElementNode {
 
             for (const child of children) {
                 if (child === this) {
+                    // console.log(`📍 Node ${this.__key} calculated line: ${lineNumber}`)
                     return lineNumber
                 }
                 if (child.getType() === "code-line") {
@@ -296,8 +273,8 @@ export class CodeLineNode extends ElementNode {
             element.classList.add("folded")
         }
 
-        // Set line numbers for GitHub-style diff display (but not for fold lines)
-        if ((latest.__oldLineNumber || latest.__newLineNumber) && latest.__diffType !== "fold") {
+        // Set line numbers for GitHub-style diff display
+        if (latest.__oldLineNumber || latest.__newLineNumber) {
             const oldNum = latest.__oldLineNumber ? latest.__oldLineNumber.toString() : ""
             const newNum = latest.__newLineNumber ? latest.__newLineNumber.toString() : ""
             element.setAttribute("data-old-line-number", oldNum)
@@ -321,6 +298,8 @@ export class CodeLineNode extends ElementNode {
         // Store line number on the element for use in event listener
         const lineNumber = this.calculateActualLineNumber()
         element.setAttribute("data-line-number", lineNumber.toString())
+
+        // console.log(`🏠 DOM created: Node ${latest.__key} -> Line ${lineNumber}`)
 
         return element
     }
@@ -393,6 +372,9 @@ export class CodeLineNode extends ElementNode {
         const prevLineNumber = parseInt(dom.getAttribute("data-line-number") || "1")
         if (currentLineNumber !== prevLineNumber) {
             dom.setAttribute("data-line-number", currentLineNumber.toString())
+            // console.log(
+            //     `🔄 Updated line number: ${prevLineNumber} → ${currentLineNumber} (node key: ${latest.__key})`,
+            // )
         }
 
         // Check for validation errors changes
@@ -417,6 +399,11 @@ export class CodeLineNode extends ElementNode {
 
             // Apply new validation error styling if errors exist
             if (currentValidationErrors.length > 0) {
+                // console.log(
+                //     `🔴 Applying validation errors to line ${currentLineNumber}:`,
+                //     currentValidationErrors.map((e) => `[${e.type}] ${e.message}`),
+                //     `(node key: ${latest.__key})`,
+                // )
                 const primaryError = currentValidationErrors[0]
                 dom.classList.add("validation-error")
                 dom.setAttribute("data-validation-error", primaryError.message)
@@ -523,25 +510,18 @@ export class CodeLineNode extends ElementNode {
         return this.getLatest().__isCollapsed
     }
 
-    // /**
-    //  * Exports this node to a DOM representation.
-    //  * Creates a new DOM element with current folding state
-    //  * and styling for external use.
-    //  *
-    //  * @returns Object containing the DOM element
-    //  */
-    // exportDOM(): DOMExportOutput {
-    //     return {
-    //         element: this.createDOM(),
-    //     }
-    // }
-
-    // importDOM(): void {
-    //     this.setDiffType(null)
-    //     this.setOldLineNumber(undefined)
-    //     this.setNewLineNumber(undefined)
-    //     this.setValidationErrors([])
-    // }
+    /**
+     * Exports this node to a DOM representation.
+     * Creates a new DOM element with current folding state
+     * and styling for external use.
+     *
+     * @returns Object containing the DOM element
+     */
+    exportDOM(): DOMExportOutput {
+        return {
+            element: this.createDOM(),
+        }
+    }
 
     /**
      * Serializes this node to JSON format.

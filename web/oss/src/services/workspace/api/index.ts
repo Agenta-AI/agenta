@@ -1,7 +1,7 @@
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {WorkspaceRole, Workspace, WorkspaceMember} from "@/oss/lib/Types"
-import {getProjectValues} from "@/oss/state/project"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {WorkspaceRole} from "@/oss/lib/Types"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -11,7 +11,7 @@ import {getProjectValues} from "@/oss/state/project"
 //  - delete: DELETE data from server
 
 export const fetchAllWorkspaceRoles = async (ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.get(
         `${getAgentaApiUrl()}/workspaces/roles?project_id=${projectId}`,
@@ -24,18 +24,18 @@ export const fetchAllWorkspaceRoles = async (ignoreAxiosError = false) => {
 
 export const assignWorkspaceRole = async (
     {
-        organizationId,
+        orgId,
         workspaceId,
         email,
         role,
-    }: {organizationId: string; workspaceId: string; email: string; role: string},
+    }: {orgId: string; workspaceId: string; email: string; role: string},
     ignoreAxiosError = false,
 ) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/workspaces/${workspaceId}/roles?project_id=${projectId}`,
-        {email, organization_id: organizationId, role},
+        {email, organization_id: orgId, role},
         {
             _ignoreError: ignoreAxiosError,
         } as any,
@@ -45,19 +45,19 @@ export const assignWorkspaceRole = async (
 
 export const unAssignWorkspaceRole = async (
     {
-        organizationId,
+        orgId,
         workspaceId,
         email,
         role,
-    }: {organizationId: string; workspaceId: string; email: string; role: string},
+    }: {orgId: string; workspaceId: string; email: string; role: string},
     ignoreAxiosError = false,
 ) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.delete(
         `${getAgentaApiUrl()}/workspaces/${workspaceId}/roles?project_id=${projectId}`,
         {
-            params: {email, organization_id: organizationId, role},
+            params: {email, org_id: orgId, role},
             _ignoreError: ignoreAxiosError,
         } as any,
     )
@@ -68,19 +68,19 @@ export const unAssignWorkspaceRole = async (
 export const inviteToWorkspace = async (
     {
         data,
-        organizationId,
+        orgId,
         workspaceId,
     }: {
-        organizationId: string
+        orgId: string
         workspaceId: string
         data: {email: string; roles?: string[]}[]
     },
     ignoreAxiosError = false,
 ) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/workspaces/${workspaceId}/invite?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/organizations/${orgId}/workspaces/${workspaceId}/invite?project_id=${projectId}`,
         data,
         {
             _ignoreError: ignoreAxiosError,
@@ -90,17 +90,13 @@ export const inviteToWorkspace = async (
 }
 
 export const resendInviteToWorkspace = async (
-    {
-        email,
-        organizationId,
-        workspaceId,
-    }: {organizationId: string; workspaceId: string; email: string},
+    {email, orgId, workspaceId}: {orgId: string; workspaceId: string; email: string},
     ignoreAxiosError = false,
 ) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.post(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/workspaces/${workspaceId}/invite/resend?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/organizations/${orgId}/workspaces/${workspaceId}/invite/resend?project_id=${projectId}`,
         {email},
         {
             _ignoreError: ignoreAxiosError,
@@ -112,21 +108,15 @@ export const resendInviteToWorkspace = async (
 export const acceptWorkspaceInvite = async (
     {
         token,
-        organizationId,
+        orgId,
         workspaceId,
         projectId,
         email,
-    }: {
-        token: string
-        organizationId: string
-        workspaceId: string
-        projectId: string
-        email?: string
-    },
+    }: {token: string; orgId: string; workspaceId: string; projectId: string; email?: string},
     ignoreAxiosError = false,
 ) => {
     const response = await axios.post(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/workspaces/${workspaceId}/invite/accept?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/organizations/${orgId}/workspaces/${workspaceId}/invite/accept?project_id=${projectId}`,
         {token, ...(email ? {email} : {})},
         {
             _ignoreError: ignoreAxiosError,
@@ -136,66 +126,28 @@ export const acceptWorkspaceInvite = async (
 }
 
 export const removeFromWorkspace = async (
-    {
-        organizationId,
-        workspaceId,
-        email,
-    }: {organizationId: string; workspaceId: string; email: string},
+    {orgId, workspaceId, email}: {orgId: string; workspaceId: string; email: string},
     ignoreAxiosError = false,
 ) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.delete(
         `${getAgentaApiUrl()}/workspaces/${workspaceId}/users?project_id=${projectId}`,
-        {params: {email, organization_id: organizationId}, _ignoreError: ignoreAxiosError} as any,
+        {params: {email, org_id: orgId}, _ignoreError: ignoreAxiosError} as any,
     )
     return response.data
 }
 
 export const updateWorkspace = async (
-    {
-        organizationId,
-        workspaceId,
-        name,
-    }: {organizationId: string; workspaceId: string; name: string},
+    {orgId, workspaceId, name}: {orgId: string; workspaceId: string; name: string},
     ignoreAxiosError = false,
 ) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.put(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/workspaces/${workspaceId}/?project_id=${projectId}`,
+        `${getAgentaApiUrl()}/organizations/${orgId}/workspaces/${workspaceId}/?project_id=${projectId}`,
         {name},
         {_ignoreError: ignoreAxiosError} as any,
     )
     return response.data
-}
-
-export const fetchWorkspaceDetails = async (
-    workspaceId: string,
-    ignoreAxiosError = false,
-): Promise<Workspace> => {
-    const {projectId} = getProjectValues()
-
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/workspaces/${workspaceId}?project_id=${projectId}`,
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
-    return response.data as Workspace
-}
-
-export const fetchWorkspaceMembers = async (
-    workspaceId: string,
-    ignoreAxiosError = false,
-): Promise<WorkspaceMember[]> => {
-    const {projectId} = getProjectValues()
-
-    const response = await axios.get(
-        `${getAgentaApiUrl()}/workspaces/${workspaceId}/members?project_id=${projectId}`,
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
-    return response.data as WorkspaceMember[]
 }

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.managers.shared import SharedManager
-from agenta.sdk.contexts.routing import RoutingContext
+from agenta.sdk.context.routing import routing_context
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -45,7 +45,7 @@ class ConfigManager:
             Only one of these should be provided.
         """
 
-        context = RoutingContext.get()
+        context = routing_context.get()
 
         parameters = context.parameters
 
@@ -69,6 +69,8 @@ class ConfigManager:
         environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
         environment_version: Optional[int] = None,
+        cache_ttl_seconds: Optional[int] = None,
+        fallback_config: Optional[Dict[str, Any]] = None,
     ) -> Union[Dict[str, Any], T]:
         """
         Pulls the parameters for the app variant from the server and returns a config object.
@@ -84,6 +86,9 @@ class ConfigManager:
             environment_slug (Optional[str]): The environment name to fetch the configuration for.
                 Must be one of "development", "production", or "staging". Defaults to None.
 
+        Returns:
+            Union[Dict[str, Any], T]: The configuration parameters as a dict or instance of the specified schema.
+
         Raises:
             Exception: For any other errors during the process (e.g., API communication issues).
         """
@@ -96,6 +101,8 @@ class ConfigManager:
             environment_id=environment_id,
             environment_slug=environment_slug,
             environment_version=environment_version,
+            cache_ttl_seconds=cache_ttl_seconds,
+            fallback_config=fallback_config,
         )
 
         params = config.params
@@ -117,6 +124,8 @@ class ConfigManager:
         environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
         environment_version: Optional[int] = None,
+        cache_ttl_seconds: Optional[int] = None,
+        fallback_config: Optional[Dict[str, Any]] = None,
     ) -> Union[Dict[str, Any], T]:
         """
         Pulls the parameters for the app variant from the server and returns a config object.
@@ -144,6 +153,8 @@ class ConfigManager:
             environment_id=environment_id,
             environment_slug=environment_slug,
             environment_version=environment_version,
+            cache_ttl_seconds=cache_ttl_seconds,
+            fallback_config=fallback_config,
         )
 
         params = config.params
@@ -210,3 +221,14 @@ class ConfigManager:
             return schema(**parameters)
 
         return parameters
+
+    @staticmethod
+    def clear_cache(pattern: Optional[str] = None) -> None:
+        """
+        Clear the configuration cache.
+        
+        Args:
+            pattern: If provided, only clear cache entries containing this pattern.
+                    If None, clear all entries.
+        """
+        SharedManager.clear_cache(pattern)

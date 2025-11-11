@@ -2,9 +2,9 @@ import {useMemo, useState} from "react"
 
 import {Button, Input, Space, Typography, message} from "antd"
 
+import {useOrgData} from "@/oss/contexts/org.context"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {createApiKey} from "@/oss/services/apiKeys/api"
-import {useOrgData} from "@/oss/state/org"
 
 const {Text} = Typography
 

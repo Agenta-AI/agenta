@@ -158,7 +158,7 @@ def parse_ingest_value(
 ) -> None:
     try:
         attributes[key] = to_type(attributes[key])
-    except (ValueError, TypeError):
+    except ValueError:
         print_exc()
         log.warn(
             "Failed to parse attributes:",

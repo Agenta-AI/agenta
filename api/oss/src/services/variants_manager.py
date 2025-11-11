@@ -6,9 +6,7 @@ from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
-from oss.src.services import app_manager
 from oss.src.utils.exceptions import suppress
-from oss.src.models.shared_models import AppType
 from oss.src.services.db_manager import (
     AppDB,
     DeploymentDB,
@@ -22,7 +20,7 @@ from oss.src.services.db_manager import (
     get_user_with_id,
     fetch_base_by_id,
     fetch_app_by_id,
-    fetch_app_by_name,
+    fetch_app_by_name_and_parameters,
     fetch_app_variant_by_id,
     fetch_app_variant_revision_by_id,
     fetch_app_variant_by_config_name_and_appid,
@@ -35,11 +33,6 @@ from oss.src.services.db_manager import (
     add_variant_from_base_and_config,
     update_variant_parameters,
     deploy_to_environment,
-    create_new_variant_base,
-    create_deployment,
-    update_base,
-    create_new_app_variant,
-    create_new_config,
 )
 
 
@@ -117,7 +110,7 @@ async def _fetch_app(
                 app_id=app_id.hex,
             )
         elif app_name:
-            app = await fetch_app_by_name(
+            app = await fetch_app_by_name_and_parameters(
                 project_id=project_id,
                 app_name=app_name,
             )
@@ -180,7 +173,7 @@ async def _fetch_variant(
             and variant_ref.slug
         ):
             if not application_ref.id and application_ref.slug:
-                app = await fetch_app_by_name(
+                app = await fetch_app_by_name_and_parameters(
                     project_id=project_id,
                     app_name=application_ref.slug,
                 )
@@ -326,7 +319,7 @@ async def _fetch_environment(
             and environment_ref.slug
         ):
             if not application_ref.id and application_ref.slug:
-                app = await fetch_app_by_name(
+                app = await fetch_app_by_name_and_parameters(
                     project_id=project_id,
                     app_name=application_ref.slug,
                 )
@@ -375,69 +368,6 @@ async def _fetch_environment(
     return app_environment, app_environment_revision
 
 
-async def add_variant_from_base_and_config_v2(
-    base_db,
-    new_config_name: str,
-    parameters: Dict[str, Any],
-    user_uid: str,
-    project_id: str,
-    commit_message: Optional[str] = None,
-):
-    """
-    Create a new variant from base and config without requiring previous variants.
-
-    This is a replacement for add_variant_from_base_and_config that doesn't depend
-    on existing variants, making it suitable for creating the first variant for a base.
-
-    Args:
-        base_db: The base to create the variant from
-        new_config_name (str): Name for the new variant/config
-        parameters (Dict[str, Any]): Parameters for the variant
-        user_uid (str): User ID creating the variant
-        project_id (str): Project ID
-        commit_message (Optional[str]): Commit message
-
-    Returns:
-        AppVariantDB: The created variant
-    """
-    try:
-        # Create config (always empty initially for v0, per create_new_app_variant requirement)
-        config = await create_new_config(
-            config_name=new_config_name,
-            parameters={},  # Always empty for create_new_app_variant for v0
-        )
-
-        user = await get_user_with_id(user_id=user_uid)
-        app = await fetch_app_by_id(app_id=str(base_db.app_id))
-
-        app_variant = await create_new_app_variant(
-            app=app,
-            user=user,
-            variant_name=new_config_name,
-            project_id=project_id,
-            base=base_db,
-            config=config,
-            base_name=base_db.base_name,
-            commit_message=commit_message,
-        )
-
-        # If we have parameters, we create a new revision (v1) with the parameters
-        if parameters:
-            app_variant = await update_variant_parameters(
-                app_variant_id=str(app_variant.id),
-                parameters=parameters,
-                user_uid=user_uid,
-                project_id=project_id,
-                commit_message=commit_message,
-            )
-
-        return app_variant
-
-    except Exception as e:
-        log.error(f"Failed to create variant from base {base_db.id}: {str(e)}")
-        raise
-
-
 async def _create_variant(
     project_id: str,
     user_id: str,
@@ -460,7 +390,7 @@ async def _create_variant(
     app_variant = None
 
     with suppress():
-        app_variant = await add_variant_from_base_and_config_v2(
+        app_variant = await add_variant_from_base_and_config(
             base_db=variant_base,
             new_config_name=slug,
             parameters=params,
@@ -520,76 +450,6 @@ async def _update_environment(
         )
 
 
-async def _get_app_service_url(app: AppDB) -> Optional[str]:
-    """Get service URL for an app.
-
-    Args:
-        app (AppDB): The app to get service URL for
-
-    Returns:
-        Optional[str]: Service URL for SERVICE apps, None for CUSTOM apps
-    """
-    if not app.app_type:
-        # Default to CUSTOM if no app_type is set
-        return None
-
-    if app.app_type in [AppType.CHAT_SERVICE, AppType.COMPLETION_SERVICE]:
-        # SERVICE apps have service URLs
-        return app_manager.get_service_url_from_template_key(app.app_type)
-    else:
-        # CUSTOM apps and legacy types don't have service URLs
-        return None
-
-
-async def _create_first_base_for_app(
-    app: AppDB,
-    project_id: str,
-    user_id: str,
-    base_name: str = "default",
-) -> Optional[UUID]:
-    """Create the first base for an app that has no bases.
-
-    Args:
-        app (AppDB): The app to create a base for
-        project_id (str): Project ID
-        user_id (str): User ID creating the base
-        base_name (str): Name for the base (default: "default")
-
-    Returns:
-        Optional[UUID]: The ID of the created base, or None if creation failed
-    """
-    try:
-        service_url = await _get_app_service_url(app)
-
-        db_base = await create_new_variant_base(
-            app=app,
-            project_id=project_id,
-            base_name=base_name,
-        )
-
-        # Always create deployment (SERVICE apps get service URL, CUSTOM apps get empty URI)
-        deployment_uri = service_url if service_url else ""
-
-        deployment = await create_deployment(
-            app_id=str(app.id),
-            project_id=project_id,
-            uri=deployment_uri,
-        )
-
-        await update_base(
-            str(db_base.id),
-            deployment_id=deployment.id,
-        )
-
-        return db_base.id
-
-    except Exception as e:
-        log.error(f"Failed to create first base for app {app.app_name}: {str(e)}")
-        return None
-
-    return None
-
-
 # - CREATE
 
 
@@ -599,14 +459,6 @@ async def add_config(
     application_ref: ReferenceDTO,
     user_id: str,
 ) -> Optional[ConfigDTO]:
-    if not variant_ref.slug:
-        log.error("Variant slug is required for creating a config")
-        return None
-
-    if not project_id or not user_id:
-        log.error("Project ID and user ID are required for creating a config")
-        return None
-
     app = await _fetch_app(
         project_id=project_id,
         app_id=application_ref.id,
@@ -614,7 +466,6 @@ async def add_config(
     )
 
     if not app:
-        log.error(f"App not found for application_ref: {application_ref}")
         return None
 
     # --> FETCHING: bases
@@ -627,19 +478,12 @@ async def add_config(
         )
 
     if not bases or not isinstance(bases, list) or len(bases) < 1:
-        # No bases exist for this app - create the first base based on app type
-        base_id = await _create_first_base_for_app(
-            app=app,
-            project_id=project_id,
-            user_id=user_id,
-            base_name="default",
-        )
+        return None
 
-        if not base_id:
-            log.error(f"Failed to create first base for app {app.app_name}")
-            return None
-    else:
-        base_id = bases[0].id  # use the first available base
+    base_id = bases[0].id  # needs to be changed to use the 'default base'
+
+    if not variant_ref.slug:
+        return None
 
     variant_slug, variant_version = await _create_variant(
         project_id=project_id,
@@ -650,8 +494,7 @@ async def add_config(
         commit_message=variant_ref.commit_message,
     )
 
-    if variant_slug is None or variant_version is None:
-        log.error("Failed to create variant - variant_slug or variant_version is None")
+    if not (variant_slug and variant_version):
         return None
 
     variant_ref = ReferenceDTO(
@@ -934,7 +777,7 @@ async def fork_config_by_variant_ref(
         slug=(
             variant_ref.slug
             if variant_ref.slug
-            else app_variant.config_name + "_" + uuid4().hex[-12:]
+            else app_variant.config_name + "_" + uuid4().hex[20:]
         ),
         params=app_variant_revision.config_parameters,
         base_id=app_variant.base_id,

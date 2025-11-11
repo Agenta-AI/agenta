@@ -5,8 +5,8 @@ import Image from "next/image"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
 const LOGOS = {
-    dark: "/assets/Agenta-logo-full-dark-accent.png",
-    light: "/assets/Agenta-logo-full-light.png",
+    dark: "/assets/dark-complete-transparent-CROPPED.png",
+    light: "/assets/light-complete-transparent-CROPPED.png",
 }
 
 const Logo: React.FC<Partial<React.ComponentProps<typeof Image>> & {isOnlyIconLogo?: boolean}> = (

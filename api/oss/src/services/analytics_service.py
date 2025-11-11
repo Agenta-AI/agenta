@@ -39,7 +39,7 @@ LIMITED_EVENTS_PER_AUTH = {
 if POSTHOG_API_KEY:
     posthog.api_key = POSTHOG_API_KEY
     posthog.host = POSTHOG_HOST
-    log.info("PostHog initialized with host %s", POSTHOG_HOST)
+    log.info("PostHog initialized with host %s:", POSTHOG_HOST)
 else:
     log.warn("PostHog API key not found in environment variables")
 
@@ -139,20 +139,18 @@ async def analytics_middleware(request: Request, call_next: Callable):
                 )
                 # --------------------------------------------------------------
 
-            distinct_id = None
+            # log.debug(
+            #     distinct_id=request.state.user_email,
+            #     event=event_name,
+            #     properties=properties,
+            # )
 
-            try:
-                distinct_id = request.state.user_email
-            except:  # pylint: disable=bare-except
-                pass
-
-            if distinct_id and env.POSTHOG_API_KEY:
+            if env.POSTHOG_API_KEY:
                 posthog.capture(
-                    distinct_id=distinct_id,
+                    distinct_id=request.state.user_email,
                     event=event_name,
                     properties=properties or {},
                 )
-
         except Exception as e:
             log.error(f"❌ Error capturing event in PostHog: {e}")
 
@@ -197,7 +195,7 @@ def _get_event_name_from_path(
         return "app_revision_fetched"
     # <----------- End of Configuration Events ------------->
 
-    # <----------- Testsets Events ------------->
+    # <----------- Test sets Events ------------->
     if method == "POST" and "/testsets" in path:
         return "testset_created"
 
@@ -206,7 +204,7 @@ def _get_event_name_from_path(
 
     elif method == "PUT" and "/testsets" in path:
         return "testset_updated"
-    # <----------- End of Testsets Events ------------->
+    # <----------- End of Test sets Events ------------->
 
     # <----------- Evaluation Events ------------->
     if method == "POST" and "/evaluators/configs" in path:
@@ -215,7 +213,11 @@ def _get_event_name_from_path(
     elif method == "PUT" and "/evaluators/configs/" in path:
         return "evaluator_updated"
 
-    elif method == "POST" and path == "/preview/evaluations/runs/":
+    elif (
+        method == "POST"
+        and ("/evaluations" in path)
+        or ("evaluators" in path_parts and "run" in path_parts)
+    ):
         return "evaluation_created"
 
     elif method == "POST" and "/human-evaluations" in path:

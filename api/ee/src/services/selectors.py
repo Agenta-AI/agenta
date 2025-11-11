@@ -95,13 +95,13 @@ async def get_user_own_org(user_uid: str) -> OrganizationDB:
 
     user = await db_manager.get_user_with_id(user_id=user_uid)
     async with engine.core_session() as session:
-        result = await session.execute(
+        org_query = await session.execute(
             select(OrganizationDB).filter_by(
                 owner=str(user.id),
                 type="default",
             )
         )
-        org = result.scalars().first()
+        org = org_query.scalars().first()
         return org
 
 

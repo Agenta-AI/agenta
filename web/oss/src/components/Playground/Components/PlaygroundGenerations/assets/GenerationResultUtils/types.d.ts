@@ -3,5 +3,4 @@ import {TestResult} from "@/oss/components/Playground/assets/utilities/transform
 export interface GenerationResultUtilsProps {
     className?: string
     result: TestResult | null | undefined
-    showStatus?: boolean
 }

@@ -1,28 +1,21 @@
 import {ArrowSquareOut} from "@phosphor-icons/react"
 import {Badge, Button, Flex, Popover, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
 import {statusMap} from "@/oss/components/VariantDetailsWithStatus/components/EnvironmentStatus"
-import VariantNameCell from "@/oss/components/VariantNameCell"
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {formatVariantIdWithHash} from "@/oss/lib/helpers/utils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {Environment} from "@/oss/lib/Types"
-import {variantUserDisplayNameAtomFamily} from "@/oss/state/variant/selectors/variant"
 
 type VariantPopoverProps = {
     env: Environment
     selectedDeployedVariant: EnhancedVariant | undefined
 } & React.ComponentProps<typeof Popover>
 
-const ModifiedByText = ({variant}: {variant: EnhancedVariant}) => {
-    const name = useAtomValue(variantUserDisplayNameAtomFamily(variant.id))
-    if (!name) return null
-    return <Typography.Text className="font-normal">{name}</Typography.Text>
-}
-
 const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopoverProps) => {
-    const {goToPlayground} = usePlaygroundNavigation()
+    const router = useRouter()
+    const appId = router.query.app_id as string
 
     return (
         <Popover
@@ -34,27 +27,34 @@ const VariantPopover = ({env, selectedDeployedVariant, ...props}: VariantPopover
             title={
                 <div onClick={(e) => e.stopPropagation()} className="flex flex-col gap-4">
                     <Flex justify="space-between">
-                        <VariantNameCell
-                            revisionId={selectedDeployedVariant?.revision}
-                            showBadges
-                        />
-                        {/* <VariantDetailsWithStatus
+                        <VariantDetailsWithStatus
                             variantName={selectedDeployedVariant?.variantName}
                             revision={selectedDeployedVariant?.revision}
                             variant={selectedDeployedVariant}
-                        /> */}
+                        />
 
                         <Button
                             size="small"
                             icon={<ArrowSquareOut size={14} />}
                             className="flex items-center justify-center"
+                            // href={`/apps/${appId}/playground?variant=${env.deployed_variant_name}`}
                             onClick={() => {
-                                goToPlayground(env.deployed_app_variant_revision_id)
+                                console.log("Variant Popover Action")
+                                router.push({
+                                    pathname: `/apps/${appId}/playground`,
+                                    query: {
+                                        revisions: JSON.stringify([
+                                            env.deployed_app_variant_revision_id,
+                                        ]),
+                                    },
+                                })
                             }}
                         />
                     </Flex>
-                    {selectedDeployedVariant && (
-                        <ModifiedByText variant={selectedDeployedVariant} />
+                    {selectedDeployedVariant?.modifiedBy && (
+                        <Typography.Text className="font-normal">
+                            {selectedDeployedVariant.modifiedBy}
+                        </Typography.Text>
                     )}
                     {selectedDeployedVariant?.commitMessage && (
                         <Typography.Text type="secondary">
