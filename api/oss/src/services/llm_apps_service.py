@@ -189,6 +189,7 @@ async def make_payload(
         payload["messages"] = messages
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.warn(f"Error making payload: {e}")
+        # log.debug(f"Exception details: {traceback.format_exc()}")
 
     payload["inputs"] = inputs
 
@@ -202,7 +203,6 @@ async def invoke_app(
     openapi_parameters: List[Dict],
     user_id: str,
     project_id: str,
-    scenario_id: Optional[str] = None,
     **kwargs,
 ) -> InvokationResult:
     """
@@ -248,14 +248,7 @@ async def invoke_app(
         app_response = {}
 
         try:
-            log.info(
-                "Invoking application...",
-                scenario_id=scenario_id,
-                testcase_id=(
-                    datapoint["testcase_id"] if "testcase_id" in datapoint else None
-                ),
-                url=url,
-            )
+            log.info("Invoking workflow...", url=url)
             response = await client.post(
                 url,
                 json=payload,
@@ -275,12 +268,6 @@ async def invoke_app(
 
             trace_id = app_response.get("trace_id", None)
             span_id = app_response.get("span_id", None)
-
-            log.info(
-                "Invoked application.   ",
-                scenario_id=scenario_id,
-                trace_id=trace_id,
-            )
 
             return InvokationResult(
                 result=Result(
@@ -342,7 +329,6 @@ async def run_with_retry(
     openapi_parameters: List[Dict],
     user_id: str,
     project_id: str,
-    scenario_id: Optional[str] = None,
     **kwargs,
 ) -> InvokationResult:
     """
@@ -366,7 +352,8 @@ async def run_with_retry(
 
     references = kwargs.get("references", None)
     links = kwargs.get("links", None)
-    # hash_id = make_hash_id(references=references, links=links)
+    hash_id = make_hash_id(references=references, links=links)
+    # log.debug("generating invocation with hash_id", hash_id=hash_id)
 
     retries = 0
     last_exception = None
@@ -379,7 +366,6 @@ async def run_with_retry(
                 openapi_parameters,
                 user_id,
                 project_id,
-                scenario_id,
                 **kwargs,
             )
             return result
@@ -419,7 +405,6 @@ async def batch_invoke(
     rate_limit_config: Dict,
     user_id: str,
     project_id: str,
-    scenarios: Optional[List[Dict]] = None,
     **kwargs,
 ) -> List[InvokationResult]:
     """
@@ -514,7 +499,6 @@ async def batch_invoke(
                     openapi_parameters,
                     user_id,
                     project_id,
-                    scenarios[index].get("id") if scenarios else None,
                     **kwargs,
                 )
             )

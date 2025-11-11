@@ -5,12 +5,8 @@ import {restrictToParentElement} from "@dnd-kit/modifiers"
 import {arrayMove, SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 
-import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
-
-import {usePlaygroundLayout} from "../../../hooks/usePlaygroundLayout"
-import {selectedVariantsAtom} from "../../../state/atoms"
+import usePlayground from "../../../hooks/usePlayground"
 
 import VariantNavigationCard from "./assets/VariantNavigationCard"
 import type {PromptComparisonVariantNavigationProps} from "./types"
@@ -20,8 +16,7 @@ const PromptComparisonVariantNavigation = ({
     handleScroll,
     ...props
 }: PromptComparisonVariantNavigationProps) => {
-    const {displayedVariants} = usePlaygroundLayout()
-    const selectedVariants = useAtomValue(selectedVariantsAtom)
+    const {displayedVariants, setDisplayedVariants} = usePlayground()
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -38,21 +33,14 @@ const PromptComparisonVariantNavigation = ({
             const {active, over} = event
 
             if (over?.id && active.id && active.id !== over?.id) {
-                // Get current revision IDs from selectedVariants (which is a string array)
-                const currentRevisionIds = selectedVariants || []
+                const oldIndex = displayedVariants!.indexOf(active.id)
+                const newIndex = displayedVariants!.indexOf(over.id)
 
-                const oldIndex = currentRevisionIds.indexOf(active.id)
-                const newIndex = currentRevisionIds.indexOf(over.id)
-
-                if (oldIndex !== -1 && newIndex !== -1) {
-                    // Reorder the array
-                    const reorderedRevisions = arrayMove(currentRevisionIds, oldIndex, newIndex)
-
-                    void writePlaygroundSelectionToQuery(reorderedRevisions)
-                }
+                const newArray = arrayMove(displayedVariants!, oldIndex, newIndex)
+                setDisplayedVariants?.(newArray)
             }
         },
-        [selectedVariants],
+        [displayedVariants],
     )
 
     return (
@@ -69,17 +57,19 @@ const PromptComparisonVariantNavigation = ({
                     modifiers={[restrictToParentElement]}
                 >
                     <SortableContext
-                        items={displayedVariants || []}
+                        items={displayedVariants!}
                         strategy={verticalListSortingStrategy}
                     >
-                        {displayedVariants?.map((variantId, idx) => (
-                            <VariantNavigationCard
-                                key={variantId}
-                                id={variantId}
-                                revisionId={variantId}
-                                handleScrollClick={() => handleScroll(idx)}
-                            />
-                        ))}
+                        {displayedVariants?.map((variantId, idx) => {
+                            return (
+                                <VariantNavigationCard
+                                    key={variantId}
+                                    id={variantId}
+                                    variantId={variantId}
+                                    handleScrollClick={() => handleScroll(idx)}
+                                />
+                            )
+                        })}
                     </SortableContext>
                 </DndContext>
             </div>

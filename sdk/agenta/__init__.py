@@ -27,12 +27,8 @@ from .sdk.utils.costs import calculate_token_usage
 from .sdk.tracing import Tracing, get_tracer
 from .sdk.tracing.conventions import Reference
 from .sdk.decorators.tracing import instrument
-from .sdk.decorators.running import (
-    workflow,
-    application,
-    evaluator,
-)
-from .sdk.decorators.serving import route, app
+from .sdk.decorators.running import workflow, workflows
+from .sdk.decorators.serving import entrypoint, app, route
 from .sdk.context.running import workflow_mode_enabled
 from .sdk.litellm import litellm as callbacks
 from .sdk.managers.apps import AppManager
@@ -43,10 +39,6 @@ from .sdk.managers.variant import VariantManager
 from .sdk.managers.deployment import DeploymentManager
 from .sdk import assets as assets
 from .sdk import tracer
-
-# evaluations
-from .sdk import testsets as testsets
-
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
@@ -73,8 +65,7 @@ def init(
     global api, async_api, tracing, tracer  # pylint: disable=global-statement
 
     _init(
-        host=host,
-        api_url=api_url,
+        host=host or api_url,
         api_key=api_key,
         config_fname=config_fname,
         redact=redact,

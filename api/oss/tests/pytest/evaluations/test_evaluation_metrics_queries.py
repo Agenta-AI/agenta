@@ -79,7 +79,7 @@ class TestEvaluationMetricsQueries:
     def test_query_metrics_by_ids(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
-        metrics_ids = [metric["id"] for metric in metrics]
+        metric_ids = [metric["id"] for metric in metrics]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -88,7 +88,7 @@ class TestEvaluationMetricsQueries:
             "/preview/evaluations/metrics/query",
             json={
                 "metric": {
-                    "ids": metrics_ids,
+                    "ids": metric_ids,
                 }
             },
         )
@@ -98,13 +98,13 @@ class TestEvaluationMetricsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 2
-        assert all(metric["id"] in metrics_ids for metric in response["metrics"])
+        assert all(metric["id"] in metric_ids for metric in response["metrics"])
         # ----------------------------------------------------------------------
 
     def test_query_metrics_by_tags(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
-        metrics_ids = [metric["id"] for metric in metrics]
+        metric_ids = [metric["id"] for metric in metrics]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -126,13 +126,13 @@ class TestEvaluationMetricsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert all(metric["id"] in metrics_ids for metric in response["metrics"])
+        assert all(metric["id"] in metric_ids for metric in response["metrics"])
         # ----------------------------------------------------------------------
 
     def test_query_metrics_by_meta(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
-        metrics_ids = [metric["id"] for metric in metrics]
+        metric_ids = [metric["id"] for metric in metrics]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -154,13 +154,13 @@ class TestEvaluationMetricsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert all(metric["id"] in metrics_ids for metric in response["metrics"])
+        assert all(metric["id"] in metric_ids for metric in response["metrics"])
         # ----------------------------------------------------------------------
 
     def test_query_metrics_by_status(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
-        metrics_ids = [
+        metric_ids = [
             metric["id"] for metric in metrics if metric["status"] == "success"
         ]
         # ----------------------------------------------------------------------
@@ -181,13 +181,13 @@ class TestEvaluationMetricsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert all(metric["id"] in metrics_ids for metric in response["metrics"])
+        assert all(metric["id"] in metric_ids for metric in response["metrics"])
         # ----------------------------------------------------------------------
 
     def test_query_metrics_by_statuses(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
-        metrics_ids = [
+        metric_ids = [
             metric["id"]
             for metric in metrics
             if metric["status"] in ["success", "failure"]
@@ -210,14 +210,14 @@ class TestEvaluationMetricsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 2
-        assert all(metric["id"] in metrics_ids for metric in response["metrics"])
+        assert all(metric["id"] in metric_ids for metric in response["metrics"])
         # ----------------------------------------------------------------------
 
     def test_query_metrics_by_run_id(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
         run_id = metrics[0]["run_id"]
-        metrics_ids = [metric["id"] for metric in metrics if metric["run_id"] == run_id]
+        metric_ids = [metric["id"] for metric in metrics if metric["run_id"] == run_id]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -236,16 +236,14 @@ class TestEvaluationMetricsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert all(metric["id"] in metrics_ids for metric in response["metrics"])
+        assert all(metric["id"] in metric_ids for metric in response["metrics"])
         # ----------------------------------------------------------------------
 
     def test_query_metrics_by_run_ids(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         metrics = mock_data["metrics"]
         run_ids = [metrics[0]["run_id"], metrics[1]["run_id"]]
-        metrics_ids = [
-            metric["id"] for metric in metrics if metric["run_id"] in run_ids
-        ]
+        metric_ids = [metric["id"] for metric in metrics if metric["run_id"] in run_ids]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
@@ -264,5 +262,5 @@ class TestEvaluationMetricsQueries:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 2
-        assert all(metric["id"] in metrics_ids for metric in response["metrics"])
+        assert all(metric["id"] in metric_ids for metric in response["metrics"])
         # ----------------------------------------------------------------------

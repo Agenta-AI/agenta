@@ -133,7 +133,7 @@ def mock_data(authed_api):
 
     response = authed_api(
         "POST",
-        "/preview/evaluations/results/",
+        "/preview/evaluations/steps/",
         json={"steps": steps},
     )
 
@@ -153,12 +153,12 @@ def mock_data(authed_api):
     return _mock_data
 
 
-class TestEvaluationResultsQueries:
-    def test_query_results_all(self, authed_api, mock_data):
+class TestEvaluationStepsQueries:
+    def test_query_steps_all(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {},
             },
@@ -171,11 +171,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 9
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_tags(self, authed_api, mock_data):
+    def test_query_steps_by_tags(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "tags": {
@@ -193,11 +193,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 3
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_meta(self, authed_api, mock_data):
+    def test_query_steps_by_meta(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "meta": {
@@ -215,11 +215,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 3
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_run_id(self, authed_api, mock_data):
+    def test_query_steps_by_run_id(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "run_id": mock_data["runs"][0]["id"],
@@ -234,11 +234,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 9
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_run_ids(self, authed_api, mock_data):
+    def test_query_steps_by_run_ids(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "run_ids": [mock_data["runs"][0]["id"]],
@@ -253,11 +253,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 9
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_scenario_id(self, authed_api, mock_data):
+    def test_query_steps_by_scenario_id(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "scenario_id": mock_data["scenarios"][0]["id"],
@@ -272,11 +272,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 6
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_scenario_ids(self, authed_api, mock_data):
+    def test_query_steps_by_scenario_ids(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "scenario_ids": [s["id"] for s in mock_data["scenarios"]],
@@ -291,11 +291,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 9
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_ids(self, authed_api, mock_data):
+    def test_query_steps_by_ids(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "ids": [s["id"] for s in mock_data["steps"][:-1]],
@@ -310,11 +310,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 9 - 1
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_key(self, authed_api, mock_data):
+    def test_query_steps_by_key(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "key": "input",
@@ -329,11 +329,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 3
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_keys(self, authed_api, mock_data):
+    def test_query_steps_by_keys(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "keys": ["input", "invocation"],
@@ -348,11 +348,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 6
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_repeat_id(self, authed_api, mock_data):
+    def test_query_steps_by_repeat_id(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "repeat_id": mock_data["steps"][0]["repeat_id"],
@@ -367,11 +367,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 6
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_repeat_ids(self, authed_api, mock_data):
+    def test_query_steps_by_repeat_ids(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "repeat_ids": [
@@ -389,11 +389,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 9
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_retry_id(self, authed_api, mock_data):
+    def test_query_steps_by_retry_id(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "retry_id": mock_data["steps"][0]["retry_id"],
@@ -408,11 +408,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 6
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_retry_ids(self, authed_api, mock_data):
+    def test_query_steps_by_retry_ids(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "retry_ids": [
@@ -430,11 +430,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 9
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_status(self, authed_api, mock_data):
+    def test_query_steps_by_status(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "status": "success",
@@ -449,11 +449,11 @@ class TestEvaluationResultsQueries:
         assert response["count"] == 3
         # ----------------------------------------------------------------------
 
-    def test_query_results_by_statuses(self, authed_api, mock_data):
+    def test_query_steps_by_statuses(self, authed_api, mock_data):
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "POST",
-            "/preview/evaluations/results/query",
+            "/preview/evaluations/steps/query",
             json={
                 "step": {
                     "statuses": ["success", "failure"],

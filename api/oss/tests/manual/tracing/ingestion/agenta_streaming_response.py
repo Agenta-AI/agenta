@@ -1,6 +1,4 @@
-# /// script
-# dependencies = ["agenta", "fastapi", "pydantic"]
-# ///
+
 """
 Simple Agenta Observability FastAPI Example
 
@@ -41,37 +39,34 @@ load_dotenv(override=True)
 ag.init()
 
 
+
 class StreamConfig(BaseModel):
     """Configuration for streaming responses"""
-
     max_tokens: int = Field(default=20, description="Maximum tokens to generate")
 
 
 @ag.instrument()
-async def streaming_generator_with_broken_decorator(
-    text: str,
-) -> AsyncGenerator[str, None]:
+async def streaming_generator_with_broken_decorator(text: str) -> AsyncGenerator[str, None]:
     config = StreamConfig()
-
+    
     # The decorator will close the span here, before any yields
     logger.info(f"🚨 Starting generator (decorator will close span immediately)")
-
+    
     words = text.split()
-    for i, word in enumerate(words[: config.max_tokens]):
+    for i, word in enumerate(words[:config.max_tokens]):
         token = f"{word} "
         logger.info(f"📡 Yielding: {token.strip()}")
         yield f"data: {json.dumps({'token': token, 'index': i})}\\n\\n"
-
+    
     yield "data: [DONE]\\n\\n"
 
 
-@ag.instrument()
-async def stream_with_broken_decorator(
-    text: str = "Hello world from Agenta streaming test",
-):
+@ag.instrument()  
+async def stream_with_broken_decorator(text: str = "Hello world from Agenta streaming test"):
     logger.info("🚨 Using BROKEN decorator approach")
     return StreamingResponse(
-        streaming_generator_with_broken_decorator(text), media_type="text/event-stream"
+        streaming_generator_with_broken_decorator(text),
+        media_type="text/event-stream"
     )
 
 
@@ -81,9 +76,10 @@ if __name__ == "__main__":
     async def main():
         # Get the StreamingResponse object
         response = await stream_with_broken_decorator()
-
+        
         # Access the streaming content from the response
         async for chunk in response.body_iterator:
-            print(chunk, end="")
-
+            print(chunk, end='')
+    
     asyncio.run(main())
+   

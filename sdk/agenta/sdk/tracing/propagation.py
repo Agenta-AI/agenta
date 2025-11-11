@@ -6,8 +6,6 @@ from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapProp
 from opentelemetry.baggage import set_baggage
 from opentelemetry.context import get_current
 
-from agenta.sdk.contexts.tracing import TracingContext
-
 import agenta as ag
 
 
@@ -74,7 +72,7 @@ def inject(
 
     _context = get_current()
 
-    ctx = TracingContext.get()
+    ctx = ag.sdk.context.tracing.tracing_context.get()
 
     # --- Inject traceparent --- #
     try:

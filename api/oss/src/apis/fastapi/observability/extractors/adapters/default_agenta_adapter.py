@@ -68,14 +68,3 @@ class DefaultAgentaAdapter(BaseAdapter):
                         if "attributes" not in features.exception:
                             features.exception["attributes"] = {}
                         features.exception["attributes"][attr_key] = decoded_attr_val
-
-        try:
-            features.links = attributes.links
-        except Exception as e:
-            log.error(
-                "Failed to set links on features. Links from attributes: %s. Error: %s",
-                attributes.links,
-                str(e),
-                exc_info=True,
-            )
-            pass

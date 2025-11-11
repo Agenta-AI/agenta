@@ -163,8 +163,7 @@ class NodeBuilder(SpanDataBuilder):
 
         refs = features.refs
 
-        # links = features.links
-        links = []
+        links = features.links
 
         otel = OTelExtraDTO(
             kind=(otel_span_dto.kind.value if otel_span_dto.kind else None),
@@ -269,7 +268,7 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
         # ----------------------------------------------------------------------
 
         # ATTRIBUTES -----------------------------------------------------------
-        attributes = dict(otel_span_dto.attributes or {})
+        attributes = dict()
 
         attributes.update(**{f"ag.data.{k}": v for k, v in features.data.items()})
 
@@ -318,8 +317,8 @@ class OTelFlatSpanBuilder(SpanDataBuilder):
                 try:
                     links.append(
                         OTelLink(
-                            trace_id=link.trace_id,
-                            span_id=link.span_id,
+                            trace_id=link.context.trace_id,
+                            span_id=link.context.span_id,
                             attributes=link.attributes,
                         )
                     )

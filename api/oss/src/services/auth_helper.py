@@ -5,7 +5,6 @@ import asyncio
 
 from pydantic import ValidationError
 from fastapi import Request, HTTPException, Response
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from supertokens_python.recipe.session.asyncio import get_session
 from jwt import encode, decode, DecodeError, ExpiredSignatureError
@@ -55,13 +54,11 @@ _PUBLIC_ENDPOINTS = (
     "/api/openapi.json",
     # SUPERTOKENS
     "/auth",
-    "/api/auth",
     # STRIPE
     "/billing/stripe/events/",
-    "/api/billing/stripe/events/",
 )
 
-_ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
+_ADMIN_ENDPOINT_PREFIX = "/admin/"
 
 _SECRET_KEY = env.AGENTA_AUTH_KEY
 _SECRET_EXP = 15 * 60  # 15 minutes
@@ -102,33 +99,33 @@ async def authentication_middleware(request: Request, call_next):
     except TryRefreshTokenError:
         log.warn("Unauthorized: Refresh Token")
 
-        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+        return Response(status_code=401, content="Unauthorized")
 
     except RequestValidationError as exc:
         log.error("Unprocessable Content: %s", exc)
 
-        return JSONResponse(status_code=422, content={"detail": exc.errors()})
+        return Response(status_code=422, content=exc.errors())
 
     except ValidationError as exc:
         log.error("Bad Request: %s", exc)
 
-        return JSONResponse(status_code=400, content={"detail": exc.errors()})
+        return Response(status_code=400, content=exc.errors())
 
     except HTTPException as exc:
         log.error("%s: %s", exc.status_code, exc.detail)
 
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        return Response(status_code=exc.status_code, content=exc.detail)
 
     except ValueError as exc:
         log.error("Bad Request: %s", exc)
 
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
+        return Response(status_code=400, content=str(exc))
 
     except Exception as e:  # pylint: disable=bare-except
         log.error("Internal Server Error: %s", traceback.format_exc())
         status_code = e.status_code if hasattr(e, "status_code") else 500
 
-        return JSONResponse(
+        return Response(
             status_code=status_code,
             content={"detail": "An internal error has occurred."},
         )
@@ -139,7 +136,7 @@ async def _authenticate(request: Request):
         if request.url.path.startswith(_PUBLIC_ENDPOINTS):
             return
 
-        if _ADMIN_ENDPOINT_IDENTIFIER in request.url.path:
+        if request.url.path.startswith(_ADMIN_ENDPOINT_PREFIX):
             auth_header = (
                 request.headers.get("Authorization")
                 or request.headers.get("authorization")

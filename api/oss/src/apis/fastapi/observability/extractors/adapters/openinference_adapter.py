@@ -136,11 +136,11 @@ class OpenInferenceAdapter(BaseAdapter):
                         transformed_attributes["ag.type.node"] = mapped_kind
                         has_data = True
                     else:
-                        log.warn(
+                        log.warning(
                             f"OpenInferenceAdapter: Unknown or unmapped openinference.span.kind '{value}'"
                         )
                 else:
-                    log.warn(
+                    log.warning(
                         f"OpenInferenceAdapter: Expected string for openinference.span.kind, got {type(value)}"
                     )
                 continue  # Move to next attribute

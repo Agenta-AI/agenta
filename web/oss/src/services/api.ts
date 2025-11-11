@@ -1,14 +1,14 @@
 import Session from "supertokens-auth-react/recipe/session"
 
+import {DEFAULT_UUID, getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {
     detectChatVariantFromOpenAISchema,
     openAISchemaToParameters,
 } from "@/oss/lib/helpers/openapi_parser"
-import {shortPoll} from "@/oss/lib/helpers/utils"
+import {getAgentaApiUrl, shortPoll} from "@/oss/lib/helpers/utils"
 import {
     Variant,
     Parameter,
@@ -18,7 +18,6 @@ import {
     BaseResponse,
     User,
 } from "@/oss/lib/Types"
-import {getProjectValues} from "@/oss/state/project"
 
 import {findCustomWorkflowPath, uriFixer} from "../lib/shared/variant"
 import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
@@ -37,9 +36,9 @@ import {constructPlaygroundTestUrl} from "../lib/shared/variant/stringUtils"
 export const axiosFetcher = (url: string) => axios.get(url).then((res) => res.data)
 
 export async function fetchVariants(appId: string, ignoreAxiosError = false): Promise<Variant[]> {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
-    if (!projectId) {
+    if (!projectId || projectId === DEFAULT_UUID) {
         return []
     }
 
@@ -88,15 +87,7 @@ export const getJWT = async () => {
             return jwt
         }
     } catch (error) {
-        console.error("Failed to fetch JWT", process.env.NODE_ENV)
-    }
-
-    // In test environment, fall back to test JWT if available
-    if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
-        const testJWT = process.env.VITEST_TEST_JWT || process.env.TEST_JWT
-        if (testJWT) {
-            return testJWT
-        }
+        console.error("Failed to fetch JWT")
     }
 
     return undefined
@@ -176,13 +167,7 @@ export async function callVariant(
             }
         }
     } else {
-        const inputs = {...secondaryInputParams}
-        for (const x of inputParamDefinition) {
-            if (!inputs[x.name]) {
-                inputs[x.name] = null
-            }
-        }
-        requestBody["inputs"] = inputs
+        requestBody["inputs"] = secondaryInputParams
     }
 
     if (uriObject) {
@@ -216,7 +201,7 @@ export async function callVariant(
         return response?.data
     } else {
         const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
-        const {projectId} = getProjectValues()
+        const {projectId} = getCurrentProject()
         const jwt = await getJWT()
 
         const base_url = `${appContainerURI}/test?application_id=${appId}`
@@ -272,8 +257,9 @@ export const fetchVariantParametersFromOpenAPI = async (
     baseId?: string,
     ignoreAxiosError = false,
 ) => {
+    console.log("fetchVariantParametersFromOpenAPI !!")
     const appContainerURI = await fetchAppContainerURL(appId, variantId, baseId)
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
     const jwt = await getJWT()
 
     const base_url = `${appContainerURI}/openapi.json`
@@ -356,14 +342,11 @@ export const fetchAppContainerURL = async (
         if (!getAgentaApiUrl()) {
             throw new Error("Environment variable NEXT_PUBLIC_AGENTA_API_URL is not set.")
         }
-        const {projectId} = getProjectValues()
+        const {projectId} = getCurrentProject()
 
         // Retrieve container URL from backend
         const {data} = await axios.get(
             `${getAgentaApiUrl()}/variants/${variantId}?project_id=${projectId}`,
-            {
-                _ignoreError: true,
-            } as any,
         )
         const uriObject = await findCustomWorkflowPath(data.uri)
         if (uriObject) {
@@ -431,6 +414,3 @@ export const waitForAppToStart = async ({
         return {stopper: () => {}, promise: Promise.reject(new Error("Variant not found"))}
     }
 }
-
-// Re-export profile mutations for backward compatibility with older imports
-export {updateProfile, changePassword} from "./profile"

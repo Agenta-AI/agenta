@@ -1,7 +1,5 @@
-import {DropdownProps} from "antd"
-
 import {SharedEditorProps} from "@/oss/components/Playground/Components/SharedEditor/types"
-
+import {DropdownProps} from "antd"
 import {TooltipButtonProps} from "../../Playground/assets/EnhancedButton"
 
 export interface SimpleSharedEditorProps extends SharedEditorProps {
@@ -16,9 +14,8 @@ export interface SimpleSharedEditorProps extends SharedEditorProps {
     formatDropdownProps?: DropdownProps
     copyButtonProps?: TooltipButtonProps
     minimizeButtonProps?: TooltipButtonProps
-    disableFormatItems?: {text?: boolean; markdown?: boolean; json?: boolean; yaml?: boolean}
+    disableFormatItems?: {text?: boolean, markdown?: boolean, json?: boolean, yaml?: boolean}
     minimizedHeight?: number
     showTextToMdOutside?: boolean
-    defaultMinimized?: boolean
 }
 export type Format = "text" | "json" | "yaml" | "markdown" | "html"

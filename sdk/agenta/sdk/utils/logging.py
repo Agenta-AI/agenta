@@ -8,6 +8,15 @@ import logging
 import structlog
 from structlog.typing import EventDict, WrappedLogger, Processor
 
+# from datetime import datetime
+# from logging.handlers import RotatingFileHandler
+
+# from opentelemetry.trace import get_current_span
+# from opentelemetry._logs import set_logger_provider
+# from opentelemetry.sdk._logs import LoggingHandler, LoggerProvider
+# from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+# from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+
 TRACE_LEVEL = 1
 logging.TRACE = TRACE_LEVEL
 logging.addLevelName(TRACE_LEVEL, "TRACE")
@@ -30,6 +39,15 @@ structlog.stdlib.BoundLogger.trace = bound_logger_trace
 # ENV VARS
 AGENTA_LOG_CONSOLE_ENABLED = os.getenv("AGENTA_LOG_CONSOLE_ENABLED", "true") == "true"
 AGENTA_LOG_CONSOLE_LEVEL = os.getenv("AGENTA_LOG_CONSOLE_LEVEL", "TRACE").upper()
+
+# AGENTA_LOG_OTLP_ENABLED = os.getenv("AGENTA_LOG_OTLP_ENABLED", "false") == "true"
+# AGENTA_LOG_OTLP_LEVEL = os.getenv("AGENTA_LOG_OTLP_LEVEL", "INFO").upper()
+
+# AGENTA_LOG_FILE_ENABLED = os.getenv("AGENTA_LOG_FILE_ENABLED", "true") == "true"
+# AGENTA_LOG_FILE_LEVEL = os.getenv("AGENTA_LOG_FILE_LEVEL", "WARNING").upper()
+# AGENTA_LOG_FILE_BASE = os.getenv("AGENTA_LOG_FILE_PATH", "error")
+# LOG_FILE_DATE = datetime.utcnow().strftime("%Y-%m-%d")
+# AGENTA_LOG_FILE_PATH = f"{AGENTA_LOG_FILE_BASE}-{LOG_FILE_DATE}.log"
 
 # COLORS
 LEVEL_COLORS = {
@@ -68,6 +86,15 @@ def process_positional_args(_, __, event_dict: EventDict) -> EventDict:
         except Exception:
             event_dict["event"] = f"{event_dict['event']} {args}"
     return event_dict
+
+
+# def add_trace_context(_, __, event_dict: EventDict) -> EventDict:
+#     span = get_current_span()
+#     if span and span.get_span_context().is_valid:
+#         ctx = span.get_span_context()
+#         event_dict["TraceId"] = format(ctx.trace_id, "032x")
+#         event_dict["SpanId"] = format(ctx.span_id, "016x")
+#     return event_dict
 
 
 def add_logger_info(
@@ -116,9 +143,36 @@ def colored_console_renderer() -> Processor:
     return render
 
 
+# def plain_renderer() -> Processor:
+#     hidden = {
+#         "SeverityText",
+#         "SeverityNumber",
+#         "MethodName",
+#         "logger_factory",
+#         "LoggerName",
+#         "level",
+#     }
+
+#     def render(_, __, event_dict: EventDict) -> str:
+#         ts = event_dict.pop("Timestamp", "")[:23] + "Z"
+#         level = event_dict.get("level", "")
+#         msg = event_dict.pop("event", "")
+#         padded = f"[{level:<5}]"
+#         logger = f"[{event_dict.pop('logger', '')}]"
+#         extras = " ".join(f"{k}={v}" for k, v in event_dict.items() if k not in hidden)
+#         return f"{ts} {padded} {msg} {logger} {extras}"
+
+#     return render
+
+
+# def json_renderer() -> Processor:
+#     return structlog.processors.JSONRenderer()
+
+
 SHARED_PROCESSORS: list[Processor] = [
     structlog.processors.TimeStamper(fmt="iso", utc=True, key="Timestamp"),
     process_positional_args,
+    # add_trace_context,
     add_logger_info,
     structlog.processors.format_exc_info,
     structlog.processors.dict_tracebacks,
@@ -139,29 +193,35 @@ def create_struct_logger(
     )
 
 
-# Guard against double initialization
-_LOGGING_CONFIGURED = False
-
 # CONFIGURE HANDLERS AND STRUCTLOG LOGGERS
 handlers = []
 loggers = []
 
-if AGENTA_LOG_CONSOLE_ENABLED and not _LOGGING_CONFIGURED:
-    _LOGGING_CONFIGURED = True
-
-    # Check if console logger already has handlers (from OSS module)
-    console_logger = logging.getLogger("console")
-
-    if not console_logger.handlers:
-        # Only add handler if it doesn't exist yet
-        h = logging.StreamHandler(sys.stdout)
-        h.setLevel(getattr(logging, AGENTA_LOG_CONSOLE_LEVEL, TRACE_LEVEL))
-        h.setFormatter(logging.Formatter("%(message)s"))
-        console_logger.addHandler(h)
-        console_logger.setLevel(TRACE_LEVEL)
-        console_logger.propagate = False
-
+if AGENTA_LOG_CONSOLE_ENABLED:
+    h = logging.StreamHandler(sys.stdout)
+    h.setLevel(getattr(logging, AGENTA_LOG_CONSOLE_LEVEL, TRACE_LEVEL))
+    h.setFormatter(logging.Formatter("%(message)s"))
+    logging.getLogger("console").addHandler(h)
     loggers.append(create_struct_logger([colored_console_renderer()], "console"))
+
+# if AGENTA_LOG_FILE_ENABLED:
+#     h = RotatingFileHandler(AGENTA_LOG_FILE_PATH, maxBytes=10 * 1024 * 1024, backupCount=5)
+#     h.setLevel(getattr(logging, AGENTA_LOG_FILE_LEVEL, logging.WARNING))
+#     h.setFormatter(logging.Formatter("%(message)s"))
+#     logging.getLogger("file").addHandler(h)
+#     loggers.append(create_struct_logger([plain_renderer()], "file"))
+
+# if AGENTA_LOG_OTLP_ENABLED:
+#     provider = LoggerProvider()
+#     exporter = OTLPLogExporter()
+#     provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+#     set_logger_provider(provider)
+#     h = LoggingHandler(
+#         level=getattr(logging, AGENTA_LOG_OTLP_LEVEL, logging.INFO), logger_provider=provider
+#     )
+#     h.setFormatter(logging.Formatter("%(message)s"))
+#     logging.getLogger("otel").addHandler(h)
+#     loggers.append(create_struct_logger([json_renderer()], "otel"))
 
 
 class MultiLogger:

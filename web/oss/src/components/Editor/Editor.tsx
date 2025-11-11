@@ -67,7 +67,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             singleLine = false,
             codeOnly = false,
             language,
-            templateFormat,
             customRender,
             showToolbar = true,
             enableTokens = false,
@@ -291,15 +290,10 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             )
         }, [editor])
 
-        const lastHydratedRef = useRef<string>("")
-
         useEffect(() => {
             if (codeOnly) return
-            const next = initialValue || ""
-            if (lastHydratedRef.current === next) return
-            lastHydratedRef.current = next
             editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
-                hydrateWithRemoteContent: next,
+                hydrateWithRemoteContent: initialValue || "",
                 parentId: "",
             })
         }, [initialValue])
@@ -331,7 +325,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             enableTokens={enableTokens}
                             debug={debug}
                             language={language}
-                            templateFormat={templateFormat}
                             placeholder={placeholder}
                             handleUpdate={handleUpdate}
                             initialValue={initialValue}
@@ -448,7 +441,6 @@ const Editor = ({
     singleLine = false,
     codeOnly = false,
     language,
-    templateFormat,
     customRender,
     showToolbar = true,
     enableTokens = false,
@@ -473,7 +465,12 @@ const Editor = ({
     })
 
     return (
-        <div className="agenta-editor-wrapper w-full relative" ref={setContainerElm}>
+        <div
+            className="agenta-editor-wrapper w-full relative"
+            ref={(el) => {
+                setContainerElm(el)
+            }}
+        >
             {noProvider ? (
                 <EditorInner
                     dimensions={dimension}
@@ -485,7 +482,6 @@ const Editor = ({
                     singleLine={singleLine}
                     codeOnly={codeOnly}
                     language={language}
-                    templateFormat={templateFormat}
                     showToolbar={showToolbar}
                     enableTokens={enableTokens}
                     debug={debug}
@@ -543,7 +539,6 @@ const Editor = ({
                         singleLine={singleLine}
                         codeOnly={codeOnly}
                         language={language}
-                        templateFormat={templateFormat}
                         showToolbar={showToolbar}
                         enableTokens={enableTokens}
                         debug={debug}

@@ -11,7 +11,7 @@ export const TestScope = {
     EVALUATIONS: "evaluations", // Evaluation flows
     SETTINGS: "settings", // Settings flows
     DEPLOYMENT: "deployment", // Deployment flows
-    OBSERVABILITY: "observability",
+    OBSERVABILITY: "observability"
 } as const
 
 /**
@@ -74,7 +74,7 @@ export const TestLensType = {
     SECURITY: "security",
 } as const
 
-export const TestcaseType = {
+export const TestCaseType = {
     TYPICAL: "typical",
     EDGE: "edge",
 } as const

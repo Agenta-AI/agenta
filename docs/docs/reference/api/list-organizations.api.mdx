@@ -5,65 +5,184 @@ description: "Returns a list of organizations associated with the user's session
 sidebar_label: "List Organizations"
 hide_title: true
 hide_table_of_contents: true
-api: eJztVE1v2zAM/SsCL7sISbajTwuwYg06LEWbYYc0GFibidXakivKbT3D/32gYidxtvWy63JoUvLx6/FRLQTcMSRrWPodWvMTg3EWNhoy4tSbKv6bwA2F2ltWqArDQbmtcid4VsjsUoOBMvViQq5CTqpm8u9YMTEbZyd39s72aZI7q5SKqdandTeJmv9jATRMQ/7L1er64jWlOESiFluJ8qQMK7SKvHdeeQre0LOxu5hyXHTrXRnNGQa8R6YJaHAV+ehfZJCAdPtjFAUaPHHlLBND0sKH2Uy+xnze1mlKzNu6UDc9GDSkzgayQeBYVYVJY8bpA0tMC5zmVKL8MoHKmLzy0k4w+1Imk7+hqQgS4OCN3YGGYEIhhkUGnQaLJb2F+ir+ToN7seTfAi4joDtTyt/xn05gne5hLaBtlltI1ueBnT5YbF0U0G2OqVZi7zS8OP/IFab99AMp54kGA3qPzUlH34/h3RHl7h8oDXGLT7XxlMl1mAx66gZmxnOfNDc6pL8XH9auvojelyMFdfLRUFLInYhsR9JPhSGHBKbnamPyz+Q5clj7AhLIQ6g4mU7TwtXZBHdkA07QTLEykUemtPYmNDFkfr24ouaSMJN9rzengFtR3J7dMexAMlbmipqBnATmdcidH8bXYETt+T5KZjJ262J4T8M8Nqfm1wvQIGPs72M2eT+ZwfkrNALLsWAaj2WoHd2gz1g4zA8aqEQjvkBYfjw6pLPKcSjRnuT7w2Z+U/vhZP8/kccnstdGoNcwrQo08Q7iUtpexWsYq3ijIXccxNG2kuabL7pOzE81eRHqRsMzeoP3Ipv1ptODqkTDj9TI/lMZRHSERb0X59kjKto+XNXnixV03S/QHnFC
+api: eJztVMFu2zAM/RWBl12EpNvRp2VbsQYdlqLNsEMaDKzMxGptyZXodlngfx+o2Emcrb3sOh9ih3ykyMdHbYFxHSFbwCys0dlfyNY7WGrIKZpg6/Q3g2viJrioUJU2svIr5Y/wUWGM3lhkytWz5UJxQaqJFN5EFSlG693o1t26Lk1265RSKdXi+Nxlpib/eADaSH3+i/n86vynodREpqYriQqkbFToFIXggwrEwdKTdeuUcnjoKvgqmXNkvMNII9DgawrJP80hA6n2xyAKNASKtXeRImRbeHd2Jq8hnzeNMRTjqinVdQcGDcY7JscCx7ourUkZx/dRYrYQTUEVypdlqlLyOkg5bHdH2Vx+eVMTZBA5WLcGDWy5FMM0h1aDw4peQ30Vf6vBPzsKrwFnCdCeKOVl/KcjWKs72BbQbWYryBanga3eW1xTltAuD6nmYm81PPvwEGs0Xfc9KaeJegOGgJujir4fwtsDyt/dk+E0xcfGBsplO2wOHXU9M8O+j4obLNLLh/djV19E77OBglp5NFTEhReRrUnqqZELyGB8qrZI4YlCTBw2oYQMCuY6ZuOxKX2Tj3BNjnGEdoy1hdPNniSv+ijQRHIk0wTLm5RvcjW9pM0FYS5iWCyPATcixx31Q9h+AljbS9r0zGUwabjwoedGg5UCil2UNGzdyqfwjqOutg9oHsjJBKTPXdlno7ejs5ea6QLU5GrabRWatFV9HQkG+oSuPVGggSq04mPC6v3BIVXWPnKF7ijfX0b4x1rsd/v/XXq4SzudMP3kcV2iTQuThrLt5L6AodyXGgofWRzbraT5Fsq2FfNjQ0FEu9TwhMHinUhosWx1rzDR8wNtZP5GGhE9YdnshHpy24rO9+v3+XwObfsb30Z/0Q==
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-api
+info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
 
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import ParamsDetails from "@theme/ParamsDetails";
-import RequestSchema from "@theme/RequestSchema";
-import StatusCodes from "@theme/StatusCodes";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
-import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"List Organizations"}
->
-</Heading>
+></Heading>
 
-<MethodEndpoint
-  method={"get"}
-  path={"/organizations"}
-  context={"endpoint"}
->
-  
-</MethodEndpoint>
-
-
+<MethodEndpoint method={"get"} path={"/organizations"}></MethodEndpoint>
 
 Returns a list of organizations associated with the user's session.
 
 Returns:
-    list[Organization]: A list of organizations associated with the user's session.
+list[Organization]: A list of organizations associated with the user's session.
 
 Raises:
-    HTTPException: If there is an error retrieving the organizations from the database.
+HTTPException: If there is an error retrieving the organizations from the database.
 
-<ParamsDetails
-  parameters={undefined}
->
-  
-</ParamsDetails>
-
-<RequestSchema
-  title={"Body"}
-  body={undefined}
->
-  
-</RequestSchema>
-
-<StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"items":{"properties":{"id":{"type":"string","title":"Id"},"name":{"type":"string","title":"Name"},"owner":{"type":"string","title":"Owner"},"description":{"type":"string","title":"Description"},"type":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Type"},"workspaces":{"items":{"type":"string"},"type":"array","title":"Workspaces"}},"type":"object","required":["id","name","owner","description"],"title":"Organization"},"type":"array","title":"Response List Organizations"}}}}}}
->
-  
-</StatusCodes>
-
-
-      
+<div>
+  <div>
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>
+                      <li>
+                        <div
+                          style={{
+                            fontSize: "var(--ifm-code-font-size)",
+                            opacity: "0.6",
+                            marginLeft: "-.5rem",
+                            paddingBottom: ".5rem",
+                          }}
+                        >
+                          Array [
+                        </div>
+                      </li>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"id"}
+                        required={true}
+                        schemaName={"Id (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Id" }}
+                      ></SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"name"}
+                        required={true}
+                        schemaName={"Name (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Name" }}
+                      ></SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"owner"}
+                        required={true}
+                        schemaName={"Owner (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Owner" }}
+                      ></SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"description"}
+                        required={true}
+                        schemaName={"Description (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Description" }}
+                      ></SchemaItem>
+                      <SchemaItem collapsible={true} className={"schemaItem"}>
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary style={{}}>
+                            <strong>type</strong>
+                            <span style={{ opacity: "0.6" }}>object</span>
+                          </summary>
+                          <div style={{ marginLeft: "1rem" }}></div>
+                          <div>
+                            <span className={"badge badge--info"}>anyOf</span>
+                            <SchemaTabs>
+                              <TabItem
+                                label={"MOD1"}
+                                value={"0-item-properties"}
+                              >
+                                <div
+                                  style={{
+                                    marginTop: ".5rem",
+                                    marginBottom: ".5rem",
+                                  }}
+                                >
+                                  string
+                                </div>
+                              </TabItem>
+                            </SchemaTabs>
+                          </div>
+                        </details>
+                      </SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"workspaces"}
+                        required={false}
+                        schemaName={"string[]"}
+                        qualifierMessage={undefined}
+                        schema={{
+                          items: { type: "string" },
+                          type: "array",
+                          title: "Workspaces",
+                        }}
+                      ></SchemaItem>
+                      <li>
+                        <div
+                          style={{
+                            fontSize: "var(--ifm-code-font-size)",
+                            opacity: "0.6",
+                            marginLeft: "-.5rem",
+                          }}
+                        >
+                          ]
+                        </div>
+                      </li>
+                    </ul>
+                  </details>
+                </TabItem>
+                <TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={
+                      '[\n  {\n    "id": "string",\n    "name": "string",\n    "owner": "string",\n    "description": "string",\n    "type": "string",\n    "workspaces": [\n      "string"\n    ]\n  }\n]'
+                    }
+                    language={"json"}
+                  ></ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>

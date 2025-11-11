@@ -1,6 +1,6 @@
 import {IconProps} from "./types"
 
-const Anyscale = ({...props}: IconProps) => {
+const AnyScale = ({...props}: IconProps) => {
     return (
         <svg
             width="100%"
@@ -38,4 +38,4 @@ const Anyscale = ({...props}: IconProps) => {
     )
 }
 
-export default Anyscale
+export default AnyScale

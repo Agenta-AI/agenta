@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {Input} from "antd"
 import clsx from "clsx"
@@ -10,7 +10,6 @@ import {useDebounceInput} from "@/oss/hooks/useDebounceInput"
 import type {SharedEditorProps} from "./types"
 
 const SharedEditor = ({
-    id,
     header,
     footer,
     editorType = "borderless",
@@ -28,18 +27,12 @@ const SharedEditor = ({
     noProvider = false,
     debug = false,
     isTool,
-    propertyId,
-    baseProperty,
-    variantId,
-    syncWithInitialValueChanges = false,
     ...props
 }: SharedEditorProps) => {
-    const normalizedInitialValue = initialValue ?? ""
-
     const [isEditorFocused, setIsEditorFocused] = useState(false)
 
     const [localValue, setLocalValue] = useDebounceInput<string>(
-        normalizedInitialValue,
+        initialValue,
         handleChange,
         300,
         "",
@@ -52,18 +45,9 @@ const SharedEditor = ({
         [setLocalValue],
     )
 
-    // Stable editor id to prevent remounts that reset cursor position
-    // const editorIdRef = useRef<string>(`${uuidv4()}-${editorProps?.codeOnly ? "code" : "text"}`)
-    const editorIdRef = useRef<string>(
-        id || `${uuidv4()}-${editorProps?.codeOnly ? "code" : "text"}`,
-    )
-    const editorId = editorIdRef.current
-
-    const mountInitialValueRef = useRef<string>(normalizedInitialValue)
-
-    if (syncWithInitialValueChanges) {
-        mountInitialValueRef.current = normalizedInitialValue
-    }
+    const editorId = useMemo(() => {
+        return `${uuidv4()}-${editorProps?.codeOnly ? "code" : "text"}`
+    }, [editorProps?.codeOnly])
 
     return (
         <div
@@ -118,8 +102,11 @@ const SharedEditor = ({
                     placeholder={placeholder}
                     showToolbar={false}
                     enableTokens={!editorProps?.codeOnly}
-                    // Use mount-time initial value to prevent re-hydrates moving cursor
-                    initialValue={mountInitialValueRef.current}
+                    initialValue={
+                        editorProps?.codeOnly && localValue && typeof localValue !== "string"
+                            ? JSON.stringify(localValue)
+                            : localValue
+                    }
                     className={editorClassName}
                     onChange={(value: any) => {
                         handleLocalValueChange(value.textContent)
@@ -128,6 +115,7 @@ const SharedEditor = ({
                     autoFocus={autoFocus}
                     disabled={disabled}
                     showBorder={false}
+                    key={editorId}
                     id={editorId}
                     {...editorProps}
                 />

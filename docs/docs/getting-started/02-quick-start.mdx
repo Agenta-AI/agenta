@@ -12,13 +12,13 @@ import TabItem from '@theme/TabItem';
 This guide walks you through creating, evaluating, and deploying your first LLM application using Agenta's user interface. In just a few minutes, you'll have a working prompt that you can use in production.
 
 <details>
-  <summary>⏯️ Watch a short demo of the quick start guide.</summary>
+  <summary>Prefer learning by watching? We have a **3-minute video** that covers the same steps.</summary>
 
   <iframe
-    width="100%"
-    height="400"
+    width="720"
+    height="450"
     src="https://www.youtube.com/embed/N3B_ZOYzjLg?si=3KZoWdynQtM1x-cK"
-    title="Quick Start - Your First LLM Application"
+    title="Agenta Quick Start Tutorial"
     frameBorder="0"
     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
     allowFullScreen
@@ -159,7 +159,7 @@ Evaluation helps you measure how well your prompt performs against your test cas
 />
 
 :::info
-Agenta comes with a [set of built-in evaluators](/evaluation/concepts) that you can use to evaluate your prompt. You can also create your own custom evaluator [using code](/evaluation/configure-evaluators/custom-evaluator) or [webhooks](/evaluation/configure-evaluators/webhook-evaluator).
+Agenta comes with a [set of built-in evaluators](/evaluation/overview) that you can use to evaluate your prompt. You can also create your own custom evaluator [using code](/evaluation/evaluators/custom-evaluator) or [webhooks](/evaluation/evaluators/webhook-evaluator).
 :::
 
 ### Analyzing the Results
@@ -199,7 +199,7 @@ Agenta provides two main ways to integrate with your application:
 - **Use Agenta for Prompt Management**: Fetch the prompt configuration and use it in your own code
 - **Use Agenta as a Proxy**: Use Agenta as a middleware that forwards requests to the LLM
 
-In this guide, we'll use the first approach. The second approach is covered in the [Integration Guide](/prompt-engineering/integrating-prompts/integrating-with-agenta). Its advantages are simpler integration and getting observability out of the box. The disadvantages are that it does not support streaming responses and adds a slight latency to the response (approximately 0.3 seconds).
+In this guide, we'll use the first approach. The second approach is covered in the [Integration Guide](/prompt-engineering/prompt-management/how-to-integrate-with-agenta). Its advantages are simpler integration and getting observability out of the box. The disadvantages are that it does not support streaming responses and adds a slight latency to the response (approximately 0.3 seconds).
 :::
 
 We are going to fetch the prompt configuration and use it in our own code:
@@ -279,7 +279,7 @@ response = client.chat.completions.create(
 
 </TabItem>
 
-<TabItem value="api" label="Using API (JS/TS)">
+<TabItem value="api" label="Using API (JavaScript)">
 
 ```javascript
 const fetchConfigs = async () => {
@@ -444,6 +444,6 @@ Congratulations! You've successfully created, tested, deployed, and set up obser
 
 Here are some next steps to explore:
 
-- [Set up your evaluation workflow](/evaluation/concepts)
+- [Set up your evaluation workflow](/evaluation/overview)
 - [Set up observability](/observability/overview) and explore the different integrations
 - [Set up custom workflows](/custom-workflows/overview) to enable product teams to run evaluations on complex applications from the UI

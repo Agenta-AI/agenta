@@ -1,14 +1,14 @@
-import React, {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {Plus, WarningCircle} from "@phosphor-icons/react"
-import {Button, Form, Input, Typography} from "antd"
+import {Button, Form, Typography} from "antd"
 import {useWatch} from "antd/lib/form/Form"
 
 import SelectLLMProvider from "@/oss/components/SelectLLMProvider"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {isAppNameInputValid} from "@/oss/lib/helpers/utils"
-import {PROVIDER_KINDS, PROVIDER_LABELS, SecretDTOProvider} from "@/oss/lib/Types"
+import {SecretDTOProvider} from "@/oss/lib/Types"
 
 import LabelInput from "../../../assets/LabelInput"
 
@@ -17,82 +17,6 @@ import ModelNameInput from "./ModelNameInput"
 import {ConfigureProviderDrawerContentProps} from "./types"
 
 const {Text} = Typography
-
-/**
- * Optional render metadata you can attach to each PROVIDER_FIELDS item.
- * Example:
- * {
- *   key: "vertexCredentials",
- *   label: "Vertex Credentials (JSON)",
- *   model: ["vertex_ai"],
- *   attributes: { kind: "json", rows: 10, monospace: true, strict: true }
- * }
- */
-type FieldAttributes =
-    | {kind: "text"; inputType?: "text" | "password" | "url"}
-    | {kind: "textarea"; rows?: number; monospace?: boolean}
-    | {kind: "json"; rows?: number; monospace?: boolean; strict?: boolean}
-
-type FieldWithAttributes = {
-    attributes?: FieldAttributes
-    key: string
-    label: string
-    placeholder?: string
-    required?: boolean
-    model?: string[]
-    note?: string
-}
-
-/** Render control based on field.attributes */
-const renderControl = (field: FieldWithAttributes, isRequired?: boolean) => {
-    const a = field.attributes
-
-    if (!a || a.kind === "text") {
-        // Keep your existing single-line input
-        return (
-            <LabelInput
-                label={`${field.label}${isRequired ? " *" : ""}`}
-                placeholder={field.placeholder}
-                inputType={(a?.inputType as any) ?? "text"}
-            />
-        )
-    }
-
-    if (a.kind === "textarea") {
-        return (
-            <div className="flex flex-col gap-1">
-                <Text className="font-medium">
-                    {field.label}
-                    {isRequired ? <span aria-hidden> *</span> : null}
-                </Text>
-                <Input.TextArea
-                    placeholder={field.placeholder}
-                    rows={a.rows ?? 6}
-                    className={a.monospace ? "font-mono" : undefined}
-                    spellCheck={false}
-                    autoComplete="off"
-                />
-            </div>
-        )
-    }
-
-    // a.kind === "json"
-    return (
-        <div className="flex flex-col gap-1">
-            <Text className="font-medium">
-                {field.label}
-                {isRequired ? <span aria-hidden> *</span> : null}
-            </Text>
-            <Input.TextArea
-                placeholder={field.placeholder ?? '{\n  "type": "service_account",\n  ...\n}'}
-                rows={a.rows ?? 10}
-                className={a.monospace !== false ? "font-mono" : undefined}
-                spellCheck={false}
-                autoComplete="off"
-            />
-        </div>
-    )
-}
 
 const ConfigureProviderDrawerContent = ({
     form,
@@ -103,34 +27,17 @@ const ConfigureProviderDrawerContent = ({
     const {handleModifyCustomVaultSecret} = useVaultSecret()
 
     const standardProviders = useMemo(() => [...Object.values(SecretDTOProvider)], [])
-    const customProviders = useMemo(() => ["azure", "bedrock", "vertex_ai", "custom"], [])
+    const customProviders = useMemo(() => ["azure", "bedrock", "custom"], [])
     const validProviders = useMemo(
         () => [...customProviders, ...standardProviders],
         [standardProviders, customProviders],
     )
-
-    const providerValue = useWatch("provider", form) || ""
-    const normalizedProviderKind = useMemo(() => {
-        if (!providerValue || typeof providerValue !== "string") {
-            return ""
-        }
-
-        const trimmedValue = providerValue.trim()
-        const lowerCaseValue = trimmedValue.toLowerCase()
-
-        return PROVIDER_KINDS[trimmedValue] ?? PROVIDER_KINDS[lowerCaseValue] ?? lowerCaseValue
-    }, [providerValue])
-
-    const shouldFilter = validProviders.includes(normalizedProviderKind)
+    const providerValue = useWatch("provider", form)?.toLowerCase() || ""
+    const shouldFilter = validProviders.includes(providerValue)
 
     useEffect(() => {
         if (selectedProvider) {
-            form.setFieldsValue({
-                ...selectedProvider,
-                provider: selectedProvider.provider
-                    ? (PROVIDER_LABELS[selectedProvider.provider] ?? selectedProvider.provider)
-                    : selectedProvider.provider,
-            })
+            form.setFieldsValue(selectedProvider)
         } else {
             form.resetFields()
         }
@@ -183,9 +90,7 @@ const ConfigureProviderDrawerContent = ({
                 )}
 
                 <div className="flex flex-col gap-1">
-                    <Text className="font-medium">
-                        Provider<span aria-hidden> *</span>
-                    </Text>
+                    <Text className="font-medium">Provider</Text>
                     <Form.Item name="provider" className="mb-0" rules={[{required: true}]}>
                         <SelectLLMProvider />
                     </Form.Item>
@@ -193,65 +98,47 @@ const ConfigureProviderDrawerContent = ({
 
                 {PROVIDER_FIELDS.filter((field) => {
                     if (shouldFilter) {
-                        return !field.model || field.model.includes(normalizedProviderKind)
+                        return !field.model || field.model.includes(providerValue)
                     }
+
                     return true
-                }).map((rawField) => {
-                    const field = rawField as FieldWithAttributes
-                    const isJson = field.attributes?.kind === "json"
-                    const isRequired =
-                        field.key === "apiBaseUrl" ? false : !shouldFilter ? !!field.required : true
-
-                    return (
-                        <React.Fragment key={field.key}>
-                            <Form.Item
-                                name={field.key}
-                                rules={[
-                                    {
-                                        required: isRequired,
-                                        ...(field.key === "name"
-                                            ? {
-                                                  validator(_, value) {
-                                                      if (!value)
-                                                          return Promise.reject("Please enter name")
-                                                      if (!isAppNameInputValid(value)) {
-                                                          return Promise.reject(
-                                                              "Name must contain only letters, numbers, underscore, or dash without any spaces.",
-                                                          )
-                                                      }
-                                                      return Promise.resolve()
-                                                  },
-                                              }
-                                            : {}),
-                                    },
-                                    ...(isJson
-                                        ? [
-                                              {
-                                                  validator(_, value) {
-                                                      if (!value) return Promise.resolve()
-                                                      try {
-                                                          JSON.parse(value)
-                                                          return Promise.resolve()
-                                                      } catch {
-                                                          return Promise.reject(
-                                                              "Must be valid JSON",
-                                                          )
-                                                      }
-                                                  },
+                }).map((field) => (
+                    <>
+                        <Form.Item
+                            key={field.key}
+                            name={field.key}
+                            rules={[
+                                {
+                                    required:
+                                        standardProviders.includes(providerValue) &&
+                                        field.key === "apiBaseUrl"
+                                            ? false
+                                            : !shouldFilter
+                                              ? field.required
+                                              : true,
+                                    ...(field.key === "name"
+                                        ? {
+                                              validator(_, value, callback) {
+                                                  if (!value) {
+                                                      callback("Please enter name")
+                                                  } else if (!isAppNameInputValid(value)) {
+                                                      callback(
+                                                          "Name must contain only letters, numbers, underscore, or dash without any spaces.",
+                                                      )
+                                                  } else {
+                                                      callback()
+                                                  }
                                               },
-                                          ]
-                                        : []),
-                                ]}
-                            >
-                                {renderControl(field, isRequired)}
-                            </Form.Item>
-
-                            {field.note && (
-                                <Text className="text-[#586673] -mt-2">{field.note}</Text>
-                            )}
-                        </React.Fragment>
-                    )
-                })}
+                                          }
+                                        : {}),
+                                },
+                            ]}
+                        >
+                            <LabelInput label={field.label} placeholder={field.placeholder} />
+                        </Form.Item>
+                        {field.note && <Text className="text-[#586673] -mt-2">{field.note}</Text>}
+                    </>
+                ))}
 
                 <Form.List name="models">
                     {(fields, {add, remove}) => (
@@ -266,7 +153,6 @@ const ConfigureProviderDrawerContent = ({
                                     Add
                                 </Button>
                             </div>
-
                             {fields.length === 0 ? (
                                 <Text className="text-[#586673]">No custom models configured</Text>
                             ) : (

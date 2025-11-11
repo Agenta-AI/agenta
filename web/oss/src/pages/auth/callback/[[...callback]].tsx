@@ -4,19 +4,28 @@ import {Alert, Spin} from "antd"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
+import {useLocalStorage} from "usehooks-ts"
 
+import {LS_ORG_KEY} from "@/oss/contexts/org.context"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
+import {useProjectData} from "@/oss/contexts/project.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
-import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
+import {isDemo} from "@/oss/lib/helpers/utils"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
-import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
+import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
 
 const Callback = () => {
+    const {reset: resetProfileData} = useProfileData()
+    const {reset: resetOrgData} = useOrgData()
+    const {reset: resetProjectData} = useProjectData()
     const router = useRouter()
     const [message, setMessage] = useState<AuthErrorMsgType>({} as AuthErrorMsgType)
-    const {handleAuthSuccess} = usePostAuthRedirect()
+
+    const [invite] = useLocalStorage("invite", {})
+    const isInvitedUser = invite && Object.keys(invite).length > 0
 
     const state = router.query.state as string
     const code = router.query.code as string
@@ -43,9 +52,29 @@ const Callback = () => {
             const response = await signInAndUp()
 
             if (response.status === "OK") {
+                resetProfileData()
+                resetOrgData()
+                resetProjectData()
+                localStorage.setItem(LS_ORG_KEY, "")
                 setMessage({message: "Verification successful", type: "success"})
-                const {createdNewRecipeUser, user} = response
-                await handleAuthSuccess({createdNewRecipeUser, user})
+                const isNewUser =
+                    isDemo() &&
+                    response.createdNewRecipeUser &&
+                    response.user.loginMethods.length === 1
+
+                if (isNewUser) {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept?survey=true")
+                    } else {
+                        await router.push("/post-signup")
+                    }
+                } else {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept")
+                    } else {
+                        await router.push("/apps")
+                    }
+                }
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
                 setMessage({message: response.reason, type: "error"})
                 await router.push("/auth")
@@ -66,9 +95,28 @@ const Callback = () => {
             const response = await signInAndUp()
 
             if (response.status === "OK") {
+                resetProfileData()
+                resetOrgData()
+                resetProjectData()
                 setMessage({message: "Verification successful", type: "success"})
-                const {createdNewRecipeUser, user} = response
-                await handleAuthSuccess({createdNewRecipeUser, user})
+                const isNewUser =
+                    isDemo() &&
+                    response.createdNewRecipeUser &&
+                    response.user.loginMethods.length === 1
+
+                if (isNewUser) {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept?survey=true")
+                    } else {
+                        await router.push("/post-signup")
+                    }
+                } else {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept")
+                    } else {
+                        await router.push("/apps")
+                    }
+                }
             } else if (response.status === "SIGN_IN_UP_NOT_ALLOWED") {
                 setMessage({message: response.reason, type: "error"})
                 await router.push("/auth")
@@ -86,11 +134,7 @@ const Callback = () => {
 
     useEffect(() => {
         if (router.isReady && !state && !code) {
-            ;(async () => {
-                const context = await waitForWorkspaceContext()
-                const nextPath = buildPostLoginPath(context)
-                router.replace(nextPath)
-            })()
+            router.push("/apps")
         }
     }, [state, code, router.isReady])
 

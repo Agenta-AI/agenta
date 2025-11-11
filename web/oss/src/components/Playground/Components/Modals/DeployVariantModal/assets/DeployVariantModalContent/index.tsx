@@ -1,24 +1,27 @@
 import {useMemo} from "react"
 
-import {Typography, Table} from "antd"
+import {Typography, Table, Tag} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {useAtom, useAtomValue} from "jotai"
 
 import EnvironmentTagLabel from "@/oss/components/EnvironmentTagLabel"
 import CommitNote from "@/oss/components/Playground/assets/CommitNote"
 import Version from "@/oss/components/Playground/assets/Version"
-import VariantNameCell from "@/oss/components/VariantNameCell"
 
-import {deployNoteAtom, deploySelectedEnvAtom} from "../../store/deployVariantModalStore"
+import {ExtendedEnvironment} from "../../types"
 
-import {deployModalEnvironmentsTableAtom, type DeployModalEnvRow} from "./tableDataAtom"
+import {DeployVariantModalContentProps} from "./types"
 
-const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
-    const data = useAtomValue(deployModalEnvironmentsTableAtom)
-    const [selectedEnvName, setSelectedEnvName] = useAtom(deploySelectedEnvAtom)
-    const [note, setNote] = useAtom(deployNoteAtom)
-
-    const columns: ColumnsType<DeployModalEnvRow> = useMemo(
+const DeployVariantModalContent = ({
+    selectedEnvName,
+    setSelectedEnvName,
+    variantName,
+    revision,
+    environments,
+    isLoading,
+    note,
+    setNote,
+}: DeployVariantModalContentProps) => {
+    const columns: ColumnsType<ExtendedEnvironment> = useMemo(
         () => [
             {
                 title: "Environment",
@@ -38,15 +41,27 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                 onHeaderCell: () => ({
                     style: {minWidth: 160},
                 }),
-                render: (_, record) => (
-                    <VariantNameCell
-                        revisionId={record.deployedAppVariantRevisionId as any}
-                        showBadges={false}
-                    />
-                ),
+                render: (_, record) => {
+                    return record.deployed_variant_name ? (
+                        <div className="flex items-center justify-start">
+                            {record.revision ? (
+                                <div className="flex items-center justify-center gap-1">
+                                    {record.revision.name}{" "}
+                                    <Version revision={record.revision.revisionNumber} />
+                                </div>
+                            ) : (
+                                <Tag color="default" bordered={false} className="-ml-1">
+                                    No deployment
+                                </Tag>
+                            )}
+                        </div>
+                    ) : (
+                        "-"
+                    )
+                },
             },
         ],
-        [],
+        [environments],
     )
 
     return (
@@ -68,7 +83,7 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
                 loading={isLoading}
                 className={`ph-no-capture`}
                 columns={columns}
-                dataSource={data as any}
+                dataSource={environments}
                 rowKey="name"
                 pagination={false}
                 bordered
