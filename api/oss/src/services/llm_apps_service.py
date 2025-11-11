@@ -1,17 +1,19 @@
+from typing import Any, Dict, List, Optional
+from datetime import datetime
 import json
 import asyncio
 import traceback
+
 import aiohttp
-from datetime import datetime
-from typing import Any, Dict, List, Optional
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils import common
 from oss.src.services import helpers
 from oss.src.services.auth_helper import sign_secret_token
-from oss.src.services.db_manager import get_project_by_id
-from oss.src.apis.fastapi.tracing.utils import make_hash_id
 from oss.src.models.shared_models import InvokationResult, Result, Error
+from oss.src.services.db_manager import get_project_by_id
+
+from oss.src.apis.fastapi.tracing.utils import make_hash_id
 
 log = get_module_logger(__name__)
 
@@ -37,7 +39,6 @@ def extract_result_from_response(response: dict):
     value = None
     latency = None
     cost = None
-    tokens = None
 
     try:
         # Validate input
@@ -75,9 +76,6 @@ def extract_result_from_response(response: dict):
                 cost = get_nested_value(
                     trace_tree, ["metrics", "acc", "costs", "total"]
                 )
-                tokens = get_nested_value(
-                    trace_tree, ["metrics", "acc", "tokens", "total"]
-                )
 
         # Handle version 2.0 response
         elif response.get("version") == "2.0":
@@ -86,16 +84,14 @@ def extract_result_from_response(response: dict):
                 value["data"] = str(value.get("data"))
 
             if "trace" in response:
-                latency = response["trace"].get("latency", None)
-                cost = response["trace"].get("cost", None)
-                tokens = response["trace"].get("tokens", None)
+                latency = response["trace"].get("latency")
+                cost = response["trace"].get("cost")
 
         # Handle generic response (neither 2.0 nor 3.0)
         else:
             value = {"data": str(response.get("message", ""))}
-            latency = response.get("latency", None)
-            cost = response.get("cost", None)
-            tokens = response.get("tokens", None)
+            latency = response.get("latency")
+            cost = response.get("cost")
 
         # Determine the type of 'value' (either 'text' or 'object')
         kind = "text" if isinstance(value, str) else "object"
@@ -120,7 +116,7 @@ def extract_result_from_response(response: dict):
         value = {"error": f"Unexpected error: {e}"}
         kind = "error"
 
-    return value, kind, cost, tokens, latency
+    return value, kind, cost, latency
 
 
 async def make_payload(
@@ -189,6 +185,7 @@ async def make_payload(
         payload["messages"] = messages
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.warn(f"Error making payload: {e}")
+        # log.debug(f"Exception details: {traceback.format_exc()}")
 
     payload["inputs"] = inputs
 
@@ -202,7 +199,6 @@ async def invoke_app(
     openapi_parameters: List[Dict],
     user_id: str,
     project_id: str,
-    scenario_id: Optional[str] = None,
     **kwargs,
 ) -> InvokationResult:
     """
@@ -248,14 +244,7 @@ async def invoke_app(
         app_response = {}
 
         try:
-            log.info(
-                "Invoking application...",
-                scenario_id=scenario_id,
-                testcase_id=(
-                    datapoint["testcase_id"] if "testcase_id" in datapoint else None
-                ),
-                url=url,
-            )
+            # log.info("Invoking workflow...", url=url)
             response = await client.post(
                 url,
                 json=payload,
@@ -265,22 +254,10 @@ async def invoke_app(
             app_response = await response.json()
             response.raise_for_status()
 
-            (
-                value,
-                kind,
-                cost,
-                tokens,
-                latency,
-            ) = extract_result_from_response(app_response)
+            value, kind, cost, latency = extract_result_from_response(app_response)
 
             trace_id = app_response.get("trace_id", None)
             span_id = app_response.get("span_id", None)
-
-            log.info(
-                "Invoked application.   ",
-                scenario_id=scenario_id,
-                trace_id=trace_id,
-            )
 
             return InvokationResult(
                 result=Result(
@@ -290,7 +267,6 @@ async def invoke_app(
                 ),
                 latency=latency,
                 cost=cost,
-                tokens=tokens,
                 trace_id=trace_id,
                 span_id=span_id,
             )
@@ -342,7 +318,6 @@ async def run_with_retry(
     openapi_parameters: List[Dict],
     user_id: str,
     project_id: str,
-    scenario_id: Optional[str] = None,
     **kwargs,
 ) -> InvokationResult:
     """
@@ -366,7 +341,9 @@ async def run_with_retry(
 
     references = kwargs.get("references", None)
     links = kwargs.get("links", None)
-    # hash_id = make_hash_id(references=references, links=links)
+
+    hash_id = make_hash_id(references=references, links=links)
+    # log.debug("generating invocation with hash_id", hash_id=hash_id)
 
     retries = 0
     last_exception = None
@@ -379,7 +356,6 @@ async def run_with_retry(
                 openapi_parameters,
                 user_id,
                 project_id,
-                scenario_id,
                 **kwargs,
             )
             return result
@@ -419,7 +395,6 @@ async def batch_invoke(
     rate_limit_config: Dict,
     user_id: str,
     project_id: str,
-    scenarios: Optional[List[Dict]] = None,
     **kwargs,
 ) -> List[InvokationResult]:
     """
@@ -514,7 +489,6 @@ async def batch_invoke(
                     openapi_parameters,
                     user_id,
                     project_id,
-                    scenarios[index].get("id") if scenarios else None,
                     **kwargs,
                 )
             )

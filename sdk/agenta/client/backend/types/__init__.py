@@ -161,8 +161,8 @@ from .standard_provider_kind import StandardProviderKind
 from .standard_provider_settings_dto import StandardProviderSettingsDto
 from .status_code import StatusCode
 from .status_dto import StatusDto
-from .testset_output_response import TestsetOutputResponse
-from .testset_simple_response import TestsetSimpleResponse
+from .test_set_output_response import TestSetOutputResponse
+from .test_set_simple_response import TestSetSimpleResponse
 from .testcase_response import TestcaseResponse
 from .testset import Testset
 from .testset_request import TestsetRequest
@@ -351,8 +351,8 @@ __all__ = [
     "StandardProviderSettingsDto",
     "StatusCode",
     "StatusDto",
-    "TestsetOutputResponse",
-    "TestsetSimpleResponse",
+    "TestSetOutputResponse",
+    "TestSetSimpleResponse",
     "TestcaseResponse",
     "Testset",
     "TestsetRequest",

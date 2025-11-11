@@ -2,6 +2,7 @@ from typing import Optional, Dict, Any
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import handle_exceptions
+from agenta.sdk.utils.cache import SimpleConfigCache
 
 from agenta.sdk.types import (
     ConfigurationResponse,
@@ -26,12 +27,26 @@ class SharedManager:
     Attributes:
         client (AgentaApi): Synchronous client for interacting with the Agenta API.
         aclient (AsyncAgentaApi): Asynchronous client for interacting with the Agenta API.
+        _config_cache (SimpleConfigCache): Cache for configuration responses.
 
     Notes:
         - The class manages both synchronous and asynchronous interactions with the API, allowing users to
           select the method that best fits their needs.
         - Methods prefixed with 'a' (e.g., aadd, afetch) are designed to be used in asynchronous environments.
     """
+
+    # Class-level cache instance shared across all methods
+    _config_cache = SimpleConfigCache()
+
+    @classmethod 
+    def clear_cache(cls, pattern: Optional[str] = None) -> None:
+        """Clear the configuration cache.
+        
+        Args:
+            pattern: If provided, only clear cache entries containing this pattern.
+                    If None, clear all entries.
+        """
+        cls._config_cache.clear(pattern)
 
     @classmethod
     def _parse_fetch_request(
@@ -183,39 +198,86 @@ class SharedManager:
         environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
         environment_version: Optional[int] = None,
+        cache_ttl_seconds: Optional[int] = None,
+        fallback_config: Optional[Dict[str, Any]] = None,
     ) -> ConfigurationResponse:
-        fetch_signatures = SharedManager._parse_fetch_request(
-            app_id=app_id,
+        # Generate cache key from parameters
+        cache_key = cls._config_cache.generate_cache_key(
             app_slug=app_slug,
-            variant_id=variant_id,
+            app_id=app_id,
             variant_slug=variant_slug,
             variant_version=variant_version,
-            environment_id=environment_id,
             environment_slug=environment_slug,
             environment_version=environment_version,
         )
 
-        config_response = ag.api.variants.configs_fetch(  # type: ignore
-            variant_ref=SharedManager._ref_or_none(  # type: ignore
-                slug=fetch_signatures["variant_slug"],
-                version=fetch_signatures["variant_version"],
-                id=fetch_signatures["variant_id"],
-            ),
-            environment_ref=SharedManager._ref_or_none(  # type: ignore
-                slug=fetch_signatures["environment_slug"],
-                version=fetch_signatures["environment_version"],
-                id=fetch_signatures["environment_id"],
-            ),
-            application_ref=SharedManager._ref_or_none(  # type: ignore
-                slug=fetch_signatures["app_slug"],
-                version=None,
-                id=fetch_signatures["app_id"],
-            ),
-        )
+        # Define fetch function for cache or direct call
+        def _fetch_from_api() -> ConfigurationResponse:
+            fetch_signatures = SharedManager._parse_fetch_request(
+                app_id=app_id,
+                app_slug=app_slug,
+                variant_id=variant_id,
+                variant_slug=variant_slug,
+                variant_version=variant_version,
+                environment_id=environment_id,
+                environment_slug=environment_slug,
+                environment_version=environment_version,
+            )
 
-        response = SharedManager._parse_config_response(config_response)
+            config_response = ag.api.variants.configs_fetch(  # type: ignore
+                variant_ref=SharedManager._ref_or_none(  # type: ignore
+                    slug=fetch_signatures["variant_slug"],
+                    version=fetch_signatures["variant_version"],
+                    id=fetch_signatures["variant_id"],
+                ),
+                environment_ref=SharedManager._ref_or_none(  # type: ignore
+                    slug=fetch_signatures["environment_slug"],
+                    version=fetch_signatures["environment_version"],
+                    id=fetch_signatures["environment_id"],
+                ),
+                application_ref=SharedManager._ref_or_none(  # type: ignore
+                    slug=fetch_signatures["app_slug"],
+                    version=None,
+                    id=fetch_signatures["app_id"],
+                ),
+            )
 
-        return ConfigurationResponse(**response)
+            response = SharedManager._parse_config_response(config_response)
+            return ConfigurationResponse(**response)
+
+        # Handle cache disabled case
+        if cache_ttl_seconds == 0:
+            try:
+                return _fetch_from_api()
+            except Exception:
+                if fallback_config:
+                    return ConfigurationResponse(**fallback_config)
+                raise
+
+        # Try cache first (with default TTL if not specified)
+        try:
+            # Check cache
+            cached_item = cls._config_cache.get(cache_key)
+            if cached_item is not None:
+                log.debug(f"Cache hit for key: {cache_key}")
+                return cached_item.value
+
+            # Cache miss - fetch from API
+            log.debug(f"Cache miss for key: {cache_key}")
+            config = _fetch_from_api()
+            
+            # Store in cache
+            ttl = cache_ttl_seconds if cache_ttl_seconds is not None else 60  # Default 60 seconds
+            cls._config_cache.set(cache_key, config, ttl)
+            
+            return config
+
+        except Exception as e:
+            log.warning(f"Failed to fetch config: {e}")
+            if fallback_config:
+                log.info("Using fallback configuration")
+                return ConfigurationResponse(**fallback_config)
+            raise
 
     @classmethod
     @handle_exceptions()
@@ -230,39 +292,86 @@ class SharedManager:
         environment_id: Optional[str] = None,
         environment_slug: Optional[str] = None,
         environment_version: Optional[int] = None,
-    ):
-        fetch_signatures = SharedManager._parse_fetch_request(
-            app_id=app_id,
+        cache_ttl_seconds: Optional[int] = None,
+        fallback_config: Optional[Dict[str, Any]] = None,
+    ) -> ConfigurationResponse:
+        # Generate cache key from parameters
+        cache_key = cls._config_cache.generate_cache_key(
             app_slug=app_slug,
-            variant_id=variant_id,
+            app_id=app_id,
             variant_slug=variant_slug,
             variant_version=variant_version,
-            environment_id=environment_id,
             environment_slug=environment_slug,
             environment_version=environment_version,
         )
 
-        config_response = await ag.async_api.variants.configs_fetch(  # type: ignore
-            variant_ref=SharedManager._ref_or_none(  # type: ignore
-                slug=fetch_signatures["variant_slug"],
-                version=fetch_signatures["variant_version"],
-                id=fetch_signatures["variant_id"],
-            ),
-            environment_ref=SharedManager._ref_or_none(  # type: ignore
-                slug=fetch_signatures["environment_slug"],
-                version=fetch_signatures["environment_version"],
-                id=fetch_signatures["environment_id"],
-            ),
-            application_ref=SharedManager._ref_or_none(  # type: ignore
-                slug=fetch_signatures["app_slug"],
-                version=None,
-                id=fetch_signatures["app_id"],
-            ),
-        )
+        # Define async fetch function for cache or direct call
+        async def _fetch_from_api() -> ConfigurationResponse:
+            fetch_signatures = SharedManager._parse_fetch_request(
+                app_id=app_id,
+                app_slug=app_slug,
+                variant_id=variant_id,
+                variant_slug=variant_slug,
+                variant_version=variant_version,
+                environment_id=environment_id,
+                environment_slug=environment_slug,
+                environment_version=environment_version,
+            )
 
-        response = SharedManager._parse_config_response(config_response)
+            config_response = await ag.async_api.variants.configs_fetch(  # type: ignore
+                variant_ref=SharedManager._ref_or_none(  # type: ignore
+                    slug=fetch_signatures["variant_slug"],
+                    version=fetch_signatures["variant_version"],
+                    id=fetch_signatures["variant_id"],
+                ),
+                environment_ref=SharedManager._ref_or_none(  # type: ignore
+                    slug=fetch_signatures["environment_slug"],
+                    version=fetch_signatures["environment_version"],
+                    id=fetch_signatures["environment_id"],
+                ),
+                application_ref=SharedManager._ref_or_none(  # type: ignore
+                    slug=fetch_signatures["app_slug"],
+                    version=None,
+                    id=fetch_signatures["app_id"],
+                ),
+            )
 
-        return ConfigurationResponse(**response)
+            response = SharedManager._parse_config_response(config_response)
+            return ConfigurationResponse(**response)
+
+        # Handle cache disabled case
+        if cache_ttl_seconds == 0:
+            try:
+                return await _fetch_from_api()
+            except Exception:
+                if fallback_config:
+                    return ConfigurationResponse(**fallback_config)
+                raise
+
+        # Try cache first (with default TTL if not specified)
+        try:
+            # Check cache
+            cached_item = cls._config_cache.get(cache_key)
+            if cached_item is not None:
+                log.debug(f"Cache hit for key: {cache_key}")
+                return cached_item.value
+
+            # Cache miss - fetch from API
+            log.debug(f"Cache miss for key: {cache_key}")
+            config = await _fetch_from_api()
+            
+            # Store in cache
+            ttl = cache_ttl_seconds if cache_ttl_seconds is not None else 60  # Default 60 seconds
+            cls._config_cache.set(cache_key, config, ttl)
+            
+            return config
+
+        except Exception as e:
+            log.warning(f"Failed to fetch config: {e}")
+            if fallback_config:
+                log.info("Using fallback configuration")
+                return ConfigurationResponse(**fallback_config)
+            raise
 
     @classmethod
     @handle_exceptions()

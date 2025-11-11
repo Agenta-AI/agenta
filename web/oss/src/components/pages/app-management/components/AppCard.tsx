@@ -6,7 +6,6 @@ import {createUseStyles} from "react-jss"
 
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
-import useURL from "@/oss/hooks/useURL"
 
 const {Text} = Typography
 
@@ -51,11 +50,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const AppCard: React.FC<{
     app: ListAppsItem
-    openDeleteAppModal: (appDetails: ListAppsItem) => void
-    openEditAppModal: (appDetails: ListAppsItem) => void
-}> = ({app, openDeleteAppModal, openEditAppModal}) => {
+    setSelectedApp: React.Dispatch<React.SetStateAction<ListAppsItem | null>>
+    setIsDeleteAppModalOpen: (value: React.SetStateAction<boolean>) => void
+    setIsEditAppModalOpen: (value: React.SetStateAction<boolean>) => void
+}> = ({app, setSelectedApp, setIsDeleteAppModalOpen, setIsEditAppModalOpen}) => {
     const router = useRouter()
-    const {baseAppURL} = useURL()
 
     const classes = useStyles()
 
@@ -64,7 +63,7 @@ const AppCard: React.FC<{
             <Card
                 className={classes.card}
                 title={app.app_name}
-                onClick={() => router.push(`${baseAppURL}/${app.app_id}/overview`)}
+                onClick={() => router.push(`/apps/${app.app_id}/overview`)}
                 extra={
                     <Dropdown
                         trigger={["click"]}
@@ -77,7 +76,7 @@ const AppCard: React.FC<{
                                     icon: <Note size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        router.push(`${baseAppURL}/${app.app_id}/overview`)
+                                        router.push(`/apps/${app.app_id}/overview`)
                                     },
                                 },
                                 {type: "divider"},
@@ -87,7 +86,8 @@ const AppCard: React.FC<{
                                     icon: <PencilLine size={16} />,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        openEditAppModal(app)
+                                        setSelectedApp(app)
+                                        setIsEditAppModalOpen(true)
                                     },
                                 },
                                 {
@@ -97,7 +97,8 @@ const AppCard: React.FC<{
                                     danger: true,
                                     onClick: (e: any) => {
                                         e.domEvent.stopPropagation()
-                                        openDeleteAppModal(app)
+                                        setSelectedApp(app)
+                                        setIsDeleteAppModalOpen(true)
                                     },
                                 },
                             ],

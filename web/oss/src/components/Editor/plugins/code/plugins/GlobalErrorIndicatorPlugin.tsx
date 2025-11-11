@@ -1,213 +1,127 @@
-import React, {useEffect, useRef, useState} from "react"
+import React, {useEffect, useState, useRef} from "react"
 
-import {useFloating, autoUpdate, offset, flip, shift} from "@floating-ui/react"
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {createPortal} from "react-dom"
 
-import {$getActiveLanguage} from "../utils/language"
-import type {CodeLanguage} from "../types"
-import {validateAll} from "../utils/validationUtils"
+import {CodeHighlightNode} from "../nodes/CodeHighlightNode"
+import {createLogger} from "../utils/createLogger"
 
 import {$getEditorCodeAsString} from "./RealTimeValidationPlugin"
-import {getValidationContext, setCurrentEditorId} from "./SyntaxHighlightPlugin"
 
-// Error info type for consistency
+const PLUGIN_NAME = "GlobalErrorIndicatorPlugin"
+const log = createLogger(PLUGIN_NAME, {disabled: true}) // Disabled for cleaner debugging
+
 export interface ErrorInfo {
     id: string
     message: string
-    type: "syntax" | "validation" | "schema" | "bracket" | "structural"
     line?: number
     column?: number
-    severity?: "error" | "warning" | "info"
+    type: "syntax" | "bracket" | "validation" | "structural" | "schema"
+    severity: "error" | "warning"
 }
 
-// Registry of ValidationManager instances keyed by editorId
-const validationManagerRegistry = new Map<string, ValidationManager>()
-
-export function registerValidationManager(editorId: string, manager: ValidationManager) {
-    if (!editorId) return
-    validationManagerRegistry.set(editorId, manager)
-}
-
-export function getValidationManager(editorId: string): ValidationManager | null {
-    return validationManagerRegistry.get(editorId) ?? null
-}
-
-export function unregisterValidationManager(editorId: string) {
-    if (!editorId) return
-    validationManagerRegistry.delete(editorId)
-}
-
-// Global validation state - single source of truth
-interface ValidationState {
+interface GlobalErrorState {
     errors: ErrorInfo[]
-    errorsByLine: Map<number, ErrorInfo[]>
-    lastValidatedContent: string
-    timestamp: number
+    hasErrors: boolean
 }
 
-// Editor-specific validation manager - no longer singleton
-class ValidationManager {
-    private state: ValidationState = {
-        errors: [],
-        errorsByLine: new Map(),
-        lastValidatedContent: "",
-        timestamp: 0,
-    }
-    private listeners = new Set<() => void>()
-    private editorContainerRef: React.RefObject<HTMLElement | null>
+// Global error state that can be accessed by other plugins
+let globalErrorState: GlobalErrorState = {
+    errors: [],
+    hasErrors: false,
+}
 
-    constructor(editorContainerRef: React.RefObject<HTMLElement | null>) {
-        this.editorContainerRef = editorContainerRef
-    }
+// Subscribers to error state changes
+const errorStateSubscribers = new Set<(state: GlobalErrorState) => void>()
 
-    // Run validation and update state - single source of truth
-    validateContent(
-        content: string,
-        schema?: any,
-        language: CodeLanguage = "json",
-    ): ValidationState {
-        // Skip if content hasn't changed
-        if (content === this.state.lastValidatedContent) {
-            return this.state
-        }
+/**
+ * Add an error to the global error state
+ */
+export function addGlobalError(error: ErrorInfo) {
+    const existingIndex = globalErrorState.errors.findIndex((e) => e.id === error.id)
 
-        // Run unified validation using validateAll with language support
-        const result = validateAll(content, schema, language)
-
-        // Update state with new validation results
-        this.state = {
-            errors: result.allErrors,
-            errorsByLine: result.errorsByLine,
-            lastValidatedContent: content,
-            timestamp: Date.now(),
-        }
-
-        // Notify all listeners of the validation state change
-        this.listeners.forEach((listener) => listener())
-
-        return this.state
+    if (existingIndex >= 0) {
+        // Update existing error
+        globalErrorState.errors[existingIndex] = error
+    } else {
+        // Add new error
+        globalErrorState.errors.push(error)
     }
 
-    // Get current validation state
-    getState(): ValidationState {
-        return this.state
-    }
+    globalErrorState.hasErrors = globalErrorState.errors.length > 0
 
-    // Subscribe to validation changes
-    subscribe(listener: () => void): () => void {
-        this.listeners.add(listener)
-        return () => this.listeners.delete(listener)
-    }
+    log(`➕ Added/Updated error: ${error.id} - ${error.message}`)
+    notifyErrorStateSubscribers()
+}
 
-    private notifyListeners(): void {
-        this.listeners.forEach((listener) => listener())
-    }
+/**
+ * Remove an error from the global error state
+ */
+export function removeGlobalError(errorId: string) {
+    const initialLength = globalErrorState.errors.length
+    globalErrorState.errors = globalErrorState.errors.filter((e) => e.id !== errorId)
+    globalErrorState.hasErrors = globalErrorState.errors.length > 0
 
-    // Get errors for a specific line - used by CodeLineNode
-    getErrorsForLine(lineNumber: number): ErrorInfo[] {
-        return this.state.errorsByLine.get(lineNumber) || []
-    }
-
-    // Apply validation styling to DOM elements - scoped to this editor instance
-    applyDOMStyling(): void {
-        const attemptStyling = (attempt = 1): void => {
-            // Get editor element scoped to this specific editor instance
-            const editorContainer = this.editorContainerRef.current
-            if (!editorContainer) {
-                return
-            }
-
-            const editorElement = editorContainer.querySelector(".editor-code") as HTMLElement
-            if (!editorElement) {
-                return
-            }
-
-            // Get all line elements
-            const allLines = editorElement.querySelectorAll(".editor-code-line")
-            // If no elements found and this is first attempt, retry after DOM is ready
-            if (allLines.length === 0 && attempt === 1) {
-                setTimeout(() => attemptStyling(2), 100)
-                return
-            }
-
-            // CRITICAL FIX: Clear all existing validation styles first
-            this.clearAllValidationStyling()
-
-            // Apply styling to lines that need it
-            this.state.errorsByLine.forEach((errors, lineNumber) => {
-                if (errors.length === 0) return
-
-                // Try multiple selectors to find the line element
-                let lineElement = editorElement.querySelector(`[data-line-number="${lineNumber}"]`)
-                if (!lineElement) {
-                    lineElement = editorElement.querySelector(
-                        `.editor-code-line:nth-child(${lineNumber})`,
-                    )
-                }
-
-                if (lineElement) {
-                    const htmlElement = lineElement as HTMLElement
-                    const primaryError = errors[0]
-                    const currentErrorMessage = htmlElement.getAttribute("data-validation-error")
-
-                    // Only update if error message changed or element wasn't styled
-                    if (currentErrorMessage !== primaryError.message) {
-                        htmlElement.classList.add("validation-error")
-                        htmlElement.setAttribute("data-validation-error", primaryError.message)
-                        htmlElement.setAttribute(
-                            "title",
-                            `🔴 [${primaryError.type}] ${primaryError.message}`,
-                        )
-                        // Add inline styles for immediate visual feedback
-                        htmlElement.style.backgroundColor = "rgba(255, 165, 0, 0.15)"
-                        htmlElement.style.borderRight = "4px solid #ff8c00"
-                        htmlElement.style.position = "relative"
-                    }
-                }
-            })
-        }
-
-        attemptStyling()
-    }
-
-    // Clear all existing validation styling from DOM elements
-    clearAllValidationStyling(): void {
-        // Clear all validation styling from DOM - scoped to this editor only
-        const editorContainer = this.editorContainerRef.current
-        if (!editorContainer) return
-
-        const allLines = editorContainer.querySelectorAll(".editor-code-line.validation-error")
-        allLines.forEach((lineElement) => {
-            const htmlElement = lineElement as HTMLElement
-            htmlElement.classList.remove("validation-error")
-            htmlElement.removeAttribute("data-validation-error")
-            htmlElement.removeAttribute("title")
-            // Reset inline styles
-            htmlElement.style.backgroundColor = ""
-            htmlElement.style.borderRight = ""
-            htmlElement.style.position = ""
-        })
-    }
-
-    // Force refresh of data-line-number attributes to match visual positions
-    refreshLineNumberAttributes(editorElement: HTMLElement): void {
-        const allLines = editorElement.querySelectorAll(".editor-code-line")
-
-        allLines.forEach((lineElement, index) => {
-            const htmlElement = lineElement as HTMLElement
-            const visualLineNumber = index + 1
-            const currentDataLineNumber = htmlElement.getAttribute("data-line-number")
-
-            if (currentDataLineNumber !== visualLineNumber.toString()) {
-                htmlElement.setAttribute("data-line-number", visualLineNumber.toString())
-            }
-        })
+    if (globalErrorState.errors.length !== initialLength) {
+        log(`➖ Removed error: ${errorId}`)
+        notifyErrorStateSubscribers()
     }
 }
 
-// Error indicator tooltip component
-function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
+/**
+ * Clear all errors from the global error state
+ */
+export function clearGlobalErrors() {
+    if (globalErrorState.errors.length > 0) {
+        globalErrorState.errors = []
+        globalErrorState.hasErrors = false
+        log(`🧹 Cleared all errors`)
+        notifyErrorStateSubscribers()
+    }
+}
+
+/**
+ * Clear all errors of a specific type from the global error state
+ */
+export function clearGlobalErrorsByType(type: ErrorInfo["type"]) {
+    const initialLength = globalErrorState.errors.length
+    globalErrorState.errors = globalErrorState.errors.filter((e) => e.type !== type)
+    globalErrorState.hasErrors = globalErrorState.errors.length > 0
+
+    if (globalErrorState.errors.length !== initialLength) {
+        log(`🧹 Cleared ${initialLength - globalErrorState.errors.length} errors of type: ${type}`)
+        notifyErrorStateSubscribers()
+    }
+}
+
+/**
+ * Get current global error state
+ */
+export function getGlobalErrorState(): GlobalErrorState {
+    return {...globalErrorState, errors: [...globalErrorState.errors]}
+}
+
+/**
+ * Subscribe to global error state changes
+ */
+export function subscribeToErrorState(callback: (state: GlobalErrorState) => void) {
+    errorStateSubscribers.add(callback)
+    return () => errorStateSubscribers.delete(callback)
+}
+
+/**
+ * Notify all subscribers of error state changes
+ */
+function notifyErrorStateSubscribers() {
+    // TEMPORARILY DISABLED: Notifications were causing plugin re-instantiation
+    // const state = getGlobalErrorState()
+    // errorStateSubscribers.forEach((callback) => callback(state))
+}
+
+/**
+ * Error indicator tooltip component
+ */
+function ErrorTooltip({errors, position}: {errors: ErrorInfo[]; position: {x: number; y: number}}) {
     // Group errors by message to avoid duplicates
     const groupedErrors = errors.reduce(
         (groups, error) => {
@@ -229,9 +143,17 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
     const uniqueErrors = Object.values(groupedErrors)
 
     return (
-        <div className="bg-gray-900 text-white text-xs rounded-lg shadow-lg p-3 max-w-sm">
+        <div
+            className="fixed z-50 bg-gray-900 text-white text-xs rounded-lg shadow-lg p-3 max-w-sm"
+            style={{
+                left: position.x,
+                top: position.y - 10,
+                transform: "translateY(-100%)",
+            }}
+        >
             <div className="font-semibold mb-2 text-[10px]">
-                {uniqueErrors.length} Error{uniqueErrors.length !== 1 ? "s" : ""}
+                {errors.length} Error{errors.length !== 1 ? "s" : ""} Found ({uniqueErrors.length}{" "}
+                unique)
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
                 {uniqueErrors.map((error, index) => {
@@ -248,12 +170,18 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
                             key={`${error.type}-${index}`}
                             className="border-l-2 border-red-400 pl-2"
                         >
-                            <div className="flex items-center justify-between">
-                                <span className="text-red-300 font-medium capitalize text-[10px]">
+                            <div className="flex items-center gap-2">
+                                <span
+                                    className={`text-[8px] px-1 py-0.25 rounded ${
+                                        error.severity === "error"
+                                            ? "bg-red-600 text-white"
+                                            : "bg-yellow-600 text-white"
+                                    }`}
+                                >
                                     {error.type}
                                 </span>
                                 {lineDisplay && (
-                                    <span className="text-gray-400 text-[9px]">{lineDisplay}</span>
+                                    <span className="text-gray-400 text-[8px]">{lineDisplay}</span>
                                 )}
                             </div>
                             <div className="mt-1 text-gray-200 text-[10px]">{error.message}</div>
@@ -265,7 +193,9 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
     )
 }
 
-// Error indicator icon component
+/**
+ * Error indicator icon component
+ */
 function ErrorIndicator({
     errorCount,
     onMouseEnter,
@@ -283,7 +213,7 @@ function ErrorIndicator({
         >
             <div className="relative">
                 <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-lg">
-                    !
+                    ⚠
                 </div>
                 {errorCount > 1 && (
                     <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
@@ -298,168 +228,227 @@ function ErrorIndicator({
 /**
  * Global Error Indicator Plugin
  *
- * This plugin provides a unified validation system that:
- * - Uses ValidationManager as single source of truth
- * - Runs validateAll once per content change
- * - Provides both global indicator and line highlighting
- * - Maintains consistency between all validation displays
+ * This plugin provides a global error indicator that:
+ * - Collects errors from various sources (syntax, brackets, validation)
+ * - Shows an error icon when there are errors
+ * - Displays a tooltip with all errors on hover
+ * - Positions itself in the top-right corner of the editor
  */
-export function GlobalErrorIndicatorPlugin({editorId}: {editorId: string}) {
+export function GlobalErrorIndicatorPlugin() {
     const [editor] = useLexicalComposerContext()
     const [showTooltip, setShowTooltip] = useState(false)
-    const [validationState, setValidationState] = useState<ValidationState>({
-        errors: [],
-        errorsByLine: new Map(),
-        lastValidatedContent: "",
-        timestamp: 0,
-    })
-
+    const [tooltipPosition, setTooltipPosition] = useState({x: 0, y: 0})
     const editorContainerRef = useRef<HTMLElement | null>(null)
-    const validationManager = useRef<ValidationManager | null>(null)
+    const currentErrorsRef = useRef<ErrorInfo[]>([])
 
-    // Floating UI for tooltip positioning
-    const {refs, floatingStyles} = useFloating({
-        middleware: [offset(10), flip(), shift()],
-        whileElementsMounted: autoUpdate,
-    })
-
-    // Get validation context (schema) from global validation context
-    // This is set by SyntaxHighlightPlugin when it receives the schema prop
-
+    // Find the editor container element
     useEffect(() => {
-        // Find editor container
         const editorElement = editor.getRootElement()
-
         if (editorElement) {
-            // Try multiple container selectors
-            const possibleContainers = [
-                ".agenta-editor-wrapper",
-                ".editor-container",
-                ".lexical-editor",
-                "[data-lexical-editor]",
-            ]
+            // Find the closest editor wrapper
+            const container = editorElement.closest(".agenta-editor-wrapper") as HTMLElement
+            editorContainerRef.current = container || editorElement.parentElement
+        }
+    }, [editor])
 
-            let foundContainer = null
-            for (const selector of possibleContainers) {
-                foundContainer = editorElement.closest(selector) as HTMLElement
-                if (foundContainer) {
-                    break
+    // Function to collect syntax errors from CodeHighlightNodes
+    const collectSyntaxErrors = (): ErrorInfo[] => {
+        const syntaxErrors: ErrorInfo[] = []
+
+        editor.read(() => {
+            const root = editor.getEditorState()._nodeMap
+
+            for (const [nodeKey, node] of root) {
+                if (node instanceof CodeHighlightNode && node.hasValidationError()) {
+                    const message = node.getValidationMessage()
+                    if (message) {
+                        // Try to find line number
+                        const parent = node.getParent()
+                        let lineNumber: number | undefined
+
+                        if (parent) {
+                            // Find line number by counting previous siblings
+                            const grandParent = parent.getParent()
+                            if (grandParent) {
+                                const lines = grandParent.getChildren()
+                                lineNumber = lines.indexOf(parent) + 1
+                            }
+                        }
+
+                        syntaxErrors.push({
+                            id: `syntax-${nodeKey}`,
+                            message,
+                            line: lineNumber,
+                            type: "syntax",
+                            severity: "error",
+                        })
+                    }
                 }
             }
+        })
 
-            if (!foundContainer) {
-                // Fallback: use the editor element's parent or the editor element itself
-                foundContainer = editorElement.parentElement || editorElement
-            }
+        return syntaxErrors
+    }
 
-            editorContainerRef.current = foundContainer
+    // Function to collect all errors from editor state
+    const collectAllErrors = (): ErrorInfo[] => {
+        const structuralErrors = (editor as any)._structuralErrors || []
+        const bracketErrors = (editor as any)._bracketErrors || []
+        const schemaErrors = (editor as any)._schemaErrors || []
+        const syntaxErrors = collectSyntaxErrors()
 
-            // Initialize validation manager now that we have the container ref
-            if (!validationManager.current) {
-                validationManager.current = new ValidationManager(editorContainerRef)
-                // Set this editor as the current one for validation context
-                setCurrentEditorId(editorId)
-                // Register this manager so nodes can query it by editorId
-                registerValidationManager(editorId, validationManager.current)
-            }
+        // log(`🔍 Collecting errors:`, {
+        //     structural: structuralErrors.length,
+        //     bracket: bracketErrors.length,
+        //     schema: schemaErrors.length,
+        //     syntax: syntaxErrors.length,
+        //     bracketErrorsDetail: bracketErrors,
+        //     schemaErrorsDetail: schemaErrors,
+        // })
+
+        const allErrors = [...structuralErrors, ...bracketErrors, ...schemaErrors, ...syntaxErrors]
+        // log(`📊 Total errors collected: ${allErrors.length}`, allErrors)
+
+        return allErrors
+    }
+
+    // Helper function to compare error arrays for equality
+    const areErrorsEqual = (errors1: ErrorInfo[], errors2: ErrorInfo[]): boolean => {
+        if (errors1.length !== errors2.length) {
+            return false
         }
+        return errors1.every((error, index) => {
+            const otherError = errors2[index]
+            return (
+                otherError &&
+                error.id === otherError.id &&
+                error.message === otherError.message &&
+                error.type === otherError.type &&
+                error.line === otherError.line
+            )
+        })
+    }
 
-        // Run initial validation on plugin load
-        const runInitialValidation = () => {
-            editor.read(() => {
-                const content = $getEditorCodeAsString(editor)
-                const language = $getActiveLanguage(editor)
+    // Store validation errors in a global map to avoid separate editor updates
+    const validationErrorsMapRef = useRef<Map<string, ErrorInfo | null>>(new Map())
 
-                // Get validation context for this specific editor
-                const validationContext = getValidationContext(editorId)
+    // Register update listener to collect errors and store them globally
+    useEffect(() => {
+        log("🚀 GlobalErrorIndicatorPlugin initialized")
 
-                // Set current editor ID for validation context
-                setCurrentEditorId(editorId)
-
-                // Use ValidationManager for unified validation
-                if (validationManager.current && validationContext.schema) {
-                    const result = validationManager.current.validateContent(
-                        content,
-                        validationContext.schema,
-                        language,
-                    )
-
-                    // Update validation state
-                    setValidationState(result)
-
-                    // Apply DOM styling after validation
-                    validationManager.current.applyDOMStyling()
-                }
-            })
-        }
-
-        // Run initial validation after a longer delay to ensure editor and schema are ready
-        const initialValidationTimeout = setTimeout(runInitialValidation, 500)
-
-        // Also run validation when schema becomes available
-        const schemaCheckInterval = setInterval(() => {
-            const validationContext = getValidationContext()
-            if (validationContext.schema && validationManager.current) {
-                clearInterval(schemaCheckInterval)
-                runInitialValidation()
-            }
-        }, 100)
-
-        // Register editor update listener for content changes
         const unregisterUpdateListener = editor.registerUpdateListener(
             ({editorState, prevEditorState, tags}) => {
-                // Skip if this update was triggered by validation or DOM updates
-                if (tags.has("validation-update") || tags.has("history-merge")) {
+                // Skip if this update was triggered by validation error changes
+                if (tags.has("validation-update")) {
                     return
                 }
 
-                // Skip if editor state hasn't changed
+                // Skip if editor state hasn't changed (focus, selection, etc.)
                 if (editorState === prevEditorState) {
                     return
                 }
 
-                // Get current content
-                const currentContent = editorState.read(() => $getEditorCodeAsString(editor))
-                const language = editorState.read(() => $getActiveLanguage(editor))
+                // Additional check: Skip if this is just a focus/selection change
+                // by comparing the actual text content
+                let textContentChanged = false
+                try {
+                    const currentText = editorState.read(() => $getEditorCodeAsString(editor))
+                    const prevText = prevEditorState.read(() => $getEditorCodeAsString(editor))
+                    textContentChanged = currentText !== prevText
+                } catch (error) {
+                    // If we can't read text content, assume it changed to be safe
+                    textContentChanged = true
+                }
 
-                // Get validation context for this specific editor
-                const validationContext = getValidationContext(editorId)
+                // Only proceed if text content actually changed
+                if (!textContentChanged) {
+                    return
+                }
 
-                // Run validation immediately like the original implementation
-                if (validationManager.current && validationContext.schema) {
-                    validationManager.current.validateContent(
-                        currentContent,
-                        validationContext.schema,
-                        language,
+                // console.log(`🔄 Text content changed - collecting validation errors`) // Disabled for cleaner debugging
+
+                // Collect all errors from different sources
+                const allErrors = collectAllErrors()
+
+                // Check if errors have changed
+                const errorsChanged = !areErrorsEqual(currentErrorsRef.current, allErrors)
+
+                log(`🔍 Collecting errors:`, {
+                    structural: allErrors.filter((e) => e.type === "structural").length,
+                    bracket: allErrors.filter((e) => e.type === "bracket").length,
+                    schema: allErrors.filter((e) => e.type === "schema").length,
+                    syntax: allErrors.filter((e) => e.type === "syntax").length,
+                    schemaErrorsDetail: allErrors.filter((e) => e.type === "schema"),
+                })
+
+                if (errorsChanged) {
+                    log(`🔄 Errors changed:`, {
+                        previous: currentErrorsRef.current.length,
+                        current: allErrors.length,
+                        errors: allErrors,
+                    })
+
+                    currentErrorsRef.current = allErrors
+
+                    // Store syntax errors in editor state for consistency
+                    const syntaxErrors = allErrors.filter((e) => e.type === "syntax")
+                    ;(editor as any)._syntaxErrors = syntaxErrors
+
+                    // Update validation errors map for use by CodeLineNode
+                    const validationErrors = allErrors.filter(
+                        (error) =>
+                            error.type === "validation" ||
+                            error.type === "schema" ||
+                            error.type === "bracket" ||
+                            error.type === "structural",
                     )
-                    // Apply DOM styling after validation
-                    validationManager.current.applyDOMStyling()
+
+                    // Clear previous validation errors
+                    validationErrorsMapRef.current.clear()
+
+                    // Store new validation errors by line number
+                    validationErrors.forEach((error) => {
+                        if (error.line) {
+                            validationErrorsMapRef.current.set(`line-${error.line}`, error)
+                            log(`📍 Stored error for line ${error.line}: ${error.message}`)
+                        }
+                    })
+
+                    // Store the validation errors map globally so CodeLineNode can access it
+                    ;(window as any).__lexicalValidationErrorsMap = validationErrorsMapRef.current
+
+                    // Trigger DOM updates by dispatching a custom event that CodeLineNodes can listen to
+                    const event = new CustomEvent("lexical-validation-errors-changed", {
+                        detail: {validationErrors},
+                    })
+                    window.dispatchEvent(event)
+
+                    log(`✅ Updated validation errors map with ${validationErrors.length} errors`)
+                    log(
+                        `🔍 Global indicator will show ${allErrors.length} total errors:`,
+                        allErrors.map((e) => `${e.type}:${e.line}:${e.message.substring(0, 30)}`),
+                    )
+                    log(
+                        `🎨 Validation map contains ${validationErrors.length} errors for highlighting:`,
+                        validationErrors.map(
+                            (e) => `${e.type}:${e.line}:${e.message.substring(0, 30)}`,
+                        ),
+                    )
                 }
             },
         )
 
-        // Subscribe to validation state changes if manager is available
-        let unsubscribe: (() => void) | null = null
-        if (validationManager.current) {
-            unsubscribe = validationManager.current.subscribe(() => {
-                setValidationState({...validationManager.current!.getState()})
-            })
-        }
-
         return () => {
-            clearTimeout(initialValidationTimeout)
-            clearInterval(schemaCheckInterval)
             unregisterUpdateListener()
-            if (unsubscribe) {
-                unsubscribe()
-            }
-            // Unregister manager on cleanup
-            unregisterValidationManager(editorId)
         }
     }, [editor])
 
     const handleMouseEnter = (e: React.MouseEvent) => {
-        refs.setReference(e.currentTarget as HTMLElement)
+        const rect = e.currentTarget.getBoundingClientRect()
+        setTooltipPosition({
+            x: rect.left + rect.width / 2,
+            y: rect.top,
+        })
         setShowTooltip(true)
     }
 
@@ -468,37 +457,21 @@ export function GlobalErrorIndicatorPlugin({editorId}: {editorId: string}) {
     }
 
     // Don't render if no errors or no container
-    if (validationState.errors.length === 0 || !editorContainerRef.current) {
+    if (currentErrorsRef.current.length === 0 || !editorContainerRef.current) {
         return null
     }
-
-    // Calculate unique errors count (group by type and message to avoid duplicates)
-    const uniqueErrorsCount = Object.keys(
-        validationState.errors.reduce(
-            (groups, error) => {
-                const key = `${error.type}:${error.message}`
-                groups[key] = true
-                return groups
-            },
-            {} as Record<string, boolean>,
-        ),
-    ).length
 
     return createPortal(
         <>
             <ErrorIndicator
-                errorCount={uniqueErrorsCount}
+                errorCount={currentErrorsRef.current.length}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             />
             {showTooltip && (
-                <div ref={refs.setFloating} style={floatingStyles} className="z-50">
-                    <ErrorTooltip errors={validationState.errors} />
-                </div>
+                <ErrorTooltip errors={currentErrorsRef.current} position={tooltipPosition} />
             )}
         </>,
         editorContainerRef.current,
     )
 }
-
-export {ValidationManager}

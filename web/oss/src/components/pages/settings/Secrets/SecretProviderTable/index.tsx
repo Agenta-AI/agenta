@@ -31,7 +31,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                     style: {minWidth: 160},
                 }),
                 render: (_, record) => {
-                    const Icon = LLMIcons[record.title as string]
+                    const Icon = LLMIcons[(record.title as string)?.replace(" ", "").toLowerCase()]
 
                     return isCustom ? (
                         record?.name
@@ -184,7 +184,7 @@ const SecretProviderTable = ({type}: {type: "standard" | "custom"}) => {
                     className="ph-no-capture"
                     columns={columns}
                     dataSource={isCustom ? customRowSecrets : secrets}
-                    rowKey={(record) => record.id || record.title || record.name || ""}
+                    rowKey="id"
                     bordered
                     pagination={false}
                     loading={loading}

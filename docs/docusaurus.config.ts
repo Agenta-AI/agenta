@@ -23,7 +23,7 @@ const config: Config = {
   titleDelimiter: "-",
   // Even if you don't use internationalization, you can use this field to set
   // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans". 
+  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: "en",
     locales: ["en"],
@@ -84,8 +84,8 @@ const config: Config = {
     navbar: {
       logo: {
         alt: "agenta-ai",
-        src: "images/Agenta-logo-full-light.png",
-        srcDark: "images/Agenta-logo-full-dark-accent.png",
+        src: "images/light-complete-transparent-CROPPED.png",
+        srcDark: "images/dark-complete-transparent-CROPPED.png",
       },
       hideOnScroll: false,
       items: [
@@ -95,64 +95,33 @@ const config: Config = {
           docId: "getting-started/introduction",
           position: "left",
           label: "Docs",
-          customProps: {
-            icon: {
-              name: "fileText",
-            },
-          },
         },
         {
           type: "docSidebar",
           sidebarId: "guidesSidebar",
           position: "left",
           label: "Tutorials",
-          customProps: {
-            icon: {
-              name: "bookOpen",
-            },
-          },
         },
         {
           type: "docSidebar",
           sidebarId: "refrenceSidebar",
           position: "left",
           label: "Reference",
-          customProps: {
-            icon: {
-              name: "code",
-            },
-          },
-        },
-        {
-          to: "/roadmap",
-          position: "left",
-          label: "Roadmap",
-          customProps: {
-            icon: {
-              name: "route",
-            },
-          },
         },
         {
           to: "/changelog/main",
           position: "left",
           label: "Changelog",
-          customProps: {
-            icon: {
-              name: "clock",
-            },
-          },
         },
         {
-          type: "docSidebar",
-          sidebarId: "selfHostSidebar",
+          to: "https://agenta.ai/pricing",
           position: "left",
-          label: "Self-host",
-          customProps: {
-            icon: {
-              name: "server",
-            },
-          },
+          label: "Pricing",
+        },
+        {
+          to: "https://agenta.ai/blog",
+          position: "left",
+          label: "Blog",
         },
 
         // {
@@ -258,7 +227,6 @@ const config: Config = {
       ],
     } satisfies Preset.ThemeConfig,
     algolia: {
-      askAi: 'I14hRlCxbWzW',
       appId: "0HZ4ONM2EC",
       apiKey: "18ab633e81d706cbda7c78d25d0fe763",
       indexName: "agenta",
@@ -335,7 +303,7 @@ const config: Config = {
           },
           {
             from: "/prompt-management/overview",
-            to: "/prompt-engineering/concepts",
+            to: "/prompt-engineering/overview",
           },
           {
             from: "/prompt-management/quick-start",
@@ -343,27 +311,27 @@ const config: Config = {
           },
           {
             from: "/prompt-management/prompt-management-sdk",
-            to: "/prompt-engineering/managing-prompts-programatically/create-and-commit",
+            to: "/prompt-engineering/prompt-management/prompt-management-sdk",
           },
           {
             from: "/prompt-management/adding-custom-providers",
-            to: "/prompt-engineering/playground/custom-providers",
+            to: "/prompt-engineering/playground/adding-custom-providers",
           },
           {
             from: "/prompt-management/using-the-playground",
-            to: "/prompt-engineering/playground/using-playground",
+            to: "/prompt-engineering/playground/using-the-playground",
           },
           {
             from: "/prompt-management/integration/how-to-integrate-with-agenta",
-            to: "/prompt-engineering/integrating-prompts/integrating-with-agenta",
+            to: "/prompt-engineering/prompt-management/how-to-integrate-with-agenta",
           },
           {
             from: "/prompt-management/integration/fetch-prompts",
-            to: "/prompt-engineering/integrating-prompts/fetch-prompt-programatically",
+            to: "/prompt-engineering/prompt-management/how-to-integrate-with-agenta",
           },
           {
             from: "/prompt-management/integration/proxy-calls",
-            to: "/prompt-engineering/integrating-prompts/proxy-calls",
+            to: "/prompt-engineering/prompt-management/proxy-calls",
           },
           {
             from: "/self-host/host-locally",
@@ -380,137 +348,6 @@ const config: Config = {
           {
             from: "/self-host/applying-schema-migration",
             to: "/self-host/upgrading",
-          },
-          // Prompt Engineering restructure redirects
-          {
-            from: "/prompt-engineering/overview",
-            to: "/prompt-engineering/concepts",
-          },
-          {
-            from: "/prompt-engineering/prompt-management/how-to-integrate-with-agenta",
-            to: "/prompt-engineering/integrating-prompts/integrating-with-agenta",
-          },
-          {
-            from: "/prompt-engineering/prompt-management/prompt-management-sdk",
-            to: "/prompt-engineering/managing-prompts-programatically/create-and-commit",
-          },
-          {
-            from: "/prompt-engineering/prompt-management/proxy-calls",
-            to: "/prompt-engineering/integrating-prompts/proxy-calls",
-          },
-          {
-            from: "/prompt-engineering/playground/using-the-playground",
-            to: "/prompt-engineering/playground/using-playground",
-          },
-          {
-            from: "/prompt-engineering/playground/adding-custom-providers",
-            to: "/prompt-engineering/playground/custom-providers",
-          },
-          // Evaluation restructure redirects
-          {
-            from: "/evaluation/create-test-sets",
-            to: "/evaluation/managing-test-sets/upload-csv",
-          },
-          {
-            from: "/evaluation/no-code-evaluation",
-            to: "/evaluation/evaluation-from-ui/running-evaluations",
-          },
-          {
-            from: "/evaluation/sdk-evaluation",
-            to: "/evaluation/concepts",
-          },
-          {
-            from: "/evaluation/configure-evaluators",
-            to: "/evaluation/configure-evaluators/overview",
-          },
-          {
-            from: "/evaluation/human_evaluation",
-            to: "/evaluation/human-evaluation/quick-start",
-          },
-          {
-            from: "/evaluation/annotate-api",
-            to: "/observability/trace-with-python-sdk/annotate-traces",
-          },
-          {
-            from: "/evaluation/evaluators/classification-entiry-extraction",
-            to: "/evaluation/configure-evaluators/classification-entity-extraction",
-          },
-          {
-            from: "/evaluation/evaluators/pattern-matching",
-            to: "/evaluation/configure-evaluators/regex-evaluator",
-          },
-          {
-            from: "/evaluation/configure-evaluators/pattern-matching",
-            to: "/evaluation/configure-evaluators/regex-evaluator",
-          },
-          {
-            from: "/evaluation/evaluators/semantic-similarity",
-            to: "/evaluation/configure-evaluators/semantic-similarity",
-          },
-          {
-            from: "/evaluation/evaluators/llm-as-a-judge",
-            to: "/evaluation/configure-evaluators/llm-as-a-judge",
-          },
-          {
-            from: "/evaluation/evaluators/rag-evaluators",
-            to: "/evaluation/configure-evaluators/rag-evaluators",
-          },
-          {
-            from: "/evaluation/evaluators/custom-evaluator",
-            to: "/evaluation/configure-evaluators/custom-evaluator",
-          },
-          {
-            from: "/evaluation/evaluators/webhook-evaluator",
-            to: "/evaluation/configure-evaluators/webhook-evaluator",
-          },
-          {
-            from: "/evaluation/quick-start-ui",
-            to: "/evaluation/evaluation-from-ui/quick-start",
-          },
-          {
-            from: "/evaluation/quick-start-sdk",
-            to: "/evaluation/concepts",
-          },
-          {
-            from: "/evaluation/overview",
-            to: "/evaluation/concepts",
-          },
-          // Observability restructure redirects
-          {
-            from: "/observability/observability-sdk",
-            to: "/observability/trace-with-python-sdk/setup-tracing",
-          },
-          {
-            from: "/observability/opentelemetry",
-            to: "/observability/trace-with-opentelemetry/distributed-tracing",
-          },
-          {
-            from: "/observability/otel-semconv",
-            to: "/observability/trace-with-opentelemetry/semantic-conventions",
-          },
-          {
-            from: "/observability/overview",
-            to: "/observability/concepts",
-          },
-          {
-            from: "/observability/quickstart",
-            to: "/observability/quickstart-python",
-          },
-          {
-            from: "/observability/trace-with-opentelemetry/setup-tracing",
-            to: "/observability/trace-with-opentelemetry/getting-started",
-          },
-          {
-            from: "/observability/using-the-ui/filtering-traces",
-            to: "/observability/concepts",
-          },
-          {
-            from: "/observability/concepts/semantic-conventions",
-            to: "/observability/trace-with-opentelemetry/semantic-conventions",
-          },
-          {
-            from: "/reference/api",
-            to: "/reference/api/category",
           }
         ],
         createRedirects(existingPath) {
@@ -545,3 +382,4 @@ const config: Config = {
 export default async function createConfig() {
   return config;
 }
+

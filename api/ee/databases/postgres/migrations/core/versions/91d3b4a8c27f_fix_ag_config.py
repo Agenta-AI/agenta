@@ -1,5 +1,4 @@
 """Fix ag_config
-
 Revision ID: 91d3b4a8c27f
 Revises: 7990f1e12f47
 Create Date: 2025-04-24 11:00:00

@@ -8,31 +8,20 @@ import {PricingCardProps} from "../types"
 
 const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardProps) => {
     const _isLoading = isLoading === plan.plan
-    const isDisabled = useMemo(() => {
-        if (isLoading !== null && isLoading !== plan.plan) {
-            return true
-        }
-
-        if (currentPlan?.plan === plan.plan) {
-            return true
-        }
-
-        if (currentPlan?.plan === Plan.Enterprise) {
-            return true
-        }
-
-        if (currentPlan?.plan === Plan.Business && plan.plan === Plan.Pro) {
-            return true
-        }
-
-        return false
-    }, [isLoading, currentPlan?.plan, plan.plan])
+    const isDisabled = useMemo(
+        () =>
+            (isLoading !== null && isLoading !== plan.plan) ||
+            currentPlan?.plan == plan.plan ||
+            currentPlan?.plan == Plan.Business ||
+            currentPlan?.plan == Plan.Enterprise,
+        [isLoading, currentPlan, plan],
+    )
 
     return (
         <Card
             hoverable
             key={plan.plan}
-            className={`relative w-full md:w-1/3`}
+            className={`relative w-full md:w-1/4`}
             title={plan.title}
             classNames={{
                 body: "!p-3 flex-1",
@@ -41,16 +30,23 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
             }}
             rootClassName="flex flex-col justify-between"
             actions={[
-                plan.title == "Enterprise" ? (
+                plan.title == "Enterprise" || plan.title == "Business" ? (
                     <Button
                         disabled={isDisabled}
                         className="w-full"
-                        type={currentPlan?.plan == Plan.Enterprise ? "link" : "primary"}
+                        type={
+                            currentPlan?.plan == Plan.Business ||
+                            currentPlan?.plan == Plan.Enterprise
+                                ? "link"
+                                : "primary"
+                        }
                         onClick={() =>
                             window.open("https://cal.com/mahmoud-mabrouk-ogzgey/demo", "_blank")
                         }
                     >
-                        {currentPlan?.plan == Plan.Enterprise ? "Current plan" : "Talk to us"}
+                        {currentPlan?.plan == Plan.Business || currentPlan?.plan == Plan.Enterprise
+                            ? "Current plan"
+                            : "Talk to us"}
                     </Button>
                 ) : (
                     <Button
@@ -58,13 +54,7 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
                         loading={_isLoading}
                         className="w-full"
                         onClick={() => onOptionClick(plan)}
-                        type={
-                            currentPlan?.plan === plan.plan
-                                ? "link"
-                                : plan.plan === Plan.Hobby
-                                  ? "text"
-                                  : "default"
-                        }
+                        type={currentPlan?.plan === plan.plan ? "link" : "default"}
                     >
                         {currentPlan?.plan === plan.plan
                             ? "Current plan"
@@ -89,7 +79,7 @@ const PricingCard = ({plan, currentPlan, onOptionClick, isLoading}: PricingCardP
                     </Typography.Text>
                 </div>
 
-                <ul className="-ml-5 overflow-auto">
+                <ul className="-ml-5">
                     {plan.features?.map((point, idx) => {
                         return (
                             <li className="text-[#586673]" key={idx}>

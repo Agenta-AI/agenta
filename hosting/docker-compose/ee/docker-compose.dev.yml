@@ -49,7 +49,6 @@ services:
 
         volumes:
             - ../../../api:/app
-            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -96,7 +95,6 @@ services:
 
         volumes:
             - ../../../api:/app
-            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -115,14 +113,13 @@ services:
             - agenta-network
 
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1 --loglevel=DEBUG
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1
 
     cron:
         image: agenta-ee-dev-api:latest
 
         volumes:
             - ../../../api/ee/src/crons/meters.sh:/meters.sh
-            - ../../../api/oss/src/crons/queries.sh:/queries.sh
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -145,8 +142,7 @@ services:
         image: agenta-ee-dev-api:latest
 
         volumes:
-            - ../../../api:/app
-            - ../../../sdk:/sdk
+            - ../../../api:/app/
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -157,12 +153,12 @@ services:
         networks:
             - agenta-network
 
-        command: sh -c "python -m ee.databases.postgres.migrations.runner"
+        command: sh -c "python -c 'from ee.databases.postgres.migrations.utils import split_core_and_tracing as split; split(); from ee.databases.postgres.migrations.core.utils import run_alembic_migration as run; run(); from ee.databases.postgres.migrations.tracing.utils import run_alembic_migration as run; run(); from ee.databases.postgres.migrations.utils import copy_nodes_from_core_to_tracing as copy; copy();'"
 
     completion:
         build: 
             context: ../../../services/completion
-            dockerfile: ee/docker/Dockerfile.dev
+            dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
             - ../../../services/completion:/app
@@ -191,7 +187,7 @@ services:
     chat:
         build: 
             context: ../../../services/chat
-            dockerfile: ee/docker/Dockerfile.dev
+            dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
             - ../../../services/chat:/app

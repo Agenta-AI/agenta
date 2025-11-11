@@ -94,12 +94,12 @@ def update_evaluators_with_app_name(session: Connection):
                 break
 
         # Delete deprecated evaluator configs with app_id as None
-        stmt = (
+        query = (
             select(func.count())
             .select_from(DeprecatedEvaluatorConfigDB)
             .filter(DeprecatedEvaluatorConfigDB.app_id.is_(None))
         )
-        result = session.execute(stmt).scalar()
+        result = session.execute(query).scalar()
         TOTAL_EVALUATOR_CONFIGS_WITH_NO_APPID = result if result is not None else 0
         print(
             f"Total rows in evaluator_configs table with no app_id: {TOTAL_EVALUATOR_CONFIGS_WITH_NO_APPID}. Deleting these rows..."

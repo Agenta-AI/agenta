@@ -1,7 +1,7 @@
 import re
 import json
 import traceback
-from typing import Any, Dict, Union, List, Optional
+from typing import Any, Dict, Union
 
 import litellm
 import httpx
@@ -25,9 +25,6 @@ from oss.src.utils.traces import (
     process_distributed_trace_into_trace_tree,
     get_field_value_from_trace_tree,
 )
-
-from agenta.sdk.managers.secrets import SecretsManager
-
 
 log = get_module_logger(__name__)
 
@@ -81,66 +78,6 @@ def validate_string_output(
             f"Evaluator {evaluator_key} requires the output to be a string, but received {type(final_output).__name__} instead. "
         )
     return final_output
-
-
-def detect_prompt_variables(
-    prompt: Union[str, List[Dict[str, str]]],
-) -> List[str]:
-    """
-    Detects variable placeholders in a prompt string or message-based prompt.
-    Looks for patterns like {variable_name} or {{variable_name}}
-
-    Args:
-        prompt: Either a string or a list of message dictionaries with 'content' field
-
-    Returns:
-        List[str]: List of variable names found in the prompt
-    """
-    import re
-
-    # Match both single and double curly brace variables
-    pattern = r"\{+([a-zA-Z_][a-zA-Z0-9_.]*)\}+"
-    # log.info(f"Variable detection using pattern: {pattern}")
-
-    if isinstance(prompt, list):
-        # For message-based prompts, search in all message contents
-        variables = set()
-        for i, message in enumerate(prompt):
-            if isinstance(message, dict) and "content" in message:
-                content = message["content"]
-                matches = re.findall(pattern, content)
-                variables.update(matches)
-        result = list(variables)
-        return result
-    else:
-        matches = re.findall(pattern, prompt)
-        result = list(set(matches))
-        return result
-
-
-def validate_prompt_variables(
-    prompt: Union[str, List[Dict[str, str]]],
-    inputs: Dict[str, Any],
-) -> None:
-    """
-    Validates that all variables in the prompt have corresponding values in inputs.
-
-    Args:
-        prompt (str): The prompt string containing potential variables
-        inputs (Dict[str, Any]): The inputs dictionary that should contain variable values
-
-    Raises:
-        ValueError: If any variable in the prompt is missing from inputs
-    """
-
-    variables = detect_prompt_variables(prompt)
-    missing_vars = [var for var in variables if var not in inputs]
-
-    if missing_vars:
-        raise ValueError(
-            f"Prompt includes variables that are missing from inputs: {', '.join(missing_vars)}. "
-            "Please provide values for these variables in your inputs."
-        )
 
 
 async def map(
@@ -207,7 +144,7 @@ def get_correct_answer(
     if correct_answer_key not in data_point:
         if required:
             raise ValueError(
-                f"Correct answer column '{correct_answer_key}' not found in the testset."
+                f"Correct answer column '{correct_answer_key}' not found in the test set."
             )
         return None
     return data_point[correct_answer_key]
@@ -503,8 +440,8 @@ async def auto_ai_critique(
                 }
             )
         )
-        return Result(type="number", value=response["outputs"]["score"])
-    except Exception as e:  # pylint: disable=broad-except
+        return Result(type="text", value=str(response["outputs"]["score"]))
+    except Exception as e:  # pylint: disable=broad-except∆`§
         return Result(
             type="error",
             value=None,
@@ -515,581 +452,17 @@ async def auto_ai_critique(
         )
 
 
-import json
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
-
-try:
-    import jsonpath  # ✅ use module API
-    from jsonpath import JSONPointer  # pointer class is fine to use
-except Exception:
-    jsonpath = None
-    JSONPointer = None
-
-# ========= Scheme detection =========
-
-
-def detect_scheme(expr: str) -> str:
-    """Return 'json-path', 'json-pointer', or 'dot-notation' based on the placeholder prefix."""
-    if expr.startswith("$"):
-        return "json-path"
-    if expr.startswith("/"):
-        return "json-pointer"
-    return "dot-notation"
-
-
-# ========= Resolvers =========
-
-
-def resolve_dot_notation(expr: str, data: dict) -> object:
-    if "[" in expr or "]" in expr:
-        raise KeyError(f"Bracket syntax is not supported in dot-notation: {expr!r}")
-
-    # First, check if the expression exists as a literal key (e.g., "topic.story" as a single key)
-    # This allows users to use dots in their variable names without nested access
-    if expr in data:
-        return data[expr]
-
-    # If not found as a literal key, try to parse as dot-notation path
-    cur = data
-    for token in (p for p in expr.split(".") if p):
-        if isinstance(cur, list) and token.isdigit():
-            cur = cur[int(token)]
-        else:
-            if not isinstance(cur, dict):
-                raise KeyError(
-                    f"Cannot access key {token!r} on non-dict while resolving {expr!r}"
-                )
-            if token not in cur:
-                raise KeyError(f"Missing key {token!r} while resolving {expr!r}")
-            cur = cur[token]
-    return cur
-
-
-def resolve_json_path(expr: str, data: dict) -> object:
-    if jsonpath is None:
-        raise ImportError("python-jsonpath is required for json-path ($...)")
-
-    if not (expr == "$" or expr.startswith("$.") or expr.startswith("$[")):
-        raise ValueError(
-            f"Invalid json-path expression {expr!r}. "
-            "Must start with '$', '$.' or '$[' (no implicit normalization)."
-        )
-
-    # Use package-level APIf
-    results = jsonpath.findall(expr, data)  # always returns a list
-    return results[0] if len(results) == 1 else results
-
-
-def resolve_json_pointer(expr: str, data: Dict[str, Any]) -> Any:
-    """Resolve a JSON Pointer; returns a single value."""
-    if JSONPointer is None:
-        raise ImportError("python-jsonpath is required for json-pointer (/...)")
-    return JSONPointer(expr).resolve(data)
-
-
-def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
-    """Dispatch to the right resolver based on detected scheme."""
-    scheme = detect_scheme(expr)
-    if scheme == "json-path":
-        return resolve_json_path(expr, data)
-    if scheme == "json-pointer":
-        return resolve_json_pointer(expr, data)
-    return resolve_dot_notation(expr, data)
-
-
-# ========= Placeholder & coercion helpers =========
-
-_PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
-
-
-def extract_placeholders(template: str) -> Iterable[str]:
-    """Yield the inner text of all {{ ... }} occurrences (trimmed)."""
-    for m in _PLACEHOLDER_RE.finditer(template):
-        yield m.group(1).strip()
-
-
-def coerce_to_str(value: Any) -> str:
-    """Pretty stringify values for embedding into templates."""
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False)
-    return str(value)
-
-
-def build_replacements(
-    placeholders: Iterable[str], data: Dict[str, Any]
-) -> Tuple[Dict[str, str], set]:
-    """
-    Resolve all placeholders against data.
-    Returns (replacements, unresolved_placeholders).
-    """
-    replacements: Dict[str, str] = {}
-    unresolved: set = set()
-    for expr in set(placeholders):
-        try:
-            val = resolve_any(expr, data)
-            # Escape backslashes to avoid regex replacement surprises
-            replacements[expr] = coerce_to_str(val).replace("\\", "\\\\")
-        except Exception:
-            unresolved.add(expr)
-    return replacements, unresolved
-
-
-def apply_replacements(template: str, replacements: Dict[str, str]) -> str:
-    """Replace {{ expr }} using a callback to avoid regex-injection issues."""
-
-    def _repl(m: re.Match) -> str:
-        expr = m.group(1).strip()
-        return replacements.get(expr, m.group(0))
-
-    return _PLACEHOLDER_RE.sub(_repl, template)
-
-
-def compute_truly_unreplaced(original: set, rendered: str) -> set:
-    """Only count placeholders that were in the original template and remain."""
-    now = set(extract_placeholders(rendered))
-    return original & now
-
-
-def missing_lib_hints(unreplaced: set) -> Optional[str]:
-    """Suggest installing python-jsonpath if placeholders indicate json-path or json-pointer usage."""
-    if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced) and (
-        jsonpath is None or JSONPointer is None
-    ):
-        return (
-            "Install python-jsonpath to enable json-path ($...) and json-pointer (/...)"
-        )
-    return None
-
-
-def _format_with_template(
-    content: str,
-    format: str,
-    kwargs: Dict[str, Any],
-) -> str:
-    """Internal method to format content based on template_format"""
-    try:
-        if format == "fstring":
-            return content.format(**kwargs)
-
-        elif format == "jinja2":
-            from jinja2 import Template, TemplateError
-
-            try:
-                return Template(content).render(**kwargs)
-            except TemplateError:
-                return content
-
-        elif format == "curly":
-            original_placeholders = set(extract_placeholders(content))
-
-            replacements, _unresolved = build_replacements(
-                original_placeholders,
-                kwargs,
-            )
-
-            result = apply_replacements(content, replacements)
-
-            truly_unreplaced = compute_truly_unreplaced(original_placeholders, result)
-
-            if truly_unreplaced:
-                hint = missing_lib_hints(truly_unreplaced)
-                suffix = f" Hint: {hint}" if hint else ""
-                raise ValueError(
-                    f"Template variables not found or unresolved: "
-                    f"{', '.join(sorted(truly_unreplaced))}.{suffix}"
-                )
-
-            return result
-
-        return content
-    except Exception as e:
-        log.error(f"Error during template formatting: {str(e)}")
-        return content
-
-
 async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
     anthropic_api_key = input.credentials.get("ANTHROPIC_API_KEY", None)
     litellm.openai_key = openai_api_key
-    litellm.anthropic_key = anthropic_api_key
-    litellm.drop_params = True
-
+    litellm.anthropic_api_key = anthropic_api_key
     if not openai_api_key:
         raise Exception(
             "No OpenAI key was found. AI Critique evaluator requires a valid OpenAI API key to function. Please configure your OpenAI API and try again."
         )
-
-    # Validate prompt variables if there's a prompt in the inputs
-    if input.settings.get("prompt_template") and input.settings.get("version") not in [
-        "3",
-        "4",
-    ]:
-        try:
-            validate_prompt_variables(
-                prompt=input.settings.get("prompt_template", []),
-                inputs=input.inputs,
-            )
-        except ValueError as e:
-            raise e
-
     if (
-        input.settings.get("version") == "4"
-    ) and (  # this check is used when running in the background (celery)
-        type(input.settings.get("prompt_template", "")) is not str
-    ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
-        try:
-            parameters = input.settings or dict()
-
-            if not isinstance(parameters, dict):
-                parameters = dict()
-
-            inputs = input.inputs or None
-
-            if not isinstance(inputs, dict):
-                inputs = dict()
-
-            outputs = input.inputs.get("prediction") or None
-
-            if "ground_truth" in inputs:
-                del inputs["ground_truth"]
-            if "prediction" in inputs:
-                del inputs["prediction"]
-
-            # ---------------------------------------------------------------- #
-
-            correct_answer_key = parameters.get("correct_answer_key")
-
-            prompt_template: List = parameters.get("prompt_template") or list()
-
-            template_version = parameters.get("version") or "3"
-
-            default_format = "fstring" if template_version == "2" else "curly"
-
-            template_format = parameters.get("template_format") or default_format
-
-            response_type = input.settings.get("response_type") or (
-                "json_schema" if template_version == "4" else "text"
-            )
-
-            json_schema = input.settings.get("json_schema") or None
-
-            json_schema = json_schema if response_type == "json_schema" else None
-
-            response_format = dict(type=response_type)
-
-            if response_type == "json_schema":
-                response_format["json_schema"] = json_schema
-
-            model = parameters.get("model") or "gpt-4o-mini"
-
-            correct_answer = None
-
-            if inputs and isinstance(inputs, dict) and correct_answer_key:
-                correct_answer = inputs[correct_answer_key]
-
-            secrets = await SecretsManager.retrieve_secrets()
-
-            openai_api_key = None  # secrets.get("OPENAI_API_KEY")
-            anthropic_api_key = None  # secrets.get("ANTHROPIC_API_KEY")
-            openrouter_api_key = None  # secrets.get("OPENROUTER_API_KEY")
-            cohere_api_key = None  # secrets.get("COHERE_API_KEY")
-            azure_api_key = None  # secrets.get("AZURE_API_KEY")
-            groq_api_key = None  # secrets.get("GROQ_API_KEY")
-
-            for secret in secrets:
-                if secret.get("kind") == "provider_key":
-                    secret_data = secret.get("data", {})
-                    if secret_data.get("kind") == "openai":
-                        provider_data = secret_data.get("provider", {})
-                        openai_api_key = provider_data.get("key") or openai_api_key
-                    if secret_data.get("kind") == "anthropic":
-                        provider_data = secret_data.get("provider", {})
-                        anthropic_api_key = (
-                            provider_data.get("key") or anthropic_api_key
-                        )
-                    if secret_data.get("kind") == "openrouter":
-                        provider_data = secret_data.get("provider", {})
-                        openrouter_api_key = (
-                            provider_data.get("key") or openrouter_api_key
-                        )
-                    if secret_data.get("kind") == "cohere":
-                        provider_data = secret_data.get("provider", {})
-                        cohere_api_key = provider_data.get("key") or cohere_api_key
-                    if secret_data.get("kind") == "azure":
-                        provider_data = secret_data.get("provider", {})
-                        azure_api_key = provider_data.get("key") or azure_api_key
-                    if secret_data.get("kind") == "groq":
-                        provider_data = secret_data.get("provider", {})
-                        groq_api_key = provider_data.get("key") or groq_api_key
-
-            threshold = parameters.get("threshold") or 0.5
-
-            score = None
-            success = None
-
-            litellm.openai_key = openai_api_key
-            litellm.anthropic_key = anthropic_api_key
-            litellm.openrouter_key = openrouter_api_key
-            litellm.cohere_key = cohere_api_key
-            litellm.azure_key = azure_api_key
-            litellm.groq_key = groq_api_key
-
-            context: Dict[str, Any] = dict()
-
-            if parameters:
-                context.update(
-                    **{
-                        "parameters": parameters,
-                    }
-                )
-
-            if correct_answer:
-                context.update(
-                    **{
-                        "ground_truth": correct_answer,
-                        "correct_answer": correct_answer,
-                        "reference": correct_answer,
-                    }
-                )
-
-            if outputs:
-                context.update(
-                    **{
-                        "prediction": outputs,
-                        "outputs": outputs,
-                    }
-                )
-
-            if inputs:
-                context.update(**inputs)
-                context.update(
-                    **{
-                        "inputs": inputs,
-                    }
-                )
-
-            formatted_prompt_template = [
-                {
-                    "role": message["role"],
-                    "content": _format_with_template(
-                        content=message["content"],
-                        format=template_format,
-                        kwargs=context,
-                    ),
-                }
-                for message in prompt_template
-            ]
-
-            try:
-                response = await litellm.acompletion(
-                    model=model,
-                    messages=formatted_prompt_template,
-                    temperature=0.01,
-                    response_format=response_format,
-                )
-
-                _outputs = response.choices[0].message.content.strip()  # type: ignore
-
-            except litellm.AuthenticationError as e:  # type: ignore
-                e.message = e.message.replace(
-                    "litellm.AuthenticationError: AuthenticationError: ", ""
-                )
-                raise e
-
-            except Exception as e:
-                raise ValueError(f"AI Critique evaluation failed: {str(e)}") from e
-            # --------------------------------------------------------------------------
-
-            try:
-                _outputs = json.loads(_outputs)
-            except:
-                pass
-
-            if isinstance(_outputs, (int, float)):
-                return EvaluatorOutputInterface(
-                    outputs={
-                        "score": _outputs,
-                        "success": _outputs >= threshold,
-                    },
-                )
-
-            if isinstance(_outputs, bool):
-                return EvaluatorOutputInterface(
-                    outputs={
-                        "success": _outputs,
-                    },
-                )
-
-            if isinstance(_outputs, dict):
-                return EvaluatorOutputInterface(
-                    outputs=_outputs,
-                )
-
-            raise ValueError(f"Could not parse output: {_outputs}")
-        except Exception as e:
-            raise RuntimeError(f"Evaluation failed: {str(e)}")
-    elif (
-        input.settings.get("version") == "3"
-    ) and (  # this check is used when running in the background (celery)
-        type(input.settings.get("prompt_template", "")) is not str
-    ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
-        try:
-            parameters = input.settings or dict()
-
-            if not isinstance(parameters, dict):
-                parameters = dict()
-
-            inputs = input.inputs or None
-
-            if not isinstance(inputs, dict):
-                inputs = dict()
-
-            outputs = input.inputs.get("prediction") or None
-
-            if "ground_truth" in inputs:
-                del inputs["ground_truth"]
-            if "prediction" in inputs:
-                del inputs["prediction"]
-
-            # ---------------------------------------------------------------- #
-
-            correct_answer_key = parameters.get("correct_answer_key")
-
-            prompt_template: List = parameters.get("prompt_template") or list()
-
-            template_version = parameters.get("version") or "3"
-
-            default_format = "fstring" if template_version == "2" else "curly"
-
-            template_format = parameters.get("template_format") or default_format
-
-            model = parameters.get("model") or "gpt-3.5-turbo"
-
-            correct_answer = None
-
-            if inputs and isinstance(inputs, dict) and correct_answer_key:
-                correct_answer = inputs[correct_answer_key]
-
-            secrets = await SecretsManager.retrieve_secrets()
-
-            openai_api_key = None  # secrets.get("OPENAI_API_KEY")
-            anthropic_api_key = None  # secrets.get("ANTHROPIC_API_KEY")
-            openrouter_api_key = None  # secrets.get("OPENROUTER_API_KEY")
-            cohere_api_key = None  # secrets.get("COHERE_API_KEY")
-            azure_api_key = None  # secrets.get("AZURE_API_KEY")
-            groq_api_key = None  # secrets.get("GROQ_API_KEY")
-
-            for secret in secrets:
-                if secret.get("kind") == "provider_key":
-                    secret_data = secret.get("data", {})
-                    if secret_data.get("kind") == "openai":
-                        provider_data = secret_data.get("provider", {})
-                        openai_api_key = provider_data.get("key") or openai_api_key
-                    if secret_data.get("kind") == "anthropic":
-                        provider_data = secret_data.get("provider", {})
-                        anthropic_api_key = (
-                            provider_data.get("key") or anthropic_api_key
-                        )
-                    if secret_data.get("kind") == "openrouter":
-                        provider_data = secret_data.get("provider", {})
-                        openrouter_api_key = (
-                            provider_data.get("key") or openrouter_api_key
-                        )
-                    if secret_data.get("kind") == "cohere":
-                        provider_data = secret_data.get("provider", {})
-                        cohere_api_key = provider_data.get("key") or cohere_api_key
-                    if secret_data.get("kind") == "azure":
-                        provider_data = secret_data.get("provider", {})
-                        azure_api_key = provider_data.get("key") or azure_api_key
-                    if secret_data.get("kind") == "groq":
-                        provider_data = secret_data.get("provider", {})
-                        groq_api_key = provider_data.get("key") or groq_api_key
-
-            threshold = parameters.get("threshold") or 0.5
-
-            score = None
-            success = None
-
-            litellm.openai_key = openai_api_key
-            litellm.anthropic_key = anthropic_api_key
-            litellm.openrouter_key = openrouter_api_key
-            litellm.cohere_key = cohere_api_key
-            litellm.azure_key = azure_api_key
-            litellm.groq_key = groq_api_key
-
-            context: Dict[str, Any] = dict()
-
-            if parameters:
-                context.update(
-                    **{
-                        "parameters": parameters,
-                    }
-                )
-
-            if correct_answer:
-                context.update(
-                    **{
-                        "ground_truth": correct_answer,
-                        "correct_answer": correct_answer,
-                        "reference": correct_answer,
-                    }
-                )
-
-            if outputs:
-                context.update(
-                    **{
-                        "prediction": outputs,
-                        "outputs": outputs,
-                    }
-                )
-
-            if inputs:
-                context.update(**inputs)
-                context.update(
-                    **{
-                        "inputs": inputs,
-                    }
-                )
-
-            formatted_prompt_template = [
-                {
-                    "role": message["role"],
-                    "content": _format_with_template(
-                        content=message["content"],
-                        format=template_format,
-                        kwargs=context,
-                    ),
-                }
-                for message in prompt_template
-            ]
-
-            response = await litellm.acompletion(
-                model=model,
-                messages=formatted_prompt_template,
-                temperature=0.01,
-            )
-            outputs = response.choices[0].message.content.strip()
-            try:
-                score = float(outputs)
-
-                success = score >= threshold
-
-                return EvaluatorOutputInterface(
-                    outputs={"score": score, "success": success},
-                )
-            except ValueError:
-                # if the output is not a float, we try to extract a float from the text
-                match = re.search(r"[-+]?\d*\.\d+|\d+", outputs)
-                if match:
-                    score = float(match.group())
-                    return EvaluatorOutputInterface(outputs={"score": score})
-                else:
-                    raise ValueError(f"Could not parse output as float: {outputs}")
-        except Exception as e:
-            raise RuntimeError(f"Evaluation failed: {str(e)}")
-    elif (
-        input.settings.get("version") == "2"
+        input.settings.get("version", "1") == "2"
     ) and (  # this check is used when running in the background (celery)
         type(input.settings.get("prompt_template", "")) is not str
     ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
@@ -1134,8 +507,7 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             model="gpt-3.5-turbo", messages=messages, temperature=0.8
         )
         evaluation_output = response.choices[0].message.content.strip()
-
-    return {"outputs": {"score": float(evaluation_output)}}
+    return {"outputs": {"score": evaluation_output}}
 
 
 async def auto_starts_with(
@@ -1154,7 +526,7 @@ async def auto_starts_with(
                 **{"inputs": inputs, "settings": settings_values}
             )
         )
-        return Result(type="bool", value=response["outputs"]["success"])
+        return Result(type="text", value=response["outputs"]["success"])
     except Exception as e:  # pylint: disable=broad-except
         return Result(
             type="error",
@@ -1637,7 +1009,7 @@ async def rag_faithfulness(
         )
 
         if None in [question_val, answer_val, contexts_val]:
-            log.warn(
+            log.error(
                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
             )
 
@@ -1750,7 +1122,7 @@ async def rag_context_relevancy(
         )
 
         if None in [question_val, answer_val, contexts_val]:
-            log.warn(
+            log.error(
                 f"Missing trace field ? {['question', question_val is None, 'answer', answer_val is None, 'context', contexts_val is None]}"
             )
 
@@ -1843,7 +1215,7 @@ async def auto_levenshtein_distance(
             )
         )
         if "success" in response["outputs"]:
-            return Result(type="bool", value=response["outputs"]["success"])
+            return Result(type="number", value=response["outputs"]["success"])
         return Result(type="number", value=response["outputs"]["score"])
 
     except ValueError as e:
@@ -1928,8 +1300,6 @@ async def semantic_similarity(
         float: the semantic similarity score
     """
 
-    correct_answer_key = input.settings.get("correct_answer_key", "correct_answer")
-
     openai_api_key = input.credentials.get("OPENAI_API_KEY", None)
     if not openai_api_key:
         raise HTTPException(
@@ -1948,8 +1318,8 @@ async def semantic_similarity(
     def cosine_similarity(output_vector: array, correct_answer_vector: array) -> float:
         return np.dot(output_vector, correct_answer_vector)
 
-    output_vector = await encode(input.inputs.get("prediction", ""))
-    correct_answer_vector = await encode(input.inputs.get(correct_answer_key, ""))
+    output_vector = await encode(input.inputs["prediction"])
+    correct_answer_vector = await encode(input.inputs["ground_truth"])
     similarity_score = cosine_similarity(output_vector, correct_answer_vector)
     return {"outputs": {"score": similarity_score}}
 
@@ -2061,7 +1431,7 @@ async def evaluate(
             type="error",
             value=None,
             error=Error(
-                message=f"Error occurred while running {evaluator_key} evaluation. ",
+                message="Error occurred while running {evaluator_key} evaluation. ",
                 stacktrace=str(exc),
             ),
         )

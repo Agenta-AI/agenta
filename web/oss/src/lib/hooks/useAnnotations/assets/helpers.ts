@@ -168,21 +168,11 @@ export const groupAnnotationsByReferenceId = (
 
 export function attachAnnotationsToTraces(traces: any[], annotations: AnnotationDto[] = []) {
     function attach(trace: any): any {
-        const invocationIds = trace.invocationIds
-
-        const matchingAnnotations = annotations.filter((annotation: AnnotationDto) => {
-            // Check if annotation links to this trace via ANY link key (including "invocation" and dynamic keys like "test-xxx")
-            if (annotation.links && typeof annotation.links === "object") {
-                const linkValues = Object.values(annotation.links)
-                return linkValues.some(
-                    (link: any) =>
-                        link?.trace_id === (invocationIds?.trace_id || "") &&
-                        link?.span_id === (invocationIds?.span_id || ""),
-                )
-            }
-            return false
-        })
-
+        const matchingAnnotations = annotations.filter(
+            (annotation: AnnotationDto) =>
+                annotation.links?.invocation?.trace_id === (trace.invocationIds?.trace_id || "") &&
+                annotation.links?.invocation?.span_id === (trace.invocationIds?.span_id || ""),
+        )
         return {
             ...trace,
             annotations: matchingAnnotations,

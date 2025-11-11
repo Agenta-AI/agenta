@@ -1,12 +1,15 @@
-import {useMemo, useState} from "react"
+import {useState, useMemo} from "react"
 
 import {Typography} from "antd"
 import dayjs from "dayjs"
-import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
+import {useAppsData} from "@/oss/contexts/app.context"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
+import {useProjectData} from "@/oss/contexts/project.context"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {type LlmProvider} from "@/oss/lib/helpers/llmProviders"
@@ -15,10 +18,6 @@ import {Template, GenericObject, StyleProps} from "@/oss/lib/Types"
 import {waitForAppToStart} from "@/oss/services/api"
 import {createAndStartTemplate, deleteApp, ServiceType} from "@/oss/services/app-selector/api"
 import useTemplates from "@/oss/services/app-selector/hooks/useTemplates"
-import {useAppsData} from "@/oss/state/app"
-import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
-import {useOrgData} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
 
 import {getTemplateKey, timeout} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
@@ -44,18 +43,25 @@ const SetupTracingModal: any = dynamic(
 const ObservabilityDashboardSection: any = dynamic(
     () => import("@/oss/components/pages/app-management/components/ObservabilityDashboardSection"),
 )
+const DemoApplicationsSection: any = dynamic(
+    () => import("@/oss/components/pages/app-management/components/DemoApplicationsSection"),
+)
+
 const {Title} = Typography
 
 const AppManagement: React.FC = () => {
-    const statusData = useAtomValue(appCreationStatusAtom)
-    const setStatusData = useSetAtom(appCreationStatusAtom)
-    const resetAppCreation = useSetAtom(resetAppCreationAtom)
+    const [statusData, setStatusData] = useState<{status: string; details?: any; appId?: string}>({
+        status: "",
+        details: undefined,
+        appId: undefined,
+    })
     const [statusModalOpen, setStatusModalOpen] = useState(false)
-    const [fetchingCustomWorkflow, setFetchingCustomWorkflow] = useState(false)
-    const {openModal} = useCustomWorkflowConfig({
+    const [fetchingTemplate, setFetchingTemplate] = useState(false)
+    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
+        setFetchingTemplate,
+        setStatusData,
         setStatusModalOpen,
-        setFetchingTemplate: setFetchingCustomWorkflow,
-        appId: "",
+        configureWorkflow: false,
     })
     const posthog = usePostHogAg()
     const {appTheme} = useAppTheme()
@@ -67,17 +73,22 @@ const AppManagement: React.FC = () => {
     const [isSetupTracingModal, setIsSetupTracingModal] = useState(false)
     const [newApp, setNewApp] = useState("")
     const [searchTerm, setSearchTerm] = useState("")
-    const {apps, error, mutate} = useAppsData()
+    const {apps, error, isLoading, mutate} = useAppsData()
 
     const {secrets} = useVaultSecret()
+    const {project} = useProjectData()
     const {selectedOrg} = useOrgData()
 
-    const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
+    const [{data: templates = []}, noTemplateMessage] = useTemplates()
 
     const handleTemplateCardClick = async (template_id: string) => {
         setIsAddAppFromTemplatedModal(false)
+        // warn the user and redirect if openAI key is not present
+        // TODO: must be changed for multiples LLM keys
+        // if (await redirectIfNoLLMKeys({secrets})) return
+
+        setFetchingTemplate(true)
         setStatusModalOpen(true)
-        resetAppCreation()
 
         // attempt to create and start the template, notify user of the progress
         const apiKeys = secrets
@@ -87,18 +98,19 @@ const AppManagement: React.FC = () => {
             providerKey: isDemo() && apiKeys?.length === 0 ? [] : (apiKeys as LlmProvider[]),
             onStatusChange: async (status, details, appId) => {
                 if (["error", "bad_request", "timeout", "success"].includes(status))
-                    if (status === "success") {
-                        await mutate()
-                        posthog?.capture?.("app_deployment", {
-                            properties: {
-                                app_id: appId,
-                                environment: "UI",
-                                deployed_by: user?.id,
-                            },
-                        })
-                    }
+                    setFetchingTemplate(false)
+                if (status === "success") {
+                    await mutate()
+                    posthog?.capture?.("app_deployment", {
+                        properties: {
+                            app_id: appId,
+                            environment: "UI",
+                            deployed_by: user?.id,
+                        },
+                    })
+                }
 
-                setStatusData((prev) => ({...prev, status, details, appId: appId || prev.appId}))
+                setStatusData((prev) => ({status, details, appId: appId || prev.appId}))
             },
         })
     }
@@ -150,7 +162,9 @@ const AppManagement: React.FC = () => {
     return (
         <>
             <div className={classes.container}>
-                {error ? (
+                {isLoading || (!apps && !error) ? (
+                    <ResultComponent status={"info"} title="Loading..." spinner={true} />
+                ) : error ? (
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
@@ -176,10 +190,14 @@ const AppManagement: React.FC = () => {
                             setSearchTerm={setSearchTerm}
                         />
 
+                        {!project?.is_demo && <DemoApplicationsSection />}
+
                         <HelpAndSupportSection />
                     </>
                 )}
             </div>
+
+            {CustomWorkflowModal}
 
             <SetupTracingModal
                 open={isSetupTracingModal}
@@ -220,13 +238,10 @@ const AppManagement: React.FC = () => {
 
             <CreateAppStatusModal
                 open={statusModalOpen}
-                loading={fetchingTemplate || fetchingCustomWorkflow}
+                loading={fetchingTemplate}
                 onErrorRetry={onErrorRetry}
                 onTimeoutRetry={onTimeoutRetry}
-                onCancel={() => {
-                    setStatusModalOpen(false)
-                    resetAppCreation()
-                }}
+                onCancel={() => setStatusModalOpen(false)}
                 statusData={statusData}
                 appName={newApp}
             />

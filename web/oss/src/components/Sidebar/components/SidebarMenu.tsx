@@ -1,9 +1,10 @@
-import {memo, useCallback} from "react"
+import {useCallback} from "react"
 
 import {Menu, Tag, Tooltip} from "antd"
 import clsx from "clsx"
 import Link from "next/link"
 
+import {useStyles} from "../assets/styles"
 import {SidebarConfig, SidebarMenuProps} from "../types"
 
 const SidebarMenu: React.FC<SidebarMenuProps> = ({
@@ -12,6 +13,8 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
     collapsed,
     mode = "inline",
 }) => {
+    const classes = useStyles()
+
     const transformItems = useCallback(
         (items: SidebarConfig[]): any => {
             return items.flatMap((item): any => {
@@ -27,24 +30,19 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         children: transformItems(item.submenu),
                         popupClassName:
                             "[&_.ant-menu-sub_>_.ant-menu-item]:flex [&_.ant-menu-sub_>_.ant-menu-item]:items-center",
-                        className: clsx({
-                            "[&_.ant-menu-submenu-arrow]:hidden [&_.ant-menu-title-content]:hidden":
-                                collapsed,
-                        }),
                         disabled: item.isCloudFeature,
                         onTitleClick: item.onClick,
-                        title: item.title,
+                        title: (
+                            <Tooltip title={item.cloudFeatureTooltip} placement="right">
+                                {item.title}
+                            </Tooltip>
+                        ),
                     }
                 } else if (item.header) {
                     return {
                         type: "group",
                         label: (
-                            <div
-                                key={item.key}
-                                className={clsx("w-full text-gray-500 !truncate", {
-                                    "!w-[62px] pl-2": collapsed,
-                                })}
-                            >
+                            <div key={item.key} className={classes.menuHeader}>
                                 {item.title}
                             </div>
                         ),
@@ -65,21 +63,24 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                         </span>
                     )
 
-                    const menuItem = {
-                        icon: item.icon,
-                        key: item.key,
-                        label: collapsed ? (
-                            <Tooltip title={item.tooltip} placement="right" mouseEnterDelay={0.8}>
-                                <div className="flex items-center justify-center w-full">
-                                    {node}
-                                </div>
-                            </Tooltip>
-                        ) : (
-                            node
-                        ),
-                    }
-
-                    return [menuItem, item.divider && {type: "divider"}]
+                    return [
+                        {
+                            icon: item.icon,
+                            key: item.key,
+                            label: (
+                                <>
+                                    {collapsed ? (
+                                        node
+                                    ) : (
+                                        <Tooltip title={item.tooltip} placement="right">
+                                            {node}
+                                        </Tooltip>
+                                    )}
+                                </>
+                            ),
+                        },
+                        item.divider && {type: "divider", className: "!my-4"},
+                    ]
                 }
             })
         },
@@ -92,27 +93,13 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
             items={transformItems(items)}
             {...(mode === "inline" ? {inlineCollapsed: collapsed} : {})}
             {...menuProps}
-            className={clsx([
-                "!overflow-x-hidden",
+            className={clsx(
                 "[&_.ant-menu-item]:flex [&_.ant-menu-item]:items-center",
                 "[&_.ant-menu-submenu-title]:flex [&_.ant-menu-submenu-title]:items-center",
-                "!border-0 [&_.ant-menu-item-divider]:!w-full [&_.ant-menu-item-divider]:!my-2",
-                {
-                    "[&_.ant-menu-item]:!w-[94%] [&_.ant-menu-item]:!mx-2 [&_.ant-menu-item]:!pl-3 [&_.ant-menu-submenu-title]:!pl-3 [&_.ant-menu-submenu-title]:!w-[94%] [&_.ant-menu-submenu-title]:!mx-2":
-                        !collapsed,
-                },
-                {
-                    "[&_.ant-menu-item]:!px-2 [&_.ant-menu-item]:!w-[28px] [&_.ant-menu-item]:!mx-auto [&_.ant-menu-item]:!flex [&_.ant-menu-item]:!items-center [&_.ant-menu-item]:!justify-center":
-                        collapsed,
-                    "[&_.ant-menu-title-content]:!opacity-0 [&_.ant-menu-title-content]:!duration-0 [&_.ant-menu-title-content]:absolute [&_.ant-menu-title-content]:top-0 [&_.ant-menu-title-content]:left-0 [&_.ant-menu-title-content]:right-0 [&_.ant-menu-title-content]:bottom-0":
-                        collapsed,
-                    "[&_.ant-menu-submenu-title]:!w-[28px] [&_.ant-menu-submenu-title]:!mx-auto [&_.ant-menu-submenu-title]:!p-2 [&_.ant-menu-submenu-title]:!flex [&_.ant-menu-submenu-title]:!items-center [&_.ant-menu-submenu-title]:!justify-center":
-                        collapsed,
-                },
                 menuProps?.className,
-            ])}
+            )}
         />
     )
 }
 
-export default memo(SidebarMenu)
+export default SidebarMenu

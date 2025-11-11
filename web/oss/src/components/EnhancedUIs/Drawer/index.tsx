@@ -1,12 +1,14 @@
 import {useState, useEffect} from "react"
 
-import {Drawer} from "antd"
+import dynamic from "next/dynamic"
 
 import {EnhancedDrawerProps} from "./types"
 
-const EnhancedDrawer = ({children, closeOnLayoutClick = true, ...props}: EnhancedDrawerProps) => {
+const Drawer = dynamic(() => import("antd").then((mod) => mod.Drawer), {ssr: false})
+
+const EnhancedDrawer = ({children, ...props}: EnhancedDrawerProps) => {
     const [shouldRender, setShouldRender] = useState(false)
-    const {open: isVisible, onClose} = props
+    const {open: isVisible} = props
 
     useEffect(() => {
         if (isVisible) {
@@ -21,8 +23,8 @@ const EnhancedDrawer = ({children, closeOnLayoutClick = true, ...props}: Enhance
         function handleClickOutside(event: MouseEvent) {
             if ((event.target as HTMLElement).closest(".variant-table-row")) {
                 return
-            } else if (closeOnLayoutClick && (event.target as HTMLElement).closest(".ant-layout")) {
-                onClose?.({} as any)
+            } else if ((event.target as HTMLElement).closest(".ant-layout")) {
+                props.onClose?.({} as any)
             }
         }
 
@@ -30,7 +32,7 @@ const EnhancedDrawer = ({children, closeOnLayoutClick = true, ...props}: Enhance
         return () => {
             document.removeEventListener("click", handleClickOutside)
         }
-    }, [shouldRender, closeOnLayoutClick, onClose])
+    }, [shouldRender])
 
     const handleAfterClose = (open: boolean) => {
         props.afterOpenChange?.(open)

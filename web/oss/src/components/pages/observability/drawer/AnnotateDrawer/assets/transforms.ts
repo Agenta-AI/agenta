@@ -1,5 +1,6 @@
 import deepEqual from "fast-deep-equal"
 
+import {makeHashId} from "@/oss/lib/helpers/hashUtils"
 import {AnnotationDto, AnnotationEditPayloadDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 
@@ -186,49 +187,28 @@ export const getMetricsFromEvaluator = (evaluator: EvaluatorDto): Record<string,
     const evalMetricsSchema = evaluator.data?.service?.format?.properties?.outputs?.properties ?? {}
     const fields: Record<string, unknown> = {}
 
-    const collectMetricFields = (
-        schema: Record<string, any>,
-        prefix?: string,
-        target: Record<string, unknown> = fields,
-    ) => {
-        Object.entries(schema || {}).forEach(([key, rawProp]) => {
-            if (!rawProp || typeof rawProp !== "object") return
-
-            const props = rawProp.anyOf?.length ? rawProp.anyOf[0] : rawProp
-            const qualifiedKey = prefix ? `${prefix}.${key}` : key
-            const type = props?.type as string | undefined
-
-            if (type === "object" && props?.properties && typeof props.properties === "object") {
-                collectMetricFields(props.properties, qualifiedKey, target)
-                return
+    for (const [key, prop] of Object.entries(evalMetricsSchema)) {
+        if (prop.anyOf?.length > 0) {
+            const props = prop.anyOf[0]
+            fields[key] = {value: "", ...props}
+        } else if (prop.type === "array") {
+            const {value, items, ...restProps} = prop
+            fields[key] = {
+                value: "",
+                items: {
+                    type: items?.type === "string" ? items?.type : "string",
+                    enum: items?.enum || [],
+                },
+                ...restProps,
             }
-
-            if (type === "array") {
-                const {value, items, ...restProps} = props
-                target[qualifiedKey] = {
-                    value: "",
-                    items: {
-                        type: items?.type === "string" ? items?.type : "string",
-                        enum: items?.enum || [],
-                    },
-                    ...restProps,
-                }
-                return
+        } else if (prop.type && USEABLE_METRIC_TYPES.includes(prop.type)) {
+            const {value, ...restProps} = prop
+            fields[key] = {
+                value: getDefaultValue({property: prop, ignoreObject: true}),
+                ...restProps,
             }
-
-            if (type && USEABLE_METRIC_TYPES.includes(type)) {
-                const {value, ...restProps} = props
-                target[qualifiedKey] = {
-                    value: getDefaultValue({property: props, ignoreObject: true}),
-                    ...restProps,
-                }
-            }
-        })
-
-        return target
+        }
     }
-
-    collectMetricFields(evalMetricsSchema)
 
     return fields
 }
@@ -271,7 +251,7 @@ export const generateAnnotationPayloadData = ({
     evaluators: EvaluatorDto[]
     /** The `key` of the invocation step this annotation belongs to (e.g. `${scenarioId}.invoke`) */
     invocationStepKey: string
-    /** Optional testset / case references if available in the FE context */
+    /** Optional test-set / case references if available in the FE context */
     testsetId?: string
     testcaseId?: string
 }): {
@@ -376,7 +356,7 @@ export const generateNewAnnotationPayloadData = ({
     traceSpanIds: {traceId: string; spanId: string}
     /** The `key` of the invocation step this annotation belongs to (e.g. `${scenarioId}.invoke`) */
     invocationStepKey: string
-    /** Optional testset / case references if available in the FE context */
+    /** Optional test-set / case references if available in the FE context */
     testsetId?: string
     testcaseId?: string
 }): {

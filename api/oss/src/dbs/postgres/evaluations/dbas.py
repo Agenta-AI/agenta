@@ -1,8 +1,7 @@
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import Column, UUID, VARCHAR, TIMESTAMP, INTEGER
+from sqlalchemy import Column, UUID, VARCHAR, TIMESTAMP
 
 from oss.src.dbs.postgres.shared.dbas import (
-    VersionDBA,
     IdentifierDBA,
     LifecycleDBA,
     FlagsDBA,
@@ -14,13 +13,12 @@ from oss.src.dbs.postgres.shared.dbas import (
 
 
 class EvaluationRunDBA(
-    VersionDBA,
     IdentifierDBA,
     LifecycleDBA,
-    HeaderDBA,
     FlagsDBA,
     TagsDBA,
     MetaDBA,
+    HeaderDBA,
     DataDBA,  # steps, mappings
 ):
     __abstract__ = True
@@ -30,14 +28,8 @@ class EvaluationRunDBA(
         nullable=False,
     )
 
-    references = Column(
-        JSONB(none_as_null=True),
-        nullable=True,
-    )
-
 
 class EvaluationScenarioDBA(
-    VersionDBA,
     IdentifierDBA,
     LifecycleDBA,
     FlagsDBA,
@@ -51,22 +43,13 @@ class EvaluationScenarioDBA(
         nullable=False,
     )
 
-    interval = Column(
-        INTEGER,
-        nullable=True,
-    )
-    timestamp = Column(
-        TIMESTAMP(timezone=True),
-        nullable=True,
-    )
     run_id = Column(
         UUID(as_uuid=True),
         nullable=False,
     )
 
 
-class EvaluationResultDBA(
-    VersionDBA,
+class EvaluationStepDBA(
     IdentifierDBA,
     LifecycleDBA,
     FlagsDBA,
@@ -74,6 +57,28 @@ class EvaluationResultDBA(
     MetaDBA,
 ):
     __abstract__ = True
+
+    status = Column(
+        VARCHAR,
+        nullable=False,
+    )
+    timestamp = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+    )
+
+    key = Column(
+        VARCHAR,
+        nullable=False,
+    )
+    repeat_id = Column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
+    retry_id = Column(
+        UUID(as_uuid=True),
+        nullable=False,
+    )
 
     hash_id = Column(
         UUID(as_uuid=True),
@@ -92,27 +97,6 @@ class EvaluationResultDBA(
         nullable=True,
     )
 
-    status = Column(
-        VARCHAR,
-        nullable=False,
-    )
-
-    interval = Column(
-        INTEGER,
-        nullable=True,
-    )
-    timestamp = Column(
-        TIMESTAMP(timezone=True),
-        nullable=True,
-    )
-    repeat_idx = Column(
-        INTEGER,
-        nullable=True,
-    )
-    step_key = Column(
-        VARCHAR,
-        nullable=False,
-    )
     scenario_id = Column(
         UUID(as_uuid=True),
         nullable=False,
@@ -123,8 +107,7 @@ class EvaluationResultDBA(
     )
 
 
-class EvaluationMetricsDBA(
-    VersionDBA,
+class EvaluationMetricDBA(
     IdentifierDBA,
     LifecycleDBA,
     FlagsDBA,
@@ -139,39 +122,9 @@ class EvaluationMetricsDBA(
         nullable=False,
     )
 
-    interval = Column(
-        INTEGER,
-        nullable=True,
-    )
-    timestamp = Column(
-        TIMESTAMP(timezone=True),
-        nullable=True,
-    )
     scenario_id = Column(
         UUID(as_uuid=True),
         nullable=True,
-    )
-    run_id = Column(
-        UUID(as_uuid=True),
-        nullable=False,
-    )
-
-
-class EvaluationQueueDBA(
-    VersionDBA,
-    IdentifierDBA,
-    LifecycleDBA,
-    HeaderDBA,
-    FlagsDBA,
-    TagsDBA,
-    MetaDBA,
-    DataDBA,
-):
-    __abstract__ = True
-
-    status = Column(
-        VARCHAR,
-        nullable=False,
     )
 
     run_id = Column(

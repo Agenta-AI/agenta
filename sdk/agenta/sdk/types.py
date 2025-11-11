@@ -5,9 +5,6 @@ from typing import List, Union, Optional, Dict, Literal, Any
 from pydantic import ConfigDict, BaseModel, HttpUrl
 from pydantic import BaseModel, Field, model_validator
 
-from starlette.responses import StreamingResponse
-
-
 from agenta.sdk.assets import supported_llm_models
 from agenta.client.backend.types import AgentaNodesResponse, AgentaNodeDto
 
@@ -21,19 +18,13 @@ def MCField(  # pylint: disable=invalid-name
     default: str,
     choices: Union[List[str], Dict[str, List[str]]],
 ) -> Field:
-    # Pydantic 2.12+ no longer allows post-creation mutation of field properties
+    field = Field(default=default, description="ID of the model to use")
     if isinstance(choices, dict):
-        json_extra = {"choices": choices, "x-parameter": "grouped_choice"}
+        field.json_schema_extra = {"choices": choices, "x-parameter": "grouped_choice"}
     elif isinstance(choices, list):
-        json_extra = {"choices": choices, "x-parameter": "choice"}
-    else:
-        json_extra = {}
+        field.json_schema_extra = {"choices": choices, "x-parameter": "choice"}
 
-    return Field(
-        default=default,
-        description="ID of the model to use",
-        json_schema_extra=json_extra,
-    )
+    return field
 
 
 class LLMTokenUsage(BaseModel):
@@ -52,42 +43,6 @@ class BaseResponse(BaseModel):
     span_id: Optional[str] = None
 
     model_config = ConfigDict(use_enum_values=True, exclude_none=True)
-
-
-class StreamResponse(StreamingResponse):
-    def __init__(
-        self,
-        content,
-        media_type: str = "text/event-stream",
-        *,
-        version: Optional[str] = "3.0",
-        tree_id: Optional[str] = None,
-        trace_id: Optional[str] = None,
-        span_id: Optional[str] = None,
-        content_type: Optional[str] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-        status_code: int = 200,
-        background=None,
-    ):
-        headers = dict(extra_headers or {})
-        if version is not None:
-            headers["x-ag-version"] = version
-        if content_type:
-            headers["x-ag-content-type"] = content_type
-        if tree_id:
-            headers["x-ag-tree-id"] = tree_id
-        if trace_id:
-            headers["x-ag-trace-id"] = trace_id
-        if span_id:
-            headers["x-ag-span-id"] = span_id
-
-        super().__init__(
-            content=content,
-            media_type=media_type,
-            status_code=status_code,
-            headers=headers,
-            background=background,
-        )
 
 
 class DictInput(dict):
@@ -387,7 +342,7 @@ class ModelConfig(BaseModel):
     """Configuration for model parameters"""
 
     model: str = MCField(
-        default="gpt-4o-mini",
+        default="gpt-3.5-turbo",
         choices=supported_llm_models,
     )
 
@@ -462,154 +417,6 @@ class TemplateFormatError(PromptTemplateError):
         super().__init__(message)
 
 
-import json
-import re
-from typing import Any, Dict, Iterable, Tuple, Optional
-
-# --- Optional dependency: python-jsonpath (provides JSONPath + JSON Pointer) ---
-try:
-    import jsonpath  # ✅ use module API
-    from jsonpath import JSONPointer  # pointer class is fine to use
-except Exception:
-    jsonpath = None
-    JSONPointer = None
-
-# ========= Scheme detection =========
-
-
-def detect_scheme(expr: str) -> str:
-    """Return 'json-path', 'json-pointer', or 'dot-notation' based on the placeholder prefix."""
-    if expr.startswith("$"):
-        return "json-path"
-    if expr.startswith("/"):
-        return "json-pointer"
-    return "dot-notation"
-
-
-# ========= Resolvers =========
-
-
-def resolve_dot_notation(expr: str, data: dict) -> object:
-    if "[" in expr or "]" in expr:
-        raise KeyError(f"Bracket syntax is not supported in dot-notation: {expr!r}")
-
-    # First, check if the expression exists as a literal key (e.g., "topic.story" as a single key)
-    # This allows users to use dots in their variable names without nested access
-    if expr in data:
-        return data[expr]
-
-    # If not found as a literal key, try to parse as dot-notation path
-    cur = data
-    for token in (p for p in expr.split(".") if p):
-        if isinstance(cur, list) and token.isdigit():
-            cur = cur[int(token)]
-        else:
-            if not isinstance(cur, dict):
-                raise KeyError(
-                    f"Cannot access key {token!r} on non-dict while resolving {expr!r}"
-                )
-            if token not in cur:
-                raise KeyError(f"Missing key {token!r} while resolving {expr!r}")
-            cur = cur[token]
-    return cur
-
-
-def resolve_json_path(expr: str, data: dict) -> object:
-    if jsonpath is None:
-        raise ImportError("python-jsonpath is required for json-path ($...)")
-
-    if not (expr == "$" or expr.startswith("$.") or expr.startswith("$[")):
-        raise ValueError(
-            f"Invalid json-path expression {expr!r}. "
-            "Must start with '$', '$.' or '$[' (no implicit normalization)."
-        )
-
-    # Use package-level APIf
-    results = jsonpath.findall(expr, data)  # always returns a list
-    return results[0] if len(results) == 1 else results
-
-
-def resolve_json_pointer(expr: str, data: Dict[str, Any]) -> Any:
-    """Resolve a JSON Pointer; returns a single value."""
-    if JSONPointer is None:
-        raise ImportError("python-jsonpath is required for json-pointer (/...)")
-    return JSONPointer(expr).resolve(data)
-
-
-def resolve_any(expr: str, data: Dict[str, Any]) -> Any:
-    """Dispatch to the right resolver based on detected scheme."""
-    scheme = detect_scheme(expr)
-    if scheme == "json-path":
-        return resolve_json_path(expr, data)
-    if scheme == "json-pointer":
-        return resolve_json_pointer(expr, data)
-    return resolve_dot_notation(expr, data)
-
-
-# ========= Placeholder & coercion helpers =========
-
-_PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
-
-
-def extract_placeholders(template: str) -> Iterable[str]:
-    """Yield the inner text of all {{ ... }} occurrences (trimmed)."""
-    for m in _PLACEHOLDER_RE.finditer(template):
-        yield m.group(1).strip()
-
-
-def coerce_to_str(value: Any) -> str:
-    """Pretty stringify values for embedding into templates."""
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, ensure_ascii=False)
-    return str(value)
-
-
-def build_replacements(
-    placeholders: Iterable[str], data: Dict[str, Any]
-) -> Tuple[Dict[str, str], set]:
-    """
-    Resolve all placeholders against data.
-    Returns (replacements, unresolved_placeholders).
-    """
-    replacements: Dict[str, str] = {}
-    unresolved: set = set()
-    for expr in set(placeholders):
-        try:
-            val = resolve_any(expr, data)
-            # Escape backslashes to avoid regex replacement surprises
-            replacements[expr] = coerce_to_str(val).replace("\\", "\\\\")
-        except Exception:
-            unresolved.add(expr)
-    return replacements, unresolved
-
-
-def apply_replacements(template: str, replacements: Dict[str, str]) -> str:
-    """Replace {{ expr }} using a callback to avoid regex-injection issues."""
-
-    def _repl(m: re.Match) -> str:
-        expr = m.group(1).strip()
-        return replacements.get(expr, m.group(0))
-
-    return _PLACEHOLDER_RE.sub(_repl, template)
-
-
-def compute_truly_unreplaced(original: set, rendered: str) -> set:
-    """Only count placeholders that were in the original template and remain."""
-    now = set(extract_placeholders(rendered))
-    return original & now
-
-
-def missing_lib_hints(unreplaced: set) -> Optional[str]:
-    """Suggest installing python-jsonpath if placeholders indicate json-path or json-pointer usage."""
-    if any(expr.startswith("$") or expr.startswith("/") for expr in unreplaced) and (
-        jsonpath is None or JSONPointer is None
-    ):
-        return (
-            "Install python-jsonpath to enable json-path ($...) and json-pointer (/...)"
-        )
-    return None
-
-
 class PromptTemplate(BaseModel):
     """A template for generating prompts with formatting capabilities"""
 
@@ -656,7 +463,6 @@ class PromptTemplate(BaseModel):
         try:
             if self.template_format == "fstring":
                 return content.format(**kwargs)
-
             elif self.template_format == "jinja2":
                 from jinja2 import Template, TemplateError
 
@@ -667,33 +473,22 @@ class PromptTemplate(BaseModel):
                         f"Jinja2 template error in content: '{content}'. Error: {str(e)}",
                         original_error=e,
                     )
-
             elif self.template_format == "curly":
-                original_placeholders = set(extract_placeholders(content))
+                import re
 
-                replacements, _unresolved = build_replacements(
-                    original_placeholders, kwargs
-                )
-
-                result = apply_replacements(content, replacements)
-
-                truly_unreplaced = compute_truly_unreplaced(
-                    original_placeholders, result
-                )
-                if truly_unreplaced:
-                    hint = missing_lib_hints(truly_unreplaced)
-                    suffix = f" Hint: {hint}" if hint else ""
+                result = content
+                for key, value in kwargs.items():
+                    result = re.sub(r"\{\{" + key + r"\}\}", str(value), result)
+                if re.search(r"\{\{.*?\}\}", result):
+                    unreplaced = re.findall(r"\{\{(.*?)\}\}", result)
                     raise TemplateFormatError(
-                        f"Unreplaced variables in curly template: {sorted(truly_unreplaced)}.{suffix}"
+                        f"Unreplaced variables in curly template: {unreplaced}"
                     )
-
                 return result
-
             else:
                 raise TemplateFormatError(
                     f"Unknown template format: {self.template_format}"
                 )
-
         except KeyError as e:
             key = str(e).strip("'")
             raise TemplateFormatError(
@@ -701,8 +496,7 @@ class PromptTemplate(BaseModel):
             )
         except Exception as e:
             raise TemplateFormatError(
-                f"Error formatting template '{content}': {str(e)}",
-                original_error=e,
+                f"Error formatting template '{content}': {str(e)}", original_error=e
             )
 
     def _substitute_variables(self, obj: Any, kwargs: Dict[str, Any]) -> Any:
@@ -777,7 +571,7 @@ class PromptTemplate(BaseModel):
                 )
             )
 
-        new_llm_config = self.llm_config.model_copy(deep=True)
+        new_llm_config = self.llm_config.copy(deep=True)
         if new_llm_config.response_format is not None:
             rf_dict = new_llm_config.response_format.model_dump(by_alias=True)
             substituted = self._substitute_variables(rf_dict, kwargs)
