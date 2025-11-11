@@ -1,14 +1,16 @@
-import {cloneElement, isValidElement, useCallback, useMemo} from "react"
+import {cloneElement, isValidElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {TreeView} from "@phosphor-icons/react"
 import {Button} from "antd"
 import clsx from "clsx"
-import {useSetAtom} from "jotai"
 
-import {useQueryParamState} from "@/oss/state/appState"
-
-import {openTraceDrawerAtom, setTraceDrawerActiveSpanAtom} from "./store/traceDrawerStore"
+import {traceDrawerJotaiStore, traceDrawerAtom} from "./store/traceDrawerStore"
 import {TraceDrawerButtonProps} from "./types"
+import {buildNodeTree, observabilityTransformer} from "@/oss/lib/helpers/observability_helpers"
+import {_AgentaRootsResponse, AgentaNodeDTO} from "@/oss/services/observability/types"
+import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import useAnnotations from "@/oss/lib/hooks/useAnnotations"
+import {useAtomValue} from "jotai"
 
 const TraceDrawerButton = ({
     label,
@@ -17,127 +19,72 @@ const TraceDrawerButton = ({
     result,
     ...props
 }: TraceDrawerButtonProps) => {
-    const setActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
-    const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
-    const [, setTraceQueryParam] = useQueryParamState("trace")
-    const [, setSpanQueryParam] = useQueryParamState("span")
+    const [selected, setSelected] = useState("")
+    const {open} = useAtomValue(traceDrawerAtom)
+    const traceSpans = result?.response?.tree
 
-    const traceId = useMemo(() => {
-        const directTraceId =
-            result?.response?.trace_id || result?.metadata?.rawError?.detail?.trace_id
-        if (directTraceId) return directTraceId
+    const {data: annotations} = useAnnotations({
+        queries: {
+            annotation: {
+                links:
+                    traceSpans?.nodes?.map((node) => ({
+                        trace_id: node?.trace_id,
+                        span_id: node?.span_id,
+                    })) || [],
+            },
+        },
+        waitUntil: !open,
+    })
 
-        const responseTrace = (result as any)?.response?.trace
-        if (responseTrace?.trace_id) return responseTrace.trace_id
-
-        const nodes = (result as any)?.response?.tree?.nodes
-        const extractTraceId = (value: any): string | null => {
-            if (!value) return null
-            if (Array.isArray(value)) {
-                for (const entry of value) {
-                    const found = extractTraceId(entry)
-                    if (found) return found
-                }
-                return null
-            }
-            if (typeof value === "object") {
-                return (
-                    value.trace_id ||
-                    value.span_id ||
-                    value?.node?.trace_id ||
-                    value?.node?.id ||
-                    null
-                )
-            }
-            return null
+    const traces = useMemo(() => {
+        if (traceSpans) {
+            const rawTraces = traceSpans.nodes
+                .flatMap((node) => buildNodeTree(node as AgentaNodeDTO))
+                .flatMap((item: any) => observabilityTransformer(item))
+            return attachAnnotationsToTraces(rawTraces, annotations || [])
         }
-
-        if (!nodes) return undefined
-        if (Array.isArray(nodes)) {
-            return extractTraceId(nodes)
-        }
-
-        for (const value of Object.values(nodes)) {
-            const found = extractTraceId(value)
-            if (found) return found
-        }
-
-        return undefined
-    }, [result])
+        return []
+    }, [traceSpans, annotations])
 
     const handleOpen = useCallback(() => {
-        if (!traceId) return
+        traceDrawerJotaiStore.set(traceDrawerAtom, {open: true, result})
+    }, [])
 
-        const deriveActiveSpan = (): string | null => {
-            const nodes = (result as any)?.response?.tree?.nodes
-            if (!nodes) return null
+    const activeTrace = useMemo(
+        () =>
+            traces
+                ? traces[0] ?? null
+                : result?.error
+                  ? ({
+                        exception: result?.metadata?.rawError,
+                        node: {name: "Exception"},
+                        status: {code: "ERROR"},
+                    } as _AgentaRootsResponse)
+                  : null,
+        [traces],
+    )
 
-            const pickSpan = (node: any) => node?.span_id || node?.trace_id || null
-
-            if (Array.isArray(nodes)) {
-                return pickSpan(nodes[0])
-            }
-
-            const first = Object.values(nodes)[0]
-            if (Array.isArray(first)) {
-                return pickSpan(first[0])
-            }
-
-            return pickSpan(first)
+    useEffect(() => {
+        if (!selected) {
+            setSelected(activeTrace?.node.id ?? "")
         }
+    }, [activeTrace, selected])
 
-        const nextActiveSpan = deriveActiveSpan()
-        openTraceDrawer({traceId, activeSpanId: nextActiveSpan})
-        setActiveSpan(nextActiveSpan)
-        setTraceQueryParam(traceId, {shallow: true})
-        if (nextActiveSpan) {
-            setSpanQueryParam(nextActiveSpan, {shallow: true})
-        } else {
-            setSpanQueryParam(undefined, {shallow: true})
-        }
-    }, [traceId, result, openTraceDrawer, setActiveSpan, setTraceQueryParam, setSpanQueryParam])
-
-    const hasTrace = useMemo(() => {
-        const nodes = (result as any)?.response?.tree?.nodes
-        const hasNodes = (() => {
-            if (!nodes) return false
-            if (Array.isArray(nodes)) {
-                return nodes.length > 0
-            }
-            if (typeof nodes === "object") {
-                return Object.values(nodes).some((value) => {
-                    if (!value) return false
-                    if (Array.isArray(value)) {
-                        return value.length > 0
-                    }
-                    if (typeof value === "object") {
-                        return Object.keys(value).length > 0
-                    }
-                    return false
-                })
-            }
-            return false
-        })()
-
-        return hasNodes || Boolean(result?.response?.trace) || Boolean(result?.error)
-    }, [result])
+    const hasTrace = !!result?.response?.tree?.nodes?.length || !!result?.error
 
     return (
         <>
             {isValidElement(children) ? (
-                cloneElement(
-                    children as React.ReactElement<{onClick: () => void; loading?: boolean}>,
-                    {
-                        onClick: handleOpen,
-                    },
-                )
+                cloneElement(children as React.ReactElement<{onClick: () => void}>, {
+                    onClick: handleOpen,
+                })
             ) : (
                 <Button
                     type="text"
                     icon={icon && <TreeView size={14} />}
                     onClick={handleOpen}
                     {...props}
-                    disabled={!hasTrace || !traceId || !!result?.error}
+                    disabled={!hasTrace}
                     className={clsx([props.className])}
                 >
                     {label}

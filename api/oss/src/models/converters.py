@@ -34,7 +34,7 @@ else:
 from oss.src.models.db_models import (
     AppDB,
     UserDB,
-    TestsetDB,
+    TestSetDB,
     AppVariantDB,
     VariantBaseDB,
     AppEnvironmentDB,
@@ -45,7 +45,7 @@ from oss.src.models.db_models import (
 from oss.src.models.api.api_models import (
     App,
     BaseOutput,
-    TestsetOutput,
+    TestSetOutput,
     AppVariantRevision,
     PaginationParam,
     WithPagination,
@@ -229,22 +229,22 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
     )
 
 
-def testset_db_to_pydantic(testset_db: TestsetDB) -> TestsetOutput:
+def testset_db_to_pydantic(test_set_db: TestSetDB) -> TestSetOutput:
     """
-    Convert a TestsetDB object to a TestsetAPI object.
+    Convert a TestSetDB object to a TestSetAPI object.
 
     Args:
-        testset_db (Dict): The TestsetDB object to be converted.
+        test_set_db (Dict): The TestSetDB object to be converted.
 
     Returns:
-        TestsetAPI: The converted TestsetAPI object.
+        TestSetAPI: The converted TestSetAPI object.
     """
-    return TestsetOutput(
-        name=testset_db.name,
-        csvdata=testset_db.csvdata,
-        created_at=str(testset_db.created_at),
-        updated_at=str(testset_db.updated_at),
-        id=str(testset_db.id),
+    return TestSetOutput(
+        name=test_set_db.name,
+        csvdata=test_set_db.csvdata,
+        created_at=str(test_set_db.created_at),
+        updated_at=str(test_set_db.updated_at),
+        id=str(test_set_db.id),
     )
 
 

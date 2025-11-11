@@ -1,16 +1,12 @@
-import {useEffect} from "react"
+import {useEffect, useState} from "react"
 
 import {Check, CircleNotch, ExclamationMark} from "@phosphor-icons/react"
 import {Modal, Typography, theme} from "antd"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import {getErrorMessage} from "@/oss/lib/helpers/errorHandler"
-import {JSSTheme} from "@/oss/lib/Types"
-import {appCreationMessagesAtom, appCreationNavigationAtom} from "@/oss/state/appCreation/status"
-import {resetAppCreationAtom} from "@/oss/state/appCreation/status"
-import type {AppCreationStatus} from "@/oss/state/appCreation/status"
+import {GenericObject, JSSTheme} from "@/oss/lib/Types"
 
 import CustomAppCreationLoader from "./CustomAppCreationLoader"
 
@@ -63,7 +59,7 @@ interface Props {
     loading: boolean
     onErrorRetry?: () => void
     onTimeoutRetry?: () => void
-    statusData: AppCreationStatus
+    statusData: {status: string; details?: any; appId?: string}
     appName: string
 }
 
@@ -75,18 +71,24 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
     appName,
     ...props
 }) => {
+    const router = useRouter()
     const classes = useStyles()
-    const {goToPlayground} = usePlaygroundNavigation()
     const {
         token: {colorError, cyan5: colorSuccess},
     } = theme.useToken()
-    const [messages, setMessages] = useAtom(appCreationMessagesAtom)
-    const navigationTarget = useAtomValue(appCreationNavigationAtom)
-    const setNavigationTarget = useSetAtom(appCreationNavigationAtom)
-    const resetAppCreation = useSetAtom(resetAppCreationAtom)
+    const [messages, setMessages] = useState<
+        Record<
+            string,
+            {
+                type: "error" | "success" | "loading"
+                message: string
+                errorMessage?: string
+            }
+        >
+    >({})
 
     const {appId, status, details} = statusData
-    const isError = ["bad_request", "error", "permission_denied"].includes(status)
+    const isError = ["bad_request", "error"].includes(status)
     const isTimeout = status === "timeout"
     const isSuccess = status === "success"
     const closable = isError || isTimeout
@@ -103,87 +105,79 @@ const CreateAppStatusModal: React.FC<Props & React.ComponentProps<typeof Modal>>
             onTimeoutRetry?.()
         } else if (isSuccess) {
             props.onCancel?.(e)
-            if (appId) setNavigationTarget(appId)
+            if (appId) router.push(`/apps/${appId}/playground`)
         }
     }
 
     useEffect(() => {
-        setMessages((draft) => {
+        setMessages((prev) => {
+            let obj: GenericObject
             switch (status) {
                 case "creating_app":
-                    draft[status] = {
-                        type: "loading",
-                        message: "Adding application",
+                    obj = {
+                        ...prev,
+                        [status]: {
+                            type: "loading",
+                            message: "Adding application",
+                        },
                     }
-                    if (draft.fetching_image?.type === "loading")
-                        draft.fetching_image.type = "success"
-                    break
+                    if (obj.fetching_image?.type === "loading") obj.fetching_image.type = "success"
+                    return obj
                 case "starting_app":
-                    draft[status] = {
-                        type: "loading",
-                        message: "Starting service (takes ~20s)",
+                    obj = {
+                        ...prev,
+                        [status]: {
+                            type: "loading",
+                            message: "Starting service (takes ~20s)",
+                        },
                     }
-                    if (draft.creating_app?.type === "loading") draft.creating_app.type = "success"
-                    break
+                    if (obj.creating_app?.type === "loading") obj.creating_app.type = "success"
+                    return obj
                 case "success":
-                    draft[status] = {
-                        type: "success",
-                        message: "Launching your application",
+                    obj = {
+                        ...prev,
+                        [status]: {
+                            type: "success",
+                            message: "Launching your application",
+                        },
                     }
-                    if (draft.starting_app?.type === "loading") draft.starting_app.type = "success"
+                    if (obj.starting_app?.type === "loading") obj.starting_app.type = "success"
                     if (appId) {
-                        setNavigationTarget(appId)
+                        router.push(`/apps/${appId}/playground`)
                     }
-                    break
+                    return obj
                 case "bad_request":
                 case "error":
-                case "permission_denied":
-                    {
-                        const lastStatus = Object.keys(draft).pop() ?? ""
-                        if (!lastStatus) break
-                        draft[lastStatus] = {
-                            ...(draft[lastStatus] ?? {
-                                type: "error",
-                                message: draft[lastStatus]?.message ?? "",
-                            }),
+                    const lastStatus = Object.keys(prev).pop() ?? ""
+                    return {
+                        ...prev,
+                        [lastStatus]: {
+                            ...prev[lastStatus],
                             type: "error",
-                            errorMessage: `${getErrorMessage(details)}`,
-                        }
+                            errorMessage: `Error: ${getErrorMessage(details)}`,
+                        },
                     }
-                    break
                 case "timeout":
-                    draft.starting_app = {
-                        ...(draft.starting_app ?? {
+                    return {
+                        ...prev,
+                        starting_app: {
+                            ...prev.starting_app,
                             type: "error",
-                            message: "Starting service (takes ~20s)",
-                        }),
-                        type: "error",
-                        errorMessage:
-                            'Error: The app took too long to start. Press the "Retry" button if you want to try again.',
+                            errorMessage: `Error: The app took too long to start. Press the "Retry" button if you want to try again.`,
+                        },
                     }
-                    break
                 case "cleanup":
-                    draft[status] = {
-                        type: "loading",
-                        message: "Performing cleaning up before retrying",
+                    return {
+                        ...prev,
+                        [status]: {
+                            type: "loading",
+                            message: "Performing cleaning up before retrying",
+                        },
                     }
-                    break
             }
+            return prev
         })
-    }, [appId, details, setMessages, setNavigationTarget, status])
-
-    useEffect(() => {
-        // Only handle navigation when the status modal is open to prevent
-        // unintended redirects when returning to /apps after creation.
-        if (!props.open) return
-        if (!navigationTarget) return
-
-        const nextAppId = navigationTarget
-        setNavigationTarget(null)
-        goToPlayground(undefined, {appId: nextAppId})
-        // Clear creation state so revisiting /apps doesn't re-trigger navigation
-        resetAppCreation()
-    }, [props.open, goToPlayground, navigationTarget, setNavigationTarget, resetAppCreation])
+    }, [appId, details, router, status])
 
     return (
         <Modal

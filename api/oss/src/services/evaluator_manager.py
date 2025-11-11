@@ -54,6 +54,7 @@ async def get_evaluator_config(evaluator_config: EvaluatorConfig) -> EvaluatorCo
 
 async def create_evaluator_config(
     project_id: str,
+    app_name: str,
     name: str,
     evaluator_key: str,
     settings_values: Optional[Dict[str, Any]] = None,
@@ -74,6 +75,7 @@ async def create_evaluator_config(
 
     evaluator_config = await db_manager.create_evaluator_config(
         project_id=project_id,
+        app_name=app_name,
         name=name,
         evaluator_key=evaluator_key,
         settings_values=settings_values,
@@ -147,6 +149,7 @@ async def create_ready_to_use_evaluators(project_id: str):
         ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
         await db_manager.create_evaluator_config(
             project_id=project_id,
+            app_name=None,
             name=evaluator.name,
             evaluator_key=evaluator.key,
             settings_values=settings_values,

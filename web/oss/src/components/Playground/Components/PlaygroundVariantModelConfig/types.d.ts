@@ -18,9 +18,6 @@ export interface PlaygroundVariantModelConfigModalProps extends BaseContainerPro
     variantId: EnhancedVariant["id"]
     /** List of configurable model properties */
     propertyIds: string[]
-    disabled?: boolean
-    /** Optional: prompt id for read-only fallback rendering */
-    promptId?: EnhancedVariant["prompts"][number]["id"] | string
 }
 
 /**
@@ -50,8 +47,6 @@ export interface PlaygroundVariantModelConfigProps extends PopoverProps {
     variantId: EnhancedVariant["id"]
     /** ID of the prompt being configured */
     promptId: EnhancedVariant["prompts"][number]["id"]
-    /** Whether the component is in view-only mode or in mutable mode */
-    viewOnly?: boolean
 }
 
 export interface PlaygroundVariantModelConfigTitleProps extends BaseContainerProps {

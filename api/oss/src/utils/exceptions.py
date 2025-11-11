@@ -100,27 +100,17 @@ def intercept_exceptions(
                 support_id = str(uuid4())
                 operation_id = func.__name__ if hasattr(func, "__name__") else None
 
-                user_id = None
-                organization_id = None
-                workspace_id = None
-                project_id = None
-                request_path = None
-                # request_query = None
-                # request_headers = None
-                # request_body = None
-
-                with suppress(verbose=False):
-                    request = kwargs.pop("request", None)
-                    request = request if isinstance(request, Request) else None
-                    state = request.state if request else None
-                    user_id = state.user_id if state else None
-                    organization_id = state.organization_id if state else None
-                    workspace_id = state.workspace_id if state else None
-                    project_id = state.project_id if state else None
-                    request_path = request.url.path if request else None
-                    # request_query = request.url.query if request else None
-                    # request_headers = request.headers if request else None
-                    # request_body = kwargs if "secrets" not in request_path else None
+                request = kwargs.pop("request", None)
+                request = request if isinstance(request, Request) else None
+                state = request.state if request else None
+                user_id = state.user_id if state else None
+                organization_id = state.organization_id if state else None
+                workspace_id = state.workspace_id if state else None
+                project_id = state.project_id if state else None
+                request_path = request.url.path if request else None
+                # request_query = request.url.query if request else None
+                # request_headers = request.headers if request else None
+                # request_body = kwargs if "secrets" not in request_path else None
 
                 message = (
                     "An unexpected error occurred. "

@@ -1,14 +1,11 @@
-import {isDraft, isDraftable} from "immer"
-
 import {
     _AgentaRootsResponse,
     AgentaNodeDTO,
     AgentaTreeDTO,
+    TracesWithAnnotations,
 } from "@/oss/services/observability/types"
 
 import {uuidToSpanId, uuidToTraceId} from "../hooks/useAnnotations/assets/helpers"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {sortSpansByStartTime} from "./tracing"
 
 const normalizeContentFields = (obj: any): void => {
     if (Array.isArray(obj)) {
@@ -24,13 +21,7 @@ const normalizeContentFields = (obj: any): void => {
                 value.length === 1 &&
                 value[0]?.type === "text"
             ) {
-                if (Array.isArray(obj[key])) {
-                    for (const item of obj[key]) {
-                        normalizeContentFields(item)
-                    }
-                } else {
-                    obj[key] = value[0].text
-                }
+                obj[key] = value[0].text
             } else {
                 normalizeContentFields(value)
             }
@@ -44,23 +35,23 @@ export const observabilityTransformer = (
     const buildData = (node: AgentaNodeDTO) => {
         normalizeContentFields(node)
 
-        const key = node?.node?.id || node?.span_id
-        const hasChildren = node?.nodes && Object.keys(node.nodes).length > 0
+        const key = node.node.id
+        const hasChildren = node.nodes && Object.keys(node.nodes).length > 0
 
         return {
             ...node,
             key,
             // Added annotation here to make the clean up version of the annotations feature
             invocationIds: {
-                trace_id: uuidToTraceId(node?.root?.id) || node?.trace_id,
-                span_id: uuidToSpanId(node?.node?.id) || node?.span_id,
+                trace_id: uuidToTraceId(node.root.id),
+                span_id: uuidToSpanId(node.node.id),
             },
             ...(hasChildren ? {children: observabilityTransformer(node)} : undefined),
         }
     }
 
     if (item.nodes) {
-        const children = Object.entries(item.nodes)
+        return Object.entries(item.nodes)
             .flatMap(([_, value]) => {
                 if (Array.isArray(value)) {
                     return value.map((childNode, index) =>
@@ -74,24 +65,21 @@ export const observabilityTransformer = (
                 }
             })
             .filter((node): node is _AgentaRootsResponse => node !== null && node !== undefined)
-
-        // Sort children at this hierarchy level by start_time
-        return sortSpansByStartTime(children)
     }
 
     return []
 }
 
 export const buildNodeTree = ({parent, ...node}: AgentaNodeDTO) => ({
-    tree: node?.tree?.id || node?.trace_id,
+    tree: node.tree.id,
     nodes: [{...node}],
 })
 
 export const getNodeById = (
-    nodes: TraceSpanNode[] | TraceSpanNode,
+    nodes: TracesWithAnnotations[] | TracesWithAnnotations,
     id: string,
-): TraceSpanNode | null => {
-    if (nodes && !Array.isArray(nodes) && nodes.span_id === id) {
+): TracesWithAnnotations | null => {
+    if (nodes && !Array.isArray(nodes) && nodes.key === id) {
         return nodes
     }
 
@@ -99,7 +87,7 @@ export const getNodeById = (
         for (const value of Object.values(nodes)) {
             if (Array.isArray(value)) {
                 for (const node of value) {
-                    if (node.span_id === id) {
+                    if (node.key === id) {
                         return node
                     }
 
@@ -109,7 +97,7 @@ export const getNodeById = (
                     }
                 }
             } else {
-                if (value.span_id === id) {
+                if (value.key === id) {
                     return value
                 }
 

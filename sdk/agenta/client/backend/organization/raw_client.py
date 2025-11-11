@@ -25,17 +25,14 @@ class RawOrganizationClient:
         self._client_wrapper = client_wrapper
 
     def fetch_organization_details(
-        self,
-        organization_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, org_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> HttpResponse[OrganizationDetails]:
         """
         Return the details of the organization.
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -46,7 +43,7 @@ class RawOrganizationClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}",
+            f"organizations/{jsonable_encoder(org_id)}",
             method="GET",
             request_options=request_options,
         )
@@ -136,7 +133,7 @@ class RawOrganizationClient:
 
     def invite_user_to_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         request: typing.Sequence[InviteRequest],
@@ -146,7 +143,7 @@ class RawOrganizationClient:
         Assigns a role to a user in an organization.
 
         Args:
-            organization_id (str): The ID of the organization.
+            org_id (str): The ID of the organization.
             payload (InviteRequest): The payload containing the organization id, user email, and role to assign.
             workspace_id (str): The ID of the workspace.
 
@@ -159,7 +156,7 @@ class RawOrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -174,7 +171,7 @@ class RawOrganizationClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
             method="POST",
             json=convert_and_respect_annotation_metadata(
                 object_=request,
@@ -225,7 +222,7 @@ class RawOrganizationClient:
 
     def resend_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         email: str,
@@ -244,7 +241,7 @@ class RawOrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -259,7 +256,7 @@ class RawOrganizationClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/resend",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/resend",
             method="POST",
             json={
                 "email": email,
@@ -308,7 +305,7 @@ class RawOrganizationClient:
 
     def accept_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         project_id: str,
@@ -329,7 +326,7 @@ class RawOrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -348,7 +345,7 @@ class RawOrganizationClient:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
             method="POST",
             params={
                 "project_id": project_id,
@@ -405,17 +402,14 @@ class AsyncRawOrganizationClient:
         self._client_wrapper = client_wrapper
 
     async def fetch_organization_details(
-        self,
-        organization_id: str,
-        *,
-        request_options: typing.Optional[RequestOptions] = None,
+        self, org_id: str, *, request_options: typing.Optional[RequestOptions] = None
     ) -> AsyncHttpResponse[OrganizationDetails]:
         """
         Return the details of the organization.
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         request_options : typing.Optional[RequestOptions]
             Request-specific configuration.
@@ -426,7 +420,7 @@ class AsyncRawOrganizationClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}",
+            f"organizations/{jsonable_encoder(org_id)}",
             method="GET",
             request_options=request_options,
         )
@@ -516,7 +510,7 @@ class AsyncRawOrganizationClient:
 
     async def invite_user_to_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         request: typing.Sequence[InviteRequest],
@@ -526,7 +520,7 @@ class AsyncRawOrganizationClient:
         Assigns a role to a user in an organization.
 
         Args:
-            organization_id (str): The ID of the organization.
+            org_id (str): The ID of the organization.
             payload (InviteRequest): The payload containing the organization id, user email, and role to assign.
             workspace_id (str): The ID of the workspace.
 
@@ -539,7 +533,7 @@ class AsyncRawOrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -554,7 +548,7 @@ class AsyncRawOrganizationClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite",
             method="POST",
             json=convert_and_respect_annotation_metadata(
                 object_=request,
@@ -605,7 +599,7 @@ class AsyncRawOrganizationClient:
 
     async def resend_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         email: str,
@@ -624,7 +618,7 @@ class AsyncRawOrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -639,7 +633,7 @@ class AsyncRawOrganizationClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/resend",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/resend",
             method="POST",
             json={
                 "email": email,
@@ -688,7 +682,7 @@ class AsyncRawOrganizationClient:
 
     async def accept_invitation(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         project_id: str,
@@ -709,7 +703,7 @@ class AsyncRawOrganizationClient:
 
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -728,7 +722,7 @@ class AsyncRawOrganizationClient:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}/invite/accept",
             method="POST",
             params={
                 "project_id": project_id,

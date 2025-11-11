@@ -1,7 +1,6 @@
 import {theme} from "antd"
 import type {Config} from "tailwindcss"
 import colors from "tailwindcss/colors"
-import antdTailwind from "./src/styles/tokens/antd-tailwind.json"
 const token = theme.getDesignToken()
 
 export const createConfig = (content: string[] = []): Config => {
@@ -20,7 +19,6 @@ export const createConfig = (content: string[] = []): Config => {
                     sans: ["var(--font-inter)"],
                 },
                 colors: {
-                    ...antdTailwind,
                     // light mode
                     tremor: {
                         brand: {
@@ -142,6 +140,7 @@ export const createConfig = (content: string[] = []): Config => {
                 nocompatible: true,
                 preferredStrategy: "pseudoelements",
             }),
+            require("@headlessui/tailwindcss"),
             // Use class strategy so Ant Design styles remain unaffected
             require("@tailwindcss/forms")({
                 strategy: "class",

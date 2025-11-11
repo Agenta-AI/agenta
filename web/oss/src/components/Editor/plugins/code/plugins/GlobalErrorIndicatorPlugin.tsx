@@ -5,7 +5,6 @@ import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {createPortal} from "react-dom"
 
 import {$getActiveLanguage} from "../utils/language"
-import type {CodeLanguage} from "../types"
 import {validateAll} from "../utils/validationUtils"
 
 import {$getEditorCodeAsString} from "./RealTimeValidationPlugin"
@@ -19,23 +18,6 @@ export interface ErrorInfo {
     line?: number
     column?: number
     severity?: "error" | "warning" | "info"
-}
-
-// Registry of ValidationManager instances keyed by editorId
-const validationManagerRegistry = new Map<string, ValidationManager>()
-
-export function registerValidationManager(editorId: string, manager: ValidationManager) {
-    if (!editorId) return
-    validationManagerRegistry.set(editorId, manager)
-}
-
-export function getValidationManager(editorId: string): ValidationManager | null {
-    return validationManagerRegistry.get(editorId) ?? null
-}
-
-export function unregisterValidationManager(editorId: string) {
-    if (!editorId) return
-    validationManagerRegistry.delete(editorId)
 }
 
 // Global validation state - single source of truth
@@ -65,7 +47,7 @@ class ValidationManager {
     validateContent(
         content: string,
         schema?: any,
-        language: CodeLanguage = "json",
+        language: "json" | "yaml" = "json",
     ): ValidationState {
         // Skip if content hasn't changed
         if (content === this.state.lastValidatedContent) {
@@ -359,8 +341,6 @@ export function GlobalErrorIndicatorPlugin({editorId}: {editorId: string}) {
                 validationManager.current = new ValidationManager(editorContainerRef)
                 // Set this editor as the current one for validation context
                 setCurrentEditorId(editorId)
-                // Register this manager so nodes can query it by editorId
-                registerValidationManager(editorId, validationManager.current)
             }
         }
 
@@ -453,8 +433,6 @@ export function GlobalErrorIndicatorPlugin({editorId}: {editorId: string}) {
             if (unsubscribe) {
                 unsubscribe()
             }
-            // Unregister manager on cleanup
-            unregisterValidationManager(editorId)
         }
     }, [editor])
 

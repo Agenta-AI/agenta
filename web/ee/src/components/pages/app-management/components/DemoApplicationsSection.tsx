@@ -2,9 +2,9 @@ import {Button, Card, Flex, Space, Typography} from "antd"
 import Image from "next/image"
 import {createUseStyles} from "react-jss"
 
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProjectData} from "@/oss/contexts/project.context"
 import {JSSTheme} from "@/oss/lib/Types"
-import {useOrgData} from "@/oss/state/org"
-import {useProjectData} from "@/oss/state/project"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     demoAppCard: {

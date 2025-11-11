@@ -3,7 +3,7 @@ from asyncio import sleep
 
 from pydantic import BaseModel
 
-from agenta.sdk.decorators.tracing import instrument
+import agenta as ag
 
 
 class MockMessageModel(BaseModel):
@@ -18,7 +18,7 @@ class MockResponseModel(BaseModel):
     choices: list[MockChoiceModel]
 
 
-@instrument()
+@ag.instrument()
 def hello_mock_response(*args, **kwargs) -> MockResponseModel:
     return MockResponseModel(
         choices=[
@@ -31,7 +31,7 @@ def hello_mock_response(*args, **kwargs) -> MockResponseModel:
     )
 
 
-@instrument()
+@ag.instrument()
 def chat_mock_response(*args, **kwargs) -> MockResponseModel:
     return MockResponseModel(
         choices=[
@@ -45,7 +45,7 @@ def chat_mock_response(*args, **kwargs) -> MockResponseModel:
     )
 
 
-@instrument()
+@ag.instrument()
 def delay_mock_response(*args, **kwargs) -> MockResponseModel:
     sleep(2)
 
@@ -60,7 +60,7 @@ def delay_mock_response(*args, **kwargs) -> MockResponseModel:
     )
 
 
-@instrument()
+@ag.instrument()
 def capital_mock_response(*args, **kwargs) -> MockResponseModel:
     country = kwargs.get("messages", [{}, {}])[1].get(
         "content", "What is the capital of _____?"

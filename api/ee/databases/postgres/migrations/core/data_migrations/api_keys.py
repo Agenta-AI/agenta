@@ -38,8 +38,8 @@ def update_api_key_to_make_use_of_project_id(session: Connection):
         TOTAL_MIGRATED = 0
         SKIPPED_RECORDS = 0
 
-        # Count total rows with user_id & workspace_id isnot NULL and project_id is NULL
-        stmt = (
+        # Count total rows with user_id & workspace_id isnot NULL & project_id is NULL
+        total_query = (
             select(func.count())
             .select_from(DeprecatedAPIKeyDB)
             .filter(
@@ -48,14 +48,14 @@ def update_api_key_to_make_use_of_project_id(session: Connection):
                 DeprecatedAPIKeyDB.project_id.is_(None),
             )
         )
-        result = session.execute(stmt).scalar()
+        result = session.execute(total_query).scalar()
         TOTAL_API_KEYS_WITH_USER_AND_WORKSPACE_ID = result if result is not None else 0
         print(
             f"Total rows in api_keys table with user_id and workspace_id not been NULL is {TOTAL_API_KEYS_WITH_USER_AND_WORKSPACE_ID}"
         )
 
         while True:
-            # Fetch a batch of api_keys with user_id & workspace_id not been NULL
+            # Fetch a batch of api_keys with user_id and workspace_id not been NULL
             records = session.execute(
                 select(DeprecatedAPIKeyDB)
                 .filter(
@@ -154,12 +154,12 @@ def update_api_key_to_make_use_of_project_id(session: Connection):
                 break
 
         # Count total rows with user_id and/or workspace_id been NULL
-        stmt = (
+        query = (
             select(func.count())
             .select_from(DeprecatedAPIKeyDB)
             .filter(DeprecatedAPIKeyDB.project_id.is_(None))
         )
-        result = session.execute(stmt).scalar()
+        result = session.execute(query).scalar()
         TOTAL_API_KEYS_WITH_NO_USER_AND_WORKSPACE_ID = (
             result if result is not None else 0
         )
@@ -191,7 +191,7 @@ def revert_api_key_to_make_use_of_workspace_id(session: Connection):
         SKIPPED_RECORDS = 0
 
         # Count total rows with created_by_id & project_id isnot NULL
-        stmt = (
+        total_query = (
             select(func.count())
             .select_from(DeprecatedAPIKeyDB)
             .filter(
@@ -200,7 +200,7 @@ def revert_api_key_to_make_use_of_workspace_id(session: Connection):
                 DeprecatedAPIKeyDB.workspace_id.is_(None),
             )
         )
-        result = session.execute(stmt).scalar()
+        result = session.execute(total_query).scalar()
         TOTAL_API_KEYS_WITH_USER_AND_PROJECT_ID = result if result is not None else 0
         print(
             f"Total rows in api_keys table with created_by_id and project_id not been NULL is {TOTAL_API_KEYS_WITH_USER_AND_PROJECT_ID}"
@@ -256,7 +256,7 @@ def revert_api_key_to_make_use_of_workspace_id(session: Connection):
             )
 
         # Count total rows with created_by_id and/or project_id been NULL
-        stmt = (
+        query = (
             select(func.count())
             .select_from(DeprecatedAPIKeyDB)
             .filter(
@@ -266,7 +266,7 @@ def revert_api_key_to_make_use_of_workspace_id(session: Connection):
                 ),
             )
         )
-        result = session.execute(stmt).scalar()
+        result = session.execute(query).scalar()
         TOTAL_API_KEYS_WITH_NO_USER_AND_PROJECT_ID = result if result is not None else 0
         print(
             f"Total rows in api_keys table with created_by_id and project_id been NULL is {TOTAL_API_KEYS_WITH_NO_USER_AND_PROJECT_ID}"

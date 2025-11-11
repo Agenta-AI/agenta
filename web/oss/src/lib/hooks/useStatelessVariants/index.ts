@@ -1,134 +1,79 @@
-/*
- * useStatelessVariants – Stateless hook that surfaces the variants bundle directly
- * from Jotai atoms (replaces the removed `useVariantsBundle`).
- */
-import {useQueryClient} from "@tanstack/react-query"
-import {getDefaultStore} from "jotai"
-import {useAtomValue} from "jotai/react"
+// @ts-nocheck
+import {useCallback, useMemo} from "react"
 
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
-import {projectIdAtom} from "@/oss/state/project/selectors/project"
-import {
-    projectScopedVariantsAtom,
-    projectVariantConfigQueryKey,
-    projectVariantReferenceCountAtom,
-} from "@/oss/state/projectVariantConfig"
-import {
-    appSchemaAtom,
-    appUriInfoAtom,
-    variantsAtom,
-    // centralized derived atoms
-    revisionMapAtom,
-    sortedEnhancedRevisionsAtom,
-    allVariantsLoadingAtom,
-    variantsLoadingAtom,
-    revisionsPendingAtom,
-    enhancedVariantsLoadableAtom,
-} from "@/oss/state/variant/atoms/fetcher"
+import Router from "next/router"
+import useSWR, {useSWRConfig, type Middleware} from "swr"
 
-export interface VariantsBundle {
-    variants: EnhancedVariant[]
-    revisionMap: Record<string, EnhancedVariant[]>
-    specMap: Record<string, unknown | undefined>
-    uriMap: Record<string, {runtimePrefix: string; routePath?: string} | undefined>
-    isLoading: boolean
-    refetch: () => Promise<void>
-    revisions: EnhancedVariant[]
+import {getAppValues, useAppsData} from "@/oss/contexts/app.context"
+import {DEFAULT_UUID, getCurrentProject} from "@/oss/contexts/project.context"
+import {Variant} from "@/oss/lib/Types"
+
+import appSchemaMiddleware from "./middlewares/appSchema"
+import type {
+    PlaygroundStateData,
+    UsePlaygroundStateOptions,
+    UsePlaygroundReturn,
+    VariantSelector,
+} from "./types"
+
+const getKey = (
+    appId: string | undefined = getAppValues().currentApp?.app_id,
+    projectId: string = getCurrentProject().projectId,
+) => {
+    return !!appId && !!projectId && projectId !== DEFAULT_UUID
+        ? `/api/apps/${appId}/variants?project_id=${projectId}&v=2`
+        : null
 }
 
-export interface UseStatelessVariantsOptions {
-    // When true, excludes OpenAPI/spec readiness from loading computation.
-    // Useful for flows (e.g., evaluation preview) that don't require the spec.
-    lightLoading?: boolean
+export const useGlobalVariantsRefetch = () => {
+    const {mutate} = useSWRConfig()
+    const key = useMemo(() => getKey(), [])
+    const refetchVariants = useCallback(async () => {
+        await mutate(key)
+    }, [])
+    return refetchVariants
 }
 
-// Use centralized derived atoms from fetcher (no local re-definition)
+const useStatelessVariants = <Selected = unknown>(
+    {
+        appId = (Router.query.app_id as string) || "",
+        projectId = getCurrentProject().projectId,
+        ...rest
+    }: Omit<UsePlaygroundStateOptions, "stateSelector" | "variantSelector"> & {
+        stateSelector?: (state: PlaygroundStateData) => Selected
+        variantSelector?: VariantSelector<Selected>
+    } = {
+        appId: (Router.query.app_id as string) || "",
+        projectId: getCurrentProject().projectId,
+    },
+    variants: Variant[],
+) => {
+    const {apps} = useAppsData()
+    const currentApp = apps.find((app) => app.app_id === appId)
+    /**
+     * Key for the SWR cache
+     */
+    const key = useMemo(() => getKey(appId, projectId), [appId, projectId])
 
-function useStatelessVariants(options: UseStatelessVariantsOptions = {}): VariantsBundle {
-    const {lightLoading = false} = options
-    const rootStore = getDefaultStore()
-    // Synthesize legacy revisionMap shape from normalized atoms for compatibility
-    const revisionMap = useAtomValue(revisionMapAtom, {store: rootStore})
-    const appSchema = useAtomValue(appSchemaAtom, {store: rootStore})
-    const appUriInfo = useAtomValue(appUriInfoAtom, {store: rootStore})
-    const heavyLoading = useAtomValue(allVariantsLoadingAtom, {store: rootStore})
-    const variantsLoading = useAtomValue(variantsLoadingAtom, {store: rootStore})
-    const revisionsPending = useAtomValue(revisionsPendingAtom, {store: rootStore})
-    const enhancedLoadable = useAtomValue(enhancedVariantsLoadableAtom, {store: rootStore})
+    const middlewares = useMemo(() => {
+        return [appSchemaMiddleware as Middleware]
+    }, [])
 
-    // Determine if variants query is enabled (same conditions as variantsQueryAtom)
-    const projectId = useAtomValue(projectIdAtom, {store: rootStore}) as string | undefined
-    const routerAppId = useAtomValue(routerAppIdAtom, {store: rootStore}) as
-        | string
-        | null
-        | undefined
-    const enabled = !!routerAppId && routerAppId !== null && !!projectId
-    const isProjectScope = !enabled
-    const projectReferenceCount = useAtomValue(projectVariantReferenceCountAtom, {
-        store: rootStore,
-    })
-    const projectScoped = useAtomValue(projectScopedVariantsAtom, {store: rootStore})
-
-    // If there are no variants and we're not actively loading variants, do not block on revisions
-    const noVariants = useAtomValue(variantsAtom, {store: rootStore}).length === 0
-    const effectiveRevisionsPending = noVariants && !variantsLoading ? false : revisionsPending
-
-    // Treat disabled query as not-loading for light mode
-    const variantsLoadingEff = enabled ? variantsLoading : false
-    const enhancedPendingEff = enabled ? enhancedLoadable.state !== "hasData" : false
-
-    const lightLoadingState = variantsLoadingEff || effectiveRevisionsPending || enhancedPendingEff
-
-    const refetch = useGlobalVariantsRefetch()
-    const projectRefetch = useProjectScopedVariantsRefetch()
-    const vars = useAtomValue(sortedEnhancedRevisionsAtom, {store: rootStore})
-
-    if (isProjectScope || projectReferenceCount > 0) {
-        return {
-            variants: projectScoped.variants,
-            revisionMap: projectScoped.revisionMap,
-            specMap: projectScoped.specMap,
-            uriMap: projectScoped.uriMap,
-            isLoading: projectScoped.isLoading,
-            revisions: projectScoped.revisions,
-            refetch: projectRefetch,
-        }
-    }
-
-    // Synthesize per-variant maps from app-level atoms to preserve API shape
-    const variantIds = Array.from(new Set(vars.map((v: EnhancedVariant) => v.variantId)))
-    const specMap: Record<string, unknown | undefined> = {}
-    const uriMap: Record<string, {runtimePrefix: string; routePath?: string} | undefined> = {}
-    variantIds.forEach((id) => {
-        specMap[id] = appSchema
-        uriMap[id] = appUriInfo
-            ? {
-                  runtimePrefix: appUriInfo.runtimePrefix,
-                  routePath: appUriInfo.routePath,
-              }
-            : undefined
+    const swr = useSWR<
+        PlaygroundStateData,
+        Error,
+        UsePlaygroundStateOptions<PlaygroundStateData, Selected>
+    >(key, {
+        use: middlewares,
+        projectId,
+        appId,
+        compare: undefined,
+        initialVariants: variants,
+        appType: currentApp?.app_type,
+        ...rest,
     })
 
-    return {
-        variants: vars,
-        revisionMap,
-        revisions: Object.values(revisionMap).flat(),
-        specMap,
-        uriMap,
-        isLoading: lightLoading ? lightLoadingState : heavyLoading,
-        refetch,
-    }
+    return swr as UsePlaygroundReturn<Selected>
 }
 
 export default useStatelessVariants
-
-export const useGlobalVariantsRefetch = () => {
-    const queryClient = useQueryClient()
-    return () => queryClient.invalidateQueries({queryKey: ["variants"]})
-}
-
-export const useProjectScopedVariantsRefetch = () => {
-    const queryClient = useQueryClient()
-    return () => queryClient.invalidateQueries({queryKey: [projectVariantConfigQueryKey]})
-}

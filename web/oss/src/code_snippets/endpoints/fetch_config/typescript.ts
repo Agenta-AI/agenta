@@ -1,12 +1,11 @@
 import {js as beautify} from "js-beautify"
-
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 export default function tsCode(appName: string, env_name: string, apiKey: string): string {
     const codeString = `import axios from 'axios';
 
 const getConfig = async (appName: string, environmentSlug: string) => {
-    const baseUrl = '${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/variants/configs/fetch';
+    const baseUrl = '${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/api/variants/configs/fetch';
 
     try {
         const response = await axios.post(baseUrl, {

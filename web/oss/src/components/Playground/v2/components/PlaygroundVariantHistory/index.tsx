@@ -1,11 +1,11 @@
-import {useMemo} from "react"
+import {useCallback} from "react"
 
 import {Menu} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
-import {variantsByIdAtom} from "@/oss/components/Playground/state/atoms"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
 import PlaygroundPromptToolsConfig from "../PlaygroundPromptToolsConfig"
 
@@ -14,12 +14,14 @@ import {useStyles} from "./styles"
 import {PlaygroundVariantHistoryProps} from "./types"
 
 const PlaygroundVariantHistory: React.FC<PlaygroundVariantHistoryProps> = ({variantId}) => {
-    const variants = useAtomValue(variantsByIdAtom)
-    const promptIds = useMemo(() => {
-        const variant = variants[variantId]
-        if (!variant) return []
-        return (variant?.prompts || [])?.map((prompt) => prompt.__id) ?? []
-    }, [variants, variantId])
+    const {promptIds = []} = usePlayground({
+        variantId,
+        hookId: "PlaygroundVariantHistory",
+        variantSelector: useCallback((variant: EnhancedVariant) => {
+            const promptIds = (variant?.prompts || [])?.map((prompt) => prompt.__id) ?? []
+            return {promptIds}
+        }, []),
+    })
     const classes = useStyles()
     const lintOfRevisions = ["2", "3", "5", "6", "7"]
     const selectedRevision = "5"

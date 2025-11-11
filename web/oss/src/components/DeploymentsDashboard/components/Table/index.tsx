@@ -2,20 +2,20 @@ import {useCallback, useMemo} from "react"
 
 import {CloudArrowUp} from "@phosphor-icons/react"
 import {Table, Typography} from "antd"
-import {useAtomValue} from "jotai"
 import Image from "next/image"
+import {useRouter} from "next/router"
 
 import EmptyComponent from "@/oss/components/EmptyComponent"
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useQuery, useQueryParam} from "@/oss/hooks/useQuery"
+import {useAppId} from "@/oss/hooks/useAppId"
+import {useQueryParam} from "@/oss/hooks/useQuery"
 import {DeploymentRevisions} from "@/oss/lib/Types"
-import {variantsLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
-import {DeploymentRevisionWithVariant} from "../../atoms"
+import {DeploymentRevisionWithVariant} from "../.."
 
 import {getColumns} from "./assets/getDeploymentColumns"
 
 interface DeploymentTableProps {
+    handleFetchRevisionConfig: (revisionId: string) => Promise<void>
     setSelectedRevisionRow: React.Dispatch<
         React.SetStateAction<DeploymentRevisionWithVariant | undefined>
     >
@@ -24,58 +24,49 @@ interface DeploymentTableProps {
     setSelectedVariantRevisionIdToRevert: React.Dispatch<React.SetStateAction<string>>
     envRevisions: DeploymentRevisions | undefined
     setIsSelectDeployVariantModalOpen: (value: React.SetStateAction<boolean>) => void
-    onOpenUseApi: () => void
-    isLoading?: boolean
+    setQueryVariant: (val: string) => void
 }
 
 const DeploymentTable = ({
-    revisions,
-    envRevisions,
-    isLoading,
+    handleFetchRevisionConfig,
     setSelectedRevisionRow,
     setIsRevertModalOpen,
+    revisions,
     setSelectedVariantRevisionIdToRevert,
+    envRevisions,
     setIsSelectDeployVariantModalOpen,
-    onOpenUseApi,
 }: DeploymentTableProps) => {
-    const [, updateQuery] = useQuery()
-    const {goToPlayground} = usePlaygroundNavigation()
-    const variantsLoading = useAtomValue(variantsLoadingAtom)
+    const [_, setQueryRevision] = useQueryParam("revisions")
+    const router = useRouter()
+    const appId = useAppId()
 
-    const handleAssignRevisionId = useCallback(
-        (record: DeploymentRevisionWithVariant) => {
-            const targetId = record.deployed_app_variant_revision ?? record.variant.id
-            if (targetId) {
-                updateQuery({revisionId: targetId, drawerType: "deployment"})
-            } else {
-                updateQuery({revisionId: undefined, drawerType: undefined})
-            }
-        },
-        [updateQuery],
-    )
+    const handleAssignRevisionId = useCallback((record: DeploymentRevisionWithVariant) => {
+        setQueryRevision(
+            JSON.stringify([record.deployed_app_variant_revision ?? record.variant.id]),
+        )
+    }, [])
 
     const initialColumns = useMemo(
         () =>
             getColumns({
+                handleFetchRevisionConfig,
                 setSelectedRevisionRow,
                 setIsRevertModalOpen,
                 setSelectedVariantRevisionIdToRevert,
                 handleAssignRevisionId,
                 envRevisions,
-                onOpenInPlayground: goToPlayground,
-                onOpenUseApi,
-                isVariantLoading: isLoading || variantsLoading,
+                router,
+                appId,
             }),
         [
+            handleFetchRevisionConfig,
             setSelectedRevisionRow,
             setIsRevertModalOpen,
             setSelectedVariantRevisionIdToRevert,
             revisions,
             envRevisions,
-            goToPlayground,
-            onOpenUseApi,
-            isLoading,
-            variantsLoading,
+            router,
+            appId,
         ],
     )
 
@@ -91,11 +82,11 @@ const DeploymentTable = ({
                 pageSize: 15,
                 showSizeChanger: true,
             }}
-            loading={isLoading}
             onRow={(record) => ({
                 className: "variant-table-row",
                 style: {cursor: "pointer"},
                 onClick: () => {
+                    handleFetchRevisionConfig(record.id)
                     setSelectedRevisionRow(record)
                     setSelectedVariantRevisionIdToRevert(record.deployed_app_variant_revision)
                     handleAssignRevisionId(record)

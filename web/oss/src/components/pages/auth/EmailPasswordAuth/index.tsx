@@ -3,19 +3,18 @@ import {useState} from "react"
 import {Button, Form, FormProps, Input} from "antd"
 import {signUp} from "supertokens-auth-react/recipe/emailpassword"
 
-import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
+import {useProjectData} from "@/oss/contexts/project.context"
 
 import ShowErrorMessage from "../assets/ShowErrorMessage"
 import {EmailPasswordAuthProps} from "../assets/types"
 
-const EmailPasswordAuth = ({
-    message,
-    setMessage,
-    authErrorMsg,
-    initialEmail,
-}: EmailPasswordAuthProps) => {
-    const {handleAuthSuccess} = usePostAuthRedirect()
-    const [form, setForm] = useState({email: initialEmail || "", password: ""})
+const EmailPasswordAuth = ({message, setMessage, authErrorMsg}: EmailPasswordAuthProps) => {
+    const {reset: resetProfileData} = useProfileData()
+    const {reset: resetOrgData} = useOrgData()
+    const {reset: resetProjectData} = useProjectData()
+    const [form, setForm] = useState({email: "", password: ""})
     const [isLoading, setIsLoading] = useState(false)
 
     const signUpClicked: FormProps<{email: string; password: string}>["onFinish"] = async (
@@ -46,12 +45,13 @@ const EmailPasswordAuth = ({
                     setMessage({message: res.error, type: "error"})
                 })
             } else {
-                setMessage({message: "Verification successful", type: "success"})
-                const {createdNewRecipeUser, user} = response as {
-                    createdNewRecipeUser?: boolean
-                    user?: {loginMethods?: unknown[]}
-                }
-                await handleAuthSuccess({createdNewRecipeUser, user})
+                resetProfileData()
+                resetOrgData()
+                resetProjectData()
+                setMessage({
+                    message: "Sign in successfully!",
+                    type: "success",
+                })
             }
         } catch (error) {
             authErrorMsg(error)
@@ -62,12 +62,7 @@ const EmailPasswordAuth = ({
 
     return (
         <div>
-            <Form
-                className="w-full flex flex-col gap-4"
-                layout="vertical"
-                onFinish={signUpClicked}
-                initialValues={{email: initialEmail}}
-            >
+            <Form className="w-full flex flex-col gap-4" layout="vertical" onFinish={signUpClicked}>
                 <Form.Item
                     name="email"
                     label="Email"

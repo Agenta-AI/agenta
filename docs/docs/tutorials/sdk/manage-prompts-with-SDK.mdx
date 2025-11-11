@@ -3,22 +3,17 @@ title: "Manage Prompts with SDK"
 ---
 
 import Image from "@theme/IdealImage";
-import GoogleColabButton from "@site/src/components/GoogleColabButton";
 
 You can manage prompts easily through Agenta's web UI. But sometimes you might want to do things programmatically instead of using the interface.
 
 In this tutorial, we'll use the Agenta SDK to create a new prompt, commit changes, deploy them to production, then fetch their configuration and use it to call the LLM.
-
-<GoogleColabButton notebookPath="examples/jupyter/prompt-management/manage-prompts-with-sdk-tutorial.ipynb">
-  Open in Google Colaboratory
-</GoogleColabButton>
 
 ## Tutorial Overview
 
 Before we begin, let's quickly review how Agenta versions prompts:
 
 Agenta follows a structure similar to **git** for prompt versioning. Instead of having one commit history, it uses **multiple branches (called variants)** where changes can be committed, and **environments** where these changes can be deployed (and used in your application). (You can read more about why we chose this approach [here](/concepts/concepts#motivation)).
-You can find more about how prompt versioning works in the [concepts page](/prompt-engineering/concepts).
+You can find more about how prompt versioning works in the [concepts page](/concepts/concepts).
 
 The workflow for deploying a change to production that we'll follow in this tutorial is:
 
@@ -44,21 +39,13 @@ ag.init()
 
 ## Creating a new prompt
 
+Each prompt in Agenta is a unique application. Currently, creating a prompt is only available in the web UI. To create a new prompt, click on "Create a new prompt" and select whether it's a chat or completion prompt. The name of the prompt is the slug we'll use for all operations below.
+
 We're going to create a new completion prompt called `topic-explainer`.
 
-
-```Python
-# Creates an empty application
-app = ag.AppManager.create(
-    app_slug="topic-explainer",
-    template_key="SERVICE:completion", # we define here the app type, choices are SERVICE:completion, SERVICE:chat, CUSTOM
-)
-```
-:::warning
-The app created until now is empty. You cannot use it from the UI yet. You need to create a variant and commit changes to it to be able to use it (next section).
-:::
-
 ## Creating a new variant
+
+[Todo: Image showing before and after. The new elements are added in different colors]
 
 Variants are similar to branches in **git**. Any change to the prompt must first be committed to a variant. Here, we'll create a new variant and make our first commit to it using the `VariantManager.create` method:
 

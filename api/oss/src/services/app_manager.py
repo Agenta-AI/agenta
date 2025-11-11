@@ -42,7 +42,7 @@ async def update_last_modified_by(
                 raise db_manager.NoResultFound(f"Variant with id {object_id} not found")
             return str(app_variant_db.app_id)
         elif object_type == "evaluation":
-            evaluation_db = await db_manager.fetch_evaluation_by_id(
+            evaluation_db = await db_manager_ee.fetch_evaluation_by_id(
                 project_id=project_id,
                 evaluation_id=object_id,
             )
