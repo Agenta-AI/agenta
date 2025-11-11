@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
-from oss.src.core.tracing.dtos import Filtering
+from oss.src.core.tracing.dtos import Filtering, Windowing
 from oss.src.core.shared.dtos import (
     Identifier,
     Slug,
@@ -13,7 +13,6 @@ from oss.src.core.shared.dtos import (
     Flags,
     Tags,
     Meta,
-    Windowing,
 )
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
 from oss.src.core.git.dtos import (

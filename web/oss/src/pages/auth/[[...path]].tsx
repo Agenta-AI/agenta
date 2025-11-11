@@ -36,7 +36,7 @@ const Auth = () => {
     }
 
     const token = firstString(router.query.token)
-    const organizationId = firstString(router.query.organization_id)
+    const orgId = firstString(router.query.org_id)
     const projectId = firstString(router.query.project_id)
     const workspaceId = firstString(router.query.workspace_id)
     const emailFromQuery = firstString(router.query.email)
@@ -49,22 +49,13 @@ const Auth = () => {
         if (isInvitedUser && Object.keys(invite).length === 0) {
             setInvite({
                 token,
-                organization_id: organizationId,
+                org_id: orgId,
                 project_id: projectId,
                 workspace_id: workspaceId,
                 email: emailFromQuery,
             })
         }
-    }, [
-        isInvitedUser,
-        invite,
-        setInvite,
-        token,
-        organizationId,
-        projectId,
-        workspaceId,
-        emailFromQuery,
-    ])
+    }, [isInvitedUser, invite, setInvite, token, orgId, projectId, workspaceId, emailFromQuery])
 
     const authErrorMsg = (error: any) => {
         if (error.isSuperTokensGeneralError === true) {
@@ -123,7 +114,7 @@ const Auth = () => {
                 )}
             >
                 <Image
-                    src="/assets/Agenta-logo-full-light.png"
+                    src="/assets/light-complete-transparent-CROPPED.png"
                     alt="agenta-ai"
                     width={114}
                     height={40}

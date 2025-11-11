@@ -14,9 +14,9 @@ export const getProjectValues = () => {
     const store = getDefaultStore()
     const queryClient = store.get(queryClientAtom)
     const {selectedOrg} = getOrgValues()
-    const organizationId = selectedOrg?.id
+    const orgId = selectedOrg?.id
 
-    const queryKey = ["projects", organizationId]
+    const queryKey = ["projects", orgId]
     const queryData = queryClient.getQueryData<ProjectsResponse[]>(queryKey)
     const queryState = queryClient.getQueryState(queryKey)
 

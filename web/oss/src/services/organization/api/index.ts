@@ -41,17 +41,13 @@ export const fetchAllOrgsList = async (): Promise<Org[]> => {
  * Fetch single organization details using modern fetchJson
  * Replaces the old axios-based fetchSingleOrg
  */
-export const fetchSingleOrg = async ({
-    organizationId,
-}: {
-    organizationId: string
-}): Promise<OrgDetails | null> => {
+export const fetchSingleOrg = async ({orgId}: {orgId: string}): Promise<OrgDetails | null> => {
     const base = getBaseUrl()
-    const url = new URL(`api/organizations/${organizationId}`, base)
+    const url = new URL(`api/organizations/${orgId}`, base)
 
     console.log("🔍 Single organization fetcher debug:", {
         base,
-        organizationId,
+        orgId,
         url: url.toString(),
     })
 
@@ -59,7 +55,7 @@ export const fetchSingleOrg = async ({
         console.log("🚀 Calling fetchJson with URL:", url.toString())
         const data = await fetchJson(url)
         console.log("✅ Single organization fetcher success:", {
-            organizationId,
+            orgId,
             name: data?.name,
         })
         return data
@@ -76,17 +72,9 @@ export const fetchSingleOrg = async ({
     }
 }
 
-export const updateOrganization = async (
-    organizationId: string,
-    name: string,
-    ignoreAxiosError = false,
-) => {
-    const response = await axios.put(
-        `${getAgentaApiUrl()}/organizations/${organizationId}/`,
-        {name},
-        {
-            _ignoreError: ignoreAxiosError,
-        } as any,
-    )
+export const updateOrganization = async (orgId: string, name: string, ignoreAxiosError = false) => {
+    const response = await axios.put(`${getAgentaApiUrl()}/organizations/${orgId}/`, {name}, {
+        _ignoreError: ignoreAxiosError,
+    } as any)
     return response.data
 }

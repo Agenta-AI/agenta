@@ -1,6 +1,6 @@
+import {current} from "immer"
 import {atom} from "jotai"
 
-import {createMessageFromSchema} from "@/oss/components/Playground/hooks/usePlayground/assets/messageHelpers"
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms/app"
 import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
@@ -13,23 +13,14 @@ import {
     inputRowVariableValueCacheAtom,
     rowIdIndexAtom,
     chatTurnIdsAtom,
-    chatSessionsByIdAtom,
-    chatSessionIdsAtom,
-    chatTurnsByIdStorageAtom,
-    chatTurnsByIdCacheAtom,
-    allChatTurnIdsMapAtom,
-    chatTurnIdsByBaselineAtom,
-    messageSchemaMetadataAtom,
+    chatTurnsByIdFamilyAtom,
 } from "@/oss/state/generation/entities"
 import {
     addChatTurnAtom,
     attachAssistantToLastTurnAtom,
     setLastUserContentAtom,
 } from "@/oss/state/newPlayground/chat/actions"
-import {
-    extractAllMessagesFromRows,
-    normalizeMessagesFromField,
-} from "@/oss/state/newPlayground/chat/parsers"
+import {extractAllMessagesFromRows} from "@/oss/state/newPlayground/chat/parsers"
 import {buildUserMessage} from "@/oss/state/newPlayground/helpers/messageFactory"
 
 import {
@@ -149,36 +140,6 @@ const normalizeMessageContent = (raw: any): string | NormalizedContentPart[] => 
     return ""
 }
 
-const toolContentToString = (raw: any): string => {
-    const normalized = normalizeMessageContent(raw)
-    if (Array.isArray(normalized)) {
-        if (normalized.length === 0) return ""
-        return normalized
-            .map((part) => {
-                if (!part) return ""
-                if (part.type === "text") return part.text
-                if (part.type === "image_url") {
-                    try {
-                        return JSON.stringify(part.image_url)
-                    } catch {
-                        return String(part.image_url)
-                    }
-                }
-                return ""
-            })
-            .filter(Boolean)
-            .join("\n")
-    }
-    if (typeof normalized === "string") return normalized
-    if (raw == null) return ""
-    if (typeof raw === "string") return raw
-    try {
-        return JSON.stringify(raw, null, 2)
-    } catch {
-        return String(raw)
-    }
-}
-
 /**
  * Load testset rows into normalized store only.
  * - Completion: seeds inputRowsByIdAtom with variables for each displayed revision.
@@ -207,27 +168,10 @@ export const loadTestsetNormalizedMutationAtom = atom(
         const baseline = displayedRevIds?.[0]
         const targetRevisionIds =
             displayedRevIds && displayedRevIds.length > 0 ? displayedRevIds : [baseline || ""]
-        const sessionId = `session-${baseline || targetRevisionIds[0] || "default"}`
 
         // 1) Variables: load for chat vs completion appropriately
         const dataset = Array.isArray(testsetData) ? testsetData : []
         if (isChatVariant) {
-            // Reset chat caches to avoid stale turns/sessions from previous state
-            set(chatTurnIdsAtom, [])
-            set(chatTurnsByIdStorageAtom, {})
-            set(chatTurnsByIdCacheAtom, {})
-            set(allChatTurnIdsMapAtom, {})
-            set(chatTurnIdsByBaselineAtom, {})
-            set(chatSessionIdsAtom, [sessionId])
-            set(chatSessionsByIdAtom, {
-                [sessionId]: {
-                    id: sessionId,
-                    variables: [],
-                    turnIds: [],
-                    meta: {},
-                },
-            })
-
             // Chat: update the single default row without resetting the input rows map
             const rowData = (dataset[0] || {}) as Record<string, any>
             const newRowId = `row-__default__`
@@ -310,223 +254,75 @@ export const loadTestsetNormalizedMutationAtom = atom(
         }
 
         // 2) Messages: create chat turns from messages arrays in rows
-        const datasetMessages = testsetData.map((row) => normalizeMessagesFromField(row.messages))
-        const allMessages = datasetMessages.flat()
+        const allMessages = extractAllMessagesFromRows(testsetData, "messages")
         if (Array.isArray(allMessages) && allMessages.length > 0) {
-            const messageSchema = get(messageSchemaMetadataAtom) as any
-            const revisionIds = targetRevisionIds.filter(
-                (rev) => typeof rev === "string" && rev.length > 0,
-            )
-            if (revisionIds.length === 0) {
-                if (baseline) revisionIds.push(baseline)
-                else if (targetRevisionIds[0]) revisionIds.push(targetRevisionIds[0])
-                else revisionIds.push("__default__")
-            }
+            // Clear existing chat rows before loading from testset
+            set(chatTurnIdsAtom, [])
 
-            const newTurnIds: string[] = []
-            const newTurnsById: Record<string, any> = {}
+            const constructTurns = (messages: any[]) => {
+                const firstUserMessage = messages.find((m) => m.role === "user")
 
-            for (const rowMessages of datasetMessages) {
-                if (!Array.isArray(rowMessages) || rowMessages.length === 0) continue
-
-                let cursor = 0
-                while (cursor < rowMessages.length) {
-                    let userIndex = -1
-                    for (let idx = cursor; idx < rowMessages.length; idx++) {
-                        if (rowMessages[idx]?.role === "user") {
-                            userIndex = idx
-                            break
-                        }
-                    }
-                    if (userIndex === -1) break
-
-                    const userMessage = rowMessages[userIndex]
-                    let nextUserIndex = -1
-                    for (let idx = userIndex + 1; idx < rowMessages.length; idx++) {
-                        if (rowMessages[idx]?.role === "user") {
-                            nextUserIndex = idx
-                            break
-                        }
-                    }
-
-                    const turnMessages =
-                        nextUserIndex === -1
-                            ? rowMessages.slice(userIndex + 1)
-                            : rowMessages.slice(userIndex + 1, nextUserIndex)
-                    cursor = nextUserIndex === -1 ? rowMessages.length : nextUserIndex
+                if (firstUserMessage) {
+                    const messagesAfterUserMessage = messages.slice(
+                        messages.indexOf(firstUserMessage) + 1,
+                    )
+                    const nextUserMessage = messagesAfterUserMessage.find((m) => m.role === "user")
 
                     const logicalId = `lt-${generateId()}`
-                    newTurnIds.push(logicalId)
+                    set(chatTurnIdsAtom, (prev) => [...(prev || []), logicalId])
+                    set(chatTurnsByIdFamilyAtom(logicalId), (draft: any) => {
+                        if (!draft) return
+                        const schema = draft.userMessage?.__metadata
+                            ? getMetadataLazy(draft.userMessage.__metadata as any)
+                            : undefined
 
-                    const userContent = normalizeMessageContent(userMessage.content)
-                    const assistantSource = Array.isArray(turnMessages)
-                        ? [...turnMessages]
-                              .reverse()
-                              .find((m) => m && m.role !== "user" && m.role !== "tool")
-                        : null
-                    const assistantContent = assistantSource
-                        ? normalizeMessageContent(assistantSource.content)
-                        : ""
-                    let finalAssistantContent = assistantContent
+                        const userContent = normalizeMessageContent(firstUserMessage.content)
 
-                    if (
-                        (!finalAssistantContent ||
-                            (Array.isArray(finalAssistantContent) &&
-                                finalAssistantContent.length === 0)) &&
-                        assistantSource &&
-                        Array.isArray(assistantSource.tool_calls) &&
-                        assistantSource.tool_calls.length > 0
-                    ) {
-                        const firstCall = assistantSource.tool_calls[0]
-                        const argValue =
-                            firstCall?.function?.arguments ??
-                            firstCall?.arguments ??
-                            firstCall?.function?.args
-
-                        if (typeof argValue === "string" && argValue.trim().length > 0) {
-                            finalAssistantContent = argValue
-                        } else if (argValue != null) {
-                            try {
-                                finalAssistantContent = JSON.stringify(argValue, null, 2)
-                            } catch {
-                                finalAssistantContent = String(argValue)
-                            }
-                        }
-                    }
-
-                    const toolMessagesForTurn = Array.isArray(turnMessages)
-                        ? turnMessages.filter((m) => m && m.role === "tool")
-                        : []
-
-                    const userNode = buildUserMessage(
-                        messageSchema as any,
-                        {
-                            role: "user",
+                        draft.userMessage = buildUserMessage(schema as any, {
                             content: userContent,
-                        } as any,
-                    )
+                            role: "user",
+                        })
 
-                    const assistantByRevision: Record<string, any> = {}
-                    const toolByRevision: Record<string, any[] | null> = {}
+                        const turnMessages = messagesAfterUserMessage
+                            ? messagesAfterUserMessage.slice(
+                                  0,
+                                  messagesAfterUserMessage.indexOf(nextUserMessage),
+                              )
+                            : messagesAfterUserMessage
 
-                    const assistantNode = buildUserMessage(
-                        messageSchema as any,
-                        {
-                            role: "assistant",
-                            content: finalAssistantContent,
-                        } as any,
-                    )
+                        // Choose the last non-user message between user turns as assistant content
+                        const assistantSource = Array.isArray(turnMessages)
+                            ? [...turnMessages].reverse().find((m) => m && m.role !== "user")
+                            : null
+                        const assistantContent = assistantSource
+                            ? normalizeMessageContent(assistantSource.content)
+                            : ""
 
-                    if (assistantSource && Array.isArray((assistantSource as any).tool_calls)) {
-                        const toolCallsArray = (assistantSource as any).tool_calls
-                        ;(assistantNode as any).tool_calls = toolCallsArray
-                        ;(assistantNode as any).toolCalls = {value: toolCallsArray}
-                    }
+                        if (!draft.assistantMessageByRevision) draft.assistantMessageByRevision = {}
 
-                    for (const revId of revisionIds) {
-                        assistantByRevision[revId] = assistantNode
-
-                        if (toolMessagesForTurn.length > 0) {
-                            toolByRevision[revId] = toolMessagesForTurn.map(
-                                (toolMsg: any, idx: number) => {
-                                    const contentValue = toolContentToString(toolMsg?.content)
-                                    const toolName =
-                                        asString(toolMsg?.name) ??
-                                        asString(toolMsg?.tool_name) ??
-                                        asString(toolMsg?.toolName) ??
-                                        asString(toolMsg?.function?.name)
-                                    const toolCallId =
-                                        asString(toolMsg?.toolCallId) ??
-                                        asString(toolMsg?.tool_call_id) ??
-                                        asString(toolMsg?.toolCallID) ??
-                                        asString(toolMsg?.id) ??
-                                        asString(toolMsg?.function_call?.id)
-
-                                    const buildFallbackNode = () => ({
-                                        __id: `tool-${generateId()}`,
-                                        role: {__id: `role-${generateId()}`, value: "tool"},
-                                        content: {
-                                            __id: `content-${generateId()}`,
-                                            value: contentValue,
-                                        },
-                                        ...(toolName
-                                            ? {
-                                                  name: {
-                                                      __id: `name-${generateId()}`,
-                                                      value: toolName,
-                                                  },
-                                              }
-                                            : {}),
-                                        toolCallId: {
-                                            __id: `toolCallId-${generateId()}`,
-                                            value: toolCallId ?? "",
-                                        },
-                                        tool_call_id: toolCallId ?? "",
-                                    })
-
-                                    if (messageSchema) {
-                                        const node = createMessageFromSchema(messageSchema as any, {
-                                            role: "tool",
-                                            name: toolName ?? `tool_${idx + 1}`,
-                                            toolCallId: toolCallId,
-                                            content: contentValue,
-                                        })
-
-                                        const existing = (node as any)?.toolCallId
-                                        if (existing && typeof existing === "object") {
-                                            if (
-                                                existing.content &&
-                                                typeof existing.content === "object"
-                                            ) {
-                                                existing.content.value = toolCallId ?? ""
-                                            }
-                                            existing.value = toolCallId ?? ""
-                                        } else {
-                                            ;(node as any).toolCallId = {
-                                                __id: `toolCallId-${generateId()}`,
-                                                value: toolCallId ?? "",
-                                            }
-                                        }
-
-                                        ;(node as any).tool_call_id = toolCallId ?? ""
-
-                                        return node
-                                    }
-
-                                    return buildFallbackNode()
-                                },
+                        for (const revId of targetRevisionIds) {
+                            const assistantMessage = buildUserMessage(
+                                schema as any,
+                                {
+                                    role: "assistant",
+                                    content: assistantContent,
+                                } as any,
                             )
+                            // Append the same assistant message for every displayed revision in this row
+                            draft.assistantMessageByRevision[revId] = assistantMessage
                         }
-                    }
+                    })
 
-                    const turnEntry: any = {
-                        id: logicalId,
-                        sessionId,
-                        userMessage: userNode,
-                        assistantMessageByRevision: assistantByRevision,
-                        meta: {},
+                    if (nextUserMessage) {
+                        const nextMessages = messagesAfterUserMessage.slice(
+                            messagesAfterUserMessage.indexOf(nextUserMessage),
+                        )
+                        constructTurns(nextMessages)
                     }
-
-                    if (Object.keys(toolByRevision).length > 0) {
-                        turnEntry.toolResponsesByRevision = toolByRevision
-                    }
-
-                    newTurnsById[logicalId] = turnEntry
                 }
             }
 
-            set(chatTurnsByIdStorageAtom, newTurnsById)
-            set(chatTurnsByIdCacheAtom, {})
-            set(chatTurnIdsAtom, newTurnIds)
-            set(chatSessionsByIdAtom, {
-                [sessionId]: {
-                    id: sessionId,
-                    variables: [],
-                    turnIds: newTurnIds,
-                    meta: {},
-                },
-            })
-            set(chatSessionIdsAtom, [sessionId])
+            constructTurns(allMessages)
         }
     },
 )

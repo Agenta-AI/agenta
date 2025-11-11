@@ -383,7 +383,7 @@ export default function RoadmapPage() {
 
                 <SectionHeader>Last Shipped</SectionHeader>
                 <div className={styles.sectionList}>
-                    {shippedFeatures.slice(0, 7).map((f: ShippedFeature) => (
+                    {shippedFeatures.map((f: ShippedFeature) => (
                         <FeatureCardClickable
                             key={f.id}
                             title={f.title}

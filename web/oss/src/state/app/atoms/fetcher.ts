@@ -2,8 +2,6 @@ import {atom} from "jotai"
 import {atomFamily, atomWithStorage} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {ListAppsItem, User} from "@/oss/lib/Types"
 import {fetchAppContainerURL} from "@/oss/services/api"
 import {fetchAllApps} from "@/oss/services/app"
@@ -66,7 +64,7 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
     const user = get(userAtom) as User | null
     const isProj = !!projectId
     const jwtReady = get(jwtReadyAtom).data ?? false
-    const organizationId = get(selectedOrgIdAtom)
+    const orgId = get(selectedOrgIdAtom)
     const activeInvite = get(activeInviteAtom)
     const enabled =
         profileState.isSuccess &&
@@ -74,14 +72,14 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
         !!user?.id &&
         isProj &&
         !!projectId &&
-        !!organizationId &&
+        !!orgId &&
         !activeInvite
 
     return {
         queryKey: ["apps", projectId],
         queryFn: async () => {
             const data = await fetchAllApps()
-            return data.filter((app) => app.app_type !== "custom (sdk)")
+            return data
         },
         staleTime: 1000 * 60, // 1 minute
         refetchOnWindowFocus: false,
@@ -121,28 +119,6 @@ export const uriQueryAtomFamily = atomFamily((params: {appId: string; variantId?
                 }
                 return failureCount < 3
             },
-        }
-    }),
-)
-
-export const appDetailQueryAtomFamily = atomFamily((appId: string | null) =>
-    atomWithQuery<ListAppsItem | null>((get) => {
-        const projectId = get(projectIdAtom)
-
-        return {
-            queryKey: ["app", appId, projectId],
-            queryFn: async () => {
-                if (!appId) return null
-                const {data} = await axios.get(
-                    `${getAgentaApiUrl()}/apps/${encodeURIComponent(appId)}?project_id=${projectId}`,
-                )
-                return data as ListAppsItem
-            },
-            staleTime: 1000 * 60,
-            refetchOnWindowFocus: false,
-            refetchOnReconnect: false,
-            refetchOnMount: false,
-            enabled: !!projectId && !!appId,
         }
     }),
 )

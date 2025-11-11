@@ -68,7 +68,11 @@ const createApp = async ({templateKey, appName}: {appName: string; templateKey: 
     const {selectedOrg} = getOrgValues()
     const {project, projectId} = getProjectValues()
     // Prefer selectedOrg, fallback to current project's org/workspace when available
-    const organization_id = (selectedOrg as any)?.id || (project as any)?.organization_id || null
+    const organization_id =
+        (selectedOrg as any)?.id ||
+        (project as any)?.organization_id ||
+        (project as any)?.org_id ||
+        null
     const workspace_id =
         (selectedOrg as any)?.default_workspace?.id || (project as any)?.workspace_id || null
     const url = new URL(`${getAgentaApiUrl()}/apps?project_id=${projectId}`)

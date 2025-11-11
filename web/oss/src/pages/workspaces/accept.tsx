@@ -35,21 +35,21 @@ const Accept: FC = () => {
           ? {
                 token: inviteFromState.token,
                 email: inviteFromState.email,
-                organization_id: inviteFromState.organization_id,
+                org_id: inviteFromState.org_id,
                 workspace_id: inviteFromState.workspace_id,
                 project_id: inviteFromState.project_id,
                 survey: inviteFromState.survey,
             }
           : invite
     const token = firstString(source?.token) as string | undefined
-    const organizationId = firstString(source?.organization_id) as string | undefined
+    const orgId = firstString(source?.org_id) as string | undefined
     const projectId = firstString(source?.project_id) as string | undefined
     const workspaceId = firstString(source?.workspace_id) as string | undefined
     const email = firstString(source?.email) as string | undefined
     const isSurvey = Boolean(router.query.survey)
 
     const onAcceptInvite = async () => {
-        if (!organizationId || !token) return
+        if (!orgId || !token) return
         if (processedTokens.has(token)) return
 
         if (!accept.current) {
@@ -74,7 +74,7 @@ const Accept: FC = () => {
                     await acceptWorkspaceInvite(
                         {
                             token,
-                            organizationId,
+                            orgId,
                             workspaceId,
                             projectId,
                             email,
@@ -87,8 +87,8 @@ const Accept: FC = () => {
                     await refetchOrganization()
                     await refetchProject()
 
-                    const targetWorkspace = workspaceId || organizationId
-                    cacheWorkspaceOrgPair(targetWorkspace, organizationId)
+                    const targetWorkspace = workspaceId || orgId
+                    cacheWorkspaceOrgPair(targetWorkspace, orgId)
                     store.set(activeInviteAtom, null)
                     removeInvite()
                     if (isSurvey) {
@@ -112,8 +112,8 @@ const Accept: FC = () => {
                 } catch (error) {
                     if (error?.response?.status === 409) {
                         message.error("You're already a member of this workspace")
-                        const targetWorkspace = workspaceId || organizationId
-                        cacheWorkspaceOrgPair(targetWorkspace, organizationId)
+                        const targetWorkspace = workspaceId || orgId
+                        cacheWorkspaceOrgPair(targetWorkspace, orgId)
                         store.set(activeInviteAtom, null)
                         removeInvite()
 
@@ -154,7 +154,7 @@ const Accept: FC = () => {
 
                 if (alreadyMember) {
                     message.info("You are already a member of this workspace")
-                    cacheWorkspaceOrgPair(workspaceId || organizationId, organizationId)
+                    cacheWorkspaceOrgPair(workspaceId || orgId, orgId)
                 } else {
                     console.error("[invite] accept failed", error)
                     message.error(detailMessage)
@@ -163,11 +163,11 @@ const Accept: FC = () => {
                 store.set(activeInviteAtom, null)
                 removeInvite()
                 if (isSurvey) {
-                    const redirect = encodeURIComponent(`/w/${workspaceId || organizationId || ""}`)
+                    const redirect = encodeURIComponent(`/w/${workspaceId || orgId || ""}`)
                     await router.replace(`/post-signup?redirect=${redirect}`)
-                } else if (workspaceId || organizationId) {
+                } else if (workspaceId || orgId) {
                     const nextPath = buildPostLoginPath({
-                        workspaceId: workspaceId || organizationId || null,
+                        workspaceId: workspaceId || orgId || null,
                         projectId: null,
                     })
                     await router.replace(nextPath)
@@ -180,8 +180,8 @@ const Accept: FC = () => {
 
     useEffect(() => {
         onAcceptInvite()
-        // We only need to react to organizationId/token presence; jwt readiness awaited inside
-    }, [organizationId, token])
+        // We only need to react to orgId/token presence; jwt readiness awaited inside
+    }, [orgId, token])
 
     return <ContentSpinner />
 }

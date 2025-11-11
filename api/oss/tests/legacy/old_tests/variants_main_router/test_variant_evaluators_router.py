@@ -9,7 +9,7 @@ from sqlalchemy.orm import joinedload
 from oss.src.models.api.evaluation_model import EvaluationStatusEnum
 from oss.src.models.db_models import (
     AppDB,
-    TestsetDB,
+    TestSetDB,
     AppVariantDB,
     EvaluationDB,
     DeploymentDB,
@@ -200,7 +200,7 @@ async def create_evaluation_with_evaluator(evaluator_config_name):
         app_variant = app_variant_result.scalars().first()
 
         testset_result = await session.execute(
-            select(TestsetDB).filter_by(project_id=app.project_id)
+            select(TestSetDB).filter_by(project_id=app.project_id)
         )
         testset = testset_result.scalars().first()
 
@@ -267,7 +267,7 @@ async def create_evaluation_with_evaluator(evaluator_config_name):
 #         app_variant = app_variant_result.scalars().first()
 
 #         testset_result = await session.execute(
-#             select(TestsetDB).filter_by(project_id=app.project_id)
+#             select(TestSetDB).filter_by(project_id=app.project_id)
 #         )
 #         testset = testset_result.scalars().first()
 

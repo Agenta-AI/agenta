@@ -1,5 +1,5 @@
 import React from "react"
-import {memo, useCallback, useEffect, useRef} from "react"
+import {memo, useCallback, useRef} from "react"
 
 import {Typography, Button, Splitter} from "antd"
 import clsx from "clsx"
@@ -74,26 +74,6 @@ const PlaygroundMainView = ({className, isLoading = false, ...divProps}: MainLay
     const {setConfigPanelRef, setGenerationPanelRef} = usePlaygroundScrollSync({
         enabled: isComparisonView,
     })
-
-    useEffect(() => {
-        if (process.env.NODE_ENV !== "production") {
-            console.info("[PlaygroundMainView] state", {
-                displayedVariants,
-                isComparisonView,
-                shouldShowVariantConfigSkeleton,
-                shouldShowGenerationSkeleton,
-                appStatus,
-                appStatusLoading,
-            })
-        }
-    }, [
-        displayedVariants,
-        isComparisonView,
-        shouldShowVariantConfigSkeleton,
-        shouldShowGenerationSkeleton,
-        appStatus,
-        appStatusLoading,
-    ])
 
     const handleScroll = useCallback(
         (index: number) => {

@@ -14,9 +14,9 @@ import {
     Rocket,
     CloudArrowUp,
     ChatCircle,
-    Gauge,
 } from "@phosphor-icons/react"
 
+import {useAppId} from "@/oss/hooks/useAppId"
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
@@ -27,6 +27,7 @@ import {useOrgData} from "@/oss/state/org"
 import {SidebarConfig} from "../../types"
 
 export const useSidebarConfig = () => {
+    const appId = useAppId()
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
     const {selectedOrg} = useOrgData()
@@ -41,7 +42,7 @@ export const useSidebarConfig = () => {
         },
         {
             key: "app-testsets-link",
-            title: "Testsets",
+            title: "Test Sets",
             link: `${projectURL}/testsets`,
             icon: <DatabaseOutlined size={16} />,
         },
@@ -52,17 +53,9 @@ export const useSidebarConfig = () => {
             icon: <ChartLineUp size={16} />,
         },
         {
-            key: "project-evaluators-link",
-            title: "Evaluators",
-            link: `${projectURL}/evaluators`,
-            // isHidden: !isDemo(),
-            icon: <Gauge size={16} />,
-        },
-        {
             key: "project-evaluations-link",
             title: "Evaluations",
             link: `${projectURL}/evaluations`,
-            // isHidden: !isDemo(),
             icon: <ChartDonut size={16} />,
         },
         {
@@ -76,41 +69,41 @@ export const useSidebarConfig = () => {
             title: "Overview",
             link: `${appURL || recentlyVisitedAppURL}/overview`,
             icon: <Desktop size={16} />,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-playground-link",
             title: "Playground",
             link: `${appURL || recentlyVisitedAppURL}/playground`,
             icon: <Rocket size={16} />,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !appId && !recentlyVisitedAppId,
         },
         {
             key: "app-variants-link",
             title: "Registry",
             link: `${appURL || recentlyVisitedAppURL}/variants`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !appId && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
         },
         {
             key: "app-evaluations-link",
             title: "Evaluations",
             link: `${appURL || recentlyVisitedAppURL}/evaluations`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !appId && !recentlyVisitedAppId,
             icon: <ChartDonut size={16} />,
         },
         {
             key: "app-traces-link",
             title: "Traces",
             icon: <TreeView size={16} />,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !appId && !recentlyVisitedAppId,
             link: `${appURL || recentlyVisitedAppURL}/traces`,
         },
         {
             key: "app-deployments-link",
             title: "Deployments",
             link: `${appURL || recentlyVisitedAppURL}/deployments`,
-            isHidden: !currentApp && !recentlyVisitedAppId,
+            isHidden: !appId && !recentlyVisitedAppId,
             icon: <CloudArrowUp size={16} />,
         },
         {

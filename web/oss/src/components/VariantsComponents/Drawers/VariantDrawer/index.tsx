@@ -4,7 +4,7 @@ import {useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import {useAppState, useQueryParamState} from "@/oss/state/appState"
+import {useAppNavigation, useAppState, useQueryParamState} from "@/oss/state/appState"
 import {clearVariantQueryParam} from "@/oss/state/url/test"
 
 import DeploymentDrawerTitle from "./assets/DeploymentDrawerTitle"
@@ -27,6 +27,7 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
     const variants = propsVariants ?? defaultVariants
     const [queryVariant] = useQueryParamState("revisionId")
     const appState = useAppState()
+    const navigation = useAppNavigation()
     const rawQueryVariant = useMemo(() => {
         const legacyValue = appState.query?.revisions as any
         return queryVariant ?? legacyValue
@@ -92,10 +93,6 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
         return EMPTY_VARIANT_IDS
     }, [appState.pathname, rawQueryVariant])
 
-    const {width: incomingWidth, ...restProps} = props
-    const initialWidth = incomingWidth ?? 1100
-    const [drawerWidth, setDrawerWidth] = useState(initialWidth)
-
     const onClose = useCallback(() => {
         props.onClose?.({} as any)
     }, [props.onClose])
@@ -119,15 +116,11 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
         setShowOriginal(false)
     }, [selectedVariantId])
 
-    const toggleWidth = useCallback(() => {
-        setDrawerWidth((width) => (width === initialWidth ? 1920 : initialWidth))
-    }, [initialWidth])
-
     return (
         <EnhancedDrawer
-            {...restProps}
+            {...props}
             closeIcon={null}
-            width={drawerWidth}
+            width={1100}
             mask={false}
             onClose={onClose}
             afterOpenChange={handleAfterOpenChange}
@@ -140,16 +133,12 @@ const VariantDrawer = ({variants: propsVariants, type, revert, ...props}: Varian
                         variantIds={routerRevisions?.length ? routerRevisions : undefined}
                         variants={variants}
                         viewAs={viewAs}
-                        onToggleWidth={toggleWidth}
-                        isExpanded={drawerWidth !== initialWidth}
                     />
                 ) : (
                     <DeploymentDrawerTitle
                         variantId={selectedVariantId}
                         onClose={onClose}
                         revert={revert}
-                        onToggleWidth={toggleWidth}
-                        isExpanded={drawerWidth !== initialWidth}
                     />
                 )
             }

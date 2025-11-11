@@ -128,19 +128,8 @@ export const runChatTurnAtom = atom(
         set,
         params: {turnId: string; variantId?: string; revisions?: string[]; messageId?: string},
     ) => {
-        const {turnId, variantId, revisions, messageId} = params
+        let {turnId, variantId, revisions, messageId} = params
         const displayed = revisions ?? (get(displayedVariantsAtom) || [])
-
-        const ids = (get(chatTurnIdsAtom) || []) as string[]
-        const idx = ids.indexOf(turnId)
-        const isLast = idx >= 0 && idx === ids.length - 1
-        if (!isLast && messageId) {
-            set(chatTurnIdsAtom, (prev) => {
-                const list = prev || []
-                const i = list.indexOf(turnId)
-                return i >= 0 ? list.slice(0, i + 1) : list
-            })
-        }
 
         if (variantId) {
             const rowId = turnId
@@ -175,10 +164,26 @@ export const runChatTurnAtom = atom(
 // Runnable means the user message has non-empty text or an image_url with a url
 export const runAllChatAtom = atom(null, (get, set) => {
     const turnIds = (get(chatTurnIdsAtom) || []) as string[]
+    const turnsById = (get(chatTurnsByIdAtom) || {}) as Record<string, any>
     if (!Array.isArray(turnIds) || turnIds.length === 0) return
 
-    // Always target the last logical turn id.
-    const targetId = turnIds[turnIds.length - 1]
+    // Simple check: non-empty user message (string) or any array content
+    const hasUser = (val: any) => {
+        if (typeof val === "string") return val.trim().length > 0
+        if (Array.isArray(val)) return val.length > 0
+        return false
+    }
+
+    let targetId: string | undefined
+    for (let i = turnIds.length - 1; i >= 0; i--) {
+        const rowId = turnIds[i]
+        const turn = (turnsById as any)[rowId]
+        const val = turn?.userMessage
+        if (val) {
+            targetId = rowId
+            break
+        }
+    }
     if (!targetId) return
     set(runChatTurnAtom, {turnId: targetId})
 })

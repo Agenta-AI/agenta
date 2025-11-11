@@ -4,11 +4,7 @@ import {Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
-import {
-    getMetadataLazy,
-    metadataSelectorFamily,
-    metadataAtom,
-} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {getEnhancedRevisionById} from "@/oss/state/variant/atoms/fetcher"
@@ -44,10 +40,7 @@ const PlaygroundVariantPropertyControl = ({
     ...rest
 }: PlaygroundVariantPropertyControlProps): React.ReactElement | null => {
     // Get the actual variant ID
-    const actualVariantId = useMemo(
-        () => (typeof variantId === "object" ? (variantId as any).id : variantId),
-        [variantId],
-    )
+    const actualVariantId = typeof variantId === "object" ? (variantId as any).id : variantId
 
     // ATOM-LEVEL: compute selector atoms (stable via useMemo), no conditional hooks
     const propertyValueAtom = useMemo(() => {
@@ -91,28 +84,14 @@ const PlaygroundVariantPropertyControl = ({
     const propertyMetadataAtom = useMemo(() => {
         if (!propertyId) return nullMetadataAtom
         return atom((get) => {
-            const resolveMetadata = (metaRef: any) => {
-                if (!metaRef) return null
-                if (typeof metaRef === "string") {
-                    return (get(metadataSelectorFamily(metaRef)) as any) || getMetadataLazy(metaRef)
-                }
-                return metaRef
-            }
-
             const revIdForPrompts = actualVariantId
             if (revIdForPrompts) {
                 const prompts = get(promptsAtomFamily(revIdForPrompts))
                 const list = (prompts as any[]) || []
-                const metadataMap = get(metadataAtom) as Record<string, any>
                 const property =
                     findPropertyInObject(list, propertyId) ||
                     findPropertyById(list as any, propertyId)
-                const propertyMetadata = resolveMetadata(property?.__metadata)
-                if (propertyMetadata) return propertyMetadata
-                if (property?.__metadata) {
-                    const meta = metadataMap?.[property.__metadata]
-                    return meta ?? getMetadataLazy(property.__metadata)
-                }
+                if (property?.__metadata) return getMetadataLazy(property.__metadata)
 
                 // Fallback: custom properties metadata
                 const variant = getEnhancedRevisionById(get as any, revIdForPrompts)
@@ -120,12 +99,7 @@ const PlaygroundVariantPropertyControl = ({
                     const customProps = get(customPropertiesByRevisionAtomFamily(revIdForPrompts))
                     const values = Object.values(customProps || {}) as any[]
                     const node = values.find((n) => n?.__id === propertyId)
-                    const customMetadata = resolveMetadata(node?.__metadata)
-                    if (customMetadata) return customMetadata
-                    if (node?.__metadata) {
-                        const meta = metadataMap?.[node.__metadata]
-                        return meta ?? getMetadataLazy(node.__metadata)
-                    }
+                    if (node?.__metadata) return getMetadataLazy(node.__metadata)
                 }
             }
             // Synthesize minimal metadata for string inputs when nothing found
@@ -136,13 +110,6 @@ const PlaygroundVariantPropertyControl = ({
     // Subscribe to unified property data (handles both variant and generation data)
     let propertyData = useAtomValue(propertyValueAtom)
     let propertyMetadata = useAtomValue(propertyMetadataAtom)
-
-    // Prompts-only write facade for variant updates
-    const variantPromptWriteAtom = useMemo(() => {
-        if (!actualVariantId || !propertyId) return noopWriteAtom
-        return promptPropertyAtomFamily({revisionId: actualVariantId, propertyId})
-    }, [actualVariantId, propertyId])
-    const setVariantPromptValue = useSetAtom(variantPromptWriteAtom)
 
     // Provider-aware fallback: if atom lookup misses but provider prompts have the node, synthesize data
     const providerPrompts = usePromptsSource(actualVariantId || "")
@@ -166,14 +133,19 @@ const PlaygroundVariantPropertyControl = ({
         }
     }
 
+    // Prompts-only write facade for variant updates
+    const variantPromptWriteAtom = useMemo(() => {
+        if (!actualVariantId || !propertyId) return noopWriteAtom
+        return promptPropertyAtomFamily({revisionId: actualVariantId, propertyId})
+    }, [actualVariantId, propertyId])
+    const setVariantPromptValue = useSetAtom(variantPromptWriteAtom)
+
     const property = useMemo(() => {
         if (!propertyData && propertyMetadata) {
             return {
                 __metadata: propertyMetadata,
-                value: propsValue,
-                handleChange: (next: any) => {
-                    setVariantPromptValue(next)
-                },
+                value: undefined,
+                handleChange: (_: any) => {},
             }
         }
         if (!propertyData || !propertyMetadata) return null
@@ -226,16 +198,7 @@ const PlaygroundVariantPropertyControl = ({
             value,
             handleChange: handler,
         }
-    }, [
-        propertyData,
-        propertyMetadata,
-        propertyId,
-        rowId,
-        actualVariantId,
-        messageId,
-        propsValue,
-        setVariantPromptValue,
-    ])
+    }, [propertyData, propertyMetadata, propertyId, rowId, actualVariantId, messageId])
 
     // Defensive programming: Handle revoked proxy for entire property object
     const {metadata, value, handleChange} = useMemo(() => {

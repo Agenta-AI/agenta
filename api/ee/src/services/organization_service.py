@@ -15,9 +15,9 @@ from oss.src.utils.env import env
 
 
 async def update_an_organization(
-    organization_id: str, payload: OrganizationUpdate
+    org_id: str, payload: OrganizationUpdate
 ) -> OrganizationDB:
-    org = await db_manager_ee.get_organization(organization_id)
+    org = await db_manager_ee.get_organization(org_id)
     if org is not None:
         await db_manager_ee.update_organization(str(org.id), payload)
         return org
@@ -61,12 +61,8 @@ async def send_invitation_email(
     project_param = quote(project_id, safe="")
 
     invite_link = (
-        f"{env.AGENTA_WEB_URL}/auth"
-        f"?token={token_param}"
-        f"&email={email_param}"
-        f"&organization_id={org_param}"
-        f"&workspace_id={workspace_param}"
-        f"&project_id={project_param}"
+        f"{env.AGENTA_WEB_URL}/auth?token={token_param}&email={email_param}"
+        f"&org_id={org_param}&workspace_id={workspace_param}&project_id={project_param}"
     )
 
     html_content = html_template.format(
@@ -120,6 +116,6 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
     return True
 
 
-async def get_organization_details(organization_id: str) -> dict:
-    organization = await db_manager_ee.get_organization(organization_id)
+async def get_organization_details(org_id: str) -> dict:
+    organization = await db_manager_ee.get_organization(org_id)
     return await db_manager_ee.get_org_details(organization)

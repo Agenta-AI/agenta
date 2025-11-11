@@ -8,7 +8,6 @@ import {
 
 import {uuidToSpanId, uuidToTraceId} from "../hooks/useAnnotations/assets/helpers"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {sortSpansByStartTime} from "./tracing"
 
 const normalizeContentFields = (obj: any): void => {
     if (Array.isArray(obj)) {
@@ -60,7 +59,7 @@ export const observabilityTransformer = (
     }
 
     if (item.nodes) {
-        const children = Object.entries(item.nodes)
+        return Object.entries(item.nodes)
             .flatMap(([_, value]) => {
                 if (Array.isArray(value)) {
                     return value.map((childNode, index) =>
@@ -74,9 +73,6 @@ export const observabilityTransformer = (
                 }
             })
             .filter((node): node is _AgentaRootsResponse => node !== null && node !== undefined)
-
-        // Sort children at this hierarchy level by start_time
-        return sortSpansByStartTime(children)
     }
 
     return []

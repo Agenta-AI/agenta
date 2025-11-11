@@ -85,12 +85,12 @@ async def list_organizations(
 
 
 @router.get(
-    "/{organization_id}/",
+    "/{org_id}/",
     operation_id="fetch_organization_details",
     response_model=OrganizationDetails,
 )
 async def fetch_organization_details(
-    organization_id: str,
+    org_id: str,
     request: Request,
 ):
     """Return the details of the organization."""
@@ -100,15 +100,11 @@ async def fetch_organization_details(
     if not active_workspace:
         return {}
 
-    organization_owner = await db_manager.get_organization_owner(
-        organization_id=organization_id
-    )
+    organization_owner = await db_manager.get_organization_owner(organization_id=org_id)
     project_invitations = await db_manager.get_project_invitations(
         project_id=request.state.project_id
     )
-    organization_db = await db_manager.get_organization_by_id(
-        organization_id=organization_id
-    )
+    organization_db = await db_manager.get_organization_by_id(organization_id=org_id)
 
     invited_members = [
         {
@@ -168,11 +164,11 @@ async def fetch_organization_details(
 
 
 @router.post(
-    "/{organization_id}/workspaces/{workspace_id}/invite/",
+    "/{org_id}/workspaces/{workspace_id}/invite/",
     operation_id="invite_user_to_workspace",
 )
 async def invite_user_to_organization(
-    organization_id: str,
+    org_id: str,
     payload: List[InviteRequest],
     workspace_id: str,
     request: Request,
@@ -181,7 +177,7 @@ async def invite_user_to_organization(
     Assigns a role to a user in an organization.
 
     Args:
-        organization_id (str): The ID of the organization.
+        org_id (str): The ID of the organization.
         payload (InviteRequest): The payload containing the organization id, user email, and role to assign.
         workspace_id (str): The ID of the workspace.
 
@@ -217,7 +213,7 @@ async def invite_user_to_organization(
                 },
             )
 
-        owner = await db_manager.get_organization_owner(organization_id)
+        owner = await db_manager.get_organization_owner(org_id)
         owner_domain = owner.email.split("@")[-1].lower() if owner else ""
         user_domain = payload[0].email.split("@")[-1].lower()
         skip_meter = owner_domain != "agenta.ai" and user_domain == "agenta.ai"
@@ -234,7 +230,7 @@ async def invite_user_to_organization(
 
         invite_user = await workspace_manager.invite_user_to_workspace(
             payload=payload,
-            organization_id=organization_id,
+            org_id=org_id,
             project_id=str(project.id),
             workspace_id=workspace_id,
             user_uid=request.state.user_id,
@@ -250,11 +246,11 @@ async def invite_user_to_organization(
 
 
 @router.post(
-    "/{organization_id}/workspaces/{workspace_id}/invite/resend/",
+    "/{org_id}/workspaces/{workspace_id}/invite/resend/",
     operation_id="resend_invitation",
 )
 async def resend_user_invitation_to_organization(
-    organization_id: str,
+    org_id: str,
     workspace_id: str,
     payload: ResendInviteRequest,
     request: Request,
@@ -291,7 +287,7 @@ async def resend_user_invitation_to_organization(
         invite_user = await workspace_manager.resend_user_workspace_invite(
             payload=payload,
             project_id=request.state.project_id,
-            organization_id=organization_id,
+            org_id=org_id,
             workspace_id=workspace_id,
             user_uid=request.state.user_id,
         )
@@ -306,11 +302,11 @@ async def resend_user_invitation_to_organization(
 
 
 @router.post(
-    "/{organization_id}/workspaces/{workspace_id}/invite/accept/",
+    "/{org_id}/workspaces/{workspace_id}/invite/accept/",
     operation_id="accept_invitation",
 )
 async def accept_organization_invitation(
-    organization_id: str,
+    org_id: str,
     workspace_id: str,
     project_id: str,
     payload: InviteToken,
@@ -330,7 +326,7 @@ async def accept_organization_invitation(
 
     if is_ee():
         workspace = await workspace_manager.get_workspace(workspace_id)
-        organization = await db_manager_ee.get_organization(organization_id)
+        organization = await db_manager_ee.get_organization(org_id)
         user = await db_manager.get_user(request.state.user_id)
 
         accept_invitation = await workspace_manager.accept_workspace_invitation(
@@ -347,7 +343,7 @@ async def accept_organization_invitation(
     else:
         await organization_service.accept_organization_invitation(
             token=payload.token,
-            organization_id=organization_id,
+            organization_id=org_id,
             email=payload.email,
         )
     return JSONResponse({"message": "Added user to workspace"}, status_code=200)

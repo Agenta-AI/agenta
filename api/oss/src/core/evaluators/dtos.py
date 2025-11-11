@@ -16,13 +16,11 @@ from oss.src.core.workflows.dtos import (
     VariantFork,
     RevisionFork,
     #
-    WorkflowFlags,
-    WorkflowQueryFlags,
-    #
     Workflow,
     WorkflowCreate,
     WorkflowEdit,
     WorkflowQuery,
+    WorkflowFlags,
     WorkflowFork,
     #
     WorkflowVariant,
@@ -83,13 +81,6 @@ class EvaluatorFlags(WorkflowFlags):
         super().__init__(**data)
 
 
-class EvaluatorQueryFlags(WorkflowQueryFlags):
-    def __init__(self, **data):
-        data["is_evaluator"] = True
-
-        super().__init__(**data)
-
-
 # evaluators -------------------------------------------------------------------
 
 
@@ -106,7 +97,7 @@ class EvaluatorEdit(WorkflowEdit):
 
 
 class EvaluatorQuery(WorkflowQuery):
-    flags: Optional[EvaluatorQueryFlags] = None
+    flags: Optional[EvaluatorFlags] = None
 
 
 # evaluator variants -----------------------------------------------------------
@@ -137,7 +128,7 @@ class EvaluatorVariantEdit(WorkflowVariantEdit):
 
 
 class EvaluatorVariantQuery(WorkflowVariantQuery):
-    flags: Optional[EvaluatorQueryFlags] = None
+    flags: Optional[EvaluatorFlags] = None
 
 
 # evaluator revisions ----------------------------------------------------------
@@ -178,7 +169,7 @@ class EvaluatorRevisionEdit(WorkflowRevisionEdit):
 
 
 class EvaluatorRevisionQuery(WorkflowRevisionQuery):
-    flags: Optional[EvaluatorQueryFlags] = None
+    flags: Optional[EvaluatorFlags] = None
 
 
 class EvaluatorRevisionCommit(
@@ -267,10 +258,6 @@ class SimpleEvaluatorFlags(EvaluatorFlags):
     pass
 
 
-class SimpleEvaluatorQueryFlags(EvaluatorQueryFlags):
-    pass
-
-
 class SimpleEvaluatorData(EvaluatorRevisionData):
     pass
 
@@ -294,7 +281,17 @@ class SimpleEvaluatorEdit(Identifier, Header, Metadata):
 
 
 class SimpleEvaluatorQuery(Metadata):
-    flags: Optional[SimpleEvaluatorQueryFlags] = None
+    flags: Optional[SimpleEvaluatorFlags] = None
+
+
+class SimpleEvaluatorQQuery(
+    Identifier,
+    Slug,
+    Lifecycle,
+    Header,
+    SimpleEvaluatorQuery,
+):
+    data: Optional[SimpleEvaluatorData] = None
 
 
 # ------------------------------------------------------------------------------

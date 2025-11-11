@@ -4,7 +4,6 @@ import {Button, message, Spin, Typography} from "antd"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
 
-import useURL from "@/oss/hooks/useURL"
 import {Plan} from "@/oss/lib/Types"
 import {editSubscriptionInfo, useSubscriptionData, useUsageData} from "@/oss/services/billing"
 
@@ -12,6 +11,7 @@ import UsageProgressBar from "./assets/UsageProgressBar"
 import AutoRenewalCancelModal from "./Modals/AutoRenewalCancelModal"
 import PricingModal from "./Modals/PricingModal"
 import SubscriptionPlanDetails from "./Modals/PricingModal/assets/SubscriptionPlanDetails"
+import useURL from "@/oss/hooks/useURL"
 
 const {Link} = Typography
 
@@ -74,14 +74,15 @@ const Billing = () => {
                         </Typography.Text>
                     )}
 
-                    {subscription?.plan === Plan.Enterprise ? (
+                    {subscription?.plan === Plan.Enterprise ||
+                    subscription?.plan === Plan.Business ? (
                         <Typography.Text className="text-[#586673]">
                             For queries regarding your plan,{" "}
                             <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo" target="_blank">
                                 click here to contact us
                             </a>
                         </Typography.Text>
-                    ) : subscription?.plan === Plan.Pro || subscription?.plan === Plan.Business ? (
+                    ) : subscription?.plan === Plan.Pro ? (
                         <div className="flex items-center gap-2">
                             <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
                                 Upgrade plan
@@ -104,7 +105,7 @@ const Billing = () => {
 
                 <div className="w-full grid grid-cols-3 gap-4">
                     {Object.entries(usage)
-                        ?.filter(([key]) => (key !== "users" && key !== "applications"))
+                        ?.filter(([key]) => key !== "users")
                         ?.map(([key, info]) => {
                             return (
                                 <UsageProgressBar

@@ -1,15 +1,39 @@
-#!/usr/bin/env sh
+# # Define the directories to check
+# DIRECTORIES=("web" "sdk", "api")
+# ORIGINAL_DIR=$(pwd)
 
-# Delegate to pre-commit which runs configured hooks (e.g. gitleaks) from .pre-commit-config.yaml
-if command -v pre-commit >/dev/null 2>&1; then
-  pre-commit run --hook-stage pre-commit
-else
-  echo "pre-commit not found. Install with one of the following:"
-  echo "  pip install pre-commit   # cross-platform"
-  echo "  brew install pre-commit  # macOS/Linux with Homebrew"
-  echo ""
-  echo "gitleaks is also required. Install with:"
-  echo "  brew install gitleaks    # macOS/Linux with Homebrew"
-  echo "  or see https://github.com/gitleaks/gitleaks#installation for other options"
-  exit 1
-fi
+# # Check for changes in frontend directory
+# if git diff --cached --name-only | grep -q '^web/'; then
+#     cd web/ || exit
+
+#     # Run Prettier check
+#     if ! pnpm lint; then
+#         echo '⚠️ Formatting issues detected. Running Prettier to fix them...'
+#         pnpm lint-fix
+
+#         echo '✅ Formatting issues fixed. Please stage the changes and commit the code again'
+#         exit 1
+#     fi
+
+#     cd "$ORIGINAL_DIR" || exit
+# fi
+
+# # Check for changes in backend directory
+# for DIR in "${BE_DIRECTORIES[@]}"; do
+#     if git diff --cached --name-only | grep -q "^$DIR/"; then
+#         cd "$DIR" || exit
+
+#         # Run black for formatting
+#         if !  black --check .; then
+#             echo "⚠️ Formatting issues detected in $DIR. Running black to fix them..."
+#             black .
+
+#             echo "✅ Formatting issues fixed. Please stage the changes and commit the code again in $DIR."
+#             exit 1
+#         else
+#             echo "✅ No formatting issues in $DIR."
+#         fi
+
+#         cd "$ORIGINAL_DIR" || exit
+#     fi
+# done

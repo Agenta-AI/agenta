@@ -99,6 +99,19 @@ class Tracing(metaclass=Singleton):
             resource=Resource(attributes={"service.name": "agenta-sdk"})
         )
 
+        # --- INLINE
+        if inline:
+            # TRACE PROCESSORS -- INLINE
+            self.inline = TraceProcessor(
+                InlineExporter(
+                    registry=self.inline_spans,
+                ),
+                references=self.references,
+                inline=inline,
+            )
+            self.tracer_provider.add_span_processor(self.inline)
+        # --- INLINE
+
         # TRACE PROCESSORS -- OTLP
         try:
             log.info("Agenta - OLTP URL: %s", self.otlp_url)
@@ -115,19 +128,6 @@ class Tracing(metaclass=Singleton):
             self.tracer_provider.add_span_processor(_otlp)
         except:  # pylint: disable=bare-except
             log.warning("Agenta - OLTP unreachable, skipping exports.")
-
-        # --- INLINE
-        if inline:
-            # TRACE PROCESSORS -- INLINE
-            self.inline = TraceProcessor(
-                InlineExporter(
-                    registry=self.inline_spans,
-                ),
-                references=self.references,
-                inline=inline,
-            )
-            self.tracer_provider.add_span_processor(self.inline)
-        # --- INLINE
 
         # GLOBAL TRACER PROVIDER -- INSTRUMENTATION LIBRARIES
         set_tracer_provider(self.tracer_provider)

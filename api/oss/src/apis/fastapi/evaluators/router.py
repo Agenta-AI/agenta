@@ -13,7 +13,6 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     EvaluatorFlags,
-    EvaluatorQueryFlags,
     #
     EvaluatorQuery,
     #
@@ -22,9 +21,7 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorData,
     SimpleEvaluatorQuery,
     SimpleEvaluator,
-    #
     SimpleEvaluatorFlags,
-    SimpleEvaluatorQueryFlags,
 )
 from oss.src.core.evaluators.service import (
     SimpleEvaluatorsService,
@@ -748,14 +745,13 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_retrieve_request: EvaluatorRevisionRetrieveRequest,
     ) -> EvaluatorRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
-                user_uid=request.state.user_id,
-                #
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            project_id=request.state.project_id,
+            user_uid=request.state.user_id,
+            #
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         cache_key = {
             "artifact_ref": evaluator_revision_retrieve_request.evaluator_ref,  # type: ignore
@@ -763,14 +759,13 @@ class EvaluatorsRouter:
             "revision_ref": evaluator_revision_retrieve_request.evaluator_revision_ref,  # type: ignore
         }
 
-        evaluator_revision = None
-        # evaluator_revision = await get_cache(
-        #     namespace="evaluators:retrieve",
-        #     project_id=request.state.project_id,
-        #     user_id=request.state.user_id,
-        #     key=cache_key,
-        #     model=EvaluatorRevision,
-        # )
+        evaluator_revision = await get_cache(
+            namespace="evaluators:retrieve",
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            key=cache_key,
+            model=EvaluatorRevision,
+        )
 
         if not evaluator_revision:
             evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
@@ -1265,11 +1260,7 @@ class SimpleEvaluatorsRouter:
 
         simple_evaluator_flags = (
             SimpleEvaluatorFlags(
-                **evaluator.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                ),
+                **evaluator.flags.model_dump(mode="json"),
             )
             if evaluator.flags
             else SimpleEvaluatorFlags()
@@ -1360,11 +1351,7 @@ class SimpleEvaluatorsRouter:
 
         simple_evaluator_flags = (
             SimpleEvaluatorFlags(
-                **evaluator.flags.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                    exclude_unset=True,
-                ),
+                **evaluator.flags.model_dump(mode="json"),
             )
             if evaluator.flags
             else SimpleEvaluatorFlags()
@@ -1404,7 +1391,7 @@ class SimpleEvaluatorsRouter:
     ) -> SimpleEvaluatorsResponse:
         simple_evaluator_query_request = SimpleEvaluatorQueryRequest(
             evaluator=SimpleEvaluatorQuery(
-                flags=SimpleEvaluatorQueryFlags(
+                flags=SimpleEvaluatorFlags(
                     is_evaluator=True,
                 )
             )
@@ -1438,11 +1425,11 @@ class SimpleEvaluatorsRouter:
             else None
         )
 
-        flags = EvaluatorQueryFlags(
+        flags = EvaluatorFlags(
+            is_evaluator=True,
             is_custom=(
                 simple_evaluator_flags.is_custom if simple_evaluator_flags else None
             ),
-            is_evaluator=True,
             is_human=(
                 simple_evaluator_flags.is_human if simple_evaluator_flags else None
             ),
@@ -1507,11 +1494,7 @@ class SimpleEvaluatorsRouter:
 
             simple_evaluator_flags = (
                 SimpleEvaluatorFlags(
-                    **evaluator.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                        exclude_unset=True,
-                    ),
+                    **evaluator.flags.model_dump(mode="json"),
                 )
                 if evaluator.flags
                 else SimpleEvaluatorFlags()

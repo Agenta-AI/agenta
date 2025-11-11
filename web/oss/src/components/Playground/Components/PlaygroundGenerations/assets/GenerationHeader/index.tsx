@@ -66,53 +66,51 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     }, [runTests, isRunning])
 
     return (
-        <div
+        <section
             className={clsx(
-                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-1000 !bg-[white]",
+                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-10",
                 classes.container,
             )}
         >
-            <div className="w-full h-full bg-[white] flex justify-between items-center gap-4">
-                <Typography className="text-[16px] leading-[18px] font-[600] text-nowrap">
-                    Generations
-                </Typography>
+            <Typography className="text-[16px] leading-[18px] font-[600] text-nowrap">
+                Generations
+            </Typography>
 
-                <div className="flex items-center gap-2">
-                    <Tooltip title="Clear all">
-                        <Button size="small" onClick={clearGeneration} disabled={isRunning}>
-                            Clear
-                        </Button>
-                    </Tooltip>
+            <div className="flex items-center gap-2">
+                <Tooltip title="Clear all">
+                    <Button size="small" onClick={clearGeneration} disabled={isRunning}>
+                        Clear
+                    </Button>
+                </Tooltip>
 
-                    <LoadTestsetButton label="Load testset" variantId={variantId} />
+                <LoadTestsetButton label="Load test set" variantId={variantId} />
 
-                    <TestsetDrawerButton
-                        label="Add all to testset"
-                        icon={false}
-                        size="small"
-                        disabled={isRunning}
-                        resultHashes={resultHashes}
-                    />
+                <TestsetDrawerButton
+                    label="Add all to test set"
+                    icon={false}
+                    size="small"
+                    disabled={isRunning}
+                    resultHashes={resultHashes}
+                />
 
-                    {!isRunning ? (
-                        <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
-                            <RunButton
-                                isRunAll
-                                type="primary"
-                                onClick={() => runTests()}
-                                disabled={isRunning}
-                            />
-                        </Tooltip>
-                    ) : (
+                {!isRunning ? (
+                    <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
                         <RunButton
-                            isCancel
-                            onClick={() => playgroundAtoms.cancelRunTests?.()}
-                            className="flex"
+                            isRunAll
+                            type="primary"
+                            onClick={() => runTests()}
+                            disabled={isRunning}
                         />
-                    )}
-                </div>
+                    </Tooltip>
+                ) : (
+                    <RunButton
+                        isCancel
+                        onClick={() => playgroundAtoms.cancelRunTests?.()}
+                        className="flex"
+                    />
+                )}
             </div>
-        </div>
+        </section>
     )
 }
 

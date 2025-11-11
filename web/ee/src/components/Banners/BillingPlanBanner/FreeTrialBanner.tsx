@@ -1,7 +1,7 @@
 import {Button, Typography} from "antd"
 import {useRouter} from "next/router"
-
 import useURL from "@/oss/hooks/useURL"
+
 import {SubscriptionType} from "@/oss/services/billing/types"
 
 import SubscriptionPlanDetails from "@/agenta-oss-common/components/pages/settings/Billing/Modals/PricingModal/assets/SubscriptionPlanDetails"
