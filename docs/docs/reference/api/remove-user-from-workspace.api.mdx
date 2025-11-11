@@ -5,71 +5,321 @@ description: "Remove a user from a workspace."
 sidebar_label: "Remove User From Workspace"
 hide_title: true
 hide_table_of_contents: true
-api: eJzNVE1v00AQ/SurOYG0SkrFySciNagRRVQlwKGNook9ibfYXrM7DgRr/zsaf8VpaSUQB06W1m/ezLyZNzUw7jxEt/DFuq++xJhgpSEhHztTsrEFRHBDud2TQlV5cmrrbK5Qfe/xk7virpi5nY/uCqWUohxNpl54di8jtUype8AkceS9slvFKbVUbNWGlGvokzZ6oF2bZEyyuOgjj4lBgy3JoZS5SCCClmkt3Gspcz1gQUOJDnNictJuDQXmBBGM84EGI/2WyClocPStMo4SiNhVpMHHKeUIUQ18KCXWszPFDjSw4UweBg3VIoEQ9JClkaCn/1aRO/wV/7yhCWElwb60hScv+POzM/mcTu1jFcfk/bbK1E0HBg2xLZgKFjiWZWbiRr3pvZeY+lhDCCFoeH1+/pj4M2YmacLU3Dnr/oAVSicTY9PWnRBLQ1ENhin3jwGZjU/+YnH4sG3GdyqRSN29mIJpRw7CKuj+DZ3Dw0jHK9sWCEFD7nfPSf6evMcdwUD2zHREDLWUv+GY227uKeaTcd82fbWpO9zqSHOUt1X36TYuWvl+l6yHXC6X148I29nmxKkV1ySUEbcO4RQimA6e8NN67I8wFWd50ODJ7XsjVS6DCFLm0kfTaZzZKpngjgrGCZoplgZkXz3FlTN8aEJm14t3dLgkTMhBdLsaAz7KrrTTP4UNwmNp3pHo0JlrVnFqnfnZjrQzWdpGSaOm2NomvNNk1hSnZtcL0CBttGt9Nnk1OYOHt+8ELGuOcbPmfe7mN+gHKgz9g+68HwET5m+OP6Sy0nrOsRjxdaf2k1zHt3Jov4wu2Ell9dF0//OB7mbG9IOnZYam8VwjVt3t2+3xBstqRQ8ucrtyKw2p9Szout6gp08uC0Ge22sqW5UYj5tMDLbFzNMzer246bz4Uj1V4lc6jO72HrNKMM0q79EZSfTvk/YLXhzGOftiToRpzlvaO6juILM4ppJHwY+usTQwOP9ifjVfziGEX3c8vLw=
+api: eJzNVE1P20AQ/SurOYFkJSnqyaemJRURVEUQygEiNNiTeMH2mt1x2tTa/16Nv+JAQWrVQ0+W1m/ezLyZNxUwrh2EN3Bt7KMrMCJYBhCTi6wuWJscQrigzGxIoSodWbWyJlOovnf40W1+m0/t2oW3uVJKUYY6VQeO7WGoFgm1DxjHlpxTZqU4oYaKjbonZWv6uInuae90PCSZH3eRu8QQgCnIopQ5jyGEhulOuO+kzLseCwEUaDEjJivtVpBjRhDCMB8EoKXfAjmBACw9ldpSDCHbkgJwUUIZQlgBbwuJdWx1voYAWHMqD72Gah6D90GfpZago38qyW7/in9W03i/lGBXmNyRE/zRZCKf/aldllFEzq3KVF20YAggMjlTzgLHokh1VKs3fnASU+1q8N77AN4fHb0k/oapjuswNbPW2D9ghcLKxFg3dcfE0lBYgWbK3EtAaqK9v5hvv67q8e1LJFK3LzpnWpMFv/RB94bW4nag45lpCgQfQObWb0n+hZzDNUFP9sZ0RAy1kL9+l9vcP1DEe+O+qftqUre45Y5mJ2+j7uttHDfy/S5ZBzlZLM5fEDazzYgTI66JKSVuHMIJhDDuPeHG1dAffizOchCAI7vpjFTaFEJImAsXjsdRasp4hGvKGUeox1hoeH5PpvVf9UmgIMvsKCqt5m3NNz2fn9L2hDAmC+HNcgi4lEVqVmMf1k8FC31KIlLrvGnJibH6ZzPv1oFJEyUq6Hxl6vBWsLa2jxg9Ui4XQfpsyp6M3o0mrzXTBqjp+bz1A0a1H7o6ahgEz+TqhYKgPRIhMGH2YfdDqiyM4wzzAV97k6/kjH6Wi3w9OHV7FVY7d/7Pl7ydH9MPHhcp6tqctVhVu5g3u2MtOxg+O93Nbi4DSIxjQVfVPTq6sqn38tycXdmwWDu8T8WJK0wdvaHXwUVr2kP1WomPtB0c+A2mpWDqtd6g1ZLo3yftlj3fDnN2xewJU9/BpHNT1UKmUUQFD4JfnG1poD8Rx7Oz2WIG3v8CS2nLSw==
 sidebar_class_name: "delete api-method"
-info_path: reference/api/agenta-api
+info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
 
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import ParamsDetails from "@theme/ParamsDetails";
-import RequestSchema from "@theme/RequestSchema";
-import StatusCodes from "@theme/StatusCodes";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
-import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Remove User From Workspace"}
->
-</Heading>
+></Heading>
 
 <MethodEndpoint
   method={"delete"}
   path={"/workspaces/{workspace_id}/users"}
-  context={"endpoint"}
->
-  
-</MethodEndpoint>
-
-
+></MethodEndpoint>
 
 Remove a user from a workspace.
 
 Args:
-    email (str): The email address of the user to be removed
-    workspace_id (str): The ID of the workspace.
+email (str): The email address of the user to be removed
+workspace_id (str): The ID of the workspace.
 
 <Heading
   id={"request"}
   as={"h2"}
   className={"openapi-tabs__heading"}
   children={"Request"}
+></Heading>
+
+<details
+  style={{ marginBottom: "1rem" }}
+  className={"openapi-markdown__details"}
+  data-collapsed={false}
+  open={true}
 >
-</Heading>
-
-<ParamsDetails
-  parameters={[{"name":"workspace_id","in":"path","required":true,"schema":{"type":"string","title":"Workspace Id"}},{"name":"email","in":"query","required":true,"schema":{"type":"string","title":"Email"}}]}
+  <summary style={{}}>
+    <h3 className={"openapi-markdown__details-summary-header-params"}>
+      Path Parameters
+    </h3>
+  </summary>
+  <div>
+    <ul>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{
+          name: "workspace_id",
+          in: "path",
+          required: true,
+          schema: { type: "string", title: "Workspace Id" },
+        }}
+      ></ParamsItem>
+    </ul>
+  </div>
+</details>
+<details
+  style={{ marginBottom: "1rem" }}
+  className={"openapi-markdown__details"}
+  data-collapsed={false}
+  open={true}
 >
-  
-</ParamsDetails>
-
-<RequestSchema
-  title={"Body"}
-  body={undefined}
->
-  
-</RequestSchema>
-
-<StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
->
-  
-</StatusCodes>
-
-
-      
+  <summary style={{}}>
+    <h3 className={"openapi-markdown__details-summary-header-params"}>
+      Query Parameters
+    </h3>
+  </summary>
+  <div>
+    <ul>
+      <ParamsItem
+        className={"paramsItem"}
+        param={{
+          name: "email",
+          in: "query",
+          required: true,
+          schema: { type: "string", title: "Email" },
+        }}
+      ></ParamsItem>
+    </ul>
+  </div>
+</details>
+<div>
+  <div>
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>any</ul>
+                  </details>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+      <TabItem label={"422"} value={"422"}>
+        <div>Validation Error</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>
+                      <SchemaItem collapsible={true} className={"schemaItem"}>
+                        <details
+                          style={{}}
+                          className={"openapi-markdown__details"}
+                        >
+                          <summary style={{}}>
+                            <span className={"openapi-schema__container"}>
+                              <strong className={"openapi-schema__property"}>
+                                detail
+                              </strong>
+                              <span className={"openapi-schema__name"}>
+                                object[]
+                              </span>
+                            </span>
+                          </summary>
+                          <div style={{ marginLeft: "1rem" }}>
+                            <li>
+                              <div
+                                style={{
+                                  fontSize: "var(--ifm-code-font-size)",
+                                  opacity: "0.6",
+                                  marginLeft: "-.5rem",
+                                  paddingBottom: ".5rem",
+                                }}
+                              >
+                                Array [
+                              </div>
+                            </li>
+                            <SchemaItem
+                              collapsible={true}
+                              className={"schemaItem"}
+                            >
+                              <details
+                                style={{}}
+                                className={"openapi-markdown__details"}
+                              >
+                                <summary style={{}}>
+                                  <span className={"openapi-schema__container"}>
+                                    <strong
+                                      className={"openapi-schema__property"}
+                                    >
+                                      loc
+                                    </strong>
+                                    <span className={"openapi-schema__name"}>
+                                      object[]
+                                    </span>
+                                    <span
+                                      className={"openapi-schema__divider"}
+                                    ></span>
+                                    <span
+                                      className={"openapi-schema__required"}
+                                    >
+                                      required
+                                    </span>
+                                  </span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}>
+                                  <li>
+                                    <div
+                                      style={{
+                                        fontSize: "var(--ifm-code-font-size)",
+                                        opacity: "0.6",
+                                        marginLeft: "-.5rem",
+                                        paddingBottom: ".5rem",
+                                      }}
+                                    >
+                                      Array [
+                                    </div>
+                                  </li>
+                                  <div>
+                                    <span className={"badge badge--info"}>
+                                      anyOf
+                                    </span>
+                                    <SchemaTabs>
+                                      <TabItem
+                                        label={"MOD1"}
+                                        value={"0-item-properties"}
+                                      >
+                                        <div
+                                          style={{
+                                            marginTop: ".5rem",
+                                            marginBottom: ".5rem",
+                                          }}
+                                        >
+                                          string
+                                        </div>
+                                      </TabItem>
+                                      <TabItem
+                                        label={"MOD2"}
+                                        value={"1-item-properties"}
+                                      >
+                                        <div
+                                          style={{
+                                            marginTop: ".5rem",
+                                            marginBottom: ".5rem",
+                                          }}
+                                        >
+                                          integer
+                                        </div>
+                                      </TabItem>
+                                    </SchemaTabs>
+                                  </div>
+                                  <li>
+                                    <div
+                                      style={{
+                                        fontSize: "var(--ifm-code-font-size)",
+                                        opacity: "0.6",
+                                        marginLeft: "-.5rem",
+                                      }}
+                                    >
+                                      ]
+                                    </div>
+                                  </li>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem
+                              collapsible={false}
+                              name={"msg"}
+                              required={true}
+                              schemaName={"Message (string)"}
+                              qualifierMessage={undefined}
+                              schema={{ type: "string", title: "Message" }}
+                            ></SchemaItem>
+                            <SchemaItem
+                              collapsible={false}
+                              name={"type"}
+                              required={true}
+                              schemaName={"Error Type (string)"}
+                              qualifierMessage={undefined}
+                              schema={{ type: "string", title: "Error Type" }}
+                            ></SchemaItem>
+                            <li>
+                              <div
+                                style={{
+                                  fontSize: "var(--ifm-code-font-size)",
+                                  opacity: "0.6",
+                                  marginLeft: "-.5rem",
+                                }}
+                              >
+                                ]
+                              </div>
+                            </li>
+                          </div>
+                        </details>
+                      </SchemaItem>
+                    </ul>
+                  </details>
+                </TabItem>
+                <TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={
+                      '{\n  "detail": [\n    {\n      "loc": [\n        "string",\n        0\n      ],\n      "msg": "string",\n      "type": "string"\n    }\n  ]\n}'
+                    }
+                    language={"json"}
+                  ></ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>

@@ -3,40 +3,41 @@ import {useState} from "react"
 import {EditOutlined, MoreOutlined, SyncOutlined} from "@ant-design/icons"
 import {ArrowClockwise, Trash} from "@phosphor-icons/react"
 import {Button, Dropdown, Space, Tag, Tooltip, Typography, message} from "antd"
+import {useAtom} from "jotai"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan, User} from "@/oss/lib/Types"
-import {WorkspaceMember} from "@/oss/lib/Types"
+import {WorkspaceMember, WorkspaceRole} from "@/oss/lib/Types"
 import {
     assignWorkspaceRole,
     removeFromWorkspace,
     resendInviteToWorkspace,
     unAssignWorkspaceRole,
 } from "@/oss/services/workspace/api"
-import {useOrgData} from "@/oss/state/org"
-import {useWorkspaceRoles} from "@/oss/state/workspace"
 
 export const Actions: React.FC<{
     member: WorkspaceMember
     hidden?: boolean
-    organizationId: string
+    orgId: string
     workspaceId: string
     onResendInvite: any
-}> = ({member, hidden, organizationId, workspaceId, onResendInvite}) => {
+}> = ({member, hidden, orgId, workspaceId, onResendInvite}) => {
     const {user} = member
     const isMember = user.status === "member"
 
     const [resendLoading, setResendLoading] = useState(false)
-    const {refetch} = useOrgData()
+    const {selectedOrg, setSelectedOrg} = useOrgData()
 
     if (hidden) return null
 
     const handleResendInvite = () => {
-        if (!organizationId || !user.email || !workspaceId) return
+        if (!orgId || !user.email || !workspaceId) return
         setResendLoading(true)
-        resendInviteToWorkspace({organizationId, workspaceId, email: user.email})
+        resendInviteToWorkspace({orgId, workspaceId, email: user.email})
             .then((res) => {
                 if (!isDemo() && typeof res.url === "string") {
                     onResendInvite({email: user.email, uri: res.url})
@@ -44,20 +45,28 @@ export const Actions: React.FC<{
                     message.success("Invitation sent!")
                 }
             })
-            .then(() => refetch())
             .catch(console.error)
             .finally(() => setResendLoading(false))
     }
 
     const handleRemove = () => {
-        if (!organizationId || !user.email || !workspaceId) return
+        if (!orgId || !user.email || !workspaceId) return
         AlertPopup({
             title: "Remove member",
             message: `Are you sure you want to remove ${user.username} from this workspace?`,
             onOk: () =>
-                removeFromWorkspace({organizationId, workspaceId, email: user.email}, true).then(
-                    () => refetch(),
-                ),
+                removeFromWorkspace({orgId, workspaceId, email: user.email}, true).then(() => {
+                    if (selectedOrg)
+                        setSelectedOrg({
+                            ...selectedOrg,
+                            default_workspace: {
+                                ...selectedOrg.default_workspace,
+                                members: selectedOrg.default_workspace?.members.filter(
+                                    (item) => item.user.email !== user.email,
+                                ),
+                            },
+                        })
+                }),
             okText: "Remove",
         })
     }
@@ -109,12 +118,12 @@ export const Actions: React.FC<{
 export const Roles: React.FC<{
     member: WorkspaceMember
     signedInUser: User
-    organizationId: string
+    orgId: string
     workspaceId: string
-}> = ({member, signedInUser, organizationId, workspaceId}) => {
+}> = ({member, signedInUser, orgId, workspaceId}) => {
     const [loading, setLoading] = useState(false)
-    const {roles} = useWorkspaceRoles()
-    const {selectedOrg, refetch} = useOrgData()
+    const [roles] = useAtom(workspaceRolesAtom)
+    const {selectedOrg, setSelectedOrg} = useOrgData()
     const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
         subscription: undefined,
     }
@@ -127,29 +136,44 @@ export const Roles: React.FC<{
     const handleChangeRole = async (roleName: string) => {
         setLoading(true)
         try {
-            await assignWorkspaceRole({
-                organizationId,
-                workspaceId,
-                email: user.email,
-                role: roleName,
-            })
+            await assignWorkspaceRole({orgId, workspaceId, email: user.email, role: roleName})
             await Promise.all(
                 member.roles
                     .filter((item) => item.role_name !== roleName)
                     .map((item) =>
                         unAssignWorkspaceRole({
-                            organizationId,
+                            orgId,
                             workspaceId,
                             email: user.email,
                             role: item.role_name,
                         }),
                     ),
             )
-            await refetch()
-            message.success("Workspace role updated")
+            if (selectedOrg)
+                setSelectedOrg({
+                    ...selectedOrg,
+                    default_workspace: {
+                        ...selectedOrg.default_workspace,
+                        members: selectedOrg.default_workspace.members.map((item) => {
+                            if (item.user.email === user.email) {
+                                return {
+                                    ...item,
+                                    roles: [
+                                        {
+                                            ...(roles.find(
+                                                (item) => item.role_name === roleName,
+                                            ) as WorkspaceRole),
+                                            permissions: [],
+                                        },
+                                    ],
+                                }
+                            }
+                            return item
+                        }),
+                    },
+                })
         } catch (error) {
             console.error("Failed to change the role:", error)
-            message.error("Failed to update workspace role")
         } finally {
             setLoading(false)
         }

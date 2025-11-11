@@ -1,40 +1,29 @@
-import {useCallback} from "react"
-
 import {InfoCircleOutlined} from "@ant-design/icons"
+import Editor from "@monaco-editor/react"
 import {theme, Form, Tooltip, InputNumber, Switch, Input, AutoComplete} from "antd"
-import {FormInstance, Rule} from "antd/es/form"
+import {Rule} from "antd/es/form"
 import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {isValidRegex} from "@/oss/lib/helpers/validators"
 import {generatePaths} from "@/oss/lib/transformers"
 import {EvaluationSettingsTemplate, JSSTheme} from "@/oss/lib/Types"
 
-import {JSONSchemaEditor} from "./JSONSchema"
 import {Messages} from "./Messages"
 
 type DynamicFormFieldProps = EvaluationSettingsTemplate & {
     name: string | string[]
     traceTree: Record<string, any>
-    form?: FormInstance<any>
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    codeEditor: {
-        "& .agenta-editor-wrapper": {
-            minHeight: 375,
-        },
-        "&.agenta-shared-editor": {
-            borderColor: theme.colorBorder,
-        },
-    },
-    objectEditor: {
-        "& .agenta-editor-wrapper": {
-            minHeight: 120,
-        },
-        "&.agenta-shared-editor": {
-            borderColor: theme.colorBorder,
+    editor: {
+        border: `1px solid ${theme.colorBorder}`,
+        borderRadius: theme.borderRadius,
+        overflow: "hidden",
+        "& .monaco-editor": {
+            width: "0 !important",
         },
     },
     ExternalHelp: {
@@ -56,41 +45,6 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-interface ControlledSharedEditorProps {
-    value?: unknown
-    onChange?: (value: string) => void
-    className?: string
-    language?: "json" | "yaml" | "code"
-}
-
-const ControlledSharedEditor = ({
-    value,
-    onChange,
-    className,
-    language,
-}: ControlledSharedEditorProps) => {
-    const handleValueChange = useCallback(
-        (next: string) => {
-            onChange?.(next)
-        },
-        [onChange],
-    )
-
-    return (
-        <SharedEditor
-            initialValue={value}
-            value={value as string}
-            handleChange={handleValueChange}
-            className={className}
-            syncWithInitialValueChanges
-            editorProps={{
-                codeOnly: true,
-                ...(language ? {language} : {}),
-            }}
-        />
-    )
-}
-
 export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     name,
     label,
@@ -101,28 +55,12 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
     max,
     required,
     traceTree,
-    form,
 }) => {
-    const settingsValue = Form.useWatch(name, form)
-
+    const {appTheme} = useAppTheme()
     const classes = useStyles()
     const {token} = theme.useToken()
 
-    const watched = Form.useWatch(name as any, form)
-    const savedValue = watched ?? defaultVal
-    const handleValueChange = useCallback(
-        (next: string) => {
-            if (form) {
-                form.setFieldsValue({
-                    [name as string]: next,
-                })
-            }
-        },
-        [form, name],
-    )
-
     const rules: Rule[] = [{required: required ?? true, message: "This field is required"}]
-
     if (type === "regex")
         rules.push({
             validator: (_, value) =>
@@ -162,11 +100,7 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                             )}
                         </div>
                     }
-                    initialValue={
-                        type === "object" && defaultVal && typeof defaultVal === "object"
-                            ? JSON.stringify(defaultVal, null, 2)
-                            : defaultVal
-                    }
+                    initialValue={defaultVal}
                     rules={rules}
                     hidden={type === "hidden"}
                 >
@@ -192,28 +126,21 @@ export const DynamicFormField: React.FC<DynamicFormFieldProps> = ({
                     ) : type === "text" ? (
                         <Input.TextArea rows={10} />
                     ) : type === "code" ? (
-                        <ControlledSharedEditor
-                            className={classes.codeEditor}
-                            value={settingsValue}
-                            onChange={handleValueChange}
-                            language="code"
+                        <Editor
+                            className={classes.editor}
+                            height={375}
+                            width="100%"
+                            language="python"
+                            theme={`vs-${appTheme}`}
                         />
                     ) : type === "object" ? (
-                        <ControlledSharedEditor
-                            className={classes.objectEditor}
+                        <Editor
+                            className={classes.editor}
+                            height={120}
+                            width="100%"
                             language="json"
-                            value={settingsValue}
-                            onChange={handleValueChange}
-                        />
-                    ) : type === "llm_response_schema" ? (
-                        <JSONSchemaEditor
-                            form={form!}
-                            name={name}
-                            defaultValue={
-                                typeof savedValue === "string"
-                                    ? savedValue
-                                    : JSON.stringify(savedValue ?? {}, null, 2)
-                            }
+                            options={{lineNumbers: "off"}}
+                            theme={`vs-${appTheme}`}
                         />
                     ) : null}
                 </Form.Item>

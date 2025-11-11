@@ -7,19 +7,15 @@ import type {EvaluationFlow, EvaluationType} from "./enums"
 import {VariantParameters} from "./shared/variant/transformer/types"
 
 // Type utility to convert snake_case object properties to camelCase
-export type SnakeToCamelCaseKeys<T> = T extends readonly any[]
-    ? T extends [infer First, ...infer Rest]
-        ? [SnakeToCamelCaseKeys<First>, ...SnakeToCamelCaseKeys<Rest>]
-        : T extends (infer U)[]
-          ? SnakeToCamelCaseKeys<U>[]
-          : T
-    : T extends object
-      ? {
-            [K in keyof T as SnakeToCamelCase<K & string>]: SnakeToCamelCaseKeys<T[K]>
-        }
-      : T
+type SnakeToCamelCaseKeys<T> = T extends object
+    ? {
+          [K in keyof T as SnakeToCamelCase<K & string>]: T[K] extends object
+              ? SnakeToCamelCaseKeys<T[K]>
+              : T[K]
+      }
+    : T
 
-export type SnakeToCamelCase<S extends string> = S extends `${infer T}_${infer U}`
+type SnakeToCamelCase<S extends string> = S extends `${infer T}_${infer U}`
     ? `${T}${Capitalize<SnakeToCamelCase<U>>}`
     : S
 
@@ -61,40 +57,12 @@ export interface testset {
     updated_at: string
 }
 
-export interface Testset {
+export interface TestSet {
     id: string
     name: string
     created_at: string
     updated_at: string
     csvdata: KeyValuePair[]
-}
-
-export interface PreviewTestcase {
-    created_at: string
-    created_by_id: string
-
-    id: string
-    set_id: string
-    testset_id: string
-    data: Record<string, any>
-}
-
-export interface PreviewTestset {
-    id: string
-    name: string
-    created_at: string
-    created_by_id: string
-    slug: string
-    data: {
-        testcase_ids: string[]
-        testcases: {
-            testcase_id: string
-            __flags__?: any
-            __tags__?: any
-            __meta__?: any
-            [key: string]: any
-        }[]
-    }
 }
 
 export type TestsetCreationMode = "create" | "clone" | "rename"
@@ -103,7 +71,6 @@ export interface ListAppsItem {
     app_id: string
     app_name: string
     app_type?: string
-    created_at?: string
     updated_at: string
 }
 
@@ -194,7 +161,6 @@ export interface LLMRunRateLimit {
 export interface Evaluation {
     id: string
     createdAt: string
-    createdAtTimestamp: number
     createdBy: string
     user: {
         id: string
@@ -206,7 +172,7 @@ export interface Evaluation {
     testset: {
         _id: string
         testsetChatColumn: string
-    } & Testset
+    } & TestSet
     appName: string
     llmAppPromptTemplate?: string
     evaluationTypeSettings: {
@@ -450,35 +416,6 @@ export enum SecretDTOProvider {
     GEMINI = "gemini",
 }
 
-export const PROVIDER_LABELS: Record<string, string> = {
-    openai: "OpenAI",
-    cohere: "Cohere",
-    anyscale: "Anyscale",
-    deepinfra: "DeepInfra",
-    alephalpha: "Aleph Alpha",
-    groq: "Groq",
-    mistralai: "Mistral AI",
-    anthropic: "Anthropic",
-    perplexityai: "Perplexity AI",
-    together_ai: "Together AI",
-    openrouter: "OpenRouter",
-    gemini: "Google Gemini",
-    vertex_ai: "Google Vertex AI",
-    bedrock: "AWS Bedrock",
-    // sagemaker: "AWS SageMaker",
-    azure: "Azure OpenAI",
-    custom: "Custom Provider",
-}
-
-export const PROVIDER_KINDS: Record<string, string> = Object.entries(PROVIDER_LABELS).reduce(
-    (acc, [kind, label]) => {
-        acc[kind] = kind
-        acc[label.toLowerCase()] = kind
-        return acc
-    },
-    {} as Record<string, string>,
-)
-
 interface VaultModels {
     slug: string
 }
@@ -490,9 +427,6 @@ interface VaultProvider {
         aws_secret_access_key?: string
         aws_session_token?: string
         aws_region_name?: string
-        vertex_ai_project?: string
-        vertex_ai_location?: string
-        vertex_ai_credentials?: string
         api_key?: string
     }
 }
@@ -568,18 +502,10 @@ export interface HumanEvaluationListTableDataType {
     variantNames: string[]
 }
 
-export type FilterValue =
-    | string
-    | number
-    | boolean
-    | Record<string, any>
-    | Array<string | number | boolean | Record<string, any>>
-
 export interface Filter {
-    field: string
-    key?: string
+    key: string
     operator: FilterConditions
-    value: FilterValue
+    value: string
     isPermanent?: boolean
 }
 
@@ -599,7 +525,6 @@ export type FilterConditions =
     | "lte"
     | "between"
     | "in"
-    | "not_in"
     | "is"
     | "is_not"
     | "btwn"
@@ -662,7 +587,6 @@ export interface APIKey {
 }
 
 export interface SingleModelEvaluationListTableDataType {
-    id: string
     key: string
     variants: Variant[]
     testset: {
@@ -831,16 +755,9 @@ export interface StyleProps {
     themeMode: "dark" | "light"
 }
 
-export interface SettingsPreset {
-    key: string
-    name: string
-    values: Record<string, any>
-}
-
 export interface Evaluator {
     name: string
     key: string
-    settings_presets?: SettingsPreset[]
     settings_template: Record<string, EvaluationSettingsTemplate>
     icon_url?: string | StaticImageData
     color?: string
@@ -880,14 +797,6 @@ export enum EvaluationStatus {
     FINISHED_WITH_ERRORS = "EVALUATION_FINISHED_WITH_ERRORS",
     ERROR = "EVALUATION_FAILED",
     AGGREGATION_FAILED = "EVALUATION_AGGREGATION_FAILED",
-    RUNNING = "running",
-    SUCCESS = "success",
-    FAILURE = "failure",
-    FAILED = "failed",
-    ERRORS = "errors",
-    CANCELLED = "cancelled",
-    PENDING = "pending",
-    INCOMPLETE = "incomplete",
 }
 
 export enum EvaluationStatusType {
@@ -983,7 +892,6 @@ type ValueTypeOptions =
     | "hidden"
     | "messages"
     | "multiple_choice"
-    | "llm_response_schema"
 
 export interface EvaluationSettingsTemplate {
     type: ValueTypeOptions
@@ -1020,26 +928,9 @@ export enum ChatRole {
     Function = "function",
 }
 
-export interface ChatImageURL {
-    url: string
-    detail?: "auto" | "low" | "high"
-}
-
-export interface ChatMessageContentText {
-    type: "text"
-    text: string
-}
-
-export interface ChatMessageContentImage {
-    type: "image_url"
-    image_url: ChatImageURL
-}
-
-export type ChatMessageContent = string | (ChatMessageContentText | ChatMessageContentImage)[]
-
 export interface ChatMessage {
     role: ChatRole
-    content: ChatMessageContent
+    content: string
     id?: string
 }
 

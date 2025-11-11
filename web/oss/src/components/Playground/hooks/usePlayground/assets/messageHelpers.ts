@@ -1,18 +1,17 @@
-import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {getAllMetadata, getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {MessageWithRuns} from "@/oss/lib/hooks/useStatelessVariants/state/types"
-import {
-    createObjectFromMetadata,
-    extractObjectSchemaFromMetadata,
-} from "@/oss/lib/shared/variant/genericTransformer/helpers/arrays"
 import {generateId, toSnakeCase} from "@/oss/lib/shared/variant/stringUtils"
+import {checkValidity, extractValueByMetadata} from "@/oss/lib/shared/variant/valueHelpers"
 
 import {isObjectMetadata} from "../../../../../lib/shared/variant/genericTransformer/helpers/metadata"
 import type {
     ConfigMetadata,
     Enhanced,
+    ObjectMetadata,
 } from "../../../../../lib/shared/variant/genericTransformer/types"
+import {Message} from "../../../../../lib/shared/variant/transformer/types"
 import {hashMetadata} from "../../../assets/hash"
-import {ChatContentPart} from "../types"
+import {PlaygroundStateData} from "../types"
 
 export const createMessageFromSchema = (
     metadata: ConfigMetadata,
@@ -24,263 +23,143 @@ export const createMessageFromSchema = (
         Object.entries(metadata.properties).forEach(([key, propMetadata]) => {
             const metadataHash = hashMetadata(propMetadata)
 
-            const baseValue = createObjectFromMetadata(propMetadata as ConfigMetadata)
-
-            if (
-                baseValue &&
-                typeof baseValue === "object" &&
-                !Array.isArray(baseValue) &&
-                "value" in baseValue
-            ) {
-                const primitiveType = (propMetadata as any)?.type
-
-                if (primitiveType === "number" && (baseValue as any).value === "") {
-                    ;(baseValue as any).value = (propMetadata as any)?.nullable ? null : 0
-                } else if (primitiveType === "boolean" && (baseValue as any).value === "") {
-                    ;(baseValue as any).value = (propMetadata as any)?.nullable ? null : false
-                }
-            }
-
-            if (
-                key === "role" &&
-                baseValue &&
-                typeof baseValue === "object" &&
-                !Array.isArray(baseValue) &&
-                "value" in baseValue
-            ) {
-                ;(baseValue as any).value = ""
-            }
-
-            const jsonValue = json?.[key] ?? json?.[toSnakeCase(key)]
-            let value = jsonValue
-
+            // Initialize with default values based on property type
+            let value = json?.[key] || json?.[toSnakeCase(key)]
+            let defaultValue: any = null
             if (key === "role") {
-                if (typeof value === "string") {
-                    value = {value}
-                }
+                defaultValue = ""
+                // "user" // Default role
             } else if (key === "content") {
-                let newValue
-                if (value) {
-                    if (typeof value === "string") {
-                        const contentMetadata = getMetadataLazy(propMetadata.__metadata)
-                        const objectTypeMetadata = extractObjectSchemaFromMetadata(
-                            contentMetadata || propMetadata,
-                        )
-
-                        if (
-                            objectTypeMetadata?.type === "array" &&
-                            objectTypeMetadata.itemMetadata
-                        ) {
-                            const itemMetadata = objectTypeMetadata.itemMetadata
-
-                            const textOptionMetadata = itemMetadata.options?.find(
-                                (opt) => "text" in opt.properties,
-                            )
-
-                            const textObject = createObjectFromMetadata(textOptionMetadata)
-
-                            textObject.type.value = "text"
-                            textObject.text.value = value
-
-                            value = {
-                                __id: generateId(),
-                                __metadata: hashMetadata(objectTypeMetadata),
-                                value: [textObject],
-                            }
-                        }
-                    } else if (Array.isArray(value)) {
-                        const contentMetadata = getMetadataLazy(value?.__metadata)
-                        const objectTypeMetadata = extractObjectSchemaFromMetadata(
-                            contentMetadata || propMetadata,
-                        )
-
-                        if (
-                            objectTypeMetadata?.type === "array" &&
-                            objectTypeMetadata.itemMetadata
-                        ) {
-                            const itemMetadata = objectTypeMetadata.itemMetadata
-
-                            newValue = {
-                                __id: generateId(),
-                                __metadata: hashMetadata(objectTypeMetadata),
-                                value: value.map((item: ChatContentPart) => {
-                                    const base = createObjectFromMetadata(itemMetadata)
-
-                                    const generatedItem = structuredClone(base)
-
-                                    Object.keys(generatedItem).forEach((key) => {
-                                        if (!["__id", "__metadata", "type"].includes(key)) {
-                                            delete generatedItem[key]
-                                        }
-                                    })
-
-                                    generatedItem.type = {
-                                        value: item.type,
-                                        __id: generateId(),
-                                        __metadata: hashMetadata(itemMetadata),
-                                    }
-
-                                    if (item.type === "text") {
-                                        generatedItem.text = {
-                                            __id: generateId(),
-                                            value: item.text,
-                                            __metadata: hashMetadata(itemMetadata),
-                                        }
-                                    } else if (item.type === "image_url") {
-                                        const imageOptionMetadata = itemMetadata.options?.find(
-                                            (opt) =>
-                                                "image_url" in opt.properties ||
-                                                "imageUrl" in opt.properties,
-                                        )
-
-                                        const imageBase =
-                                            createObjectFromMetadata(imageOptionMetadata)
-                                        const imageProp = (imageBase as any).image_url ||
-                                            (imageBase as any).imageUrl || {url: {}, detail: {}}
-
-                                        generatedItem.image_url = {
-                                            ...imageProp,
-                                            url: {
-                                                ...imageProp?.url,
-                                                value: item.image_url?.url || "",
-                                            },
-                                            detail: {
-                                                ...imageProp?.detail,
-                                                value: item.image_url?.detail || "auto",
-                                            },
-                                        }
-
-                                        generatedItem.__metadata = (imageBase as any).__metadata
-                                        generatedItem.__id = (imageBase as any).__id
-                                    }
-
-                                    return generatedItem
-                                }),
-                            }
-
-                            value = newValue
-                        }
-                    } else if (!value?.value) {
-                        const contentMetadata = getMetadataLazy(value?.__metadata)
-                        const objectTypeMetadata = extractObjectSchemaFromMetadata(
-                            contentMetadata || propMetadata,
-                        )
-                        newValue = createObjectFromMetadata(objectTypeMetadata)
-                        newValue.value[0].type.value = "text"
-                        value = newValue
-                    }
-                } else {
-                    value = {
-                        __id: generateId(),
-                        __metadata: hashMetadata(propMetadata),
-                        value,
-                    }
-                }
+                defaultValue = "" // Empty content
             } else if (key === "toolCalls") {
+                defaultValue = undefined
                 if (Array.isArray(value)) {
-                    value = value.map((item) => ({
-                        __id: generateId(),
-                        __metadata: hashMetadata(propMetadata),
-                        ...structuredClone(item),
-                    }))
-                }
-            }
-
-            if (key === "content") {
-                if (
-                    value === undefined ||
-                    value === null ||
-                    value.value === null ||
-                    value.value === undefined
-                ) {
-                    const contentMetadata = getMetadataLazy(propMetadata.__metadata)
-                    const objectTypeMetadata = extractObjectSchemaFromMetadata(
-                        contentMetadata || propMetadata,
-                    )
-
-                    if (objectTypeMetadata?.type === "array" && objectTypeMetadata.itemMetadata) {
-                        const itemMetadata = objectTypeMetadata.itemMetadata
-                        const textOptionMetadata = itemMetadata.options?.find(
-                            (opt) => "text" in opt.properties,
-                        )
-
-                        const textObject = createObjectFromMetadata(textOptionMetadata)
-                        textObject.type.value = "text"
-                        textObject.text.value = ""
-
-                        value = {
+                    const test = value.map((item) => {
+                        const x = structuredClone(item)
+                        return {
                             __id: generateId(),
-                            __metadata: hashMetadata(objectTypeMetadata),
-                            value: [textObject],
+                            __metadata: hashMetadata(propMetadata),
+                            ...x,
                         }
-                    }
-                }
-            } else if (key === "toolCalls") {
-                if (!value || (Array.isArray(value) && value.length === 0)) {
-                    return
+                    })
+                    value = test
                 } else {
-                    value = {
-                        value,
-                    }
+                    console.log("ayo! create message 1")
                 }
             }
 
-            if (
-                (typeof value === "string" ||
-                    typeof value === "number" ||
-                    typeof value === "boolean") &&
-                propMetadata?.type === typeof value &&
-                (!value?.__id || !value?.__metadata)
-            ) {
-                value = {value}
-            }
-
-            const baseIsObject =
-                baseValue && typeof baseValue === "object" && !Array.isArray(baseValue)
-
-            if (value === undefined) {
-                if (baseIsObject) {
-                    value = structuredClone(baseValue)
-                }
-            } else if (value === null) {
-                if (baseIsObject) {
-                    const baseClone = structuredClone(baseValue)
-                    if ("value" in baseClone) {
-                        ;(baseClone as any).value = null
-                    }
-                    value = baseClone
-                } else {
-                    value = {value: null}
-                }
-            } else if (
-                baseIsObject &&
-                typeof value === "object" &&
-                !Array.isArray(value) &&
-                (!("__id" in value) || !("__metadata" in value))
-            ) {
-                const baseClone = structuredClone(baseValue)
-                value = {
-                    ...baseClone,
-                    ...value,
-                }
-            }
+            value = value || defaultValue
 
             properties[key] = {
                 __id: generateId(),
                 __metadata: metadataHash,
-                ...(value || {}),
+                value,
             }
         })
         const metadataHash = hashMetadata(metadata)
 
-        const generated = {
+        return {
             __id: generateId(),
             __metadata: metadataHash,
             ...properties,
         } as Enhanced<MessageWithRuns>
-
-        return generated
     } else {
         return undefined
     }
+}
+
+export const createMessageRow = (
+    message: Enhanced<Message>,
+    metadata: ObjectMetadata,
+    messagesMetadata: string,
+) => {
+    const metadataHash = hashMetadata(metadata)
+    const arrayMetadata = getMetadataLazy(messagesMetadata)
+
+    return {
+        __id: generateId(),
+        __metadata: metadataHash,
+        history: {
+            value: [message],
+            __id: generateId(),
+            __metadata: hashMetadata(arrayMetadata),
+        },
+    }
+}
+
+export const constructChatHistory = ({
+    messageRow,
+    messageId,
+    variantId,
+    includeLastMessage = false,
+    includeResults = false,
+}: {
+    messageRow?: PlaygroundStateData["generationData"]["messages"]["value"][number]
+    messageId: string
+    variantId: string
+    includeLastMessage?: boolean
+    includeResults?: boolean
+}) => {
+    let constructedHistory = []
+    const results = []
+    const allMetadata = getAllMetadata()
+
+    if (messageRow) {
+        for (const historyItem of messageRow.history.value) {
+            let userMessage = extractValueByMetadata(historyItem, allMetadata)
+            const messageMetadata = getMetadataLazy<ObjectMetadata>(
+                historyItem.__metadata as string,
+            )
+
+            // Extract run data if requested and __runs exists
+            if (includeResults && historyItem.__runs) {
+                for (const runData of Object.values(historyItem.__runs)) {
+                    results.push({
+                        isRunning: runData?.__isRunning,
+                        result: runData?.__result,
+                    })
+                }
+            }
+
+            if (messageMetadata) {
+                userMessage = checkValidity(historyItem, messageMetadata) ? userMessage : undefined
+
+                if (historyItem.__id === messageId) {
+                    if (includeLastMessage) {
+                        constructedHistory.push(userMessage)
+                    }
+                    break
+                }
+
+                constructedHistory.push(userMessage)
+
+                const variantResponses = historyItem.__runs?.[variantId]?.messages
+                    ? historyItem.__runs?.[variantId]?.messages
+                    : [historyItem.__runs?.[variantId]?.message]
+
+                for (const variantResponse of variantResponses) {
+                    if (variantResponse?.__id === messageId && !includeLastMessage) {
+                        break
+                    }
+                    let llmResponse = extractValueByMetadata(variantResponse, allMetadata)
+
+                    if (variantResponse) {
+                        llmResponse = checkValidity(variantResponse, messageMetadata)
+                            ? llmResponse
+                            : undefined
+
+                        constructedHistory.push(llmResponse)
+                    }
+                }
+            }
+        }
+    }
+
+    constructedHistory = constructedHistory.filter(Boolean)
+
+    if (includeResults) {
+        return results.filter(Boolean)
+    }
+
+    return constructedHistory
 }

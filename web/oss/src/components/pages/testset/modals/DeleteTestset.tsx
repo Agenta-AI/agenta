@@ -1,18 +1,18 @@
 import {Dispatch, SetStateAction, useState} from "react"
 
 import {DeleteOutlined} from "@ant-design/icons"
-import {Modal, ModalProps} from "antd"
+import {Modal} from "antd"
 import {KeyedMutator} from "swr"
 
 import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
 import {testset} from "@/oss/lib/Types"
 import {deleteTestsets} from "@/oss/services/testsets/api"
 
-interface DeleteTestsetProps extends ModalProps {
+type DeleteTestsetProps = {
     selectedTestsetToDelete: testset[]
     mutate: KeyedMutator<any>
     setSelectedTestsetToDelete: Dispatch<SetStateAction<testset[]>>
-}
+} & React.ComponentProps<typeof Modal>
 
 const DeleteTestset = ({
     selectedTestsetToDelete,
@@ -47,7 +47,7 @@ const DeleteTestset = ({
 
     return (
         <Modal
-            destroyOnHidden
+            destroyOnClose
             title="Are you sure?"
             okText="Delete"
             okButtonProps={{danger: true, icon: <DeleteOutlined />, loading: isLoading}}

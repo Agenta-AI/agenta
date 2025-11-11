@@ -2,23 +2,25 @@ import {MoreOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise, GearSix, Lightning, Note} from "@phosphor-icons/react"
 import {Dropdown, Button} from "antd"
 import {ColumnsType} from "antd/es/table"
+import {NextRouter} from "next/router"
 
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
 import {DeploymentRevisions} from "@/oss/lib/Types"
 
+import {DeploymentRevisionWithVariant} from "../../.."
 import VariantDetailsRenderer from "../../../assets/VariantDetailsRenderer"
-import {DeploymentRevisionWithVariant} from "../../../atoms"
 
 export const getColumns = ({
+    handleFetchRevisionConfig,
     setSelectedRevisionRow,
     setIsRevertModalOpen,
     setSelectedVariantRevisionIdToRevert,
     handleAssignRevisionId,
     envRevisions,
-    onOpenInPlayground,
-    onOpenUseApi,
-    isVariantLoading,
+    router,
+    appId,
 }: {
+    handleFetchRevisionConfig: (revisionId: string) => Promise<void>
     setSelectedRevisionRow: React.Dispatch<
         React.SetStateAction<DeploymentRevisionWithVariant | undefined>
     >
@@ -26,9 +28,8 @@ export const getColumns = ({
     setSelectedVariantRevisionIdToRevert: React.Dispatch<React.SetStateAction<string>>
     handleAssignRevisionId: (record: DeploymentRevisionWithVariant) => void
     envRevisions: DeploymentRevisions | undefined
-    onOpenInPlayground: (revisionId?: string | null) => void
-    onOpenUseApi: () => void
-    isVariantLoading?: boolean
+    router: NextRouter
+    appId: string
 }): ColumnsType<DeploymentRevisionWithVariant> => {
     const columns: ColumnsType<DeploymentRevisionWithVariant> = [
         {
@@ -54,13 +55,7 @@ export const getColumns = ({
                 style: {minWidth: 280},
             }),
             render: (_, record) => {
-                return (
-                    <VariantDetailsRenderer
-                        record={record}
-                        isLoading={Boolean(isVariantLoading)}
-                        showStable
-                    />
-                )
+                return <VariantDetailsRenderer record={record} />
             },
         },
         {
@@ -126,20 +121,9 @@ export const getColumns = ({
                                 icon: <Note size={16} />,
                                 onClick: (e) => {
                                     e.domEvent.stopPropagation()
+                                    handleFetchRevisionConfig(record.id)
                                     setSelectedRevisionRow(record)
                                     handleAssignRevisionId(record)
-                                },
-                            },
-                            {
-                                key: "use_api",
-                                label: "Use API",
-                                icon: <Lightning size={16} />,
-                                onClick: (e) => {
-                                    e.domEvent.stopPropagation()
-                                    onOpenUseApi({
-                                        revisionId: record?.deployed_app_variant_revision,
-                                        deploymentRevisionId: record?.id,
-                                    })
                                 },
                             },
                             {
@@ -148,7 +132,12 @@ export const getColumns = ({
                                 icon: <Lightning size={16} />,
                                 onClick: (e) => {
                                     e.domEvent.stopPropagation()
-                                    onOpenInPlayground(record.variant?.id)
+                                    router.push({
+                                        pathname: `/apps/${appId}/playground`,
+                                        query: {
+                                            revisions: JSON.stringify([record.variant?.id]),
+                                        },
+                                    })
                                 },
                                 disabled: !record.variant,
                             },

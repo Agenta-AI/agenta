@@ -1,22 +1,22 @@
-import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {DiffEditor} from "@monaco-editor/react"
+import {Modal} from "antd"
 
-import VariantComparisonContent from "./Content"
+import {Variant} from "@/oss/lib/Types"
 
-type VariantComparisonModalProps = Omit<React.ComponentProps<typeof EnhancedModal>, "children">
+type VariantComparisonModalProps = {
+    compareVariantList: Variant[]
+} & React.ComponentProps<typeof Modal>
 
-const VariantComparisonModal = ({...props}: VariantComparisonModalProps) => {
+const VariantComparisonModal = ({compareVariantList, ...props}: VariantComparisonModalProps) => {
     return (
-        <EnhancedModal
-            footer={null}
-            {...props}
-            width="100%"
-            style={{
-                ...(props.style || {}),
-                maxWidth: "calc(250px + 65ch)",
-            }}
-        >
-            <VariantComparisonContent />
-        </EnhancedModal>
+        <Modal centered width={1200} footer={null} {...props}>
+            <DiffEditor
+                language="json"
+                original={JSON.stringify(compareVariantList[0].parameters, null, 2)}
+                modified={JSON.stringify(compareVariantList[1].parameters, null, 2)}
+                height="50vh"
+            />
+        </Modal>
     )
 }
 

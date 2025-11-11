@@ -1,14 +1,12 @@
 import {Button, Typography} from "antd"
 import {useRouter} from "next/router"
 
-import useURL from "@/oss/hooks/useURL"
 import {SubscriptionType} from "@/oss/services/billing/types"
 
 import SubscriptionPlanDetails from "@/agenta-oss-common/components/pages/settings/Billing/Modals/PricingModal/assets/SubscriptionPlanDetails"
 
 const FreeTrialBanner = ({subscription}: {subscription: SubscriptionType}) => {
     const router = useRouter()
-    const {projectURL} = useURL()
 
     return (
         <section className="p-4 rounded-lg flex flex-col gap-1 bg-[#F5F7FA]">
@@ -20,7 +18,7 @@ const FreeTrialBanner = ({subscription}: {subscription: SubscriptionType}) => {
                 plan features.
             </Typography.Text>
             <Button
-                onClick={() => router.push(`${projectURL || ""}/settings?tab=billing`)}
+                onClick={() => router.push("/settings?tab=billing")}
                 type="primary"
                 className="self-start"
             >

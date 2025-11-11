@@ -8,13 +8,14 @@ import agenta as ag
 
 from agenta.sdk.litellm import mockllm
 from agenta.sdk.types import PromptTemplate, Message
+from openinference.instrumentation.litellm import LiteLLMInstrumentor
 
 
 litellm.drop_params = True
 mockllm.litellm = litellm
 
 ag.init()
-litellm.callbacks = [ag.callbacks.litellm_handler()]
+LiteLLMInstrumentor().instrument()
 
 
 class MyConfig(BaseModel):
@@ -61,12 +62,11 @@ async def generate(
             detail=f"Credentials not found for model {config.prompt.llm_config.model}. Please configure them under settings.",
         )
 
-    with mockllm.user_aws_credentials_from(provider_settings):
-        response = await mockllm.acompletion(
-            **{
-                k: v for k, v in openai_kwargs.items() if k != "model"
-            },  # we should use the model_name from provider_settings
-            **provider_settings,
-        )
+    response = await mockllm.acompletion(
+        **{
+            k: v for k, v in openai_kwargs.items() if k != "model"
+        },  # we should use the model_name from provider_settings
+        **provider_settings,
+    )
 
     return response.choices[0].message.model_dump(exclude_none=True)

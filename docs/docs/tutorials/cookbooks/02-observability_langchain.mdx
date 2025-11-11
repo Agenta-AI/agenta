@@ -1,26 +1,23 @@
 ---
-title: "Tracing and Observability for LangChain with Agenta"
-sidebar_label: Tracing for LangChain
-description: Learn how to instrument LangChain traces with Agenta for enhanced LLM observability. This guide covers setup, configuration, and best practices for monitoring LLM applications using LangChain and OpenAI models.
+title: "Observability LangChain"
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
-import GoogleColabButton from "@site/src/components/GoogleColabButton";
+
 ```
 
+:::note
+This guide is also available as a [Jupyter Notebook](https://github.com/Agenta-AI/agenta/blob/main/cookbook/observability_langchain.ipynb).
+:::
 
+# LLM Observability for LangChain with Agenta
 
 ## Introduction
 
 This guide shows you how to set up tracing for a RAG application in Langchain using Agenta, the open-source LLMOps platform.
 
 Tracing allows us to debug effectively complex LLM applications. It allows us to view exact prompts sent and contexts retrieved.
-
-
-<GoogleColabButton notebookPath="examples/jupyter/observability_langchain.ipynb">
-  Open in Google Colaboratory
-</GoogleColabButton>
 
 We'll build a simple Q&A RAG application that answers questions about Agenta's documentation. Then, we'll instrument the calls (i.e., trace them) and view the trace in Agenta.
 
@@ -104,7 +101,7 @@ prompt_template = ChatPromptTemplate([
 llm = ChatOpenAI(model="gpt-4o-mini")
 
 loader = WebBaseLoader(
-    web_paths=("https://docs.agenta.ai/prompt-engineering/managing-prompts-programatically/create-and-commit",),
+    web_paths=("https://docs.agenta.ai/prompt-management/prompt-management-sdk",),
     bs_kwargs=dict(
         parse_only=bs4.SoupStrainer('article')  # Only parse the core
     ),

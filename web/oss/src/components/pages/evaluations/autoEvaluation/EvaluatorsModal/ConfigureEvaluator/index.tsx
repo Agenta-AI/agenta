@@ -1,25 +1,19 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {ArrowLeft} from "@phosphor-icons/react"
-import {Button, Flex, Form, Input, message, Space, Typography, Splitter, Divider} from "antd"
+import {CloseOutlined} from "@ant-design/icons"
+import {ArrowLeft, CaretDoubleRight} from "@phosphor-icons/react"
+import {Button, Flex, Form, Input, message, Space, Tooltip, Typography} from "antd"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
 import {useAppId} from "@/oss/hooks/useAppId"
-import {
-    EvaluationSettingsTemplate,
-    Evaluator,
-    EvaluatorConfig,
-    JSSTheme,
-    testset,
-    Variant,
-} from "@/oss/lib/Types"
+import {isDemo} from "@/oss/lib/helpers/utils"
+import {Evaluator, EvaluatorConfig, JSSTheme, testset, Variant} from "@/oss/lib/Types"
 import {
     CreateEvaluationConfigData,
     createEvaluatorConfig,
     updateEvaluatorConfig,
 } from "@/oss/services/evaluations/api"
-import {useAppList} from "@/oss/state/app"
 
 import AdvancedSettings from "./AdvancedSettings"
 import {DynamicFormField} from "./DynamicFormField"
@@ -29,7 +23,6 @@ const DebugSection: any = dynamic(
         import(
             "@/oss/components/pages/evaluations/autoEvaluation/EvaluatorsModal/ConfigureEvaluator/DebugSection"
         ),
-    {ssr: false},
 )
 
 interface ConfigureEvaluatorProps {
@@ -55,9 +48,10 @@ interface ConfigureEvaluatorProps {
             testcase: Record<string, any> | null
         }>
     >
+    setDebugEvaluator: React.Dispatch<React.SetStateAction<boolean>>
+    debugEvaluator: boolean
     setSelectedTestset: React.Dispatch<React.SetStateAction<string>>
     selectedTestset: string
-    appId?: string | null
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -78,9 +72,11 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         flexDirection: "column",
         gap: theme.padding,
         height: "100%",
-        width: "100%",
         "& .ant-form-item": {
-            marginBottom: 10,
+            marginBottom: 0,
+        },
+        "& .ant-form-item-label": {
+            paddingBottom: theme.paddingXXS,
         },
     },
     formTitleText: {
@@ -107,13 +103,12 @@ const ConfigureEvaluator = ({
     cloneConfig,
     setCloneConfig,
     setSelectedTestcase,
+    debugEvaluator,
+    setDebugEvaluator,
     selectedTestset,
     setSelectedTestset,
-    appId: appIdOverride,
 }: ConfigureEvaluatorProps) => {
-    const routeAppId = useAppId()
-    const apps = useAppList()
-    const appId = appIdOverride ?? routeAppId ?? apps?.[0].app_id
+    const appId = useAppId()
     const classes = useStyles()
     const [form] = Form.useForm()
     const [submitLoading, setSubmitLoading] = useState(false)
@@ -123,190 +118,135 @@ const ConfigureEvaluator = ({
         trace: null,
     })
 
-    const evaluatorVersionNumber = useMemo(() => {
-        const raw =
-            editEvalEditValues?.settings_values?.version ??
-            selectedEvaluator?.settings_template?.version?.default ??
-            3
-
-        if (typeof raw === "number") return raw
-        // extract leading number (e.g., "4", "4.1", "v4")
-        const match = String(raw).match(/\d+(\.\d+)?/)
-        return match ? parseFloat(match[0]) : 3
-    }, [editEvalEditValues?.settings_values?.version, selectedEvaluator])
-
-    const evalFields = useMemo(() => {
-        const templateEntries = Object.entries(selectedEvaluator?.settings_template || {})
-        const allowStructuredOutputs = evaluatorVersionNumber >= 4
-
-        return templateEntries.reduce(
-            (acc, [key, field]) => {
-                const f = field as Partial<EvaluationSettingsTemplate> | undefined
-                if (!f?.type) return acc
-                if (!allowStructuredOutputs && (key === "json_schema" || key === "response_type")) {
-                    return acc
-                }
-                acc.push({
+    const evalFields = useMemo(
+        () =>
+            Object.keys(selectedEvaluator?.settings_template || {})
+                .filter((key) => !!selectedEvaluator?.settings_template[key]?.type)
+                .map((key) => ({
                     key,
-                    ...(f as EvaluationSettingsTemplate),
-                    advanced: Boolean((f as any)?.advanced),
-                })
-                return acc
-            },
-            [] as Array<EvaluationSettingsTemplate & {key: string}>,
-        )
-    }, [selectedEvaluator, evaluatorVersionNumber])
+                    ...selectedEvaluator?.settings_template[key]!,
+                    advanced: selectedEvaluator?.settings_template[key]?.advanced || false,
+                })),
+        [selectedEvaluator],
+    )
 
     const advancedSettingsFields = evalFields.filter((field) => field.advanced)
     const basicSettingsFields = evalFields.filter((field) => !field.advanced)
 
-    const onSubmit = async (values: CreateEvaluationConfigData) => {
+    const onSubmit = (values: CreateEvaluationConfigData) => {
         try {
             setSubmitLoading(true)
             if (!selectedEvaluator.key) throw new Error("No selected key")
             const settingsValues = values.settings_values || {}
-
-            const jsonSchemaFieldPath: Array<string | number> = ["settings_values", "json_schema"]
-            const hasJsonSchema = Object.prototype.hasOwnProperty.call(
-                settingsValues,
-                "json_schema",
-            )
-
-            if (hasJsonSchema) {
-                form.setFields([{name: jsonSchemaFieldPath, errors: []}])
-
-                if (typeof settingsValues.json_schema === "string") {
-                    try {
-                        const parsed = JSON.parse(settingsValues.json_schema)
-                        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-                            throw new Error()
-                        }
-                        settingsValues.json_schema = parsed
-                    } catch {
-                        form.setFields([
-                            {
-                                name: jsonSchemaFieldPath,
-                                errors: ["Enter a valid JSON object"],
-                            },
-                        ])
-                        throw new Error("JSON schema must be a valid JSON object")
-                    }
-                } else if (
-                    settingsValues.json_schema &&
-                    (typeof settingsValues.json_schema !== "object" ||
-                        Array.isArray(settingsValues.json_schema))
-                ) {
-                    form.setFields([
-                        {
-                            name: jsonSchemaFieldPath,
-                            errors: ["Enter a valid JSON object"],
-                        },
-                    ])
-                    throw new Error("JSON schema must be a valid JSON object")
-                }
-            }
 
             const data = {
                 ...values,
                 evaluator_key: selectedEvaluator.key,
                 settings_values: settingsValues,
             }
-
-            if (editMode) {
-                await updateEvaluatorConfig(editEvalEditValues?.id!, data)
-
-                setEditEvalEditValues((previous) =>
-                    previous
-                        ? {
-                              ...previous,
-                              ...data,
-                              settings_values: settingsValues,
-                          }
-                        : previous,
-                )
-            } else {
-                const response = await createEvaluatorConfig(appId, data)
-                const createdConfig = response?.data
-
-                if (createdConfig) {
-                    setEditEvalEditValues(createdConfig)
-                    setEditMode(true)
-                }
-            }
-
-            onSuccess()
+            ;(editMode
+                ? updateEvaluatorConfig(editEvalEditValues?.id!, data)
+                : createEvaluatorConfig(appId, data)
+            )
+                .then(onSuccess)
+                .catch(console.error)
+                .finally(() => setSubmitLoading(false))
         } catch (error: any) {
-            if (error?.errorFields) return
+            setSubmitLoading(false)
             console.error(error)
             message.error(error.message)
-        } finally {
-            setSubmitLoading(false)
         }
     }
 
     useEffect(() => {
-        // Reset form before loading new values so there are no stale values
         form.resetFields()
-
-        if (editMode && editEvalEditValues) {
-            // Load all values including nested settings_values
-            form.setFieldsValue({
-                ...editEvalEditValues,
-                settings_values: editEvalEditValues.settings_values || {},
-            })
-        } else if (cloneConfig && editEvalEditValues) {
-            // When cloning, copy only settings_values and clear the name so user provides a new name
-            form.setFieldsValue({
-                settings_values: editEvalEditValues.settings_values || {},
-                name: "",
-            })
+        if (editMode) {
+            form.setFieldsValue(editEvalEditValues)
+        } else if (cloneConfig) {
+            form.setFieldValue("settings_values", editEvalEditValues?.settings_values)
         }
-    }, [editMode, cloneConfig, editEvalEditValues, form])
+    }, [editMode, cloneConfig])
 
     return (
-        <section className="flex flex-col w-full h-[calc(100vh-84px)] gap-2">
-            <div className="flex items-center justify-between border-0 border-b border-solid border-gray-200 py-2 px-4 sticky top-0 z-20 bg-white">
-                <div className="flex items-center gap-2">
-                    <Button
-                        icon={<ArrowLeft size={14} />}
-                        className="flex items-center justify-center"
-                        size="small"
-                        onClick={() => {
-                            setCurrent(0)
-                            setEditMode(false)
-                            setCloneConfig(false)
-                            setEditEvalEditValues(null)
-                        }}
-                    />
-                    <Typography.Text className={classes.title}>
-                        {editMode ? "Edit evaluator" : "Configure evaluator"}
-                    </Typography.Text>
-                </div>
+        <div className="flex flex-col gap-6 h-full">
+            <div className="flex items-center justify-between">
+                <Space className={classes.headerText}>
+                    {editMode ? (
+                        <>
+                            <Button
+                                icon={<ArrowLeft size={14} />}
+                                className="flex items-center justify-center"
+                                onClick={() => {
+                                    setCurrent(0)
+                                    setEditMode(false)
+                                    setCloneConfig(false)
+                                    setEditEvalEditValues(null)
+                                }}
+                            />
+                            <Typography.Text>Configure evaluator</Typography.Text>
+                        </>
+                    ) : (
+                        <>
+                            <Button
+                                icon={<ArrowLeft size={14} />}
+                                className="flex items-center justify-center"
+                                onClick={() => {
+                                    setCurrent(1)
+                                    setEditMode(false)
+                                    setCloneConfig(false)
+                                    setEditEvalEditValues(null)
+                                }}
+                            />
+                            <Typography.Text>Step 2/2:</Typography.Text>
+                            <Typography.Text>Configure new evaluator</Typography.Text>
+                        </>
+                    )}
+                </Space>
 
-                <Flex gap={8} justify="end">
-                    <Button type="text" onClick={() => form.resetFields()}>
-                        Reset
-                    </Button>
-                    <Button type="primary" loading={submitLoading} onClick={form.submit}>
-                        Commit
-                    </Button>
-                </Flex>
+                <Button onClick={handleOnCancel} type="text" icon={<CloseOutlined />} />
             </div>
 
-            <div className="flex gap-4 w-full h-full px-4 overflow-auto">
-                <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-0 h-full w-[50%]">
+            <Flex gap={16} className="h-full overflow-y-hidden">
+                <div className="flex-1 flex flex-col gap-4">
                     <Space direction="vertical">
                         <Flex justify="space-between">
                             <Typography.Text className={classes.title}>
                                 {selectedEvaluator.name}
                             </Typography.Text>
+
+                            <Tooltip
+                                title={
+                                    isDemo()
+                                        ? ""
+                                        : "Test evaluator feature available in Cloud/Enterprise editions only"
+                                }
+                                placement="bottom"
+                            >
+                                <Button
+                                    size="small"
+                                    onClick={() => setDebugEvaluator(!debugEvaluator)}
+                                    disabled={!isDemo()}
+                                >
+                                    {debugEvaluator ? (
+                                        <div className="flex items-center gap-2">
+                                            <CloseOutlined />
+                                            Test
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            Test
+                                            <CaretDoubleRight />
+                                        </div>
+                                    )}
+                                </Button>
+                            </Tooltip>
                         </Flex>
                         <Typography.Text type="secondary">
                             {selectedEvaluator.description}
                         </Typography.Text>
                     </Space>
 
-                    <div>
+                    <div className="flex-1 overflow-y-hidden">
                         <Form
                             requiredMark={false}
                             form={form}
@@ -315,24 +255,27 @@ const ConfigureEvaluator = ({
                             layout="vertical"
                             className={classes.formContainer}
                         >
-                            <div className="flex gap-4">
-                                <Form.Item
-                                    name="name"
-                                    label="Name"
-                                    rules={[
-                                        {
-                                            required: true,
-                                            message: "This field is required",
-                                        },
-                                    ]}
-                                    className="w-full"
-                                >
-                                    <Input />
-                                </Form.Item>
-                            </div>
+                            <Space direction="vertical" size={4}>
+                                <div className="flex gap-4">
+                                    <Form.Item
+                                        name="name"
+                                        label="Name"
+                                        rules={[
+                                            {required: true, message: "This field is required"},
+                                        ]}
+                                        className="flex-1"
+                                    >
+                                        <Input />
+                                    </Form.Item>
+                                </div>
+                            </Space>
 
                             {basicSettingsFields.length ? (
-                                <div className="h-full w-full max-w-full flex flex-col gap-2">
+                                <Space
+                                    direction="vertical"
+                                    size={4}
+                                    className="flex-1 overflow-y-auto"
+                                >
                                     <Typography.Text className={classes.formTitleText}>
                                         Parameters
                                     </Typography.Text>
@@ -341,35 +284,39 @@ const ConfigureEvaluator = ({
                                             {...field}
                                             key={field.key}
                                             traceTree={traceTree}
-                                            form={form}
                                             name={["settings_values", field.key]}
                                         />
                                     ))}
-                                </div>
+                                </Space>
                             ) : (
                                 ""
                             )}
 
                             {advancedSettingsFields.length > 0 && (
-                                <div className="h-fit">
-                                    <AdvancedSettings
-                                        settings={advancedSettingsFields}
-                                        selectedTestcase={selectedTestcase}
-                                    />
-                                </div>
+                                <AdvancedSettings
+                                    settings={advancedSettingsFields}
+                                    selectedTestcase={selectedTestcase}
+                                />
                             )}
                         </Form>
                     </div>
-                </div>
 
-                <Divider type="vertical" className="h-full sticky" />
+                    <Flex gap={8} justify="end">
+                        <Button type="text" onClick={() => form.resetFields()}>
+                            Reset
+                        </Button>
+                        <Button type="primary" loading={submitLoading} onClick={form.submit}>
+                            {editMode ? "Edit configuration" : "Save configuration"}
+                        </Button>
+                    </Flex>
+                </div>
 
                 <DebugSection
                     selectedEvaluator={selectedEvaluator}
                     selectedTestcase={selectedTestcase}
                     selectedVariant={selectedVariant}
                     setTraceTree={setTraceTree}
-                    debugEvaluator={true}
+                    debugEvaluator={debugEvaluator}
                     form={form}
                     testsets={testsets}
                     traceTree={traceTree}
@@ -379,8 +326,8 @@ const ConfigureEvaluator = ({
                     selectedTestset={selectedTestset}
                     setSelectedTestset={setSelectedTestset}
                 />
-            </div>
-        </section>
+            </Flex>
+        </div>
     )
 }
 

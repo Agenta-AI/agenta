@@ -1,5 +1,3 @@
-import {SnakeToCamelCase, SnakeToCamelCaseKeys} from "@/oss/lib/Types"
-
 interface AnnotationLink {
     trace_id?: string
     span_id?: string
@@ -34,19 +32,7 @@ type AnnotationChannel = "web" | "sdk" | "api"
 type AnnotationOrigin = "custom" | "human" | "auto"
 
 type AnnotationLinks = Record<string, AnnotationLink>
-// Depth-limited JSON type to prevent TypeScript infinite recursion errors (see TS issue #34933)
-type Prev = [never, 0, 1, 2, 3, 4]
-export type FullJsonRec<Depth extends number = 4> = Depth extends 0
-    ? unknown // base case: stop recursion
-    :
-          | string
-          | number
-          | boolean
-          | null
-          | {[key: string]: FullJsonRec<Prev[Depth]>}
-          | FullJsonRec<Prev[Depth]>[]
-
-export type FullJson = FullJsonRec<4>
+type FullJson = string | number | boolean | null | {[key: string]: FullJson} | FullJson[]
 
 interface BaseAnnotationDto {
     trace_id?: string
@@ -89,6 +75,5 @@ export interface AnnotationEditPayloadDto {
 
 export interface AnnotationsResponse {
     count: number
-    annotation: AnnotationDto
     annotations: AnnotationDto[]
 }

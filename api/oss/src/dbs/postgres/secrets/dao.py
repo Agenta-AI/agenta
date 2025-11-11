@@ -42,12 +42,14 @@ class SecretsDAO(SecretsDAOInterface):
         project_id: UUID,
         secret_id: UUID,
     ):
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
             )
-            result = await session.execute(stmt)  # type: ignore
+
+            result = await connection.execute(stmt=stmt, prepare=True)  # type: ignore
+
             secrets_dbe = result.scalar()
 
             if secrets_dbe is None:
@@ -57,15 +59,20 @@ class SecretsDAO(SecretsDAOInterface):
             return secrets_dto
 
     async def list(self, project_id: UUID):
-        async with engine.core_session() as session:
-            stmt = select(SecretsDBE).filter_by(project_id=project_id)
+        async with engine.core_connection() as connection:
+            stmt = select(SecretsDBE).filter_by(
+                project_id=project_id,
+            )
 
-            results = await session.execute(stmt)  # type: ignore
+            results = await connection.execute(stmt=stmt, prepare=True)  # type: ignore
+
             secrets_dbes = results.scalars().all()
+
             vault_secret_dtos = [
                 map_secrets_dbe_to_dto(secrets_dbe=secret_dbe)
                 for secret_dbe in secrets_dbes
             ]
+
             return vault_secret_dtos
 
     async def update(
@@ -75,11 +82,11 @@ class SecretsDAO(SecretsDAOInterface):
         update_secret_dto: UpdateSecretDTO,
     ):
         async with engine.core_session() as session:
-            stmt = select(SecretsDBE).filter_by(
+            query = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
             )
-            result = await session.execute(stmt)
+            result = await session.execute(query)
             secrets_dbe = result.scalar()
 
             if secrets_dbe is None:
@@ -101,11 +108,11 @@ class SecretsDAO(SecretsDAOInterface):
         secret_id: UUID,
     ):
         async with engine.core_session() as session:
-            stmt = select(SecretsDBE).filter_by(
+            query = select(SecretsDBE).filter_by(
                 id=secret_id,
                 project_id=project_id,
             )
-            result = await session.execute(stmt)  # type: ignore
+            result = await session.execute(query)  # type: ignore
             vault_secret_dbe = result.scalar()
             if vault_secret_dbe is None:
                 return

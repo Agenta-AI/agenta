@@ -10,12 +10,8 @@ import {createUseStyles} from "react-jss"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
 import {Environment, JSSTheme} from "@/oss/lib/Types"
-import {
-    createRevertDeploymentRevision,
-    fetchAllDeploymentRevisions,
-} from "@/oss/services/deploymentVersioning/api"
 
-import {DeploymentRevisionConfig, DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
+import {DeploymentRevisionConfig, DeploymentRevisions} from "../../lib/types_ee"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)
@@ -118,6 +114,10 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
     const fetchData = async () => {
         setIsLoading(true)
         try {
+            const mod = await import("@/oss/services/deploymentVersioning/api")
+            const fetchAllDeploymentRevisions = mod?.fetchAllDeploymentRevisions
+            if (!mod || !fetchAllDeploymentRevisions) return
+
             const data = await fetchAllDeploymentRevisions(
                 selectedEnvironment?.app_id,
                 selectedEnvironment?.name,
@@ -134,6 +134,10 @@ const DeploymentHistory: React.FC<DeploymentHistoryProps> = ({selectedEnvironmen
     const handleRevert = useCallback(async (deploymentRevisionId: string) => {
         setIsReverted(true)
         try {
+            const mod = await import("@/oss/services/deploymentVersioning/api")
+            const createRevertDeploymentRevision = mod?.createRevertDeploymentRevision
+            if (!mod || !createRevertDeploymentRevision) return
+
             const response = await createRevertDeploymentRevision(deploymentRevisionId)
             notification.success({
                 message: "Environment Revision",

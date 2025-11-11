@@ -100,13 +100,12 @@ const promptRegistryTests = () => {
             // Assert the prompt message is visible in the overview tab
             // Assume the prompt message is stored at revisions[0].config.parameters.promptMessage
 
-            // const promptMessage = revision.config.parameters.prompt.messages[0].content
+            const promptMessage = revision.config.parameters.prompt.messages[0].content
+            expect(typeof promptMessage).toBe("string")
 
-            // expect(typeof promptMessage).toBe("string")
-
-            // await expect(
-            //     page.getByText(promptMessage.substring(0, 20), {exact: false}),
-            // ).toBeVisible()
+            await expect(
+                page.getByText(promptMessage.substring(0, 20), {exact: false}),
+            ).toBeVisible()
         },
     )
 }

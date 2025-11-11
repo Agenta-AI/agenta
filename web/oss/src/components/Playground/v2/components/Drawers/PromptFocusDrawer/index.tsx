@@ -1,29 +1,29 @@
-import {useMemo} from "react"
+import {useCallback} from "react"
 
 import {Drawer} from "antd"
-import {useAtomValue} from "jotai"
 
 import PlaygroundVariantConfigPrompt from "@/oss/components/Playground/Components/PlaygroundVariantConfigPrompt"
 import useDrawerWidth from "@/oss/components/Playground/hooks/useDrawerWidth"
-import {newestRevisionForVariantIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
 import PromptFocusDrawerHeader from "./assets/PromptFocusDrawerHeader"
 import {PromptFocusDrawerProps} from "./types"
 
 const PromptFocusDrawer: React.FC<PromptFocusDrawerProps> = ({variantId, ...props}) => {
     const {drawerWidth} = useDrawerWidth()
-    const enhanced = useAtomValue(newestRevisionForVariantIdAtomFamily(variantId))
-    const {promptIds, variantName, revision} = useMemo(() => {
-        if (!enhanced) {
-            return {promptIds: [], variantName: undefined, revision: undefined}
-        }
-        const promptIds = (enhanced?.prompts || [])?.map((p: any) => p.__id) ?? []
-        return {
-            promptIds,
-            variantName: (enhanced as any)?.variantName,
-            revision: (enhanced as any)?.revision,
-        }
-    }, [enhanced])
+    const {
+        promptIds = [],
+        variantName,
+        revision,
+    } = usePlayground({
+        variantId,
+        hookId: "PlaygroundConfigVariantPrompts",
+        variantSelector: useCallback((variant: EnhancedVariant) => {
+            const promptIds = (variant?.prompts || [])?.map((prompt) => prompt.__id) ?? []
+            return {promptIds, variantName: variant?.variantName, revision: variant?.revision}
+        }, []),
+    })
 
     const onClose = (e: any) => {
         props?.onClose?.(e)

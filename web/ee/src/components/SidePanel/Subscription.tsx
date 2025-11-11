@@ -6,16 +6,26 @@ import {isDemo} from "@/oss/lib/helpers/utils"
 import {Plan} from "@/oss/lib/Types"
 import {useSubscriptionData} from "@/oss/services/billing"
 
-const SidePanelSubscription = () => {
+const SidePanelSubscription = ({
+    collapsed,
+    isHovered,
+}: {
+    collapsed: boolean
+    isHovered: boolean
+}) => {
     const {subscription} = useSubscriptionData()
 
     const isShowFreePlanBannerVisible = useMemo(
-        () => isDemo() && !subscription?.free_trial && subscription?.plan === Plan.Hobby,
-        [subscription],
+        () =>
+            isDemo() &&
+            (!collapsed || (collapsed && isHovered)) &&
+            !subscription?.free_trial &&
+            subscription?.plan === Plan.Hobby,
+        [subscription, collapsed, isHovered],
     )
     const isShowFreeTrialBannerVisible = useMemo(
-        () => isDemo() && subscription?.free_trial,
-        [subscription],
+        () => isDemo() && (!collapsed || (collapsed && isHovered)) && subscription?.free_trial,
+        [isHovered, subscription, collapsed],
     )
 
     return (

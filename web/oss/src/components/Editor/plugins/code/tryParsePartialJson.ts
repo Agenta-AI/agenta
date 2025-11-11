@@ -1,7 +1,5 @@
 // Pure utility version for robust partial JSON parsing
 
-import {jsonrepair} from "jsonrepair"
-
 import {createLogger} from "./utils/createLogger"
 
 /**
@@ -15,7 +13,7 @@ import {createLogger} from "./utils/createLogger"
  * - Ignores incomplete key-value pairs, missing colons, or values.
  * - Handles nested objects and arrays.
  * - Recovers from missing commas and trailing pairs.
- * - Returns an object containing only valid pairs, or null if none found or input is invalid.
+ * - Returns an object containing only valid pairs, or null if none found.
  *
  * @param input - The JSON string or object to parse. If an object is given, it is returned as-is.
  * @returns An object containing all valid key-value pairs, or null if none are found or input is invalid.
@@ -37,55 +35,12 @@ export function tryParsePartialJson(input: any): any | null {
         return null
     }
 
-    // Clean invisibles only. Use jsonrepair for tolerant fixes (quote delimiters,
-    // trailing commas, etc.) while preserving Unicode inside string contents.
-    const removeInvisibles = (str: string) => str.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, "")
-    const cleanedInput = removeInvisibles(input)
-
-    // FIRST: Try standard JSON.parse to preserve original key ordering
-    try {
-        const parsed = JSON.parse(cleanedInput.trim())
-        log(
-            "[tryParsePartialJson] Successfully parsed with standard JSON.parse, preserving key order",
-        )
-        return parsed
-    } catch (e) {
-        log("[tryParsePartialJson] Standard JSON.parse failed, trying common fixes:", e.message)
-    }
-
-    // Try jsonrepair to broadly fix malformed JSON while preserving content
-    try {
-        const repaired = jsonrepair(cleanedInput.trim())
-        const parsed = JSON.parse(repaired)
-        log("[tryParsePartialJson] Successfully parsed after jsonrepair")
-        return parsed
-    } catch (e) {
-        log("[tryParsePartialJson] jsonrepair parse failed, falling back to heuristics:", e.message)
-    }
-
-    // SECOND: Try fixing common JSON issues before falling back to manual parsing
-    const commonFixes = [
-        // Remove trailing commas (most common issue)
-        (str: string) => str.replace(/,\s*([}\]])/g, "$1"),
-        // Remove trailing comma at end of object/array
-        (str: string) => str.replace(/,\s*$/, ""),
-        // Fix missing quotes around keys (basic case)
-        (str: string) => str.replace(/(\w+)\s*:/g, '"$1":'),
-    ]
-
-    for (const fix of commonFixes) {
-        try {
-            const fixedInput = fix(cleanedInput.trim())
-            const parsed = JSON.parse(fixedInput)
-            log(
-                "[tryParsePartialJson] Successfully parsed after applying common fixes, preserving key order",
-            )
-            return parsed
-        } catch (e) {
-            // Continue to next fix
-            log("[tryParsePartialJson] Fix attempt failed:", e.message)
-        }
-    }
+    // Clean invisible characters and normalize curly quotes to standard quotes
+    const cleanedInput = input
+        // Remove zero-width spaces, BOM, NBSP, etc.
+        .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, "")
+        // Replace curly quotes with standard quotes
+        .replace(/[\u201C\u201D]/g, '"')
 
     // Remove outer braces if present for easier parsing, so we can focus on key-value pairs
     let body = cleanedInput.trim()

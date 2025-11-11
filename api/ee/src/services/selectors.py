@@ -38,24 +38,40 @@ async def get_user_org_and_workspace_id(user_uid) -> Dict[str, Union[str, List[s
         { "id": "123", "uid": "user123", "organization_ids": [], "workspace_ids": []}
     """
 
-    async with engine.core_session() as session:
-        user = await db_manager.get_user_with_id(user_id=user_uid)
-        if not user:
-            raise NoResultFound(f"User with uid {user_uid} not found")
+    user = await db_manager.get_user_with_id(user_id=user_uid)
 
-        user_org_result = await session.execute(
+    if not user:
+        raise NoResultFound(f"User with uid {user_uid} not found")
+
+    async with engine.core_connection() as connection:
+        stmt = (
             select(OrganizationMemberDB)
-            .filter_by(user_id=user.id)
-            .options(load_only(OrganizationMemberDB.organization_id))  # type: ignore
+            .filter_by(
+                user_id=user.id,
+            )
+            .options(
+                load_only(OrganizationMemberDB.organization_id),
+            )  # type: ignore
         )
+
+        user_org_result = await connection.execute(stmt=stmt, prepare=True)
+
         orgs = user_org_result.scalars().all()
+
         organization_ids = [str(user_org.organization_id) for user_org in orgs]
 
-        member_in_workspaces_result = await session.execute(
+        stmt = (
             select(WorkspaceMemberDB)
-            .filter_by(user_id=user.id)
-            .options(load_only(WorkspaceMemberDB.workspace_id))  # type: ignore
+            .filter_by(
+                user_id=user.id,
+            )
+            .options(
+                load_only(WorkspaceMemberDB.workspace_id),
+            )  # type: ignore
         )
+
+        member_in_workspaces_result = await connection.execute(stmt=stmt, prepare=True)
+
         workspaces_ids = [
             str(user_workspace.workspace_id)
             for user_workspace in member_in_workspaces_result.scalars().all()
@@ -94,14 +110,17 @@ async def get_user_own_org(user_uid: str) -> OrganizationDB:
     """
 
     user = await db_manager.get_user_with_id(user_id=user_uid)
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(OrganizationDB).filter_by(
-                owner=str(user.id),
-                type="default",
-            )
+
+    async with engine.core_connection() as connection:
+        stmt = select(OrganizationDB).filter_by(
+            owner=str(user.id),
+            type="default",
         )
-        org = result.scalars().first()
+
+        org_query = await connection.execute(stmt=stmt, prepare=True)
+
+        org = org_query.scalars().first()
+
         return org
 
 
@@ -115,11 +134,20 @@ async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
         WorkspaceDB: Instance of WorkspaceDB
     """
 
-    async with engine.core_session() as session:
-        result = await session.execute(
+    async with engine.core_connection() as connection:
+        stmt = (
             select(WorkspaceDB)
-            .filter_by(organization_id=organization.id, type="default")
-            .options(joinedload(WorkspaceDB.members))
+            .filter_by(
+                organization_id=organization.id,
+                type="default",
+            )
+            .options(
+                joinedload(WorkspaceDB.members),
+            )
         )
+
+        result = await connection.execute(stmt=stmt, prepare=True)
+
         workspace = result.scalars().first()
+
         return workspace

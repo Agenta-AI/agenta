@@ -19,6 +19,10 @@ export interface Variant {
     templateVariantName: string
     variantName: string
     parameters?: Record<string, any> | null
+    uriObject?: {
+        routePath?: string
+        runtimePrefix: string
+    }
     routePath?: string
     runtimePrefix: string
     modifiedBy: string

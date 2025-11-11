@@ -3,13 +3,10 @@ import {memo, useCallback, useEffect, useMemo, useState} from "react"
 import {CaretLeft, Plus} from "@phosphor-icons/react"
 import {Button, message, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
-import {useRouter} from "next/router"
 
-import {useSWRConfig} from "swr"
+import useAnnotations from "@/oss/lib/hooks/useAnnotations"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
-import {useObservability} from "@/oss/state/newObservability"
 
 import {AnnotateDrawerSteps} from "../enum"
 import {
@@ -18,49 +15,34 @@ import {
     getInitialMetricsFromAnnotations,
     getInitialSelectedEvalMetrics,
 } from "../transforms"
-import {AnnotateDrawerIdsType, AnnotateDrawerStepsType, AnnotateDrawerTitleProps} from "../types"
+import {AnnotateDrawerStepsType, AnnotateDrawerTitleProps} from "../types"
 
 const AnnotateDrawerTitle = ({
     steps,
     setSteps,
     onClose,
-    updatedMetrics = {},
-    annotations = [],
-    selectedEvaluators = [],
+    updatedMetrics,
+    annotations,
+    selectedEvaluators,
     traceSpanIds,
     onCaptureError,
-    showOnly,
 }: AnnotateDrawerTitleProps) => {
-    const router = useRouter()
-    const {fetchAnnotations} = useObservability()
     const [isSaving, setIsSaving] = useState(false)
-    const {mutate: mutateCache} = useSWRConfig()
-    const {data: evaluators} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
+    const {mutate} = useAnnotations()
+    const {data: evaluators} = useEvaluators()
 
     const onClickPrev = useCallback(
         (step: AnnotateDrawerStepsType) => {
-            const hasSingleView = Boolean(
-                showOnly?.annotateUi || showOnly?.selectEvaluatorsUi || showOnly?.createEvaluatorUi,
-            )
-
-            if (
-                hasSingleView ||
-                step === AnnotateDrawerSteps.ANNOTATE ||
-                !Object.values(AnnotateDrawerSteps).includes(step)
-            ) {
+            if (step === AnnotateDrawerSteps.ANNOTATE) {
                 onClose()
-                return
+            } else {
+                setSteps((prev) => {
+                    const prevIndex = Object.values(AnnotateDrawerSteps).indexOf(prev)
+                    return Object.values(AnnotateDrawerSteps)[prevIndex - 1]
+                })
             }
-
-            setSteps((prev) => {
-                const prevIndex = Object.values(AnnotateDrawerSteps).indexOf(prev)
-                return Object.values(AnnotateDrawerSteps)[prevIndex - 1]
-            })
         },
-        [onClose, setSteps, showOnly],
+        [onClose, setSteps],
     )
 
     const onClickNext = useCallback(
@@ -70,20 +52,17 @@ const AnnotateDrawerTitle = ({
         [setSteps],
     )
 
-    const displayErrorMessage = useCallback(
-        (requiredMetrics: Record<string, any>) => {
-            const errorMessages: string[] = []
+    const displayErrorMessage = useCallback((requiredMetrics: Record<string, any>) => {
+        const errorMessages: string[] = []
 
-            for (const [key, data] of Object.entries(requiredMetrics || {})) {
-                errorMessages.push(
-                    `Value ${data?.value === "" ? "empty string" : data?.value} is not assignable to type ${data?.type} in ${key}`,
-                )
-            }
-            onCaptureError?.(errorMessages, false)
-            setIsSaving(false)
-        },
-        [onCaptureError],
-    )
+        for (const [key, data] of Object.entries(requiredMetrics || {})) {
+            errorMessages.push(
+                `Value ${data?.value === "" ? "empty string" : data?.value} is not assignable to type ${data?.type} in ${key}`,
+            )
+        }
+        onCaptureError?.(errorMessages, false)
+        setIsSaving(false)
+    }, [])
 
     const onSaveChanges = useCallback(async () => {
         try {
@@ -121,8 +100,8 @@ const AnnotateDrawerTitle = ({
                 const {payload, requiredMetrics} = generateNewAnnotationPayloadData({
                     updatedMetrics,
                     selectedEvaluators,
-                    evaluators: evaluators as EvaluatorDto[],
-                    traceSpanIds: traceSpanIds as AnnotateDrawerIdsType,
+                    evaluators,
+                    traceSpanIds,
                 })
 
                 if (Object.keys(requiredMetrics || {}).length > 0) {
@@ -134,27 +113,9 @@ const AnnotateDrawerTitle = ({
                     await Promise.all(payload.map((evaluator) => createAnnotation(evaluator)))
                 }
             }
-            // Invalidate ALL annotation caches (both Jotai atoms and SWR)
-            // 1. Refetch annotations for observability atoms (Jotai)
-            if (router.asPath.includes("/observability") || router.asPath.includes("/traces")) {
-                await fetchAnnotations()
-            }
-
-            // 2. Invalidate SWR cache for useAnnotations hook (used by TraceDrawer)
-            await mutateCache(
-                (key) => Array.isArray(key) && key[0]?.includes("/preview/annotations/"),
-                undefined,
-                {revalidate: true},
-            )
-
-            // 3. Also invalidate evaluators cache
-            await mutateCache(
-                (key) => Array.isArray(key) && key[0]?.includes("/evaluators"),
-                undefined,
-                {revalidate: true},
-            )
 
             message.success("Annotations updated successfully")
+            await mutate()
             onClose()
         } catch (error: any) {
             console.error("Error saving changes", error)
@@ -163,19 +124,7 @@ const AnnotateDrawerTitle = ({
         } finally {
             setIsSaving(false)
         }
-    }, [
-        annotations,
-        updatedMetrics,
-        evaluators,
-        selectedEvaluators,
-        traceSpanIds,
-        router.asPath,
-        fetchAnnotations,
-        mutateCache,
-        displayErrorMessage,
-        onClose,
-        onCaptureError,
-    ])
+    }, [updatedMetrics, annotations, evaluators, selectedEvaluators, traceSpanIds])
 
     const initialAnnotationMetrics = useMemo(
         () => getInitialMetricsFromAnnotations({annotations, evaluators}),
@@ -184,7 +133,7 @@ const AnnotateDrawerTitle = ({
 
     const initialSelectedEvalMetrics = useMemo(
         () => getInitialSelectedEvalMetrics({evaluators, selectedEvaluators}) || {},
-        [evaluators, selectedEvaluators],
+        [selectedEvaluators],
     )
 
     const isChangedMetricData = useMemo(() => {
@@ -197,7 +146,7 @@ const AnnotateDrawerTitle = ({
             Object.entries(updatedMetrics).filter(([slug]) => annotationSlugs.includes(slug)),
         )
         return deepEqual(filteredUpdatedMetrics, initialAnnotationMetrics)
-    }, [initialAnnotationMetrics, updatedMetrics, annotations])
+    }, [initialAnnotationMetrics, updatedMetrics])
 
     const isChangedSelectedEvalMetrics = useMemo(() => {
         const filteredUpdatedMetrics = Object.fromEntries(
@@ -205,14 +154,14 @@ const AnnotateDrawerTitle = ({
         )
 
         return deepEqual(filteredUpdatedMetrics, initialSelectedEvalMetrics)
-    }, [initialSelectedEvalMetrics, updatedMetrics, selectedEvaluators])
+    }, [initialSelectedEvalMetrics, updatedMetrics])
 
     // Reset error messages
     useEffect(() => {
         if (isChangedMetricData && isChangedSelectedEvalMetrics) {
             onCaptureError?.([])
         }
-    }, [isChangedMetricData, isChangedSelectedEvalMetrics, onCaptureError])
+    }, [isChangedMetricData, isChangedSelectedEvalMetrics])
 
     return (
         <section className="w-full flex items-center justify-between">
@@ -222,22 +171,20 @@ const AnnotateDrawerTitle = ({
                     icon={<CaretLeft size={14} />}
                     onClick={() => onClickPrev(steps)}
                 />
-                {steps === AnnotateDrawerSteps.ANNOTATE || showOnly?.annotateUi ? (
+                {steps === AnnotateDrawerSteps.ANNOTATE ? (
                     <Typography.Text className="text-sm font-medium">Annotate</Typography.Text>
-                ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS ||
-                  showOnly?.selectEvaluatorsUi ? (
+                ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS ? (
                     <Typography.Text className="text-sm font-medium">
                         Select Evaluators
                     </Typography.Text>
-                ) : steps === AnnotateDrawerSteps.CREATE_EVALUATOR ||
-                  showOnly?.createEvaluatorUi ? (
+                ) : steps === AnnotateDrawerSteps.CREATE_EVALUATOR ? (
                     <Typography.Text className="text-sm font-medium">
                         Create new evaluator
                     </Typography.Text>
                 ) : null}
             </div>
 
-            {steps === AnnotateDrawerSteps.ANNOTATE || showOnly?.annotateUi ? (
+            {steps === AnnotateDrawerSteps.ANNOTATE ? (
                 <div className="flex items-center gap-2">
                     <Button
                         icon={<Plus size={14} />}
@@ -254,7 +201,7 @@ const AnnotateDrawerTitle = ({
                         Save
                     </Button>
                 </div>
-            ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS || showOnly?.selectEvaluatorsUi ? (
+            ) : steps === AnnotateDrawerSteps.SELECT_EVALUATORS ? (
                 <div className="flex items-center gap-2">
                     <Button
                         onClick={() => onClickNext(AnnotateDrawerSteps.ANNOTATE)}

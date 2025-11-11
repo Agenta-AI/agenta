@@ -40,14 +40,20 @@ async def _generate_unique_prefix():
     # Define the characters to use for the prefix
     alphabet = string.ascii_letters + string.digits
 
-    async with engine.core_session() as session:
+    async with engine.core_connection() as connection:
         while True:
             # Generate a random 8-character prefix
             prefix = "".join(secrets.choice(alphabet) for _ in range(8))
 
             # Check if the prefix is unique in the database
-            result = await session.execute(select(APIKeyDB).filter_by(prefix=prefix))
+            stmt = select(APIKeyDB).filter_by(
+                prefix=prefix,
+            )
+
+            result = await connection.execute(stmt=stmt, prepare=True)
+
             existing_key = result.scalars().first()
+
             if not existing_key:
                 return prefix
 
@@ -117,15 +123,22 @@ async def is_valid_api_key(key: str):
     - The API Key object if the API key is valid, False otherwise.
     """
 
-    async with engine.core_session() as session:
+    async with engine.core_connection() as connection:
         # Check if the API key is valid (not blacklisted and not expired)
-        result = await session.execute(
+        stmt = (
             select(APIKeyDB)
-            .options(joinedload(APIKeyDB.user).load_only(UserDB.id, UserDB.email))
-            .filter_by(hashed_key=key)
+            .filter_by(
+                hashed_key=key,
+            )
+            .options(
+                joinedload(APIKeyDB.user).load_only(UserDB.id, UserDB.email),
+            )
         )
 
+        result = await connection.execute(stmt=stmt, prepare=True)
+
         api_key = result.scalars().first()
+
         if not api_key:
             return False
 
@@ -236,8 +249,8 @@ async def list_api_keys(user_id: str, project_id: str) -> List[APIKeyDB]:
         List[APIKeyDB]: A list of APIKeyDB objects associated with the user, sorted by most recently created first.
     """
 
-    async with engine.core_session() as session:
-        result = await session.execute(
+    async with engine.core_connection() as connection:
+        stmt = (
             select(APIKeyDB)
             .filter_by(
                 created_by_id=uuid.UUID(user_id),
@@ -246,7 +259,11 @@ async def list_api_keys(user_id: str, project_id: str) -> List[APIKeyDB]:
             )
             .order_by(APIKeyDB.created_at.desc())
         )
+
+        result = await connection.execute(stmt=stmt, prepare=True)
+
         api_keys = result.scalars().all()
+
         return api_keys
 
 

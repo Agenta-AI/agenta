@@ -14,7 +14,7 @@ const GenerateResetLinkModal = ({username, ...props}: GenerateResetLinkModalProp
             title="Are you sure you want to generate reset password link?"
             okText="Generate Link"
             onOk={onGenerateLink}
-            destroyOnHidden
+            destroyOnClose
             centered
             {...props}
         >

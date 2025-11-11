@@ -7,19 +7,14 @@ import EnhancedDrawer from "../EnhancedUIs/Drawer"
 
 import {GenericDrawerProps} from "./types"
 
-const GenericDrawer = ({
-    sideContentDefaultSize = 320,
-    mainContentDefaultSize = 640,
-    extraContentDefaultSize = 320,
-    ...props
-}: GenericDrawerProps) => {
+const GenericDrawer = ({...props}: GenericDrawerProps) => {
     const initialWidth = props.initialWidth || 1200
     const [drawerWidth, setDrawerWidth] = useState(initialWidth)
 
     return (
         <EnhancedDrawer
             closeIcon={null}
-            destroyOnHidden
+            destroyOnClose
             width={drawerWidth}
             title={
                 <Flex gap={12} justify="space-between" align="center">
@@ -56,15 +51,13 @@ const GenericDrawer = ({
         >
             <Splitter className="h-full" key={props.externalKey}>
                 {props.sideContent && (
-                    <Splitter.Panel defaultSize={sideContentDefaultSize} collapsible>
+                    <Splitter.Panel defaultSize={320} collapsible>
                         {props.sideContent}
                     </Splitter.Panel>
                 )}
-                <Splitter.Panel min={400} defaultSize={mainContentDefaultSize}>
-                    {props.mainContent}
-                </Splitter.Panel>
+                <Splitter.Panel>{props.mainContent}</Splitter.Panel>
                 {props.extraContent && (
-                    <Splitter.Panel min={200} defaultSize={extraContentDefaultSize} collapsible>
+                    <Splitter.Panel defaultSize={320} collapsible>
                         {props.extraContent}
                     </Splitter.Panel>
                 )}

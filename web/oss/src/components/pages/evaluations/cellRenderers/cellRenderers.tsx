@@ -154,78 +154,41 @@ export const ResultRenderer = memo(
 )
 
 export const runningStatuses = [EvaluationStatus.INITIALIZED, EvaluationStatus.STARTED]
-export const statusMapper =
-    (token: GlobalToken) => (status: EvaluationStatus | "stopped" | "closed") => {
-        const statusMap = {
-            [EvaluationStatus.PENDING]: {
-                label: "Pending",
-                color: token.colorTextSecondary,
-            },
-            [EvaluationStatus.INCOMPLETE]: {
-                label: "Incomplete",
-                color: token.colorTextSecondary,
-            },
-            [EvaluationStatus.INITIALIZED]: {
-                label: "Queued",
-                color: token.colorTextSecondary,
-            },
-            [EvaluationStatus.RUNNING]: {
-                label: "Running",
-                color: token.colorTextSecondary,
-            },
-            [EvaluationStatus.STARTED]: {
-                label: "Running",
-                color: token.colorWarning,
-            },
-            [EvaluationStatus.FINISHED]: {
-                label: "Success",
-                color: token.colorSuccess,
-            },
-            [EvaluationStatus.SUCCESS]: {
-                label: "Success",
-                color: token.colorSuccess,
-            },
-            [EvaluationStatus.ERROR]: {
-                label: "Some Errors",
-                color: token.colorWarning,
-            },
-            [EvaluationStatus.ERRORS]: {
-                label: "Some Errors",
-                color: token.colorWarning,
-            },
-            [EvaluationStatus.FAILURE]: {
-                label: "Failure",
-                color: token.colorError,
-            },
-            [EvaluationStatus.FINISHED_WITH_ERRORS]: {
-                label: "Completed with Errors",
-                color: token.colorWarning,
-            },
-            [EvaluationStatus.AGGREGATION_FAILED]: {
-                label: "Result Aggregation Failed",
-                color: token.colorWarning,
-            },
-            [EvaluationStatus.CANCELLED]: {
-                label: "Stopped",
-                color: token.colorTextTertiary,
-            },
-            stopped: {
-                label: "Stopped",
-                color: token.colorTextTertiary,
-            },
-            closed: {
-                label: "Closed",
-                color: token.colorTextSecondary,
-            },
-        }
-
-        return (
-            statusMap[status] || {
-                label: "Unknown",
-                color: "purple",
-            }
-        )
+export const statusMapper = (token: GlobalToken) => (status: EvaluationStatus) => {
+    const statusMap = {
+        [EvaluationStatus.INITIALIZED]: {
+            label: "Queued",
+            color: token.colorTextSecondary,
+        },
+        [EvaluationStatus.STARTED]: {
+            label: "Running",
+            color: token.colorWarning,
+        },
+        [EvaluationStatus.FINISHED]: {
+            label: "Completed",
+            color: token.colorSuccess,
+        },
+        [EvaluationStatus.ERROR]: {
+            label: "Failed",
+            color: token.colorError,
+        },
+        [EvaluationStatus.FINISHED_WITH_ERRORS]: {
+            label: "Completed with Errors",
+            color: token.colorWarning,
+        },
+        [EvaluationStatus.AGGREGATION_FAILED]: {
+            label: "Result Aggregation Failed",
+            color: token.colorWarning,
+        },
     }
+
+    return (
+        statusMap[status] || {
+            label: "Unknown",
+            color: "purple",
+        }
+    )
+}
 
 export const StatusRenderer = memo(
     (params: ICellRendererParams<_Evaluation>) => {

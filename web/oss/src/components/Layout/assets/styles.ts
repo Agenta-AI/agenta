@@ -81,7 +81,6 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         minHeight: "100vh",
         alignItems: "center",
         justifyContent: "center",
-        gap: 16,
         "& .ant-typography:nth-of-type(1)": {
             fontSize: 24,
             fontWeight: 600,

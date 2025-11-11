@@ -24,72 +24,66 @@ const testWithEvaluationFixtures = baseTest.extend<EvaluationFixtures>({
         })
     },
 
-    runAutoEvaluation: async ({page, uiHelpers}, use) => {
+    runAutoEvaluation: async ({page, uiHelpers, apiHelpers}, use) => {
         await use(async ({evaluators, testset, variants}: RunAutoEvalFixtureType) => {
-            // 1. Open modal
+            // 1. Click on start new evaluation
             await uiHelpers.clickButton("Start new Evaluation")
-            const modal = page.locator(".ant-modal").first()
-            await expect(modal).toBeVisible()
+            const hasEvalModalOpen = page.locator(".ant-modal")
+            await hasEvalModalOpen.first().isVisible()
 
-            // Helper: Select tab by name
-            const goToStep = async (step: string) => {
-                const tab = modal.getByRole("tab", {name: step})
-                await tab.click()
+            const ensureCollapseOpen = async (text: string) => {
+                const collapseLocator = await page
+                    .locator(".ant-collapse")
+                    .filter({hasText: text})
+                    .locator(".ant-collapse-header")
+                    .first()
+
+                const isCollapseCollapsed = await collapseLocator.getAttribute("aria-expanded")
+
+                if (isCollapseCollapsed === "false") {
+                    const collapseHeader = await page.getByRole("button", {name: text})
+                    await collapseHeader.click()
+                }
             }
 
             // 2. Select Testset
-            const selectedTestset = testset
+            // Fetch testsets from API
+            const testsets = await apiHelpers.getTestsets()
+            const testsetName = testsets[0].name
 
-            await goToStep("Testset")
+            await ensureCollapseOpen("Select Testset")
             await uiHelpers.selectTableRowInput({
-                rowText: selectedTestset,
+                rowText: testset || testsetName,
                 inputType: "radio",
                 checked: true,
             })
-            await expect(
-                page
-                    .locator(".ant-tabs-tab", {hasText: "Testset"})
-                    .locator(".ant-tag", {hasText: selectedTestset}),
-            ).toBeVisible()
 
-            // 3. Select Variant(s)
-            await goToStep("Variant")
-            const variantRow = page.getByRole("row").filter({
-                has: page
-                    .locator("td", {hasText: variants[0]})
-                    .locator(".ant-tag", {hasText: "v1"}),
-            })
-
-            await expect(variantRow).toBeVisible()
-            await variantRow.getByRole("radio").check()
-
-            // 4. Select Evaluator(s)
-            await goToStep("Evaluator")
-            for (const evaluator of evaluators) {
+            // 3. Select Variant
+            await ensureCollapseOpen("Select Variant")
+            for (let i = 0; i < variants.length; i++) {
                 await uiHelpers.selectTableRowInput({
-                    rowText: evaluator,
+                    rowText: variants[i],
                     inputType: "checkbox",
                     checked: true,
                 })
-                await expect(
-                    page
-                        .locator(".ant-tabs-tab", {hasText: "Evaluator"})
-                        .locator(".ant-tag", {hasText: evaluator}),
-                ).toBeVisible()
             }
 
-            await expect
-                .poll(async () => {
-                    return await page.locator(".ant-tabs-nav-list .ant-tag").count()
+            // 4. Select Evaluator
+            await ensureCollapseOpen("Select Evaluator")
+            for (let i = 0; i < evaluators.length; i++) {
+                await uiHelpers.selectTableRowInput({
+                    rowText: evaluators[i],
+                    inputType: "checkbox",
+                    checked: true,
                 })
-                .toBe(3)
+            }
 
-            // 5. Create Evaluation
+            // 5. Click create
             const createButton = page.getByRole("button", {name: "Create"}).last()
             await createButton.scrollIntoViewIfNeeded()
             await createButton.click()
 
-            await expect(createButton).toHaveClass(/ant-btn-loading/)
+            await expect(page.locator(".ant-modal").first()).not.toBeVisible()
         })
     },
 })

@@ -7,10 +7,7 @@ import {ChatRole, GenericObject, KeyValuePair} from "../Types"
 import {safeParse} from "./utils"
 
 const isObjectChatMessage = (obj: GenericObject) => {
-    return (
-        Object.values(ChatRole).includes(obj.role) &&
-        (Array.isArray(obj.content) || typeof obj.content === "string")
-    )
+    return Object.values(ChatRole).includes(obj.role) && typeof obj.content === "string"
 }
 
 // TODO: the logic to determine if a testset is chatbase should be improved

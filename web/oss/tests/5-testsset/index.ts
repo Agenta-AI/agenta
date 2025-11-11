@@ -1,6 +1,6 @@
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
 
-import type {Testset} from "@/oss/lib/Types"
+import type {TestSet} from "@/oss/lib/Types"
 import {expect} from "@agenta/web-tests/utils"
 import {
     createTagString,
@@ -25,9 +25,10 @@ const testsetTests = () => {
             // 1. Navigate to testsets page
             await page.goto("/testsets")
             await uiHelpers.waitForPath("/testsets")
-            const testsets = await apiHelpers.getTestsets()
 
-            await uiHelpers.expectText("Testsets", {role: "heading"})
+            await uiHelpers.expectText("Test Sets", {role: "heading"})
+
+            const testsets = await apiHelpers.getTestsets()
 
             // 3. Verify testset is visible in table
             const testsetId = testsets[0]._id
@@ -46,14 +47,14 @@ const testsetTests = () => {
             await uiHelpers.clickTableRow(testsetName)
 
             // 5. Fetch testset from API
-            const testsetResponse = await apiHelpers.waitForApiResponse<Testset>({
+            const testsetResponse = await apiHelpers.waitForApiResponse<TestSet>({
                 route: `/api/testsets/${testsetId}`,
                 method: "GET",
             })
 
             // 6. Verify testset page
             await uiHelpers.waitForPath(`/testsets/${testsetId}`)
-            await uiHelpers.expectText("Create a new Testset", {role: "heading"})
+            await uiHelpers.expectText("Create a new Test Set", {role: "heading"})
 
             const testset = await testsetResponse
             expect(testset.name).toBe(testsetName)

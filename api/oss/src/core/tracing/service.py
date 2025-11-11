@@ -1,27 +1,12 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from uuid import UUID
 
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.tracing.interfaces import TracingDAOInterface
+from oss.src.core.tracing.dtos import OTelLink, OTelFlatSpan, Query, Bucket
 from oss.src.core.tracing.utils import parse_query, parse_ingest
-from oss.src.core.tracing.dtos import (
-    OTelLink,
-    OTelFlatSpan,
-    TracingQuery,
-    Bucket,
-    MetricSpec,
-    MetricsBucket,
-)
-
-from oss.src.core.tracing.utils import (
-    parse_span_dtos_to_span_idx,
-    parse_span_idx_to_span_id_tree,
-    calculate_costs,
-    cumulate_costs,
-    cumulate_tokens,
-)
 
 
 log = get_module_logger(__name__)
@@ -43,18 +28,6 @@ class TracingService:
         span_dto: Optional[OTelFlatSpan] = None,
         span_dtos: Optional[List[OTelFlatSpan]] = None,
     ) -> List[OTelLink]:
-        span_idx = parse_span_dtos_to_span_idx(
-            [span_dto] if span_dto else span_dtos or []
-        )
-
-        span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
-
-        calculate_costs(span_idx)
-
-        cumulate_costs(span_id_tree, span_idx)
-
-        cumulate_tokens(span_id_tree, span_idx)
-
         if span_dto:
             link = await self.tracing_dao.create_span(
                 project_id=project_id,
@@ -209,7 +182,7 @@ class TracingService:
         *,
         project_id: UUID,
         #
-        query: TracingQuery,
+        query: Query,
     ) -> List[OTelFlatSpan]:
         parse_query(query)
 
@@ -221,38 +194,19 @@ class TracingService:
 
         return span_dtos
 
-    async def legacy_analytics(
-        self,
-        *,
-        project_id: UUID,
-        #
-        query: TracingQuery,
-    ) -> List[Bucket]:
-        parse_query(query)
-
-        bucket_dtos = await self.tracing_dao.legacy_analytics(
-            project_id=project_id,
-            #
-            query=query,
-        )
-
-        return bucket_dtos
-
     async def analytics(
         self,
         *,
         project_id: UUID,
         #
-        query: TracingQuery,
-        specs: List[MetricSpec],
-    ) -> List[MetricsBucket]:
+        query: Query,
+    ) -> List[Bucket]:
         parse_query(query)
 
         bucket_dtos = await self.tracing_dao.analytics(
             project_id=project_id,
             #
             query=query,
-            specs=specs,
         )
 
         return bucket_dtos

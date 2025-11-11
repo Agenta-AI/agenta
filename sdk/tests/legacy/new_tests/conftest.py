@@ -856,7 +856,7 @@ async def reset_llm_keys(client: AsyncClient, headers: dict):
     if is_mocked:
         return mock_data.get("credentials", None), mock_data.get("project_id", None)
 
-    response = await client.get("vault/v1/secrets/", headers=headers)
+    response = await client.get("vault/v1/secrets", headers=headers)
     response.raise_for_status()
 
     response_data = response.json()
@@ -875,7 +875,7 @@ async def set_valid_llm_keys(client: AsyncClient, headers: dict):
 
     for api_key_name in list(API_KEYS_MAPPING.keys()):
         response = await client.post(
-            "vault/v1/secrets/",
+            "vault/v1/secrets",
             json={
                 "header": {"name": API_KEYS_MAPPING[api_key_name], "description": ""},
                 "secret": {
@@ -896,7 +896,7 @@ async def set_invalid_llm_keys(client: AsyncClient, headers: dict):
     if is_mocked:
         return
 
-    response = await client.get("vault/v1/secrets/", headers=headers)
+    response = await client.get("vault/v1/secrets", headers=headers)
     response.raise_for_status()
 
     response_data = response.json()
@@ -937,20 +937,7 @@ def get_all_supported_models():
             "gpt-4o-mini",
             "gpt-4-1106-preview",
         ],
-        "Gemini": [
-            "gemini/gemini-2.5-flash-preview-05-20",
-            "gemini/gemini-2.5-flash-preview-04-17",
-            "gemini/gemini-2.0-flash-001",
-            "gemini/gemini-2.5-pro-preview-05-06",
-            "gemini/gemini-2.0-flash-lite-preview-02-05",
-            "gemini/gemini-2.5-pro",
-            "gemini/gemini-2.5-flash",
-            "gemini/gemini-2.5-flash-preview-09-2025",
-            "gemini/gemini-2.5-flash-lite",
-            "gemini/gemini-2.5-flash-lite-preview-09-2025",
-            "gemini/gemini-2.0-flash",
-            "gemini/gemini-2.0-flash-lite",
-        ],
+        "Gemini": ["gemini/gemini-1.5-pro-latest", "gemini/gemini-1.5-flash"],
         "Cohere": [
             "cohere/command-light",
             "cohere/command-r-plus",
