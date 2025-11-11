@@ -1,14 +1,16 @@
-import {useMemo} from "react"
+import {useEffect, useState} from "react"
 
 import {AreaChart} from "@tremor/react"
 import {Col, Row, Spin, Typography} from "antd"
 import round from "lodash/round"
 import {createUseStyles} from "react-jss"
 
-import {formatCurrency, formatLatency, formatNumber} from "@/oss/lib/helpers/formatters"
+import {useAppId} from "@/oss/hooks/useAppId"
+import {formatCurrency, formatNumber} from "@/oss/lib/helpers/formatters"
 import {JSSTheme} from "@/oss/lib/Types"
+import {GenerationDashboardData} from "@/oss/lib/types_ee"
+import {fetchGenerationsDashboardData} from "@/oss/services/observability/api"
 
-import {useObservabilityDashboard} from "../../../../state/observability"
 import WidgetCard from "../../observability/dashboard/widgetCard"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -19,29 +21,36 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const ObservabilityOverview = () => {
     const classes = useStyles()
-    const {data, loading, isFetching} = useObservabilityDashboard()
+    const appId = useAppId()
+    const [loading, setLoading] = useState(false)
+    const [data, setData] = useState<GenerationDashboardData>()
 
-    const chartData = useMemo(() => (data?.data?.length ? data.data : [{}]), [data])
+    const defaultGraphProps: React.ComponentProps<typeof AreaChart> = {
+        className: "h-[168px] p-0",
+        colors: ["cyan", "red"],
+        connectNulls: true,
+        tickGap: 15,
+        curveType: "monotone",
+        showGridLines: false,
+        showLegend: false,
+        index: "timestamp",
+        data: data?.data?.length ? data.data : [{}],
+        categories: [],
+    }
 
-    const defaultGraphProps = useMemo<React.ComponentProps<typeof AreaChart>>(
-        () => ({
-            className: "h-[168px] p-0",
-            colors: ["cyan", "red"],
-            connectNulls: true,
-            tickGap: 15,
-            curveType: "monotone",
-            showGridLines: false,
-            showLegend: false,
-            index: "timestamp",
-            data: chartData,
-            categories: [],
-        }),
-        [chartData],
-    )
+    useEffect(() => {
+        setLoading(true)
+        fetchGenerationsDashboardData(appId, {range: "30_days"})
+            .then((data) => {
+                setData(data)
+            })
+            .catch(console.error)
+            .finally(() => setLoading(false))
+    }, [appId])
 
     return (
         <div>
-            <Spin spinning={loading || isFetching}>
+            <Spin spinning={loading}>
                 <Row gutter={[16, 16]}>
                     <Col span={12}>
                         <WidgetCard
@@ -80,7 +89,7 @@ const ObservabilityOverview = () => {
                                 <Typography.Text className={classes.statText}>
                                     <Typography.Text type="secondary">Avg:</Typography.Text>{" "}
                                     {data?.avg_latency
-                                        ? `${formatNumber(data.avg_latency)}ms`
+                                        ? `${round(data?.avg_latency ?? 0, 2)}s`
                                         : "-"}
                                 </Typography.Text>
                             }

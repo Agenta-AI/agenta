@@ -35,13 +35,10 @@ const CreateNewMetric = ({
 
     // it will add a empty field for enum when user select label option
     useEffect(() => {
-        if (metricType !== "label" && metricType !== "class") return
-
-        const existingEnum = form.getFieldValue(["metrics", field.name, "enum"])
-        if (!Array.isArray(existingEnum) || existingEnum.length === 0) {
+        if (metricType === "label" || metricType === "class") {
             form.setFieldValue(["metrics", field.name, "enum"], [""])
         }
-    }, [metricType, field.name, form])
+    }, [metricType])
 
     const getCurrentEnumValues = useCallback(
         (currentIndex: number) => {
@@ -158,11 +155,7 @@ const CreateNewMetric = ({
                 >
                     <Select
                         className="w-full !rounded-lg"
-                        classNames={{
-                            popup: {
-                                root: "!capitalize",
-                            },
-                        }}
+                        popupClassName="!capitalize"
                         placeholder="Select type"
                         options={EVALUATOR_OPTIONS}
                     />

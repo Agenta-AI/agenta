@@ -8,6 +8,7 @@ import {
     $isRangeSelection,
     $createRangeSelection,
     $setSelection,
+    $isTabNode,
     $isTextNode,
     TextNode,
     NodeKey,
@@ -26,72 +27,206 @@ import {
     CodeHighlightNode,
 } from "../nodes/CodeHighlightNode"
 import {$isCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
-import {$isCodeTabNode} from "../nodes/CodeTabNode"
 import {createLogger} from "../utils/createLogger"
+import {getEnhancedValidationContext} from "../utils/enhancedValidationContext"
 import {getDiffRange} from "../utils/getDiffRange"
 import {isPluginLocked, lockPlugin, unlockPlugin} from "../utils/pluginLocks"
 import {tokenizeCodeLine} from "../utils/tokenizer"
+import {validateAll} from "../utils/validationUtils"
 
 type ValidationError = ErrorObject<string, Record<string, any>, unknown>
 
-// Editor-specific validation contexts - keyed by editor ID
-const editorValidationContexts = new Map<
-    string,
-    {
-        editorId?: string
-        schema?: any
-        ajv?: Ajv
-        errorTexts?: Set<string>
-        errorList?: ValidationError[]
-    }
->()
-
-// Current active editor ID for validation context
-let currentEditorId: string | null = null
+// Global validation state - will be set by RealTimeValidationPlugin
+let globalValidationContext: {
+    schema?: any
+    ajv?: Ajv
+    errorTexts?: Set<string>
+    errorList?: ValidationError[]
+} = {}
 
 /**
- * Get the current editor ID used for validation context
+ * Get the current global validation context
  */
-export function getCurrentEditorId(): string | null {
-    return currentEditorId
+export function getValidationContext() {
+    return globalValidationContext
 }
 
 /**
- * Set the current editor ID for validation context
+ * Function to set validation context from RealTimeValidationPlugin
  */
-export function setCurrentEditorId(editorId: string) {
-    currentEditorId = editorId
+export function setValidationContext(context: typeof globalValidationContext) {
+    log("🔄 setValidationContext called", {
+        oldErrorTextsSize: globalValidationContext.errorTexts?.size ?? 0,
+        newErrorTextsSize: context.errorTexts?.size ?? 0,
+        oldErrorListLength: globalValidationContext.errorList?.length ?? 0,
+        newErrorListLength: context.errorList?.length ?? 0,
+        newErrorTextsArray: context.errorTexts ? Array.from(context.errorTexts) : [],
+    })
+    globalValidationContext = context
 }
 
 /**
- * Get validation context for a specific editor or the current editor
+ * Check if unquoted text is likely a property name based on context
  */
-export function getValidationContext(editorId?: string) {
-    const targetEditorId = editorId || currentEditorId
-    if (!targetEditorId) {
-        return {}
+function checkIfLikelyPropertyName(text: string, lineNode: CodeLineNode): boolean {
+    // Get the line text to analyze context
+    const lineText = lineNode.getTextContent()
+    const textIndex = lineText.indexOf(text)
+
+    if (textIndex === -1) return false
+
+    // Check if there's a colon after this text (indicating property name)
+    const afterText = lineText.substring(textIndex + text.length).trim()
+    if (afterText.startsWith(":")) {
+        return true
     }
-    return editorValidationContexts.get(targetEditorId) || {}
+
+    // Check if this text appears at the beginning of the line (more likely property name)
+    const beforeText = lineText.substring(0, textIndex).trim()
+    if (beforeText === "" || beforeText.endsWith("{") || beforeText.endsWith(",")) {
+        // If there's a colon somewhere after this text on the same line
+        if (afterText.includes(":")) {
+            return true
+        }
+    }
+
+    return false
 }
 
 /**
- * Function to set validation context for a specific editor
+ * Get validation state for a specific token during syntax highlighting
  */
-export function setValidationContext(
-    editorId: string,
-    context: {
-        schema?: any
-        ajv?: Ajv
-        errorTexts?: Set<string>
-        errorList?: ValidationError[]
-    },
-) {
-    if (!editorId) {
-        console.warn("⚠️ [SyntaxHighlightPlugin] No editor ID available for validation context")
-        return
+function getValidationForToken(
+    text: string,
+    highlightType: string,
+    language: string,
+    lineNode?: CodeLineNode,
+): {shouldHaveError: boolean; expectedMessage: string | null} {
+    // Skip validation for certain token types (check first)
+    const isPunctuation = highlightType === "punctuation"
+    const isOperator = highlightType === "operator"
+
+    // Skip punctuation and operators entirely
+    if (isPunctuation || isOperator) {
+        return {shouldHaveError: false, expectedMessage: null}
     }
 
-    editorValidationContexts.set(editorId, context)
+    // JSON syntax validation for unquoted text (independent of schema validation)
+    if (language === "json" && highlightType === "plain") {
+        // Check if this looks like unquoted text that should be quoted
+        if (
+            text !== "" &&
+            isNaN(Number(text)) &&
+            text !== "true" &&
+            text !== "false" &&
+            text !== "null"
+        ) {
+            // Try to determine context: is this a property name or a value?
+            // This is a heuristic - we need to check the surrounding context
+            const isLikelyPropertyName = lineNode
+                ? checkIfLikelyPropertyName(text, lineNode)
+                : false
+
+            const errorMessage = isLikelyPropertyName
+                ? "Property names must be wrapped in double quotes"
+                : "String values must be wrapped in double quotes"
+
+            // Add to enhanced validation context for consistency
+            // Use a context-specific token key to avoid conflicts between quoted/unquoted versions
+            const enhancedContext = getEnhancedValidationContext()
+            enhancedContext.addError({
+                token: `unquoted:${text}`, // Prefix to distinguish from quoted versions
+                message: errorMessage,
+                level: "syntax",
+                type: "unquoted_property",
+                severity: "error",
+                timestamp: Date.now(),
+                line: 0, // Will be updated by the calling context
+            })
+
+            return {
+                shouldHaveError: true,
+                expectedMessage: errorMessage,
+            }
+        }
+    }
+
+    // Try enhanced validation context
+    const enhancedContext = getEnhancedValidationContext()
+    const primaryError = enhancedContext.getPrimaryErrorForToken(text)
+
+    if (primaryError) {
+        return {
+            shouldHaveError: true,
+            expectedMessage: primaryError.message,
+        }
+    }
+
+    // Fall back to legacy validation context
+    const {errorTexts, errorList} = globalValidationContext
+
+    // If no validation context is available, skip schema validation but allow syntax highlighting
+    if (!errorTexts || !errorList) {
+        return {shouldHaveError: false, expectedMessage: null}
+    }
+
+    // If validation context exists but no errors, skip schema validation
+    if (errorTexts.size === 0) {
+        return {shouldHaveError: false, expectedMessage: null}
+    }
+
+    // Schema validation for tokens that should be validated
+    if (text !== "" && !Number(text) && text !== "true" && text !== "false" && text !== "null") {
+        let shouldHaveError = errorTexts.has(text)
+        let expectedMessage: string | null = null
+
+        if (shouldHaveError) {
+            // Find the actual error message that matches this text
+            const matchingError = errorList.find((e) => e.message?.includes(text))
+
+            if (matchingError) {
+                expectedMessage = matchingError.message ?? "Invalid"
+            } else {
+                // If errorTexts has the text but errorList doesn't have a matching error,
+                // the validation context is stale - don't show error
+                shouldHaveError = false
+                expectedMessage = null
+            }
+        }
+
+        // Also check for quoted version
+        if (!shouldHaveError && text.startsWith('"') && text.endsWith('"')) {
+            const unquoted = text.slice(1, -1)
+            const hasUnquotedError = errorTexts.has(unquoted)
+
+            if (hasUnquotedError) {
+                const matchingError = errorList.find((e) => e.message?.includes(unquoted))
+
+                if (matchingError) {
+                    // Special case: Don't highlight property names for "missing property" errors
+                    // when the text is a quoted string (meaning the property is actually present)
+                    const isQuotedPropertyName = text.startsWith('"') && text.endsWith('"')
+                    const isMissingPropertyError =
+                        matchingError.keyword === "required" &&
+                        matchingError.message?.includes("must have required property")
+
+                    if (isQuotedPropertyName && isMissingPropertyError) {
+                        // Don't highlight - the property is present, just the validation context is stale
+                    } else {
+                        shouldHaveError = true
+                        expectedMessage = matchingError.message ?? "Invalid"
+                    }
+                } else {
+                    // Same stale context check for unquoted version - don't highlight
+                }
+            }
+        }
+
+        return {shouldHaveError, expectedMessage}
+    }
+
+    log("⏭️ Skipped validation (punctuation/operator/special)", {text, highlightType})
+    return {shouldHaveError: false, expectedMessage: null}
 }
 
 const PLUGIN_NAME = "SyntaxHighlightPlugin"
@@ -104,6 +239,188 @@ const log = createLogger(PLUGIN_NAME, {disabled: true})
  *
  * @param lineNode - The code line node that was just highlighted
  */
+// Track last validation to avoid redundant calls
+let lastValidationContent = ""
+let lastValidationTime = 0
+const VALIDATION_DEBOUNCE_MS = 100
+
+function $runValidationAfterHighlighting(lineNode: CodeLineNode, editor: any) {
+    const lineKey = lineNode.getKey()
+
+    if (!editor.isEditable()) {
+        log(`⏭️ [SyntaxHighlightPlugin] Skipped validation - editor not editable (line ${lineKey})`)
+        return
+    }
+
+    // Get the full editor content for validation
+    const codeBlockNode = lineNode.getParent()
+
+    if (!$isCodeBlockNode(codeBlockNode)) {
+        return
+    }
+
+    const textContent = codeBlockNode.getTextContent()
+    const now = Date.now()
+
+    // Skip validation if content hasn't changed and it's within debounce period
+    if (
+        textContent === lastValidationContent &&
+        now - lastValidationTime < VALIDATION_DEBOUNCE_MS
+    ) {
+        log(`⏭️ [SyntaxHighlightPlugin] Skipped validation - content unchanged (line ${lineKey})`)
+        return
+    }
+
+    // Skip validation for very short content (likely initial load)
+    if (textContent.length < 3) {
+        log(`⏭️ [SyntaxHighlightPlugin] Skipped validation - content too short (line ${lineKey})`)
+        return
+    }
+
+    log(`🔍 [SyntaxHighlightPlugin] Running validation after highlighting for line node ${lineKey}`)
+
+    lastValidationContent = textContent
+    lastValidationTime = now
+
+    // Clean the text content by removing empty lines for validation
+    // This prevents JSON5 line number mismatches and improves validation accuracy
+    const originalLines = textContent.split("\n")
+    const cleanedLines: string[] = []
+    const cleanedToOriginalLineMap = new Map<number, number>()
+
+    originalLines.forEach((line, originalIndex) => {
+        if (line.trim() !== "") {
+            cleanedLines.push(line)
+            const cleanedLineNumber = cleanedLines.length
+            const originalLineNumber = originalIndex + 1
+            cleanedToOriginalLineMap.set(cleanedLineNumber, originalLineNumber)
+        }
+    })
+
+    const cleanedTextContent = cleanedLines.join("\n")
+
+    // Get the specific line that was just edited for active typing detection
+    const editedLineNode = $getNodeByKey(lineKey)
+    const editedLineContent = editedLineNode?.getTextContent()?.trim() || ""
+
+    const validationResult = validateAll(
+        cleanedTextContent,
+        globalValidationContext.schema,
+        editedLineContent,
+        cleanedToOriginalLineMap,
+    )
+
+    // Debug schema errors specifically
+    if (validationResult.schemaErrors.length > 0) {
+        log(`🔍 [SyntaxHighlightPlugin] Schema errors detail:`, validationResult.schemaErrors)
+    }
+
+    // Create mapping from text content lines to visual lines (skipping empty lines)
+    const textLines = textContent.split("\n")
+    const visualLineMapping = new Map<number, number>()
+    let visualLineNumber = 1
+
+    textLines.forEach((textLine, textLineIndex) => {
+        const textLineNumber = textLineIndex + 1
+        if (textLine.trim() !== "") {
+            visualLineMapping.set(textLineNumber, visualLineNumber)
+            visualLineNumber++
+        }
+    })
+
+    log(`🗺️ [SyntaxHighlightPlugin] Line mapping:`, {
+        textLines: textLines.length,
+        visualLines: visualLineNumber - 1,
+        mapping: Array.from(visualLineMapping.entries()).slice(0, 10), // Show first 10 mappings
+    })
+
+    log(`🗺️ [SyntaxHighlightPlugin] Full line mapping details:`)
+    textLines.forEach((textLine, textLineIndex) => {
+        const textLineNumber = textLineIndex + 1
+        const visualLine = visualLineMapping.get(textLineNumber)
+        log(
+            `  Text line ${textLineNumber}: "${textLine.trim()}" → Visual line ${visualLine || "SKIPPED"}`,
+        )
+    })
+
+    // Group errors by VISUAL line number (not text content line number)
+    const errorsByLine = new Map<number, typeof validationResult.allErrors>()
+
+    validationResult.allErrors.forEach((error) => {
+        // Map text content line number to visual line number
+        const visualLine = visualLineMapping.get(error.line) || error.line
+        const lineErrors = errorsByLine.get(visualLine) || []
+
+        // Create a new error object with corrected line number
+        const correctedError = {...error, line: visualLine}
+        lineErrors.push(correctedError)
+        errorsByLine.set(visualLine, lineErrors)
+
+        log(
+            `🔄 [SyntaxHighlightPlugin] Mapped error from text line ${error.line} to visual line ${visualLine}:`,
+            error.message,
+        )
+    })
+
+    // Apply validation errors to all code lines in the block
+    const codeLines = codeBlockNode.getChildren().filter($isCodeLineNode)
+
+    log(
+        `🗺️ [SyntaxHighlightPlugin] ErrorsByLine map contents:`,
+        Array.from(errorsByLine.entries()).map(
+            ([line, errors]) => `Line ${line}: ${errors.length} errors`,
+        ),
+    )
+
+    codeLines.forEach((line, index) => {
+        const lineNumber = index + 1
+        const lineErrors = errorsByLine.get(lineNumber) || []
+
+        log(
+            `🔍 [SyntaxHighlightPlugin] Checking visual line ${lineNumber}: found ${lineErrors.length} errors`,
+        )
+
+        // Set validation errors on the line node
+        const writableLine = line.getWritable()
+        writableLine.setValidationErrors(lineErrors)
+
+        log(
+            `🔴 Applied ${lineErrors.length} validation errors to line ${lineNumber}:`,
+            lineErrors.map((e) => `[${e.type}] ${e.message}`),
+        )
+    })
+
+    // Store validation results directly in editor state for GlobalErrorIndicatorPlugin
+    if (editor) {
+        // Store mapped validation errors in editor state (with corrected visual line numbers)
+        const mappedStructuralErrors = validationResult.structuralErrors.map((error) => {
+            const visualLine = visualLineMapping.get(error.line) || error.line
+            return {...error, line: visualLine}
+        })
+        const mappedBracketErrors = validationResult.bracketErrors.map((error) => {
+            const visualLine = visualLineMapping.get(error.line) || error.line
+            return {...error, line: visualLine}
+        })
+        const mappedSchemaErrors = validationResult.schemaErrors.map((error) => {
+            const visualLine = visualLineMapping.get(error.line) || error.line
+            return {...error, line: visualLine}
+        })
+
+        ;(editor as any)._structuralErrors = mappedStructuralErrors
+        ;(editor as any)._bracketErrors = mappedBracketErrors
+        ;(editor as any)._schemaErrors = mappedSchemaErrors
+
+        log(`📊 [SyntaxHighlightPlugin] Stored validation results in editor state:`, {
+            structural: mappedStructuralErrors.length,
+            bracket: mappedBracketErrors.length,
+            schema: mappedSchemaErrors.length,
+            totalErrors:
+                mappedStructuralErrors.length +
+                mappedBracketErrors.length +
+                mappedSchemaErrors.length,
+        })
+    }
+}
 
 /**
  * Updates a code line while preserving cursor position.
@@ -190,29 +507,17 @@ function $updateAndRetainSelection(
  * and maintains a smooth editing experience.
  */
 interface SyntaxHighlightPluginProps {
-    editorId: string
     schema?: any
     debug?: boolean
 }
 
-export function SyntaxHighlightPlugin({
-    editorId,
-    schema,
-    debug = false,
-}: SyntaxHighlightPluginProps) {
+export function SyntaxHighlightPlugin({schema, debug = false}: SyntaxHighlightPluginProps = {}) {
     const [editor] = useLexicalComposerContext()
 
+    // Update global validation context with schema
     useEffect(() => {
-        // Set this editor as the current one for validation context
-        setCurrentEditorId(editorId)
-
         if (schema) {
-            // Set schema for this specific editor
-            setValidationContext(editorId, {
-                schema,
-                errorTexts: new Set(),
-                errorList: [],
-            })
+            globalValidationContext.schema = schema
         }
     }, [schema])
 
@@ -269,7 +574,7 @@ export function SyntaxHighlightPlugin({
             // Extract pure text content, ignoring tab nodes
             // This ensures we only tokenize actual code content
             const text = children
-                .filter((child) => !$isCodeTabNode(child))
+                .filter((child) => !$isTabNode(child))
                 .map((child) => child.getTextContent())
                 .join("")
 
@@ -294,7 +599,20 @@ export function SyntaxHighlightPlugin({
                     const existing = existingTokens[i]
                     if (!existing) return false
 
-                    return t.content === existing.content && t.type === existing.type
+                    // Get validation for this token based on current context
+                    const {shouldHaveError, expectedMessage} = getValidationForToken(
+                        t.content.trim(),
+                        t.type,
+                        language,
+                        lineNode,
+                    )
+
+                    return (
+                        t.content === existing.content &&
+                        t.type === existing.type &&
+                        shouldHaveError === existing.hasValidationError &&
+                        expectedMessage === existing.validationMessage
+                    )
                 })
             log(`🔍 [SyntaxHighlightPlugin] Token comparison:`, {
                 lineKey,
@@ -319,6 +637,8 @@ export function SyntaxHighlightPlugin({
             lockPlugin(PLUGIN_NAME)
 
             log("transforming line", lineNode)
+
+            // Start a mutable editor transaction to update highlighting
             editor.update(
                 () => {
                     const selection = $getSelection()
@@ -327,22 +647,40 @@ export function SyntaxHighlightPlugin({
                         // Separate tabs from highlight nodes
                         // Tabs need to be preserved in their positions
                         const current = lineNode.getChildren()
-                        const tabs = current.filter($isCodeTabNode)
+                        const tabs = current.filter($isTabNode)
                         const highlights = current.filter($isCodeHighlightNode)
 
-                        // Create new highlight nodes from tokens (pure syntax highlighting)
+                        // Create new highlight nodes from tokens with validation
                         const newHighlights = tokens.map(({content, type}) => {
+                            // Apply validation logic during syntax highlighting
+                            const {shouldHaveError, expectedMessage} = getValidationForToken(
+                                content.trim(),
+                                type,
+                                language,
+                                lineNode,
+                            )
+
                             const node = $createCodeHighlightNode(
                                 content,
                                 type,
-                                false, // No token-level validation
-                                "", // No validation message
+                                shouldHaveError,
+                                expectedMessage,
                             )
+
+                            // Log validation errors for debugging
+                            if (shouldHaveError && content.trim()) {
+                                log("✅ Syntax error detected", {
+                                    token: content.trim(),
+                                    type,
+                                    message: expectedMessage,
+                                })
+                            }
 
                             return node
                         })
 
                         // Always run validation first, regardless of highlighting changes
+                        $runValidationAfterHighlighting(lineNode, editor)
 
                         // Skip highlighting updates if tokens are identical
                         if (tokenMatch) {
@@ -400,22 +738,6 @@ export function SyntaxHighlightPlugin({
             })
 
             if ($isCodeLineNode(parent)) {
-                // check if there's a tab node right after this node
-                const nextSibling = node.getNextSibling()
-                if ($isCodeTabNode(nextSibling)) {
-                    const allTrailingTabs = node.getNextSiblings().filter($isCodeTabNode)
-                    const allTrailingTabsContent = allTrailingTabs.map((tab) =>
-                        tab.getTextContent(),
-                    )
-                    const newNode = $createCodeHighlightNode(
-                        nodeText + allTrailingTabsContent.join(""),
-                        "text",
-                        false,
-                        "",
-                    )
-                    node.replace(newNode)
-                    allTrailingTabs.forEach((tab) => tab.remove())
-                }
                 $transformLine(parent)
             }
         })
@@ -471,23 +793,23 @@ export function SyntaxHighlightPlugin({
                 }
 
                 // Trigger bracket analysis if needed - CONSERVATIVE approach
-                // if (shouldAnalyzeBrackets) {
-                //     log("🔄 Scheduling conservative bracket re-analysis")
-                //     // Just run validation directly - no need for full transform cycle
-                //     editor.update(() => {
-                //         // Find any code line and run validation only
-                //         const root = $getRoot()
-                //         const descendants = root.getAllTextNodes()
-                //         for (const textNode of descendants) {
-                //             const parent = textNode.getParent()
-                //             if ($isCodeLineNode(parent)) {
-                //                 // Run validation directly - this will refresh bracket detection
-
-                //                 return // Only validate one line to refresh cache
-                //             }
-                //         }
-                //     })
-                // }
+                if (shouldAnalyzeBrackets) {
+                    log("🔄 Scheduling conservative bracket re-analysis")
+                    // Just run validation directly - no need for full transform cycle
+                    editor.update(() => {
+                        // Find any code line and run validation only
+                        const root = $getRoot()
+                        const descendants = root.getAllTextNodes()
+                        for (const textNode of descendants) {
+                            const parent = textNode.getParent()
+                            if ($isCodeLineNode(parent)) {
+                                // Run validation directly - this will refresh bracket detection
+                                $runValidationAfterHighlighting(parent, editor)
+                                return // Only validate one line to refresh cache
+                            }
+                        }
+                    })
+                }
             },
             {skipInitialization: true}, // Don't trigger on initial load
         )
@@ -508,13 +830,29 @@ export function SyntaxHighlightPlugin({
 
                 log(`🚀 [SyntaxHighlightPlugin] Initial content loaded, running validation`)
 
+                // Schedule validation after initial content is processed
+                setTimeout(() => {
+                    editor.update(() => {
+                        const root = $getRoot()
+                        const codeBlock = root.getChildren().find($isCodeBlockNode)
+
+                        if (codeBlock) {
+                            const codeLines = codeBlock.getChildren().filter($isCodeLineNode)
+                            if (codeLines.length > 0) {
+                                // Run validation on the first line to trigger full validation
+                                log(
+                                    `🚀 [SyntaxHighlightPlugin] Running initial validation on ${codeLines.length} lines`,
+                                )
+                                $runValidationAfterHighlighting(codeLines[0], editor)
+                            }
+                        }
+                    })
+                }, 100) // Small delay to ensure content is fully processed
+
                 return false // Don't prevent other handlers
             },
             COMMAND_PRIORITY_LOW,
         )
-
-        // Note: We don't need to listen to validation errors changes here
-        // The validation errors will be applied during the normal highlighting process
 
         return () => {
             unregisterText()

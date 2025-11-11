@@ -1,12 +1,12 @@
 // @ts-nocheck
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useState} from "react"
 
 import {ArrowsOut} from "@phosphor-icons/react"
 import {Button} from "antd"
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
-import {inputRowIdsAtom} from "@/oss/state/generation/entities"
+import {EnhancedVariant} from "@/oss/components/Playground/assets/utilities/transformer/types"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 
 import {GenerationFocusDrawerButtonProps} from "./types"
 const GenerationFocusDrawer = dynamic(() => import("../.."), {ssr: false})
@@ -21,8 +21,16 @@ const GenerationFocusDrawerButton = ({
     const [_rowId, _setRowId] = useState(rowId)
     const [isOpenFocusDrawer, setIsOpenFocusDrawer] = useState(false)
 
-    const rowIds = useAtomValue(inputRowIdsAtom) as string[]
-    const inputRows = useMemo(() => rowIds.map((id) => ({__id: id}) as any), [rowIds])
+    const {inputRows} = usePlayground({
+        variantId: variantIds as string,
+        variantSelector: useCallback(
+            (variant: EnhancedVariant) => {
+                const inputRows = variant.inputs?.value || []
+                return {inputRows}
+            },
+            [_rowId],
+        ),
+    })
 
     const loadNextRow = useCallback(() => {
         if (_rowId) {

@@ -123,17 +123,17 @@ async def create_accounts(payload: dict):
 
     user = await db_manager.get_user_with_email(email=user_dict["email"])
     if user is None:
-        log.info("[scopes] Yey! A new user is signing up!")
+        log.info("Yey! A new user is signing up!")
 
         # Create user first
         user = await create_new_user(user_dict)
 
-        log.info("[scopes] User [%s] created", user.id)
+        log.info("User [%s] created", user.id)
 
         # Prepare payload to create organization
         create_org_payload = CreateOrganization(
             name=user_dict["username"],
-            description="Default Organization",
+            description="My Default Organization",
             owner=str(user.id),
             type="default",
         )
@@ -144,7 +144,7 @@ async def create_accounts(payload: dict):
             user=user,
         )
 
-        log.info("[scopes] Organization [%s] created", organization.id)
+        log.info("Organization [%s] created", organization.id)
 
         # Add the user to demos
         await add_user_to_demos(str(user.id))
@@ -169,7 +169,7 @@ async def create_accounts(payload: dict):
             delta=1,
         )
 
-    log.info("[scopes] User [%s] authenticated", user.id)
+    log.info("User [%s] authenticated", user.id)
 
     if is_ee():
         try:

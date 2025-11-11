@@ -1,91 +1,15 @@
 /**
  * DiffHighlightPlugin.tsx
  *
- * This plugin provides diff highlighting functionality for code blocks with support
- * for both JSON and YAML content. It processes original and modified content to
- * generate and display unified diff format with proper syntax highlighting.
+ * This plugin provides diff highlighting functionality for code blocks.
+ * It detects diff markers (+ and - prefixes) in code lines and applies
+ * appropriate styling to show added, removed, and context lines.
  *
- * ## Features:
+ * Features:
  * - Automatic detection of diff format lines
  * - Support for unified diff format
- * - JSON and YAML language support
  * - Integration with existing syntax highlighting
  * - Line-by-line diff state management
- * - Real-time diff computation
- *
- * ## How It Works:
- *
- * ### 1. Content Processing
- * When `originalContent` and `modifiedContent` are provided:
- * - Content is parsed based on the `language` parameter ("json" | "yaml")
- * - Objects are normalized and re-serialized for consistent formatting
- * - Line-by-line diff is computed using the `computeDiff` utility
- *
- * ### 2. Diff Format
- * The plugin generates GitHub-style diff format:
- * ```
- * oldLineNum|newLineNum|type|content
- * ```
- * Where:
- * - `oldLineNum`: Line number in original content (empty for added lines)
- * - `newLineNum`: Line number in modified content (empty for removed lines)
- * - `type`: "added" | "removed" | "context"
- * - `content`: The actual line content
- *
- * ### 3. Language Support
- * **JSON Mode (`language="json"`):**
- * - Parses content as JSON objects
- * - Re-serializes with consistent 2-space indentation
- * - Handles JSON syntax errors gracefully
- *
- * **YAML Mode (`language="yaml"`):**
- * - Parses content as YAML objects using `js-yaml`
- * - Re-serializes with consistent 2-space indentation
- * - Handles YAML syntax errors gracefully
- *
- * ### 4. Visual Highlighting
- * - Added lines: Green background with "+" indicator
- * - Removed lines: Red background with "-" indicator
- * - Context lines: Normal styling
- * - Line numbers displayed for both old and new versions
- *
- * ## Usage Examples:
- *
- * ### Basic Usage
- * ```tsx
- * <DiffHighlightPlugin
- *   originalContent='{"name": "old"}'
- *   modifiedContent='{"name": "new"}'
- *   language="json"
- * />
- * ```
- *
- * ### YAML Diff
- * ```tsx
- * <DiffHighlightPlugin
- *   originalContent="name: old-service\nversion: 1.0.0"
- *   modifiedContent="name: new-service\nversion: 1.1.0"
- *   language="yaml"
- * />
- * ```
- *
- * ### Integration with EditorWrapper
- * ```tsx
- * <EditorWrapper
- *   additionalCodePlugins={[
- *     <DiffHighlightPlugin
- *       originalContent={original}
- *       modifiedContent={modified}
- *       language={language}
- *     />
- *   ]}
- * />
- * ```
- *
- * ## Error Handling:
- * - Invalid JSON/YAML content is handled gracefully
- * - Parsing errors don't crash the diff computation
- * - Fallback to string-based diff for unparseable content
  *
  * @module DiffHighlightPlugin
  */
@@ -118,47 +42,27 @@ function parseDiffLine(lineContent: string): {
     diffType: DiffType
     content: string
 } | null {
-    // Check if this is our new format: "oldLineNum|newLineNum|type|content" or fold format
+    // Check if this is our new format: "oldLineNum|newLineNum|type|content"
     const parts = lineContent.split("|")
     // Parse diff line format
 
     if (parts.length >= 4) {
         const [oldNumStr, newNumStr, type, ...contentParts] = parts
+        const content = contentParts.join("|") // Rejoin in case content had pipes
 
-        if (type === "fold") {
-            // Special handling for fold lines: "startLine-endLine|startLine-endLine|fold|content|foldedLineCount"
-            const content = contentParts.slice(0, -1).join("|") // All but last part is content
-            const _foldedLineCount = parseInt(contentParts[contentParts.length - 1] || "0", 10)
+        const oldLineNumber =
+            oldNumStr && oldNumStr.trim() !== "" ? parseInt(oldNumStr, 10) : undefined
+        const newLineNumber =
+            newNumStr && newNumStr.trim() !== "" ? parseInt(newNumStr, 10) : undefined
+        const diffType = type as DiffType
 
-            // For fold lines, we want to display the range as-is
-            // The oldNumStr and newNumStr are both "startLine-endLine" format
-            // We'll store the start and end as separate numbers for CSS display
-            const lineRange = oldNumStr.split("-")
-            const startLine = lineRange[0] ? parseInt(lineRange[0], 10) : undefined
-            const endLine = lineRange[1] ? parseInt(lineRange[1], 10) : undefined
+        // Return parsed result
 
-            return {
-                oldLineNumber: startLine,
-                newLineNumber: endLine,
-                diffType: "fold" as DiffType,
-                content,
-            }
-        } else {
-            // Regular diff lines
-            const content = contentParts.join("|") // Rejoin in case content had pipes
-
-            const oldLineNumber =
-                oldNumStr && oldNumStr.trim() !== "" ? parseInt(oldNumStr, 10) : undefined
-            const newLineNumber =
-                newNumStr && newNumStr.trim() !== "" ? parseInt(newNumStr, 10) : undefined
-            const diffType = type as DiffType
-
-            return {
-                oldLineNumber,
-                newLineNumber,
-                diffType,
-                content,
-            }
+        return {
+            oldLineNumber,
+            newLineNumber,
+            diffType,
+            content,
         }
     }
 
@@ -211,20 +115,12 @@ function isDiffContent(blockText: string): boolean {
  * DiffHighlightPlugin component
  * Automatically detects and highlights diff content in code blocks
  */
-export default function DiffHighlightPlugin({
+export function DiffHighlightPlugin({
     originalContent,
     modifiedContent,
-    language = "json",
-    enableFolding = false,
-    foldThreshold = 5,
-    showFoldedLineCount = true,
 }: {
     originalContent?: string
     modifiedContent?: string
-    language?: "json" | "yaml"
-    enableFolding?: boolean
-    foldThreshold?: number
-    showFoldedLineCount?: boolean
 } = {}): null {
     const [editor] = useLexicalComposerContext()
 
@@ -268,9 +164,6 @@ export default function DiffHighlightPlugin({
 
                             const diffContent = computeDiff(originalData, modifiedData, {
                                 language: payload.language,
-                                enableFolding,
-                                foldThreshold,
-                                showFoldedLineCount,
                             })
 
                             // Check if diff contains only context lines (no actual changes)
@@ -307,6 +200,21 @@ export default function DiffHighlightPlugin({
                     })
 
                     return true // Command handled
+                }
+                // Check if this is pre-computed diff content
+                else if (isDiffContent(payload.content)) {
+                    // Prevent default handling by the InsertInitialCodeBlockPlugin
+                    payload.preventDefault()
+
+                    // Handle diff content processing here
+                    editor.update(() => {
+                        // The diff content will be processed by the existing transform
+                        // when the content is inserted into the editor
+                    })
+
+                    return true // Command handled
+                } else {
+                    return true
                 }
                 return false // Let other plugins handle it
             },
@@ -383,7 +291,7 @@ export default function DiffHighlightPlugin({
         if (originalContent && modifiedContent) {
             const payload: InitialContentPayload = {
                 content: "test", // Not used for diff requests
-                language: language, // Use the language parameter
+                language: "json", // Will be determined by the editor
                 preventDefault: () => {},
                 isDefaultPrevented: () => false,
                 originalContent,

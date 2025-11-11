@@ -1,0 +1,125 @@
+---
+title: "Prompt Playground"
+sidebar_label: "Using the Prompt Playground"
+description: "Learn how to use Agenta's LLM playground for prompt engineering, model comparison, and deployment. A powerful alternative to OpenAI playground that supports multiple models and frameworks."
+---
+
+```mdx-code-block
+import { Stream } from '@cloudflare/stream-react';
+import Image from "@theme/IdealImage";
+```
+
+The Agenta playground is a comprehensive prompt engineering IDE that helps you develop, test, and deploy LLM applications. Unlike traditional LLM playgrounds, Agenta integrates prompt management, evaluation, and deployment into a single platform, supporting multiple models and frameworks.
+
+<Stream controls src="fcf2b69dacb3e3a624c09af40c2dc154" height="400px" />
+<br />
+
+
+## Key Features
+
+- **Multi-Model Support**: Test prompts across different providers including OpenAI GPT models, Anthropic Claude, Google Gemini, Mistral, DeepSeek, and OpenRouter models
+- **Framework Integration**: Works seamlessly with popular frameworks like LangChain, LlamaIndex, and CrewAI
+- **Version Control**: Track and manage prompt versions with built-in prompt management
+- **Model Comparison**: Benchmark different LLM models side by side
+- **Parameter Control**: Fine-tune model parameters including temperature, top-k, and presence penalty
+- **Environment Management**: Deploy configurations to development, staging, and production environments
+
+## Creating and Managing Prompts
+
+### Prompt Templates
+
+Prompt templates form the foundation of reusable LLM interactions. They contain variable placeholders that adapt to different inputs, making your prompts dynamic and versatile.
+
+Example of a prompt template:
+```
+Write a blog post about {{subject}} that focuses on {{key_aspect}}
+```
+
+Agenta uses curly brackets `{{variable}}` for template variables, automatically creating corresponding input fields in the playground interface.
+
+### Dynamic JSON Schema Variables
+
+When using the **JSON Schema** response format, you can reference variables directly inside the schema definition. Placeholders using `{{variable}}` work in both keys and values, and any variables you add will appear as inputs in the playground. These dynamic schemas are stored in the registry when you commit a variant. The editor does not yet highlight variables inside the schema, but they will still be replaced when executing your prompt.
+
+### Adjusting Model Parameters
+
+To modify model-specific parameters:
+
+1. Click on the model name in the configuration panel
+2. A settings modal will appear with available parameters
+3. Adjust the following settings as needed:
+
+- **Temperature** (0-2): Controls randomness in the output
+  - Lower values (0.1-0.4): More focused, deterministic responses
+  - Higher values (0.7-1.0): More creative, varied outputs
+
+- **Top-k** (1-100): Limits the pool of tokens the model considers
+  - Lower values: More focused word choice
+  - Higher values: Broader vocabulary usage
+
+- **Presence Penalty** (-2.0 to 2.0): Influences topic diversity
+  - Positive values: Encourages exploring new topics
+  - Negative values: Allows topic repetition
+
+- **Frequency Penalty** (-2.0 to 2.0): Affects word choice
+  - Positive values: Discourages word repetition
+  - Negative values: Allows word reuse
+
+## Comparing Prompts and Models
+
+Agenta's playground allows you to compare different prompts, model configurations, and LLM providers side by side. This helps you identify the most effective combination for your use case.
+
+### Creating Multiple Variants
+
+To compare different configurations:
+
+1. Click the "+Compare" button in the top right corner
+2. Select "New Variant" from the dropdown menu
+3. Choose a source variant to duplicate (this copies all current parameters)
+4. Give your new variant a descriptive name
+5. Modify the configuration as needed
+
+Each variant appears as a separate column in the playground, allowing direct comparison of outputs.
+
+### Side-by-Side Testing
+
+With multiple variants set up, you can:
+- Enter the same input text across all variants
+- Compare the generated outputs side by side
+- Review response times for each configuration
+- Monitor the cost per request for different models
+
+This parallel testing helps you understand how different prompts and models handle the same input.
+
+### Version Control and Deployment
+
+The playground integrates with Agenta's [prompt management system](/prompt-engineering/overview) to track and deploy changes:
+
+1. Click "Commit" to save a new version of your variant
+2. Changes remain in development until explicitly deployed
+3. Use "Deploy" to push configurations to specific environments (development, staging, production)
+
+## Working with Test Sets
+
+### Loading Existing Test Sets
+
+You can import test sets that you've created through:
+
+- CSV uploads
+- Programmatic creation
+- Web UI input
+
+The test set must contain columns that match your prompt template variables.
+
+### Saving Test Cases
+
+To save an interesting test case:
+
+1. Click the three-dot menu on the right side of the test case card
+2. Select "Add to Test Set"
+3. Choose an existing test set or create a new one
+4. Review the input/output mapping (use default settings unless you have specific needs)
+5. Preview the changes to your test set
+6. Confirm to save
+
+The Agenta playground serves as a comprehensive prompt engineering environment, offering advantages over traditional playgrounds like OpenAI's by providing integrated version control, deployment capabilities, and support for multiple models and frameworks. Whether you're developing new prompts, comparing model performance, or deploying to production, the playground provides the tools needed for effective LLM application development.

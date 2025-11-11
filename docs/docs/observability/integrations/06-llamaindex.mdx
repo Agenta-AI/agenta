@@ -1,23 +1,25 @@
 ---
-title: Tracing and Observability for LlamaIndex with Agenta
+title: Observability for LlamaIndex with Agenta
 sidebar_label: LlamaIndex
 description: Monitor and debug your LlamaIndex applications with Agenta's observability platform. Get complete visibility into your RAG pipelines and document search workflows.
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
-import GoogleColabButton from "@site/src/components/GoogleColabButton";
 ```
+
+
+# Observability for LlamaIndex with Agenta
+
+:::info
+This guide is available as Jupyter Notebook [here](https://github.com/agenta-ai/agenta/blob/main/examples/jupyter/integrations/observability-openinference-llamaindex.ipynb).
+:::
 
 Learn how to monitor your **[LlamaIndex](https://www.llamaindex.ai/)** applications using **Agenta's** observability platform. Get complete visibility into your document search, RAG pipelines, and LLM interactions.
 
 > **What is Agenta?** [Agenta](https://agenta.ai) is an open-source LLMOps platform designed to streamline the deployment, management, and scaling of large language models. It offers comprehensive observability, testing, and deployment capabilities for AI applications.
 
 > **What is LlamaIndex?** [LlamaIndex](https://www.llamaindex.ai/) ([GitHub](https://github.com/run-llama/llama_index)) is a powerful data framework that connects LLMs with your private data sources. It simplifies working with various data formats (PDFs, APIs, databases, documents) and creates searchable indices for context-aware AI applications.
-
-<GoogleColabButton notebookPath="examples/jupyter/integrations/observability-openinference-llamaindex.ipynb">
-  Open in Google Colaboratory
-</GoogleColabButton>
 
 ### 1. Install Required Packages
 
@@ -238,4 +240,4 @@ def rag_pipeline(query: str):
 
 ## Next Steps
 
-For more advanced observability features and configuration options, see our [complete observability documentation](/observability/trace-with-python-sdk/setup-tracing).
+For more advanced observability features and configuration options, see our [complete observability documentation](/observability/observability-sdk).

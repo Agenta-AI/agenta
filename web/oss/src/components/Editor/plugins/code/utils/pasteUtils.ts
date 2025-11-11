@@ -1,9 +1,7 @@
-import {$createRangeSelection, $setSelection} from "lexical"
+import {$createRangeSelection, $setSelection, $createTabNode} from "lexical"
 
 import {$createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$createCodeLineNode, CodeLineNode} from "../nodes/CodeLineNode"
-import {$createCodeTabNode} from "../nodes/CodeTabNode"
-import type {CodeLanguage} from "../types"
 
 import {normalizePastedLinesIndentation} from "./indentationUtils"
 import {tokenizeCodeLine} from "./tokenizer"
@@ -208,7 +206,7 @@ export function $insertLinesWithSelectionAndIndent({
     }
 }
 
-export function $createNodeForLineWithTabs(line: string, language: CodeLanguage) {
+export function $createNodeForLineWithTabs(line: string, language: "json" | "yaml") {
     const codeLine = $createCodeLineNode()
     // Extract leading spaces/tabs
     const indentMatch = line.match(/^[ \t]+/)
@@ -221,7 +219,7 @@ export function $createNodeForLineWithTabs(line: string, language: CodeLanguage)
         let i = 0
         while (i < indent.length) {
             if (indent[i] === "\t") {
-                codeLine.append($createCodeTabNode())
+                codeLine.append($createTabNode())
                 i += 1
             } else if (indent[i] === " ") {
                 // Count consecutive spaces
@@ -229,12 +227,12 @@ export function $createNodeForLineWithTabs(line: string, language: CodeLanguage)
                 while (indent[i + spaceCount] === " ") spaceCount++
                 const tabs = Math.floor(spaceCount / tabSize)
                 for (let t = 0; t < tabs; t++) {
-                    codeLine.append($createCodeTabNode())
+                    codeLine.append($createTabNode())
                 }
                 i += tabs * tabSize
                 // If any leftover spaces, append as plain
                 for (; i < indent.length && indent[i] === " "; i++) {
-                    codeLine.append($createCodeTabNode())
+                    codeLine.append($createTabNode())
                 }
             }
         }

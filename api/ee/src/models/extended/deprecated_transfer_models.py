@@ -325,7 +325,7 @@ class HumanEvaluationScenarioDB(DeprecatedBase):
     )
 
 
-class TestsetDB(DeprecatedBase):
+class TestSetDB(DeprecatedBase):
     __tablename__ = "testsets"
     __table_args__ = {"extend_existing": True}
 

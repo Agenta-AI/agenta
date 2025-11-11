@@ -1,15 +1,11 @@
 import os
-
-import sendgrid
-from sendgrid.helpers.mail import Mail
+import aiosmtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from fastapi import HTTPException
 
 from oss.src.utils.env import env
-
-
-# initialize sendgrid api client
-sg = sendgrid.SendGridAPIClient(api_key=env.SENDGRID_API_KEY)
 
 
 def read_email_template(template_file_path):
@@ -29,7 +25,7 @@ async def send_email(
     to_email: str, subject: str, html_content: str, from_email: str
 ) -> bool:
     """
-    Send an email to a user.
+    Send an email via SMTP.
 
     Args:
         to_email (str): The email address to send the email to.
@@ -44,15 +40,25 @@ async def send_email(
         HTTPException: If there is an error sending the email.
     """
 
-    message = Mail(
-        from_email=from_email,
-        to_emails=to_email,
-        subject=subject,
-        html_content=html_content,
-    )
-
+    # Create message
+    message = MIMEMultipart("alternative")
+    message["Subject"] = subject
+    message["From"] = from_email
+    message["To"] = to_email
+    
+    # Create HTML part
+    html_part = MIMEText(html_content, "html")
+    message.attach(html_part)
+    
     try:
-        sg.send(message)
+        await aiosmtplib.send(
+            message,
+            hostname=env.SMTP_HOST,
+            port=env.SMTP_PORT,
+            username=env.SMTP_USERNAME,
+            password=env.SMTP_PASSWORD,
+            use_tls=env.SMTP_USE_TLS,
+        )
         return True
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"SMTP Error: {str(e)}")

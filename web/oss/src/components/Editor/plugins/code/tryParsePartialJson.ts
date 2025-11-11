@@ -1,7 +1,5 @@
 // Pure utility version for robust partial JSON parsing
 
-import {jsonrepair} from "jsonrepair"
-
 import {createLogger} from "./utils/createLogger"
 
 /**
@@ -15,7 +13,7 @@ import {createLogger} from "./utils/createLogger"
  * - Ignores incomplete key-value pairs, missing colons, or values.
  * - Handles nested objects and arrays.
  * - Recovers from missing commas and trailing pairs.
- * - Returns an object containing only valid pairs, or null if none found or input is invalid.
+ * - Returns an object containing only valid pairs, or null if none found.
  *
  * @param input - The JSON string or object to parse. If an object is given, it is returned as-is.
  * @returns An object containing all valid key-value pairs, or null if none are found or input is invalid.
@@ -37,10 +35,12 @@ export function tryParsePartialJson(input: any): any | null {
         return null
     }
 
-    // Clean invisibles only. Use jsonrepair for tolerant fixes (quote delimiters,
-    // trailing commas, etc.) while preserving Unicode inside string contents.
-    const removeInvisibles = (str: string) => str.replace(/[\u200B-\u200D\uFEFF\u00A0]/g, "")
-    const cleanedInput = removeInvisibles(input)
+    // Clean invisible characters and normalize curly quotes to standard quotes
+    const cleanedInput = input
+        // Remove zero-width spaces, BOM, NBSP, etc.
+        .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, "")
+        // Replace curly quotes with standard quotes
+        .replace(/[\u201C\u201D]/g, '"')
 
     // FIRST: Try standard JSON.parse to preserve original key ordering
     try {
@@ -51,16 +51,6 @@ export function tryParsePartialJson(input: any): any | null {
         return parsed
     } catch (e) {
         log("[tryParsePartialJson] Standard JSON.parse failed, trying common fixes:", e.message)
-    }
-
-    // Try jsonrepair to broadly fix malformed JSON while preserving content
-    try {
-        const repaired = jsonrepair(cleanedInput.trim())
-        const parsed = JSON.parse(repaired)
-        log("[tryParsePartialJson] Successfully parsed after jsonrepair")
-        return parsed
-    } catch (e) {
-        log("[tryParsePartialJson] jsonrepair parse failed, falling back to heuristics:", e.message)
     }
 
     // SECOND: Try fixing common JSON issues before falling back to manual parsing

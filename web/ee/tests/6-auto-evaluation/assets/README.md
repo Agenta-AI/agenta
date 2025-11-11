@@ -5,52 +5,46 @@ This directory contains test fixtures for automating the evaluation process in t
 ## Available Fixtures
 
 ### 1. `navigateToEvaluation`
-
 Navigates to the Automatic Evaluation section for a specific application.
 
 **Parameters:**
-
 - `appId` (string): The ID of the application to evaluate
 
 **Usage:**
-
 ```typescript
-await test("navigate to evaluation", async ({navigateToEvaluation}) => {
-    await navigateToEvaluation("your-app-id")
-})
+await test('navigate to evaluation', async ({ navigateToEvaluation }) => {
+  await navigateToEvaluation('your-app-id')
+});
 ```
 
 ### 2. `runAutoEvaluation`
-
 Runs an automatic evaluation with the specified configuration.
 
 **Parameters (object):**
-
 - `evaluators` (string[]): List of evaluator names to use
 - `testset` (string, optional): Name of the testset to evaluate against
 - `variants` (string[]): List of variant names to evaluate
 
 **Usage:**
-
 ```typescript
-await test("run evaluation", async ({runAutoEvaluation}) => {
-    await runAutoEvaluation({
-        evaluators: ["factual-accuracy", "relevance"],
-        testset: "my-testset",
-        variants: ["variant-1", "variant-2"],
-    })
-})
+await test('run evaluation', async ({ runAutoEvaluation }) => {
+  await runAutoEvaluation({
+    evaluators: ['factual-accuracy', 'relevance'],
+    testset: 'my-testset',
+    variants: ['variant-1', 'variant-2']
+  });
+});
 ```
 
 ## How It Works
 
-1. **Testsetup**: The fixtures extend the base test fixture with evaluation-specific functionality.
+1. **Test Setup**: The fixtures extend the base test fixture with evaluation-specific functionality.
 2. **UI Automation**: They handle all the necessary UI interactions, including:
-    - Navigating to the evaluation section
-    - Selecting testsets
-    - Choosing variants
-    - Configuring evaluators
-    - Managing the evaluation creation flow
+   - Navigating to the evaluation section
+   - Selecting testsets
+   - Choosing variants
+   - Configuring evaluators
+   - Managing the evaluation creation flow
 3. **State Management**: The fixtures handle waiting for async operations and ensure the UI is in the correct state before proceeding.
 
 ## Best Practices

@@ -93,7 +93,7 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
         email=user.email,
     )
 
-    if not env.SENDGRID_API_KEY:
+    if not env.SMTP_PASSWORD:
         return password_reset_link
 
     html_template = email_service.read_email_template("./templates/send_email.html")
@@ -105,7 +105,7 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
     )
 
     if not env.AGENTA_SEND_EMAIL_FROM_ADDRESS:
-        raise ValueError("Sendgrid requires a sender email address to work.")
+        raise ValueError("SMTP requires a sender email address to work.")
 
     await email_service.send_email(
         from_email=env.AGENTA_SEND_EMAIL_FROM_ADDRESS,

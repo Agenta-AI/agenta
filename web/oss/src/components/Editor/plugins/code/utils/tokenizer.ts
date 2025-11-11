@@ -2,11 +2,7 @@
 import Prism from "prismjs"
 import "prismjs/components/prism-json"
 import "prismjs/components/prism-yaml"
-import "prismjs/components/prism-python"
-import "prismjs/components/prism-javascript"
 import type {Token as PrismToken} from "prismjs"
-
-import type {CodeLanguage} from "../types"
 
 /**
  * Represents a syntax token with content and type.
@@ -30,19 +26,8 @@ export interface Token {
  * @param language - The language to use for tokenization ('json' or 'yaml')
  * @returns Array of tokens with content and type
  */
-const LANGUAGE_GRAMMAR_MAP: Record<CodeLanguage, string> = {
-    json: "json",
-    yaml: "yaml",
-    code: "python",
-}
-
-export function tokenizeCodeLine(line: string, language: CodeLanguage): Token[] {
-    const targetGrammar = LANGUAGE_GRAMMAR_MAP[language]
-    const grammar =
-        Prism.languages[targetGrammar] ??
-        Prism.languages.javascript ??
-        Prism.languages.clike ??
-        null
+export function tokenizeCodeLine(line: string, language: "json" | "yaml"): Token[] {
+    const grammar = Prism.languages[language]
     if (!grammar) return [{content: line, type: "plain"}]
 
     const rawTokens = Prism.tokenize(line, grammar)

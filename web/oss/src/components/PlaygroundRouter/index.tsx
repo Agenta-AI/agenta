@@ -1,22 +1,43 @@
-import {memo} from "react"
+import {useMemo} from "react"
 
-import {useAtomValue} from "jotai"
+import {Spin, Typography} from "antd"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
-import CustomWorkflowBanner from "@/oss/components/CustomWorkflowBanner"
-import {shouldRenderPlaygroundAtom} from "@/oss/state/app/selectors/app"
+import {useApps} from "@/oss/contexts/app.context"
+import {ListAppsItem} from "@/oss/lib/Types"
 
 const Playground = dynamic(() => import("../Playground/Playground"), {ssr: false})
 
 const PlaygroundRouter = () => {
-    const shouldRender = useAtomValue(shouldRenderPlaygroundAtom)
-    if (!shouldRender)
+    const router = useRouter()
+    const appId = router.query.app_id
+    const {isLoading, data} = useApps()
+
+    const app = useMemo(() => {
+        return (data || [])?.find((item: ListAppsItem) => item.app_id === appId)
+    }, [appId, data])
+
+    if (isLoading) {
         return (
-            <div className="w-full h-[calc(100dvh-70px)] flex items-center justify-center grow">
-                <CustomWorkflowBanner showInPlayground layout="card" />
+            <div className="w-full h-[calc(100dvh-70px)] flex items-center justify-center">
+                <div className="flex gap-2 items-center justify-center">
+                    <Spin spinning={true} />
+                    <Typography className="text-[16px] leading-[18px] font-[600]">
+                        Loading
+                    </Typography>
+                </div>
             </div>
         )
-    return <Playground />
+    } else if (app) {
+        if (!app.app_type || app.app_type.includes(" (old)")) {
+            return null
+        } else {
+            return <Playground />
+        }
+    } else {
+        return null
+    }
 }
 
-export default memo(PlaygroundRouter)
+export default PlaygroundRouter
