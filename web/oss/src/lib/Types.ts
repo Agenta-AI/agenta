@@ -634,7 +634,7 @@ export interface Workspace {
     members: WorkspaceMember[]
 }
 
-export interface Org {
+export interface Organization {
     id: string
     name: string
     description: string
@@ -642,7 +642,7 @@ export interface Org {
     is_paying: boolean
 }
 
-export type OrgDetails = Org & {
+export type OrganizationDetails = Organization & {
     type: "default"
     default_workspace: Workspace
     workspaces: string[]

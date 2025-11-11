@@ -2,7 +2,7 @@ import {getDefaultStore, type Store} from "jotai"
 
 import type {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom} from "@/oss/state/appState"
-import {orgsAtom, resolvePreferredWorkspaceId, selectedOrgIdAtom} from "@/oss/state/org"
+import {organizationsAtom, resolvePreferredWorkspaceId, selectedOrganizationIdAtom} from "@/oss/state/organization"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {projectAtom, projectsAtom} from "@/oss/state/project"
 
@@ -12,7 +12,7 @@ export interface WaitForWorkspaceContextOptions {
     timeoutMs?: number
     requireProjectId?: boolean
     requireWorkspaceId?: boolean
-    requireOrgData?: boolean
+    requireOrganizationanizationData?: boolean
 }
 
 const projectMatchesWorkspace = (project: ProjectsResponse, workspaceId: string) => {
@@ -52,12 +52,12 @@ const computeWorkspaceContext = (store: Store): WorkspaceContext => {
     let projectId = identifiers.projectId
 
     if (!workspaceId) {
-        workspaceId = store.get(selectedOrgIdAtom) ?? null
+        workspaceId = store.get(selectedOrganizationIdAtom) ?? null
     }
 
     if (!workspaceId) {
-        const orgs = store.get(orgsAtom)
-        workspaceId = resolvePreferredWorkspaceId(userId, orgs)
+        const organizations = store.get(organizationsAtom)
+        workspaceId = resolvePreferredWorkspaceId(userId, organizations)
     }
 
     if (workspaceId && !projectId) {
@@ -83,16 +83,16 @@ export const waitForWorkspaceContext = async (
                   timeoutMs: options,
                   requireProjectId: true,
                   requireWorkspaceId: true,
-                  requireOrgData: false,
+                  requireOrganizationanizationData: false,
               }
             : {
                   timeoutMs: options.timeoutMs ?? MAX_WAIT_MS,
                   requireProjectId: options.requireProjectId ?? true,
                   requireWorkspaceId: options.requireWorkspaceId ?? true,
-                  requireOrgData: options.requireOrgData ?? false,
+                  requireOrganizationanizationData: options.requireOrganizationanizationData ?? false,
               }
 
-    const {timeoutMs, requireProjectId, requireWorkspaceId, requireOrgData} = normalizedOptions
+    const {timeoutMs, requireProjectId, requireWorkspaceId, requireOrganizationanizationData} = normalizedOptions
 
     return new Promise<WorkspaceContext>((resolve) => {
         let settled = false
@@ -108,18 +108,18 @@ export const waitForWorkspaceContext = async (
 
         const evaluate = () => {
             const context = computeWorkspaceContext(store)
-            const orgs = store.get(orgsAtom)
+            const organizations = store.get(organizationsAtom)
             const elapsed = Date.now() - start
 
             const hasWorkspace = Boolean(context.workspaceId)
             const hasProject = Boolean(context.projectId)
-            const orgsReady = Array.isArray(orgs) && orgs.length > 0
+            const organizationsReady = Array.isArray(organizations) && organizations.length > 0
 
             const workspaceSatisfied = !requireWorkspaceId || hasWorkspace
             const projectSatisfied = !requireProjectId || hasProject
-            const orgSatisfied = !requireOrgData || orgsReady || hasWorkspace
+            const organizationSatisfied = !requireOrganizationanizationData || organizationsReady || hasWorkspace
 
-            if (workspaceSatisfied && projectSatisfied && orgSatisfied) {
+            if (workspaceSatisfied && projectSatisfied && organizationSatisfied) {
                 finalize(context)
                 return true
             }
@@ -137,8 +137,8 @@ export const waitForWorkspaceContext = async (
         unsubscribers.push(
             store.sub(projectsAtom, evaluate),
             store.sub(projectAtom, evaluate),
-            store.sub(selectedOrgIdAtom, evaluate),
-            store.sub(orgsAtom, evaluate),
+            store.sub(selectedOrganizationIdAtom, evaluate),
+            store.sub(organizationsAtom, evaluate),
             store.sub(userAtom, evaluate),
         )
 

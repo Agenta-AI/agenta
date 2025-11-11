@@ -6,15 +6,15 @@ import {queryClientAtom} from "jotai-tanstack-query"
 
 import {ProjectsResponse} from "@/oss/services/project/types"
 
-import {getOrgValues} from "../org"
+import {getOrganizationValues} from "../organization"
 
 import {projectAtom, projectIdAtom, resetProjectDataAtom} from "./selectors/project"
 
 export const getProjectValues = () => {
     const store = getDefaultStore()
     const queryClient = store.get(queryClientAtom)
-    const {selectedOrg} = getOrgValues()
-    const organizationId = selectedOrg?.id
+    const {selectedOrganization} = getOrganizationValues()
+    const organizationId = selectedOrganization?.id
 
     const queryKey = ["projects", organizationId]
     const queryData = queryClient.getQueryData<ProjectsResponse[]>(queryKey)

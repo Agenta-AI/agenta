@@ -6,7 +6,7 @@ import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
 import {EvaluationType} from "@/oss/lib/enums"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 
 const useStyles = createUseStyles({
     row: {
@@ -30,18 +30,18 @@ interface Props {
 
 const ShareEvaluationModal: React.FC<ModalProps & Props> = ({...props}) => {
     const classes = useStyles()
-    const {selectedOrg} = useOrgData()
+    const {selectedOrganization} = useOrganizationData()
     const router = useRouter()
     const appId = router.query.app_id as string
 
-    const parmas = qs.stringify({
+    const params = qs.stringify({
         type: props.evaluationType,
         testset: props.testsetId,
         variants: props.variantIds,
         app: appId,
-        org: selectedOrg?.id,
+        organization: selectedOrganization?.id,
     })
-    const link = `${window.location.origin}/evaluations/share?${parmas}`
+    const link = `${window.location.origin}/evaluations/share?${params}`
 
     return (
         <Modal footer={null} title="Invite Collaborators" {...props}>

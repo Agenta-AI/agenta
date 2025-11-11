@@ -9,7 +9,7 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {getUsernameFromEmail, isDemo} from "@/oss/lib/helpers/utils"
 import {WorkspaceMember} from "@/oss/lib/Types"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 import {useProfileData} from "@/oss/state/profile"
 import {useUpdateWorkspaceName, useWorkspaceMembers} from "@/oss/state/workspace"
 
@@ -21,7 +21,7 @@ const InviteUsersModal = dynamic(() => import("./Modals/InviteUsersModal"), {ssr
 
 const WorkspaceManage: FC = () => {
     const {user: signedInUser} = useProfileData()
-    const {selectedOrg, loading, refetch} = useOrgData()
+    const {selectedOrganization, loading, refetch} = useOrganizationData()
     const {updateWorkspaceName} = useUpdateWorkspaceName()
     const {filteredMembers, searchTerm, setSearchTerm} = useWorkspaceMembers()
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false)
@@ -32,9 +32,9 @@ const WorkspaceManage: FC = () => {
     })
     const [queryInviteModalOpen, setQueryInviteModalOpen] = useQueryParam("inviteModal")
 
-    const organizationId = selectedOrg?.id
-    const workspaceId = selectedOrg?.default_workspace?.id
-    const workspace = selectedOrg?.default_workspace
+    const organizationId = selectedOrganization?.id
+    const workspaceId = selectedOrganization?.default_workspace?.id
+    const workspace = selectedOrganization?.default_workspace
 
     const [isEditingName, setIsEditingName] = useState(false)
     const [workspaceNameInput, setWorkspaceNameInput] = useState(workspace?.name || "")
@@ -126,7 +126,7 @@ const WorkspaceManage: FC = () => {
                                     member={member}
                                     hidden={
                                         member.user.email === signedInUser?.email ||
-                                        member.user.id === selectedOrg?.owner
+                                        member.user.id === selectedOrganization?.owner
                                     }
                                     organizationId={organizationId!}
                                     workspaceId={workspaceId!}
@@ -142,7 +142,7 @@ const WorkspaceManage: FC = () => {
                     },
                 ] as ColumnsType<WorkspaceMember>
             ).filter(Boolean),
-        [selectedOrg?.id],
+        [selectedOrganization?.id],
     )
 
     const handleSaveWorkspaceName = async () => {

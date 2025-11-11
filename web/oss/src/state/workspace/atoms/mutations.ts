@@ -6,7 +6,7 @@ import {WorkspaceRole} from "@/oss/lib/Types"
 import {updateOrganization} from "@/oss/services/organization/api"
 import {updateWorkspace, fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"
 
-import {selectedOrgQueryAtom, orgsQueryAtom} from "../../org/selectors/org"
+import {selectedOrganizationQueryAtom, organizationsQueryAtom} from "../../organization/selectors/organization"
 import {userAtom} from "../../profile/selectors/user"
 
 /**
@@ -30,17 +30,17 @@ export const updateWorkspaceNameAtom = atomWithMutation<
         message.success("Workspace renamed")
 
         // Optimistically update the local cache with the new name
-        const selectedOrgQuery = get(selectedOrgQueryAtom)
+        const selectedOrganizationQuery = get(selectedOrganizationQueryAtom)
 
         // Also trigger a refetch to ensure data consistency
-        if (selectedOrgQuery.refetch) {
-            selectedOrgQuery.refetch()
+        if (selectedOrganizationQuery.refetch) {
+            selectedOrganizationQuery.refetch()
         }
 
-        // Refetch orgs list to ensure sidebar and org lists reflect the new name
-        const orgsQuery = get(orgsQueryAtom)
-        if (orgsQuery.refetch) {
-            orgsQuery.refetch()
+        // Refetch organizations list to ensure sidebar and organization lists reflect the new name
+        const organizationsQuery = get(organizationsQueryAtom)
+        if (organizationsQuery.refetch) {
+            organizationsQuery.refetch()
         }
     },
     onError: (error) => {

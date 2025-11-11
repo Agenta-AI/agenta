@@ -3,7 +3,7 @@ import {atomFamily} from "jotai/utils"
 
 import {WorkspaceMember} from "@/oss/lib/Types"
 
-import {selectedOrgAtom} from "../../org/selectors/org"
+import {selectedOrganizationAtom} from "../../organization/selectors/organization"
 
 /**
  * Atom for the search term used to filter workspace members
@@ -14,8 +14,8 @@ export const memberSearchTermAtom = atom<string>("")
  * Derived atom that provides all workspace members
  */
 export const workspaceMembersAtom = atom<WorkspaceMember[]>((get) => {
-    const selectedOrg = get(selectedOrgAtom)
-    return selectedOrg?.default_workspace?.members || []
+    const selectedOrganization = get(selectedOrganizationAtom)
+    return selectedOrganization?.default_workspace?.members || []
 })
 
 /**

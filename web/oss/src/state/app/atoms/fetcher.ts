@@ -10,7 +10,7 @@ import {fetchAllApps} from "@/oss/services/app"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {activeInviteAtom} from "@/oss/state/url/auth"
 
-import {selectedOrgIdAtom} from "../../org"
+import {selectedOrganizationIdAtom} from "../../organization"
 import {userAtom, profileQueryAtom} from "../../profile/selectors/user"
 import {projectIdAtom} from "../../project/selectors/project"
 import {jwtReadyAtom} from "../../session/jwt"
@@ -66,7 +66,7 @@ export const appsQueryAtom = atomWithQuery<ListAppsItem[]>((get) => {
     const user = get(userAtom) as User | null
     const isProj = !!projectId
     const jwtReady = get(jwtReadyAtom).data ?? false
-    const organizationId = get(selectedOrgIdAtom)
+    const organizationId = get(selectedOrganizationIdAtom)
     const activeInvite = get(activeInviteAtom)
     const enabled =
         profileState.isSuccess &&

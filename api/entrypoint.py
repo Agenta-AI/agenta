@@ -583,10 +583,13 @@ app.include_router(
 # ------------------------------------------------------------------------------
 
 
-import oss.src.tasks.evaluations.live
-import oss.src.tasks.evaluations.legacy
-import oss.src.tasks.evaluations.batch
+def load_tasks():
+    import oss.src.tasks.evaluations.live
+    import oss.src.tasks.evaluations.legacy
+    import oss.src.tasks.evaluations.batch
 
 
 if ee and is_ee():
     app = ee.extend_app_schema(app)
+
+    load_tasks()

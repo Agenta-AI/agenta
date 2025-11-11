@@ -17,7 +17,7 @@ import {
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {recentAppIdAtom} from "@/oss/state/app"
 // removed unused transformedPromptsAtomFamily
-import {getOrgValues} from "@/oss/state/org"
+import {getOrganizationValues} from "@/oss/state/organization"
 import {getProjectValues} from "@/oss/state/project"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
@@ -65,12 +65,12 @@ export interface AppCreationResult {
 // Helper function to create app
 // Use axios so that global interceptors handle errors like 403
 const createApp = async ({templateKey, appName}: {appName: string; templateKey: ServiceType}) => {
-    const {selectedOrg} = getOrgValues()
+    const {selectedOrganization} = getOrganizationValues()
     const {project, projectId} = getProjectValues()
-    // Prefer selectedOrg, fallback to current project's org/workspace when available
-    const organization_id = (selectedOrg as any)?.id || (project as any)?.organization_id || null
+    // Prefer selectedOrganization, fallback to current project's organization/workspace when available
+    const organization_id = (selectedOrganization as any)?.id || (project as any)?.organization_id || null
     const workspace_id =
-        (selectedOrg as any)?.default_workspace?.id || (project as any)?.workspace_id || null
+        (selectedOrganization as any)?.default_workspace?.id || (project as any)?.workspace_id || null
     const url = new URL(`${getAgentaApiUrl()}/apps?project_id=${projectId}`)
     if (process.env.NODE_ENV === "development") {
         console.log("[app:create] createApp payload preview", {

@@ -72,12 +72,12 @@ const AppWithVariants = memo(
         const currentApp = useAtomValue(currentAppAtom)
         const {project, projects} = useProjectData()
         // const profileLoading = useAtomValue(profilePendingAtom)
-        // const {changeSelectedOrg} = useOrgData()
+        // const {changeSelectedOrganization} = useOrganizationData()
 
         const handleBackToWorkspaceSwitch = () => {
             const project = projects.find((p) => p.user_role === "owner")
             if (project && !project.is_demo && project.organization_id) {
-                // changeSelectedOrg(project.organization_id)
+                // changeSelectedOrganization(project.organization_id)
             }
         }
 

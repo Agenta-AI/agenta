@@ -7,7 +7,7 @@ import {
     navigationRequestAtom,
     requestNavigationAtom,
 } from "@/oss/state/appState"
-import {orgsAtom, resolvePreferredWorkspaceId} from "@/oss/state/org"
+import {organizationsAtom, resolvePreferredWorkspaceId} from "@/oss/state/organization"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
 import {urlAtom} from "@/oss/state/url"
@@ -189,8 +189,8 @@ export const syncAuthStateFromUrl = (nextUrl?: string) => {
             if (path === "/w") {
                 const identifiers = store.get(appIdentifiersAtom)
                 if (!identifiers.workspaceId) {
-                    const orgs = store.get(orgsAtom)
-                    const targetWorkspaceId = resolvePreferredWorkspaceId(user?.id ?? null, orgs)
+                    const organizations = store.get(organizationsAtom)
+                    const targetWorkspaceId = resolvePreferredWorkspaceId(user?.id ?? null, organizations)
 
                     if (targetWorkspaceId) {
                         const pendingCommand = store.get(navigationRequestAtom)

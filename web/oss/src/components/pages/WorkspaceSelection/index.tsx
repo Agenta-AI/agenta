@@ -5,13 +5,13 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {orgsAtom} from "@/oss/state/org"
+import {organizationsAtom} from "@/oss/state/organization"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const WorkspaceSelection = () => {
     const router = useRouter()
-    const orgs = useAtomValue(orgsAtom)
-    const {workspaceId, baseAppURL, projectURL, orgURL} = useURL()
+    const organizations = useAtomValue(organizationsAtom)
+    const {workspaceId, baseAppURL, projectURL, organizationURL} = useURL()
     const pendingRef = useRef(false)
 
     const fallbackPath = useMemo(() => {
@@ -21,14 +21,14 @@ const WorkspaceSelection = () => {
             return `/w/${encodeURIComponent(workspaceId)}`
         }
 
-        const fallbackWorkspace = Array.isArray(orgs) && orgs.length > 0 ? orgs[0]?.id : null
+        const fallbackWorkspace = Array.isArray(organizations) && organizations.length > 0 ? organizations[0]?.id : null
         if (fallbackWorkspace) {
             return `/w/${encodeURIComponent(fallbackWorkspace)}`
         }
 
-        if (orgURL) return orgURL
+        if (organizationURL) return organizationURL
         return null
-    }, [baseAppURL, orgURL, orgs, projectURL, workspaceId])
+    }, [baseAppURL, organizationURL, organizations, projectURL, workspaceId])
 
     useEffect(() => {
         if (!router.isReady) return
@@ -55,7 +55,7 @@ const WorkspaceSelection = () => {
         void waitForWorkspaceContext({
             timeoutMs: 1500,
             requireProjectId: false,
-            requireOrgData: true,
+            requireOrganizationanizationData: true,
         })
             .then(async (context) => {
                 if (cancelled) return

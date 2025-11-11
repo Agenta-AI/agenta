@@ -2,7 +2,7 @@ import {atom} from "jotai"
 
 import {appsAtom} from "@/oss/state/app"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
-import {selectedOrgAtom} from "@/oss/state/org"
+import {selectedOrganizationAtom} from "@/oss/state/organization"
 import {projectsAtom} from "@/oss/state/project"
 
 import {buildBreadcrumbSegments} from "../../helpers/buildBreadcrumbs"
@@ -14,7 +14,7 @@ const breadcrumbOverridesAtom = atom<BreadcrumbAtom>({})
 export const defaultBreadcrumbAtom = atom<BreadcrumbAtom>((get) => {
     const appState = get(appStateSnapshotAtom)
     const apps = get(appsAtom)
-    const selectedOrg = get(selectedOrgAtom)
+    const selectedOrganization = get(selectedOrganizationAtom)
     const projects = get(projectsAtom)
     const projectId = appState.projectId
     const project = projectId ? projects.find((p) => p.project_id === projectId) || null : null
@@ -22,8 +22,8 @@ export const defaultBreadcrumbAtom = atom<BreadcrumbAtom>((get) => {
     return buildBreadcrumbSegments({
         uriPath: appState.asPath || appState.pathname,
         apps,
-        workspaceId: appState.workspaceId ?? selectedOrg?.id ?? null,
-        workspaceName: selectedOrg?.name ?? "",
+        workspaceId: appState.workspaceId ?? selectedOrganization?.id ?? null,
+        workspaceName: selectedOrganization?.name ?? "",
         projectId,
         projectName: project?.project_name ?? null,
         projectIsPending: !!projectId && !project,

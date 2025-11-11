@@ -4,7 +4,7 @@ import {Button, Input, Space, Typography, message} from "antd"
 
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {createApiKey} from "@/oss/services/apiKeys/api"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 
 const {Text} = Typography
 
@@ -15,11 +15,11 @@ interface ApiKeyInputProps {
 
 const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) => {
     const [isLoadingApiKey, setIsLoadingApiKey] = useState(false)
-    const {selectedOrg} = useOrgData()
+    const {selectedOrganization} = useOrganizationData()
 
     const workspaceId: string = useMemo(
-        () => selectedOrg?.default_workspace.id || "",
-        [selectedOrg],
+        () => selectedOrganization?.default_workspace.id || "",
+        [selectedOrganization],
     )
 
     const handleGenerateApiKey = async () => {

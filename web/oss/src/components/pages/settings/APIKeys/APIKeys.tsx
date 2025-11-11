@@ -8,7 +8,7 @@ import {useLoading} from "@/oss/hooks/useLoading"
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {APIKey} from "@/oss/lib/Types"
 import {createApiKey, deleteApiKey, fetchAllListApiKeys} from "@/oss/services/apiKeys/api"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 
 import {Loading} from "./assets/constants"
 
@@ -20,8 +20,8 @@ const APIKeys: React.FC = () => {
     const [loading, setLoading] = useLoading(Object.values(Loading))
     const {token} = theme.useToken()
 
-    const {selectedOrg} = useOrgData()
-    const workspaceId: string = selectedOrg?.default_workspace.id || ""
+    const {selectedOrganization} = useOrganizationData()
+    const workspaceId: string = selectedOrganization?.default_workspace.id || ""
 
     const listKeys = () => {
         setLoading(Loading.LIST, true)

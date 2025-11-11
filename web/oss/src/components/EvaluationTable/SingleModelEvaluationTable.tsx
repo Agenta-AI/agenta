@@ -19,8 +19,8 @@ import {getDefaultStore, useAtomValue} from "jotai"
 import debounce from "lodash/debounce"
 import {useRouter} from "next/router"
 
-import SaveTestsetModal from "@/oss/components/SaveTestsetModal/SaveTestsetModal"
 import SecondaryButton from "@/oss/components/SecondaryButton/SecondaryButton"
+import {useQueryParamState} from "@/oss/state/appState"
 import {EvaluationFlow} from "@/oss/lib/enums"
 import {exportSingleModelEvaluationData} from "@/oss/lib/helpers/evaluate"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
@@ -41,7 +41,6 @@ import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/trans
 import type {BaseResponse, EvaluationScenario, KeyValuePair, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
 import {updateEvaluation, updateEvaluationScenario} from "@/oss/services/human-evaluations/api"
-import {useQueryParamState} from "@/oss/state/appState"
 import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
 import {
     stablePromptVariablesAtomFamily,
@@ -52,6 +51,7 @@ import {appUriInfoAtom, appSchemaAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import EvaluationCardView from "../Evaluations/EvaluationCardView"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
+import SaveTestsetModal from "../../../../ee/src/components/SaveTestsetModal/SaveTestsetModal"
 
 import {useSingleModelEvaluationTableStyles} from "./assets/styles"
 import ParamsFormWithRun from "./components/ParamsFormWithRun"

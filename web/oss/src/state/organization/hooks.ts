@@ -3,23 +3,23 @@ import {useCallback} from "react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useSetAtom, useAtomValue} from "jotai"
 
-import {OrgDetails} from "@/oss/lib/Types"
-import {fetchSingleOrg} from "@/oss/services/organization/api"
+import {OrganizationDetails} from "@/oss/lib/Types"
+import {fetchSingleOrganization} from "@/oss/services/organization/api"
 import type {ProjectsResponse} from "@/oss/services/project/types"
 import {requestNavigationAtom} from "@/oss/state/appState"
 
 import {projectsAtom} from "../project/selectors/project"
 
 import {
-    cacheWorkspaceOrgPair,
-    orgsQueryAtom,
-    selectedOrgQueryAtom,
-    selectedOrgIdAtom,
-    orgsAtom,
-    selectedOrgAtom,
-} from "./selectors/org"
+    cacheWorkspaceOrganizationPair,
+    organizationsQueryAtom,
+    selectedOrganizationQueryAtom,
+    selectedOrganizationIdAtom,
+    organizationsAtom,
+    selectedOrganizationAtom,
+} from "./selectors/organization"
 
-const EmptyOrgs: OrgDetails[] = []
+const EmptyOrganizations: OrganizationDetails[] = []
 
 const projectMatchesWorkspace = (
     project: {workspace_id?: string | null; organization_id?: string | null},
@@ -31,17 +31,17 @@ const projectMatchesWorkspace = (
     return false
 }
 
-export const useOrgData = () => {
+export const useOrganizationData = () => {
     const queryClient = useQueryClient()
-    const [{data: orgs, isPending: loadingOrgs, refetch: refetchOrgs}] = useAtom(orgsQueryAtom)
-    const [{data: selectedOrg, isPending: loadingDetails, refetch: refetchSelectedOrg}] =
-        useAtom(selectedOrgQueryAtom)
+    const [{data: organizations, isPending: loadingOrganizations, refetch: refetchOrganizations}] = useAtom(organizationsQueryAtom)
+    const [{data: selectedOrganization, isPending: loadingDetails, refetch: refetchSelectedOrganization}] =
+        useAtom(selectedOrganizationQueryAtom)
     const navigate = useSetAtom(requestNavigationAtom)
-    const selectedOrgId = useAtomValue(selectedOrgIdAtom)
+    const selectedOrganizationId = useAtomValue(selectedOrganizationIdAtom)
 
     const projects = useAtomValue(projectsAtom)
 
-    const resolveWorkspaceForOrg = useCallback(
+    const resolveWorkspaceForOrganization = useCallback(
         async (
             organizationId: string,
         ): Promise<{workspaceId: string | null; preferredProject: ProjectsResponse | null}> => {
@@ -56,22 +56,22 @@ export const useOrgData = () => {
                 }
             }
 
-            const cachedDetails = queryClient.getQueryData<OrgDetails | null>([
-                "selectedOrg",
+            const cachedDetails = queryClient.getQueryData<OrganizationDetails | null>([
+                "selectedOrganization",
                 organizationId,
             ])
 
             const resolvedDetails =
                 cachedDetails ??
                 (await queryClient.fetchQuery({
-                    queryKey: ["selectedOrg", organizationId],
-                    queryFn: () => fetchSingleOrg({organizationId}),
+                    queryKey: ["selectedOrganization", organizationId],
+                    queryFn: () => fetchSingleOrganization({organizationId}),
                 }))
 
             const workspaceId = resolvedDetails?.default_workspace?.id ?? organizationId
 
             if (resolvedDetails?.default_workspace?.id) {
-                cacheWorkspaceOrgPair(resolvedDetails.default_workspace.id, resolvedDetails.id)
+                cacheWorkspaceOrganizationPair(resolvedDetails.default_workspace.id, resolvedDetails.id)
             }
 
             return {
@@ -82,27 +82,27 @@ export const useOrgData = () => {
         [projects, queryClient],
     )
 
-    const changeSelectedOrg = useCallback(
+    const changeSelectedOrganization = useCallback(
         async (organizationId: string, onSuccess?: () => void) => {
-            if (loadingOrgs) return
+            if (loadingOrganizations) return
             if (!organizationId) {
                 navigate({type: "href", href: "/w", method: "replace"})
                 return
             }
 
-            if (organizationId === selectedOrgId) {
+            if (organizationId === selectedOrganizationId) {
                 onSuccess?.()
                 return
             }
 
-            queryClient.removeQueries({queryKey: ["selectedOrg", selectedOrgId]})
+            queryClient.removeQueries({queryKey: ["selectedOrganization", selectedOrganizationId]})
 
             try {
-                const {workspaceId, preferredProject} = await resolveWorkspaceForOrg(organizationId)
+                const {workspaceId, preferredProject} = await resolveWorkspaceForOrganization(organizationId)
                 if (!workspaceId) return
 
                 if (preferredProject?.organization_id) {
-                    cacheWorkspaceOrgPair(
+                    cacheWorkspaceOrganizationPair(
                         preferredProject.workspace_id ?? workspaceId,
                         preferredProject.organization_id,
                     )
@@ -118,29 +118,29 @@ export const useOrgData = () => {
                 console.error("Failed to change workspace:", error)
             }
         },
-        [loadingOrgs, navigate, queryClient, resolveWorkspaceForOrg, selectedOrgId],
+        [loadingOrganizations, navigate, queryClient, resolveWorkspaceForOrganization, selectedOrganizationId],
     )
 
     const reset = useCallback(async () => {
-        await queryClient.removeQueries({queryKey: ["orgs"]})
-        await queryClient.removeQueries({queryKey: ["selectedOrg"]})
+        await queryClient.removeQueries({queryKey: ["organizations"]})
+        await queryClient.removeQueries({queryKey: ["selectedOrganization"]})
         navigate({type: "href", href: "/w", method: "replace"})
     }, [navigate, queryClient])
 
     const refetch = useCallback(async () => {
-        await refetchOrgs()
-        await refetchSelectedOrg()
-    }, [refetchOrgs, refetchSelectedOrg])
+        await refetchOrganizations()
+        await refetchSelectedOrganization()
+    }, [refetchOrganizations, refetchSelectedOrganization])
 
     return {
-        orgs: orgs ?? EmptyOrgs,
-        selectedOrg: selectedOrg ?? null,
-        loading: loadingOrgs || loadingDetails,
-        changeSelectedOrg,
+        organizations: organizations ?? EmptyOrganizations,
+        selectedOrganization: selectedOrganization ?? null,
+        loading: loadingOrganizations || loadingDetails,
+        changeSelectedOrganization,
         reset,
         refetch,
     }
 }
 
-export const useSelectedOrg = () => useAtomValue(selectedOrgAtom)
-export const useOrgList = () => useAtomValue(orgsAtom)
+export const useSelectedOrganization = () => useAtomValue(selectedOrganizationAtom)
+export const useOrganizationList = () => useAtomValue(organizationsAtom)

@@ -11,7 +11,7 @@ import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 
-import ListOfOrgs from "./components/ListOfOrgs"
+import ListOfOrganizations from "./components/ListOfOrganizations"
 import SidebarMenu from "./components/SidebarMenu"
 import {useSidebarConfig} from "./hooks/useSidebarConfig"
 import SettingsSidebar from "./SettingsSidebar"
@@ -99,7 +99,7 @@ const Sidebar: React.FC<{showSettingsView?: boolean; lastPath?: string}> = ({
                         collapsed ? "w-[80px]" : "w-[236px]",
                     )}
                 >
-                    {showSettingsView ? null : <ListOfOrgs collapsed={collapsed} />}
+                    {showSettingsView ? null : <ListOfOrganizations collapsed={collapsed} />}
 
                     {showSettingsView ? null : <Divider className="-mt-[3.5px] mb-3" />}
                     <ErrorBoundary fallback={<div />}>

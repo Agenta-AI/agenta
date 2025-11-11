@@ -57,7 +57,7 @@ python-jsonpath = "^2.0.0"
 h11 = "^0.16.0"
 ecdsa = "^0.19.1"
 bson = "^0.5.10"
-agenta = ">=0.61.0"
+agenta = "^0.60.1"
 tiktoken = "0.11.0"
 
 google-auth = ">=2.23,<3"

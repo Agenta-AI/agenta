@@ -83,7 +83,7 @@ const useEvaluationRunData = (evaluationTableId: string | null, debug = false, r
     const projectId = useAtomValue(projectIdAtom)
     const setProjectVariantReferences = useSetAtom(setProjectVariantReferencesAtom)
     const user = useAtomValue(userAtom)
-    const requireUser = true
+    const requireUser = isDemo()
     const enrichRun = useEnrichEvaluationRun({debug, evalType})
     const suppressLoadingRef = useRef(false)
 

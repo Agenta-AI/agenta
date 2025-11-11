@@ -9,7 +9,7 @@ import {currentAppAtom} from "@/oss/state/app"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {requestSchemaMetaAtomFamily} from "@/oss/state/newPlayground/core/requestSchemaMeta"
-import {getOrgValues} from "@/oss/state/org"
+import {getOrganizationValues} from "@/oss/state/organization"
 import {getProjectValues} from "@/oss/state/project"
 import {appUriInfoAtom, appSchemaAtom} from "@/oss/state/variant/atoms/fetcher"
 
@@ -25,8 +25,8 @@ export const buildEvalWorkerContext = (params: {
     evaluation: EnrichedEvaluationRun
     runIndex: RunIndex
 }): EvalWorkerContextBase => {
-    const {selectedOrg} = getOrgValues()
-    const members = (selectedOrg?.default_workspace?.members as WorkspaceMember[]) || []
+    const {selectedOrganization} = getOrganizationValues()
+    const members = (selectedOrganization?.default_workspace?.members as WorkspaceMember[]) || []
 
     const store = getDefaultStore()
     const appType = store.get(currentAppAtom)?.app_type

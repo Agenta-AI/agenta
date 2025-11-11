@@ -5,8 +5,8 @@ import {useRouter} from "next/router"
 import {useLocalStorage} from "usehooks-ts"
 
 import {isDemo} from "@/oss/lib/helpers/utils"
-import {orgsAtom, useOrgData} from "@/oss/state/org"
-import {resolvePreferredWorkspaceId} from "@/oss/state/org/selectors/org"
+import {organizationsAtom, useOrganizationData} from "@/oss/state/organization"
+import {resolvePreferredWorkspaceId} from "@/oss/state/organization/selectors/organization"
 import {useProfileData} from "@/oss/state/profile"
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {useProjectData} from "@/oss/state/project"
@@ -26,7 +26,7 @@ interface HandleAuthSuccessOptions {
 const usePostAuthRedirect = () => {
     const router = useRouter()
     const {refetch: resetProfileData} = useProfileData()
-    const {refetch: resetOrgData} = useOrgData()
+    const {refetch: resetOrganizationData} = useOrganizationData()
     const {reset: resetProjectData} = useProjectData()
     const [invite] = useLocalStorage<Record<string, unknown>>("invite", {})
 
@@ -47,9 +47,9 @@ const usePostAuthRedirect = () => {
 
     const resetAuthState = useCallback(async () => {
         await resetProfileData()
-        await resetOrgData()
+        await resetOrganizationData()
         await resetProjectData()
-    }, [resetOrgData, resetProfileData, resetProjectData])
+    }, [resetOrganizationData, resetProfileData, resetProjectData])
 
     const handleAuthSuccess = useCallback(
         async (authResult: AuthUserLike, options?: HandleAuthSuccessOptions) => {
@@ -81,7 +81,7 @@ const usePostAuthRedirect = () => {
                 const store = getDefaultStore()
                 const fallbackWorkspace = resolvePreferredWorkspaceId(
                     (store.get(userAtom) as {id?: string} | null)?.id ?? null,
-                    store.get(orgsAtom),
+                    store.get(organizationsAtom),
                 )
                 if (fallbackWorkspace) {
                     context = {workspaceId: fallbackWorkspace, projectId: null}

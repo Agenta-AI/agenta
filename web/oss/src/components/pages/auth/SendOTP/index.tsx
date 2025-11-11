@@ -80,7 +80,7 @@ const SendOTP = ({
             if (response.status === "OK") {
                 await clearLoginAttemptInfo()
                 setMessage({message: "Verification successful", type: "success"})
-                // Clear selected org via atom to keep storage in sync
+                // Clear selected organization via atom to keep storage in sync
                 const {createdNewRecipeUser, user} = response
                 await handleAuthSuccess({createdNewRecipeUser, user}, {isInvitedUser})
             } else if (response.status === "INCORRECT_USER_INPUT_CODE_ERROR") {

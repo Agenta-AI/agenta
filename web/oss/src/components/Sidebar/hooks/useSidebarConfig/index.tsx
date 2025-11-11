@@ -22,14 +22,14 @@ import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useAppsData} from "@/oss/state/app"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 
 import {SidebarConfig} from "../../types"
 
 export const useSidebarConfig = () => {
     const {doesSessionExist} = useSession()
     const {currentApp, recentlyVisitedAppId} = useAppsData()
-    const {selectedOrg} = useOrgData()
+    const {selectedOrganization} = useOrganizationData()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const sidebarConfig: SidebarConfig[] = [
@@ -49,21 +49,21 @@ export const useSidebarConfig = () => {
             key: "app-observability-link",
             title: "Observability",
             link: `${projectURL}/observability`,
-            icon: <ChartLineUp size={16} />,
+            icon: <ChartLineUp size={12} />,
         },
         {
             key: "project-evaluators-link",
             title: "Evaluators",
             link: `${projectURL}/evaluators`,
-            // isHidden: !isDemo(),
-            icon: <Gauge size={16} />,
+            isHidden: !isDemo(),
+            icon: <Gauge size={12} />,
         },
         {
             key: "project-evaluations-link",
             title: "Evaluations",
             link: `${projectURL}/evaluations`,
             // isHidden: !isDemo(),
-            icon: <ChartDonut size={16} />,
+            icon: <ChartDonut size={12} />,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,
@@ -128,7 +128,7 @@ export const useSidebarConfig = () => {
             icon: <PaperPlane size={16} />,
             isBottom: true,
             tooltip: "Invite Teammate",
-            isHidden: !doesSessionExist || !selectedOrg,
+            isHidden: !doesSessionExist || !selectedOrganization,
         },
         {
             key: "support-chat-link",

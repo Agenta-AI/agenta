@@ -7,7 +7,7 @@ import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {AppTemplate} from "@/oss/lib/Types"
-import {getOrgValues} from "@/oss/state/org"
+import {getOrganizationValues} from "@/oss/state/organization"
 import {getProjectValues} from "@/oss/state/project"
 import {waitForValidURL} from "@/oss/state/url"
 
@@ -52,7 +52,7 @@ export const createApp = async ({
     appName: string
     templateKey: ServiceType
 }) => {
-    const {selectedOrg} = getOrgValues()
+    const {selectedOrganization} = getOrganizationValues()
     const {projectId} = getProjectValues()
     const url = new URL(`${getAgentaApiUrl()}/apps?project_id=${projectId}`)
     const response = await fetchJson(url, {
@@ -60,8 +60,8 @@ export const createApp = async ({
         body: JSON.stringify({
             app_name: appName,
             template_key: templateKey,
-            organization_id: selectedOrg?.id,
-            workspace_id: selectedOrg?.default_workspace.id,
+            organization_id: selectedOrganization?.id,
+            workspace_id: selectedOrganization?.default_workspace.id,
         }),
     })
     return response

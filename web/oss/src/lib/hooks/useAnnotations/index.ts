@@ -1,7 +1,7 @@
 import useSWR from "swr"
 
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 import {getProjectValues} from "@/oss/state/project"
 
 import {transformApiData} from "./assets/transformer"
@@ -14,9 +14,9 @@ const useAnnotations = ({
     queries?: Record<string, any>
     waitUntil?: boolean
 } = {}) => {
-    const {selectedOrg} = useOrgData()
+    const {selectedOrganization} = useOrganizationData()
     const {projectId} = getProjectValues()
-    const workspace = selectedOrg?.default_workspace
+    const workspace = selectedOrganization?.default_workspace
     const members = workspace?.members || []
 
     const fetcher = async () => {

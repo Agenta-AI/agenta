@@ -21,6 +21,10 @@ const APIKeys = dynamic(() => import("@/oss/components/pages/settings/APIKeys/AP
 const Billing = dynamic(() => import("@/oss/components/pages/settings/Billing"), {
     ssr: false,
 })
+const ProjectsSettings = dynamic(
+    () => import("@/oss/components/pages/settings/Projects"),
+    {ssr: false},
+)
 
 const Settings: React.FC = () => {
     const [tab] = useQueryParam("tab", "workspace", "replace")
@@ -40,6 +44,8 @@ const Settings: React.FC = () => {
                     switch (tab) {
                         case "workspace":
                             return "Workspace"
+                        case "projects":
+                            return "Projects"
                         case "secrets":
                             return "Model hub"
                         case "apiKeys":
@@ -64,6 +70,8 @@ const Settings: React.FC = () => {
                 return {content: <APIKeys />, title: "API Keys"}
             case "billing":
                 return {content: <Billing />, title: "Usage & Billing"}
+            case "projects":
+                return {content: <ProjectsSettings />, title: "Projects"}
             default:
                 return {content: <WorkspaceManage />, title: "Workspace"}
         }
