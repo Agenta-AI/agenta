@@ -19,7 +19,7 @@ class TestsetModel(BaseModel):
         }
 
 
-class TestsetSimpleResponse(BaseModel):
+class TestSetSimpleResponse(BaseModel):
     id: str
     name: str
     created_at: str
@@ -43,7 +43,7 @@ class NewTestset(BaseModel):
     csvdata: List[Dict[str, Any]]
 
 
-class TestsetOutputResponse(BaseModel):
+class TestSetOutputResponse(BaseModel):
     id: str = Field(..., alias="_id")
     name: str
     created_at: str

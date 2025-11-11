@@ -906,7 +906,7 @@ class GitDAO(GitDAOInterface):
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
-            if revision_ref and (revision_ref.id or revision_ref.slug):
+            if revision_ref and not revision_ref.version:
                 if revision_ref.id:
                     stmt = stmt.filter(self.RevisionDBE.id == revision_ref.id)  # type: ignore
                 elif revision_ref.slug:

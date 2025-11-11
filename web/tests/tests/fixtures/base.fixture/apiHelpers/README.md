@@ -50,7 +50,7 @@ getTestsets(): Promise<testset[]>
 const testsets = await apiHelpers.getTestsets()
 ```
 
-Retrieves all available testsets.
+Retrieves all available test sets.
 
 ### getVariants
 

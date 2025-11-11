@@ -61,7 +61,7 @@ export interface testset {
     updated_at: string
 }
 
-export interface Testset {
+export interface TestSet {
     id: string
     name: string
     created_at: string
@@ -69,7 +69,7 @@ export interface Testset {
     csvdata: KeyValuePair[]
 }
 
-export interface PreviewTestcase {
+export interface PreviewTestCase {
     created_at: string
     created_by_id: string
 
@@ -79,7 +79,7 @@ export interface PreviewTestcase {
     data: Record<string, any>
 }
 
-export interface PreviewTestset {
+export interface PreviewTestSet {
     id: string
     name: string
     created_at: string
@@ -206,7 +206,7 @@ export interface Evaluation {
     testset: {
         _id: string
         testsetChatColumn: string
-    } & Testset
+    } & TestSet
     appName: string
     llmAppPromptTemplate?: string
     evaluationTypeSettings: {
@@ -450,35 +450,6 @@ export enum SecretDTOProvider {
     GEMINI = "gemini",
 }
 
-export const PROVIDER_LABELS: Record<string, string> = {
-    openai: "OpenAI",
-    cohere: "Cohere",
-    anyscale: "Anyscale",
-    deepinfra: "DeepInfra",
-    alephalpha: "Aleph Alpha",
-    groq: "Groq",
-    mistralai: "Mistral AI",
-    anthropic: "Anthropic",
-    perplexityai: "Perplexity AI",
-    together_ai: "Together AI",
-    openrouter: "OpenRouter",
-    gemini: "Google Gemini",
-    vertex_ai: "Google Vertex AI",
-    bedrock: "AWS Bedrock",
-    // sagemaker: "AWS SageMaker",
-    azure: "Azure OpenAI",
-    custom: "Custom Provider",
-}
-
-export const PROVIDER_KINDS: Record<string, string> = Object.entries(PROVIDER_LABELS).reduce(
-    (acc, [kind, label]) => {
-        acc[kind] = kind
-        acc[label.toLowerCase()] = kind
-        return acc
-    },
-    {} as Record<string, string>,
-)
-
 interface VaultModels {
     slug: string
 }
@@ -490,9 +461,6 @@ interface VaultProvider {
         aws_secret_access_key?: string
         aws_session_token?: string
         aws_region_name?: string
-        vertex_ai_project?: string
-        vertex_ai_location?: string
-        vertex_ai_credentials?: string
         api_key?: string
     }
 }
@@ -831,16 +799,9 @@ export interface StyleProps {
     themeMode: "dark" | "light"
 }
 
-export interface SettingsPreset {
-    key: string
-    name: string
-    values: Record<string, any>
-}
-
 export interface Evaluator {
     name: string
     key: string
-    settings_presets?: SettingsPreset[]
     settings_template: Record<string, EvaluationSettingsTemplate>
     icon_url?: string | StaticImageData
     color?: string
@@ -983,7 +944,6 @@ type ValueTypeOptions =
     | "hidden"
     | "messages"
     | "multiple_choice"
-    | "llm_response_schema"
 
 export interface EvaluationSettingsTemplate {
     type: ValueTypeOptions

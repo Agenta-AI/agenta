@@ -1,0 +1,68 @@
+---
+title: "No-code Evaluation"
+description: Run evaluation from the UI.
+---
+
+import Image from "@theme/IdealImage";
+
+This guide will show you how to run evaluations from the UI.
+
+Before you get started, make sure that you have [created a test set](/evaluation/create-test-sets) and [configured evaluators](/evaluation/configure-evaluators) appropriate for your task.
+
+## Running Evaluations
+
+To start an evaluation, navigate to the Evaluations page and click the `Start new evaluation` button. A modal will appear, allowing you to setup the evaluation.
+
+<Image
+  img={require("/images/evaluation/start-new-evaluation.png")}
+  alt="Start new evaluation"
+/>
+
+### Setting Up Evaluation Parameters
+
+In the modal, specify the following:
+
+- <b>Testset:</b> Choose the testset(s) for your evaluation.
+- <b>Variants:</b> Choose one or more variants to evaluate.
+- <b>Evaluators:</b> Pick one or more evaluators for assessment.
+
+<Image
+  img={require("/images/evaluation/new-evaluation-modal.png")}
+  alt="New evaluation modal"
+  style={{ width: "70%", display: "block", margin: "auto" }}
+/>
+
+#### Advanced Configuration
+
+Additional settings allow you to adjust batching and retry parameters for LLM calls. This help mitigating rate limit errors from your LLM provider.
+
+Advanced configuration options include:
+
+- **Batch Size:** Number of test cases to run concurrently in each batch (default: 10).
+- **Retry Delay:** Time to wait before retrying a failed call (default: 3s).
+- **Max Retries:** Maximum number of retry attempts for a failed call (default: 3).
+- **Delay Between Batches:** Pause duration between batch runs (default: 5s).
+
+## Analyzing Evaluation Results
+
+The main view offers an aggregated summary of results. Each column displays the average score per evaluator for each variant/test set combination. You'll also see average latency, total cost, creation date, and evaluation status.
+
+For a detailed view of an evaluation, click on a completed evaluation row.
+
+<Image
+  img={require("/images/evaluation/detailed-evaluation-results.png")}
+  alt="Detailed evaluation results"
+  style={{ width: "100%" }}
+/>
+
+The evaluation table columns show inputs, reference answers used by evaluators, LLM application output, evaluator results, cost, and latency.
+
+## Comparing Evaluations
+
+Once evaluations are marked "completed," you can compare two or more evaluations <b>from the same test set</b>. Click the `Compare` button to access the Evaluation comparison view, where you can analyze outputs from multiple evaluations side by side.
+
+<Image
+  img={require("/images/evaluation/comparing-evaluations.gif")}
+  style={{ width: "100%" }}
+  alt="Animation showing how to compare evaluations in Agenta"
+/>

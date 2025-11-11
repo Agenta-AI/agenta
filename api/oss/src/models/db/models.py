@@ -30,7 +30,7 @@ else:
 
 from oss.src.models.db_models import (
     UserDB,
-    TestsetDB,
+    TestSetDB,
     AppVariantDB,
     VariantBaseDB,
     AppEnvironmentDB,
@@ -43,7 +43,7 @@ models = [
     AppDB,
     UserDB,
     ProjectDB,
-    TestsetDB,
+    TestSetDB,
     AppVariantDB,
     DeploymentDB,
     EvaluationDB,

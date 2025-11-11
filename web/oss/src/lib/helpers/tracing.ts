@@ -12,7 +12,7 @@
  * @param spans - Array of spans to sort
  * @returns New sorted array (does not mutate input)
  */
-export const sortSpansByStartTime = <T extends {start_time?: string | number; span_id?: string}>(
+export const sortSpansByStartTime = <T extends { start_time?: string | number; span_id?: string }>(
     spans: T[],
 ): T[] => {
     return [...spans].sort((a, b) => {

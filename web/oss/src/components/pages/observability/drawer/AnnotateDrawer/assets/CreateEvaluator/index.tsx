@@ -168,13 +168,6 @@ const CreateEvaluator = ({
         }, 100)
     }, [])
 
-    const normalizeTags = (input: unknown): Record<string, unknown> | null => {
-        if (input == null) return null
-        if (Array.isArray(input)) return {}
-        if (typeof input === "object") return input as Record<string, unknown>
-        return {}
-    }
-
     const onFinish = useCallback(
         async (values: any) => {
             try {
@@ -202,9 +195,7 @@ const CreateEvaluator = ({
                                 is_custom: false,
                             },
                             meta: evaluatorWithMeta.meta || {},
-                            ...(evaluatorWithMeta.tags
-                                ? {tags: normalizeTags(evaluatorWithMeta.tags)}
-                                : {}),
+                            ...(evaluatorWithMeta.tags ? {tags: evaluatorWithMeta.tags} : {}),
                         },
                     }
 

@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from uuid import UUID, uuid4
 
 from fastapi import Request
@@ -34,8 +34,6 @@ from oss.src.core.tracing.dtos import (
 )
 from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorFlags,
-    SimpleEvaluatorQueryFlags,
-    #
     SimpleEvaluatorData,
 )
 
@@ -51,7 +49,6 @@ from oss.src.core.annotations.types import (
     AnnotationReferences,
     AnnotationLinks,
     AnnotationFlags,
-    AnnotationQueryFlags,
     #
     Annotation,
     AnnotationCreate,
@@ -97,7 +94,7 @@ class AnnotationsService:
             annotation_create.references.evaluator.slug
             if annotation_create.references.evaluator
             else None
-        ) or uuid4().hex[-12:]
+        ) or uuid4().hex
 
         simple_evaluator_flags = SimpleEvaluatorFlags(
             is_evaluator=True,
@@ -284,7 +281,7 @@ class AnnotationsService:
             annotation.references.evaluator.slug
             if annotation.references.evaluator
             else None
-        ) or uuid4().hex[-12:]
+        ) or uuid4().hex
 
         simple_evaluator_flags = SimpleEvaluatorFlags(
             is_evaluator=True,
@@ -451,7 +448,7 @@ class AnnotationsService:
         windowing: Optional[Windowing] = None,
     ):
         annotation = annotation_query if annotation_query else None
-        annotation_flags = AnnotationQueryFlags(is_evaluator=True)
+        annotation_flags = AnnotationFlags(is_evaluator=True)
 
         if annotation:
             if annotation.origin:
@@ -897,7 +894,7 @@ class AnnotationsService:
 
         filtering = Filtering()
 
-        conditions: List[Union[Condition, Filtering]] = [
+        conditions: List[Condition | Filtering] = [
             Condition(
                 field="attributes",
                 key="ag.type.trace",

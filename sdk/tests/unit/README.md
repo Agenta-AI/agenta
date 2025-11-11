@@ -18,7 +18,8 @@ poetry run pytest tests/unit/test_tracing_decorators.py::TestGeneratorTracing -v
 ## Test Organization
 
 - **`conftest.py`** - Shared fixtures and test configuration
-- **`test_*.py`** - Individual test modules
+- **`test_tracing_decorators.py`** - Tests for @instrument() decorator functionality
+- **`test_prompt_template.py`** - Tests for PromptTemplate class template formatting
 - **`TESTING_PATTERNS.md`** - Common testing approaches and patterns
 
 ## Prerequisites

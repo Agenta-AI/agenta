@@ -153,7 +153,7 @@ Tests can be filtered using the following tags:
 - `@path:` - Test path type (happy, grumpy)
 - `@feature-scope:` - Feature availability (ee, common)
 - `@lens:` - Test lens (functional, performance, security)
-- `@case:` - Testcase type (typical, edge)
+- `@case:` - Test case type (typical, edge)
 - `@speed:` - Test speed type (fast, slow)
 
 Tags affect user authentication requirements. For example:

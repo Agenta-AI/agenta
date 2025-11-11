@@ -22,7 +22,7 @@ from oss.src.services.db_manager import (
     get_user_with_id,
     fetch_base_by_id,
     fetch_app_by_id,
-    fetch_app_by_name,
+    fetch_app_by_name_and_parameters,
     fetch_app_variant_by_id,
     fetch_app_variant_revision_by_id,
     fetch_app_variant_by_config_name_and_appid,
@@ -117,7 +117,7 @@ async def _fetch_app(
                 app_id=app_id.hex,
             )
         elif app_name:
-            app = await fetch_app_by_name(
+            app = await fetch_app_by_name_and_parameters(
                 project_id=project_id,
                 app_name=app_name,
             )
@@ -180,7 +180,7 @@ async def _fetch_variant(
             and variant_ref.slug
         ):
             if not application_ref.id and application_ref.slug:
-                app = await fetch_app_by_name(
+                app = await fetch_app_by_name_and_parameters(
                     project_id=project_id,
                     app_name=application_ref.slug,
                 )
@@ -326,7 +326,7 @@ async def _fetch_environment(
             and environment_ref.slug
         ):
             if not application_ref.id and application_ref.slug:
-                app = await fetch_app_by_name(
+                app = await fetch_app_by_name_and_parameters(
                     project_id=project_id,
                     app_name=application_ref.slug,
                 )

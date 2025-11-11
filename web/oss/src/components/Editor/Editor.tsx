@@ -67,7 +67,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             singleLine = false,
             codeOnly = false,
             language,
-            templateFormat,
             customRender,
             showToolbar = true,
             enableTokens = false,
@@ -331,7 +330,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             enableTokens={enableTokens}
                             debug={debug}
                             language={language}
-                            templateFormat={templateFormat}
                             placeholder={placeholder}
                             handleUpdate={handleUpdate}
                             initialValue={initialValue}
@@ -448,7 +446,6 @@ const Editor = ({
     singleLine = false,
     codeOnly = false,
     language,
-    templateFormat,
     customRender,
     showToolbar = true,
     enableTokens = false,
@@ -485,7 +482,6 @@ const Editor = ({
                     singleLine={singleLine}
                     codeOnly={codeOnly}
                     language={language}
-                    templateFormat={templateFormat}
                     showToolbar={showToolbar}
                     enableTokens={enableTokens}
                     debug={debug}
@@ -543,7 +539,6 @@ const Editor = ({
                         singleLine={singleLine}
                         codeOnly={codeOnly}
                         language={language}
-                        templateFormat={templateFormat}
                         showToolbar={showToolbar}
                         enableTokens={enableTokens}
                         debug={debug}

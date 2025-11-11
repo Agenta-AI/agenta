@@ -21,7 +21,7 @@ from ee.src.models.extended.deprecated_transfer_models import (  # type: ignore
     EvaluatorConfigDB,
     HumanEvaluationDB,
     HumanEvaluationScenarioDB,
-    TestsetDB,
+    TestSetDB,
 )
 
 
@@ -38,7 +38,7 @@ MODELS = [
     EvaluatorConfigDB,  # have workspace_id
     HumanEvaluationDB,  # have workspace_id
     HumanEvaluationScenarioDB,  # have workspace_id
-    TestsetDB,  # have workspace_id
+    TestSetDB,  # have workspace_id
 ]
 
 

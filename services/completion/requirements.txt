@@ -1,12 +1,9 @@
 agenta
 uvicorn
 boto3
+litellm==1.76.0
 structlog
-
-# test
-google-auth>=2.23,<3
-google-cloud-aiplatform>=1.38
+huggingface-hub<0.31.0
 
 # temporary
 decorator
-restrictedpython

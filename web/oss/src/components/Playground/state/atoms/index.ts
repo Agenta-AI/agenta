@@ -92,7 +92,6 @@ export {urlRevisionsAtom} from "./urlSync"
 
 // App-level configuration
 export {appChatModeAtom} from "./app"
-export {promptTemplateFormatAtomFamily, type PromptTemplateFormat} from "./promptTemplateFormat"
 
 // Parameters JSON override (JSON editor integration)
 export {parametersOverrideAtomFamily} from "./parametersOverride"

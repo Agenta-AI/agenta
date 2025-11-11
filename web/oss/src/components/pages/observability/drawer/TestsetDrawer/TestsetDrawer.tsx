@@ -37,7 +37,6 @@ import {useTestsetsData} from "@/oss/state/testset"
 
 import {useStyles} from "./assets/styles"
 import {Mapping, Preview, TestsetColumn, TestsetDrawerProps, TestsetTraceData} from "./assets/types"
-import {getValueAtPath} from "./assets/helpers"
 
 const TestsetDrawer = ({
     onClose,
@@ -95,7 +94,7 @@ const TestsetDrawer = ({
 
     const isNewTestset = testset.id === "create"
     const elementWidth = isDrawerExtended ? 200 * 2 : 200
-    const selectedTestsetTestcases = selectedTestsetRows.slice(-5)
+    const selectedTestsetTestCases = selectedTestsetRows.slice(-5)
     const isNewColumnCreated = useMemo(
         () => selectedTestsetColumns.find(({isNew}) => isNew),
         [selectedTestsetColumns],
@@ -168,7 +167,7 @@ const TestsetDrawer = ({
 
             setTestset({name: label, id: value})
         } catch (error) {
-            message.error("Failed to load Testsets!")
+            message.error("Failed to load Test sets!")
         }
     }
 
@@ -358,7 +357,8 @@ const TestsetDrawer = ({
                         continue // Skip duplicate columns for now
                     }
 
-                    const value = getValueAtPath(item, mapping.data)
+                    const keys = mapping.data.split(".")
+                    const value = keys.reduce((acc: any, key) => acc?.[key], item)
 
                     formattedItem[targetKey] =
                         value === undefined || value === null
@@ -396,7 +396,7 @@ const TestsetDrawer = ({
             })
 
             if (type === "export" && !isNewTestset) {
-                // add all previous testcases
+                // add all previous test cases
                 const allKeys = Array.from(
                     new Set(formattedData.flatMap((item) => Object.keys(item))),
                 )
@@ -424,15 +424,15 @@ const TestsetDrawer = ({
 
             if (isNewTestset) {
                 if (!newTestsetName) {
-                    message.error("Please add a Testset name before saving it")
+                    message.error("Please add a Test set name before saving it")
                     return
                 }
 
                 await createNewTestset(newTestsetName, newTestsetData)
-                message.success("Testset created successfully")
+                message.success("Test set created successfully")
             } else {
                 await updateTestset(testset.id as string, testset.name, newTestsetData)
-                message.success("Testset updated successfully")
+                message.success("Test set updated successfully")
             }
 
             mutate()
@@ -576,7 +576,7 @@ const TestsetDrawer = ({
                 }}
                 expandable
                 initialWidth={640}
-                headerExtra="Add to testset"
+                headerExtra="Add to test set"
                 footer={
                     <div className="flex justify-end items-center gap-2 py-2 px-3">
                         <Button onClick={onClose}>Cancel</Button>
@@ -613,13 +613,13 @@ const TestsetDrawer = ({
                         )}
 
                         <div className={classes.container}>
-                            <Typography.Text className={classes.label}>Testset</Typography.Text>
+                            <Typography.Text className={classes.label}>Test set</Typography.Text>
                             <div className="flex gap-2">
                                 <Select
                                     showSearch
                                     labelInValue
                                     style={{width: elementWidth}}
-                                    placeholder="Select Testset"
+                                    placeholder="Select Test set"
                                     value={
                                         testset.id
                                             ? {label: testset.name, value: testset.id}
@@ -648,7 +648,7 @@ const TestsetDrawer = ({
                                             style={{width: elementWidth}}
                                             value={newTestsetName}
                                             onChange={(e) => setNewTestsetName(e.target.value)}
-                                            placeholder="Testset name"
+                                            placeholder="Test set name"
                                         />
                                         <PencilSimple
                                             size={14}
@@ -860,7 +860,7 @@ const TestsetDrawer = ({
                                 </>
                             ) : (
                                 <Typography.Text>
-                                    Please select a testset to create mappings
+                                    Please select a test set to create mappings
                                 </Typography.Text>
                             )}
                         </div>
@@ -890,8 +890,8 @@ const TestsetDrawer = ({
                                                     setShowLastFiveRows(!showLastFiveRows)
                                                 }
                                             >
-                                                Show last {selectedTestsetTestcases.length} test
-                                                cases in testset
+                                                Show last {selectedTestsetTestCases.length} test
+                                                cases in test set
                                             </Checkbox>
                                         )}
                                     </div>
@@ -903,18 +903,18 @@ const TestsetDrawer = ({
                                             dataSource={[
                                                 ...preview.data,
                                                 ...(showLastFiveRows
-                                                    ? selectedTestsetTestcases
+                                                    ? selectedTestsetTestCases
                                                     : []),
                                             ]}
                                             rowClassName={(_, index) => {
                                                 if (showLastFiveRows) {
                                                     const totalRows =
                                                         preview.data.length +
-                                                        selectedTestsetTestcases.length
+                                                        selectedTestsetTestCases.length
 
                                                     if (
                                                         index >=
-                                                        totalRows - selectedTestsetTestcases.length
+                                                        totalRows - selectedTestsetTestCases.length
                                                     ) {
                                                         return "!bg-[#fafafa]"
                                                     }
@@ -929,7 +929,7 @@ const TestsetDrawer = ({
                                 </>
                             ) : (
                                 <Typography.Text>
-                                    Please select testset to view testset preview.
+                                    Please select test set to view test set preview.
                                 </Typography.Text>
                             )}
                         </div>
@@ -948,7 +948,7 @@ const TestsetDrawer = ({
                                 <div className="flex flex-col gap-4 my-4">
                                     <Typography.Text>
                                         You have created new columns. Do you want to add them to the{" "}
-                                        <span className="font-bold">{testset.name}</span> testset?
+                                        <span className="font-bold">{testset.name}</span> test set?
                                     </Typography.Text>
 
                                     <div className="flex gap-1">
