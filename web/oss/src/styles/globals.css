@@ -1,34 +1,5 @@
-
-@import "./animations.css";
-@import "./editor-theme.css";
-@import "./code-editor-styles.css";
-@import "./human-evals.css";
-@import "./loading.css";
-
-@layer tailwind-base, antd;
-
-
-/* === Custom styles for Ant Design Segmented Control === */
-.evaluation-filters .ant-segmented-item-selected {
-    background: #1677ff !important;
-    color: #fff !important;
-    font-weight: 600;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(22, 119, 255, 0.08);
-}
-
-.evaluation-filters .ant-segmented-item {
-    background: white;
-    color: #2a2a2a;
-    font-weight: 400;
-}
-
-@layer tailwind-base {
-    @tailwind base;
-}
 @tailwind components;
 @tailwind utilities;
-
 
 html,
 body {
@@ -50,10 +21,8 @@ body {
     }
 }
 
-.evaluationContainer {
-    &:not(.human-eval) {
-        margin-bottom: 200px;
-    }
+.evalautionContainer {
+    margin-bottom: 200px;
 }
 
 .mdxSlider img {
@@ -73,6 +42,19 @@ body {
     margin-bottom: 4px !important;
 }
 
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 82, 82, 0.7);
+    }
+
+    70% {
+        box-shadow: 0 0 0 7px rgba(255, 82, 82, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 82, 82, 0);
+    }
+}
 
 .hover-button-wrapper {
     opacity: 0;
@@ -118,6 +100,46 @@ body {
     margin: 0 auto;
 }
 
+/* Custom loading circle for app creation proccess  */
+.loading-circle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 160px;
+    height: 160px;
+}
+.loading-circle path {
+    stroke-width: 2;
+    animation: colorChange 1.6s infinite;
+    transition:
+        stroke 0.4s ease,
+        stroke-width 0.4s ease;
+    transition-duration: 0.5s;
+}
+
+.loading-circle path:nth-child(1) {
+    animation-delay: 0s;
+}
+.loading-circle path:nth-child(2) {
+    animation-delay: 0.4s;
+}
+.loading-circle path:nth-child(3) {
+    animation-delay: 0.8s;
+}
+.loading-circle path:nth-child(4) {
+    animation-delay: 1.2s;
+}
+@keyframes colorChange {
+    0%,
+    25% {
+        stroke: #36cfc9;
+    }
+    26%,
+    100% {
+        stroke: #d6dee6;
+    }
+}
+
 .agenta-rich-text-editor {
     &.disabled {
         cursor: not-allowed;
@@ -158,121 +180,379 @@ body {
     }
 }
 
-.editor-inner:not(.code-editor) {
+.code-editor {
+    /* === Editor container === */
     .editor-code {
-        background-color: rgb(240, 242, 245);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        position: relative;
+        white-space: pre;
+        tab-size: 2;
+        padding-left: 0 !important;
+
         font-family: Menlo, Consolas, Monaco, monospace;
         display: block;
-        padding: 8px;
         line-height: 1.53;
         font-size: 13px;
         margin: 0;
         margin-top: 8px;
         margin-bottom: 8px;
-        overflow-x: auto;
-        position: relative;
+
         tab-size: 2;
-    }
+        padding: 0px;
 
-    > .editor-input.markdown-view > .editor-code {
-        background-color: transparent;
-    }
-    > .editor-input:not(.markdown-view) > .editor-code {
-        &:after {
-            content: attr(data-highlight-language);
-            top: 0;
-            right: 3px;
-            padding: 3px;
-            font-size: 10px;
-            text-transform: uppercase;
-            position: absolute;
-            color: rgba(0, 0, 0, 0.5);
-          }
-    }
-}
-
-/** Align the input search with the search box **/
-.ant-input-group-wrapper {
-    .ant-input {
-        padding-top: 3.1px !important;
-        padding-bottom: 3.1px !important;
-    }
-}
-
-/* Comparison table styling fixes */
-.comparison-table .ant-table-expanded-row-fixed::after {
-    border-right: none !important;
-}
-
-.comparison-table .ant-table-tbody > tr.ant-table-expanded-row > td {
-    padding: 0 !important;
-    border-bottom: none !important;
-}
-
-.comparison-table .ant-table-tbody > tr.ant-table-expanded-row .ant-table-tbody > tr > td {
-    border-bottom: 1px solid #f0f0f0 !important;
-}
-
-.comparison-table .ant-table-tbody > tr.ant-table-expanded-row .ant-table {
-    margin: 0 !important;
-}
-
-.comparison-table .ant-table-tbody > tr.ant-table-expanded-row .ant-table-tbody > tr:last-child > td {
-    border-bottom: none !important;
-}
-
-/* Styling for comparison rows (children) - light background for differentiation */
-.comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"] {
-    background-color: #fafafa !important;
-}
-
-.comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"]:hover {
-    background-color: #f0f0f0 !important;
-}
-
-/* Ensure child rows have subtle visual distinction */
-.comparison-table .ant-table-tbody > tr[data-row-key*="-comp-"] > td {
-    background-color: inherit !important;
-    border-left: 3px solid #e6f4ff !important;
-    padding-left: 12px !important;
-}
-
-.comparison-table {
-    .ant-table-row.comparison .ant-table-cell {
-        background-color: #ffdfdf;
-    }
-    .ant-table-cell:has(.ant-table-expanded-row-fixed) {
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-    }
-    .ant-table-expanded-row-fixed {
-        margin: 0 !important;
-    }
-    
-    /* Fix expand button positioning and overflow */
-    .ant-table-row-expand-icon-cell {
-        width: 120px !important;
-        min-width: 120px !important;
-        padding: 8px !important;
-        text-align: center !important;
-    }
-    
-    /* Ensure first data column doesn't contain expand icon */
-    .ant-table-tbody > tr > td:first-child:not(.ant-table-row-expand-icon-cell) {
-        padding-left: 12px !important;
-    }
-    
-    /* Style the expand icon container */
-    .ant-table-row-expand-icon {
-        display: inline-block !important;
-        width: auto !important;
-        height: auto !important;
-        margin: 0 !important;
-    }
-    .ant-table-expanded-row-fixed {
-        padding-left: 0 !important;
-        thead {
-            display: none
+        &:focus-visible {
+            outline: none;
         }
+
+        /* Light theme (default) */
+        --editor-bg: #f8f9fb;
+        --editor-text: #2d2d2d;
+        --editor-line-number: #aaa;
+        --editor-gutter-bg: #f0f0f0;
+        --editor-gutter-border: #ddd;
+        --editor-selection-bg: rgb(171, 205, 252);
+        --editor-cursor: #000;
+        --editor-error-bg: rgba(255, 0, 0, 0.05);
+        --editor-error-border: #ff0000;
+
+        /* Syntax highlighting - Light theme */
+        --token-comment: #6a9955;
+        --token-string: #50a14f;
+        --token-keyword: #a626a4;
+        --token-number: #986801;
+        --token-property: #e45649;
+        --token-operator: #c18401;
+        --token-punctuation: #383a42;
+        --token-function: #4078f2;
+        --token-class-name: #4078f2;
+        --token-variable: #e45649;
+        --token-plain: #2d2d2d;
+
+        /* Apply light theme variables */
+        background-color: var(--editor-bg);
+        color: var(--editor-text);
+
+        /* Dark theme */
+        &.dark-theme {
+            /* Enhanced dark theme with more contrast */
+            --editor-bg: #1a1a1a;
+            --editor-text: #ffffff;
+            --editor-line-number: #a0a0a0;
+            --editor-gutter-bg: #252526;
+            --editor-gutter-border: #444;
+            --editor-selection-bg: rgba(97, 175, 239, 0.6);
+            --editor-cursor: #fff;
+            --editor-error-bg: rgba(255, 70, 70, 0.2);
+            --editor-error-border: #ff5555;
+
+            /* Vibrant syntax highlighting for dark theme */
+            --token-comment: #7cdc7c; /* Brighter green */
+            --token-string: #ff9d70; /* Vibrant orange */
+            --token-keyword: #79b8ff; /* Bright blue */
+            --token-number: #ffbf7a; /* Warm yellow */
+            --token-property: #79cbff; /* Sky blue */
+            --token-operator: #f8f8f8; /* Near white */
+            --token-punctuation: #e6e6e6; /* Light gray */
+            --token-function: #ffdf9e; /* Gold */
+            --token-class-name: #7ce3c7; /* Teal */
+            --token-variable: #b392f0; /* Purple */
+            --token-plain: #ffffff; /* White */
+        }
+    }
+
+    /* use colors via css vars from this point on */
+
+    /* Add selection styling */
+    ::selection {
+        background-color: var(--editor-selection-bg) !important;
+        color: var(--editor-text) !important;
+        text-shadow: none !important;
+    }
+
+    .editor-code-highlight {
+        overflow-wrap: break-word;
+        white-space: pre;
+    }
+    .editor-code-highlight.selected,
+    .editor-code-highlight::selection {
+        background-color: var(--editor-selection-bg) !important;
+        color: var(--editor-text) !important;
+        text-shadow: none !important;
+    }
+
+    .editor-code-line {
+        &:first-child {
+            &::before {
+                padding-top: theme("spacing.2");
+                margin-top: calc(-1 * theme("spacing.2"));
+            }
+        }
+        &::before {
+            content: attr(data-gutter);
+            z-index: 10;
+            position: absolute;
+            border-right: 1px solid var(--editor-gutter-border);
+            top: 0;
+            bottom: 0;
+            /* background-color: var(--editor-gutter-bg); */
+            background-color: var(--editor-bg);
+
+            /* left: theme(spacing.3); */
+            left: 0;
+            padding: 0;
+            padding-right: 4px;
+            /* padding-top: theme("spacing.2"); */
+            /* padding-bottom: theme("spacing.1"); */
+            width: 2em;
+            text-align: right;
+            color: var(--editor-line-number);
+            user-select: none;
+            white-space: pre;
+        }
+        position: relative;
+
+        padding-left: theme(spacing.12) !important;
+
+        z-index: 1;
+        @apply scrollbar scrollbar-h-0 scrollbar-thumb-[#ddd] scrollbar-track-[#f0f0f0];
+        &:hover {
+            @apply scrollbar-h-[2px];
+        }
+        white-space: pre;
+
+        &.flex {
+            .editor-code-highlight {
+                &:not(.token-property) {
+                    white-space: pre-line;
+                }
+                &.token-plain {
+                    white-space: break-spaces;
+                }
+            }
+        }
+
+        /* text-overflow: ellipsis;
+        white-space: nowrap;
+  
+        &:hover {
+          text-overflow: clip;
+        } */
+    }
+
+    .editor-code-line.folded {
+        display: none;
+    }
+
+    .fold-toggle {
+        position: absolute;
+        left: 2.5em;
+        top: 0;
+        width: theme(spacing.3);
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        color: var(--editor-line-number);
+        font-size: 1em;
+    }
+
+    .fold-toggle:hover {
+        color: var(--editor-text);
+    }
+
+    /* === Prism token styling === */
+
+    .token-string,
+    .token-attr-value {
+        color: var(--token-string);
+    }
+
+    .token-comment {
+        color: var(--token-comment);
+        font-style: italic;
+    }
+
+    .token-punctuation {
+        color: var(--token-punctuation);
+    }
+
+    .token-namespace {
+        opacity: 0.7;
+    }
+
+    .token-property,
+    .token-tag,
+    .token-constant,
+    .token-symbol,
+    .token-deleted {
+        color: var(--token-property);
+    }
+
+    .token-boolean,
+    .token-number {
+        color: var(--token-number);
+    }
+
+    .token-selector,
+    .token-attr-name,
+    .token-char,
+    .token-builtin,
+    .token-inserted {
+        color: var(--token-string);
+    }
+
+    .token-operator,
+    .token-entity,
+    .token-url,
+    .token-variable {
+        color: var(--token-operator);
+    }
+
+    .token-atrule,
+    .token-attr-value,
+    .token-function,
+    .token-class-name {
+        color: var(--token-function);
+    }
+
+    .token-keyword {
+        color: var(--token-keyword);
+    }
+
+    .token-regex,
+    .token-important {
+        color: var(--token-string);
+    }
+
+    .token-important,
+    .token-bold {
+        font-weight: bold;
+    }
+
+    .token-italic {
+        font-style: italic;
+    }
+
+    .token-plain {
+        color: var(--token-plain);
+    }
+
+    /* Ensure empty tokens have a minimum width for caret visibility */
+    .token-empty {
+        min-width: 1px;
+        display: inline-block;
+        caret-color: var(--editor-cursor); /* Ensure caret is visible */
+    }
+
+    /* Styling for tokens that have validation errors */
+    .token-error {
+        position: relative;
+        border-bottom: 1px dashed var(--editor-error-border);
+        cursor: help;
+    }
+
+    /* Tooltip that shows validation error message on hover */
+    .token-error:hover::after {
+        content: attr(data-error);
+        position: absolute;
+        background: var(--editor-error-bg);
+        color: var(--editor-error-border);
+        font-size: 12px;
+        padding: 4px 6px;
+        border: 1px solid var(--editor-error-border);
+        border-radius: 4px;
+        top: 100%;
+        left: 0;
+        z-index: 1000;
+        white-space: nowrap;
+    }
+
+    /* Warning icon shown when code block has validation errors */
+    .editor-code-block.error::after {
+        content: "⚠️";
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        color: var(--editor-error-border);
+        font-size: 16px;
+        pointer-events: none;
+    }
+
+    /* Styling for the error indicator icon component */
+    .code-block-error-icon {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        font-size: 16px;
+        color: red;
+        z-index: 10;
+        pointer-events: none;
+    }
+
+    /* Container for positioning error indicators */
+    .code-block-error-anchor {
+        position: absolute;
+        top: theme(spacing.1);
+        right: theme(spacing.1);
+        z-index: 5;
+        & > span {
+            font-size: 1rem !important;
+        }
+    }
+
+    /* Styling for the clickable error indicator button */
+    .code-block-error-indicator {
+        background: white;
+        border: 1px solid red;
+        border-radius: 50%;
+        font-size: 12px;
+        padding: 1px 5px;
+        color: red;
+        font-weight: bold;
+        pointer-events: auto;
+        cursor: help;
+    }
+
+    /* Tooltip container for displaying validation error details */
+    .code-block-error-tooltip {
+        position: absolute;
+        top: 1.5rem;
+        right: 0;
+        background-color: #fff8f8;
+        color: #d00000;
+        border: 1px solid #faa;
+        border-radius: 4px;
+        padding: 0.5rem;
+        font-size: 0.875rem;
+        white-space: pre-wrap;
+        max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        z-index: 30;
+    }
+
+    .code-block-error-tooltip-inner > div + div {
+        margin-top: 0.25rem;
+    }
+
+    /* Base styling for elements with tooltips */
+    .has-tooltip[data-tooltip] {
+        position: relative;
+        cursor: help;
+    }
+
+    /* Tooltip content styling and positioning */
+    .has-tooltip[data-tooltip]::after {
+        content: attr(data-tooltip);
+        @apply absolute z-50 bg-red-600 text-white text-[0.5rem] py-[1px] px-0.5 rounded shadow-md top-full left-1/2 -translate-x-1/2 mt-0 opacity-0 pointer-events-none transition-opacity duration-[50ms];
+        white-space: nowrap;
+    }
+
+    /* Show tooltip on hover */
+    .has-tooltip[data-tooltip]:hover::after {
+        opacity: 1;
     }
 }

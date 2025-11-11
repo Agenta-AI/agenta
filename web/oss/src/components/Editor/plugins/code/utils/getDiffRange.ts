@@ -8,8 +8,6 @@ import {CodeHighlightNode} from "../nodes/CodeHighlightNode"
  * Two nodes are considered equal if they have:
  * 1. The same text content
  * 2. The same highlight type (or both have no highlight type)
- * 3. The same validation error state
- * 4. The same validation message
  *
  * The optional chaining (?.) is used because highlight type may be undefined,
  * in which case we default to empty string for comparison.
@@ -21,9 +19,7 @@ import {CodeHighlightNode} from "../nodes/CodeHighlightNode"
 export function isEqual(a: CodeHighlightNode, b: CodeHighlightNode): boolean {
     return (
         a.getTextContent() === b.getTextContent() &&
-        (a.getHighlightType?.() ?? "") === (b.getHighlightType?.() ?? "") &&
-        a.hasValidationError() === b.hasValidationError() &&
-        (a.getValidationMessage() ?? null) === (b.getValidationMessage() ?? null)
+        (a.getHighlightType?.() ?? "") === (b.getHighlightType?.() ?? "")
     )
 }
 

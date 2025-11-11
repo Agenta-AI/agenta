@@ -1,7 +1,5 @@
-from typing import Dict, List, Any, Optional
-
+from typing import Dict, List, Any
 from oss.src.utils.logging import get_module_logger
-
 from oss.src.core.observability.dtos import OTelSpanDTO
 from oss.src.apis.fastapi.observability.extractors.normalizer import Normalizer
 from oss.src.apis.fastapi.observability.extractors.adapter_registry import (
@@ -10,7 +8,7 @@ from oss.src.apis.fastapi.observability.extractors.adapter_registry import (
 from .span_data_builders import SpanDataBuilder
 
 
-log = get_module_logger(__name__)
+log = get_module_logger(__file__)
 
 
 class SpanProcessor:
@@ -33,16 +31,12 @@ class SpanProcessor:
         self.normalizer = Normalizer()
         self.adapter_registry = AdapterRegistry()
         if not builders:
-            log.warn(
+            log.warning(
                 "SpanProcessor initialized with no builders. Process method will return an empty dict."
             )
         self.builders = builders
 
-    def process(
-        self,
-        otel_span_dto: OTelSpanDTO,
-        flag_create_spans_from_nodes: Optional[bool] = False,
-    ) -> Dict[str, Any]:
+    def process(self, otel_span_dto: OTelSpanDTO) -> Dict[str, Any]:
         """Process an OpenTelemetry span using all configured builders.
 
         Args:
@@ -57,11 +51,6 @@ class SpanProcessor:
 
         results: Dict[str, Any] = {}
         for builder in self.builders:
-            if (
-                not flag_create_spans_from_nodes
-                and builder.name == "otel_flat_span_builder"
-            ):
-                continue
             try:
                 processed_data = builder.build(otel_span_dto, features)
                 results[builder.name] = processed_data
@@ -86,7 +75,7 @@ class SpanProcessor:
                 )
 
         if not results and self.builders:
-            log.warn(
+            log.warning(
                 "All builders failed or returned no data for span_id %s (trace_id %s). OTelSpan: %s",
                 otel_span_dto.context.span_id[2:] if otel_span_dto.context else "N/A",
                 otel_span_dto.context.trace_id[2:] if otel_span_dto.context else "N/A",

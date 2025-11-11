@@ -1,98 +1,26 @@
-from typing import List, Dict, Any, Union, Optional
-from datetime import datetime, timezone
-from uuid import uuid4
+import random
+import string
 from enum import Enum
+from uuid import UUID
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Union, Optional
+from typing_extensions import TypeAliasType
 
-from pydantic import BaseModel, model_validator, Field
+from pydantic import BaseModel, model_validator
 
-from oss.src.core.shared.dtos import (
-    Identifier,
-    Lifecycle,
-    Metrics,
-    Json,
-    Flags,
-    Tags,
-    Meta,
-    Data,
-    Reference,
-    Hashes,
-    Windowing,
-    FullJson,
-    Link,
+from oss.src.core.shared.dtos import Tags, Metrics, Json, Lifecycle
+
+# --- Recursive Named TypeAliases using TypeAliasType ---
+
+OTelJson: TypeAliasType = TypeAliasType(
+    "OTelJson",
+    Union[str, int, float, bool, None, Dict[str, "OTelJson"], List["OTelJson"]],
 )
 
-
-# 'ag.' attributes -------------------------------------------------------------
-
-
-class TraceType(Enum):
-    INVOCATION = "invocation"
-    ANNOTATION = "annotation"
-    #
-    UNKNOWN = "unknown"
-
-
-class SpanType(Enum):
-    AGENT = "agent"
-    CHAIN = "chain"
-    WORKFLOW = "workflow"
-    TASK = "task"
-    TOOL = "tool"
-    EMBEDDING = "embedding"
-    QUERY = "query"
-    LLM = "llm"
-    COMPLETION = "completion"
-    CHAT = "chat"
-    RERANK = "rerank"
-    #
-    UNKNOWN = "unknown"
-
-
-class AgMetricEntryAttributes(BaseModel):
-    # cumulative: 'cum' can't be used though
-    cumulative: Optional[Metrics] = None
-    # incremental 'inc' could be used, since 'unit' may be confusing
-    incremental: Optional[Metrics] = None
-
-    model_config = {"ser_json_exclude_none": True}
-
-
-class AgMetricsAttributes(BaseModel):
-    duration: Optional[AgMetricEntryAttributes] = None
-    errors: Optional[AgMetricEntryAttributes] = None
-    tokens: Optional[AgMetricEntryAttributes] = None
-    costs: Optional[AgMetricEntryAttributes] = None
-
-    model_config = {"ser_json_exclude_none": True}
-
-
-class AgTypeAttributes(BaseModel):
-    trace: Optional[TraceType] = TraceType.INVOCATION
-    span: Optional[SpanType] = SpanType.TASK
-
-
-class AgDataAttributes(BaseModel):
-    parameters: Optional[Dict[str, Any]] = None
-    inputs: Optional[Any] = None
-    outputs: Optional[Any] = None
-    internals: Optional[Dict[str, Any]] = None
-
-    model_config = {"ser_json_exclude_none": True}
-
-
-class AgAttributes(BaseModel):
-    type: AgTypeAttributes = Field(default_factory=AgTypeAttributes)
-    data: AgDataAttributes = Field(default_factory=AgDataAttributes)
-
-    metrics: Optional[AgMetricsAttributes] = None
-    flags: Optional[Flags] = None
-    tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
-    exception: Optional[Data] = None
-    references: Optional[Dict[str, "OTelReference"]] = None
-    unsupported: Optional[Data] = None
-
-    model_config = {"ser_json_exclude_none": True}
+OTelNumericJson: TypeAliasType = TypeAliasType(
+    "OTelNumericJson",
+    Union[int, float, Dict[str, "OTelNumericJson"], List["OTelNumericJson"]],
+)
 
 
 ## --- SUB-ENTITIES --- ##
@@ -126,6 +54,28 @@ class OTelEvent(BaseModel):
 
     attributes: Optional[OTelAttributes] = None
 
+    class Config:
+        json_encoders = {datetime: lambda dt: dt.isoformat()}
+
+    def encode(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self.encode(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.encode(item) for item in data]
+        for type_, encoder in self.Config.json_encoders.items():
+            if isinstance(data, type_):
+                return encoder(data)
+        return data
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        return self.encode(
+            super().model_dump(
+                *args,
+                **kwargs,
+                exclude_none=True,
+            )
+        )
+
 
 OTelEvents = List[OTelEvent]
 
@@ -138,26 +88,39 @@ class SpanID(BaseModel):
     span_id: str
 
 
-class OTelHash(Identifier):
-    attributes: Optional[OTelAttributes] = None
-
-
-OTelHashes = List[OTelHash]
-
-
 class OTelLink(TraceID, SpanID):
     attributes: Optional[OTelAttributes] = None
+
+    model_config = {
+        "json_encoders": {
+            UUID: lambda u: str(u),
+        }
+    }
+
+    def encode(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self.encode(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.encode(item) for item in data]
+        for type_, encoder in self.model_config["json_encoders"].items():
+            if isinstance(data, type_):
+                return encoder(data)
+        return data
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        return self.encode(
+            super().model_dump(
+                *args,
+                **kwargs,
+                exclude_none=True,
+            )
+        )
 
 
 OTelLinks = List[OTelLink]
 
-
-class OTelReference(Reference):
-    attributes: Optional[OTelAttributes] = None
-
-
-OTelReferences = List[OTelReference]
-
+Link = OTelLink
+Links = OTelLinks
 
 ## --- ENTITIES --- ##
 
@@ -174,9 +137,6 @@ class OTelFlatSpan(Lifecycle):
     span_id: str
     parent_id: Optional[str] = None
 
-    trace_type: Optional[TraceType] = None
-    span_type: Optional[SpanType] = None
-
     span_kind: Optional[OTelSpanKind] = None
     span_name: Optional[str] = None
 
@@ -187,20 +147,37 @@ class OTelFlatSpan(Lifecycle):
     status_message: Optional[str] = None
 
     attributes: Optional[OTelAttributes] = None
-    references: Optional[OTelReferences] = None
-    links: Optional[OTelLinks] = None
-    hashes: Optional[OTelHashes] = None
-
-    exception: Optional[Data] = None
-
     events: Optional[OTelEvents] = None
+    links: Optional[OTelLinks] = None
+
+    class Config:
+        json_encoders = {
+            datetime: lambda dt: dt.isoformat(),
+            Enum: lambda e: e.value,
+            UUID: lambda u: str(u),
+        }
+
+    def encode(self, data: Any) -> Any:
+        if isinstance(data, dict):
+            return {k: self.encode(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.encode(item) for item in data]
+        for type_, encoder in self.Config.json_encoders.items():
+            if isinstance(data, type_):
+                return encoder(data)
+        return data
+
+    def model_dump(self, *args, **kwargs) -> dict:
+        return self.encode(
+            super().model_dump(
+                *args,
+                **kwargs,
+                exclude_none=True,
+            )
+        )
 
     @model_validator(mode="after")
     def set_defaults(self):
-        if self.trace_type is None:
-            self.trace_type = TraceType.INVOCATION
-        if self.span_type is None:
-            self.span_type = SpanType.TASK
         if self.span_kind is None:
             self.span_kind = OTelSpanKind.SPAN_KIND_UNSPECIFIED
         if self.status_code is None:
@@ -214,7 +191,9 @@ class OTelFlatSpan(Lifecycle):
             self.start_time = now
             self.end_time = now
         if self.span_name is None:
-            self.span_name = uuid4().hex[-12:]
+            self.span_name = "".join(
+                random.choices(string.ascii_letters + string.digits, k=8)
+            )
         return self
 
 
@@ -233,9 +212,7 @@ OTelSpans = List[OTelSpan]
 
 class Fields(str, Enum):
     TRACE_ID = "trace_id"
-    TRACE_TYPE = "trace_type"
     SPAN_ID = "span_id"
-    SPAN_TYPE = "span_type"
     PARENT_ID = "parent_id"
     SPAN_NAME = "span_name"
     SPAN_KIND = "span_kind"
@@ -253,7 +230,6 @@ class Fields(str, Enum):
     CREATED_BY_ID = "created_by_id"
     UPDATED_BY_ID = "updated_by_id"
     DELETED_BY_ID = "deleted_by_id"
-    CONTENT = "content"
 
 
 class LogicalOperator(str, Enum):
@@ -329,7 +305,7 @@ class Condition(BaseModel):
 
 
 class Filtering(BaseModel):
-    operator: LogicalOperator = LogicalOperator.AND
+    operator: Optional[LogicalOperator] = LogicalOperator.AND
     conditions: List[Union[Condition, "Filtering"]] = list()
 
 
@@ -343,12 +319,18 @@ class Format(str, Enum):
     OPENTELEMETRY = "opentelemetry"
 
 
+class Windowing(BaseModel):
+    oldest: Optional[datetime] = None
+    newest: Optional[datetime] = None
+    limit: Optional[int] = None
+
+
 class Formatting(BaseModel):
-    focus: Optional[Focus] = None
-    format: Optional[Format] = None
+    focus: Optional[Focus] = Focus.SPAN
+    format: Optional[Format] = Format.AGENTA
 
 
-class TracingQuery(BaseModel):
+class Query(BaseModel):
     formatting: Optional[Formatting] = None
     windowing: Optional[Windowing] = None
     filtering: Optional[Filtering] = None
@@ -364,147 +346,3 @@ _E_OPS = list(ExistenceOperator)
 
 class FilteringException(Exception):
     pass
-
-
-class Analytics(BaseModel):
-    count: Optional[int] = 0
-    duration: Optional[float] = 0.0
-    costs: Optional[float] = 0.0
-    tokens: Optional[float] = 0.0
-
-    def plus(self, other: "Analytics") -> "Analytics":
-        self.count += other.count
-        self.duration += other.duration
-        self.costs += other.costs
-        self.tokens += other.tokens
-
-        return self
-
-
-class Bucket(BaseModel):
-    timestamp: datetime
-    interval: int
-    total: Analytics
-    errors: Analytics
-
-
-class MetricType(str, Enum):
-    NUMERIC_CONTINUOUS = "numeric/continuous"
-    NUMERIC_DISCRETE = "numeric/discrete"
-    BINARY = "binary"
-    CATEGORICAL_SINGLE = "categorical/single"
-    CATEGORICAL_MULTIPLE = "categorical/multiple"
-    STRING = "string"
-    JSON = "json"
-    NONE = "none"
-    WILDCARD = "*"
-
-
-class MetricSpec(BaseModel):
-    type: MetricType = MetricType.NONE
-    path: str = "*"
-    # OPTS
-    bins: Optional[int] = None
-    vmin: Optional[float] = None
-    vmax: Optional[float] = None
-    edge: Optional[bool] = None
-
-
-class MetricsBucket(BaseModel):
-    timestamp: datetime
-    interval: int
-    metrics: Optional[Dict[str, FullJson]] = None
-
-
-# WORKFLOWS --------------------------------------------------------------------
-
-
-Trace = OTelSpansTree
-
-
-# SIMPLE TRACE: INVOCATIONS & ANNOTATIONS --------------------------------------
-
-
-class SimpleTraceOrigin(str, Enum):
-    CUSTOM = "custom"  # custom
-    HUMAN = "human"  # human
-    AUTO = "auto"  # automatic
-
-
-class SimpleTraceKind(str, Enum):
-    ADHOC = "adhoc"  # adhoc
-    EVAL = "eval"  # evaluation
-    PLAY = "play"  # playground
-
-
-class SimpleTraceChannel(str, Enum):
-    OTLP = "otlp"  # otlp
-    WEB = "web"  # react
-    SDK = "sdk"  # python vs typescript ?
-    API = "api"  # http
-
-
-class SimpleTraceReferences(BaseModel):
-    query: Optional[Reference] = None
-    query_variant: Optional[Reference] = None
-    query_revision: Optional[Reference] = None
-    testset: Optional[Reference] = None
-    testset_variant: Optional[Reference] = None
-    testset_revision: Optional[Reference] = None
-    application: Optional[Reference] = None
-    application_variant: Optional[Reference] = None
-    application_revision: Optional[Reference] = None
-    evaluator: Optional[Reference] = None
-    evaluator_variant: Optional[Reference] = None
-    evaluator_revision: Optional[Reference] = None
-    testcase: Optional[Reference] = None
-
-
-SimpleTraceLinks = Union[Dict[str, Link], List[Link]]
-
-
-class SimpleTrace(Link, Lifecycle):
-    origin: SimpleTraceOrigin = SimpleTraceOrigin.CUSTOM
-    kind: SimpleTraceKind = SimpleTraceKind.ADHOC
-    channel: SimpleTraceChannel = SimpleTraceChannel.API
-
-    tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
-
-    data: Data
-
-    references: SimpleTraceReferences
-    links: SimpleTraceLinks
-
-
-class SimpleTraceCreate(BaseModel):
-    origin: SimpleTraceOrigin = SimpleTraceOrigin.CUSTOM
-    kind: SimpleTraceKind = SimpleTraceKind.ADHOC
-    channel: SimpleTraceChannel = SimpleTraceChannel.API
-
-    tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
-
-    data: Data
-
-    references: SimpleTraceReferences
-    links: SimpleTraceLinks
-
-
-class SimpleTraceEdit(BaseModel):
-    tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
-
-    data: Data
-
-
-class SimpleTraceQuery(BaseModel):
-    origin: Optional[SimpleTraceOrigin] = None
-    kind: Optional[SimpleTraceKind] = None
-    channel: Optional[SimpleTraceChannel] = None
-
-    tags: Optional[Tags] = None
-    meta: Optional[Meta] = None
-
-    references: Optional[SimpleTraceReferences] = None
-    links: Optional[SimpleTraceLinks] = None

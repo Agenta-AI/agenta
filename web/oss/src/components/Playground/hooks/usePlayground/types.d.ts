@@ -7,16 +7,6 @@ import {InitialStateType} from "../../state/types"
 
 import type {AgentaFetcher, FetcherOptions} from "@/lib/api/types"
 
-// OpenAI ChatMessage format
-export type ChatContentPart =
-    | {type: "text"; text: string}
-    | {type: "image_url"; image_url: {url: string}}
-
-export interface ChatMessage {
-    role: string
-    content: ChatContentPart[]
-}
-
 /** Base hook configuration types */
 interface BaseHookConfig<T = unknown, _Selected = unknown>
     extends Omit<SWRConfiguration<T, Error>, "compare" | "fetcher"> {

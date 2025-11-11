@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Tuple
+from typing import Dict, Optional, List, Any, Tuple
 from json import loads
 
 from oss.src.apis.fastapi.observability.extractors.base_adapter import BaseAdapter
@@ -13,7 +13,7 @@ from oss.src.apis.fastapi.observability.utils.serialization import (
     NAMESPACE_PREFIX_FEATURE_MAPPING,
 )
 
-log = get_module_logger(__name__)
+log = get_module_logger(__file__)
 
 GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
     # Core Data
@@ -95,12 +95,9 @@ class LogfireAdapter(BaseAdapter):
             and transformed_attributes.get("ag.metrics.unit.tokens.completion")
             and not transformed_attributes.get("ag.metrics.unit.tokens.total")
         ):
-            transformed_attributes[
-                "ag.metrics.unit.tokens.total"
-            ] = transformed_attributes.get(
-                "ag.metrics.unit.tokens.prompt"
-            ) + transformed_attributes.get(
-                "ag.metrics.unit.tokens.completion"
+            transformed_attributes["ag.metrics.unit.tokens.total"] = (
+                transformed_attributes.get("ag.metrics.unit.tokens.prompt")
+                + transformed_attributes.get("ag.metrics.unit.tokens.completion")
             )
         if not has_logfire_data:
             return
@@ -145,7 +142,7 @@ class LogfireAdapter(BaseAdapter):
                         prompt_messages.append(message)
 
                 if prompt_messages:
-                    features.data["inputs"] = {"prompt": prompt_messages}
+                    features.mdata["inputs"] = {"prompt": prompt_messages}
 
             if output_event:
                 # Format output event as completion
@@ -164,7 +161,7 @@ class LogfireAdapter(BaseAdapter):
 
                     completion_messages.append(completion_message)
                 if completion_messages:
-                    features.data["outputs"] = {"completion": completion_messages}
+                    features.mdata["outputs"] = {"completion": completion_messages}
 
     def _parse_events(self, events_str: str) -> List[Dict[str, Any]]:
         """Parse events string into a list of events."""

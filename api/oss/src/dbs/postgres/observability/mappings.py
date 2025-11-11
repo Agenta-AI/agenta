@@ -3,7 +3,7 @@ from json import dumps, loads
 from datetime import datetime
 from uuid import UUID
 
-from oss.src.core.shared.dtos import LegacyLifecycleDTO
+from oss.src.core.shared.dtos import LifecycleDTO
 from oss.src.core.observability.dtos import (
     RootDTO,
     TreeDTO,
@@ -28,9 +28,9 @@ def map_span_dbe_to_span_dto(span: NodesDBE) -> SpanDTO:
     return SpanDTO(
         trace_id=trace_id,
         span_id=span_id,
-        lifecycle=LegacyLifecycleDTO(
-            created_at=str(span.created_at),
-            updated_at=str(span.updated_at),
+        lifecycle=LifecycleDTO(
+            created_at=span.created_at,
+            updated_at=span.updated_at,
             updated_by_id=str(span.updated_by_id) if span.updated_by_id else None,
         ),
         root=RootDTO(
@@ -140,7 +140,7 @@ def map_span_dto_to_span_dbe(
 def map_bucket_dbes_to_dtos(
     total_bucket_dbes: List[NodesDBE],
     error_bucket_dbes: List[NodesDBE],
-    interval: int,
+    window: int,
     timestamps: Optional[List[datetime]] = None,
 ) -> Tuple[List[BucketDTO], int]:
     total_metrics = {
@@ -178,7 +178,7 @@ def map_bucket_dbes_to_dtos(
     bucket_dtos = [
         BucketDTO(
             timestamp=timestamp,
-            interval=interval,
+            window=window,
             total=total_metrics.get(timestamp, MetricsDTO()),
             error=error_metrics.get(timestamp, MetricsDTO()),
         )

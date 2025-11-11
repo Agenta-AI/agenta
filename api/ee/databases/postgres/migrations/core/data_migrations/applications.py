@@ -7,8 +7,8 @@ import click
 from sqlalchemy.future import select
 from sqlalchemy import delete, Connection, update, func
 
-from oss.src.models.deprecated_models import (  # type: ignore
-    DeprecatedEvaluatorConfigDBwApp as DeprecatedEvaluatorConfigDB,
+from ee.src.models.extended.deprecated_models import (  # type: ignore
+    DeprecatedEvaluatorConfigDB,
     DeprecatedAppDB,
 )
 
@@ -94,12 +94,12 @@ def update_evaluators_with_app_name(session: Connection):
                 break
 
         # Delete deprecated evaluator configs with app_id as None
-        stmt = (
+        query = (
             select(func.count())
             .select_from(DeprecatedEvaluatorConfigDB)
             .filter(DeprecatedEvaluatorConfigDB.app_id.is_(None))
         )
-        result = session.execute(stmt).scalar()
+        result = session.execute(query).scalar()
         TOTAL_EVALUATOR_CONFIGS_WITH_NO_APPID = result if result is not None else 0
         print(
             f"Total rows in evaluator_configs table with no app_id: {TOTAL_EVALUATOR_CONFIGS_WITH_NO_APPID}. Deleting these rows..."

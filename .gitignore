@@ -1,5 +1,4 @@
 **/*.pyc
-**/*.pyc.*
 **/*/node_modules
 **/*.next
 **/*.pnpm-store
@@ -9,9 +8,6 @@
 **/*.pem
 **/*dont_commit_me*
 
-__pycache__/
-**/__pycache__/
-
 **/error-*.log
 
 /.nox/
@@ -20,6 +16,13 @@ env/
 myenv/
 
 **/error-*.log
+
+
+# hosting/
+! hosting/docker-compose/oss/.env.oss.dev.example
+! hosting/docker-compose/oss/.env.oss.gh.example
+! hosting/docker-compose/ee/.env.ee.dev.example
+! hosting/docker-compose/ee/.env.ee.gh.example
 
 # examples/
 examples/**/config.toml
@@ -33,10 +36,13 @@ examples/**/docker.tar.gz
 examples/**/Dockerfile
 
 # web/
+web/cypress/videos/
 web/src/ee/**
 web/src/pages/apps/index.tsx
 web/src/pages/auth/[[...path]].tsx
 web/src/pages/auth/[[...path]].tsx
+web/cypress/screenshots/
+web/cypress/videos/
 .nextjs_cache/
 
 # sdk/
@@ -46,5 +52,3 @@ sdk/agenta/templates/main.py
 sdk/agenta/templates/agenta.py
 web/ee/public/__env.js
 web/oss/public/__env.js
-
-web/oss/tests/datalayer/results

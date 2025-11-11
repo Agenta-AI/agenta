@@ -1,7 +1,7 @@
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 import {Parameter} from "@/oss/lib/Types"
-import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -11,7 +11,7 @@ import {getProjectValues} from "@/oss/state/project"
 //  - delete: DELETE data from server
 
 export function restartAppVariantContainer(variantId: string) {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     return axios.post(`${getAgentaApiUrl()}/containers/restart_container?project_id=${projectId}`, {
         variant_id: variantId,
@@ -19,13 +19,13 @@ export function restartAppVariantContainer(variantId: string) {
 }
 
 export async function deleteSingleVariant(variantId: string) {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     await axios.delete(`${getAgentaApiUrl()}/variants/${variantId}?project_id=${projectId}`)
 }
 
 export async function deleteSingleVariantRevision(variantId: string, revisionId: string) {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     await axios.delete(
         `${getAgentaApiUrl()}/variants/${variantId}/revisions/${revisionId}/?project_id=${projectId}`,
@@ -33,7 +33,7 @@ export async function deleteSingleVariantRevision(variantId: string, revisionId:
 }
 
 export async function updateVariantParams(variantId: string, parameters: Parameter[]) {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     await axios.put(
         `${getAgentaApiUrl()}/variants/${variantId}/parameters?project_id=${projectId}`,
@@ -54,7 +54,7 @@ export async function createNewVariant(
     newConfigName: string,
     parameters: Parameter[],
 ) {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     await axios.post(`${getAgentaApiUrl()}/variants/from-base?project_id=${projectId}`, {
         base_id: baseId,
@@ -67,7 +67,7 @@ export async function createNewVariant(
 }
 
 export const fetchVariantLogs = async (variantId: string, ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.get(
         `${getAgentaApiUrl()}/variants/${variantId}/logs?project_id=${projectId}`,

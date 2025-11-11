@@ -43,6 +43,7 @@ const EmptyAppView = ({setIsAddAppFromTemplatedModal}: EmptyAppViewProps) => {
                 <Image src="/assets/not-found.png" alt="not-found" width={240} height={210} />
                 <Typography.Text>Click here to create your first prompt</Typography.Text>
                 <Button
+                    data-cy="create-new-app-button"
                     icon={<PlusOutlined />}
                     onClick={() => {
                         setIsAddAppFromTemplatedModal(true)

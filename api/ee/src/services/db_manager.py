@@ -1,7 +1,7 @@
 import uuid
 
-from oss.src.dbs.postgres.shared.engine import engine
-from ee.src.models.db_models import DeploymentDB
+from oss.src.models.db.postgres_engine import db_engine
+from ee.src.models.db_models import DeploymentDB_ as DeploymentDB
 
 
 async def create_deployment(
@@ -18,7 +18,7 @@ async def create_deployment(
         DeploymentDB: The created deployment.
     """
 
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         try:
             deployment = DeploymentDB(
                 app_id=uuid.UUID(app_id),

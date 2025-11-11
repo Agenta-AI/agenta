@@ -1,7 +1,5 @@
 from typing import Optional, Dict, List
 from threading import Lock
-from json import dumps
-from uuid import UUID
 
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
@@ -10,18 +8,19 @@ from opentelemetry.sdk.trace.export import (
     SpanExporter,
     ReadableSpan,
     BatchSpanProcessor,
+    _DEFAULT_MAX_QUEUE_SIZE,
+    _DEFAULT_SCHEDULE_DELAY_MILLIS,
+    _DEFAULT_MAX_EXPORT_BATCH_SIZE,
+    _DEFAULT_EXPORT_TIMEOUT_MILLIS,
 )
-from opentelemetry.trace import SpanContext
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.tracing.conventions import Reference
 
-from agenta.sdk.contexts.tracing import TracingContext
-
 log = get_module_logger(__name__)
 
 
-class TraceProcessor(SpanProcessor):
+class TraceProcessor(BatchSpanProcessor):
     def __init__(
         self,
         span_exporter: SpanExporter,
@@ -32,38 +31,29 @@ class TraceProcessor(SpanProcessor):
         max_export_batch_size: int = None,
         export_timeout_millis: float = None,
     ):
+        super().__init__(
+            span_exporter,
+            _DEFAULT_MAX_QUEUE_SIZE,
+            5 * 1000 if inline else _DEFAULT_SCHEDULE_DELAY_MILLIS,  # < 5 seconds
+            _DEFAULT_MAX_EXPORT_BATCH_SIZE,
+            500 if inline else _DEFAULT_EXPORT_TIMEOUT_MILLIS,  # < 1 second
+        )
+
         self.references = references or dict()
         self.inline = inline is True
 
-        self._registry = dict()
-        self._exporter = span_exporter
-        self._spans: Dict[int, List[ReadableSpan]] = dict()
-
-        # --- DISTRIBUTED
-        if not self.inline:
-            self._delegate = BatchSpanProcessor(
-                span_exporter,
-                max_queue_size,
-                schedule_delay_millis,
-                max_export_batch_size,
-                export_timeout_millis,
-            )
-        # --- DISTRIBUTED
+        # --- INLINE
+        if self.inline:
+            self._registry = dict()
+            self._exporter = span_exporter
+            self._spans: Dict[int, List[ReadableSpan]] = dict()
+        # --- INLINE
 
     def on_start(
         self,
         span: Span,
         parent_context: Optional[Context] = None,
     ) -> None:
-        trace_id = span.context.trace_id
-        span_id = span.context.span_id
-
-        # log.debug(
-        #     "[SPAN] [START] ",
-        #     trace_id=UUID(int=trace_id).hex,
-        #     span_id=UUID(int=span_id).hex[-16:],
-        # )
-
         for key in self.references.keys():
             span.set_attribute(f"ag.refs.{key}", self.references[key])
 
@@ -75,155 +65,64 @@ class TraceProcessor(SpanProcessor):
                 if _key in [_.value for _ in Reference.__members__.values()]:
                     span.set_attribute(key, baggage[key])
 
-        context = TracingContext.get()
+        # --- INLINE
+        if self.inline:
+            if span.context.trace_id not in self._registry:
+                self._registry[span.context.trace_id] = dict()
 
-        trace_type = span.attributes.get("trace_type") if span.attributes else None
-
-        context.annotate = (
-            context.annotate
-            or (context.type == "annotation")
-            or (trace_type == "annotation")
-        )
-        context.type = (
-            (str(trace_type) if trace_type else None)
-            or context.type
-            or ("annotation" if context.annotate else "invocation")
-        )
-
-        span.set_attribute("ag.type.tree", context.type)
-
-        if context.flags:
-            for key in context.flags.keys():
-                span.set_attribute(f"ag.flags.{key}", context.flags[key])
-        # if context.tags:
-        #     for key in context.tags.keys():
-        #         span.set_attribute(f"ag.tags.{key}", context.tags[key])
-        # if context.meta:
-        #     span.set_attribute(f"ag.meta.", dumps(context.meta))
-
-        # --- DISTRIBUTED
-        if not self.inline:
-            if context.links:
-                for key, link in context.links.items():
-                    try:
-                        link = link.model_dump(mode="json", exclude_none=True)
-                    except:  # pylint: disable=bare-except
-                        pass
-                    if not isinstance(link, dict):
-                        continue
-                    if not link.get("trace_id") or not link.get("span_id"):
-                        continue
-
-                    span.add_link(
-                        context=SpanContext(
-                            trace_id=int(str(link.get("trace_id")), 16),
-                            span_id=int(str(link.get("span_id")), 16),
-                            is_remote=True,
-                        ),
-                        attributes=dict(
-                            key=str(key),
-                        ),
-                    )
-
-        if context.references:
-            for key, ref in context.references.items():
-                try:
-                    ref = ref.model_dump(mode="json", exclude_none=True)
-                except:  # pylint: disable=bare-except
-                    pass
-                if not isinstance(ref, dict):
-                    continue
-                if not ref.get("id") and not ref.get("slug") and not ref.get("version"):
-                    continue
-
-                if ref.get("id"):
-                    span.set_attribute(
-                        f"ag.refs.{key}.id",
-                        str(ref.get("id")),
-                    )
-                if ref.get("slug"):
-                    span.set_attribute(
-                        f"ag.refs.{key}.slug",
-                        str(ref.get("slug")),
-                    )
-                if ref.get("version"):
-                    span.set_attribute(
-                        f"ag.refs.{key}.version",
-                        str(ref.get("version")),
-                    )
-
-        trace_id = span.context.trace_id
-        span_id = span.context.span_id
-
-        self._registry.setdefault(trace_id, {})
-        self._registry[trace_id][span_id] = True
+            self._registry[span.context.trace_id][span.context.span_id] = True
+        # --- INLINE
 
     def on_end(
         self,
         span: ReadableSpan,
     ):
-        trace_id = span.context.trace_id
-        span_id = span.context.span_id
+        # --- INLINE
+        if self.inline:
+            if self.done:
+                return
 
-        # log.debug(
-        #     "[SPAN] [END]   ",
-        #     trace_id=UUID(int=trace_id).hex,
-        #     span_id=UUID(int=span_id).hex[-16:],
-        # )
+            if span.context.trace_id not in self._spans:
+                self._spans[span.context.trace_id] = list()
 
-        self._spans.setdefault(trace_id, []).append(span)
-        self._registry.setdefault(trace_id, {})
-        self._registry[trace_id].pop(span_id, None)
+            self._spans[span.context.trace_id].append(span)
 
-        if not self._registry[trace_id]:
-            spans = self._spans.pop(trace_id, [])
-            self._registry.pop(trace_id, None)
+            del self._registry[span.context.trace_id][span.context.span_id]
 
-            # --- INLINE
-            if self.inline:
-                self._exporter.export(spans)
-            # --- INLINE
+            if len(self._registry[span.context.trace_id]) == 0:
+                self.export(span.context.trace_id)
+        # --- INLINE
 
-            # --- DISTRIBUTED
-            else:
-                for span in spans:
-                    self._delegate.on_end(span)
+        # --- DISTRIBUTED
+        else:
+            super().on_end(span)
+        # --- DISTRIBUTED
 
-                self._delegate.force_flush()
-            # --- DISTRIBUTED
+    def export(
+        self,
+        trace_id: int,
+    ):
+        # --- INLINE
+        if self.inline:
+            spans = self._spans[trace_id]
+
+            for span in spans:
+                self.queue.appendleft(span)
+
+            with self.condition:
+                self.condition.notify()
+
+            del self._spans[trace_id]
+        # --- INLINE
 
     def force_flush(
         self,
         timeout_millis: int = None,
     ) -> bool:
-        # --- INLINE
-        if self.inline:
-            try:
-                ret = self._exporter.force_flush(timeout_millis)
-            except:  # pylint: disable=bare-except
-                ret = True
-        # --- INLINE
-
-        # --- DISTRIBUTED
-        else:
-            ret = self._delegate.force_flush(timeout_millis)
-        # --- DISTRIBUTED
+        ret = super().force_flush(timeout_millis)
 
         if not ret:
             log.warning("Agenta - Skipping export due to timeout.")
-
-        return ret
-
-    def shutdown(self) -> None:
-        # --- INLINE
-        if self.inline:
-            self._exporter.shutdown()
-        # --- INLINE
-
-        # --- DISTRIBUTED
-        else:
-            self._delegate.shutdown()
-        # --- DISTRIBUTED
 
     def is_ready(
         self,

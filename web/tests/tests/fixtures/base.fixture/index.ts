@@ -1,12 +1,11 @@
-import {test as playwright} from "@playwright/test"
-
+import {test as playwright, expect} from "@playwright/test"
+import {uiHelpers} from "./uiHelpers"
 import {apiHelpers} from "./apiHelpers"
 import type {BaseFixture} from "./types"
-import {uiHelpers} from "./uiHelpers"
 
-const _test = playwright.extend<BaseFixture>({
-    apiHelpers: apiHelpers(),
+const test = playwright.extend<BaseFixture>({
     uiHelpers: uiHelpers(),
+    apiHelpers: apiHelpers(),
 })
 
-export {_test as test}
+export {test, expect}

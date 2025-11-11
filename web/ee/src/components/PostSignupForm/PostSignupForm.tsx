@@ -1,86 +1,60 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Checkbox, Form, FormProps, Input, Radio, Space, Spin, Typography} from "antd"
+import {ArrowRight, CaretDown, SignOut} from "@phosphor-icons/react"
+import {
+    Button,
+    Checkbox,
+    Dropdown,
+    Form,
+    FormProps,
+    Input,
+    Radio,
+    Space,
+    Spin,
+    Typography,
+} from "antd"
 import Image from "next/image"
-import {useRouter} from "next/router"
+import Router from "next/router"
 import {MultipleSurveyQuestion} from "posthog-js"
 
-import ListOfOrgs from "@/oss/components/Sidebar/components/ListOfOrgs"
-import useURL from "@/oss/hooks/useURL"
+import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
+import Avatar from "@/oss/components/Avatar/Avatar"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
+import {useSession} from "@/oss/hooks/useSession"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {useSurvey} from "@/oss/lib/helpers/analytics/hooks/useSurvey"
-import {useOrgData} from "@/oss/state/org"
-import {useProfileData} from "@/oss/state/profile"
-import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
+import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 import {useStyles} from "./assets/styles"
 import {FormDataType} from "./assets/types"
 
 const PostSignupForm = () => {
     const [form] = Form.useForm()
-    const router = useRouter()
+    const {logout} = useSession()
     const posthog = usePostHogAg()
     const {user} = useProfileData()
     const classes = useStyles()
-    const {orgs} = useOrgData()
+    const {selectedOrg, changeSelectedOrg} = useOrgData()
     const selectedHearAboutUsOption = Form.useWatch("hearAboutUs", form)
     const formData = Form.useWatch([], form)
     const [stepOneFormData, setStepOneFormData] = useState<any>({} as any)
     const [currentStep, setCurrentStep] = useState(0)
-    const {survey, loading, error} = useSurvey("Signup 2")
-    const {baseAppURL} = useURL()
-    const [autoRedirectAttempted, setAutoRedirectAttempted] = useState(false)
-    const redirectParam = useMemo(
-        () => (router.query.redirect as string) || "",
-        [router.query.redirect],
-    )
-    const redirect = useCallback(
-        async (target: string | null | undefined) => {
-            if (!target) return false
-
-            try {
-                const normalizedTarget = target.split("?")[0]
-                const latestPath = router.asPath.split("?")[0]
-
-                if (normalizedTarget === latestPath) return false
-
-                await router.replace(target)
-                return true
-            } catch (error) {
-                console.error("post-signup redirect failed", error)
-                return false
-            }
-        },
-        [router],
-    )
-
-    const navigateToPostSignupDestination = useCallback(async () => {
-        if (await redirect(redirectParam)) return
-        if (await redirect(baseAppURL)) return
-
-        try {
-            const context = await waitForWorkspaceContext({
-                timeoutMs: 1500,
-                requireProjectId: false,
-                requireOrgData: true,
-            })
-            const fallbackPath = buildPostLoginPath(context)
-
-            if (await redirect(fallbackPath)) return
-        } catch (error) {
-            console.error("post-signup fallback redirect failed", error)
-        }
-
-        await redirect("/w")
-    }, [baseAppURL, redirect, redirectParam])
+    const {survey, loading} = useSurvey("Signup 2")
 
     useEffect(() => {
-        if (!error || autoRedirectAttempted) return
+        let timer: number | undefined
 
-        setAutoRedirectAttempted(true)
-        void navigateToPostSignupDestination()
-    }, [autoRedirectAttempted, error, navigateToPostSignupDestination])
+        timer = window.setTimeout(() => {
+            if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY") || !survey || !survey?.id) {
+                Router.push("/apps")
+            }
+        }, 2000)
+
+        return () => {
+            clearTimeout(timer)
+        }
+    }, [survey])
 
     const handleStepOneFormData: FormProps<FormDataType>["onFinish"] = useCallback(
         async (values: any) => {
@@ -96,49 +70,22 @@ const PostSignupForm = () => {
                 values.hearAboutUs == "Other" ? values.hearAboutUsInputOption : values.hearAboutUs
 
             try {
-                const responses = survey?.questions?.reduce(
-                    (acc: Record<string, unknown>, question, index) => {
-                        const key = `$survey_response_${question.id}`
-                        switch (index) {
-                            case 0:
-                                acc[key] = [stepOneFormData.companySize]
-                                break
-                            case 1:
-                                acc[key] = stepOneFormData.userRole
-                                break
-                            case 2:
-                                acc[key] = stepOneFormData.userExperience
-                                break
-                            case 3:
-                                acc[key] = values.userInterests
-                                break
-                            case 4:
-                                acc[key] = [hearAboutUs]
-                                break
-                            case 5:
-                                // the user's email is captured as a survey
-                                // response only; posthog.identify is called
-                                // elsewhere so we don't send a separate
-                                // `user_email` property
-                                acc[key] = user?.email
-                                break
-                        }
-                        return acc
-                    },
-                    {},
-                )
-
                 await posthog?.capture?.("survey sent", {
                     $survey_id: survey?.id,
                     $survey_name: survey?.name,
-                    ...responses,
+                    $survey_response: stepOneFormData.userRole,
+                    $survey_response_1: stepOneFormData.userExperience,
+                    $survey_response_2: hearAboutUs,
+                    $survey_response_3: values.userInterests,
+                    $survey_response_4: user?.email,
+                    $survey_response_5: stepOneFormData.companySize,
                 })
 
                 form.resetFields()
             } catch (error) {
                 console.error("Error submitting form:", error)
             } finally {
-                await navigateToPostSignupDestination()
+                Router.push("/apps")
             }
         },
         [
@@ -150,7 +97,6 @@ const PostSignupForm = () => {
             survey?.id,
             survey?.name,
             user?.email,
-            navigateToPostSignupDestination,
         ],
     )
 
@@ -338,31 +284,64 @@ const PostSignupForm = () => {
         survey?.questions,
     ])
 
-    const showSurveyForm = Boolean(survey?.questions?.length)
-    const isSurveyLoading = loading && !error
-
     return (
         <>
             <section className="w-[90%] flex items-center justify-between mx-auto mt-12 mb-5">
                 <Image
-                    src="/assets/Agenta-logo-full-light.png"
+                    src="/assets/light-complete-transparent-CROPPED.png"
                     alt="agenta-ai"
                     width={114}
                     height={40}
                 />
 
-                <ListOfOrgs
-                    collapsed={false}
-                    interactive={true}
-                    orgSelectionEnabled={false}
-                    buttonProps={{className: "w-[186px] !p-1 !h-10 rounded"}}
-                    overrideOrgId={orgs?.[0]?.id}
-                />
+                <Dropdown
+                    trigger={["hover"]}
+                    menu={{
+                        items: [
+                            {
+                                key: "logout",
+                                label: (
+                                    <div className="flex items-center gap-2">
+                                        <SignOut size={16} />
+                                        <Typography.Text>Logout</Typography.Text>
+                                    </div>
+                                ),
+                                onClick: () => {
+                                    AlertPopup({
+                                        title: "Logout",
+                                        message: "Are you sure you want to logout?",
+                                        onOk: logout,
+                                    })
+                                },
+                            },
+                        ],
+                        selectedKeys: [selectedOrg?.id as string],
+                        onClick: ({key}) => {
+                            if (["logout"].includes(key)) return
+                            changeSelectedOrg(key)
+                        },
+                    }}
+                >
+                    <Button
+                        className="w-[186px] !p-1 !h-10 rounded"
+                        icon={<CaretDown size={14} />}
+                        iconPosition="end"
+                    >
+                        <div className="flex items-center w-[85%]">
+                            <Avatar
+                                className="text-lg !rounded"
+                                name={selectedOrg?.name as string}
+                            />
+
+                            <Typography.Paragraph className="ml-2 w-[70%] truncate !mb-0">
+                                {selectedOrg?.name}
+                            </Typography.Paragraph>
+                        </div>
+                    </Button>
+                </Dropdown>
             </section>
 
-            <Spin spinning={isSurveyLoading}>
-                {showSurveyForm ? steps[currentStep]?.content : null}
-            </Spin>
+            <Spin spinning={loading && !survey?.id}>{steps[currentStep]?.content}</Spin>
         </>
     )
 }

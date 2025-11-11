@@ -1,0 +1,28 @@
+---
+title: Sidebar Update Notifications
+sidebar_label: Sidebar Updates
+description: Learn how Agenta shows changelog updates in the sidebar and how to customize them.
+---
+
+Agenta can display short update notifications in the sidebar. These cards keep users informed about new functionality and link to the full changelog for details.
+
+Each card includes a "What's new" tag and a close icon so users can dismiss the message permanently.
+
+## Adding an update
+
+Update data lives in `web/ee/src/components/SidePanel/assets/updates.ts`. Each entry has an `id`, a `title`, a short `description` and an optional `link` pointing to the changelog.
+
+```ts
+export const SIDEBAR_UPDATES = [
+  {
+    id: '2025-05-15-annotations',
+    title: 'Annotate responses',
+    description: 'Capture user feedback with new annotation API.',
+    link: '/changelog/main#annotate-your-llm-response-preview',
+  },
+]
+```
+
+Entries should be ordered from newest to oldest. When a user closes an update card, it will not be shown again. If multiple updates are available, they are shown one after another from the most recent to the oldest.
+
+While an update card is visible, the sidebar hides the default **Free Plan** banner. Once all updates are dismissed, the banner returns as usual.

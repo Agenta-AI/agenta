@@ -2,7 +2,7 @@ import os
 from uuid import UUID
 from typing import Dict, Any
 
-from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.dbs.secrets.dao import SecretsDAO
 from oss.src.core.secrets.services import VaultService
 from oss.src.models.api.evaluation_model import LMProvidersEnum
 
@@ -44,20 +44,18 @@ async def get_user_llm_providers_secrets(project_id: str) -> Dict[str, Any]:
     # 3: convert secrets to readable format
     readable_secrets = {}
     for secret in secrets:
-        kind = secret["data"].get("kind")
-        provider_slug = kind.value if kind else ""
+        provider_slug = str(secret["data"].get("kind", ""))
         secret_name = f"{provider_slug.upper()}_API_KEY"
         if provider_slug:
-            provider = secret["data"].get("provider")
-            readable_secrets[secret_name] = provider.get("key") if provider else None
+            readable_secrets[secret_name] = secret["data"].get("key")
     return readable_secrets
 
 
-async def get_llm_providers_secrets(project_id: str) -> Dict[str, Any]:
+async def get_llm_providers_secrets(provider_id: str) -> Dict[str, Any]:
     """
     Fetches LLM providers secrets from system and vault.
     """
 
     system_llm_secrets = await get_system_llm_providers_secrets()
-    user_llm_secrets = await get_user_llm_providers_secrets(project_id)
+    user_llm_secrets = await get_user_llm_providers_secrets(provider_id)
     return {**system_llm_secrets, **user_llm_secrets}

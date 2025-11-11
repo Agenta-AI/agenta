@@ -2,20 +2,33 @@ import {useMemo} from "react"
 
 import FreePlanBanner from "@/oss/components/Banners/BillingPlanBanner/FreePlanBanner"
 import FreeTrialBanner from "@/oss/components/Banners/BillingPlanBanner/FreeTrialBanner"
+import {useCurrentSidebarUpdate} from "@/oss/components/SidePanel/Updates"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {Plan} from "@/oss/lib/Types"
 import {useSubscriptionData} from "@/oss/services/billing"
 
-const SidePanelSubscription = () => {
+const SidePanelSubscription = ({
+    collapsed,
+    isHovered,
+}: {
+    collapsed: boolean
+    isHovered: boolean
+}) => {
     const {subscription} = useSubscriptionData()
+    const {current: currentUpdate} = useCurrentSidebarUpdate()
 
     const isShowFreePlanBannerVisible = useMemo(
-        () => isDemo() && !subscription?.free_trial && subscription?.plan === Plan.Hobby,
-        [subscription],
+        () =>
+            !currentUpdate &&
+            isDemo() &&
+            (!collapsed || (collapsed && isHovered)) &&
+            !subscription?.free_trial &&
+            subscription?.plan === Plan.Hobby,
+        [subscription, collapsed, isHovered, currentUpdate],
     )
     const isShowFreeTrialBannerVisible = useMemo(
-        () => isDemo() && subscription?.free_trial,
-        [subscription],
+        () => isDemo() && (!collapsed || (collapsed && isHovered)) && subscription?.free_trial,
+        [isHovered, subscription, collapsed],
     )
 
     return (

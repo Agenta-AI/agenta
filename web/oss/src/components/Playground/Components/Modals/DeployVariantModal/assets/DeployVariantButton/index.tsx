@@ -1,11 +1,12 @@
-import {cloneElement, isValidElement, useMemo, useState} from "react"
+import {cloneElement, isValidElement, useCallback, useState} from "react"
 
 import {CloudArrowUp} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {PlaygroundStateData} from "@/oss/lib/hooks/useStatelessVariants/types"
+import {findRevisionDeployment} from "@/oss/lib/shared/variant/utils"
 import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 
 import {DeployVariantButtonProps} from "./types"
@@ -26,23 +27,74 @@ const DeployVariantButton = ({
         mutate: mutateEnv,
         isEnvironmentsLoading,
     } = useEnvironments()
+    const {
+        environments,
+        variantName,
+        revision,
+        mutate: mutatePlayground,
+    } = usePlayground({
+        variantId: revisionId || variantId,
+        hookId: "DeployVariantModal",
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const variant = state.availableRevisions?.find((rev) => rev.id === revisionId)
+                return {
+                    variantName: variant?.variantName || "",
+                    revision: variant?.revisionNumber || "",
+                    _revisionId: variant?.id || "",
+                    environments: _environments.map((env) => {
+                        const deployedAppRevisionId = env.deployed_app_variant_revision_id
+                        const revision = state.availableRevisions?.find(
+                            (rev) => rev.id === deployedAppRevisionId,
+                        )
+                        return {
+                            ...env,
+                            revision: revision,
+                        }
+                    }),
+                }
+            },
+            [_environments, variantId, revisionId],
+        ),
+    })
 
-    // Focused read for the specific revision's metadata
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(revisionId)) as any
+    const onSuccess = useCallback(async () => {
+        const newEnvironmentsData = await mutateEnv() // refetch environments or chain using .then
 
-    const {environments, variantName, revision} = useMemo(() => {
-        return {
-            variantName: variant?.variantName || "",
-            revision: (variant as any)?.revisionNumber ?? (variant as any)?.revision ?? "",
-            environments: _environments,
-        }
-    }, [variant, _environments])
+        mutatePlayground((state) => {
+            const newEnv = newEnvironmentsData.map((env) => ({
+                name: env.name,
+                appId: env.app_id,
+                deployedAppVariantId: env.deployed_app_variant_id,
+                deployedVariantName: env.deployed_variant_name,
+                deployedAppVariantRevisionId: env.deployed_app_variant_revision_id,
+                revision: env.revision,
+            }))
 
-    const onSuccess = async () => {
-        // Just refetch environments - the revisionListAtom will automatically update
-        // when the deployment state changes through SWR revalidation
-        await mutateEnv()
-    }
+            // map available revisions and update each of them using the new environments data
+            if (state.availableRevisions && state.availableRevisions.length > 0) {
+                state.availableRevisions?.forEach((availableRevision) => {
+                    if (availableRevision) {
+                        availableRevision.deployedIn = findRevisionDeployment(
+                            availableRevision.id,
+                            newEnv,
+                        )
+                    }
+                })
+            }
+
+            // update already mounted data in state.revisions
+            if (state.variants && state.variants.length > 0) {
+                state.variants?.forEach((revision) => {
+                    if (revision) {
+                        revision.deployedIn = findRevisionDeployment(revision.id, newEnv)
+                    }
+                })
+            }
+
+            return state
+        })
+    }, [])
 
     return (
         <>

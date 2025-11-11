@@ -1,24 +1,20 @@
-from typing import Any, Dict
 from os import environ
 from json import loads, decoder
 from uuid import getnode
 from datetime import datetime, timezone
-from dateutil.relativedelta import relativedelta
 
 from fastapi import APIRouter, Request, status, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 import stripe
 
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import intercept_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
-
 from oss.src.services.db_manager import (
     get_user_with_id,
     get_organization_by_id,
 )
+
+from oss.src.apis.fastapi.shared.utils import handle_exceptions
 
 from ee.src.utils.permissions import check_action_access
 from ee.src.models.shared_models import Permission
@@ -49,6 +45,8 @@ FORBIDDEN_RESPONSE = JSONResponse(
 
 
 class SubscriptionsRouter:
+    VERSION = "1.0.0"
+
     def __init__(
         self,
         subscription_service: SubscriptionsService,
@@ -156,7 +154,7 @@ class SubscriptionsRouter:
 
     # HANDLERS
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def handle_events(
         self,
         request: Request,
@@ -571,146 +569,76 @@ class SubscriptionsRouter:
             organization_id=organization_id,
         )
 
-        if not subscription or not subscription.plan:
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content={
-                    "status": "error",
-                    "message": "Subscription (Agenta) not found",
-                },
-            )
-
         plan = subscription.plan
         anchor = subscription.anchor
 
-        _status: Dict[str, Any] = dict(
-            plan=plan.value,
-            type="standard",
-        )
+        _status = {"plan": plan.value, "type": "standard"}
 
-        if plan == Plan.CLOUD_V0_HOBBY:
-            return _status
-
-        if not subscription.subscription_id:
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content={
-                    "status": "error",
-                    "message": "Subscription (Agenta) not found",
-                },
-            )
-
-        if not stripe.api_key:
-            return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={
-                    "status": "error",
-                    "message": "Missing Stripe API Key",
-                },
-            )
-
-        try:
-            _subscription = stripe.Subscription.retrieve(
-                id=subscription.subscription_id,
-            )
-        except Exception:
-            _subscription = None
-
-        if _subscription:
-            _status["period_start"] = int(_subscription.current_period_start)
-            _status["period_end"] = int(_subscription.current_period_end)
-            _status["free_trial"] = _subscription.status == "trialing"
-
-            return _status
-
-        if not anchor or anchor < 1 or anchor > 31:
-            anchor = now.day
-
-        last_day_this_month = (
-            datetime(
-                now.year,
-                now.month,
-                1,
-                tzinfo=timezone.utc,
-            )
-            + relativedelta(
-                months=+1,
-                days=-1,
-            )
-        ).day
-
-        day_this_month = min(anchor, last_day_this_month)
-
-        if now.day < anchor:
-            prev_month = now + relativedelta(
-                months=-1,
-            )
-
-            last_day_prev_month = (
-                datetime(
-                    prev_month.year,
-                    prev_month.month,
-                    1,
-                    tzinfo=timezone.utc,
+        if plan != Plan.CLOUD_V0_HOBBY:
+            if not stripe.api_key:
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"status": "error", "message": "Missing Stripe API Key"},
                 )
-                + relativedelta(
-                    months=+1,
-                    days=-1,
+
+            if not subscription:
+                return JSONResponse(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    content={
+                        "status": "error",
+                        "message": "Subscription (Agenta) not found",
+                    },
                 )
-            ).day
 
-            day_prev_month = min(anchor, last_day_prev_month)
-
-            period_start = datetime(
-                year=prev_month.year,
-                month=prev_month.month,
-                day=day_prev_month,
-                tzinfo=timezone.utc,
-            )
-            period_end = datetime(
-                year=now.year,
-                month=now.month,
-                day=day_this_month,
-                tzinfo=timezone.utc,
-            )
-        else:
-            period_start = datetime(
-                year=now.year,
-                month=now.month,
-                day=day_this_month,
-                tzinfo=timezone.utc,
-            )
-
-            next_month = now + relativedelta(
-                months=+1,
-            )
-
-            last_day_next_month = (
-                datetime(
-                    next_month.year,
-                    next_month.month,
-                    1,
-                    tzinfo=timezone.utc,
+            try:
+                subscription = stripe.Subscription.retrieve(
+                    id=subscription.subscription_id,
                 )
-                + relativedelta(
-                    months=+1,
-                    days=-1,
-                )
-            ).day
+            except:  # pylint: disable=bare-except
+                subscription = None
 
-            day_next_month = min(anchor, last_day_next_month)
+            if not subscription:
+                if now.day < anchor:
+                    _status["period_start"] = int(
+                        datetime(
+                            year=(now.year + (now.month - 2) // 12),
+                            month=(now.month - 2) % 12 + 1,
+                            day=anchor,
+                            tzinfo=timezone.utc,
+                        ).timestamp()
+                    )
+                    _status["period_end"] = int(
+                        datetime(
+                            year=now.year,
+                            month=now.month,
+                            day=anchor,
+                            tzinfo=timezone.utc,
+                        ).timestamp()
+                    )
+                else:
+                    _status["period_start"] = int(
+                        datetime(
+                            year=now.year,
+                            month=now.month,
+                            day=anchor,
+                            tzinfo=timezone.utc,
+                        ).timestamp()
+                    )
+                    _status["period_end"] = int(
+                        datetime(
+                            year=(now.year + (now.month) // 12),
+                            month=(now.month + 1) % 12,
+                            day=anchor,
+                            tzinfo=timezone.utc,
+                        ).timestamp()
+                    )
 
-            period_end = datetime(
-                year=next_month.year,
-                month=next_month.month,
-                day=day_next_month,
-                tzinfo=timezone.utc,
-            )
-
-        _status["period_start"] = int(period_start.timestamp())
-        _status["period_end"] = int(period_end.timestamp())
-        _status["free_trial"] = False
-        _status["type"] = "custom"
+                _status["free_trial"] = False
+                _status["type"] = "custom"
+            else:
+                _status["period_start"] = subscription.current_period_start
+                _status["period_end"] = subscription.current_period_end
+                _status["free_trial"] = subscription.status == "trialing"
 
         return _status
 
@@ -803,7 +731,7 @@ class SubscriptionsRouter:
 
         return usage
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def report_usage(
         self,
     ):
@@ -819,24 +747,23 @@ class SubscriptionsRouter:
 
     # ROUTES
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def create_portal_user_route(
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_portal(
             organization_id=request.state.organization_id,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def create_portal_admin_route(
         self,
         organization_id: str = Query(...),
@@ -845,20 +772,19 @@ class SubscriptionsRouter:
             organization_id=organization_id,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def create_checkout_user_route(
         self,
         request: Request,
         plan: Plan = Query(...),
         success_url: str = Query(...),  # find a way to make this optional or moot
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_checkout(
             organization_id=request.state.organization_id,
@@ -866,7 +792,7 @@ class SubscriptionsRouter:
             success_url=success_url,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def create_checkout_admin_route(
         self,
         organization_id: str = Query(...),
@@ -879,43 +805,41 @@ class SubscriptionsRouter:
             success_url=success_url,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def fetch_plan_user_route(
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_plans(
             organization_id=request.state.organization_id,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def switch_plans_user_route(
         self,
         request: Request,
         plan: Plan = Query(...),
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.switch_plans(
             organization_id=request.state.organization_id,
             plan=plan,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def switch_plans_admin_route(
         self,
         organization_id: str = Query(...),
@@ -926,41 +850,39 @@ class SubscriptionsRouter:
             plan=plan,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def fetch_subscription_user_route(
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_subscription(
             organization_id=request.state.organization_id,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def cancel_subscription_user_route(
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.cancel_subscription(
             organization_id=request.state.organization_id,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def cancel_subscription_admin_route(
         self,
         organization_id: str = Query(...),
@@ -969,18 +891,17 @@ class SubscriptionsRouter:
             organization_id=organization_id,
         )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def fetch_usage_user_route(
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_usage(
             organization_id=request.state.organization_id,

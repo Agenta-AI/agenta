@@ -1,34 +1,30 @@
-from typing import Optional, Tuple
-from json import loads
+from functools import wraps
+from traceback import print_exc
+from fastapi import HTTPException
+from uuid import uuid4
 
-from oss.src.core.shared.dtos import (
-    Flags,
-    Tags,
-    Meta,
-)
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
-def parse_metadata(
-    flags: Optional[str] = None,
-    tags: Optional[str] = None,
-    meta: Optional[str] = None,
-) -> Tuple[Optional[Flags], Optional[Tags], Optional[Meta],]:
-    _flags = None
-    try:
-        _flags = loads(flags) if flags else None
-    except Exception:  # pylint: disable=broad-exception-caught
-        pass
+def handle_exceptions():
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except HTTPException as e:
+                raise e
+            except Exception:
+                support_id = str(uuid4())
+                log.error("ERROR", support_id=support_id, operation_id=func.__name__)
+                print_exc()
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"An unexpected error occurred with operation_id={func.__name__}. Please contact support with support_id={support_id}.",
+                )
 
-    _tags = None
-    try:
-        _tags = loads(tags) if tags else None
-    except Exception:  # pylint: disable=broad-exception-caught
-        pass
+        return wrapper
 
-    _meta = None
-    try:
-        _meta = loads(meta) if meta else None
-    except Exception:  # pylint: disable=broad-exception-caught
-        pass
-
-    return _flags, _tags, _meta
+    return decorator

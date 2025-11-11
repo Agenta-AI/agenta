@@ -60,7 +60,7 @@ const HelpAndSupportSection = () => {
                     <ArrowRight size={18} />
                 </Link>
                 <Link
-                    href="https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw"
+                    href="https://join.slack.com/t/agenta-hq/shared_invite/zt-1zsafop5i-Y7~ZySbhRZvKVPV5DO_7IA"
                     target="_blank"
                     className={classes.helperCard}
                 >

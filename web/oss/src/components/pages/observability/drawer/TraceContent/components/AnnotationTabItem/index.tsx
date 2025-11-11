@@ -32,9 +32,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
     const classes = useStyles()
-    const {data: evaluators = []} = useEvaluators({
-        preview: true,
-    })
+    const {data: evaluators} = useEvaluators()
 
     // Last minute changes to display multiselect values in the table. This is not the best way to do it but it works for now.
     const mergedAnnWithEvaluator = useMemo(() => {
@@ -95,8 +93,8 @@ const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
     const groupedByReference = mergedAnnWithEvaluator.reduce(
         (acc, item) => {
             const slug = item.references?.evaluator?.slug || "unknown-slug"
-            const origin = item.origin || "unknown-type"
-            const key = `${slug}::${origin}`
+            const kind = item.kind || "unknown-type"
+            const key = `${slug}::${kind}`
 
             if (!acc[key]) {
                 acc[key] = []

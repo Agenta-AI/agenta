@@ -4,37 +4,27 @@ import dynamic from "next/dynamic"
 import {useLocalStorage} from "usehooks-ts"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import {useProfileData} from "@/oss/contexts/profile.context"
+import {useProjectData} from "@/oss/contexts/project.context"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {getProjectValues} from "@/oss/state/project"
 
 import {AnnotateDrawerSteps} from "./assets/enum"
 import {AnnotateDrawerProps, AnnotateDrawerStepsType, UpdatedMetricsType} from "./assets/types"
-import {isAnnotationCreatedByCurrentUser} from "./assets/utils"
 
 const Annotate = dynamic(() => import("./assets/Annotate"), {ssr: false})
 const SelectEvaluators = dynamic(() => import("./assets/SelectEvaluators"), {ssr: false})
 const CreateEvaluator = dynamic(() => import("./assets/CreateEvaluator"), {ssr: false})
 const AnnotateDrawerTitle = dynamic(() => import("./assets/AnnotateDrawerTitle"), {ssr: false})
 
-const AnnotateDrawer = ({
-    data,
-    traceSpanIds,
-    showOnly,
-    evalSlugs,
-    initialStep = AnnotateDrawerSteps.ANNOTATE,
-    createEvaluatorProps,
-    ...props
-}: AnnotateDrawerProps) => {
-    const {projectId} = getProjectValues()
-    const {data: evaluators} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
+const AnnotateDrawer = ({data, traceSpanIds, ...props}: AnnotateDrawerProps) => {
+    const {projectId} = useProjectData()
+    const {user} = useProfileData()
+    const {data: evaluators} = useEvaluators()
     const evalLSKey = `${projectId}-evaluator`
 
     const [annotations, setAnnotations] = useState<AnnotationDto[]>([])
-    const [steps, setSteps] = useState<AnnotateDrawerStepsType>(initialStep)
+    const [steps, setSteps] = useState<AnnotateDrawerStepsType>(AnnotateDrawerSteps.ANNOTATE)
     const [updatedMetrics, setUpdatedMetrics] = useState<UpdatedMetricsType>({})
     const [selectedEvaluators, setSelectedEvaluators] = useLocalStorage<string[]>(evalLSKey, [])
     const [errorMessage, setErrorMessage] = useState<string[]>([])
@@ -64,7 +54,7 @@ const AnnotateDrawer = ({
 
         // creating evaluator order
         const evaluatorOrder: Record<string, number> = {}
-        evaluators?.forEach((ev, idx) => {
+        evaluators.forEach((ev, idx) => {
             evaluatorOrder[ev.slug] = idx
         })
 
@@ -75,32 +65,26 @@ const AnnotateDrawer = ({
             return (evaluatorOrder[aSlug] ?? 0) - (evaluatorOrder[bSlug] ?? 0)
         })
 
-        const filteredAnn = sortAnnotationsByEval?.filter((ann) =>
-            isAnnotationCreatedByCurrentUser(ann),
+        const filteredAnn = sortAnnotationsByEval?.filter(
+            (ann) => ann.createdById === user?.id && ann.source === "web" && ann.kind === "human",
         )
         setAnnotations(filteredAnn || [])
 
         // 4. Get annotations NOT matching the user/web/human condition
         const filteredAnnForEval = sortAnnotationsByEval.filter(
-            (ann) => !isAnnotationCreatedByCurrentUser(ann),
+            (ann) =>
+                !(ann.createdById === user?.id && ann.source === "web" && ann.kind === "human"),
         )
 
-        // 5. Get unique slugs - only from HUMAN annotations (not automatic evaluations)
+        // 5. Get unique slugs and update tempSelectedEvaluators
         if (filteredAnnForEval.length > 0) {
             const evalSlugs = filteredAnnForEval
-                .filter((ann) => ann.origin === "human" || ann.channel === "web") // Only human annotations from other users
                 .map((ann) => ann.references?.evaluator?.slug)
                 .filter(Boolean) as string[]
 
             setTempSelectedEvaluators((prev) => [...new Set([...prev, ...evalSlugs])])
         }
     }, [data, props.open])
-
-    useEffect(() => {
-        if (props.open) {
-            setSteps(initialStep)
-        }
-    }, [props.open, initialStep])
 
     const annEvalSlugs = useMemo(() => {
         return (
@@ -120,13 +104,10 @@ const AnnotateDrawer = ({
         } else if (tempSelectedEvaluators.length > 0) {
             const newSetOfTempEval = new Set(tempSelectedEvaluators)
             return [...newSetOfTempEval]
-        } else if (evalSlugs && evalSlugs.length > 0) {
-            const newSetOfEvalSlugs = new Set(evalSlugs)
-            return [...newSetOfEvalSlugs]
         } else {
             return []
         }
-    }, [selectedEvaluators, tempSelectedEvaluators, annEvalSlugs, evalSlugs, data, annotations])
+    }, [selectedEvaluators, tempSelectedEvaluators, annEvalSlugs])
 
     const onClose = useCallback(() => {
         props?.onClose?.({} as any)
@@ -135,14 +116,14 @@ const AnnotateDrawer = ({
     const onAfterClose = useCallback(
         (open: boolean) => {
             if (!open) {
-                setSteps(initialStep)
+                setSteps(AnnotateDrawerSteps.ANNOTATE)
                 setTempSelectedEvaluators([])
                 setAnnotations([])
                 setErrorMessage([])
                 setUpdatedMetrics({})
             }
         },
-        [props.afterOpenChange, initialStep],
+        [props.afterOpenChange],
     )
 
     const onCaptureError = useCallback(
@@ -157,12 +138,6 @@ const AnnotateDrawer = ({
     )
 
     const renderContent = useMemo(() => {
-        const {
-            setSteps: _ignoredSetSteps,
-            setSelectedEvaluators: _ignoredSetSelectedEvaluators,
-            ...restCreateEvaluatorProps
-        } = createEvaluatorProps || {}
-
         switch (steps) {
             case AnnotateDrawerSteps.ANNOTATE:
                 return (
@@ -190,7 +165,6 @@ const AnnotateDrawer = ({
                     <CreateEvaluator
                         setSteps={setSteps}
                         setSelectedEvaluators={setSelectedEvaluators}
-                        {...restCreateEvaluatorProps}
                     />
                 )
             default:
@@ -203,7 +177,6 @@ const AnnotateDrawer = ({
         _selectedEvaluators,
         tempSelectedEvaluators,
         errorMessage,
-        createEvaluatorProps,
     ])
 
     return (
@@ -219,7 +192,6 @@ const AnnotateDrawer = ({
                     onClose={onClose}
                     onCaptureError={onCaptureError}
                     traceSpanIds={traceSpanIds}
-                    showOnly={showOnly}
                 />
             }
             closeIcon={null}

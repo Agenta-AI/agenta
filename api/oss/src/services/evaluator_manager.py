@@ -6,19 +6,19 @@ from oss.src.services import db_manager
 from oss.src.models.db_models import EvaluatorConfigDB
 from oss.src.models.converters import evaluator_config_db_to_pydantic
 from oss.src.resources.evaluators.evaluators import get_all_evaluators
-from oss.src.models.api.evaluation_model import LegacyEvaluator, EvaluatorConfig
+from oss.src.models.api.evaluation_model import Evaluator, EvaluatorConfig
 
 
-def get_evaluators() -> List[LegacyEvaluator]:
+def get_evaluators() -> List[Evaluator]:
     """
     Fetches a list of evaluators from a JSON file.
 
     Returns:
-        List[LegacyEvaluator]: A list of evaluator objects.
+        List[Evaluator]: A list of evaluator objects.
     """
 
     evaluators_as_dict = get_all_evaluators()
-    return [LegacyEvaluator(**evaluator_dict) for evaluator_dict in evaluators_as_dict]
+    return [Evaluator(**evaluator_dict) for evaluator_dict in evaluators_as_dict]
 
 
 async def get_evaluators_configs(project_id: str) -> List[EvaluatorConfig]:
@@ -54,6 +54,7 @@ async def get_evaluator_config(evaluator_config: EvaluatorConfig) -> EvaluatorCo
 
 async def create_evaluator_config(
     project_id: str,
+    app_name: str,
     name: str,
     evaluator_key: str,
     settings_values: Optional[Dict[str, Any]] = None,
@@ -74,6 +75,7 @@ async def create_evaluator_config(
 
     evaluator_config = await db_manager.create_evaluator_config(
         project_id=project_id,
+        app_name=app_name,
         name=name,
         evaluator_key=evaluator_key,
         settings_values=settings_values,
@@ -147,6 +149,7 @@ async def create_ready_to_use_evaluators(project_id: str):
         ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
         await db_manager.create_evaluator_config(
             project_id=project_id,
+            app_name=None,
             name=evaluator.name,
             evaluator_key=evaluator.key,
             settings_values=settings_values,

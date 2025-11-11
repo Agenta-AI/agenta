@@ -1,16 +1,12 @@
-from typing import Dict, List, Union, Literal, Optional
-from uuid import UUID
-
-from fastapi import APIRouter, Request, Depends, Query, status, HTTPException
-from fastapi.responses import Response
-
 import posthog
 
-from oss.src.utils.common import is_ee
-from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+from typing import Dict, List, Union, Literal
+from uuid import UUID
 
+from fastapi import Request, Depends, Query, status, HTTPException
+from fastapi.responses import JSONResponse
+
+from oss.src.utils.logging import get_module_logger
 from oss.src.core.observability.service import ObservabilityService
 from oss.src.core.observability.dtos import (
     QueryDTO,
@@ -22,19 +18,19 @@ from oss.src.core.observability.dtos import (
     ConditionDTO,
     Focus,
 )
+from oss.src.utils.caching import get_cache, set_cache
 
-from oss.src.core.tracing.dtos import OTelFlatSpan
-
-from oss.src.core.tracing.service import TracingService
 from oss.src.core.observability.utils import FilteringException
 
+from oss.src.apis.fastapi.shared.utils import handle_exceptions
 from oss.src.apis.fastapi.observability.opentelemetry.otlp import (
     parse_otlp_stream,
 )
 from oss.src.apis.fastapi.observability.utils.processing import (
-    parse_query_from_params_request,
+    parse_query_request,
     parse_analytics_dto,
     parse_from_otel_span_dto,
+    _parse_from_otel_span_dto_legacy,
     parse_to_otel_span_dto,
     parse_to_agenta_span_dto,
     parse_legacy_analytics_dto,
@@ -50,49 +46,30 @@ from oss.src.apis.fastapi.observability.models import (
     AgentaTreeDTO,
     AgentaRootDTO,
     LegacyAnalyticsResponse,
-    OldAnalyticsResponse,
+    AnalyticsResponse,
 )
+
+from oss.src.utils.common import APIRouter, is_ee
 
 if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, Counter
-
-# OTLP Protobuf response message for full success
-from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
-    ExportTraceServiceResponse,
-)
-
-# Protobuf Status for error responses
-from google.rpc.status_pb2 import Status as ProtoStatus
-
-from oss.src.utils.env import env
-
-MAX_OTLP_BATCH_SIZE = env.AGENTA_OTLP_MAX_BATCH_BYTES
-MAX_OTLP_BATCH_SIZE_MB = MAX_OTLP_BATCH_SIZE // (1024 * 1024)
-
+    from ee.src.utils.entitlements import (
+        check_entitlements,
+        Tracker,
+        Counter,
+        NOT_ENTITLED_RESPONSE,
+    )
 
 log = get_module_logger(__name__)
 
 
-POSTHOG_API_KEY = env.POSTHOG_API_KEY
-POSTHOG_HOST = env.POSTHOG_HOST
-
-
-if POSTHOG_API_KEY:
-    posthog.api_key = POSTHOG_API_KEY
-    posthog.host = POSTHOG_HOST
-    log.info("PostHog initialized with host %s", POSTHOG_HOST)
-else:
-    log.warn("PostHog API key not found in environment variables")
-
-
 class ObservabilityRouter:
+    VERSION = "1.0.0"
+
     def __init__(
         self,
         observability_service: ObservabilityService,
-        tracing_service: Optional[TracingService] = None,
     ):
         self.service = observability_service
-        self.tracing = tracing_service
 
         self.router = APIRouter()
 
@@ -106,7 +83,7 @@ class ObservabilityRouter:
             methods=["POST"],
             operation_id="otlp_v1_traces",
             summary="Receive /v1/traces via OTLP",
-            status_code=status.HTTP_200_OK,
+            status_code=status.HTTP_202_ACCEPTED,
             response_model=CollectStatusResponse,
         )
 
@@ -128,7 +105,7 @@ class ObservabilityRouter:
             methods=["POST"],
             operation_id="otlp_receiver",
             summary="Receive traces via OTLP",
-            status_code=status.HTTP_200_OK,
+            status_code=status.HTTP_202_ACCEPTED,
             response_model=CollectStatusResponse,
         )
 
@@ -159,7 +136,7 @@ class ObservabilityRouter:
             status_code=status.HTTP_200_OK,
             response_model=Union[
                 LegacyAnalyticsResponse,
-                OldAnalyticsResponse,
+                AnalyticsResponse,
             ],
             response_model_exclude_none=True,
         )
@@ -194,15 +171,15 @@ class ObservabilityRouter:
 
     ### OTLP
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def otlp_status(self):
         """
         Status of OTLP endpoint.
         """
 
-        return CollectStatusResponse(status="ready")
+        return CollectStatusResponse(version=self.VERSION, status="ready")
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def otlp_receiver(
         self,
         request: Request,
@@ -211,6 +188,31 @@ class ObservabilityRouter:
         Receive traces via OTLP.
         """
 
+        cache_key = {
+            "feature_flag": "new-span-processor",
+        }
+
+        flag_use_new_span_processor = await get_cache(
+            project_id="system",
+            user_id="system",
+            namespace="posthog_feature_flags",
+            key=cache_key,
+        )
+
+        if flag_use_new_span_processor is None:
+            flag_use_new_span_processor = posthog.feature_enabled("new-span-processor", "user distinct id")
+
+            await set_cache(
+                project_id="system",
+                user_id="system",
+                namespace="posthog_feature_flags",
+                key=cache_key,
+                value=flag_use_new_span_processor,
+                ttl=60,
+            )
+
+        log.debug("Using new span processor: %s", flag_use_new_span_processor)
+
         otlp_stream = None
         try:
             # ---------------------------------------------------------------- #
@@ -218,34 +220,14 @@ class ObservabilityRouter:
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
-                "Failed to process OTLP stream from project %s with error:",
+                "Failed to process OTLP stream from project %s with error %s",
                 request.state.project_id,
-                exc_info=True,
+                str(e),
             )
-            err_status = ProtoStatus(
-                message="Invalid request body: not a valid OTLP stream."
-            )
-            return Response(
-                content=err_status.SerializeToString(),
-                media_type="application/x-protobuf",
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if len(otlp_stream) > MAX_OTLP_BATCH_SIZE:
-            log.error(
-                "OTLP batch too large (%s bytes > %s bytes) from project %s",
-                len(otlp_stream),
-                MAX_OTLP_BATCH_SIZE,
-                request.state.project_id,
-            )
-            err_status = ProtoStatus(
-                message=f"OTLP batch size exceeds {MAX_OTLP_BATCH_SIZE_MB}MB limit."
-            )
-            return Response(
-                content=err_status.SerializeToString(),
-                media_type="application/x-protobuf",
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            )
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid request body: not a valid OTLP stream.",
+            ) from e
 
         otel_spans = None
         try:
@@ -254,83 +236,36 @@ class ObservabilityRouter:
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
-                "Failed to parse OTLP stream from project %s with error:",
+                "Failed to parse OTLP stream from project %s with error %s",
                 request.state.project_id,
-                exc_info=True,
+                str(e),
             )
             log.error(
                 "OTLP stream: %s",
                 otlp_stream,
             )
-            err_status = ProtoStatus(message="Failed to parse OTLP stream.")
-            return Response(
-                content=err_status.SerializeToString(),
-                media_type="application/x-protobuf",
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        # -------------------------------------------------------------------- #
-        feature_flag = "create-spans-from-nodes"
-
-        cache_key = {
-            "feature_flag": feature_flag,
-        }
-
-        flag_create_spans_from_nodes = await get_cache(
-            namespace="posthog:flags",
-            key=cache_key,
-            retry=False,
-        )
-
-        if flag_create_spans_from_nodes is None:
-            if env.POSTHOG_API_KEY:
-                flag_create_spans_from_nodes = posthog.feature_enabled(
-                    feature_flag,
-                    "user distinct id",
-                )
-
-                await set_cache(
-                    namespace="posthog:flags",
-                    key=cache_key,
-                    value=flag_create_spans_from_nodes,
-                )
-        # -------------------------------------------------------------------- #
-
-        # for otel_span in otel_spans:
-        #     log.debug(
-        #         "Receiving trace... ",
-        #         project_id=request.state.project_id,
-        #         trace_id=str(UUID(otel_span.context.trace_id[2:])),
-        #     )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to parse OTLP stream.",
+            ) from e
 
         span_dtos = None
         try:
             # ---------------------------------------------------------------- #
-            parsed_spans = [
-                parse_from_otel_span_dto(
-                    otel_span,
-                    flag_create_spans_from_nodes,
-                )
-                for otel_span in otel_spans
-            ]
-
-            span_dtos = [
-                parsed_span.get("nodes")
-                for parsed_span in parsed_spans
-                if parsed_span.get("nodes")
-            ]
-            tracing_spans = [
-                parsed_span.get("spans")
-                for parsed_span in parsed_spans
-                if parsed_span.get("spans")
-            ]
-
+            if flag_use_new_span_processor:
+                span_dtos = [
+                    parse_from_otel_span_dto(otel_span) for otel_span in otel_spans
+                ]
+            else:
+                span_dtos = [
+                    _parse_from_otel_span_dto_legacy(otel_span) for otel_span in otel_spans
+                ]
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
-                "Failed to parse spans from project %s with error:",
+                "Failed to parse spans from project %s with error %s",
                 request.state.project_id,
-                exc_info=True,
+                str(e),
             )
             for otel_span in otel_spans:
                 log.error(
@@ -338,12 +273,10 @@ class ObservabilityRouter:
                     UUID(otel_span.context.trace_id[2:]),
                     otel_span,
                 )
-            err_status = ProtoStatus(message="Failed to parse OTEL span.")
-            return Response(
-                content=err_status.SerializeToString(),
-                media_type="application/x-protobuf",
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to parse OTEL span.",
+            ) from e
 
         # -------------------------------------------------------------------- #
         delta = sum([1 for span_dto in span_dtos if span_dto.parent is None])
@@ -356,14 +289,7 @@ class ObservabilityRouter:
             )
 
             if not check:
-                err_status = ProtoStatus(
-                    message="You have reached your quota limit. Please upgrade your plan to continue."
-                )
-                return Response(
-                    content=err_status.SerializeToString(),
-                    media_type="application/x-protobuf",
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+                return NOT_ENTITLED_RESPONSE(Tracker.COUNTERS)
         # -------------------------------------------------------------------- #
 
         try:
@@ -375,9 +301,9 @@ class ObservabilityRouter:
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.error(
-                "Failed to ingest spans from project %s with error:",
+                "Failed to ingest spans from project %s with error %s",
                 request.state.project_id,
-                exc_info=True,
+                str(e),
             )
             for span_dto in span_dtos:
                 log.error(
@@ -385,59 +311,20 @@ class ObservabilityRouter:
                     span_dto.tree.id,
                     span_dto,
                 )
-            err_status = ProtoStatus(message="Failed to ingest spans.")
-            return Response(
-                content=err_status.SerializeToString(),
-                media_type="application/x-protobuf",
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to ingest spans.",
+            ) from e
 
-        try:
-            # ---------------------------------------------------------------- #
-            if flag_create_spans_from_nodes:
-                await self.tracing.create(
-                    project_id=UUID(request.state.project_id),
-                    user_id=UUID(request.state.user_id),
-                    span_dtos=tracing_spans,
-                )
-            # ---------------------------------------------------------------- #
-        except Exception as e:
-            log.warn(
-                "Failed to create spans from project %s with error:",
-                request.state.project_id,
-                exc_info=True,
-            )
-            for span in tracing_spans:
-                span: OTelFlatSpan
-                log.warn(
-                    "Span: [%s] %s",
-                    span.trace_id,
-                    span,
-                )
-
-        # ------------------------------------------------------------------ #
-        # According to the OTLP/HTTP spec a full-success response must be an
-        # HTTP 200 with a serialized ExportTraceServiceResponse protobuf and
-        # the same Content-Type that the client used (we only support binary
-        # protobuf at the moment).
-        # ------------------------------------------------------------------ #
-
-        export_response = ExportTraceServiceResponse()  # empty == full success
-
-        return Response(
-            content=export_response.SerializeToString(),
-            media_type="application/x-protobuf",
-            status_code=status.HTTP_200_OK,
-        )
+        return CollectStatusResponse(version=self.VERSION, status="processing")
 
     ### QUERIES
 
-    @intercept_exceptions()
-    @suppress_exceptions(default=AgentaNodesResponse())
+    @handle_exceptions()
     async def query_traces(
         self,
         request: Request,
-        query_dto: QueryDTO = Depends(parse_query_from_params_request),
+        query_dto: QueryDTO = Depends(parse_query_request),
         format: Literal[  # pylint: disable=W0622
             "opentelemetry",
             "agenta",
@@ -468,6 +355,7 @@ class ObservabilityRouter:
             spans = [parse_to_otel_span_dto(span_dto) for span_dto in span_dtos]
 
             return OTelTracingResponse(
+                version=self.VERSION,
                 count=count,
                 spans=spans,
             )
@@ -494,6 +382,7 @@ class ObservabilityRouter:
                 # focus = tree
                 if query_dto.grouping.focus.value == "tree":
                     return AgentaTreesResponse(
+                        version=self.VERSION,
                         count=count,
                         trees=[
                             AgentaTreeDTO(
@@ -521,6 +410,7 @@ class ObservabilityRouter:
 
                         _nodes_by_root[nodes[0].root.id].append(
                             AgentaTreeDTO(
+                                version=self.VERSION,
                                 tree=TreeDTO(
                                     id=tree_id,
                                     type=_types_by_tree[tree_id],
@@ -532,6 +422,7 @@ class ObservabilityRouter:
                         )
 
                     return AgentaRootsResponse(
+                        version=self.VERSION,
                         count=count,
                         roots=[
                             AgentaRootDTO(
@@ -544,11 +435,12 @@ class ObservabilityRouter:
 
             # focus = node
             return AgentaNodesResponse(
+                version=self.VERSION,
                 count=count,
                 nodes=[AgentaNodeDTO(**span.model_dump()) for span in spans],
             )
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def query_analytics(
         self,
         request: Request,
@@ -576,7 +468,8 @@ class ObservabilityRouter:
                     **summary.model_dump(),
                 )
 
-            return OldAnalyticsResponse(
+            return AnalyticsResponse(
+                version=self.VERSION,
                 count=count,
                 buckets=bucket_dtos,
             )
@@ -587,7 +480,7 @@ class ObservabilityRouter:
                 detail=str(e),
             ) from e
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def fetch_trace_by_id(
         self,
         request: Request,
@@ -646,7 +539,7 @@ class ObservabilityRouter:
 
     ### MUTATIONS
 
-    @intercept_exceptions()
+    @handle_exceptions()
     async def delete_traces(
         self,
         request: Request,
@@ -663,4 +556,4 @@ class ObservabilityRouter:
             node_ids=node_ids,
         )
 
-        return CollectStatusResponse(status="deleted")
+        return CollectStatusResponse(version=self.VERSION, status="deleted")

@@ -11,15 +11,13 @@
 
 import {ElementNode, LexicalNode, SerializedElementNode, Spread, EditorConfig} from "lexical"
 
-import type {CodeLanguage} from "../types"
-
 /**
  * Represents the serialized form of a CodeBlockNode.
  * Extends SerializedElementNode with a language property.
  */
 export type SerializedCodeBlockNode = Spread<
     {
-        language: CodeLanguage
+        language: "json" | "yaml"
         hasValidationError: boolean
     },
     SerializedElementNode
@@ -31,7 +29,7 @@ export type SerializedCodeBlockNode = Spread<
  */
 export class CodeBlockNode extends ElementNode {
     /** The programming language for syntax highlighting */
-    __language: CodeLanguage
+    __language: "json" | "yaml"
     __hasValidationError: boolean
 
     /**
@@ -56,7 +54,7 @@ export class CodeBlockNode extends ElementNode {
      * @param language - The programming language for the code block (defaults to "json")
      * @param key - Optional unique identifier for the node
      */
-    constructor(language: CodeLanguage = "json", hasValidationError?: boolean, key?: string) {
+    constructor(language: "json" | "yaml" = "json", hasValidationError?: boolean, key?: string) {
         super(key)
         this.__language = language
         this.__hasValidationError = hasValidationError ?? false
@@ -75,6 +73,15 @@ export class CodeBlockNode extends ElementNode {
         code.setAttribute("data-language", this.__language)
         code.setAttribute("tabindex", "0")
         code.setAttribute("data-lexical-editor", "true")
+
+        const hasError = this.__hasValidationError
+
+        if (hasError) {
+            const badge = document.createElement("span")
+            badge.className = "code-block-error-icon"
+            badge.textContent = "⚠️"
+            code.appendChild(badge)
+        }
 
         return code
     }
@@ -113,11 +120,11 @@ export class CodeBlockNode extends ElementNode {
         return false
     }
 
-    getLanguage(): CodeLanguage {
+    getLanguage(): "json" | "yaml" {
         return this.getLatest().__language
     }
 
-    setLanguage(language: CodeLanguage) {
+    setLanguage(language: "json" | "yaml") {
         const writable = this.getWritable()
         writable.__language = language
     }
@@ -141,7 +148,7 @@ export class CodeBlockNode extends ElementNode {
  * @returns A new CodeBlockNode instance
  */
 export function $createCodeBlockNode(
-    language: CodeLanguage,
+    language: "json" | "yaml",
     hasValidationError?: boolean,
 ): CodeBlockNode {
     return new CodeBlockNode(language, hasValidationError)

@@ -1,3 +1,4 @@
+import uuid
 from typing import Dict, List, Union
 
 from sqlalchemy.future import select
@@ -6,8 +7,7 @@ from sqlalchemy.orm import load_only, joinedload
 
 from oss.src.services import db_manager
 from oss.src.utils.logging import get_module_logger
-
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.models.db.postgres_engine import db_engine  # type: ignore
 from ee.src.models.api.organization_models import Organization
 from ee.src.models.db_models import (
     WorkspaceDB,
@@ -38,7 +38,7 @@ async def get_user_org_and_workspace_id(user_uid) -> Dict[str, Union[str, List[s
         { "id": "123", "uid": "user123", "organization_ids": [], "workspace_ids": []}
     """
 
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         user = await db_manager.get_user_with_id(user_id=user_uid)
         if not user:
             raise NoResultFound(f"User with uid {user_uid} not found")
@@ -94,14 +94,14 @@ async def get_user_own_org(user_uid: str) -> OrganizationDB:
     """
 
     user = await db_manager.get_user_with_id(user_id=user_uid)
-    async with engine.core_session() as session:
-        result = await session.execute(
+    async with db_engine.get_core_session() as session:
+        org_query = await session.execute(
             select(OrganizationDB).filter_by(
                 owner=str(user.id),
                 type="default",
             )
         )
-        org = result.scalars().first()
+        org = org_query.scalars().first()
         return org
 
 
@@ -115,7 +115,7 @@ async def get_org_default_workspace(organization: Organization) -> WorkspaceDB:
         WorkspaceDB: Instance of WorkspaceDB
     """
 
-    async with engine.core_session() as session:
+    async with db_engine.get_core_session() as session:
         result = await session.execute(
             select(WorkspaceDB)
             .filter_by(organization_id=organization.id, type="default")

@@ -8,13 +8,13 @@ from sqlalchemy.ext.asyncio import async_engine_from_config, create_async_engine
 
 from alembic import context
 
-from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.models.db.postgres_engine import db_engine
 
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", engine.postgres_uri_tracing)  # type: ignore
+config.set_main_option("sqlalchemy.url", db_engine.postgres_uri_tracing)  # type: ignore
 
 
 # Interpret the config file for Python logging.

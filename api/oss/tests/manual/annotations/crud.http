@@ -1,5 +1,5 @@
 @host = http://localhost
-@token = change-me
+@token = 75f7cfc77236b15ec8929399582f407f05c9f95b89b10b74f078b877ad452a48
 @base_url = {{host}}/api/preview/annotations
 
 ###
@@ -13,7 +13,7 @@ Authorization: Access {{token}}
 @authorization = {{create_account.response.body.scopes[0].credentials}}
 
 ###
-# CREATE ANNOTATION
+# CFREATE ANNOTATION
 # @name create_annotation
 POST {{base_url}}/
 Content-Type: application/json

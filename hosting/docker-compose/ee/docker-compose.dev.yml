@@ -1,25 +1,13 @@
 name: agenta-ee-dev
 
 services:
-    .api:
-        image: agenta-ee-dev-api:latest
-        build:
-            context: ../../../api
-            dockerfile: ee/docker/Dockerfile.dev
-        command: ["true"]  # exits immediately
-
-    .web:
-        image: agenta-ee-dev-web:latest
-        build:
-            context: ../../../web
-            dockerfile: ee/docker/Dockerfile.dev
-        command: ["true"]  # exits immediately
-
     web:
         profiles:
             - with-web
-
-        image: agenta-ee-dev-web:latest
+            
+        build:
+            context: ../../../web
+            dockerfile: ee/docker/Dockerfile.dev
 
         volumes:
             - ../../../web/ee/src:/app/ee/src
@@ -42,14 +30,16 @@ services:
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
 
+
         command: sh -c "pnpm dev-ee"
 
     api:
-        image: agenta-ee-dev-api:latest
+        build: 
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.dev
 
         volumes:
             - ../../../api:/app
-            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -92,11 +82,12 @@ services:
                 condition: service_healthy
 
     worker:
-        image: agenta-ee-dev-api:latest
+        build: 
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.dev
 
         volumes:
             - ../../../api:/app
-            - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -115,14 +106,15 @@ services:
             - agenta-network
 
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1 --loglevel=DEBUG
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1
 
     cron:
-        image: agenta-ee-dev-api:latest
+        build: 
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.dev
 
         volumes:
             - ../../../api/ee/src/crons/meters.sh:/meters.sh
-            - ../../../api/oss/src/crons/queries.sh:/queries.sh
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -142,11 +134,12 @@ services:
         command: cron -f
 
     alembic:
-        image: agenta-ee-dev-api:latest
+        build: 
+            context: ../../../api
+            dockerfile: ee/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api:/app
-            - ../../../sdk:/sdk
+            - ../../../api:/app/
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -157,12 +150,12 @@ services:
         networks:
             - agenta-network
 
-        command: sh -c "python -m ee.databases.postgres.migrations.runner"
+        command: sh -c "python -c 'from ee.databases.postgres.migrations.utils import split_core_and_tracing as split; split(); from ee.databases.postgres.migrations.core.utils import run_alembic_migration as run; run(); from ee.databases.postgres.migrations.tracing.utils import run_alembic_migration as run; run(); from ee.databases.postgres.migrations.utils import copy_nodes_from_core_to_tracing as copy; copy();'"
 
     completion:
         build: 
             context: ../../../services/completion
-            dockerfile: ee/docker/Dockerfile.dev
+            dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
             - ../../../services/completion:/app
@@ -191,7 +184,7 @@ services:
     chat:
         build: 
             context: ../../../services/chat
-            dockerfile: ee/docker/Dockerfile.dev
+            dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
             - ../../../services/chat:/app

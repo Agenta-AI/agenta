@@ -46,19 +46,29 @@ const CreateTestset: React.FC<Props> = ({setCurrent}) => {
     const classes = useStyles()
     return (
         <section className={classes.appTemplate}>
-            <Text className={classes.headerText}>Create new testset</Text>
+            <Text className={classes.headerText}>Create new test set</Text>
             <div className="flex flex-col gap-6">
-                <div className={classes.template} onClick={() => setCurrent(1)}>
+                <div
+                    className={classes.template}
+                    onClick={() => setCurrent(1)}
+                    data-cy="create-testset-from-scratch"
+                >
                     <Text>Create from scratch</Text>
-                    <Paragraph>Create a new testset directly from the webUI</Paragraph>
+                    <Paragraph>Create a new test set directly from the webUI</Paragraph>
                 </div>
-                <div className={classes.template} onClick={() => setCurrent(2)}>
-                    <Text>Upload a testset</Text>
-                    <Paragraph>Upload your testset as CSV or JSON</Paragraph>
+                <div
+                    className={classes.template}
+                    onClick={() => setCurrent(2)}
+                    data-cy="upload-testset"
+                >
+                    <Text>Upload a test set</Text>
+                    <Paragraph>Upload your test set as CSV or JSON</Paragraph>
                 </div>
                 <div className={classes.template} onClick={() => setCurrent(3)}>
                     <Text>Create with API</Text>
-                    <Paragraph>Create a testset programmatically using our API endpoints</Paragraph>
+                    <Paragraph>
+                        Create a test set programmatically using our API endpoints
+                    </Paragraph>
                 </div>
             </div>
         </section>

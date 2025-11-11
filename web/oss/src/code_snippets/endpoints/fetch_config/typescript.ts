@@ -1,12 +1,10 @@
 import {js as beautify} from "js-beautify"
 
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
-
-export default function tsCode(appName: string, env_name: string, apiKey: string): string {
+export default function tsCode(appName: string, env_name: string): string {
     const codeString = `import axios from 'axios';
 
 const getConfig = async (appName: string, environmentSlug: string) => {
-    const baseUrl = '${getEnv("NEXT_PUBLIC_AGENTA_API_URL")}/variants/configs/fetch';
+    const baseUrl = 'https://oss.agenta.ai/api/variants/configs/fetch';
 
     try {
         const response = await axios.post(baseUrl, {
@@ -23,7 +21,7 @@ const getConfig = async (appName: string, environmentSlug: string) => {
         }, {
             headers: {
                 'Content-Type': 'application/json',    
-                'Authorization': "ApiKey ${apiKey}", // Add your API key here
+                'Authorization': "ApiKey x.xxxxxxxx", // Add your API key here, when using cloud
             },
         });
 
@@ -33,7 +31,7 @@ const getConfig = async (appName: string, environmentSlug: string) => {
     }
 };
 
-getConfig('${appName}', '${env_name}').then(console.log).catch(console.error);
+getConfig('demo', 'production').then(console.log).catch(console.error);
     `
 
     const formattedCodeString = beautify(codeString)

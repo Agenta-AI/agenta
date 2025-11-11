@@ -1,43 +1,82 @@
 import {memo, useEffect, useMemo, useRef, type ReactNode, type RefObject} from "react"
-import {Suspense} from "react"
 
 import {GithubFilled, LinkedinFilled, TwitterOutlined} from "@ant-design/icons"
-import {ConfigProvider, Layout, Modal, Skeleton, Space, theme} from "antd"
+import {Button, ConfigProvider, Layout, Modal, Skeleton, Space, Typography, theme} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import Link from "next/link"
+import {useRouter} from "next/router"
 import {ErrorBoundary} from "react-error-boundary"
+import {ThemeProvider} from "react-jss"
 import {useLocalStorage, useResizeObserver} from "usehooks-ts"
 
-import useURL from "@/oss/hooks/useURL"
+import {useAppsData} from "@/oss/contexts/app.context"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {DEFAULT_UUID, getCurrentProject, useProjectData} from "@/oss/contexts/project.context"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {currentAppAtom} from "@/oss/state/app"
-import {useAppQuery, useAppState} from "@/oss/state/appState"
-import {useProfileData} from "@/oss/state/profile"
-import {getProjectValues, useProjectData} from "@/oss/state/project"
+import {useVariants} from "@/oss/lib/hooks/useVariants"
 
 import OldAppDeprecationBanner from "../Banners/OldAppDeprecationBanner"
 import CustomWorkflowBanner from "../CustomWorkflowBanner"
-import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
+import useCustomWorkflowConfig from "../pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 
-import BreadcrumbContainer from "./assets/Breadcrumbs"
-import {useStyles} from "./assets/styles"
+import {BreadcrumbContainer} from "./assets/Breadcrumbs"
+import {useStyles, type StyleProps} from "./assets/styles"
 import ErrorFallback from "./ErrorFallback"
-import {SidebarIsland} from "./SidebarIsland"
 import {getDeviceTheme, useAppTheme} from "./ThemeContextProvider"
 
-const FooterIsland = dynamic(() => import("./FooterIsland").then((m) => m.FooterIsland), {
+const Sidebar: any = dynamic(() => import("../Sidebar/Sidebar"), {
     ssr: false,
-    loading: () => null,
+    loading: () => <Skeleton className="w-[236px]" />,
 })
 
 type StyleClasses = ReturnType<typeof useStyles>
 
-const {Content} = Layout
+const {Content, Footer} = Layout
 
 interface LayoutProps {
     children: React.ReactNode
+}
+
+const WithVariants = ({
+    children,
+    handleBackToWorkspaceSwitch,
+}: {
+    children: ReactNode
+    handleBackToWorkspaceSwitch: () => void
+}) => {
+    const {currentApp} = useAppsData()
+
+    // @ts-ignoree
+    const {mutate, data} = useVariants(currentApp)(
+        {
+            appId: currentApp?.app_id,
+        },
+        [],
+    )
+
+    const variant = useMemo(() => data?.variants?.[0], [data?.variants])
+
+    const {CustomWorkflowModal, openModal} = useCustomWorkflowConfig({
+        afterConfigSave: async () => {
+            await mutate()
+        },
+    })
+
+    return (
+        <>
+            <OldAppDeprecationBanner>
+                {variant && (
+                    <CustomWorkflowBanner
+                        setIsCustomWorkflowModalOpen={openModal}
+                        variant={variant}
+                    />
+                )}
+                {children}
+            </OldAppDeprecationBanner>
+            {CustomWorkflowModal}
+        </>
+    )
 }
 
 const AppWithVariants = memo(
@@ -46,43 +85,28 @@ const AppWithVariants = memo(
         isAppRoute,
         classes,
         isPlayground,
-        isHumanEval,
-        isEvaluator,
         appTheme,
         ...props
     }: {
         children: ReactNode
         isAppRoute: boolean
-        isHumanEval: boolean
-        isEvaluator: boolean
         classes: StyleClasses
         appTheme: string
         isPlayground?: boolean
     }) => {
-        const {baseAppURL} = useURL()
-        const appState = useAppState()
-        const lastNonSettingsRef = useRef<string | null>(null)
-
-        useEffect(() => {
-            if (!appState.pathname.includes("/settings")) {
-                lastNonSettingsRef.current = appState.asPath
-            }
-        }, [appState.asPath, appState.pathname])
-
-        const currentApp = useAtomValue(currentAppAtom)
+        const {currentApp} = useAppsData()
         const {project, projects} = useProjectData()
-        // const profileLoading = useAtomValue(profilePendingAtom)
-        // const {changeSelectedOrg} = useOrgData()
+        const {changeSelectedOrg} = useOrgData()
 
         const handleBackToWorkspaceSwitch = () => {
             const project = projects.find((p) => p.user_role === "owner")
             if (project && !project.is_demo && project.organization_id) {
-                // changeSelectedOrg(project.organization_id)
+                changeSelectedOrg(project.organization_id)
             }
         }
 
         return (
-            <div className={clsx([{"flex flex-col grow min-h-0": isHumanEval || isEvaluator}])}>
+            <div>
                 {project?.is_demo && (
                     <div className={classes.banner}>
                         You are in <span>a view-only</span> demo workspace. To go back to your
@@ -93,30 +117,25 @@ const AppWithVariants = memo(
                     </div>
                 )}
                 <Layout hasSider className={classes.layout}>
-                    <SidebarIsland
-                        showSettingsView={appState.pathname.endsWith("/settings")}
-                        lastPath={lastNonSettingsRef.current || baseAppURL}
-                    />
-
+                    <Sidebar />
                     <Layout className={classes.layout}>
-                        <div
-                            className={clsx([
-                                {"grow flex flex-col min-h-0": isHumanEval || isEvaluator},
-                            ])}
-                        >
+                        <div className="mb-3">
                             <BreadcrumbContainer
                                 appTheme={appTheme}
                                 appName={currentApp?.app_name || ""}
                             />
-                            {isAppRoute && !getProjectValues().projectId ? null : isAppRoute ? (
-                                <OldAppDeprecationBanner>
-                                    <CustomWorkflowBanner />
+                            {isAppRoute &&
+                            (!currentApp ||
+                                getCurrentProject().projectId ===
+                                    DEFAULT_UUID) ? null : isAppRoute ? (
+                                <WithVariants
+                                    handleBackToWorkspaceSwitch={handleBackToWorkspaceSwitch}
+                                    {...props}
+                                >
                                     <Content
                                         className={clsx(classes.content, {
-                                            "flex flex-col min-h-0 grow":
-                                                isHumanEval || isEvaluator,
                                             "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground || isEvaluator,
+                                                isPlayground,
                                         })}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -132,13 +151,12 @@ const AppWithVariants = memo(
                                             </ConfigProvider>
                                         </ErrorBoundary>
                                     </Content>
-                                </OldAppDeprecationBanner>
+                                </WithVariants>
                             ) : (
                                 <Content
                                     className={clsx(classes.content, {
                                         "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                            isPlayground || isEvaluator,
-                                        "flex flex-col min-h-0 grow": isHumanEval || isEvaluator,
+                                            isPlayground,
                                     })}
                                 >
                                     <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -156,8 +174,7 @@ const AppWithVariants = memo(
                                 </Content>
                             )}
                         </div>
-                        <div className="w-full h-[20px]"></div>
-                        <FooterIsland className={classes.footer}>
+                        <Footer className={classes.footer}>
                             <Space className={classes.footerLeft} size={10}>
                                 <Link href={"https://github.com/Agenta-AI/agenta"} target="_blank">
                                     <GithubFilled className={classes.footerLinkIcon} />
@@ -173,7 +190,7 @@ const AppWithVariants = memo(
                                 </Link>
                             </Space>
                             <div>Copyright © {new Date().getFullYear()} | Agenta.</div>
-                        </FooterIsland>
+                        </Footer>
                     </Layout>
                 </Layout>
             </div>
@@ -182,21 +199,21 @@ const AppWithVariants = memo(
 )
 
 const App: React.FC<LayoutProps> = ({children}) => {
-    // profile used for side-effects in children; values unused here
-    useProfileData()
     const {appTheme} = useAppTheme()
-    const {baseAppURL} = useURL()
+    const {currentApp, isLoading, error} = useAppsData()
     const ref = useRef<HTMLElement | null>(null)
     const {height: footerHeight} = useResizeObserver({
         ref: ref as RefObject<HTMLElement>,
         box: "border-box",
     })
+    const {project} = useProjectData()
     const classes = useStyles({themeMode: appTheme, footerHeight} as StyleProps)
-    const appState = useAppState()
-    const query = useAppQuery()
-
+    const router = useRouter()
+    const appId = router.query.app_id as string
     const isDarkTheme = appTheme === "dark"
+    const {token} = theme.useToken()
     const [, contextHolder] = Modal.useModal()
+
     const posthog = usePostHogAg()
     const [hasCapturedTheme, setHasCapturedTheme] = useLocalStorage("hasCapturedTheme", false)
 
@@ -224,53 +241,61 @@ const App: React.FC<LayoutProps> = ({children}) => {
         }
     }, [appTheme])
 
-    const {isHumanEval, isPlayground, isAppRoute, isAuthRoute, isEvaluator} = useMemo(() => {
-        const pathname = appState.pathname
-        const asPath = appState.asPath
-        const selectedEvaluation = Array.isArray(query.selectedEvaluation)
-            ? query.selectedEvaluation[0]
-            : query.selectedEvaluation
+    const {isPlayground, isAppRoute, isAuthRoute} = useMemo(() => {
         return {
             isAuthRoute:
-                pathname.includes("/auth") ||
-                pathname.includes("/post-signup") ||
-                pathname.includes("/workspaces"),
-            isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
-            isPlayground:
-                pathname.includes("/playground") || pathname.includes("/evaluations/results"),
-            isEvaluator: pathname.includes("/evaluators/configure"),
-            isHumanEval:
-                pathname.includes("/evaluations/single_model_test") ||
-                selectedEvaluation === "human_annotation",
+                router.pathname.includes("/auth") ||
+                router.pathname.includes("/post-signup") ||
+                router.pathname.includes("/workspaces"),
+            isAppRoute: router.pathname.startsWith("/apps/[app_id]"),
+            isPlayground: router.pathname.includes("/playground"),
         }
-    }, [appState.asPath, appState.pathname, baseAppURL, query.selectedEvaluation])
+    }, [router.pathname, router.query])
+
+    // wait until we have the app id, if its an app route
+    if (isAppRoute && (!appId || !project)) return null
+
+    if (appId && !currentApp && !isLoading && !error) {
+        return (
+            <div className={classes.notFoundContainer}>
+                <Typography.Text>404 - Page Not Found</Typography.Text>
+                <Typography.Text>This page could not be found.</Typography.Text>
+
+                <Button type="primary" onClick={() => router.push("/apps")}>
+                    Back To Apps
+                </Button>
+            </div>
+        )
+    }
 
     return (
-        <Suspense fallback={<Skeleton />}>
-            {typeof window === "undefined" ? null : isAuthRoute ? (
-                <Layout className={classes.layout}>
-                    <ErrorBoundary FallbackComponent={ErrorFallback}>
-                        {children}
-                        {contextHolder}
-                    </ErrorBoundary>
-                </Layout>
-            ) : (
-                <ProtectedRoute>
-                    <AppWithVariants
-                        isAppRoute={isAppRoute}
-                        classes={classes}
-                        appTheme={appTheme}
-                        isPlayground={isPlayground}
-                        isHumanEval={isHumanEval}
-                        isEvaluator={isEvaluator}
-                    >
-                        {children}
-                        {contextHolder}
-                    </AppWithVariants>
-                </ProtectedRoute>
+        <>
+            {typeof window === "undefined" ? null : (
+                <ThemeProvider theme={{...token, isDark: isDarkTheme}}>
+                    {isAuthRoute ? (
+                        <Layout className={classes.layout}>
+                            <ErrorBoundary FallbackComponent={ErrorFallback}>
+                                {children}
+                                {contextHolder}
+                            </ErrorBoundary>
+                        </Layout>
+                    ) : (
+                        <AppWithVariants
+                            isAppRoute={isAppRoute}
+                            classes={classes}
+                            appTheme={appTheme}
+                            isPlayground={isPlayground}
+                        >
+                            <div>
+                                {children}
+                                {contextHolder}
+                            </div>
+                        </AppWithVariants>
+                    )}
+                </ThemeProvider>
             )}
-        </Suspense>
+        </>
     )
 }
 
-export default App
+export default memo(App)

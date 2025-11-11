@@ -1,15 +1,3 @@
-import {EvaluationType} from "@agenta/oss/src/lib/enums"
-import {convertToCsv, downloadCsv} from "@agenta/oss/src/lib/helpers/fileManipulations"
-import {formatCurrency, formatLatency} from "@agenta/oss/src/lib/helpers/formatters"
-import {isDemo} from "@agenta/oss/src/lib/helpers/utils"
-import {
-    Evaluation,
-    GenericObject,
-    TypedValue,
-    Variant,
-    _Evaluation,
-    EvaluationScenario,
-} from "@agenta/oss/src/lib/Types"
 import dayjs from "dayjs"
 import capitalize from "lodash/capitalize"
 import round from "lodash/round"
@@ -21,6 +9,81 @@ import {
     SingleModelEvaluationListTableDataType,
 } from "@/oss/lib/Types"
 import {fetchEvaluatonIdsByResource} from "@/oss/services/evaluations/api"
+
+import {EvaluationType} from "../enums"
+import {
+    Evaluation,
+    GenericObject,
+    TypedValue,
+    Variant,
+    _Evaluation,
+    EvaluationScenario,
+} from "../Types"
+
+import {convertToCsv, downloadCsv} from "./fileManipulations"
+import {formatCurrency, formatLatency} from "./formatters"
+import {isDemo} from "./utils"
+
+export const exportExactEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
+        return {
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
+                ? data?.columnData0
+                : data.outputs[0]?.variant_output,
+            ["Correct answer"]: data.correctAnswer,
+            ["Evaluation"]: data.score,
+        }
+    })
+    const exportCol = Object.keys(exportRow[0])
+
+    const csvData = convertToCsv(exportRow, exportCol)
+    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
+    downloadCsv(csvData, filename)
+}
+
+export const exportSimilarityEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
+        return {
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
+                ? data?.columnData0
+                : data.outputs[0]?.variant_output,
+            ["Correct answer"]: data.correctAnswer,
+            ["Score"]: data.score,
+            ["Evaluation"]: data.similarity,
+        }
+    })
+    const exportCol = Object.keys(exportRow[0])
+
+    const csvData = convertToCsv(exportRow, exportCol)
+    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
+    downloadCsv(csvData, filename)
+}
+
+export const exportAICritiqueEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
+        return {
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
+                ? data?.columnData0
+                : data.outputs[0]?.variant_output,
+            ["Correct answer"]: data.correctAnswer,
+            ["Score"]: data.score,
+        }
+    })
+    const exportCol = Object.keys(exportRow[0])
+
+    const csvData = convertToCsv(exportRow, exportCol)
+    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
+    downloadCsv(csvData, filename)
+}
 
 export const exportABTestingEvaluationData = (
     evaluation: Evaluation,
@@ -94,6 +157,73 @@ export const exportSingleModelEvaluationData = (
     downloadCsv(csvData, filename)
 }
 
+export const exportRegexEvaluationData = (
+    evaluation: Evaluation,
+    rows: GenericObject[],
+    settings: GenericObject,
+) => {
+    const exportRow = rows.map((data, ix) => {
+        const isCorrect = data.score === "correct"
+        const isMatch = settings.regexShouldMatch ? isCorrect : !isCorrect
+
+        return {
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
+                ? data?.columnData0
+                : data.outputs[0]?.variant_output,
+            ["Match / Mismatch"]: isMatch ? "Match" : "Mismatch",
+            ["Evaluation"]: data.score,
+        }
+    })
+    const exportCol = Object.keys(exportRow[0])
+
+    const csvData = convertToCsv(exportRow, exportCol)
+    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
+    downloadCsv(csvData, filename)
+}
+
+export const exportWebhookEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
+        return {
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
+                ? data?.columnData0
+                : data.outputs[0]?.variant_output,
+            ["Correct answer"]: data.correctAnswer,
+            ["Score"]: data.score,
+        }
+    })
+    const exportCol = Object.keys(exportRow[0])
+
+    const csvData = convertToCsv(exportRow, exportCol)
+    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
+    downloadCsv(csvData, filename)
+}
+
+export const exportCustomCodeEvaluationData = (evaluation: Evaluation, rows: GenericObject[]) => {
+    const exportRow = rows.map((data, ix) => {
+        return {
+            ["Inputs"]:
+                evaluation.testset.csvdata[ix]?.[evaluation.testset.testsetChatColumn] ||
+                data.inputs[0].input_value,
+            [`App Variant ${evaluation.variants[0].variantName} Output`]: data?.columnData0
+                ? data?.columnData0
+                : data.outputs[0]?.variant_output,
+            ["Correct answer"]: data.correctAnswer,
+            ["Score"]: data.score,
+        }
+    })
+    const exportCol = Object.keys(exportRow[0])
+
+    const csvData = convertToCsv(exportRow, exportCol)
+    const filename = `${evaluation.appName}_${evaluation.variants[0].variantName}_${evaluation.evaluationType}.csv`
+    downloadCsv(csvData, filename)
+}
+
 export const calculateResultsDataAvg = (resultsData: Record<string, number>, multiplier = 10) => {
     const obj = {...resultsData}
     Object.keys(obj).forEach((key) => {
@@ -154,28 +284,8 @@ export function getTypedValue(res?: TypedValue) {
             return formatCurrency(Number(value))
         case "latency":
             return formatLatency(Number(value))
-        case "string":
-        case "text":
-            return value?.toString() ?? "-"
-        case "code":
-        case "regex":
-            return value?.toString() ?? "-"
-        case "object":
-            return typeof value === "object"
-                ? JSON.stringify(value, null, 2)
-                : (value?.toString() ?? "-")
-        case "messages":
-            return Array.isArray(value)
-                ? value
-                      .map((msg) => (typeof msg === "string" ? msg : JSON.stringify(msg)))
-                      .join("\n")
-                : (value?.toString() ?? "-")
-        case "multiple_choice":
-            return Array.isArray(value) ? value.join(", ") : (value?.toString() ?? "-")
-        case "hidden":
-            return "-"
         default:
-            return value?.toString() ?? "-"
+            return value?.toString()
     }
 }
 

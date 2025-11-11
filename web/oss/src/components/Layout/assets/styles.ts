@@ -16,12 +16,10 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
     }),
     content: ({footerHeight}: StyleProps) => ({
         height: `calc(100% - ${footerHeight ?? 0}px)`,
-        paddingTop: "24px",
         paddingLeft: "1.5rem",
         paddingRight: "1.5rem",
         marginBottom: `calc(2rem + ${footerHeight ?? 0}px)`,
         flex: 1,
-        gap: 16,
     }),
     breadcrumbContainer: {
         display: "flex",
@@ -81,7 +79,6 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         minHeight: "100vh",
         alignItems: "center",
         justifyContent: "center",
-        gap: 16,
         "& .ant-typography:nth-of-type(1)": {
             fontSize: 24,
             fontWeight: 600,

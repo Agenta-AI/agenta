@@ -18,7 +18,6 @@ from oss.src.models.deprecated_models import (
     DeprecatedEvaluationScenarioDB as EvaluationScenarioDB,
     DeprecatedHumanEvaluationScenarioDB as HumanEvaluationScenarioDB,
     DeprecatedHumanEvaluationDB as HumanEvaluationDB,
-    DeprecatedEvaluatorConfigDBwProject as EvaluatorConfigDB,
     DeprecatedEvaluationDB as EvaluationDB,
     DeprecatedAppVariantRevisionsDB as AppVariantRevisionsDB,
     DeprecatedAppEnvironmentRevisionDB as AppEnvironmentRevisionDB,
@@ -27,7 +26,8 @@ from oss.src.models.db_models import (
     VariantBaseDB,
     DeploymentDB,
     AppEnvironmentDB,
-    TestsetDB,
+    EvaluatorConfigDB,
+    TestSetDB,
 )
 
 
@@ -45,7 +45,7 @@ MODELS = [
     EvaluatorConfigDB,
     HumanEvaluationDB,
     HumanEvaluationScenarioDB,
-    TestsetDB,
+    TestSetDB,
 ]
 
 
@@ -101,7 +101,7 @@ def add_completion_testset_to_project(session: Session, project_id: str):
                 "name": f"completion_testset",
                 "csvdata": csvdata,
             }
-            testset_db = TestsetDB(
+            testset_db = TestSetDB(
                 **testset,
                 project_id=uuid.UUID(project_id),
             )

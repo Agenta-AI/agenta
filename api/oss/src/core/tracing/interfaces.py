@@ -1,180 +1,133 @@
-from typing import List, Optional, Dict, Any
 from uuid import UUID
-from abc import ABC, abstractmethod
+from typing import List, Optional
 
 from oss.src.core.tracing.dtos import (
     OTelLink,
+    OTelLinks,
     OTelFlatSpan,
-    TracingQuery,
-    Bucket,
-    MetricSpec,
-    MetricsBucket,
+    OTelFlatSpans,
+    Query,
 )
 
 
-class TracingDAOInterface(ABC):
+class TracingDAOInterface:
     def __init__(self):
         raise NotImplementedError
 
     ### CRUD on spans
 
-    @abstractmethod
     async def create_span(
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
-        #
         span_dto: OTelFlatSpan,
+        user_id: Optional[UUID] = None,
     ) -> Optional[OTelLink]:
         raise NotImplementedError
 
-    @abstractmethod
     async def create_spans(
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
-        #
-        span_dtos: List[OTelFlatSpan],
-    ) -> List[OTelLink]:
+        span_dtos: OTelFlatSpans,
+        user_id: Optional[UUID] = None,
+    ) -> Optional[OTelLinks]:
         raise NotImplementedError
 
-    @abstractmethod
     async def read_span(
         self,
         *,
         project_id: UUID,
-        #
         span_id: UUID,
     ) -> Optional[OTelFlatSpan]:
         raise NotImplementedError
 
-    @abstractmethod
     async def read_spans(
         self,
         *,
         project_id: UUID,
-        #
         span_ids: List[UUID],
-    ) -> List[OTelFlatSpan]:
+    ) -> Optional[OTelFlatSpans]:
         raise NotImplementedError
 
-    @abstractmethod
     async def update_span(
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
-        #
         span_dto: OTelFlatSpan,
+        user_id: Optional[UUID] = None,
     ) -> Optional[OTelLink]:
         raise NotImplementedError
 
-    @abstractmethod
     async def update_spans(
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
-        #
-        span_dtos: List[OTelFlatSpan],
-    ) -> List[OTelLink]:
+        span_dtos: OTelFlatSpans,
+        user_id: Optional[UUID] = None,
+    ) -> Optional[OTelLinks]:
         raise NotImplementedError
 
-    @abstractmethod
     async def delete_span(
         self,
         *,
         project_id: UUID,
-        #
         span_id: UUID,
+        user_id: Optional[UUID] = None,
     ) -> Optional[OTelLink]:
         raise NotImplementedError
 
-    @abstractmethod
     async def delete_spans(
         self,
         *,
         project_id: UUID,
-        #
         span_ids: List[UUID],
-    ) -> List[OTelLink]:
+        user_id: Optional[UUID] = None,
+    ) -> Optional[OTelLinks]:
         raise NotImplementedError
 
     ### .R.D on traces
 
-    @abstractmethod
     async def read_trace(
         self,
         *,
         project_id: UUID,
-        #
         trace_id: UUID,
-    ) -> List[OTelFlatSpan]:
+    ) -> Optional[OTelFlatSpans]:
         raise NotImplementedError
 
-    @abstractmethod
     async def read_traces(
         self,
         *,
         project_id: UUID,
-        #
         trace_ids: List[UUID],
-    ) -> List[OTelFlatSpan]:
+    ) -> Optional[OTelFlatSpans]:
         raise NotImplementedError
 
-    @abstractmethod
     async def delete_trace(
         self,
         *,
         project_id: UUID,
-        #
         trace_id: UUID,
-    ) -> List[OTelLink]:
+        user_id: Optional[UUID] = None,
+    ) -> Optional[OTelLinks]:
         raise NotImplementedError
 
-    @abstractmethod
     async def delete_traces(
         self,
         *,
         project_id: UUID,
-        #
         trace_ids: List[UUID],
-    ) -> List[OTelLink]:
+        user_id: Optional[UUID] = None,
+    ) -> Optional[OTelLinks]:
         raise NotImplementedError
 
-    ### QUERY
+    ### RPC
 
-    @abstractmethod
     async def query(
         self,
         *,
         project_id: UUID,
-        #
-        query: TracingQuery,
-    ) -> List[OTelFlatSpan]:
-        raise NotImplementedError
-
-    ### ANALYTICS
-
-    @abstractmethod
-    async def legacy_analytics(
-        self,
-        *,
-        project_id: UUID,
-        #
-        query: TracingQuery,
-    ) -> List[Bucket]:
-        raise NotImplementedError
-
-    @abstractmethod
-    async def analytics(
-        self,
-        *,
-        project_id: UUID,
-        #
-        query: TracingQuery,
-        specs: List[MetricSpec],
-    ) -> List[MetricsBucket]:
+        query: Query,
+    ) -> Optional[OTelFlatSpans]:
         raise NotImplementedError

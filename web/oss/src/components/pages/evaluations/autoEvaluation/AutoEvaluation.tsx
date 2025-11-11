@@ -1,326 +1,684 @@
-import {useCallback, useMemo, useState} from "react"
+// @ts-nocheck
+import {useEffect, useMemo, useRef, useState} from "react"
 
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
-import {message} from "antd"
+import {MoreOutlined} from "@ant-design/icons"
+import {
+    ArrowsLeftRight,
+    Database,
+    Export,
+    Gauge,
+    GearSix,
+    Note,
+    Plus,
+    Rocket,
+    Trash,
+} from "@phosphor-icons/react"
+import {Button, Dropdown, DropdownProps, message, Space, Table, Tag, theme, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
+import dayjs from "dayjs"
 import {useAtom} from "jotai"
+import uniqBy from "lodash/uniqBy"
 import {useRouter} from "next/router"
+import {createUseStyles} from "react-jss"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
-import {getColumns} from "@/oss/components/HumanEvaluations/assets/utils"
-import {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
+import NewEvaluationModal from "@/oss/components/pages/evaluations/NewEvaluation/NewEvaluationModal"
+import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import {getAppValues} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
-import useURL from "@/oss/hooks/useURL"
-import {EvaluationType} from "@/oss/lib/enums"
-import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
-import useEvaluations from "@/oss/lib/hooks/useEvaluations"
-import {tempEvaluationAtom} from "@/oss/lib/hooks/usePreviewRunningEvaluations/states/runningEvalAtom"
-import useRunMetricsMap from "@/oss/lib/hooks/useRunMetricsMap"
-import {EvaluationStatus} from "@/oss/lib/Types"
-import {useAppsData} from "@/oss/state/app"
+import {useQueryParam} from "@/oss/hooks/useQuery"
+import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
+import {formatDate24, formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {calcEvalDuration, getTypedValue} from "@/oss/lib/helpers/evaluate"
+import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
+import {shortPoll} from "@/oss/lib/helpers/utils"
+import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
+import {_Evaluation, EvaluationStatus, GenericObject} from "@/oss/lib/Types"
+import {
+    deleteEvaluations,
+    fetchAllEvaluations,
+    fetchAllEvaluatorConfigs,
+    fetchAllEvaluators,
+    fetchEvaluationStatus,
+} from "@/oss/services/evaluations/api"
 
-import {buildAppScopedUrl, buildEvaluationNavigationUrl, extractEvaluationAppId} from "../utils"
+import {runningStatuses, statusMapper} from "../../evaluations/cellRenderers/cellRenderers"
+import StatusRenderer from "../cellRenderers/StatusRenderer"
+import EvaluationErrorPopover from "../EvaluationErrorProps/EvaluationErrorPopover"
 
-import AutoEvaluationHeader from "./assets/AutoEvaluationHeader"
+import EvaluatorsModal from "./EvaluatorsModal/EvaluatorsModal"
+import EditColumns, {generateEditItems} from "./Filters/EditColumns"
+import {getFilterParams} from "./Filters/SearchFilter"
 
-interface AutoEvaluationProps {
-    viewType?: "overview" | "evaluation"
-    scope?: "app" | "project"
-}
+const useStyles = createUseStyles(() => ({
+    button: {
+        display: "flex",
+        alignItems: "center",
+    },
+}))
 
-const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluationProps) => {
-    const routeAppId = useAppId()
-    const activeAppId = scope === "app" ? routeAppId || undefined : undefined
+const AutoEvaluation = () => {
+    const classes = useStyles()
+    const appId = useAppId()
     const router = useRouter()
-    const {baseAppURL, projectURL} = useURL()
+    const {token} = theme.useToken()
 
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
-
-    const [selectedEvalRecord, setSelectedEvalRecord] = useState<EvaluationRow>()
+    const [evaluationList, setEvaluationList] = useState<_Evaluation[]>([])
+    const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
+    const [isEvalLoading, setIsEvalLoading] = useState(false)
+    const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
+    const setEvaluatorConfigs = useAtom(evaluatorConfigsAtom)[1]
+    const [selectedEvalRecord, setSelectedEvalRecord] = useState<_Evaluation>()
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
-    const [isDeletingEvaluations, setIsDeletingEvaluations] = useState(false)
-    const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
-    const [tempEvaluation, setTempEvaluation] = useAtom(tempEvaluationAtom)
-    const {apps: availableApps = []} = useAppsData()
+    const [isDeleteEvalMultipleModalOpen, setIsDeleteEvalMultipleModalOpen] = useState(false)
+    const [editColumns, setEditColumns] = useState<string[]>([])
+    const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
+    const [isConfigEvaluatorModalOpen, setIsConfigEvaluatorModalOpen] = useQueryParam(
+        "configureEvaluatorModal",
+        "",
+    )
+    const stoppers = useRef<Function>()
+    const [current, setCurrent] = useState(0)
 
-    const {
-        mergedEvaluations: _mergedEvaluations,
-        isLoadingPreview,
-        isLoadingLegacy,
-        refetch,
-        handleDeleteEvaluations: deleteEvaluations,
-        previewEvaluations,
-    } = useEvaluations({
-        withPreview: true,
-        types: [EvaluationType.automatic, EvaluationType.auto_exact_match],
-        evalType: "auto",
-        appId: activeAppId,
-    })
+    const runningEvaluationIds = useMemo(
+        () =>
+            evaluationList
+                .filter((item) => runningStatuses.includes(item.status.value))
+                .map((item) => item.id),
+        [evaluationList, runningStatuses],
+    )
 
-    const previewAutoEvals = useMemo(() => {
-        const evals = previewEvaluations.swrData?.data?.runs || []
-        if (!evals.length) return []
+    useEffect(() => {
+        stoppers.current?.()
 
-        return evals.filter((run) => {
-            const steps = Array.isArray(run?.data?.steps) ? run.data.steps : []
-            const hasOnlyAutoAnnotations = steps.every(
-                (step) => step?.type !== "annotation" || step?.origin === "auto",
+        if (runningEvaluationIds.length) {
+            stoppers.current = shortPoll(
+                () =>
+                    Promise.all(runningEvaluationIds.map((id) => fetchEvaluationStatus(id)))
+                        .then((res) => {
+                            setEvaluationList((prev) => {
+                                const newEvals = [...prev]
+                                runningEvaluationIds.forEach((id, ix) => {
+                                    const index = newEvals.findIndex((e) => e.id === id)
+                                    if (index !== -1) {
+                                        newEvals[index].status = res[ix].status
+                                        newEvals[index].duration = calcEvalDuration(newEvals[index])
+                                    }
+                                })
+                                if (
+                                    res.some((item) => !runningStatuses.includes(item.status.value))
+                                ) {
+                                    fetchEvaluations()
+                                }
+                                return newEvals
+                            })
+                        })
+                        .catch(console.error),
+                {delayMs: 5000, timeoutMs: Infinity},
+            ).stopper
+        }
+
+        return () => {
+            stoppers.current?.()
+        }
+    }, [JSON.stringify(runningEvaluationIds)])
+
+    useEffect(() => {
+        if (!appId) return
+
+        fetchEvaluations()
+    }, [appId])
+
+    useEffect(() => {
+        const defaultColumnNames = columns.flatMap((col) =>
+            "children" in col ? [col.key, ...col.children.map((child) => child.key)] : [col.key],
+        )
+        setEditColumns(defaultColumnNames as string[])
+    }, [isEvalLoading])
+
+    const fetchEvaluations = async () => {
+        try {
+            setIsEvalLoading(true)
+            const [allEvaluations, allEvaluators, allEvaluatorConfigs] = await Promise.all([
+                fetchAllEvaluations(appId),
+                fetchAllEvaluators(),
+                fetchAllEvaluatorConfigs(appId),
+            ])
+            const result = allEvaluations.sort(
+                (a, b) =>
+                    new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
             )
-            const isLive = run?.flags?.isLive === true || run?.flags?.is_live === true
-            const source =
-                typeof run?.meta?.source === "string" ? run.meta.source.toLowerCase() : undefined
-            const isOnlineSource = source === "online_evaluation_drawer"
-            return hasOnlyAutoAnnotations && !isLive && !isOnlineSource
-        })
-    }, [previewEvaluations])
+            setEvaluationList(result)
+            setEvaluators(allEvaluators)
+            setEvaluatorConfigs(allEvaluatorConfigs)
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsEvalLoading(false)
+        }
+    }
 
-    const mergedEvaluations = useMemo(() => {
-        const mergedIds = new Set(_mergedEvaluations?.map((e) => e.id))
-        const filteredTempEvals = tempEvaluation.filter((e) => !mergedIds.has(e.id))
-        return [..._mergedEvaluations, ...filteredTempEvals]
-    }, [_mergedEvaluations, tempEvaluation])
+    const handleDeleteMultipleEvaluations = async () => {
+        const evaluationsIds = selectedRowKeys.map((key) => key.toString())
+        try {
+            setIsEvalLoading(true)
+            await deleteEvaluations(evaluationsIds)
+            setEvaluationList((prevEvaluationsList) =>
+                prevEvaluationsList.filter((evaluation) => !evaluationsIds.includes(evaluation.id)),
+            )
+            setSelectedRowKeys([])
+            message.success("Evaluations Deleted")
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsEvalLoading(false)
+        }
+    }
 
-    const runIds = useMemo(() => {
-        return mergedEvaluations
-            .map((evaluation) => {
-                const candidate = "id" in evaluation ? evaluation.id : evaluation.key
-                return typeof candidate === "string" ? candidate.trim() : undefined
-            })
-            .filter((id): id is string => Boolean(id && id.length > 0))
-    }, [mergedEvaluations])
-    const evaluatorSlugs = useMemo(() => {
-        const evaSlugs = new Set<string>()
-        previewAutoEvals.forEach((e) => {
-            e?.data.steps?.forEach((step) => {
-                if (step.type === "annotation") {
-                    evaSlugs.add(step.key)
-                }
-            })
-        })
-        return evaSlugs
-    }, [previewAutoEvals])
+    const handleDeleteEvaluation = async (record: _Evaluation) => {
+        try {
+            setIsEvalLoading(true)
+            await deleteEvaluations([record.id])
+            setEvaluationList((prevEvaluationsList) =>
+                prevEvaluationsList.filter((evaluation) => ![record.id].includes(evaluation.id)),
+            )
+            message.success("Evaluation Deleted")
+        } catch (error) {
+            console.error(error)
+        } finally {
+            setIsEvalLoading(false)
+        }
+    }
 
-    const {data: runMetricsMap} = useRunMetricsMap(runIds, evaluatorSlugs)
+    const compareDisabled = useMemo(() => {
+        const evalList = evaluationList.filter((e) => selectedRowKeys.includes(e.id))
 
-    const resolveAppId = useCallback(
-        (record: EvaluationRow): string | undefined => {
-            const candidate = extractEvaluationAppId(record) || activeAppId
-            return candidate
-        },
-        [activeAppId],
+        return (
+            evalList.length < 2 ||
+            evalList.some(
+                (item) =>
+                    item.status.value === EvaluationStatus.STARTED ||
+                    item.status.value === EvaluationStatus.INITIALIZED ||
+                    item.testset.id !== evalList[0].testset.id,
+            )
+        )
+    }, [selectedRowKeys])
+
+    const onToggleEvaluatorVisibility = (evalConfigId: string) => {
+        if (!editColumns.includes(evalConfigId)) {
+            setEditColumns([...editColumns, evalConfigId])
+        } else {
+            setEditColumns(editColumns.filter((item) => item !== evalConfigId))
+        }
+    }
+
+    const handleOpenChangeEditCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
+        if (info.source === "trigger" || nextOpen) {
+            setIsFilterColsDropdownOpen(nextOpen)
+        }
+    }
+
+    const handleNavigation = (variantName: string, revisionNum: string) => {
+        router.push(`/apps/${appId}/playground?variant=${variantName}&revision=${revisionNum}`)
+    }
+
+    const evaluatorConfigs = useMemo(
+        () =>
+            uniqBy(
+                evaluationList
+                    .map((item) =>
+                        item.aggregated_results.map((item) => ({
+                            ...item.evaluator_config,
+                            evaluator: evaluators.find(
+                                (e) => e.key === item.evaluator_config.evaluator_key,
+                            ),
+                        })),
+                    )
+                    .flat(),
+                "id",
+            ),
+        [evaluationList],
     )
 
-    const isRecordNavigable = useCallback(
-        (record: EvaluationRow): boolean => {
-            const status = record.status?.value || record.status
-            const evaluationId = "id" in record ? record.id : record.key
-            const recordAppId = resolveAppId(record)
-            const isActionableStatus = ![
-                EvaluationStatus.PENDING,
-                EvaluationStatus.RUNNING,
-                EvaluationStatus.CANCELLED,
-                EvaluationStatus.INITIALIZED,
-            ].includes(status)
-            return Boolean(isActionableStatus && evaluationId && recordAppId)
+    const columns: ColumnsType<_Evaluation> = [
+        {
+            title: "Variant",
+            dataIndex: "variants",
+            key: "variants",
+            fixed: "left",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (value, record) => {
+                return (
+                    <VariantDetailsWithStatus
+                        variantName={value[0].variantName}
+                        revision={record.revisions[0]}
+                    />
+                )
+            },
+            ...getFilterParams("variants", "text"),
         },
-        [resolveAppId],
-    )
-
-    const handleVariantNavigation = useCallback(
-        ({revisionId, appId: recordAppId}: {revisionId: string; appId?: string}) => {
-            const targetAppId = recordAppId || activeAppId
-            if (!targetAppId) {
-                message.warning("This application's variant is no longer available.")
-                return
-            }
-
-            router.push({
-                pathname: buildAppScopedUrl(baseAppURL, targetAppId, "/playground"),
-                query: {
-                    revisions: buildRevisionsQueryParam([revisionId]),
+        {
+            title: "Testset",
+            dataIndex: "testsetName",
+            key: "testsetName",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            render: (_, record) => {
+                return <span>{record.testset.name}</span>
+            },
+            ...getFilterParams("testset", "text"),
+        },
+        {
+            title: "Status",
+            dataIndex: "status",
+            key: "status",
+            onHeaderCell: () => ({
+                style: {minWidth: 240},
+            }),
+            render: (_, record) => {
+                return <StatusRenderer {...record} />
+            },
+            ...getFilterParams("status", "text"),
+        },
+        {
+            title: "Results",
+            key: "results",
+            onHeaderCell: () => ({style: {minWidth: 240}}),
+            children: evaluatorConfigs.map((evaluator) => ({
+                title: () => {
+                    return (
+                        <div className="w-full flex items-center justify-between">
+                            <span className="whitespace-nowrap">{evaluator.name}</span>
+                            <Tag className="ml-2" color={evaluator.evaluator?.color}>
+                                {evaluator.evaluator?.name}
+                            </Tag>
+                        </div>
+                    )
                 },
-            })
-        },
-        [activeAppId, baseAppURL, router],
-    )
+                key: evaluator.name,
+                onHeaderCell: () => ({style: {minWidth: 240}}),
+                sortDirections: ["descend", "ascend"],
+                sorter: {
+                    compare: (a, b) => {
+                        const getSortValue = (item: _Evaluation, evaluatorId: string) => {
+                            const matchingResult = item.aggregated_results.find(
+                                (result) => result.evaluator_config.id === evaluatorId,
+                            )
 
-    const handleDelete = useCallback(
-        async (ids: string[]) => {
-            setIsDeletingEvaluations(true)
-            try {
-                await deleteEvaluations(ids)
-                message.success(
-                    ids.length > 1 ? `${ids.length} Evaluations Deleted` : "Evaluation Deleted",
+                            if (matchingResult && typeof matchingResult.result.value === "number") {
+                                return matchingResult.result.value
+                            }
+
+                            return 0
+                        }
+
+                        return getSortValue(a, evaluator.id) - getSortValue(b, evaluator.id)
+                    },
+                },
+                render: (_, record) => {
+                    if (!evaluators?.length) return
+
+                    const matchingResults = record.aggregated_results.filter(
+                        (result) => result.evaluator_config.id === evaluator.id,
+                    )
+
+                    if (matchingResults.length === 0) {
+                        return <span>-</span>
+                    }
+
+                    return (
+                        <Space>
+                            {matchingResults.map((result, index) =>
+                                result.result.error ? (
+                                    <EvaluationErrorPopover result={result.result} key={index} />
+                                ) : (
+                                    <Typography key={index}>
+                                        {getTypedValue(result.result)}
+                                    </Typography>
+                                ),
+                            )}
+                        </Space>
+                    )
+                },
+            })),
+        },
+        {
+            title: "Created on",
+            dataIndex: "created_at",
+            key: "createdAt",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            sorter: {
+                compare: (a, b) => dayjs(a.created_at).valueOf() - dayjs(b.created_at).valueOf(),
+            },
+            render: (_, record) => {
+                return formatDay({date: record.created_at})
+            },
+            ...getFilterParams("created_at", "date"),
+        },
+        {
+            title: "Avg. Latency",
+            dataIndex: "average_latency",
+            key: "average_latency",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            sorter: {
+                compare: (a, b) =>
+                    Number(a.average_latency?.value) - Number(b.average_latency?.value),
+            },
+            render: (_, record) => {
+                return getTypedValue(record.average_latency)
+            },
+            ...getFilterParams("average_latency", "number"),
+        },
+        {
+            title: "Total Cost",
+            dataIndex: "average_cost",
+            key: "average_cost",
+            onHeaderCell: () => ({
+                style: {minWidth: 160},
+            }),
+            sorter: {
+                compare: (a, b) => Number(a.average_cost?.value) - Number(b.average_cost?.value),
+            },
+            render: (_, record) => {
+                return getTypedValue(record.average_cost)
+            },
+            ...getFilterParams("total_cost", "number"),
+        },
+        {
+            title: <GearSix size={16} />,
+            key: "key",
+            width: 56,
+            fixed: "right",
+            align: "center",
+            render: (_, record) => {
+                return (
+                    <Dropdown
+                        trigger={["click"]}
+                        overlayStyle={{width: 180}}
+                        menu={{
+                            items: [
+                                {
+                                    key: "details",
+                                    label: "Open details",
+                                    icon: <Note size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        if (
+                                            record.status.value === EvaluationStatus.FINISHED ||
+                                            record.status.value ===
+                                                EvaluationStatus.FINISHED_WITH_ERRORS
+                                        ) {
+                                            router.push(
+                                                `/apps/${appId}/evaluations/results/${record.id}`,
+                                            )
+                                        }
+                                    },
+                                },
+                                {
+                                    key: "variant",
+                                    label: "View variant",
+                                    icon: <Rocket size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        handleNavigation(
+                                            record.variants[0].variantName,
+                                            record.revisions[0],
+                                        )
+                                    },
+                                },
+                                {
+                                    key: "view_testset",
+                                    label: "View test set",
+                                    icon: <Database size={16} />,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        router.push(`/testsets/${record.testset.id}`)
+                                    },
+                                },
+                                {type: "divider"},
+                                {
+                                    key: "delete_eval",
+                                    label: "Delete",
+                                    icon: <Trash size={16} />,
+                                    danger: true,
+                                    onClick: (e) => {
+                                        e.domEvent.stopPropagation()
+                                        setSelectedEvalRecord(record)
+                                        setIsDeleteEvalModalOpen(true)
+                                    },
+                                },
+                            ],
+                        }}
+                    >
+                        <Button
+                            onClick={(e) => e.stopPropagation()}
+                            type="text"
+                            icon={<MoreOutlined />}
+                            size="small"
+                        />
+                    </Dropdown>
                 )
-                refetch()
-            } catch (err) {
-                message.error("Failed to delete evaluations")
-                console.error(err)
-            } finally {
-                setTempEvaluation((prev) =>
-                    prev.length > 0 ? prev.filter((e) => !ids.includes(e?.id)) : [],
+            },
+        },
+    ]
+
+    const editedColumns = columns.map((item) => ({
+        ...item,
+        hidden: !editColumns?.includes(item.key as string),
+        ...("children" in item && {
+            children: item.children.map((child) => ({
+                ...child,
+                hidden: !editColumns.includes(child.key as string),
+            })),
+        }),
+    }))
+
+    const onExport = () => {
+        const exportEvals = evaluationList.filter((e) =>
+            selectedRowKeys.some((selected) => selected === e.id),
+        )
+
+        try {
+            if (exportEvals.length) {
+                const {currentApp} = getAppValues()
+                const filename = `${currentApp?.app_name}_evaluation_scenarios.csv`
+
+                const csvData = convertToCsv(
+                    exportEvals.map((item) => ({
+                        Variant: variantNameWithRev({
+                            variant_name: item.variants[0].variantName ?? "",
+                            revision: item.revisions[0],
+                        }),
+                        Testset: item.testset.name,
+                        ...item.aggregated_results.reduce((acc, curr) => {
+                            if (!acc[curr.evaluator_config.name]) {
+                                acc[curr.evaluator_config.name] = getTypedValue(curr.result)
+                            }
+                            return acc
+                        }, {} as GenericObject),
+                        "Avg. Latency": getTypedValue(item.average_latency),
+                        "Total Cost": getTypedValue(item.average_cost),
+                        "Created on": formatDate24(item.created_at),
+                        Status: statusMapper(token)(item.status.value as EvaluationStatus).label,
+                    })),
+                    columns.flatMap((col: any) => {
+                        const titles = [col.title].filter(
+                            (title) => title !== "Results" && typeof title === "string",
+                        )
+                        const childTitles =
+                            col.children?.flatMap((item: any) => (item.key ? item.key : [])) || []
+
+                        return [...titles, ...childTitles]
+                    }),
                 )
-                setIsDeletingEvaluations(false)
-                setIsDeleteEvalModalOpen(false)
+                downloadCsv(csvData, filename)
                 setSelectedRowKeys([])
             }
-        },
-        [refetch, deleteEvaluations],
-    )
-
-    const _columns: ColumnsType<EvaluationRow> = useMemo(() => {
-        return getColumns({
-            evaluations: mergedEvaluations,
-            onVariantNavigation: handleVariantNavigation,
-            setSelectedEvalRecord,
-            setIsDeleteEvalModalOpen,
-            runMetricsMap,
-            evalType: "auto",
-            scope,
-            baseAppURL,
-            extractAppId: extractEvaluationAppId,
-            projectURL,
-            resolveAppId,
-        })
-    }, [
-        mergedEvaluations,
-        handleVariantNavigation,
-        setSelectedEvalRecord,
-        setIsDeleteEvalModalOpen,
-        runMetricsMap,
-        scope,
-        baseAppURL,
-        projectURL,
-        resolveAppId,
-    ])
-
-    const visibleColumns = useMemo(
-        () => filterColumns(_columns, hiddenColumns),
-        [_columns, hiddenColumns],
-    )
-
-    const selectedEvaluations = useMemo(() => {
-        return selectedEvalRecord
-            ? (() => {
-                  const found = mergedEvaluations.find(
-                      (e) => ("id" in e ? e.id : e.key) === selectedEvalRecord?.id,
-                  )
-                  return found && "name" in found ? found.name : (found?.key ?? "")
-              })()
-            : mergedEvaluations
-                  .filter((e) => selectedRowKeys.includes("id" in e ? e.id : e.key))
-                  .map((e) => ("name" in e ? e.name : e.id))
-                  .join(" | ")
-    }, [selectedEvalRecord, selectedRowKeys, mergedEvaluations])
-
-    const dataSource = useMemo(() => {
-        return viewType === "overview" ? mergedEvaluations.slice(0, 5) : mergedEvaluations
-    }, [mergedEvaluations, viewType])
+        } catch (error) {
+            message.error("Failed to export results. Plese try again later")
+        }
+    }
 
     return (
-        <section className="flex flex-col gap-2 pb-4">
-            <AutoEvaluationHeader
-                viewType={viewType}
-                selectedRowKeys={selectedRowKeys}
-                evaluations={mergedEvaluations}
-                columns={_columns}
-                setHiddenColumns={setHiddenColumns}
-                setSelectedRowKeys={setSelectedRowKeys}
-                selectedEvalRecord={selectedEvalRecord!}
-                setIsDeleteEvalModalOpen={setIsDeleteEvalModalOpen}
-                runMetricsMap={runMetricsMap}
-                refetch={refetch}
-                scope={scope}
-                baseAppURL={baseAppURL}
-                projectURL={projectURL}
-                activeAppId={activeAppId}
-                extractAppId={extractEvaluationAppId}
-            />
-            <EnhancedTable
-                uniqueKey="auto-evaluations"
-                loading={
-                    isLoadingPreview ||
-                    isLoadingLegacy ||
-                    (previewAutoEvals?.length > 0 && !mergedEvaluations?.length)
-                }
-                rowSelection={
-                    viewType === "evaluation"
-                        ? {
-                              type: "checkbox",
-                              columnWidth: 48,
-                              selectedRowKeys,
-                              onChange: (selectedRowKeys: React.Key[]) => {
-                                  setSelectedRowKeys(selectedRowKeys)
-                              },
-                              getCheckboxProps: (record: EvaluationRow) => ({
-                                  disabled: !isRecordNavigable(record),
-                              }),
-                          }
-                        : undefined
-                }
+        <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+                <Space>
+                    <Button
+                        type="primary"
+                        icon={<Plus size={14} />}
+                        className={classes.button}
+                        onClick={() => setNewEvalModalOpen(true)}
+                        data-cy="new-evaluation-button"
+                    >
+                        Start new evaluation
+                    </Button>
+                    <Button
+                        icon={<Gauge size={14} />}
+                        className={classes.button}
+                        onClick={() => {
+                            setIsConfigEvaluatorModalOpen("open")
+                            setCurrent(0)
+                        }}
+                    >
+                        Configure evaluators
+                    </Button>
+                </Space>
+                <Space>
+                    <Button
+                        danger
+                        type="text"
+                        icon={<Trash size={14} />}
+                        className={classes.button}
+                        onClick={() => setIsDeleteEvalMultipleModalOpen(true)}
+                        disabled={selectedRowKeys.length == 0}
+                        data-cy="delete-evaluation-button"
+                    >
+                        Delete
+                    </Button>
+                    <Button
+                        type="text"
+                        icon={<ArrowsLeftRight size={14} />}
+                        className={classes.button}
+                        disabled={compareDisabled}
+                        data-cy="evaluation-results-compare-button"
+                        onClick={() =>
+                            router.push(
+                                `/apps/${appId}/evaluations/results/compare?evaluations=${selectedRowKeys.join(",")}`,
+                            )
+                        }
+                    >
+                        Compare
+                    </Button>
+                    <Button
+                        type="text"
+                        onClick={onExport}
+                        icon={<Export size={14} className="mt-0.5" />}
+                        className={classes.button}
+                        disabled={selectedRowKeys.length == 0}
+                    >
+                        Export as CSV
+                    </Button>
+                    <EditColumns
+                        items={generateEditItems(columns as ColumnsType, editColumns)}
+                        isOpen={isFilterColsDropdownOpen}
+                        handleOpenChange={handleOpenChangeEditCols}
+                        shownCols={editColumns}
+                        onClick={({key}) => {
+                            onToggleEvaluatorVisibility(key)
+                            setIsFilterColsDropdownOpen(true)
+                        }}
+                    />
+                </Space>
+            </div>
+
+            <Table
+                loading={isEvalLoading}
+                rowSelection={{
+                    type: "checkbox",
+                    columnWidth: 48,
+                    selectedRowKeys,
+                    onChange: (selectedRowKeys: React.Key[]) => {
+                        setSelectedRowKeys(selectedRowKeys)
+                    },
+                }}
                 className="ph-no-capture"
-                showHorizontalScrollBar={true}
-                columns={visibleColumns}
-                rowKey={(record: any) => ("id" in record ? record.id : record.key)}
-                dataSource={dataSource}
-                tableLayout="fixed"
-                virtualized
-                onRow={(record) => {
-                    const navigable = isRecordNavigable(record)
-                    const recordAppId = resolveAppId(record)
-                    const evaluationId = "id" in record ? record.id : record.key
-                    return {
-                        style: {
-                            cursor: navigable ? "pointer" : "not-allowed",
-                        },
-                        className: navigable ? undefined : "cursor-not-allowed opacity-60",
-                        onClick: () => {
-                            if (!navigable || !recordAppId || !evaluationId) {
-                                message.warning(
-                                    "This evaluation's application is no longer available.",
-                                )
-                                return
-                            }
-
-                            const targetPath = buildEvaluationNavigationUrl({
-                                scope,
-                                baseAppURL,
-                                projectURL,
-                                appId: recordAppId,
-                                path: `/evaluations/results/${evaluationId}`,
-                            })
-
-                            if (scope === "project") {
-                                router.push({
-                                    pathname: targetPath,
-                                    query: recordAppId ? {app_id: recordAppId} : undefined,
-                                })
-                            } else {
-                                router.push({pathname: targetPath, query: {eval_type: "auto"}})
-                            }
-                        },
-                    }
-                }}
+                columns={editedColumns}
+                rowKey={"id"}
+                dataSource={evaluationList}
+                scroll={{x: true}}
+                bordered
+                pagination={false}
+                onRow={(record) => ({
+                    style: {
+                        cursor: [
+                            EvaluationStatus.FINISHED_WITH_ERRORS,
+                            EvaluationStatus.FINISHED,
+                        ].includes(record.status.value)
+                            ? "pointer"
+                            : "not-allowed",
+                    },
+                    onClick: () => {
+                        if (
+                            record.status.value === EvaluationStatus.FINISHED ||
+                            record.status.value === EvaluationStatus.FINISHED_WITH_ERRORS
+                        ) {
+                            router.push(`/apps/${appId}/evaluations/results/${record.id}`)
+                        }
+                    },
+                })}
             />
-            <DeleteEvaluationModal
-                confirmLoading={isDeletingEvaluations}
-                open={isDeleteEvalModalOpen}
+
+            <NewEvaluationModal
+                open={newEvalModalOpen}
                 onCancel={() => {
-                    setIsDeleteEvalModalOpen(false)
-                    setSelectedEvalRecord(undefined)
+                    setNewEvalModalOpen(false)
                 }}
-                onOk={async () => {
-                    const idsToDelete = selectedEvalRecord
-                        ? [selectedEvalRecord.id]
-                        : selectedRowKeys.map((key) => key?.toString())
-                    await handleDelete(idsToDelete.filter(Boolean))
+                onSuccess={() => {
+                    setNewEvalModalOpen(false)
+                    fetchEvaluations()
                 }}
-                evaluationType={selectedEvaluations}
-                isMultiple={!selectedEvalRecord && selectedRowKeys.length > 0}
             />
-        </section>
+
+            {isConfigEvaluatorModalOpen === "open" && (
+                <EvaluatorsModal
+                    open={isConfigEvaluatorModalOpen === "open"}
+                    onCancel={() => setIsConfigEvaluatorModalOpen("")}
+                    current={current}
+                    setCurrent={setCurrent}
+                />
+            )}
+
+            {selectedEvalRecord && (
+                <DeleteEvaluationModal
+                    open={isDeleteEvalModalOpen}
+                    onCancel={() => setIsDeleteEvalModalOpen(false)}
+                    onOk={async () => {
+                        await handleDeleteEvaluation(selectedEvalRecord)
+                        setIsDeleteEvalModalOpen(false)
+                    }}
+                    evaluationType={"automatic evaluation"}
+                />
+            )}
+            {isDeleteEvalMultipleModalOpen && (
+                <DeleteEvaluationModal
+                    open={isDeleteEvalMultipleModalOpen}
+                    onCancel={() => setIsDeleteEvalMultipleModalOpen(false)}
+                    onOk={async () => {
+                        await handleDeleteMultipleEvaluations()
+                        setIsDeleteEvalMultipleModalOpen(false)
+                    }}
+                    evaluationType={"single model evaluation"}
+                />
+            )}
+        </div>
     )
 }
 

@@ -1,11 +1,9 @@
-import type {TestEnvironmentType} from "../../../playwright/config/testTags"
 import type {BaseFixture} from "../base.fixture/types"
-
+import type {TestEnvironmentType} from "../../../playwright/config/testTags"
 import type {AuthHelpers} from "./authHelpers/types"
 
 export interface UserState {
     email: string
-    password?: string
     isAuthenticated: boolean
     environment: TestEnvironmentType
     requiresAuth: boolean

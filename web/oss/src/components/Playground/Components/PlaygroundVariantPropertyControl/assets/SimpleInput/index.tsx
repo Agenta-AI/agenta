@@ -1,4 +1,4 @@
-import {ChangeEvent, memo, useCallback} from "react"
+import {ChangeEvent, useCallback} from "react"
 
 import {Input} from "antd"
 
@@ -29,10 +29,17 @@ const SimpleInput = ({
     const [localValue, setLocalValue] = useDebounceInput<string>(value, onChange, 300, "")
 
     const handleLocalValueChange = useCallback(
-        (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-            setLocalValue(event.target.value)
+        (value: ChangeEvent<HTMLInputElement>) => {
+            setLocalValue(value.target.value)
         },
         [setLocalValue],
+    )
+
+    const change = useCallback(
+        (value: string) => {
+            onChange(value)
+        },
+        [onChange],
     )
 
     if (as === "SimpleInputWithLabel") {
@@ -52,8 +59,8 @@ const SimpleInput = ({
     return (
         <Input
             {...props}
-            value={localValue}
-            onChange={handleLocalValueChange}
+            value={value}
+            onChange={change}
             className={className}
             view={view}
             description={description}
@@ -70,4 +77,4 @@ const SimpleInput = ({
     )
 }
 
-export default memo(SimpleInput)
+export default SimpleInput

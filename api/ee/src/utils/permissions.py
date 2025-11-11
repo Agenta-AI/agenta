@@ -152,51 +152,52 @@ async def check_action_access(
         namespace="check_action_access",
         key=cache_key,
         value=has_permission,
+        ttl=5 * 60,  # seconds
     )
 
     return has_permission
 
 
-# async def check_apikey_action_access(
-#     api_key: str, user_id: str, permission: Permission
-# ):
-#     """
-#     Check if an api key belongs to a user for a workspace and has the right permission.
+async def check_apikey_action_access(
+    api_key: str, user_id: str, permission: Permission
+):
+    """
+    Check if an api key belongs to a user for a workspace and has the right permission.
 
-#     Args:
-#         api_key (str): The api key
-#         user_id (str): The user (owner) ID of the api_key
-#         permission (Permission): The permission to check for.
-#     """
+    Args:
+        api_key (str): The api key
+        user_id (str): The user (owner) ID of the api_key
+        permission (Permission): The permission to check for.
+    """
 
-#     api_key_prefix = api_key.split(".")[0]
-#     api_key_db = await db_manager.get_user_api_key_by_prefix(
-#         api_key_prefix=api_key_prefix, user_id=user_id
-#     )
-#     if api_key_db is None:
-#         raise HTTPException(
-#             404, {"message": f"API Key with prefix {api_key_prefix} not found"}
-#         )
+    api_key_prefix = api_key.split(".")[0]
+    api_key_db = await db_manager.get_user_api_key_by_prefix(
+        api_key_prefix=api_key_prefix, user_id=user_id
+    )
+    if api_key_db is None:
+        raise HTTPException(
+            404, {"message": f"API Key with prefix {api_key_prefix} not found"}
+        )
 
-#     project_db = await db_manager.get_project_by_id(
-#         project_id=str(api_key_db.project_id)
-#     )
-#     if project_db is None:
-#         raise HTTPException(
-#             404,
-#             {"message": f"Project with ID {str(api_key_db.workspace_id)} not found"},
-#         )
+    project_db = await db_manager.get_project_by_id(
+        project_id=str(api_key_db.project_id)
+    )
+    if project_db is None:
+        raise HTTPException(
+            404,
+            {"message": f"Project with ID {str(api_key_db.workspace_id)} not found"},
+        )
 
-#     has_access = await check_project_has_role_or_permission(
-#         project_db, str(api_key_db.created_by_id), None, permission
-#     )
-#     if not has_access:
-#         raise HTTPException(
-#             403,
-#             {
-#                 "message": "You do not have access to perform this action. Please contact your organization admin."
-#             },
-#         )
+    has_access = await check_project_has_role_or_permission(
+        project_db, str(api_key_db.created_by_id), None, permission
+    )
+    if not has_access:
+        raise HTTPException(
+            403,
+            {
+                "message": "You do not have access to perform this action. Please contact your organization admin."
+            },
+        )
 
 
 async def check_rbac_permission(

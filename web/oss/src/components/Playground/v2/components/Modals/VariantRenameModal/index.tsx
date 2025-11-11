@@ -17,7 +17,7 @@ const VariantRenameModal: React.FC<VariantRenameModalProps> = ({variantId, ...pr
     return (
         <Modal
             centered
-            destroyOnHidden
+            destroyOnClose
             okText="Confirm"
             onCancel={onClose}
             onOk={onRenameVariant}

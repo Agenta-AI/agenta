@@ -1,13 +1,8 @@
-from typing import Optional, Dict, Any, Union
-from uuid import UUID, uuid4
+from typing import Optional
 from urllib.parse import urlparse
+from uuid import UUID
 
-from pydantic import (
-    BaseModel,
-    Field,
-    model_validator,
-    ValidationError,
-)
+from pydantic import BaseModel, model_validator, ValidationError
 
 from jsonschema import (
     Draft202012Validator,
@@ -18,188 +13,25 @@ from jsonschema import (
 )
 from jsonschema.exceptions import SchemaError
 
-from oss.src.core.git.dtos import (
-    Artifact,
-    ArtifactCreate,
-    ArtifactEdit,
-    ArtifactQuery,
-    ArtifactFork,
-    #
-    Variant,
-    VariantCreate,
-    VariantEdit,
-    VariantQuery,
-    VariantFork,
-    #
-    Revision,
-    RevisionCreate,
-    RevisionEdit,
-    RevisionQuery,
-    RevisionFork,
-    RevisionCommit,
-    RevisionsLog,
-)
+from oss.src.core.shared.dtos import Tags
 
-from oss.src.core.shared.dtos import sync_alias, AliasConfig
-from oss.src.core.shared.dtos import (
-    Identifier,
-    Slug,
-    Version,
-    Header,
-    Data,
-    Metadata,
-    Reference,
-    Link,
-    Schema,
-    # Credentials,
-    # Secret,
-)
-
-from oss.src.core.tracing.dtos import Trace
-from oss.src.apis.fastapi.observability.models import AgentaVersionedTreeDTO as Tree
-
-from agenta.sdk.models.workflows import (
-    WorkflowServiceRequestData,  # export
-    WorkflowServiceResponseData,  # export
-    WorkflowServiceRequest,  # export
-    WorkflowServiceResponse,  # export
-    WorkflowServiceBatchResponse,  # export
-    WorkflowServiceStreamResponse,  # export
-)
-
-# aliases ----------------------------------------------------------------------
+from oss.src.core.git.dtos import Artifact, Variant, Revision
 
 
-class WorkflowIdAlias(AliasConfig):
-    workflow_id: Optional[UUID] = None
-    artifact_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_id",
-    )
-
-
-class WorkflowVariantIdAlias(AliasConfig):
-    workflow_variant_id: Optional[UUID] = None
-    variant_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_variant_id",
-    )
-
-
-class WorkflowRevisionIdAlias(AliasConfig):
-    workflow_revision_id: Optional[UUID] = None
-    revision_id: Optional[UUID] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_revision_id",
-    )
-
-
-# globals ----------------------------------------------------------------------
-
-
-class WorkflowFlags(BaseModel):
-    is_custom: bool = False
-    is_evaluator: bool = False
-    is_human: bool = False
-
-
-class WorkflowQueryFlags(BaseModel):
-    is_custom: Optional[bool] = None
-    is_evaluator: Optional[bool] = None
-    is_human: Optional[bool] = None
-
-
-# workflows --------------------------------------------------------------------
-
-
-class Workflow(Artifact):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowCreate(ArtifactCreate):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowEdit(ArtifactEdit):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowQuery(ArtifactQuery):
-    flags: Optional[WorkflowQueryFlags] = None
-
-
-# workflow variants ------------------------------------------------------------
-
-
-class WorkflowVariant(
-    Variant,
-    WorkflowIdAlias,
-):
-    flags: Optional[WorkflowFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-
-
-class WorkflowVariantCreate(
-    VariantCreate,
-    WorkflowIdAlias,
-):
-    flags: Optional[WorkflowFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-
-
-class WorkflowVariantEdit(VariantEdit):
-    flags: Optional[WorkflowFlags] = None
-
-
-class WorkflowVariantQuery(VariantQuery):
-    flags: Optional[WorkflowQueryFlags] = None
-
-
-# workflow revisions -----------------------------------------------------------
-
-
-class WorkflowServiceVersion(BaseModel):
-    version: Optional[str] = None
-
-
-class WorkflowServiceInterface(WorkflowServiceVersion):
-    uri: Optional[str] = None  # str (Enum) w/ validation
-    url: Optional[str] = None  # str w/ validation
-    headers: Optional[
-        Dict[str, Union[Reference, str]]
-    ] = None  # either hardcoded or a secret
-    # handler: Optional[Callable] = None
-
-    schemas: Optional[Dict[str, Schema]] = None  # json-schema instead of pydantic
-
-
-class WorkflowServiceConfiguration(WorkflowServiceInterface):
-    script: Optional[Data] = None  # str w/ validation
-    parameters: Optional[Data] = None  # configuration values
-
-
-class WorkflowRevisionData(WorkflowServiceConfiguration):
-    # LEGACY FIELDS
+class WorkflowData(BaseModel):
     service: Optional[dict] = None  # url, schema, kind, etc
     configuration: Optional[dict] = None  # parameters, variables, etc
 
     @model_validator(mode="after")
-    def validate_all(self) -> "WorkflowRevisionData":
+    def validate_all(self) -> "WorkflowData":
         errors = []
 
         if self.service and self.service.get("agenta") and self.service.get("format"):
-            _format = self.service.get("format")  # pylint: disable=redefined-builtin
+            format = self.service.get("format")  # pylint: disable=redefined-builtin
 
             try:
-                validator_class = self._get_validator_class_from_schema(_format)  # type: ignore
-                validator_class.check_schema(_format)  # type: ignore
+                validator_class = self._get_validator_class_from_schema(format)
+                validator_class.check_schema(format)
             except SchemaError as e:
                 errors.append(
                     {
@@ -207,7 +39,7 @@ class WorkflowRevisionData(WorkflowServiceConfiguration):
                         "msg": f"Invalid JSON Schema: {e.message}",
                         "type": "value_error",
                         "ctx": {"error": str(e)},
-                        "input": _format,
+                        "input": format,
                     }
                 )
 
@@ -260,110 +92,37 @@ class WorkflowRevisionData(WorkflowServiceConfiguration):
         return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
-class WorkflowRevision(
-    Revision,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-):
-    flags: Optional[WorkflowFlags] = None
-
-    data: Optional[WorkflowRevisionData] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
+class WorkflowFlags(BaseModel):
+    is_custom: Optional[bool] = None
+    is_evaluator: Optional[bool] = None
+    is_human: Optional[bool] = None
 
 
-class WorkflowRevisionCreate(
-    RevisionCreate,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-):
-    flags: Optional[WorkflowFlags] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
-
-
-class WorkflowRevisionEdit(RevisionEdit):
+class WorkflowArtifact(Artifact):
     flags: Optional[WorkflowFlags] = None
 
 
-class WorkflowRevisionQuery(RevisionQuery):
-    flags: Optional[WorkflowQueryFlags] = None
-
-
-class WorkflowRevisionCommit(
-    RevisionCommit,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-):
+class WorkflowVariant(Variant):
     flags: Optional[WorkflowFlags] = None
 
-    data: Optional[WorkflowRevisionData] = None
-
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
+    artifact_id: Optional[UUID] = None
+    artifact: Optional[WorkflowArtifact] = None
 
 
-class WorkflowRevisionsLog(
-    RevisionsLog,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-    WorkflowRevisionIdAlias,
-):
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
-        sync_alias("workflow_revision_id", "revision_id", self)
-
-
-# forks ------------------------------------------------------------------------
-
-
-class WorkflowRevisionFork(RevisionFork):
+class WorkflowRevision(Revision):
+    data: Optional[WorkflowData] = None
     flags: Optional[WorkflowFlags] = None
 
-    data: Optional[WorkflowRevisionData] = None
+    variant_id: Optional[UUID] = None
+    variant: Optional[WorkflowVariant] = None
 
 
-class WorkflowRevisionForkAlias(AliasConfig):
-    workflow_revision: Optional[WorkflowRevisionFork] = None
+class WorkflowQuery(BaseModel):
+    artifact_ref: Optional[WorkflowArtifact] = None
+    variant_ref: Optional[WorkflowVariant] = None
+    revision_ref: Optional[WorkflowRevision] = None
 
-    revision: Optional[RevisionFork] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_revision",
-    )
-
-
-class WorkflowVariantFork(VariantFork):
     flags: Optional[WorkflowFlags] = None
+    meta: Optional[Tags] = None
 
-
-class WorkflowVariantForkAlias(AliasConfig):
-    workflow_variant: Optional[WorkflowVariantFork] = None
-
-    variant: Optional[VariantFork] = Field(
-        default=None,
-        exclude=True,
-        alias="workflow_variant",
-    )
-
-
-class WorkflowFork(
-    ArtifactFork,
-    WorkflowIdAlias,
-    WorkflowVariantIdAlias,
-    WorkflowVariantForkAlias,
-    WorkflowRevisionIdAlias,
-    WorkflowRevisionForkAlias,
-):
-    def model_post_init(self, __context) -> None:
-        sync_alias("workflow_id", "artifact_id", self)
-        sync_alias("workflow_variant_id", "variant_id", self)
-        sync_alias("workflow_variant", "variant", self)
-        sync_alias("workflow_revision_id", "revision_id", self)
-        sync_alias("workflow_revision", "revision", self)
+    include_archived: Optional[bool] = None

@@ -10,7 +10,6 @@ AGENTA_WEB_URL=  # Use env var if available, otherwise default
 ENV_FILE=""  # Default to no env file
 BUILD=false  # Default to no forced build
 NO_CACHE=false  # Default to using cache
-NUKE=false  # Default to not nuking volumes
 
 show_usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -24,7 +23,6 @@ show_usage() {
     echo "  --env-file <path>       Specify an environment file to load variables (default: built-in)"
     echo "  --build                 Force a fresh build of containers (default: false)"
     echo "  --no-cache              Build without using cache [implies --build] (default: false)"
-    echo "  --nuke                  Remove related volumes before starting containers"
     echo "  --help                  Show this help message and exit"
     exit 0
 }
@@ -81,9 +79,6 @@ while [[ "$#" -gt 0 ]]; do
             NO_CACHE=true
             BUILD=true  # --no-cache implies --build
             ;;
-        --nuke)
-            NUKE=true
-            ;;
         --help)
             show_usage
             ;;
@@ -119,6 +114,7 @@ fi
 
 # Export the ENV_FILE to the environment
 export ENV_FILE="$ENV_FILE"
+#export ENV_FILE="$ENV_FILE"
 
 # Always append --env-file flag to COMPOSE_CMD
 COMPOSE_CMD+=" --env-file ./hosting/docker-compose/$LICENSE/$ENV_FILE"
@@ -133,43 +129,32 @@ else
     COMPOSE_CMD+=" --profile with-traefik"
 fi
 
-if [[ "$STAGE" == "dev" ]]; then
-    if $NO_CACHE; then
-        echo "Building containers with no cache (dev)..."
-        $COMPOSE_CMD build --parallel --no-cache || error_exit "Build failed"
-    elif $BUILD; then
-        echo "Building containers (dev)..."
-        $COMPOSE_CMD build --parallel || error_exit "Build failed"
-    fi
-else
-    if $NO_CACHE; then
-        echo "Pulling latest images (non-dev with --no-cache)..."
-        $COMPOSE_CMD pull || error_exit "Pull failed"
-    fi
-    # else: do nothing
+# Handle build options
+BUILD_CMD="up -d"
+if $BUILD; then
+    BUILD_CMD+=" --build"
 fi
 
-# Shutdown with optional nuke
+if $NO_CACHE; then
+    BUILD_CMD+=" --no-cache"
+fi
+
+# Restart Docker Compose safely
 echo "Stopping existing Docker containers..."
 
 # Include all profiles to ensure clean shutdown
 SHUTDOWN_CMD="$COMPOSE_CMD --profile with-web --profile with-nginx --profile with-traefik down"
-
-if $NUKE; then
-    SHUTDOWN_CMD+=" --volumes"
-fi
-
 $SHUTDOWN_CMD || error_exit "Failed to stop existing containers."
 
 echo "Starting Docker containers with domain: $AGENTA_WEB_URL ..."
-AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d || error_exit "Failed to start Docker containers."
+AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD $BUILD_CMD || error_exit "Failed to start Docker containers."
 
 echo "✅ Setup complete!"
 
 # Start the web development environment unless --no-web is provided
 if ! $WITH_WEB ; then
     echo "Setting up web environment..."
-
+    
     if [[ ! -d "web" ]]; then
         error_exit "Web directory not found!"
     fi
@@ -184,7 +169,7 @@ if ! $WITH_WEB ; then
     echo "Starting development server for $LICENSE..."
 
     sh -c "AGENTA_LICENSE=${LICENSE} ENTRYPOINT_DIR=. sh ./entrypoint.sh"
-
+    
     cd $LICENSE
     pnpm dev || error_exit "Failed to start development server."
 fi

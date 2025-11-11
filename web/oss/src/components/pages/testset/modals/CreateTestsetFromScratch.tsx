@@ -5,10 +5,13 @@ import {Button, Input, message, Typography} from "antd"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
-import useURL from "@/oss/hooks/useURL"
 import {JSSTheme, KeyValuePair, testset, TestsetCreationMode} from "@/oss/lib/Types"
-import {createNewTestset, fetchTestset, updateTestset} from "@/oss/services/testsets/api"
-import {useTestsetsData} from "@/oss/state/testset"
+import {
+    createNewTestset,
+    fetchTestset,
+    updateTestset,
+    useLoadTestsetsList,
+} from "@/oss/services/testsets/api"
 
 const {Text} = Typography
 
@@ -42,25 +45,22 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
 }) => {
     const classes = useStyles()
     const router = useRouter()
-    const {projectURL} = useURL()
     const [testsetName, setTestsetName] = useState(
         mode === "rename" ? (editTestsetValues?.name as string) : "",
     )
     const [isLoading, setIsLoading] = useState(false)
-    const {mutate} = useTestsetsData()
+    const {mutate} = useLoadTestsetsList()
 
     const handleCreateTestset = async (data?: KeyValuePair[]) => {
         setIsLoading(true)
         try {
             const rowData = data
             const response = await createNewTestset(testsetName, rowData)
-
-            await mutate()
-            message.success("Testset created successfully")
-            router.push(`${projectURL}/testsets/${response.data.id}`)
+            message.success("Test set created successfully")
+            router.push(`/testsets/${response.data.id}`)
         } catch (error) {
-            console.error("Error saving testset:", error)
-            message.error("Failed to create Testset. Please try again!")
+            console.error("Error saving test set:", error)
+            message.error("Failed to create Test set. Please try again!")
         } finally {
             setIsLoading(false)
         }
@@ -76,8 +76,8 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                 throw new Error("Failed to load instances")
             }
         } catch (error) {
-            console.error("Error cloning testset:", error)
-            message.error("Failed to clone Testset. Please try again!")
+            console.error("Error cloning test set:", error)
+            message.error("Failed to clone Test set. Please try again!")
         } finally {
             setIsLoading(false)
         }
@@ -89,15 +89,15 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             const fetchedTestset = await fetchTestset(testsetId)
             if (fetchedTestset.csvdata) {
                 await updateTestset(testsetId, testsetName, fetchedTestset.csvdata)
-                message.success("Testset renamed successfully")
+                message.success("Test set renamed successfully")
                 mutate()
                 onCancel()
             } else {
                 throw new Error("Failed to load instances")
             }
         } catch (error) {
-            console.error("Error renaming testset:", error)
-            message.error("Failed to rename Testset. Please try again!")
+            console.error("Error renaming test set:", error)
+            message.error("Failed to rename Test set. Please try again!")
         } finally {
             setIsLoading(false)
         }
@@ -122,9 +122,9 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
             case "create":
                 return "Create from scratch"
             case "clone":
-                return "Clone Testset"
+                return "Clone Test set"
             case "rename":
-                return "Rename Testset"
+                return "Rename Test set"
         }
     }, [mode])
 
@@ -146,14 +146,15 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                 <Text className={classes.headerText}>{getHeaderText}</Text>
             </div>
 
-            <Text>Create a new testset directly from the webUI</Text>
+            <Text>Create a new test set directly from the webUI</Text>
 
             <div className="grid gap-1">
-                <Text className={classes.label}>Testset Name</Text>
+                <Text className={classes.label}>Test Set Name</Text>
                 <Input
                     placeholder="Enter a name"
                     value={testsetName}
                     onChange={(e) => setTestsetName(e.target.value)}
+                    data-cy="testset-name-input"
                 />
             </div>
 
@@ -166,8 +167,9 @@ const CreateTestsetFromScratch: React.FC<Props> = ({
                     disabled={!testsetName}
                     onClick={onSubmit}
                     loading={isLoading}
+                    data-cy="create-new-testset-button"
                 >
-                    {mode === "rename" ? "Rename" : "Create testset"}
+                    {mode === "rename" ? "Rename" : "Create test set"}
                 </Button>
             </div>
         </section>

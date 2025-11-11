@@ -2,19 +2,16 @@ from enum import Enum
 from datetime import datetime
 from typing import Optional, List, Dict, Any, Union
 
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import BaseModel, Field, model_validator, field_validator
 
 from oss.src.utils import traces
 from oss.src.models.api.api_models import Result
 
-from oss.src.core.shared.dtos import Tags, Meta
 
-
-class LegacyEvaluator(BaseModel):
+class Evaluator(BaseModel):
     name: str
     key: str
     direct_use: bool
-    settings_presets: Optional[list[dict]] = None
     settings_template: dict
     description: Optional[str] = None
     oss: Optional[bool] = False
@@ -209,8 +206,6 @@ class EvaluationScenario(BaseModel):
     note: Optional[str] = None
     results: List[EvaluationScenarioResult]
 
-    model_config = ConfigDict(title="LegacyEvaluationScenario")
-
 
 class EvaluationScenarioUpdate(BaseModel):
     vote: Optional[str] = None
@@ -293,7 +288,7 @@ class LMProvidersEnum(str, Enum):
 
 
 class NewEvaluation(BaseModel):
-    name: Optional[str] = None
+    app_id: str
     revisions_ids: List[str]
     evaluators_configs: List[str]
     testset_id: str
@@ -302,6 +297,7 @@ class NewEvaluation(BaseModel):
 
 
 class NewEvaluatorConfig(BaseModel):
+    app_id: str
     name: str
     evaluator_key: str
     settings_values: dict

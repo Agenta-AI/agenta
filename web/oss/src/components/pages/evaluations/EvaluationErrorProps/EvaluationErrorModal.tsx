@@ -1,5 +1,5 @@
 import {ExclamationCircleOutlined} from "@ant-design/icons"
-import {Collapse, Modal, Typography} from "antd"
+import {Modal, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
@@ -10,7 +10,6 @@ interface EvaluationErrorModalProps {
     modalErrorMsg: {
         message: string
         stackTrace: string
-        errorType: "invoke" | "evaluation"
     }
 }
 
@@ -18,10 +17,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     errModalStackTrace: {
         "& code": {
             display: "block",
-            whiteSpace: "pre-wrap",
         },
-        maxHeight: 300,
-        overflow: "auto",
     },
 }))
 
@@ -32,16 +28,11 @@ const EvaluationErrorModal = ({
 }: EvaluationErrorModalProps) => {
     const classes = useStyles()
 
-    const errorText =
-        modalErrorMsg.errorType === "invoke"
-            ? "Failed to invoke the LLM application with the following exception:"
-            : "Failed to compute evaluation with the following exception:"
-
     return (
         <Modal
             open={isErrorModalOpen}
             footer={null}
-            destroyOnHidden
+            destroyOnClose
             title={
                 <>
                     <ExclamationCircleOutlined className="text-red-500 mr-2 mb-3" />
@@ -50,25 +41,18 @@ const EvaluationErrorModal = ({
             }
             onCancel={() => setIsErrorModalOpen(false)}
         >
-            <Typography.Paragraph>{errorText}</Typography.Paragraph>
+            <Typography.Paragraph>
+                Failed to invoke the LLM application with the following exception:
+            </Typography.Paragraph>
             {modalErrorMsg.message && (
-                <Typography.Paragraph type="danger">{modalErrorMsg.message}</Typography.Paragraph>
+                <Typography.Paragraph type="danger" strong>
+                    {modalErrorMsg.message}
+                </Typography.Paragraph>
             )}
             {modalErrorMsg.stackTrace && (
-                <Collapse
-                    ghost
-                    items={[
-                        {
-                            key: "1",
-                            label: "Traceback",
-                            children: (
-                                <Typography.Paragraph code className={classes.errModalStackTrace}>
-                                    {modalErrorMsg.stackTrace}
-                                </Typography.Paragraph>
-                            ),
-                        },
-                    ]}
-                />
+                <Typography.Paragraph code className={classes.errModalStackTrace}>
+                    {modalErrorMsg.stackTrace}
+                </Typography.Paragraph>
             )}
         </Modal>
     )

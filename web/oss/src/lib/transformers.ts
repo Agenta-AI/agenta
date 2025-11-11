@@ -1,8 +1,6 @@
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
+import {getAppValues} from "@/oss/contexts/app.context"
 import {TraceSpan} from "@/oss/lib/Types"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
-
-import {getAppValues} from "../state/app"
 
 import {EvaluationType} from "./enums"
 import {formatDay} from "./helpers/dateTimeHelper"
@@ -38,8 +36,7 @@ export const fromEvaluationResponseToEvaluation = (item: EvaluationResponseType)
 
     return {
         id: item.id,
-        createdAtTimestamp: dayjs(item.created_at, "YYYY/MM/DD H:mm:ssAZ").valueOf(),
-        createdAt: formatDay({date: item.created_at, outputFormat: "DD MMM YYYY | h:mm a"}),
+        createdAt: formatDay({date: item.created_at}),
         user: {
             id: item.user_id,
             username: item.user_username,
@@ -123,7 +120,6 @@ export const singleModelTestEvaluationTransformer = ({
 }) => ({
     key: item.id,
     createdAt: item.createdAt,
-    createdAtTimestamp: item.createdAtTimestamp,
     variants: item.variants,
     scoresData: result.scores_data,
     evaluationType: item.evaluationType,

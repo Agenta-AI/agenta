@@ -10,7 +10,7 @@ const VariantResetChangesModal: React.FC<VariantResetChangesModalProps> = ({...p
     return (
         <Modal
             centered
-            destroyOnHidden
+            destroyOnClose
             okText="Reset"
             title="Reset changes"
             onCancel={onClose}

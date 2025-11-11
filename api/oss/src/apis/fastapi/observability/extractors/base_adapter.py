@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Dict, Optional, Protocol
 from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
     CanonicalAttributes,
     SpanFeatures,

@@ -36,6 +36,7 @@ router = APIRouter()
 log = get_module_logger(__name__)
 
 
+
 @router.get("/own/", response_model=OrganizationOutput, operation_id="get_own_org")
 async def get_user_organization(
     request: Request,
@@ -53,9 +54,9 @@ async def get_user_organization(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{organization_id}/", operation_id="fetch_ee_organization_details")
+@router.get("/{org_id}/", operation_id="fetch_ee_organization_details")
 async def fetch_organization_details(
-    organization_id: str,
+    org_id: str,
     request: Request,
 ):
     """Get an organization's details.
@@ -70,7 +71,7 @@ async def fetch_organization_details(
 
     try:
         workspace_id = await db_manager_ee.get_default_workspace_id_from_organization(
-            organization_id=organization_id
+            organization_id=org_id
         )
 
         project_id = await db_manager.get_default_project_id_from_workspace(
@@ -96,16 +97,14 @@ async def fetch_organization_details(
         user_org_workspace_data = await get_user_org_and_workspace_id(
             request.state.user_id
         )
-        has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id
-        )
+        has_permission = await check_user_org_access(user_org_workspace_data, org_id)
         if not has_permission:
             return JSONResponse(
                 status_code=403,
                 content={"detail": "You do not have access to this organization"},
             )
 
-        organization = await get_organization_details(organization_id)
+        organization = await get_organization_details(org_id)
 
         if membership.role == "viewer" or membership.is_demo:
             if "default_workspace" in organization:
@@ -123,9 +122,9 @@ async def fetch_organization_details(
         )
 
 
-@router.put("/{organization_id}/", operation_id="update_organization")
+@router.put("/{org_id}/", operation_id="update_organization")
 async def update_organization(
-    organization_id: str,
+    org_id: str,
     payload: OrganizationUpdate,
     request: Request,
 ):
@@ -140,7 +139,7 @@ async def update_organization(
             request.state.user_id
         )
         has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id, check_owner=True
+            user_org_workspace_data, org_id, check_owner=True
         )
         if not has_permission:
             return JSONResponse(
@@ -148,7 +147,7 @@ async def update_organization(
                 status_code=403,
             )
 
-        organization = await update_an_organization(organization_id, payload)
+        organization = await update_an_organization(org_id, payload)
 
         return organization
 
@@ -160,12 +159,12 @@ async def update_organization(
 
 
 @router.post(
-    "/{organization_id}/workspaces/",
+    "/{org_id}/workspaces/",
     operation_id="create_workspace",
     response_model=WorkspaceResponse,
 )
 async def create_workspace(
-    organization_id: str,
+    org_id: str,
     payload: CreateWorkspace,
     request: Request,
 ) -> WorkspaceResponse:
@@ -174,7 +173,7 @@ async def create_workspace(
             request.state.user_id
         )
         has_permission = await check_user_org_access(
-            user_org_workspace_data, organization_id, check_owner=True
+            user_org_workspace_data, org_id, check_owner=True
         )
         if not has_permission:
             return JSONResponse(
@@ -188,7 +187,7 @@ async def create_workspace(
                 status_code=400,
             )
         workspace = await workspace_manager.create_new_workspace(
-            payload, organization_id, user_org_workspace_data["uid"]
+            payload, org_id, user_org_workspace_data["uid"]
         )
         return workspace
 
@@ -200,12 +199,12 @@ async def create_workspace(
 
 
 @router.put(
-    "/{organization_id}/workspaces/{workspace_id}/",
+    "/{org_id}/workspaces/{workspace_id}/",
     operation_id="update_workspace",
     response_model=WorkspaceResponse,
 )
 async def update_workspace(
-    organization_id: str,
+    org_id: str,
     workspace_id: str,
     payload: UpdateWorkspace,
     request: Request,

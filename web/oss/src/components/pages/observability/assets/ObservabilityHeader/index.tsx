@@ -1,46 +1,44 @@
-import {useCallback, useEffect, useState, useMemo} from "react"
-import {useAtomValue} from "jotai"
-import {queryClientAtom} from "jotai-tanstack-query"
+import {useCallback, useEffect, useState} from "react"
 
 import {ArrowClockwise, Database, Export} from "@phosphor-icons/react"
-import {Button, Input, Radio, RadioChangeEvent, Space} from "antd"
+import {Button, Input, Pagination, Radio, RadioChangeEvent, Space} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
 
 import {SortResult} from "@/oss/components/Filters/Sort"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
+import {getAppValues} from "@/oss/contexts/app.context"
+import {useObservabilityData} from "@/oss/contexts/observability.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getNodeById} from "@/oss/lib/helpers/observability_helpers"
+import useAnnotations from "@/oss/lib/hooks/useAnnotations"
 import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
-import {getAppValues} from "@/oss/state/app"
-import {useObservability} from "@/oss/state/newObservability"
-import {
-    getAgData,
-    getAgDataInputs,
-    getAgDataOutputs,
-    getCost,
-    getLatency,
-    getTokens,
-} from "@/oss/state/newObservability/selectors/tracing"
 
-import getFilterColumns from "../getFilterColumns"
-import {buildAttributeKeyTreeOptions} from "../filters/attributeKeyOptions"
+import {TestsetTraceData} from "../../drawer/TestsetDrawer/assets/types"
+import {FILTER_COLUMNS} from "../constants"
 import {ObservabilityHeaderProps} from "../types"
 
 const EditColumns = dynamic(() => import("@/oss/components/Filters/EditColumns"), {ssr: false})
 const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
 const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
 
-const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
+const ObservabilityHeader = ({
+    setEditColumns,
+    selectedRowKeys,
+    setTestsetDrawerData,
+    editColumns,
+    columns,
+}: ObservabilityHeaderProps) => {
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isScrolled, setIsScrolled] = useState(false)
 
     const {
         traces,
         isLoading,
+        count,
         searchQuery,
         setSearchQuery,
         traceTabs,
@@ -49,20 +47,12 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         setFilters,
         sort,
         setSort,
+        pagination,
+        setPagination,
         fetchTraces,
-        fetchAnnotations,
-        selectedRowKeys,
-        setTestsetDrawerData,
-        editColumns,
-        setEditColumns,
-    } = useObservability()
-    const queryClient = useAtomValue(queryClientAtom)
+    } = useObservabilityData()
 
-    const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
-    const filterColumns = useMemo(
-        () => getFilterColumns(attributeKeyOptions),
-        [attributeKeyOptions],
-    )
+    const {mutate: fetchAnnotations} = useAnnotations()
 
     useEffect(() => {
         const handleScroll = () => {
@@ -76,11 +66,17 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         }
     }, [])
 
+    const handleToggleColumnVisibility = useCallback((key: string) => {
+        setEditColumns((prev) =>
+            prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
+        )
+    }, [])
+
     const updateFilter = useCallback(
-        ({field, operator, value}: {field: string; operator: FilterConditions; value: string}) => {
+        ({key, operator, value}: {key: string; operator: FilterConditions; value: string}) => {
             setFilters((prevFilters) => {
-                const otherFilters = prevFilters.filter((f) => f.field !== field)
-                return value ? [...otherFilters, {field, operator, value}] : otherFilters
+                const otherFilters = prevFilters.filter((f) => f.key !== key)
+                return value ? [...otherFilters, {key, operator, value}] : otherFilters
             })
         },
         [setFilters],
@@ -92,7 +88,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
             setSearchQuery(query)
 
             if (!query) {
-                setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "content"))
+                setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "content"))
             }
         },
         [setSearchQuery, setFilters],
@@ -100,26 +96,22 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
 
     const onSearchQueryApply = useCallback(() => {
         if (searchQuery) {
-            updateFilter({
-                field: "content",
-                operator: "contains",
-                value: searchQuery,
-            })
+            updateFilter({key: "content", operator: "contains", value: searchQuery})
         }
     }, [searchQuery, updateFilter])
 
     const onSearchClear = useCallback(() => {
-        const isSearchFilterExist = filters.some((item) => item.field === "content")
+        const isSearchFilterExist = filters.some((item) => item.key === "content")
 
         if (isSearchFilterExist) {
-            setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "content"))
+            setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "content"))
         }
     }, [filters])
 
     // Sync searchQuery with filters state
     useLazyEffect(() => {
-        const dataFilter = filters.find((f) => f.field === "content")
-        setSearchQuery(dataFilter && typeof dataFilter.value === "string" ? dataFilter.value : "")
+        const dataFilter = filters.find((f) => f.key === "content")
+        setSearchQuery(dataFilter ? dataFilter.value : "")
     }, [filters])
 
     const onApplyFilter = useCallback((newFilters: Filter[]) => {
@@ -130,40 +122,35 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         setFilters(filter)
         setSearchQuery("")
         if (traceTabs === "chat") {
-            setTraceTabs("trace")
+            setTraceTabs("tree")
         }
     }, [])
 
     const onTraceTabChange = useCallback(
-        (e: RadioChangeEvent) => {
+        async (e: RadioChangeEvent) => {
             const selectedTab = e.target.value
-            queryClient.removeQueries({queryKey: ["tracing"]})
             setTraceTabs(selectedTab)
 
             if (selectedTab === "chat") {
-                updateFilter({
-                    field: "span_type",
-                    operator: "is",
-                    value: selectedTab,
-                })
+                updateFilter({key: "node.type", operator: "is", value: selectedTab})
             } else {
-                const isSpanTypeFilterExist = filters.some(
-                    (item) => item.field === "span_type" && item.value === "chat",
+                const isNodeTypeFilterExist = filters.some(
+                    (item) => item.key === "node.type" && item.value === "chat",
                 )
 
-                if (isSpanTypeFilterExist) {
-                    setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "span_type"))
+                if (isNodeTypeFilterExist) {
+                    setFilters((prevFilters) => prevFilters.filter((f) => f.key !== "node.type"))
                 }
             }
         },
-        [filters, updateFilter, queryClient, setTraceTabs, setFilters],
+        [filters, traceTabs, updateFilter],
     )
 
     // Sync traceTabs with filters state
     useLazyEffect(() => {
-        const spanTypeFilter = filters.find((f) => f.field === "span_type")?.value
+        const nodeTypeFilter = filters.find((f) => f.key === "node.type")?.value
         setTraceTabs((prev) =>
-            spanTypeFilter === "chat" ? "chat" : prev == "chat" ? "trace" : prev,
+            nodeTypeFilter === "chat" ? "chat" : prev == "chat" ? "tree" : prev,
         )
     }, [filters])
 
@@ -171,18 +158,28 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
         setSort({type, sorted, customRange})
     }, [])
 
+    const onPaginationChange = (current: number, pageSize: number) => {
+        setPagination({size: pageSize, page: current})
+    }
+    // reset pagination to page 1 whenever quearies get updated
+    useLazyEffect(() => {
+        if (pagination.page > 1) {
+            setPagination({...pagination, page: 1})
+        }
+    }, [filters, sort, traceTabs])
+
     const getTestsetTraceData = useCallback(() => {
         if (!traces?.length) return []
 
         const extractData = selectedRowKeys.map((key, idx) => {
             const node = getNodeById(traces, key as string)
-            return {data: getAgData(node) as KeyValuePair, key: node?.key, id: idx + 1}
+            return {data: node?.data as KeyValuePair, key: node?.key, id: idx + 1}
         })
 
         if (extractData.length > 0) {
-            setTestsetDrawerData(extractData)
+            setTestsetDrawerData(extractData as TestsetTraceData[])
         }
-    }, [traces, selectedRowKeys, setTestsetDrawerData])
+    }, [traces, selectedRowKeys])
 
     const onExport = useCallback(async () => {
         try {
@@ -195,30 +192,21 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                 }
 
                 // Helper function to create a trace object
-                const createTraceObject = (trace: any) => {
-                    const inputs = getAgDataInputs(trace)
-                    const outputs = getAgDataOutputs(trace)
-                    const duration = formatLatency(getLatency(trace))
-                    const cost = formatCurrency(getCost(trace))
-                    const usage = formatTokenUsage(getTokens(trace))
-
-                    return {
-                        "Trace ID": trace.trace_id,
-                        Name: trace.span_name || "N/A",
-                        "Span type": trace.span_type || "N/A",
-                        Inputs: convertToStringOrJson(inputs) || "N/A",
-                        Outputs: convertToStringOrJson(outputs) || "N/A",
-                        Duration: duration,
-                        Cost: cost,
-                        Usage: usage,
-                        Timestamp: formatDay({
-                            date: trace.start_time,
-                            inputFormat: "YYYY-MM-DDTHH:mm:ss.SSSSSS",
-                            outputFormat: "HH:mm:ss DD MMM YYYY",
-                        }),
-                        Status: trace.status_code === "failed" ? "ERROR" : "SUCCESS",
-                    }
-                }
+                const createTraceObject = (trace: any) => ({
+                    "Trace ID": trace.key,
+                    Name: trace.node.name,
+                    "Span type": trace.node.type || "N/A",
+                    Inputs: convertToStringOrJson(trace?.data?.inputs) || "N/A",
+                    Outputs: convertToStringOrJson(trace?.data?.outputs) || "N/A",
+                    Duration: formatLatency(trace?.metrics?.acc?.duration.total / 1000),
+                    Cost: formatCurrency(trace.metrics?.acc?.costs?.total),
+                    Usage: formatTokenUsage(trace.metrics?.acc?.tokens?.total),
+                    Timestamp: formatDay({
+                        date: trace.time.start,
+                        outputFormat: "HH:mm:ss DD MMM YYYY",
+                    }),
+                    Status: trace.status.code === "failed" ? "ERROR" : "SUCCESS",
+                })
 
                 const csvData = convertToCsv(
                     traces.flatMap((trace) => {
@@ -267,7 +255,7 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                             />
                         )}
                         <Input.Search
-                            placeholder="Full-text search"
+                            placeholder="Search"
                             value={searchQuery}
                             onChange={onSearchChange}
                             onPressEnter={onSearchQueryApply}
@@ -279,18 +267,18 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                         />
                         <Filters
                             filterData={filters}
-                            columns={filterColumns}
+                            columns={FILTER_COLUMNS}
                             onApplyFilter={onApplyFilter}
                             onClearFilter={onClearFilter}
                         />
                         <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
                         {isScrolled && (
                             <>
-                                <Space>
+                                <Space className="shrink-0 hidden xl:flex">
                                     <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                                        <Radio.Button value="trace">Root</Radio.Button>
+                                        <Radio.Button value="tree">Root</Radio.Button>
                                         <Radio.Button value="chat">LLM</Radio.Button>
-                                        <Radio.Button value="span">All</Radio.Button>
+                                        <Radio.Button value="node">All</Radio.Button>
                                     </Radio.Group>
                                 </Space>
 
@@ -298,19 +286,37 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                                     onClick={() => getTestsetTraceData()}
                                     icon={<Database size={14} />}
                                     disabled={traces.length === 0 || selectedRowKeys.length === 0}
-                                    tooltipProps={{title: "Add to testset"}}
+                                    tooltipProps={{title: "Add to test set"}}
                                 />
                             </>
                         )}
                     </div>
+
+                    <Pagination
+                        simple
+                        total={count}
+                        align="end"
+                        current={pagination.page}
+                        pageSize={pagination.size}
+                        onChange={onPaginationChange}
+                        className="flex items-center xl:hidden shrink-0 [&_.ant-pagination-options]:hidden lg:[&_.ant-pagination-options]:block [&_.ant-pagination-options]:!ml-2"
+                    />
+                    <Pagination
+                        total={count}
+                        align="end"
+                        current={pagination.page}
+                        pageSize={pagination.size}
+                        onChange={onPaginationChange}
+                        className="hidden xl:flex xl:items-center"
+                    />
                 </div>
                 {!isScrolled && (
                     <div className="w-full flex items-center justify-between">
                         <Space>
                             <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                                <Radio.Button value="trace">Root</Radio.Button>
+                                <Radio.Button value="tree">Root</Radio.Button>
                                 <Radio.Button value="chat">LLM</Radio.Button>
-                                <Radio.Button value="span">All</Radio.Button>
+                                <Radio.Button value="node">All</Radio.Button>
                             </Radio.Group>
                         </Space>
                         <Space>
@@ -328,15 +334,15 @@ const ObservabilityHeader = ({columns}: ObservabilityHeaderProps) => {
                                 icon={<Database size={14} />}
                                 disabled={traces.length === 0 || selectedRowKeys.length === 0}
                             >
-                                Add to testset
+                                Add to test set
                             </Button>
 
                             <EditColumns
+                                isOpen={isFilterColsDropdownOpen}
+                                handleOpenChange={setIsFilterColsDropdownOpen}
+                                selectedKeys={editColumns}
                                 columns={columns}
-                                uniqueKey="observability-table-columns"
-                                onChange={(keys) => {
-                                    setEditColumns(keys)
-                                }}
+                                onChange={handleToggleColumnVisibility}
                             />
                         </Space>
                     </div>

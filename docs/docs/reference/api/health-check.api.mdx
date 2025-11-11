@@ -5,59 +5,69 @@ description: "Health Check"
 sidebar_label: "Health Check"
 hide_title: true
 hide_table_of_contents: true
-api: eJxdUkFu2zAQ/IoxZ8Jye9SpRhEkRi5B05wModjQm4iNRLLkyogq6O/FSoobSxdC3BnuzOwOCJETiQv+cEKJmqmR+pet2b7BIHGOwWfOKAd83e30OHG2yUWloMRjZy3n/NI1mx8LGAY2eGEvCqcYG2enDsXvrJwB2dbcEsph1M+snrybNGy+LxpaljqotlcWGESSGiWKWSkMMqczp4zyOKBLjZoQibksCtuE7rSlV/ZCW3IFRYexUobtkpN+ouwfDvfc3zGdOKE8Vp8Bj6pzNn8NGyB9ZJSg6O65h4GnVv/3ndQhub+TXxg4P4eqLHXq/EuY6E6aCT+J2+wfDjBQG3MEu+2X7Q7rYK7AGjHZKeKP3lMZZpXCxT8MuCWnNWFqv/0vqLIYsrTkP723msOVlksAwu9SxIacx7h0HpYZHZdtQmVQhyx6MwzPlPkpNeOo1386TjqGyuBMydGzhnKsRvORmU7ojXt1Zy1HXYAzNd0c/WqxdHKXZbm9+Ylx/AcGdfiJ
+api: eJx1UsFu2zAM/ZXgnYU429GnZcWwBr0U63YKjIGV2VqLLWkSHcwz/O8DHTdtDUwXQeIj+fgeR4TIicQFf6hRomFqpflpG7YnGCTOMfjMGeWIj7udXjVnm1zUFJR46K3lnJ/6dvNtAcPABi/sReEUY+vs3KH4lTVnRLYNd4RynPSYVcnbmcPmZuHQsTRBuT2zwCCSNChRXJjCIHM6c8oojyP61OoQIjGXRWHb0NdbemYvtCVXUHRYN9vP0c2NQjFVWs72yckw19vfH+54uGWqOaE8Vm8BDzrERZn3sBEyREYJiu6OBxh46vS976UJyf2dxYCB8xfFNUtlcP4pzOlOWn7l9pnsiX0NA53zQnu3/bDd/W+YJWGzvz8sXpCdvXjhMcNgVnJdhYIBd+Q0Jkzdp9eAsowhS0f+Tb2VYe84XcUQ/iNFbMl5TEvncTHzuKwdKoMmZNGfcXykzD9SO036/bvnpJZUBmdKjh5VoGM1mRf91K0TDzqdtRx1U87U9hcbVhuoLl636uuX75imf188Byc=
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-api
+info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
 
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import ParamsDetails from "@theme/ParamsDetails";
-import RequestSchema from "@theme/RequestSchema";
-import StatusCodes from "@theme/StatusCodes";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
-import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Health Check"}
->
-</Heading>
+></Heading>
 
-<MethodEndpoint
-  method={"get"}
-  path={"/health"}
-  context={"endpoint"}
->
-  
-</MethodEndpoint>
-
-
+<MethodEndpoint method={"get"} path={"/health"}></MethodEndpoint>
 
 Health Check
 
-<ParamsDetails
-  parameters={undefined}
->
-  
-</ParamsDetails>
-
-<RequestSchema
-  title={"Body"}
-  body={undefined}
->
-  
-</RequestSchema>
-
-<StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{}}}}}}
->
-  
-</StatusCodes>
-
-
-      
+<div>
+  <div>
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>any</ul>
+                  </details>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>

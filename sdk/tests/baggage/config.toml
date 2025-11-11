@@ -1,0 +1,4 @@
+app_name = "baggage"
+app_id = "0193b67a-b673-7919-85c2-0b5b0a2183d3"
+backend_host = "http://localhost"
+api_key = "XELnjVve.c1f177c87250b603cf1ed2a69ebdfc1cec3124776058e7afcbba93890c515e74"

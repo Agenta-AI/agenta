@@ -1,113 +1,281 @@
 // @ts-nocheck
-import {useCallback} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {SwapOutlined} from "@ant-design/icons"
 import {Rocket} from "@phosphor-icons/react"
-import {Button, Space, Typography} from "antd"
-import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
-import Link from "next/link"
+import {Button, message, Space, Typography} from "antd"
+import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
+import {createUseStyles} from "react-jss"
+import {useSWRConfig} from "swr"
 
-import {openComparisonModalAtom} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
-import {comparisonSelectionScopeAtom} from "@/oss/components/VariantsComponents/Modals/VariantComparisonModal/store/comparisonModalStore"
+import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
+import {getPlaygroundKey} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
 import VariantsTable from "@/oss/components/VariantsComponents/Table"
-import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
-import {useQuery} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
-import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {variantsPendingAtom} from "@/oss/state/loadingSelectors"
-import {selectedVariantsCountAtom} from "@/oss/state/variant/atoms/selection"
-import {
-    recentRevisionsAtom,
-    recentRevisionsTableRowsAtom,
-} from "@/oss/state/variant/selectors/variant"
+import {useQueryParam} from "@/oss/hooks/useQuery"
+import {checkIfResourceValidForDeletion} from "@/oss/lib/helpers/evaluate"
+import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
+import {Environment, JSSTheme, Variant} from "@/oss/lib/Types"
+import {deleteSingleVariantRevision} from "@/oss/services/playground/api"
 
+import VariantDrawer from "../../../VariantsComponents/Drawers/VariantDrawer"
+import VariantComparisonModal from "../../../VariantsComponents/Modals/VariantComparisonModal"
+
+const DeployVariantModal = dynamic(
+    () => import("@/oss/components/Playground/Components/Modals/DeployVariantModal"),
+    {ssr: false},
+)
 const {Title} = Typography
 
-const VariantsOverview = () => {
-    const [, updateQuery] = useQuery()
-    const {appURL} = useURL()
+interface VariantsOverviewProps {
+    isVariantLoading: boolean
+    variantList: Variant[]
+    environments: Environment[]
+    fetchAllVariants: () => void
+    loadEnvironments: () => Promise<void>
+}
 
-    // Drawer open/close is handled in VariantDrawerWrapper based on URL param
-    const openComparisonModal = useSetAtom(openComparisonModalAtom)
-    const setComparisonSelectionScope = useSetAtom(comparisonSelectionScopeAtom)
-    const isVariantLoading = useAtomValue(variantsPendingAtom)
-    const slicedVariantList = useAtomValue(recentRevisionsTableRowsAtom)
-    const selectionScope = "overview/recent"
-    const selectedCount = useAtomValue(selectedVariantsCountAtom(selectionScope))
-    const {goToPlayground} = usePlaygroundNavigation()
+const useStyles = createUseStyles((theme: JSSTheme) => ({
+    container: {
+        display: "flex",
+        flexDirection: "column",
+        gap: theme.paddingXS,
+        "& > div h1.ant-typography": {
+            fontSize: theme.fontSize,
+        },
+    },
+}))
+
+const VariantsOverview = ({
+    variantList = [],
+    isVariantLoading,
+    environments: propsEnvironments,
+    fetchAllVariants,
+    loadEnvironments,
+}: VariantsOverviewProps) => {
+    const classes = useStyles()
+    const router = useRouter()
+    const appId = router.query.app_id as string
+    const [queryVariant, setQueryVariant] = useQueryParam("revisions")
+    const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+    const [selectedVariant, setSelectedVariant] = useState<Variant>()
+    const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
+    const [isDeployVariantModalOpen, setIsDeployVariantModalOpen] = useState(false)
+    const [isComparisonModalOpen, setIsComparisonModalOpen] = useState(false)
+    const {mutate} = useSWRConfig()
+
+    const slicedVariantList = useMemo(() => {
+        const sorted = variantList
+            .sort((a, b) => b.createdAtTimestamp - a.createdAtTimestamp)
+            .slice(0, 5)
+        return sorted
+    }, [variantList])
+
+    const selectedVariantsToCompare = useMemo(() => {
+        const variants = slicedVariantList.filter((variant) => selectedRowKeys.includes(variant.id))
+        return {
+            isCompareDisabled: variants.length !== 2,
+            compareVariantList: variants,
+        }
+    }, [selectedRowKeys])
+
+    const environments = useMemo(() => {
+        return propsEnvironments.map((env) => {
+            const deployedAppRevisionId = env.deployed_app_variant_revision_id
+            const revision = variantList?.find((variant) => variant.id === deployedAppRevisionId)
+            return {
+                ...env,
+                revision: {
+                    ...revision,
+                    revisionNumber: revision?.revision || revision?.revisionNumber || 0,
+                },
+            }
+        })
+    }, [propsEnvironments])
 
     const handleNavigation = useCallback(
-        (record?: EnhancedVariant) => {
-            const revisionId = record ? ((record as any)?._revisionId ?? record.id) : undefined
-            if (revisionId) {
-                goToPlayground(revisionId)
+        (record: EnhancedVariant) => {
+            if (selectedRowKeys.length) {
+                router.push({
+                    pathname: `/apps/${appId}/playground`,
+                    query: {revisions: JSON.stringify(selectedRowKeys)},
+                })
             } else {
-                goToPlayground()
+                router.push({
+                    pathname: `/apps/${appId}/playground`,
+                    query: record ? {revisions: JSON.stringify([record.id])} : {},
+                })
             }
         },
-        [goToPlayground],
+        [appId, router, selectedRowKeys],
     )
 
+    const handleDeleteVariant = useCallback(
+        async (selectedVariant: Variant) => {
+            try {
+                if (
+                    !(await checkIfResourceValidForDeletion({
+                        resourceType: "variant",
+                        resourceIds: [selectedVariant.variantId],
+                    }))
+                )
+                    return
+
+                await deleteSingleVariantRevision(selectedVariant.variantId, selectedVariant.id)
+                message.success("Variant removed successfully!")
+                fetchAllVariants(
+                    (state) => {
+                        if (!state) return state
+
+                        const clonedState = structuredClone(state)
+
+                        if (selectedVariant._parentVariant) {
+                            console.log("DELETE REVISION")
+                            // Handle revision deletion
+                            clonedState.variants = clonedState.variants.filter(
+                                (variant) => variant.id !== selectedVariant.id,
+                            )
+                        } else if (!selectedVariant._parentVariant && electedVariant.children) {
+                            console.log("DELETE VARIANT")
+                            // Handle variant deletion
+                            clonedState.variants = clonedState.variants.filter(
+                                (variant) =>
+                                    variant._parentVariant.id !== selectedVariant.variantId,
+                            )
+                        }
+
+                        return clonedState
+                    },
+                    {
+                        revalidate: false,
+                    },
+                )
+            } catch (error) {
+                console.error(error)
+            }
+
+            await mutate(getPlaygroundKey(), (playgroundState) => {
+                if (!playgroundState) return playgroundState
+                if (playgroundState.selected.includes(selectedVariant.variantId)) {
+                    playgroundState.selected.splice(
+                        playgroundState.selected.indexOf(selectedVariant.variantId),
+                        1,
+                    )
+                }
+
+                playgroundState.variants = playgroundState.variants.filter(
+                    (variant) => (variant.variantId || variant.id) !== selectedVariant.variantId,
+                )
+
+                return playgroundState
+            })
+
+            setIsDeleteEvalModalOpen(false)
+        },
+        [fetchAllVariants],
+    )
+
+    const handleDeployment = useCallback(() => {
+        mutate(getPlaygroundKey())
+        loadEnvironments()
+        fetchAllVariants()
+    }, [mutate, loadEnvironments])
+
     return (
-        <div className={clsx(["flex flex-col gap-2", "[&_>_div_h1.ant-typography]:text-xs"])}>
-            <div className="flex items-center justify-between">
-                <Space>
-                    <Title>Recent Prompts</Title>
-                    <Button>
-                        <Link href={`${appURL}/variants`}>View all</Link>
-                    </Button>
-                </Space>
+        <>
+            <div className={classes.container}>
+                <div className="flex items-center justify-between">
+                    <Space>
+                        <Title>Recent Prompts</Title>
+                        <Button href={`/apps/${appId}/variants`}>View all</Button>
+                    </Space>
 
-                <Space>
-                    <Button
-                        type="link"
-                        disabled={selectedCount !== 2}
-                        icon={<SwapOutlined />}
-                        onClick={() => {
-                            setComparisonSelectionScope(selectionScope)
-                            openComparisonModal()
-                        }}
-                    >
-                        Compare
-                    </Button>
+                    <Space>
+                        <Button
+                            type="link"
+                            disabled={selectedVariantsToCompare.isCompareDisabled}
+                            icon={<SwapOutlined />}
+                            onClick={() => setIsComparisonModalOpen(true)}
+                        >
+                            Compare
+                        </Button>
 
-                    <Button
-                        icon={<Rocket size={14} className="mt-[3px]" />}
-                        onClick={() => handleNavigation()}
-                    >
-                        Playground
-                    </Button>
-                </Space>
+                        <Button
+                            icon={<Rocket size={14} className="mt-[3px]" />}
+                            onClick={() => handleNavigation()}
+                        >
+                            Playground
+                        </Button>
+                    </Space>
+                </div>
+
+                <VariantsTable
+                    showEnvBadges
+                    variants={slicedVariantList}
+                    onRowClick={(variant) => {
+                        setQueryVariant(JSON.stringify([variant._revisionId ?? variant.id]))
+                        setSelectedVariant(variant)
+                    }}
+                    rowSelection={{onChange: (value) => setSelectedRowKeys(value)}}
+                    isLoading={isVariantLoading}
+                    handleOpenDetails={(record) => {
+                        setQueryVariant(JSON.stringify([variant._revisionId ?? variant.id]))
+                        setSelectedVariant(record)
+                    }}
+                    handleDeleteVariant={(record) => {
+                        setSelectedVariant(record)
+                        setIsDeleteEvalModalOpen(true)
+                    }}
+                    handleDeploy={(record) => {
+                        setIsDeployVariantModalOpen(true)
+                        setSelectedVariant(record)
+                    }}
+                    handleOpenInPlayground={(record) => {
+                        handleNavigation(record)
+                    }}
+                />
             </div>
 
-            <VariantsTable
-                showEnvBadges
-                showStableName
-                variants={slicedVariantList}
-                onRowClick={(variant) => {
-                    // Cosmetic URL update for deep linking
-                    updateQuery({
-                        revisionId: variant._revisionId ?? variant.id,
-                        drawerType: "variant",
-                    })
-                    // Open the drawer via atoms with an explicit selectedVariantId
-                }}
-                selectionScope={selectionScope}
-                isLoading={isVariantLoading}
-                handleOpenDetails={(record) => {
-                    // Cosmetic URL update for deep linking
-                    updateQuery({
-                        revisionId: record._revisionId ?? record.id,
-                        drawerType: "variant",
-                    })
-                    // Open the drawer via atoms with an explicit selectedVariantId
-                }}
-                handleOpenInPlayground={(record) => {
-                    handleNavigation(record)
-                }}
+            <VariantDrawer
+                open={!!queryVariant}
+                onClose={() => setQueryVariant("")}
+                variants={variantList}
+                type="variant"
             />
-        </div>
+
+            {selectedVariant && (
+                <DeleteEvaluationModal
+                    open={isDeleteEvalModalOpen}
+                    onCancel={() => setIsDeleteEvalModalOpen(false)}
+                    onOk={() => handleDeleteVariant(selectedVariant)}
+                    evaluationType={variantNameWithRev({
+                        variant_name: selectedVariant.variantName,
+                        revision: selectedVariant.revision,
+                    })}
+                />
+            )}
+
+            {selectedVariant && (
+                <DeployVariantModal
+                    open={isDeployVariantModalOpen}
+                    onCancel={() => setIsDeployVariantModalOpen(false)}
+                    variantId={!selectedVariant._parentVariant ? selectedVariant.variantId : null}
+                    revisionId={selectedVariant._parentVariant ? selectedVariant.id : null}
+                    environments={environments}
+                    variantName={selectedVariant.variantName}
+                    revision={selectedVariant.revision}
+                    mutate={handleDeployment}
+                />
+            )}
+
+            {!selectedVariantsToCompare.isCompareDisabled && (
+                <VariantComparisonModal
+                    open={isComparisonModalOpen}
+                    onCancel={() => setIsComparisonModalOpen(false)}
+                    compareVariantList={selectedVariantsToCompare.compareVariantList}
+                />
+            )}
+        </>
     )
 }
 

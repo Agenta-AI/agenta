@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Union, Optional
 
 from pydantic import BaseModel
 
-from oss.src.core.shared.dtos import LegacyLifecycleDTO, Windowing
+from oss.src.core.shared.dtos import LifecycleDTO
 
 
 ## --- SUB-ENTITIES --- ##
@@ -16,10 +16,9 @@ class RootDTO(BaseModel):
 
 
 class TreeType(Enum):
+    # --- VARIANTS --- #
     INVOCATION = "invocation"
-    ANNOTATION = "annotation"
-    #
-    UNKNOWN = "unknown"
+    # --- VARIANTS --- #
 
 
 class TreeDTO(BaseModel):
@@ -160,7 +159,7 @@ class SpanDTO(BaseModel):
     trace_id: str
     span_id: str
 
-    lifecycle: Optional[LegacyLifecycleDTO] = None
+    lifecycle: Optional[LifecycleDTO] = None
 
     root: RootDTO
     tree: TreeDTO
@@ -184,19 +183,18 @@ class SpanDTO(BaseModel):
 
     nodes: Optional[Dict[str, Union["SpanDTO", List["SpanDTO"]]]] = None
 
-    model_config = {
-        "json_encoders": {
-            UUID: lambda v: str(v),
+    class Config:
+        json_encoders = {
+            UUID: lambda v: str(v),  # pylint: disable=unnecessary-lambda
             datetime: lambda dt: dt.isoformat(),
-        },
-    }
+        }
 
     def encode(self, data: Any) -> Any:
         if isinstance(data, dict):
             return {k: self.encode(v) for k, v in data.items()}
         elif isinstance(data, list):
             return [self.encode(item) for item in data]
-        for type_, encoder in self.model_config["json_encoders"].items():  # type: ignore
+        for type_, encoder in self.Config.json_encoders.items():
             if isinstance(data, type_):
                 return encoder(data)
         return data
@@ -233,8 +231,10 @@ class OTelSpanDTO(BaseModel):
 ## --- QUERY --- ##
 
 
-class WindowingDTO(Windowing):
-    pass
+class WindowingDTO(BaseModel):
+    oldest: Optional[datetime] = None
+    newest: Optional[datetime] = None
+    window: Optional[int] = None
 
 
 class LogicalOperator(Enum):
@@ -306,9 +306,8 @@ class FilteringDTO(BaseModel):
 
     conditions: List[Union[ConditionDTO, "FilteringDTO"]]
 
-    model_config = {
-        "arbitrary_types_allowed": True,
-    }
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class Focus(Enum):
@@ -359,6 +358,6 @@ class MetricsDTO(BaseModel):
 
 class BucketDTO(BaseModel):
     timestamp: datetime
-    interval: int
+    window: int
     total: MetricsDTO
     error: MetricsDTO

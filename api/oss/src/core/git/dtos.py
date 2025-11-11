@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional
 from uuid import UUID
 from datetime import datetime
 
@@ -9,113 +9,40 @@ from oss.src.core.shared.dtos import (
     Slug,
     Version,
     Lifecycle,
+    Flags,
+    Meta,
     Header,
-    Metadata,
     Data,
-    Commit,
 )
 
 
-# artifacts --------------------------------------------------------------------
-
-
-class Artifact(Identifier, Slug, Lifecycle, Header, Metadata):
-    pass
-
-
-class ArtifactCreate(Slug, Header, Metadata):
-    pass
-
-
-class ArtifactEdit(Identifier, Header, Metadata):
-    pass
-
-
-class ArtifactQuery(Header, Metadata):
-    pass
-
-
-# variants ---------------------------------------------------------------------
-
-
-class Variant(Identifier, Slug, Lifecycle, Header, Metadata):
-    artifact_id: Optional[UUID] = None
-
-
-class VariantCreate(Slug, Header, Metadata):
-    artifact_id: Optional[UUID] = None
-
-
-class VariantEdit(Identifier, Header, Metadata):
-    pass
-
-
-class VariantQuery(Header, Metadata):
-    pass
-
-
-# revisions --------------------------------------------------------------------
-
-
-class Revision(Identifier, Slug, Version, Lifecycle, Header, Metadata, Commit):
-    data: Optional[Data] = None
-
-    artifact_id: Optional[UUID] = None
-    variant_id: Optional[UUID] = None
-
-
-class RevisionCreate(Slug, Header, Metadata):
-    artifact_id: Optional[UUID] = None
-    variant_id: Optional[UUID] = None
-
-
-class RevisionEdit(Identifier, Header, Metadata):
-    pass
-
-
-class RevisionQuery(Header, Metadata):
+class Commit(BaseModel):
     author: Optional[UUID] = None
-    authors: Optional[List[UUID]] = None
-
     date: Optional[datetime] = None
-    dates: Optional[List[datetime]] = None
-
     message: Optional[str] = None
 
 
-class RevisionCommit(Slug, Header, Metadata):
-    data: Optional[Data] = None
+class Artifact(Identifier, Slug, Lifecycle, Header):
+    flags: Optional[Flags] = None
+    meta: Optional[Meta] = None
 
-    message: Optional[str] = None
+
+class Variant(Identifier, Slug, Lifecycle, Header):
+    flags: Optional[Flags] = None
+    meta: Optional[Meta] = None
 
     artifact_id: Optional[UUID] = None
-    variant_id: Optional[UUID] = None
+    artifact: Optional[Artifact] = None
 
 
-class RevisionsLog(BaseModel):
-    artifact_id: Optional[UUID] = None
-    variant_id: Optional[UUID] = None
-    revision_id: Optional[UUID] = None
+class Revision(Identifier, Slug, Version, Lifecycle, Header, Commit):
+    flags: Optional[Flags] = None
+    meta: Optional[Meta] = None
 
-    depth: Optional[int] = None
-
-
-# forks ------------------------------------------------------------------------
-
-
-class RevisionFork(Slug, Header, Metadata):
     data: Optional[Data] = None
 
-    message: Optional[str] = None
+    artifact_id: Optional[UUID] = None
+    artifact: Optional[Artifact] = None
 
-
-class VariantFork(Slug, Header, Metadata):
-    pass
-
-
-class ArtifactFork(RevisionsLog):
-    variant: Optional[VariantFork] = None
-    revision: Optional[RevisionFork] = None
-
-
-# ------------------------------------------------------------------------------
+    variant_id: Optional[UUID] = None
+    variant: Optional[Variant] = None

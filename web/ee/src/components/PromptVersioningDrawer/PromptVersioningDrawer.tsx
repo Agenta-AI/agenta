@@ -73,7 +73,7 @@ const PromptVersioningDrawer: React.FC<PromptVersioningDrawerProps> = ({
             open={isDrawerOpen}
             title="History"
             size="default"
-            destroyOnHidden
+            destroyOnClose
             onClose={() => setIsDrawerOpen(false)}
         >
             {historyStatus.loading ? (

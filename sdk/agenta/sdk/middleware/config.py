@@ -17,9 +17,7 @@ from agenta.sdk.utils.exceptions import suppress
 import agenta as ag
 
 
-_CACHE_ENABLED = (
-    getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED", "true").lower() in TRUTHY
-)
+_CACHE_ENABLED = getenv("AGENTA_MIDDLEWARE_CACHE_ENABLED", "false").lower() in TRUTHY
 
 _cache = TTLLRUCache()
 
@@ -93,18 +91,13 @@ class ConfigMiddleware(BaseHTTPMiddleware):
 
                 return parameters, references
 
-        config = dict()
-        app_ref = None
+        config = {}
 
         is_test_path = request.url.path.endswith("/test")
         are_refs_missing = not variant_ref and not environment_ref
-        should_fetch_application_revision = not is_test_path or not are_refs_missing
-        is_app_ref_incomplete = (
-            application_ref and application_ref.id and not application_ref.slug
-        )
-        should_fetch_application = is_app_ref_incomplete
+        should_fetch = not is_test_path or not are_refs_missing
 
-        if should_fetch_application_revision:
+        if should_fetch:
             async with httpx.AsyncClient() as client:
                 response = await client.post(
                     f"{self.host}/api/variants/configs/fetch",
@@ -115,26 +108,13 @@ class ConfigMiddleware(BaseHTTPMiddleware):
                 if response.status_code == 200:
                     config = response.json()
 
-        elif should_fetch_application:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.host}/api/apps/{application_ref.id}",
-                    headers=headers,
-                )
-
-                if response.status_code == 200:
-                    app = response.json()
-                    app_ref = {
-                        "id": app.get("app_id"),
-                        "slug": app.get("app_name"),
-                    }
-
-        if config:
-            parameters = config.get("params")
-        else:
-            # by default, application_ref will always have an id
-            config["application_ref"] = app_ref or refs["application_ref"]
+        if not config:
+            config["application_ref"] = refs[
+                "application_ref"
+            ]  # by default, application_ref will always have an id
             parameters = None
+        else:
+            parameters = config.get("params")
 
         references = {}
 

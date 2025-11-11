@@ -35,7 +35,7 @@ const PasswordResetLinkModal = ({
             okButtonProps={{type: "default"}}
             cancelButtonProps={{className: "hidden"}}
             onOk={onCopyLinkAndClose}
-            destroyOnHidden
+            destroyOnClose
             centered
             {...props}
         >

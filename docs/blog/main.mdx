@@ -1,6 +1,5 @@
 ---
 title: "Changelog"
-wrapperClassName: changelog-main
 ---
 
 ```mdx-code-block
@@ -10,252 +9,7 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
-### [Documentation Overhaul](/changelog/documentation-architecture-overhaul)
-
-_3 November 2025_
-
-**v0.59.10**
-
-<Image img={require('/static/images/changelog/agenta_askai.png')} alt="Ask AI feature in documentation" style={{display: 'block', margin: '20px auto', textAlign: 'center'}} />
-
-We've completely rewritten and restructured our documentation with a new architecture. This is one of the largest updates we've made, involving a near-complete rewrite of existing content.
-
-Key improvements include:
-- **[Diataxis Framework](https://diataxis.fr/)**: Organized content into Tutorials, How-to Guides, Reference, and Explanation sections for better discoverability
-- **[Expanded Observability Docs](/observability/overview)**: Added missing documentation for tracing, annotations, and observability features
-- **[JavaScript/TypeScript Support](/observability/quick-start-opentelemetry)**: Added code examples and documentation for JavaScript developers alongside Python
-- **Ask AI Feature**: Ask questions directly to the documentation for instant answers
-
----
-
-### [Vertex AI Provider Support](/changelog/vertex-ai-provider-support)
-
-_24 October 2025_
-
-**v0.59.6**
-
-We've added support for Google Cloud's Vertex AI platform. You can now use Gemini models and other Vertex AI partner models in the playground, configure them in the Model Hub, and access them through the Gateway using InVoke endpoints.
-
-Check out the documentation for [configuring Vertex AI models](/prompt-engineering/playground/custom-providers#configuring-vertex-ai).
-
----
-
-### [Filtering Traces by Annotation](/changelog/filtering-traces-by-annotation)
-
-_14 October 2025_
-
-**v0.58.0**
-<Image img={require('/static/images/changelog/changelog-annotation-filter.png')} alt="Annotation filtering interface" style={{display: 'block', margin: '20px auto', textAlign: 'center'}} />
-
-
-You can now filter and search traces based on their annotations. This helps you find traces with low scores or bad feedback quickly.
-
-We rebuilt the filtering system in observability with a simpler dropdown and more options. You can now filter by span status, input keys, app or environment references, and any key within your span.
-
-The new annotation filtering lets you find:
-- Spans evaluated by a specific evaluator
-- Spans with user feedback like `success=True`
-
-
-This enables powerful workflows: [capture user feedback](/tutorials/cookbooks/capture-user-feedback) from your app, filter to find traces with bad feedback, add them to test sets, and improve your prompts based on real user data.
-
----
-
-### [New Evaluation Results Dashboard](/changelog/new-evaluation-results-dashboard)
-
-_26 September 2025_
-
-**v0.54.0**
-
-We've completely redesigned the evaluation results dashboard. You can analyse your evaluation results more easily and understand performance across different metrics.
-
-Here's what's new:
-
-- **Metrics plots**: We've added plots for all the evaluator metrics. You can not see the distribution of the results and easily spot outliers.
-- **Side-by-side comparison**: You can now compare multiple evaluations simultaneously. You can compare the plots but also the single outputs.
-- **Improved test cases view**: The results are now displayed in a tabular format works both for small and large datasets.
-- **Focused detail view**: A new focused drawer lets you examine individual data points in more details. It's very helpful if your data is large.
-- **Configuration view**: See exactly which configurations were used in each evaluation
-- **Evaluation Run naming and descriptions**: Add names and descriptions to your evaluation runs to organize things better.
-
-<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
-  <iframe
-    width="100%"
-    height="500"
-    src="https://www.youtube.com/embed/HxY6lZ9HIyw"
-    title="New Evaluation Results Dashboard - Demonstration"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  ></iframe>
-</div>
-
----
-
-### [Deep URL Support for Sharable Links](/changelog/deep-url-support-for-sharable-links)
-
-_24 September 2025_
-
-**v0.53.0**
-
-URLs across Agenta now include workspace context, making them fully shareable between team members. Previously, URLs would always point to the default workspace, causing issues when refreshing pages or sharing links.
-
-Now you can deep link to almost anything in the platform - prompts, evaluations, and more - in any workspace. Share links directly with team members and they'll see exactly what you intended, regardless of their default workspace settings.
-
----
-
-### [Major Speed Improvements and Bug Fixes](/changelog/speed-improvements-in-the-playground)
-
-_19 September 2025_
-
-**v0.52.5**
-
-We rewrote most of Agenta's frontend. You'll see much faster speeds when you create prompts or use the playground.
-
-We also made many improvements and fixed bugs:
-
-**Improvements:**
-
-- [LLM-as-a-judge](/evaluation/configure-evaluators/llm-as-a-judge) now uses double curly braces `{{}}` instead of single curly braces `{` and `}`. This matches how normal prompts work. Old LLM-as-a-judge prompts with single curly braces still work. We updated the LLM-as-a-judge playground to make editing prompts easier.
-
-**Self-hosting:**
-
-- You can now use [an external Redis instance](/self-host/configuration#redis-caching) for caching by setting it as an environment variable
-
-**Bug fixes:**
-
-- Fixed the [custom workflow quick start tutorial](/custom-workflows/quick-start) and examples
-- Fixed SDK compatibility issues with Python 3.9
-- Fixed default filtering in observability dashboard
-- Fixed error handling in the evaluator playground
-- Fixed the Tracing SDK to allow instrumenting streaming responses and overriding OTEL environment variables
----
-
-### [Multiple Metrics in Human Evaluation](/changelog/multiple-metrics-in-human-evaluation)
-
-_9 September 2025_
-
-**v0.51.0**
-
-We rebuilt the human evaluation workflow from scratch. Now you can set multiple evaluators and metrics and use them to score the outputs. 
-
-This lets you evaluate the same output on different metrics like **relevance** or **completeness**. You can also create binary, numerical scores, or even use strings for **comments** or **expected answer**. 
-
-Watch the video below and read the [post](/changelog/multiple-metrics-in-human-evaluation) for more details. Or check out the [docs](/evaluation/human-evaluation/quick-start) to learn how to use the new human evaluation workflow.
-
-<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
-  <iframe
-    width="100%"
-    height="500"
-    src="https://www.youtube.com/embed/zpoAbQlsfcw"
-    title="Major Playground Improvements - Demonstration"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  ></iframe>
-</div>
-
----
-
-### [DSPy Integration](/observability/integrations/dspy)
-
-_29 August 2025_
-
-We've added DSPy integration to Agenta. You can now trace and debug your DSPy applications with Agenta.
-
-<Image
-  style={{
-    display: "block",
-    textAlign: "center",
-  }}
-  img={require("/images/changelog/agenta_dspy.png")}
-  alt="DSPy integration with Agenta" 
-  loading="lazy"
-/>
-
-[**View the full DSPy integration →**](/observability/integrations/dspy)
-
----
-
-### [Open-sourcing our Product Roadmap](/roadmap)
-
-_12 August 2025_
-
-We've made our product roadmap completely transparent and community-driven.
-
-You can now see exactly what we're building, what's shipped, and what's coming next. Plus vote on features that matter most to you.
-
-**Why we're doing this:** We believe open-source startups succeed when they create the most value possible, and the best way to do that is by building with our community, not in isolation. Up until now, we've been secretive with our roadmap, but we're losing something important: your feedback and the ability to let you shape our direction. Today we're open-sourcing our roadmap because we want to build a community of owners, not just passive users.
-
-[**View the full roadmap →**](/roadmap)
-
----
-
-### [Major Playground Improvements and Enhancements](/changelog/major-playground-improvements-and-enhancements)
-_7 August 2025_
-**v0.50.5**
-
-We've made significant improvements to the playground. Key features include:
-- Improving the error handling in JSON editor for structured output
-- Preventing the JSON field order from being changed
-- Visual diff when committing changes
-- Markdown and text view toggle
-- Collapsible interface elements
-- Collapsible test cases for large sets
-
-<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
-  <iframe
-    width="100%"
-    height="500"
-    src="https://www.youtube.com/embed/zaiMuWLwC5s"
-    title="Major Playground Improvements - Demonstration"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  ></iframe>
-</div>
-
-
----
-
-### [Support for Images in the Playground](/changelog/support-for-images-in-playground)
-_29 July 2025_
-**v0.50.0**
-
-Agenta now supports images in the playground, test sets, and evaluations. Click above for more details.
-
-<Stream controls src="7af04544acfcf1adcf412dab71753106" height="400px" />
-
----
-
-### [LlamaIndex Integration](/changelog/llamaindex-integration)
-_17 June 2025_
-**v0.48.4**
-
-We're excited to announce observability support for LlamaIndex applications.
-
-If you're using LlamaIndex, you can now see detailed traces in Agenta to debug your application.
-
-The integration is auto-instrumentation - just add one line of code and you'll start seeing all your LlamaIndex operations traced.
-
-This helps when you need to understand what's happening inside your RAG pipeline, track performance bottlenecks, or debug issues in production.
-
-We've put together a Jupyter notebook and tutorial to get you started. Links are in the comments.
-
-<Image
-  style={{
-    display: "block",
-    textAlign: "center",
-  }}
-  img={require("/images/changelog/agenta_llamaindex.png")}
-  alt="LlamaIndex integration with Agenta" 
-  loading="lazy"
-/>
-
----
-
-
-### [Annotate Your LLM Response (preview)](/changelog/annotate-your-llm-response-preview)
+### Annotate Your LLM Response (preview)
 _15 May 2025_
 **v0.45.0**
 
@@ -270,11 +24,12 @@ This is useful to:
 - Run custom evaluation workflows
 - Measure application performance in real-time
 
-Check out the how to [annotate traces from API](/observability/trace-with-python-sdk/annotate-traces) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
+Check out the how to [annotate traces from API](/evaluation/annotate-api) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
 
 <Image
   style={{
     display: "block",
+    margin: "20px",
     textAlign: "center",
   }}
   img={require("/images/evaluation/evaluation-screenshot-jupyter.png")}
@@ -287,7 +42,7 @@ Other stuff:
 
 ---
 
-### [Tool Support in the Playground](/changelog/tool-support-in-the-playground)
+### Tool Support in the Playground
 _10 May 2025_
 **v0.43.1**
 
@@ -318,7 +73,7 @@ The tool schema is saved with your prompt configuration, making integration easy
 
 ---
 
-### [Documentation Overhaul, New Models, and Platform Improvements](/changelog/documentation-overhaul-new-models-and-platform-improvements)
+### Documentation Overhaul, New Models, and Platform Improvements
 
 _2 May 2025_
 
@@ -363,14 +118,14 @@ Check out our updated [self-hosting documentation](/self-host/quick-start) for d
 - Added chat support in cloud
 
 ---
-### [We are SOC 2 Type 2 Certified](/changelog/we-are-soc-2-type-2-certified)
+### We are SOC 2 Type 2 Certified
 _18 April 2025_
 **v0.42.1**
 
 We are SOC 2 Type 2 Certified. This means that our platform is audited and certified by an independent third party to meet the highest standards of security and compliance.
 
 ---
-### [Structured Output Support in the Playground](/changelog/structured-output-support-in-the-playground)
+### Structured Output Support in the Playground
 _15 April 2025_
 
 **v0.42.0**
@@ -404,7 +159,7 @@ With Agenta's playground, implementing structured outputs is straightforward:
 Check out the blog post for more detail https://agenta.ai/blog/structured-outputs-playground
 
 ---
-### [New Feature: Prompt and Deployment Registry](/changelog/new-feature-prompt-and-deployment-registry)
+### New Feature: Prompt and Deployment Registry
 _7 April 2025_
 
 **v0.38.0**
@@ -440,7 +195,7 @@ Learn more in our [blog post](https://agenta.ai/blog/introducing-prompt-registry
 
 ---
 
-### [Improvements to the Playground and Custom Workflows](/changelog/improvements-to-the-playground-and-custom-workflows)
+### Improvements to the Playground and Custom Workflows
 _19 March 2025_
 **v0.36.0**
 
@@ -453,7 +208,7 @@ As for custom workflows, now they work with sub-routes. This means you can have 
 
 ---
 
-### [OpenTelemetry Compliance and Custom workflows from API](/changelog/opentelemetry-compliance-and-custom-workflows-from-api)
+### OpenTelemetry Compliance and Custom workflows from API
 
 _11 March 2025_
 
@@ -467,7 +222,7 @@ Agenta is now fully OpenTelemetry-compliant. This means you can seamlessly integ
 
 We've enhanced distributed tracing capabilities to better debug complex distributed agent systems. All HTTP interactions between agents—whether running within Agenta's SDK or externally—are automatically traced, making troubleshooting and monitoring easier.
 
-Detailed instructions and examples are available in our [distributed tracing documentation](/observability/trace-with-opentelemetry/distributed-tracing).
+Detailed instructions and examples are available in our [distributed tracing documentation](/observability/opentelemetry).
 
 **Improved Custom Workflows**:
 
@@ -478,7 +233,7 @@ Based on your feedback, we've streamlined debugging and running custom workflows
 - **Custom Workflows in the new playground**: Custom workflows are now fully compatible with the new playground. You can now nest configurations, run side-by-side comparisons, and debug your agents and complex workflows very easily.
 
 ---
-### [New Playground](/changelog/new-playground)
+### New Playground
 
 _4 February 2025_
 
@@ -505,7 +260,7 @@ You can explore these features in our updated playground documentation.
 
 ---
 
-### [Quality of life improvements](/changelog/quality-of-life-improvements)
+### Quality of life improvements
 
 _27 January 2025_
 
@@ -533,7 +288,7 @@ Small release today with quality of life improvements, while we're preparing the
 
 ---
 
-### [Agenta is SOC 2 Type 1 Certified](/changelog/agenta-is-soc-2-type-1-certified)
+### Agenta is SOC 2 Type 1 Certified
 
 _15 January 2025_
 
@@ -567,7 +322,7 @@ We've also updated our [trust center](https://trustcenter.agenta.ai) with detail
 
 ---
 
-### [New Onboarding Flow](/changelog/new-onboarding-flow)
+### New Onboarding Flow
 
 _4 January 2025_
 
@@ -600,9 +355,11 @@ We've redesigned our platform's onboarding to make getting started simpler and m
 - Enhanced frontend performance
 - Fixed scroll behavior in trace view
 
+You can check out the tutorial for the RAG demo project [here](/tutorials/cookbooks/RAG-QA-docs).
+
 ---
 
-### [Add Spans to Test Sets](/changelog/add-spans-to-test-sets)
+### Add Spans to Test Sets
 
 _11 December 2024_
 
@@ -627,7 +384,7 @@ Additional improvements:
 
 ---
 
-### [Viewing Traces in the Playground and Authentication for Deployed Applications](/changelog/viewing-traces-in-the-playground-and-authentication-for-deployed-applications)
+### Viewing Traces in the Playground and Authentication for Deployed Applications
 
 _29 November 2024_
 
@@ -646,6 +403,7 @@ We’ve strengthened authentication for deployed applications. As you know, Agen
 We’ve added new cookbooks and updated existing documentation:
 
 - New [cookbook for observability with LangChain](/tutorials/cookbooks/observability_langchain)
+- New [cookbook for custom workflows](/tutorials/cookbooks/AI-powered-code-reviews) where we build an AI powered code reviewer
 - Updated the [custom workflows documentation](/custom-workflows/overview) and added [reference](/reference/sdk/custom-workflow)
 - Updated the [reference for the observability SDK](/reference/sdk/observability) and [for the prompt management SDK](/reference/sdk/configuration-management)
 
@@ -656,7 +414,7 @@ We’ve added new cookbooks and updated existing documentation:
 
 ---
 
-### [Observability and Prompt Management](/changelog/observability-and-prompt-management)
+### Observability and Prompt Management
 
 _6 November 2024_
 
@@ -691,11 +449,11 @@ We’ll publish a full blog post soon, but here’s a quick look at what the new
 
 **Next: Prompt Management**
 
-We’ve completely rewritten the [prompt management SDK](/prompt-engineering/managing-prompts-programatically/setup), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
+We’ve completely rewritten the [prompt management SDK](/prompt-engineering/overview), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
 
 **And finally: LLM-as-a-Judge Overhaul**
 
-We've made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/configure-evaluators/llm-as-a-judge). It now supports prompts with multiple messages and has access to all variables in a test case. You can also switch models (currently supporting OpenAI and Anthropic). These changes make the evaluator much more flexible, and we're seeing better results with it.
+We’ve made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/evaluators/llm-as-a-judge). It now supports prompts with multiple messages and has access to all variables in a test case. You can also switch models (currently supporting OpenAI and Anthropic). These changes make the evaluator much more flexible, and we’re seeing better results with it.
 
 <Image
   style={{
@@ -711,7 +469,7 @@ We've made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/co
 
 ---
 
-### [New Application Management View and Various Improvements](/changelog/new-application-management-view-and-various-improvements)
+### New Application Management View and Various Improvements
 
 _22 October 2024_
 
@@ -729,7 +487,7 @@ Additionally, we are moving towards a new project structure for the application.
 
 ---
 
-### [Evaluator Testing Playground and a New Evaluation View](/changelog/evaluator-testing-playground-and-a-new-evaluation-view)
+### Evaluator Testing Playground and a New Evaluation View
 
 _22 September 2024_
 
@@ -748,7 +506,7 @@ Additionally, we have improved and redesigned the evaluation view. Both automati
 
 ---
 
-### [UI Redesign and Configuration Management and Overview View](/changelog/ui-redesign-and-configuration-management-and-overview-view)
+### UI Redesign and Configuration Management and Overview View
 
 _22 August 2024_
 
@@ -780,7 +538,7 @@ Lastly, we've updated the UI of our documentation.
 
 ---
 
-### [New Alpha Version of the SDK for Creating Custom Applications](/changelog/new-alpha-version-of-the-sdk-for-creating-custom-applications)
+### New Alpha Version of the SDK for Creating Custom Applications
 
 _20 August 2024_
 
@@ -827,7 +585,7 @@ def generate(country: str) -> str:
 
 ---
 
-### [RAGAS Evaluators and Traces in the Playground](/changelog/ragas-evaluators-and-traces-in-the-playground)
+### RAGAS Evaluators and Traces in the Playground
 
 _12 August 2024_
 
@@ -837,7 +595,7 @@ We're excited to announce two major features this week:
 
 1. We've integrated [RAGAS evaluators](https://docs.ragas.io/) into agenta. Two new evaluators have been added: **RAG Faithfulness** (measuring how consistent the LLM output is with the context) and **Context Relevancy** (assessing how relevant the retrieved context is to the question). Both evaluators use intermediate outputs within the trace to calculate the final score.
 
-   [Check out the tutorial](/evaluation/configure-evaluators/rag-evaluators) to learn how to use RAG evaluators.
+   [Check out the tutorial](/evaluation/evaluators/rag-evaluators) to learn how to use RAG evaluators.
 
 {" "}
 
@@ -873,7 +631,7 @@ Both features are available exclusively in the cloud and enterprise versions of 
 
 ---
 
-### [Migration from MongoDB to Postgres](/changelog/migration-from-mongodb-to-postgres)
+### Migration from MongoDB to Postgres
 
 _9 July 2024_
 
@@ -887,7 +645,7 @@ If you are using the cloud version of Agenta, there is nothing you need to do (o
 
 ---
 
-### [More Reliable Evaluations](/changelog/more-reliable-evaluations)
+### More Reliable Evaluations
 
 _5 July 2024_
 
@@ -914,6 +672,8 @@ We have worked extensively on improving the **reliability of evaluations**. Spec
 - We fixed small UI issues with large output in human evaluations.
 - We have added a new export button in the evaluation view to export the results as a CSV file.
 
+Additionally, we have added a new [Cookbook for run evaluation using the SDK](/tutorials/sdk/evaluate-with-SDK).
+
 In **observability**:
 
 - We have added a **new integration with [Litellm](https://litellm.ai/)** to automatically trace all LLM calls done through it.
@@ -921,7 +681,7 @@ In **observability**:
 
 ---
 
-### [Evaluators can access all columns](/changelog/evaluators-can-access-all-columns)
+### Evaluators can access all columns
 
 _4 June 2024_
 
@@ -950,7 +710,7 @@ In addition to this:
 
 ---
 
-### [New LLM Provider: Welcome Gemini!](/changelog/new-llm-provider-welcome-gemini)
+### New LLM Provider: Welcome Gemini!
 
 _25 May 2024_
 
@@ -968,7 +728,7 @@ We are excited to announce the addition of Google's Gemini to our list of suppor
 
 ---
 
-### [Playground Improvements](/changelog/playground-improvements)
+### Playground Improvements
 
 _24 May 2024_
 
@@ -996,7 +756,7 @@ _24 May 2024_
 
 ---
 
-### [Prompt and Configuration Registry](/changelog/prompt-and-configuration-registry)
+### Prompt and Configuration Registry
 
 _1 May 2024_
 
@@ -1012,7 +772,7 @@ config = agenta.get_config(base_id="xxxxx", environment="production", cache_time
 
 ```
 
-You can find additional documentation [here](/prompt-engineering/integrating-prompts/integrating-with-agenta).
+You can find additional documentation [here](/prompt-engineering/prompt-management/how-to-integrate-with-agenta).
 
 **Improvements**
 
@@ -1023,7 +783,7 @@ You can find additional documentation [here](/prompt-engineering/integrating-pro
 
 ---
 
-### [Miscellaneous Improvements](/changelog/miscellaneous-improvements)
+### Miscellaneous Improvements
 
 _28 April 2024_
 
@@ -1039,7 +799,7 @@ _28 April 2024_
 
 ---
 
-### [Evaluation Speed Increase and Numerous Quality of Life Improvements](/changelog/evaluation-speed-increase-and-numerous-quality-of-life-improvements)
+### Evaluation Speed Increase and Numerous Quality of Life Improvements
 
 _23rd April 2024_
 
@@ -1060,7 +820,7 @@ _23rd April 2024_
 
 ---
 
-### [Observability (beta)](/changelog/observability-beta)
+### Observability (beta)
 
 _14th April 2024_
 
@@ -1087,7 +847,7 @@ Find examples of LLM apps created from code with observability <a href="https://
 
 ---
 
-### [Compare latency and costs](/changelog/compare-latency-and-costs)
+### Compare latency and costs
 
 _1st April 2024_
 
@@ -1106,7 +866,7 @@ You can now compare the latency and cost of different variants in the evaluation
 
 ---
 
-### [Minor improvements](/changelog/minor-improvements)
+### Minor improvements
 
 _31st March 2024_
 
@@ -1136,7 +896,7 @@ You can now toggle the visibility of variants in the comparison view, allowing y
 
 ---
 
-### [New evaluators](/changelog/new-evaluators)
+### New evaluators
 
 _25th March 2024_
 
@@ -1159,7 +919,7 @@ We have added some more evaluators, a new string matching and a Levenshtein dist
 
 ---
 
-### [Minor improvements](/changelog/minor-improvements-2)
+### Minor improvements
 
 _11th March 2024_
 
@@ -1178,7 +938,7 @@ _11th March 2024_
 
 ---
 
-### [Highlight ouput difference when comparing evaluations](/changelog/highlight-ouput-difference-when-comparing-evaluations)
+### Highlight ouput difference when comparing evaluations
 
 _4th March 2024_
 
@@ -1195,7 +955,7 @@ We have improved the evaluation comparison view to show the difference to the ex
 
 ---
 
-### [Deployment Versioning and RBAC](/changelog/deployment-versioning-and-rbac)
+### Deployment Versioning and RBAC
 
 _14th February 2024_
 
@@ -1232,7 +992,7 @@ You can now invite team members and assign them fine-grained roles in agenta.
 
 ---
 
-### [Minor fixes](/changelog/minor-fixes)
+### Minor fixes
 
 _4th February 2024_
 
@@ -1246,7 +1006,7 @@ _4th February 2024_
 
 ---
 
-### [Prompt Versioning](/changelog/prompt-versioning)
+### Prompt Versioning
 
 _31st January 2024_
 
@@ -1265,7 +1025,7 @@ We've introduced the feature to version prompts, allowing you to track changes m
 
 ---
 
-### [New JSON Evaluator](/changelog/new-json-evaluator)
+### New JSON Evaluator
 
 _30th January 2024_
 
@@ -1283,7 +1043,7 @@ We have added a new evaluator to match JSON fields and added the possiblity to u
 
 ---
 
-### [Improved error handling in evaluation](/changelog/improved-error-handling-in-evaluation)
+### Improved error handling in evaluation
 
 _29th January 2024_
 
@@ -1307,7 +1067,7 @@ We have improved error handling in evaluation to return more information about t
 
 ---
 
-### [Bring your own API key](/changelog/bring-your-own-api-key)
+### Bring your own API key
 
 _25th January 2024_
 
@@ -1317,7 +1077,7 @@ Up until know, we required users to use our OpenAI API key when using cloud. Sta
 
 ---
 
-### [Improved human evaluation workflow](/changelog/improved-human-evaluation-workflow)
+### Improved human evaluation workflow
 
 _24th January 2024_
 
@@ -1353,7 +1113,7 @@ We have updated the human evaluation table view to add annotation and correct an
 
 ---
 
-### [Revamping evaluation](/changelog/revamping-evaluation)
+### Revamping evaluation
 
 _22nd January 2024_
 
@@ -1387,7 +1147,7 @@ We've spent the past month re-engineering our evaluation workflow. Here's what's
 
 ---
 
-### [Adding Cost and Token Usage to the Playground](/changelog/adding-cost-and-token-usage-to-the-playground)
+### Adding Cost and Token Usage to the Playground
 
 _12th January 2024_
 
@@ -1403,7 +1163,7 @@ We've added a feature that allows you to compare the time taken by an LLM app, i
 
 ----#
 
-### [Changes to the SDK](/changelog/changes-to-the-sdk)
+### Changes to the SDK
 
 This necessitated modifications to the SDK. Now, the LLM application API returns a JSON instead of a string. The JSON includes the output message, usage details, and cost:
 
@@ -1423,7 +1183,7 @@ This necessitated modifications to the SDK. Now, the LLM application API returns
 
 ---
 
-### [Improving Side-by-side Comparison in the Playground](/changelog/improving-side-by-side-comparison-in-the-playground)
+### Improving Side-by-side Comparison in the Playground
 
 _19th December 2023_
 
@@ -1433,7 +1193,7 @@ _19th December 2023_
 
 ---
 
-### [Resolved Batch Logic Issue in Evaluation](/changelog/resolved-batch-logic-issue-in-evaluation)
+### Resolved Batch Logic Issue in Evaluation
 
 _18th December 2023_
 
@@ -1443,7 +1203,7 @@ _18th December 2023_
 
 ---
 
-### [Comprehensive Updates and Bug Fixes](/changelog/comprehensive-updates-and-bug-fixes)
+### Comprehensive Updates and Bug Fixes
 
 _12th December 2023_
 
@@ -1457,7 +1217,7 @@ _12th December 2023_
 
 ---
 
-### [Integrated File Input and UI Enhancements](/changelog/integrated-file-input-and-ui-enhancements)
+### Integrated File Input and UI Enhancements
 
 _12th December 2023_
 
@@ -1471,7 +1231,7 @@ _12th December 2023_
 
 ---
 
-### [Minor Adjustments for Better Performance](/changelog/minor-adjustments-for-better-performance)
+### Minor Adjustments for Better Performance
 
 _7th December 2023_
 
@@ -1481,7 +1241,7 @@ _7th December 2023_
 
 ---
 
-### [Bug Fix for Application Saving](/changelog/bug-fix-for-application-saving)
+### Bug Fix for Application Saving
 
 _7th December 2023_
 
@@ -1491,7 +1251,7 @@ _7th December 2023_
 
 ---
 
-### [Introduction of Chat-based Applications](/changelog/introduction-of-chat-based-applications)
+### Introduction of Chat-based Applications
 
 _1st December 2023_
 
@@ -1502,7 +1262,7 @@ _1st December 2023_
 
 ---
 
-### [Multiple UI and CSV Reader Fixes](/changelog/multiple-ui-and-csv-reader-fixes)
+### Multiple UI and CSV Reader Fixes
 
 _1st December 2023_
 
@@ -1515,7 +1275,7 @@ _1st December 2023_
 
 ---
 
-### [Enhanced Self-hosting and Mistral Model Tutorial](/changelog/enhanced-self-hosting-and-mistral-model-tutorial)
+### Enhanced Self-hosting and Mistral Model Tutorial
 
 _17th November 2023_
 
@@ -1528,7 +1288,7 @@ _17th November 2023_
 
 ---
 
-### [Sentry Integration and User Communication Improvements](/changelog/sentry-integration-and-user-communication-improvements)
+### Sentry Integration and User Communication Improvements
 
 _12th November 2023_
 
@@ -1541,7 +1301,7 @@ _12th November 2023_
 
 ---
 
-### [Cypress Tests and UI Improvements](/changelog/cypress-tests-and-ui-improvements)
+### Cypress Tests and UI Improvements
 
 _2nd November 2023_
 
@@ -1554,7 +1314,7 @@ _2nd November 2023_
 
 ---
 
-### [Launch of SDK Version 2 and Cloud-hosted Version](/changelog/launch-of-sdk-version-2-and-cloud-hosted-version)
+### Launch of SDK Version 2 and Cloud-hosted Version
 
 _23rd October 2023_
 

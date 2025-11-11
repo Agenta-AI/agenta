@@ -1,7 +1,9 @@
 from typing import Optional, Any, Dict, Callable
 from enum import Enum
+from uuid import UUID
 
 from pydantic import BaseModel
+from httpx import get as check
 
 
 from opentelemetry.trace import (
@@ -31,6 +33,7 @@ from agenta.sdk.tracing.conventions import Reference, is_valid_attribute_key
 from agenta.sdk.tracing.propagation import extract, inject
 from agenta.sdk.utils.cache import TTLLRUCache
 
+from agenta.sdk.context.tracing import tracing_context
 
 log = get_module_logger(__name__)
 
@@ -52,6 +55,8 @@ class Link(BaseModel):
 
 
 class Tracing(metaclass=Singleton):
+    VERSION = "0.1.0"
+
     Status = Status
     StatusCode = StatusCode
 
@@ -99,9 +104,27 @@ class Tracing(metaclass=Singleton):
             resource=Resource(attributes={"service.name": "agenta-sdk"})
         )
 
+        # --- INLINE
+        if inline:
+            # TRACE PROCESSORS -- INLINE
+            self.inline = TraceProcessor(
+                InlineExporter(
+                    registry=self.inline_spans,
+                ),
+                references=self.references,
+                inline=inline,
+            )
+            self.tracer_provider.add_span_processor(self.inline)
+        # --- INLINE
+
         # TRACE PROCESSORS -- OTLP
         try:
             log.info("Agenta - OLTP URL: %s", self.otlp_url)
+            # check(
+            #     self.otlp_url,
+            #     headers=self.headers,
+            #     timeout=1,
+            # )
 
             _otlp = TraceProcessor(
                 OTLPExporter(
@@ -115,19 +138,6 @@ class Tracing(metaclass=Singleton):
             self.tracer_provider.add_span_processor(_otlp)
         except:  # pylint: disable=bare-except
             log.warning("Agenta - OLTP unreachable, skipping exports.")
-
-        # --- INLINE
-        if inline:
-            # TRACE PROCESSORS -- INLINE
-            self.inline = TraceProcessor(
-                InlineExporter(
-                    registry=self.inline_spans,
-                ),
-                references=self.references,
-                inline=inline,
-            )
-            self.tracer_provider.add_span_processor(self.inline)
-        # --- INLINE
 
         # GLOBAL TRACER PROVIDER -- INSTRUMENTATION LIBRARIES
         set_tracer_provider(self.tracer_provider)

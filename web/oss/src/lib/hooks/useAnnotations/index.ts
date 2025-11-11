@@ -1,21 +1,15 @@
 import useSWR from "swr"
 
+import {useOrgData} from "@/oss/contexts/org.context"
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import {queryAllAnnotations} from "@/oss/services/annotations/api"
-import {useOrgData} from "@/oss/state/org"
-import {getProjectValues} from "@/oss/state/project"
 
 import {transformApiData} from "./assets/transformer"
 import {AnnotationDto} from "./types"
 
-const useAnnotations = ({
-    queries,
-    waitUntil = false,
-}: {
-    queries?: Record<string, any>
-    waitUntil?: boolean
-} = {}) => {
+const useAnnotations = (queries?: {annotation: Record<string, any>}) => {
     const {selectedOrg} = useOrgData()
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
     const workspace = selectedOrg?.default_workspace
     const members = workspace?.members || []
 
@@ -29,11 +23,7 @@ const useAnnotations = ({
         )
     }
 
-    const swrKey = waitUntil
-        ? null
-        : [`/preview/annotations/?project_id=${projectId}`, JSON.stringify(queries)]
-
-    const swr = useSWR(swrKey, fetcher, {
+    const swr = useSWR(`/api/preview/annotations/?project_id=${projectId}`, fetcher, {
         revalidateOnFocus: false,
         shouldRetryOnError: false,
     })

@@ -3,7 +3,7 @@ import {type FC, useEffect, useMemo, useState} from "react"
 import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 import uniqBy from "lodash/uniqBy"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -13,8 +13,8 @@ import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import CompareOutputDiff from "@/oss/components/CompareOutputDiff/CompareOutputDiff"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
-import useURL from "@/oss/hooks/useURL"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import AgGridReact, {type AgGridReactType} from "@/oss/lib/helpers/agGrid"
 import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
@@ -23,11 +23,12 @@ import {escapeNewlines} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {CorrectAnswer, EvaluatorConfig, JSSTheme, _EvaluationScenario} from "@/oss/lib/Types"
-import {deleteEvaluations} from "@/oss/services/evaluations/api"
-import {fetchAllEvaluators} from "@/oss/services/evaluators"
-import {currentAppAtom} from "@/oss/state/app"
+import {
+    deleteEvaluations,
+    fetchAllEvaluationScenarios,
+    fetchAllEvaluators,
+} from "@/oss/services/evaluations/api"
 
 import {LongTextCellRenderer, ResultRenderer} from "../cellRenderers/cellRenderers"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
@@ -52,14 +53,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     },
 }))
 
-interface Props {
-    scenarios: _EvaluationScenario[]
-}
+interface Props {}
 
-const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
+const EvaluationScenarios: FC<Props> = () => {
     const router = useRouter()
     const appId = useAppId()
-    const currentApp = useAtomValue(currentAppAtom)
+    const {currentApp} = useAppsData()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const evaluationId = router.query.evaluation_id as string
@@ -67,31 +66,11 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
     const [fetching, setFetching] = useState(false)
     const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
     const [gridRef, setGridRef] = useState<AgGridReactType<_EvaluationScenario>>()
-    const evalaution = scenarios?.[0]?.evaluation
+    const evalaution = scenarios[0]?.evaluation
     const [selectedCorrectAnswer, setSelectedCorrectAnswer] = useState(["noDiffColumnIsSelected"])
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
     const [hiddenCols, setHiddenCols] = useState<string[]>([])
-    const {baseAppURL, projectURL} = useURL()
-
-    // breadcrumbs
-    useBreadcrumbsEffect(
-        {
-            breadcrumbs: {
-                appPage: {
-                    label: "auto evaluation",
-                    href: `${baseAppURL}/${appId}/evaluations?selectedEvaluation=auto_evaluation`,
-                },
-                "eval-detail": {
-                    label: evaluationId,
-                    value: evaluationId,
-                },
-            },
-            type: "append",
-            condition: !!evaluationId,
-        },
-        [evaluationId, baseAppURL],
-    )
 
     const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
@@ -105,22 +84,15 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
         }
     }
 
-    const uniqueCorrectAnswers: CorrectAnswer[] = uniqBy(
-        scenarios?.[0]?.correct_answers || [],
-        "key",
-    )
-    const [modalErrorMsg, setModalErrorMsg] = useState({
-        message: "",
-        stackTrace: "",
-        errorType: "evaluation" as "invoke" | "evaluation",
-    })
+    const uniqueCorrectAnswers: CorrectAnswer[] = uniqBy(scenarios[0]?.correct_answers || [], "key")
+    const [modalErrorMsg, setModalErrorMsg] = useState({message: "", stackTrace: ""})
     const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
 
     const colDefs = useMemo(() => {
         const colDefs: ColDef<_EvaluationScenario>[] = []
         if (!scenarios.length || !evalaution) return colDefs
 
-        scenarios?.[0]?.inputs?.forEach((input, index) => {
+        scenarios[0]?.inputs.forEach((input, index) => {
             colDefs.push({
                 flex: 1,
                 minWidth: 240,
@@ -166,10 +138,7 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
                 cellRenderer: (params: any) => LongTextCellRenderer(params),
             })
         })
-
-        const evalVariants = evalaution?.variants || []
-
-        evalVariants.forEach((_, index) => {
+        evalaution?.variants.forEach((_, index) => {
             colDefs.push({
                 flex: 1,
                 minWidth: 300,
@@ -191,7 +160,6 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
                                     setModalErrorMsg({
                                         message: result.error?.message || "",
                                         stackTrace: result.error?.stacktrace || "",
-                                        errorType: "evaluation",
                                     })
                                     setIsErrorModalOpen(true)
                                 }}
@@ -214,10 +182,7 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
                 },
             })
         })
-
-        const evaluatorConfigs = scenarios?.[0]?.evaluators_configs || []
-
-        evaluatorConfigs.forEach((config, index) => {
+        scenarios[0]?.evaluators_configs.forEach((config, index) => {
             colDefs.push({
                 headerName: config?.name,
                 hide: hiddenCols.includes(config.name),
@@ -251,7 +216,6 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
                                 setModalErrorMsg({
                                     message: result.error?.message || "",
                                     stackTrace: result.error?.stacktrace || "",
-                                    errorType: "evaluation",
                                 })
                                 setIsErrorModalOpen(true)
                             }}
@@ -314,9 +278,12 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
 
     const fetcher = () => {
         setFetching(true)
-        Promise.all([evaluators.length ? Promise.resolve(evaluators) : fetchAllEvaluators()])
-            .then(([evaluators]) => {
-                setScenarios(_scenarios)
+        Promise.all([
+            evaluators.length ? Promise.resolve(evaluators) : fetchAllEvaluators(),
+            fetchAllEvaluationScenarios(evaluationId),
+        ])
+            .then(([evaluators, scenarios]) => {
+                setScenarios(scenarios)
                 setEvaluators(evaluators)
                 setTimeout(() => {
                     if (!gridRef) return
@@ -363,13 +330,13 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
             message: "Are you sure you want to delete this evaluation?",
             onOk: () =>
                 deleteEvaluations([evaluationId])
-                    .then(() => router.push(`${baseAppURL}/${appId}/evaluations`))
+                    .then(() => router.push(`/apps/${appId}/evaluations`))
                     .catch(console.error),
         })
     }
 
     return (
-        <div className="px-6">
+        <div>
             <Typography.Title level={3}>Evaluation Results</Typography.Title>
             <div className={classes.infoRow}>
                 <Space size="large">
@@ -378,19 +345,18 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
                     </Typography.Text>
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        // TODO: REPLACE WITH NEXT/LINK
-                        <Typography.Link href={`${projectURL}/testsets/${evalaution?.testset.id}`}>
+                        <Typography.Link href={`/testsets/${evalaution?.testset.id}`}>
                             {evalaution?.testset.name || ""}
                         </Typography.Link>
                     </Space>
                     <Space>
                         <Typography.Text strong>Variant:</Typography.Text>
                         <Typography.Link
-                            href={`${baseAppURL}/${appId}/playground?variant=${evalaution?.variants?.[0]?.variantName}`}
+                            href={`/apps/${appId}/playground?variant=${evalaution?.variants[0].variantName}`}
                         >
                             <VariantDetailsWithStatus
-                                variantName={evalaution?.variants?.[0]?.variantName ?? ""}
-                                revision={evalaution?.revisions?.[0]}
+                                variantName={evalaution?.variants[0].variantName ?? ""}
+                                revision={evalaution?.revisions[0]}
                             />
                         </Typography.Link>
                     </Space>
@@ -452,6 +418,7 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
                     className={`${
                         appTheme === "dark" ? "ag-theme-alpine-dark" : "ag-theme-alpine"
                     } ${classes.table}`}
+                    data-cy="evalaution-scenarios-table"
                 >
                     <AgGridReact<_EvaluationScenario>
                         gridRef={setGridRef}

@@ -115,7 +115,7 @@ const EvaluatorCard = ({
                             extra={
                                 <Dropdown
                                     trigger={["click"]}
-                                    placement="bottomRight"
+                                    placement="bottomCenter"
                                     overlayStyle={{width: 180}}
                                     menu={{
                                         items: [

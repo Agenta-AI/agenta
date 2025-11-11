@@ -17,6 +17,7 @@ from types import GeneratorType
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 import pydantic
+
 from .datetime_utils import serialize_datetime
 from .pydantic_utilities import (
     IS_PYDANTIC_V2,

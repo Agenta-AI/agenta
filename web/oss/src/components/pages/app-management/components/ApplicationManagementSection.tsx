@@ -1,21 +1,26 @@
-import {Dispatch, SetStateAction} from "react"
+import {Dispatch, SetStateAction, useState} from "react"
 
 import {PlusOutlined} from "@ant-design/icons"
 import {Cards, Table} from "@phosphor-icons/react"
 import {Button, Flex, Input, Pagination, Radio, Space, Typography} from "antd"
-import {useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 import {useLocalStorage} from "usehooks-ts"
 
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
-import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
-import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import usePagination from "@/oss/hooks/usePagination"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
 
 import AppCard from "./AppCard"
 import AppTable from "./AppTable"
 import EmptyAppView from "./EmptyAppView"
+
+const DeleteAppModal: any = dynamic(
+    () => import("@/oss/components/pages/app-management/modals/DeleteAppModal"),
+)
+const EditAppModal: any = dynamic(
+    () => import("@/oss/components/pages/app-management/modals/EditAppModal"),
+)
 
 interface ApplicationManagementSectionProps {
     selectedOrg: any
@@ -64,8 +69,9 @@ const ApplicationManagementSection = ({
         "app_management_display",
         "list",
     )
-    const openDeleteAppModal = useSetAtom(openDeleteAppModalAtom)
-    const openEditAppModal = useSetAtom(openEditAppModalAtom)
+    const [selectedApp, setSelectedApp] = useState<ListAppsItem | null>(null)
+    const [isDeleteAppModalOpen, setIsDeleteAppModalOpen] = useState(false)
+    const [isEditAppModalOpen, setIsEditAppModalOpen] = useState(false)
 
     const {
         paginatedItems: paginatedApps,
@@ -85,6 +91,7 @@ const ApplicationManagementSection = ({
                         </Title>
                         <Button
                             type="primary"
+                            data-cy="create-new-app-button"
                             icon={<PlusOutlined />}
                             onClick={() => {
                                 setIsAddAppFromTemplatedModal(true)
@@ -121,8 +128,9 @@ const ApplicationManagementSection = ({
                             {appMsgDisplay === "list" ? (
                                 <AppTable
                                     filteredApps={paginatedApps}
-                                    openDeleteAppModal={openDeleteAppModal}
-                                    openEditAppModal={openEditAppModal}
+                                    setIsDeleteAppModalOpen={setIsDeleteAppModalOpen}
+                                    setIsEditAppModalOpen={setIsEditAppModalOpen}
+                                    setSelectedApp={setSelectedApp}
                                 />
                             ) : paginatedApps.length ? (
                                 <div className={classes.cardsList}>
@@ -130,8 +138,9 @@ const ApplicationManagementSection = ({
                                         <div key={index}>
                                             <AppCard
                                                 app={app}
-                                                openDeleteAppModal={openDeleteAppModal}
-                                                openEditAppModal={openEditAppModal}
+                                                setIsDeleteAppModalOpen={setIsDeleteAppModalOpen}
+                                                setIsEditAppModalOpen={setIsEditAppModalOpen}
+                                                setSelectedApp={setSelectedApp}
                                             />
                                         </div>
                                     ))}
@@ -154,6 +163,22 @@ const ApplicationManagementSection = ({
                     <EmptyAppView setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal} />
                 )}
             </div>
+
+            {selectedApp && (
+                <>
+                    <DeleteAppModal
+                        open={isDeleteAppModalOpen}
+                        onCancel={() => setIsDeleteAppModalOpen(false)}
+                        appDetails={selectedApp}
+                    />
+
+                    <EditAppModal
+                        open={isEditAppModalOpen}
+                        onCancel={() => setIsEditAppModalOpen(false)}
+                        appDetails={selectedApp}
+                    />
+                </>
+            )}
         </>
     )
 }

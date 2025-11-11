@@ -1,20 +1,14 @@
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback} from "react"
 
 import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue, useSetAtom} from "jotai"
 
-import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
-import {
-    generationInputRowIdsAtom,
-    generationRowIdsAtom,
-} from "@/oss/components/Playground/state/atoms/generationProperties"
-import {clearAllRunsMutationAtom} from "@/oss/components/Playground/state/atoms/utilityMutations"
-import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {findVariantById} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
 
 import RunButton from "../../../../assets/RunButton"
-import {usePlaygroundAtoms} from "../../../../hooks/usePlaygroundAtoms"
-import {generationHeaderDataAtomFamily, triggerWebWorkerTestAtom} from "../../../../state/atoms"
+import {clearRuns} from "../../../../hooks/usePlayground/assets/generationHelpers"
+import type {PlaygroundStateData} from "../../../../hooks/usePlayground/types"
 import TestsetDrawerButton from "../../../Drawers/TestsetDrawer"
 import LoadTestsetButton from "../../../Modals/LoadTestsetModal/assets/LoadTestsetButton"
 
@@ -23,96 +17,99 @@ import type {GenerationHeaderProps} from "./types"
 
 const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
     const classes = useStyles()
+    const {resultHashes, isRunning, mutate, runTests, cancelRunTests} = usePlayground({
+        variantId,
+        stateSelector: useCallback(
+            (state: PlaygroundStateData) => {
+                const variant = findVariantById(state, variantId)
 
-    // ATOM-LEVEL OPTIMIZATION: Use focused atom for generation header data
-    // Memoize the atom to prevent infinite re-renders
-    const generationHeaderAtom = useMemo(
-        () => generationHeaderDataAtomFamily(variantId),
-        [variantId],
-    )
-    const {resultHashes, isRunning} = useAtomValue(generationHeaderAtom)
+                if (variant?.isChat) {
+                    const messageRows = state.generationData.messages.value
 
-    // Use optimized playground atoms for mutations
-    const playgroundAtoms = usePlaygroundAtoms()
-    const clearGeneration = useSetAtom(clearAllRunsMutationAtom)
+                    const resultHashes = messageRows
+                        .flatMap((message) => {
+                            const historyArray = message.history.value
+                            return historyArray.map(
+                                (history) => history.__runs?.[variantId]?.__result,
+                            )
+                        })
+                        .filter(Boolean)
 
-    const triggerTest = useSetAtom(triggerWebWorkerTestAtom)
-    const runAllChat = useSetAtom(runAllChatAtom)
-    const appType = useAtomValue(appTypeAtom)
-    const completionRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
+                    const isRunning = messageRows.some((inputRow) =>
+                        inputRow.history.value.some((history) =>
+                            variantId ? history.__runs?.[variantId]?.__isRunning : false,
+                        ),
+                    )
+                    return {resultHashes, isRunning}
+                } else {
+                    const inputRows = state.generationData.inputs.value
 
-    const runTests = useCallback(() => {
-        if (appType === "chat") runAllChat()
-        else {
-            // Run for all completion rows: iterate input row ids and trigger tests
-            for (const rid of completionRowIds || []) {
-                triggerTest({rowId: rid, variantId})
-            }
-        }
-    }, [appType, runAllChat, completionRowIds, triggerTest, variantId])
+                    const resultHashes = (inputRows || []).map((inputRow) =>
+                        variantId ? inputRow?.__runs?.[variantId]?.__result : null,
+                    )
 
-    useEffect(() => {
-        const listener = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-                e.preventDefault()
-                e.stopPropagation()
-                if (!isRunning) runTests()
-            }
-        }
-        document.addEventListener("keydown", listener, true)
-        return () => {
-            document.removeEventListener("keydown", listener, true)
-        }
-    }, [runTests, isRunning])
+                    const isRunning = (inputRows || []).some((inputRow) =>
+                        variantId ? inputRow?.__runs?.[variantId]?.__isRunning : false,
+                    )
+
+                    return {resultHashes, isRunning}
+                }
+            },
+            [variantId],
+        ),
+    })
+
+    const clearGeneration = useCallback(() => {
+        mutate(
+            (clonedState) => {
+                if (!clonedState) return clonedState
+                clearRuns(clonedState)
+                return clonedState
+            },
+            {revalidate: false},
+        )
+    }, [mutate])
 
     return (
-        <div
+        <section
             className={clsx(
-                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-1000 !bg-[white]",
+                "h-[48px] flex justify-between items-center gap-4 sticky top-0 z-10",
                 classes.container,
             )}
         >
-            <div className="w-full h-full bg-[white] flex justify-between items-center gap-4">
-                <Typography className="text-[16px] leading-[18px] font-[600] text-nowrap">
-                    Generations
-                </Typography>
+            <Typography className="text-[16px] leading-[18px] font-[600] text-nowrap">
+                Generations
+            </Typography>
 
-                <div className="flex items-center gap-2">
-                    <Tooltip title="Clear all">
-                        <Button size="small" onClick={clearGeneration} disabled={isRunning}>
-                            Clear
-                        </Button>
-                    </Tooltip>
+            <div className="flex items-center gap-2">
+                <Tooltip title="Clear all">
+                    <Button size="small" onClick={clearGeneration} disabled={isRunning}>
+                        Clear
+                    </Button>
+                </Tooltip>
 
-                    <LoadTestsetButton label="Load testset" variantId={variantId} />
+                <LoadTestsetButton label="Load test set" variantId={variantId} />
 
-                    <TestsetDrawerButton
-                        label="Add all to testset"
-                        icon={false}
-                        size="small"
+                <TestsetDrawerButton
+                    label="Add all to test set"
+                    icon={false}
+                    size="small"
+                    disabled={isRunning}
+                    resultHashes={resultHashes}
+                />
+
+                {!isRunning ? (
+                    <RunButton
+                        isRunAll
+                        type="primary"
+                        onClick={() => runTests?.()}
                         disabled={isRunning}
-                        resultHashes={resultHashes}
                     />
-
-                    {!isRunning ? (
-                        <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
-                            <RunButton
-                                isRunAll
-                                type="primary"
-                                onClick={() => runTests()}
-                                disabled={isRunning}
-                            />
-                        </Tooltip>
-                    ) : (
-                        <RunButton
-                            isCancel
-                            onClick={() => playgroundAtoms.cancelRunTests?.()}
-                            className="flex"
-                        />
-                    )}
-                </div>
+                ) : (
+                    <RunButton isCancel onClick={() => cancelRunTests?.()} className="flex" />
+                )}
             </div>
-        </div>
+        </section>
     )
 }
 

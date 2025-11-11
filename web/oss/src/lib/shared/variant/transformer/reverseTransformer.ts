@@ -33,12 +33,6 @@ export function extractValueByMetadata(
     }
 
     if (!metadata) {
-        if (Array.isArray(enhanced)) {
-            return enhanced
-                .map((item) => extractValueByMetadata(item, allMetadata))
-                .filter(shouldIncludeValue)
-        }
-
         // If no metadata, return object without __ properties and null values
         const obj = Object.entries(enhanced)
             .filter(([key]) => !key.startsWith("__"))
@@ -46,7 +40,7 @@ export function extractValueByMetadata(
                 (acc, [key, val]) => {
                     const extracted = extractValueByMetadata(val, allMetadata)
                     if (shouldIncludeValue(extracted)) {
-                        acc[key] = extracted
+                        acc[toSnakeCase(key)] = extracted
                     }
                     return acc
                 },
@@ -85,13 +79,6 @@ export function extractValueByMetadata(
                 checkValidity(obj, allMetadata[enhanced.__metadata])
                 ? obj
                 : undefined
-        }
-        case "compound": {
-            const option = metadata.options.find(
-                (o) => o.value === (enhanced.selected || metadata.options[0].value),
-            )
-            if (!option) return undefined
-            return extractValueByMetadata(enhanced.value, allMetadata)
         }
         default:
             return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined

@@ -1,58 +1,79 @@
-// Re-export the new atom-based billing hooks and actions
-export {
-    useUsageData,
-    useSubscriptionData,
-    usePricingPlans,
-    useSubscriptionActions,
-    useBilling,
-} from "../../state/billing"
+import useSWR from "swr"
 
-// Legacy function exports for backward compatibility
-// These now use direct API calls for backward compatibility
+import {DEFAULT_UUID, getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {getProjectValues} from "@/oss/state/project"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 
-/**
- * @deprecated Use useSubscriptionActions().switchSubscription instead
- * Legacy function for switching subscription plans
- */
+import {BillingPlan, DataUsageType, SubscriptionType} from "./types"
+
+export const useUsageData = () => {
+    const {data, isLoading, mutate, ...restData} = useSWR(`${getAgentaApiUrl()}/billing/usage`, {
+        revalidateOnFocus: false,
+        shouldRetryOnError: false,
+    })
+
+    return {
+        usage: data as DataUsageType,
+        isUsageLoading: isLoading,
+        mutateUsage: mutate,
+        ...restData,
+    }
+}
+
+export const useSubscriptionData = () => {
+    const {projectId} = getCurrentProject()
+
+    const {data, isLoading, mutate, ...restData} = useSWR(
+        projectId === DEFAULT_UUID
+            ? null
+            : `${getAgentaApiUrl()}/billing/subscription?project_id=${projectId}`,
+        {
+            revalidateOnFocus: false,
+            shouldRetryOnError: false,
+        },
+    )
+
+    return {
+        subscription: data as SubscriptionType,
+        isSubLoading: isLoading,
+        mutateSubscription: mutate,
+        ...restData,
+    }
+}
+
+export const usePricingPlans = () => {
+    const {data, isLoading, ...restData} = useSWR(`${getAgentaApiUrl()}/billing/plans`, {
+        revalidateOnFocus: false,
+        shouldRetryOnError: false,
+    })
+
+    return {plans: data as BillingPlan[], isLoadingPlan: isLoading, ...restData}
+}
+
 export const switchSubscription = async (payload: {plan: string}) => {
-    const {projectId} = getProjectValues()
     const response = await axios.post(
-        `${getAgentaApiUrl()}/billing/plans/switch?plan=${payload.plan}&project_id=${projectId}`,
+        `${getAgentaApiUrl()}/billing/plans/switch?plan=${payload.plan}`,
     )
+
     return response
 }
 
-/**
- * @deprecated Use useSubscriptionActions().cancelSubscription instead
- * Legacy function for canceling subscription
- */
 export const cancelSubscription = async () => {
-    const {projectId} = getProjectValues()
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/billing/subscription/cancel?project_id=${projectId}`,
-    )
+    const response = await axios.post(`${getAgentaApiUrl()}/billing/subscription/cancel`)
+
     return response
 }
 
-/**
- * @deprecated Use useSubscriptionActions().checkoutSubscription instead
- * Legacy function for creating new subscription checkout
- */
 export const checkoutNewSubscription = async (payload: {plan: string; success_url: string}) => {
     const response = await axios.post(
         `${getAgentaApiUrl()}/billing/stripe/checkouts/?plan=${payload.plan}&success_url=${payload.success_url}`,
     )
+
     return response
 }
 
-/**
- * @deprecated Use useSubscriptionActions().editSubscription instead
- * Legacy function for editing subscription info
- */
 export const editSubscriptionInfo = async () => {
     const response = await axios.post(`${getAgentaApiUrl()}/billing/stripe/portals/`)
+
     return response
 }

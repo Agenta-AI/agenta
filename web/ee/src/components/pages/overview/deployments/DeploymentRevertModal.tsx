@@ -53,7 +53,7 @@ const DeploymentModal = ({
                 </div>
             }
             centered
-            destroyOnHidden
+            destroyOnClose
             zIndex={3000}
             {...props}
         >

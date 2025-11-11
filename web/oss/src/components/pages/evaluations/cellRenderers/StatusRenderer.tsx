@@ -43,7 +43,7 @@ const StatusRenderer = (record: _Evaluation) => {
     const errorStacktrace = record.status.error?.stacktrace
 
     return (
-        <Typography.Text className={classes.statusCell}>
+        <Typography.Text className={classes.statusCell} data-cy="evaluation-status-cell">
             <div style={{backgroundColor: color}} />
             <span>{label}</span>
             {errorMsg && (

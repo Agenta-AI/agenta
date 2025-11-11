@@ -1,22 +1,7 @@
-import {useEffect} from "react"
-
-import {Crisp} from "crisp-sdk-web"
 import Head from "next/head"
 import Script from "next/script"
 
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
-
 const CloudScripts = () => {
-    useEffect(() => {
-        const isCrispEnabled = !!getEnv("NEXT_PUBLIC_CRISP_WEBSITE_ID")
-
-        if (!isCrispEnabled) {
-            return
-        }
-
-        Crisp.configure(getEnv("NEXT_PUBLIC_CRISP_WEBSITE_ID"))
-    }, [])
-
     return (
         <>
             <Head>
@@ -37,6 +22,19 @@ const CloudScripts = () => {
           gtag('js', new Date());
  
           gtag('config', 'G-PV7R8H9KDM');
+        `}
+                </Script>
+                <Script id="crisp-chat" strategy="afterInteractive">
+                    {`
+          window.$crisp=[];
+          window.CRISP_WEBSITE_ID="5bba54ec-9734-4881-ac1e-a2cb3c74bbd5";
+          (function(){
+            d=document;
+            s=d.createElement("script");
+            s.src="https://client.crisp.chat/l.js";
+            s.async=1;
+            d.getElementsByTagName("head")[0].appendChild(s);
+          })();
         `}
                 </Script>
             </div>

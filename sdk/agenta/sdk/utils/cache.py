@@ -5,7 +5,7 @@ from collections import OrderedDict
 from threading import Lock
 
 CACHE_CAPACITY = int(getenv("AGENTA_MIDDLEWARE_CACHE_CAPACITY", "512"))
-CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(1 * 60)))  # 1 minutes
+CACHE_TTL = int(getenv("AGENTA_MIDDLEWARE_CACHE_TTL", str(5 * 60)))  # 5 minutes
 
 
 class TTLLRUCache:
@@ -38,7 +38,7 @@ class TTLLRUCache:
 
             return value
 
-    def put(self, key, value, ttl: Optional[int] = None):
+    def put(self, key, value):
         with self.lock:
             try:
                 # LRU update
@@ -50,4 +50,4 @@ class TTLLRUCache:
                     self.cache.popitem(last=False)
 
             # Put
-            self.cache[key] = (value, time() + (ttl if ttl is not None else self.ttl))
+            self.cache[key] = (value, time() + self.ttl)

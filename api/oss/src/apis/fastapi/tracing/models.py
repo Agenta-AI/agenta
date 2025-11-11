@@ -1,17 +1,15 @@
-from typing import Optional, List
+from typing import Optional
+from datetime import datetime
 
 from pydantic import BaseModel
 
+from oss.src.apis.fastapi.shared.models import VersionedModel
 from oss.src.core.tracing.dtos import (
     OTelLink,  # needed for annotations at the moment
     OTelLinks,
     OTelFlatSpan,  # needed for annotations at the moment
     OTelFlatSpans,
     OTelTraceTree,
-    Bucket,
-    MetricsBucket,
-    TracingQuery,
-    MetricSpec,
 )
 
 
@@ -20,25 +18,14 @@ class OTelTracingRequest(BaseModel):
     traces: Optional[OTelTraceTree] = None
 
 
-class OTelLinksResponse(BaseModel):
-    count: int = 0
+class OTelLinksResponse(VersionedModel):
+    count: int
     links: Optional[OTelLinks] = None
 
 
-class OTelTracingResponse(BaseModel):
-    count: int = 0
+class OTelTracingResponse(VersionedModel):
+    count: int
+    oldest: Optional[datetime] = None
+    newest: Optional[datetime] = None
     spans: Optional[OTelFlatSpans] = None
     traces: Optional[OTelTraceTree] = None
-
-
-class OldAnalyticsResponse(BaseModel):
-    count: int = 0
-    buckets: List[Bucket] = []
-
-
-class AnalyticsResponse(BaseModel):
-    count: int = 0
-    buckets: List[MetricsBucket] = []
-    #
-    query: TracingQuery = TracingQuery()
-    specs: List[MetricSpec] = []

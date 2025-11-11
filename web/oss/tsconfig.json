@@ -21,5 +21,10 @@
         }
     },
     "include": ["next-env.d.ts", "**/*.d.ts", "**/*.ts", "**/*.tsx"],
-    "exclude": ["node_modules", "src/components/OldPlayground/**/*.tsx"]
+    "exclude": [
+        "node_modules",
+        "cypress.config.ts",
+        "cypress/**/*",
+        "src/components/OldPlayground/**/*.tsx"
+    ]
 }

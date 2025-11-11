@@ -1,449 +1,88 @@
 ---
-title: "Quick Start: Your First LLM Application"
-sidebar_label: "Quick Start"
-description: "Create, evaluate and deploy your first LLM app in minutes"
+title: "Quick Start"
+description: "Create and deploy your first LLM app in one minute"
 ---
-```mdx-code-block
-import Image from "@theme/IdealImage";
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
-```
 
-This guide walks you through creating, evaluating, and deploying your first LLM application using Agenta's user interface. In just a few minutes, you'll have a working prompt that you can use in production.
+import Image from "@theme/IdealImage";
+
+:::note
+This tutorial helps users create LLM apps using templates within the UI. For more complex applications involving code
+in Agenta, please refer to Using code in Agenta [Using code in agenta](//custom-workflows/overview){" "}
+:::
+
+Want a video tutorial instead? We have a 3-minute video for you. [Watch it here](https://youtu.be/N3B_ZOYzjLg).
+
+<iframe
+  width="720"
+  height="450"
+  src="https://www.youtube.com/embed/N3B_ZOYzjLg?si=3KZoWdynQtM1x-cK"
+  title="YouTube video player"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+  allowFullScreen
+></iframe>
+
+## Introduction
+
+Welcome! This beginner-friendly guide will walk you through building a simple LLM app in Agenta using an existing template. We'll create the application, engineer a prompt, and deploy it as an API—all in one minute.
+
+## Prerequisites
+
+This guide assumes you are using [agenta cloud](https://cloud.agenta.ai). If you would like to self-host the agenta platform, please refer to [the self-hosting guide](/self-host/quick-start) for deployment instructions.
 
 <details>
-  <summary>⏯️ Watch a short demo of the quick start guide.</summary>
+  <summary>In case you are self-hosting agenta</summary>
 
-  <iframe
-    width="100%"
-    height="400"
-    src="https://www.youtube.com/embed/N3B_ZOYzjLg?si=3KZoWdynQtM1x-cK"
-    title="Quick Start - Your First LLM Application"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  ></iframe>
+## Step 0: Add your OpenAI API keys
+
+1. Access the agenta in your webbrowser.
+2. Select "Settings" from the left sidebar.
+3. Select "Model Hub" from the top menu.
+4. Add your OpenAI API key.
+
+Your OpenAI API keys are saved locally on your browser and are sent to the Agenta server only when you create a new application (as an environment variable in the Docker container).
+
 </details>
 
-## What You'll Learn
+## Step 1: Create a New LLM App
 
-By the end of this tutorial, you'll know how to:
-
-- **[Create a new prompt](#step-1-create-your-first-prompt)** and [bootstrap a test set](#step-3-create-a-test-set) from interactions in the playground
-- **[Run evaluations](#step-4-evaluate-your-prompt)** from the UI to measure the prompt performance
-- **[Deploy prompts](#step-5-deploy-to-production)** to production environments and integrate them with your applications
-- **[Trace prompt interactions](#step-6-integrate-with-your-app-fetch-the-prompt-configuration)** and usage
-
-## Step 1: Create Your First Prompt
-
-Let's start by creating a simple prompt that returns the capital city of any country.
-
-### Creating the Application
-
-1. **Click "Create New Prompt"** on your dashboard
-2. **Select "Completion Prompt"** from the options
-3. **Name your prompt** "get_capital"
+1. Click on the "Create New App" button.
+2. Select "Create from Template" and choose the "Single Prompt Template"; then name the application "get_capital."
 
 <Image
   img={require("/images/getting-started-ui-screenshots/01_create_new_app.png")}
-  style={{ marginBottom: "1rem" }}
-  alt="Screenshot showing the create new prompt dialog with completion prompt selected"
-/>
-
-:::info Understanding Prompt Types
-Agenta supports two main prompt types:
-
-- **Completion Prompts**: Single-turn prompts for generating one response (like summaries, translations, or factual answers)
-- **Chat Prompts**: Multi-turn prompts for conversations (like chatbots or interactive assistants)
-
-For this tutorial, we're using a completion prompt since we want a single, direct answer.
-:::
-
-## Step 2: Test and Improve Your Prompt
-
-Now let's experiment with the prompt in Agenta's playground to make sure it works correctly.
-
-### Initial Testing
-
-The template comes with a basic prompt for getting country capitals. Let's test it:
-
-1. **Go to the playground** (it should open automatically after creating your prompt)
-2. **Enter "France"** in the input field
-3. **Click "Run"** to test the prompt
-4. **Check the result** - it should return "The capital of France is Paris"
-
-### Refining the Prompt
-
-The current response is a full sentence, but let's say we want just the city name. We can improve this:
-
-1. **Edit the prompt** to be more specific:
-
-   ```
-   What is the capital of {{country}}? Answer with only the capital name.
-   ```
-
-2. **Change the model** to "gpt-4o-mini" for better performance:
-
-<Image
-  img={require("/images/getting-started-ui-screenshots/02_select_model.png")}
-  style={{ marginBottom: "1rem" }}
-  alt="Screenshot showing model selection dropdown with gpt-4o-mini highlighted"
-/>
-
-3. **Run the prompt again** with "France" as input
-4. **Verify the result** now shows just "Paris"
-
-### Saving Your Changes
-
-Now let's save this improved version:
-
-1. **Click the "Commit" button**
-2. **Select "As a new variant"**
-3. **Name the variant** "explicit-prompt"
-
-<Image
-  img={require("/images/getting-started-ui-screenshots/03_commit.png")}
-  style={{ marginBottom: "1rem" }}
-  alt="Screenshot showing the commit dialog with 'As a new variant' option selected"
-/>
-
-:::info Understanding Variants
-Variants in Agenta work like branches in Git repositories. Each variant is versioned. You can use variants to experiment with different concepts (e.g., `long prompt` and `short prompt`), different models (`gpt-4o-mini` and `gpt-4o`), or have different team members work (`alex variant1`, `amani-var2`).
-:::
-
-## Step 3: Create a Test Set
-
-Test sets help you evaluate your prompts consistently. Let's create one using the data point we just tested.
-
-### Adding to a Test Set
-
-You can create a test set directly from the playground:
-
-1. **Click the three dots** next to your output result
-2. **Select "Add to test set"**
-3. **Configure the test set** in the drawer that opens:
-   - **Test set name**: Create new and name it "capitals"
-   - **Input mapping**: Leave "country" mapped to "country"
-   - **Output mapping**: Leave "output" mapped to "correct_answer"
-
-<Image
-  img={require("/images/getting-started-ui-screenshots/04_add_to_test_set.png")}
-  style={{ marginBottom: "1rem" }}
-  alt="Screenshot showing the add to test set dialog with configuration options"
-/>
-
-This creates a test case where:
-
-- **Input**: France
-- **Expected output**: Paris
-
-You can add more countries to this test set later to ensure your prompt works consistently across different inputs.
-
-## Step 4: Evaluate Your Prompt
-
-Evaluation helps you measure how well your prompt performs against your test cases.
-
-### Running an Evaluation
-
-1. **Go to the Evaluation page** from the main navigation
-2. **Click "Start new evaluation"**
-3. **Configure your evaluation**:
-   - **Test set**: Select "capitals" (the one we just created)
-   - **Variant**: Select "explicit-prompt"
-   - **Evaluator**: Select "Exact Match" (to check if output exactly matches expected result)
-
-<Image
-  img={require("/images/getting-started-ui-screenshots/05_new_evaluation.png")}
-  style={{ marginBottom: "1rem" }}
-  alt="Screenshot showing evaluation configuration with test set, variant, and evaluator selected"
 />
 
 :::info
-Agenta comes with a [set of built-in evaluators](/evaluation/concepts) that you can use to evaluate your prompt. You can also create your own custom evaluator [using code](/evaluation/configure-evaluators/custom-evaluator) or [webhooks](/evaluation/configure-evaluators/webhook-evaluator).
+{" "}
+You've created your first LLM application! Test it out in the playground, play with its parameters, or use it in your software
+by copying the code from the "Endpoints" menu.
 :::
 
-### Analyzing the Results
+## Step 2: Test the Application
 
-The evaluation will run in the background. Once complete, you can:
+The provided application template already includes a prompt that states the capital of a country. Let's test it:
 
-- **View overall results** on the evaluation dashboard
-- **Click on the evaluation** to see detailed results for each test case
-- **Identify any failures** where the output didn't match expectations
-
-This helps you understand how reliable your prompt is before deploying it to production.
-
-## Step 5: Deploy to Production
-
-Once you're satisfied with your prompt's performance, it's time to deploy it.
-
-### Deploying Your Prompt
-
-1. **Go to the Registry page** to see all your prompt versions
-2. **Find and select** your "explicit-prompt" variant
-3. **Click "Deploy"** in the upper right corner of the drawer that opens
-4. **Select "Production"** as the target environment
+- Go to the playground.
+- Type "France."
+- Click the "Run" button.
+- The result should read, "The capital of France is Paris." If you only want to return "Paris," we'll adjust this with prompt engineering in the next step.
 
 <Image
-  img={require("/images/getting-started-ui-screenshots/06_deploy.png")}
-  style={{ marginBottom: "1rem" }}
-  alt="Screenshot showing the deploy dialog with production environment selected"
+  img={require("/images/getting-started-ui-screenshots/03_playground.png")}
 />
 
-Your prompt is now live and ready to use in your applications!
+## Step 3: Deploy the application
 
-## Step 6: Integrate with Your App: Fetch the Prompt Configuration
+To deploy the application as an API. You need to click on the button "Publish" in the playground and select an environemnt.
+
+You can now find the API endpoint in the "Endpoints" menu. Copy and paste the code from the "Endpoints" menu to use it in your software.
+
+<Image
+  img={require("/images/getting-started-ui-screenshots/06_deployment.png")}
+/>
 
 :::info
-Agenta provides two main ways to integrate with your application:
-
-- **Use Agenta for Prompt Management**: Fetch the prompt configuration and use it in your own code
-- **Use Agenta as a Proxy**: Use Agenta as a middleware that forwards requests to the LLM
-
-In this guide, we'll use the first approach. The second approach is covered in the [Integration Guide](/prompt-engineering/integrating-prompts/integrating-with-agenta). Its advantages are simpler integration and getting observability out of the box. The disadvantages are that it does not support streaming responses and adds a slight latency to the response (approximately 0.3 seconds).
+Congratulations! You've created your first LLM application. Feel free to modify it, explore its parameters, and discover
+Agenta's features. Your next steps could include [fetching prompts from Agenta](/prompt-engineering/quick-start), [building a custom workflow](/custom-workflows/quick-start), or [running an evaluation](/evaluation/overview).
 :::
-
-We are going to fetch the prompt configuration and use it in our own code:
-
-<Tabs>
-
-<TabItem value="sdk" label="Using Python SDK">
-
-First, import and initialize the Agenta SDK:
-
-```python
-import agenta as ag
-# os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
-# os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai" # only needed when self-hosting
-ag.init()
-
-# Fetch your prompt configuration from the registry
-# You can also use `ag.ConfigManager.get_from_registry_async` for asynchronous applications
-config = ag.ConfigManager.get_from_registry(
-    app_slug="your-app-slug",
-    environment_slug="production"       
-)
-
-# Use the helper class `PromptTemplate` to format your prompt and convert it to OpenAI-compatible parameters
-prompt = PromptTemplate(**config["prompt"]).format(country="France")
-client = openai.OpenAI()
-response = client.chat.completions.create(
-    **prompt.to_openai_kwargs()
-)
-```
-
-<details>
-  <summary>The **JSON response** with your prompt configuration.</summary>
-
-```json
-{
-  "prompt": {
-    "messages": [
-      {
-        "role": "system",
-        "content": "You are an expert in geography"
-      },
-      {
-        "role": "user",
-        "content": "What is the capital of {{country}}? "
-      }
-    ],
-    "input_keys": [
-      "country"
-    ],
-    "llm_config": {
-      "model": "gpt-3.5-turbo",
-      "tools": [],
-      "top_p": 0.2,
-      "max_tokens": 257,
-      "temperature": 0.2,
-      "presence_penalty": -1.7,
-      "frequency_penalty": -1.5,
-      "response_format": {
-        "type": "json_schema",
-        "json_schema": {
-          "name": "MySchema",
-          "schema": {
-            "type": "object",
-            "properties": {}
-          },
-          "strict": false,
-          "description": "A description of the schema"
-        }
-      }
-    },
-    "template_format": "curly"
-  }
-}
-```
-</details>
-
-</TabItem>
-
-<TabItem value="api" label="Using API (JS/TS)">
-
-```javascript
-const fetchConfigs = async () => {
-  const url = 'https://cloud.agenta.ai/api/variants/configs/fetch';
-
-  const headers = {
-    'Accept': 'application/json',
-    'Authorization': 'YOUR_API_KEY',
-    'Content-Type': 'application/json'
-  };
-
-  const requestData = {
-    environment_ref: {
-      slug: 'production',
-      id: null
-    },
-    application_ref: {
-      slug: 'testprompt',
-      id: null
-    }
-  };
-
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestData)
-    });
-
-    const data = await response.json();
-    console.log('Response:', JSON.stringify(data, null, 2));
-
-  } catch (error) {
-    console.error('Error:', error);
-  }
-};
-
-fetchConfigs();
-```
-
-<details>
-  <summary>The **JSON response** with your prompt configuration.</summary>
-
-```json
-{
-  "params": {
-      "prompt": {
-        "messages": [
-          {
-            "role": "system",
-            "content": "You are an expert in geography"
-          },
-          {
-            "role": "user",
-            "content": "What is the capital of {{country}}?"
-          }
-        ],
-        "input_keys": ["country"],
-        "llm_config": {
-          "model": "gpt-3.5-turbo",
-          "tools": []
-        },
-        "user_prompt": "What is the capital of {{country}}?",
-        "system_prompt": "You are an expert in geography",
-        "template_format": "curly"
-      }
-    }
-  },
-  "url": "https://cloud.agenta.ai/services/completion",
-  "application_ref": {
-    "slug": "we",
-    "version": null,
-    "commit_message": null,
-    "id": "0196869b-2337-7d51-8a24-fc3893191b5b"
-  },
-  "service_ref": null,
-  "variant_ref": {
-    "slug": "key",
-    "version": 1,
-    "commit_message": "variant commit message",
-    "id": "0196869b-259c-7e11-ba08-ac316a2d41fa"
-  },
-  "environment_ref": {
-    "slug": "production",
-    "version": 1,
-    "commit_message": "test commit message",
-    "id": "0196869c-bd67-7f41-b7bb-d1196f87d4e9"
-  },
-  "variant_lifecycle": {
-    "created_at": "2025-04-30T12:10:36.828905+00:00",
-    "updated_at": "2025-04-30T12:10:36.315388+00:00",
-    "updated_by_id": "01966e0a-9094-7562-8d47-87002335e22b",
-    "updated_by": "me@gmail.com"
-  },
-  "environment_lifecycle": {
-    "created_at": "2025-04-30T12:12:21.223715+00:00",
-    "updated_at": "2025-04-30T12:12:21.223715+00:00",
-    "updated_by_id": "01966e0a-9094-7562-8d47-87002335e22b",
-    "updated_by": "me@gmail.com"
-  }
-}
-```
-</details>
-</TabItem>
-</Tabs>
-
-## Step 7: Integrating with Your Application: Adding Observability
-
-Agenta is built on top of **OpenTelemetry** and is compatible with a number of semantic conventions in the ecosystem ([OpenLLMetry](https://github.com/traceloop/openllmetry), [OpenInference](https://github.com/Arize-ai/openinference), [Logfire](https://logfire.ai/)). It comes therefore with built-in auto-instrumentation support for all major LLM frameworks and SDKs such as [OpenAI](/observability/integrations/openai), [LiteLLM](/observability/integrations/litellm), [LangChain](/observability/integrations/langchain).
-
-To add instrumentation to our application, let's use the auto-instrumentation support for OpenAI. We are going to use the OpenLLMetry library to auto-instrument the OpenAI client.
-
-First, we need to install the OpenLLMetry library:
-
-```bash
-pip install opentelemetry-instrumentation-openai
-```
-
-Then we can add auto-instrumentation to our application (new lines are highlighted):
-
-```python
-import agenta as ag
-# highlight-start
-from opentelemetry.instrumentation.openai import OpenAIInstrumentor
-# highlight-end
-
-import openai
-
-# os.environ["AGENTA_API_KEY"] = "YOUR_AGENTA_API_KEY"
-# os.environ["AGENTA_HOST"] = "https://cloud.agenta.ai" # only needed when self-hosting
-ag.init()
-
-# highlight-start
-OpenAIInstrumentor().instrument()
-# highlight-end
-
-# Fetch your prompt configuration from the registry
-# You can also use `ag.ConfigManager.get_from_registry_async` for asynchronous applications
-config = ag.ConfigManager.get_from_registry(
-    app_slug="your-app-slug",
-    environment_slug="production"       
-)
-
-# Use the helper class `PromptTemplate` to format your prompt and convert it to OpenAI-compatible parameters
-prompt = PromptTemplate(**config["prompt"]).format(country="France")
-client = openai.OpenAI()
-response = client.chat.completions.create(
-    **prompt.to_openai_kwargs()
-)
-```
-
-You can go now the the observability page and see the trace generated. It includes the cost, latency, and inputs/outputs of the prompt.
-
-<Image
-  img={require("/images/getting-started-ui-screenshots/07_observability.png")}
-  style={{ marginBottom: "1rem" }}
-  alt="Screenshot showing the observability page with the trace generated"
-/>
-## What's Next?
-
-Congratulations! You've successfully created, tested, deployed, and set up observability for your first LLM application. 
-
-Here are some next steps to explore:
-
-- [Set up your evaluation workflow](/evaluation/concepts)
-- [Set up observability](/observability/overview) and explore the different integrations
-- [Set up custom workflows](/custom-workflows/overview) to enable product teams to run evaluations on complex applications from the UI
