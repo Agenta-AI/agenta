@@ -80,6 +80,26 @@ services:
             - redis
         restart: always
 
+    cron:
+        image: agenta-oss-dev-api:latest
+
+        env_file:
+            - ${ENV_FILE:-./.env.oss.dev}
+
+        depends_on:
+            - postgres
+            - api
+
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        
+        restart: always
+        
+        networks:
+            - agenta-network
+
+        command: cron -f
+
     alembic:
         build:
             context: ../../../api

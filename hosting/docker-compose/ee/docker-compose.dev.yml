@@ -122,6 +122,7 @@ services:
 
         volumes:
             - ../../../api/ee/src/crons/meters.sh:/meters.sh
+            - ../../../api/oss/src/crons/queries.sh:/queries.sh
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
