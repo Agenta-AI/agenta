@@ -8,8 +8,8 @@ from oss.src.dbs.postgres.shared.dbas import OrganizationScopeDBA
 class PeriodDBA:
     __abstract__ = True
 
-    year = Column(SmallInteger, nullable=False)
-    month = Column(SmallInteger, nullable=False)
+    year = Column(SmallInteger, nullable=True)
+    month = Column(SmallInteger, nullable=True)
 
 
 class MeterDBA(

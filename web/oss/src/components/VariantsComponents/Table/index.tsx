@@ -2,11 +2,8 @@ import {type ComponentProps, useMemo, useState} from "react"
 
 import {Spin, Table, TableColumnType} from "antd"
 import {TableRowSelection} from "antd/es/table/interface"
-import {atom, useAtom} from "jotai"
 
-import useURL from "@/oss/hooks/useURL"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {variantTableSelectionAtomFamily} from "@/oss/state/variant/atoms/selection"
 
 import ResizableTitle from "../../ResizableTitle"
 
@@ -20,11 +17,11 @@ type VariantsTableProps = {
     variants: EnhancedVariant[]
     handleOpenDetails?: (record: EnhancedVariant) => void
     handleOpenInPlayground?: (record: EnhancedVariant) => void
+    handleDeploy?: (record: EnhancedVariant) => void
+    handleDeleteVariant?: (record: EnhancedVariant) => void
     showActionsDropdown?: boolean
     enableColumnResize?: boolean
     showRevisionsAsChildren?: boolean
-    selectionScope?: string
-    showStableName?: boolean
 } & ComponentProps<typeof Table>
 
 const VariantsTable = ({
@@ -33,34 +30,26 @@ const VariantsTable = ({
     variants,
     handleOpenDetails,
     handleOpenInPlayground,
+    handleDeploy,
+    handleDeleteVariant,
     showEnvBadges = false,
     rowSelection,
     showActionsDropdown = true,
     enableColumnResize = false,
     showRevisionsAsChildren = false,
-    selectionScope,
-    showStableName = false,
     ...props
 }: VariantsTableProps) => {
-    const {appURL} = useURL()
     const initialColumns = useMemo(
         () =>
             getColumns({
                 showEnvBadges,
                 handleOpenDetails,
                 handleOpenInPlayground,
+                handleDeploy,
+                handleDeleteVariant,
                 showActionsDropdown,
-                showStableName,
-                appURL,
             }),
-        [
-            handleOpenDetails,
-            handleOpenInPlayground,
-            showEnvBadges,
-            showActionsDropdown,
-            showStableName,
-            appURL,
-        ],
+        [handleOpenDetails, handleOpenInPlayground, handleDeploy, handleDeleteVariant],
     )
 
     const [columns, setColumns] = useState(initialColumns)
@@ -87,39 +76,52 @@ const VariantsTable = ({
         }))
     }, [columns])
 
-    // Always call hooks in a stable order; create a stable atom depending on selectionScope
-    const selectionAtom = useMemo(
-        () =>
-            selectionScope
-                ? variantTableSelectionAtomFamily(selectionScope)
-                : atom<React.Key[]>([]),
-        [selectionScope],
-    )
-    const [scopedSelectedKeys, setScopedSelectedKeys] = useAtom(selectionAtom)
+    const _variants = useMemo(() => {
+        if (!showRevisionsAsChildren) return variants
+
+        // Group variants by their parent variant ID
+        const variantGroups = variants.reduce<Record<string, typeof variants>>((acc, variant) => {
+            const parentId = variant._parentVariant?.id
+            if (!parentId) return acc
+
+            if (!acc[parentId]) {
+                acc[parentId] = []
+            }
+            acc[parentId].push(variant)
+            return acc
+        }, {})
+
+        // Process each group
+        const result = []
+        for (const [parentId, group] of Object.entries(variantGroups)) {
+            const revision = group[0]
+            if (group.length > 1 && revision._parentVariant.revision > 1) {
+                const parentVariant = revision._parentVariant
+                result.push({
+                    ...parentVariant,
+                    children: group,
+                })
+            } else {
+                result.push(revision)
+            }
+        }
+
+        return result
+    }, [variants, showRevisionsAsChildren])
 
     return (
         <Spin spinning={isLoading}>
             <Table
-                rowSelection={
-                    selectionScope
-                        ? {
-                              type: "checkbox",
-                              columnWidth: 48,
-                              checkStrictly: false,
-                              selectedRowKeys: scopedSelectedKeys as React.Key[],
-                              onChange: (keys) => setScopedSelectedKeys(keys as React.Key[]),
-                          }
-                        : {
-                              type: "checkbox",
-                              columnWidth: 48,
-                              checkStrictly: false,
-                              ...rowSelection,
-                          }
-                }
+                rowSelection={{
+                    type: "checkbox",
+                    columnWidth: 48,
+                    checkStrictly: false,
+                    ...rowSelection,
+                }}
                 className="ph-no-capture"
-                rowKey={(props as any)?.rowKey || "id"}
+                rowKey={"id"}
                 columns={(enableColumnResize ? mergedColumns : initialColumns) as any}
-                dataSource={variants as EnhancedVariant[]}
+                dataSource={_variants as EnhancedVariant[]}
                 scroll={{x: "max-content"}}
                 bordered
                 components={{

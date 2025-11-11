@@ -1,27 +1,23 @@
-import {useMemo, useCallback, useRef, type RefObject, forwardRef, JSX} from "react"
-import {DownOutlined} from "@ant-design/icons"
+import {useMemo, useCallback, useRef, type RefObject} from "react"
+import {DownOutlined, RightOutlined} from "@ant-design/icons"
 import {Table} from "antd"
 import {ColumnsType} from "antd/es/table"
-import clsx from "clsx"
 import {useLocalStorage, useResizeObserver} from "usehooks-ts"
+import clsx from "clsx"
 
-import {ResizableTitle, SkeletonCell} from "./assets/CustomCells"
 import {EnhancedTableProps, EnhancedColumnType} from "./types"
+import {ResizableTitle, SkeletonCell} from "./assets/CustomCells"
 
-const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: boolean}>(
-    {
-        columns,
-        dataSource,
-        loading,
-        skeletonRowCount = 5,
-        addNotAvailableCell = true,
-        virtualized = false,
-        showHorizontalScrollBar = false,
-        uniqueKey,
-        ...rest
-    }: EnhancedTableProps<RecordType>,
-    ref: React.ForwardedRef<any>,
-) => {
+const EnhancedTable = <RecordType extends {key?: React.Key; isSkeleton?: boolean}>({
+    columns,
+    dataSource,
+    loading,
+    skeletonRowCount = 5,
+    addNotAvailableCell = true,
+    virtualized = false,
+    uniqueKey,
+    ...rest
+}: EnhancedTableProps<RecordType>) => {
     const [columnWidths, setColumnWidths] = useLocalStorage<Record<string, number>>(
         `${uniqueKey}-tableColumnWidths`,
         {},
@@ -71,28 +67,14 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
                 const baseRender = col.render
 
                 // Enhanced cell renderer handling skeleton rows, not available.
-                const render = (value: any, record: RecordType, rowIndex: number) => {
+                const render = (value: any, record: RecordType, index: number) => {
                     if (record.isSkeleton) {
                         return <SkeletonCell />
                     }
-                    const content = baseRender ? baseRender(value, record, rowIndex) : value
+                    const content = baseRender ? baseRender(value, record, index) : value
+
                     if (addNotAvailableCell && !content) {
                         return <div className="not-available-table-cell" />
-                    }
-
-                    if (col.collapsible) {
-                        return (
-                            <div
-                                key={key}
-                                aria-hidden={isCollapsed}
-                                className={clsx(
-                                    "origin-left transition-[opacity,transform] duration-300 will-change-transform",
-                                )}
-                                tabIndex={isCollapsed ? -1 : undefined}
-                            >
-                                {content}
-                            </div>
-                        )
                     }
 
                     return content
@@ -110,19 +92,8 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
                             toggleCollapse(key)
                         }}
                     >
-                        <DownOutlined
-                            className={clsx("inline-block transition-transform duration-300", {
-                                "-rotate-90": isCollapsed,
-                            })}
-                        />
-                        <span
-                            className={clsx(
-                                "inline-block origin-left transition-[opacity,transform] duration-300 will-change-transform",
-                                isCollapsed ? "scale-x-95" : "scale-x-100",
-                            )}
-                        >
-                            {titleContent}
-                        </span>
+                        {isCollapsed ? <RightOutlined /> : <DownOutlined />}
+                        {titleContent}
                     </span>
                 ) : (
                     titleContent
@@ -154,14 +125,7 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
                             onResize: handleResize(key),
                         }),
                         render: (value: any, record: RecordType, index: number) => {
-                            if (isCollapsed) {
-                                if (record.isSkeleton) return <SkeletonCell />
-                                return col.renderAggregatedData?.({
-                                    isSkeleton: record.isSkeleton,
-                                    isCollapsed,
-                                    record,
-                                })
-                            }
+                            if (isCollapsed) return null
                             return render(value, record, index)
                         },
                     }
@@ -181,14 +145,7 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
                             onResize: handleResize(key),
                         }),
                         render: (value: any, record: RecordType, index: number) => {
-                            if (collapsedLeaf) {
-                                if (record.isSkeleton) return <SkeletonCell />
-                                return col.renderAggregatedData?.({
-                                    isSkeleton: record.isSkeleton,
-                                    isCollapsed: true,
-                                    record,
-                                })
-                            }
+                            if (collapsedLeaf) return null
                             return render(value, record, index)
                         },
                         onCell: (record: RecordType, rowIndex: number) => {
@@ -238,7 +195,7 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
         [skeletonRowCount],
     )
     const data = useMemo(() => {
-        if (loading) {
+        if (loading && (!dataSource || (Array.isArray(dataSource) && dataSource.length === 0))) {
             return skeletonData
         }
         return dataSource
@@ -249,7 +206,32 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
         return loading
     }, [loading, data, skeletonData])
 
-    const virtualizationActive = virtualized
+    const {virtualizationActive, scroll} = useMemo(() => {
+        if (!virtualized) {
+            return {
+                virtualizationActive: false,
+                scroll: rest.scroll,
+            }
+        }
+
+        // Measure the table header height so we can subtract it from the available space when virtualization is active
+        const headerHeight =
+            (containerRef.current?.querySelector(".ant-table-thead") as HTMLElement)
+                ?.offsetHeight || 0
+
+        // Virtual scrolling only applies when explicitly enabled and we have a measurable container height
+        const virtualizationActive = virtualized && containerHeight! > 0
+
+        // When virtualized, set Ant Design's scroll props based on the available container dimensions
+        const scroll = virtualizationActive
+            ? {
+                  y: rest.scroll?.y || containerHeight! - headerHeight,
+                  x: rest.scroll?.x || containerWidth,
+              }
+            : rest.scroll
+
+        return {virtualizationActive, scroll}
+    }, [virtualized, containerHeight, containerWidth, rest.scroll])
 
     const table = (
         <Table
@@ -263,12 +245,12 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
                     cell: ResizableTitle,
                 },
             }}
-            className={clsx(rest.className, "enhanced-table", {
-                "[&_.ant-table-tbody-virtual]:!border-0 [&_.ant-table-tbody-virtual-scrollbar]:!h-0":
-                    !showHorizontalScrollBar,
-            })}
-            ref={ref as any}
-            scroll={{x: rest.scroll?.x || "max-content", y: rest.scroll?.y || containerHeight}}
+            className={clsx(
+                rest.className,
+                "enhanced-table",
+                "[&_.ant-table-tbody-virtual]:!border-0 [&_.ant-table-tbody-virtual-scrollbar]:!h-0",
+            )}
+            scroll={scroll}
             sticky={virtualizationActive || rest.sticky}
             virtual={virtualizationActive}
             tableLayout={virtualizationActive ? "fixed" : rest.tableLayout}
@@ -287,14 +269,5 @@ const EnhancedTableInner = <RecordType extends {key?: React.Key; isSkeleton?: bo
 
     return table
 }
-
-const EnhancedTable = forwardRef(EnhancedTableInner) as <
-    RecordType extends {
-        key?: React.Key
-        isSkeleton?: boolean
-    },
->(
-    props: EnhancedTableProps<RecordType> & {ref?: React.Ref<any>},
-) => JSX.Element
 
 export default EnhancedTable

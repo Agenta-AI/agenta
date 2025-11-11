@@ -15,7 +15,6 @@ A powerful table component extending Ant Design's Table with enhanced features l
 
 - **Resizable Columns**: Drag to resize column widths
 - **Collapsible Groups**: Collapse/expand column groups
-- **Aggregated Data on Collapse**: Optionally render aggregated content when columns are collapsed
 - **Skeleton Loading**: Built-in loading states
 - **Virtualization**: Optimized rendering for large datasets
 - **Persistent State**: Saves column widths and collapse on local-storage
@@ -32,16 +31,10 @@ const columns = [
         dataIndex: "name",
         width: 200,
         isSkeleton: false,
-        // Disable not-available cell just for this column (overrides table default)
-        addNotAvailableCell: false,
     },
     {
         title: "Details",
         collapsible: true,
-        // Enable not-available cell for the group when collapsed (inherits table default otherwise)
-        addNotAvailableCell: true,
-        // Render a summary when collapsed
-        renderAggregatedData: ({record}) => `Age: ${record.age}, Address: ${record.address}`,
         children: [
             {title: "Age", dataIndex: "age"},
             {title: "Address", dataIndex: "address"},

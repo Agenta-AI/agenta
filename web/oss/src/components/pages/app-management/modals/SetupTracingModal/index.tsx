@@ -1,34 +1,23 @@
-import {MouseEvent, useMemo, useState} from "react"
+import {useMemo, useState} from "react"
 
 import {CloseOutlined, PythonOutlined} from "@ant-design/icons"
 import {CodeBlock, FileTs, Play} from "@phosphor-icons/react"
 import {Button, ModalProps, Space, Tabs, TabsProps, Typography} from "antd"
-import dynamic from "next/dynamic"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {generateCodeBlocks} from "./assets/generateCodeBlocks"
 import {useStyles} from "./assets/styles"
-
-const TracingTabContent = dynamic(
-    () => import("./components/TracingTabContent").then((m) => m.TracingTabContent),
-    {
-        ssr: false,
-    },
-)
+import {TracingTabContent} from "./components/TracingTabContent"
 
 const {Text, Title} = Typography
 
-const SetupTracingModalContent = ({
-    classes,
-    ...props
-}: {
-    classes: any
-    onCancel: ModalProps["onCancel"]
-}) => {
+const SetupTracingModal = (props: ModalProps) => {
+    const classes = useStyles()
     const [apiKeyValue, setApiKeyValue] = useState("")
     const codeBlocks = useMemo(() => generateCodeBlocks(apiKeyValue, isDemo()), [apiKeyValue])
+
     const items: TabsProps["items"] = [
         {
             key: "openai",
@@ -105,39 +94,6 @@ const SetupTracingModalContent = ({
     ]
 
     return (
-        <div className="h-full flex flex-col">
-            <div className={classes.modalHeader}>
-                <Button
-                    onClick={() => props.onCancel?.({} as any)}
-                    type="text"
-                    icon={<CloseOutlined />}
-                />
-                <Text>Set up tracing</Text>
-                <Button
-                    target="_blank"
-                    href="https://docs.agenta.ai/observability/observability-sdk"
-                >
-                    <Play />
-                    Tutorial
-                </Button>
-            </div>
-            <div className={classes.modalBody}>
-                <Space direction="vertical">
-                    <Title>Tracing</Title>
-                    <Text>
-                        Debug effectively, bootstrap testsets, monitor and compare app versions
-                    </Text>
-                </Space>
-                <Tabs defaultActiveKey="openai" items={items} className={classes.tabs} />
-            </div>
-        </div>
-    )
-}
-
-const SetupTracingModal = (props: ModalProps) => {
-    const classes = useStyles()
-
-    return (
         <EnhancedModal
             footer={null}
             title={null}
@@ -147,7 +103,32 @@ const SetupTracingModal = (props: ModalProps) => {
             closeIcon={null}
             {...props}
         >
-            <SetupTracingModalContent classes={classes} onCancel={props.onCancel} />
+            <div className="h-full flex flex-col">
+                <div className={classes.modalHeader}>
+                    <Button
+                        onClick={() => props.onCancel?.({} as any)}
+                        type="text"
+                        icon={<CloseOutlined />}
+                    />
+                    <Text>Set up tracing</Text>
+                    <Button
+                        target="_blank"
+                        href="https://docs.agenta.ai/observability/observability-sdk"
+                    >
+                        <Play />
+                        Tutorial
+                    </Button>
+                </div>
+                <div className={classes.modalBody}>
+                    <Space direction="vertical">
+                        <Title>Tracing</Title>
+                        <Text>
+                            Debug effectively, bootstrap test sets, monitor and compare app versions
+                        </Text>
+                    </Space>
+                    <Tabs defaultActiveKey="openai" items={items} className={classes.tabs} />
+                </div>
+            </div>
         </EnhancedModal>
     )
 }

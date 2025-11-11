@@ -85,7 +85,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
                     continue
 
                 secret = SecretDTO(
-                    kind="provider_key",  # type: ignore
+                    kind="provider_kind",  # type: ignore
                     data=StandardProviderDTO(
                         kind=provider,
                         provider=StandardProviderSettingsDTO(key=key),
@@ -101,7 +101,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.host}/api/vault/v1/secrets/",
+                    f"{self.host}/api/vault/v1/secrets",
                     headers=headers,
                 )
 

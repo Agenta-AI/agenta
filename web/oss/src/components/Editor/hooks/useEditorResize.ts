@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import type {EditorProps} from "../types"
 
@@ -14,20 +14,14 @@ export function useEditorResize({
     const containerRef = useRef<HTMLDivElement>(null)
     const isResizing = useRef(false)
     const [dimensions, setDimensions] = useState({width: 0, height: 0})
-    const containerElmRef = useRef<HTMLDivElement | null>(null)
-
-    // Use useCallback to prevent unnecessary re-renders and useRef to avoid state updates
-    const setContainerElmCallback = useCallback((el: HTMLDivElement | null) => {
-        containerElmRef.current = el
-    }, [])
-
+    const [containerElm, setContainerElm] = useState<HTMLDivElement | null>(null)
     useEffect(() => {
-        if ((!containerRef.current && !containerElmRef.current) || singleLine || !enableResize) {
+        if ((!containerRef.current && !containerElm) || singleLine || !enableResize) {
             return
         }
 
-        const container = containerRef.current || containerElmRef.current
-        const handle = container.querySelector(".resize-handle") as HTMLElement
+        const container = containerRef.current || containerElm
+        const handle = container?.querySelector(".resize-handle") as HTMLElement
         if (!skipHandle && !handle) {
             return
         }
@@ -80,7 +74,15 @@ export function useEditorResize({
             document.removeEventListener("mousemove", throttledResize)
             document.removeEventListener("mouseup", stopResize)
         }
-    }, [skipHandle, singleLine, enableResize, boundWidth, boundHeight])
+    }, [
+        containerElm,
+        skipHandle,
+        singleLine,
+        enableResize,
+        boundWidth,
+        boundHeight,
+        containerRef.current,
+    ])
 
-    return {containerRef, dimensions, setContainerElm: setContainerElmCallback}
+    return {containerRef, dimensions, setContainerElm}
 }

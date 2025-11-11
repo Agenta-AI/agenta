@@ -4,7 +4,7 @@ from traceback import print_exc
 from uuid import UUID
 
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy import and_, or_, not_, distinct, Column, func, cast, text, Select
+from sqlalchemy import and_, or_, not_, distinct, Column, func, cast, text
 from sqlalchemy import TIMESTAMP, Enum, UUID as SQLUUID, Integer, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.future import select
@@ -51,30 +51,24 @@ from oss.src.core.observability.utils import (
 log = get_module_logger(__name__)
 
 _DEFAULT_TIME_DELTA = timedelta(days=30)
-_DEFAULT_INTERVAL = 1440  # 1 day
-_DEFAULT_INTERVAL_TEXT = "1 day"
+_DEFAULT_WINDOW = 1440  # 1 day
+_DEFAULT_WINDOW_TEXT = "1 day"
 _MAX_ALLOWED_BUCKETS = 1024
 _SUGGESTED_BUCKETS_LIST = [
-    (1 * 1, "1 minute"),
-    (1 * 5, "5 minutes"),
-    (1 * 15, "15 minutes"),
-    (1 * 30, "30 minutes"),
-    (1 * 60 * 1, "1 hour"),
-    (1 * 60 * 3, "3 hours"),
-    (1 * 60 * 6, "6 hours"),
-    (1 * 60 * 12, "12 hours"),
-    (1 * 60 * 24 * 1, "1 day"),
-    (1 * 60 * 24 * 3, "3 days"),
-    (1 * 60 * 24 * 7, "7 days"),
-    (1 * 60 * 24 * 14, "14 days"),
-    (1 * 60 * 24 * 30, "30 days"),
+    (1, "1 minute"),
+    (5, "5 minutes"),
+    (15, "15 minutes"),
+    (30, "30 minutes"),
+    (60, "1 hour"),
+    (720, "12 hours"),
+    (1440, "1 day"),
 ]
 
 DEBUG_ARGS = {
     "dialect": postgresql.dialect(),
     "compile_kwargs": {"literal_binds": True},
 }
-STATEMENT_TIMEOUT = 15_000  # milliseconds
+STATEMENT_TIMEOUT = 60_000  # milliseconds
 COLUMNS_TO_EXCLUDE = ["content"]
 COLUMNS_TO_INCLUDE = [
     column
@@ -96,11 +90,11 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     ) -> Tuple[List[SpanDTO], Optional[int]]:
         try:
             async with engine.tracing_session() as session:
-                _stmt = text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'")
-                await session.execute(_stmt)
+                stmt = text(f"SET LOCAL statement_timeout = '{STATEMENT_TIMEOUT}'")
+                await session.execute(stmt)
 
                 # BASE (SUB-)QUERY
-                stmt = select(*COLUMNS_TO_INCLUDE)
+                query = select(*COLUMNS_TO_INCLUDE)
                 # ----------------
 
                 # GROUPING
@@ -113,14 +107,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                         grouping.focus.value + "_id",
                     )
 
-                    stmt = select(
+                    query = select(
                         distinct(grouping_column).label("grouping_key"),
                         NodesDBE.created_at,
                     )
                 # --------
 
                 # SCOPING
-                stmt = stmt.filter_by(
+                query = query.filter_by(
                     project_id=project_id,
                 )
                 # -------
@@ -130,10 +124,10 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------
                 if windowing:
                     if windowing.oldest:
-                        stmt = stmt.filter(NodesDBE.created_at >= windowing.oldest)
+                        query = query.filter(NodesDBE.created_at >= windowing.oldest)
 
                     if windowing.newest:
-                        stmt = stmt.filter(NodesDBE.created_at < windowing.newest)
+                        query = query.filter(NodesDBE.created_at < windowing.newest)
                 # ---------
 
                 # FILTERING
@@ -143,7 +137,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     operator = filtering.operator
                     conditions = filtering.conditions
 
-                    stmt = stmt.filter(
+                    query = query.filter(
                         _combine(
                             operator,
                             _filters(conditions),
@@ -152,58 +146,58 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------
 
                 # SORTING
-                stmt = stmt.order_by(
+                query = query.order_by(
                     NodesDBE.created_at.desc(),
                 )
                 # -------
 
                 # COUNTING // dangerous with large datasets
-                count_stmt = select(
+                count_query = select(
                     func.count()  # pylint: disable=E1102:not-callable
-                ).select_from(stmt.subquery())
+                ).select_from(query.subquery())
 
-                count = (await session.execute(count_stmt)).scalar()
+                count = (await session.execute(count_query)).scalar()
                 # --------
 
                 # PAGINATION
                 pagination = query_dto.pagination
                 # ----------
                 if pagination:
-                    stmt = _chunk(
-                        stmt,
+                    query = _chunk(
+                        query,
                         **pagination.model_dump(),
                     )
                 # ----------
 
                 # GROUPING
                 if grouping and grouping_column:
-                    substmt = stmt.subquery()
+                    subquery = query.subquery()
 
-                    stmt = select(*COLUMNS_TO_INCLUDE)
-                    stmt = stmt.filter(
-                        grouping_column.in_(select(substmt.c["grouping_key"]))
+                    query = select(*COLUMNS_TO_INCLUDE)
+                    query = query.filter(
+                        grouping_column.in_(select(subquery.c["grouping_key"]))
                     )
 
                     # SORTING
-                    stmt = stmt.order_by(
+                    query = query.order_by(
                         NodesDBE.created_at.desc(),
                         NodesDBE.time_start.asc(),
                     )
                     # -------
                 else:
                     # SORTING
-                    stmt = stmt.order_by(
+                    query = query.order_by(
                         NodesDBE.time_start.desc(),
                     )
                     # -------
                 # --------
 
                 # DEBUGGING
-                # log.trace(str(stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
+                # log.trace(str(query.compile(**DEBUG_ARGS)).replace("\n", " "))
                 # ---------
 
                 # QUERY EXECUTION
-                spans = (await session.execute(stmt)).all()
+                spans = (await session.execute(query)).all()
                 # ---------------
 
             return [map_span_dbe_to_span_dto(span) for span in spans], count
@@ -213,8 +207,8 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
             if "QueryCanceledError" in str(e.orig):
                 raise FilteringException(
-                    "TracingQuery execution was cancelled due to timeout. "
-                    "Please try again with a smaller time range."
+                    "Query execution was cancelled due to timeout. "
+                    "Please try again with a smaller time window."
                 ) from e
 
             raise e
@@ -250,7 +244,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
                 oldest = None
                 newest = None
-                interval_text = None
+                window_text = None
                 # ---------
                 if analytics_dto.windowing:
                     if analytics_dto.windowing.newest:
@@ -266,36 +260,36 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     else:
                         oldest = newest - _DEFAULT_TIME_DELTA
 
-                    if analytics_dto.windowing.interval:
-                        _desired_interval = analytics_dto.windowing.interval
+                    if analytics_dto.windowing.window:
+                        _desired_window = analytics_dto.windowing.window
                     else:
-                        _desired_interval = _DEFAULT_INTERVAL
+                        _desired_window = _DEFAULT_WINDOW
 
-                    _interval_minutes = (newest - oldest).total_seconds() // 60
+                    _window_minutes = (newest - oldest).total_seconds() // 60
 
-                    _desired_buckets = _interval_minutes // _desired_interval
+                    _desired_buckets = _window_minutes // _desired_window
 
                     if _desired_buckets > _MAX_ALLOWED_BUCKETS:
                         for (
                             _suggested_minutes,
-                            _suggest_interval_text,
+                            _suggest_window_text,
                         ) in _SUGGESTED_BUCKETS_LIST:
-                            _suggested_buckets = _interval_minutes // _suggested_minutes
+                            _suggested_buckets = _window_minutes // _suggested_minutes
 
                             if _suggested_buckets <= _MAX_ALLOWED_BUCKETS:
-                                interval_text = _suggest_interval_text
+                                window_text = _suggest_window_text
                                 break
 
-                        if not interval_text:
-                            interval_text = _SUGGESTED_BUCKETS_LIST[-1][1]
+                        if not window_text:
+                            window_text = _SUGGESTED_BUCKETS_LIST[-1][1]
 
                     else:
-                        interval_text = f"{_desired_interval} minute{'s' if _desired_interval > 1 else ''}"
+                        window_text = f"{_desired_window} minute{'s' if _desired_window > 1 else ''}"
 
                 else:
                     newest = start_of_next_day
                     oldest = newest - _DEFAULT_TIME_DELTA
-                    interval_text = _DEFAULT_INTERVAL_TEXT
+                    window_text = _DEFAULT_WINDOW_TEXT
 
                 # ---------
 
@@ -305,7 +299,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 _cost = None
                 _tokens = None
                 _timestamp = func.date_bin(
-                    text(f"'{interval_text}'"),
+                    text(f"'{window_text}'"),
                     NodesDBE.created_at,
                     oldest,
                 ).label("timestamp")
@@ -361,7 +355,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # --------
 
                 # BASE QUERY
-                total_stmt = select(
+                total_query = select(
                     _count,
                     _duration,
                     _cost,
@@ -369,7 +363,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     _timestamp,
                 ).select_from(NodesDBE)
 
-                error_stmt = select(
+                error_query = select(
                     _count,
                     _duration,
                     _cost,
@@ -379,29 +373,29 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ----------
 
                 # WINDOWING
-                total_stmt = total_stmt.filter(
+                total_query = total_query.filter(
                     NodesDBE.created_at >= oldest,
                     NodesDBE.created_at < newest,
                 )
 
-                error_stmt = error_stmt.filter(
+                error_query = error_query.filter(
                     NodesDBE.created_at >= oldest,
                     NodesDBE.created_at < newest,
                 )
                 # ---------
 
                 # SCOPING
-                total_stmt = total_stmt.filter_by(
+                total_query = total_query.filter_by(
                     project_id=project_id,
                 )
 
-                error_stmt = error_stmt.filter_by(
+                error_query = error_query.filter_by(
                     project_id=project_id,
                 )
                 # -------
 
                 # TOTAL vs ERROR
-                error_stmt = error_stmt.filter(
+                error_query = error_query.filter(
                     NodesDBE.exception.isnot(None),
                 )
                 # ----------------
@@ -413,14 +407,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     operator = filtering.operator
                     conditions = filtering.conditions
 
-                    total_stmt = total_stmt.filter(
+                    total_query = total_query.filter(
                         _combine(
                             operator,
                             _filters(conditions),
                         )
                     )
 
-                    error_stmt = error_stmt.filter(
+                    error_query = error_query.filter(
                         _combine(
                             operator,
                             _filters(conditions),
@@ -433,26 +427,26 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                     analytics_dto.grouping
                     and analytics_dto.grouping.focus.value != "node"
                 ):
-                    total_stmt = total_stmt.filter_by(
+                    total_query = total_query.filter_by(
                         parent_id=None,
                     )
 
-                    error_stmt = error_stmt.filter_by(
+                    error_query = error_query.filter_by(
                         parent_id=None,
                     )
                 # --------
 
                 # SORTING
-                total_stmt = total_stmt.group_by("timestamp")
+                total_query = total_query.group_by("timestamp")
 
-                error_stmt = error_stmt.group_by("timestamp")
+                error_query = error_query.group_by("timestamp")
                 # -------
 
                 # DEBUGGING
                 # TODO: HIDE THIS BEFORE RELEASING
                 # print(
                 #     str(
-                #         total_stmt.compile(
+                #         total_query.compile(
                 #             dialect=postgresql.dialect(),
                 #             compile_kwargs={"literal_binds": True},
                 #         )
@@ -461,7 +455,7 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # print("...")
                 # print(
                 #     str(
-                #         error_stmt.compile(
+                #         error_query.compile(
                 #             dialect=postgresql.dialect(),
                 #             compile_kwargs={"literal_binds": True},
                 #         )
@@ -470,18 +464,18 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 # ---------
 
                 # QUERY EXECUTION
-                total_bucket_dbes = (await session.execute(total_stmt)).all()
-                error_bucket_dbes = (await session.execute(error_stmt)).all()
+                total_bucket_dbes = (await session.execute(total_query)).all()
+                error_bucket_dbes = (await session.execute(error_query)).all()
                 # ---------------
 
-                interval = _to_minutes(interval_text)
+                window = _to_minutes(window_text)
 
-                timestamps = _to_timestamps(oldest, newest, interval)
+                timestamps = _to_timestamps(oldest, newest, window)
 
                 bucket_dtos, count = map_bucket_dbes_to_dtos(
                     total_bucket_dbes=total_bucket_dbes,
                     error_bucket_dbes=error_bucket_dbes,
-                    interval=interval,
+                    window=window,
                     timestamps=timestamps,
                 )
 
@@ -492,8 +486,8 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
             if "QueryCanceledError" in str(e.orig):
                 raise FilteringException(
-                    "TracingQuery execution was cancelled due to timeout. "
-                    "Please try again with a smaller time range."
+                    "Query execution was cancelled due to timeout. "
+                    "Please try again with a smaller time window."
                 ) from e
 
             raise e
@@ -559,14 +553,14 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     ) -> Union[Optional[SpanDTO], Optional[NodesDBE]]:
         span_dbe = None
         async with engine.tracing_session() as session:
-            stmt = select(NodesDBE)
+            query = select(NodesDBE)
 
-            stmt = stmt.filter_by(
+            query = query.filter_by(
                 project_id=project_id,
                 node_id=node_id,
             )
 
-            span_dbe = (await session.execute(stmt)).scalars().one_or_none()
+            span_dbe = (await session.execute(query)).scalars().one_or_none()
 
         span_dto = None
         if span_dbe and to_dto:
@@ -585,13 +579,13 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     ) -> Union[List[SpanDTO], List[NodesDBE]]:
         span_dbes = []
         async with engine.tracing_session() as session:
-            stmt = select(NodesDBE)
+            query = select(NodesDBE)
 
-            stmt = stmt.filter_by(project_id=project_id)
+            query = query.filter_by(project_id=project_id)
 
-            stmt = stmt.filter(NodesDBE.node_id.in_(node_ids))
+            query = query.filter(NodesDBE.node_id.in_(node_ids))
 
-            span_dbes = (await session.execute(stmt)).scalars().all()
+            span_dbes = (await session.execute(query)).scalars().all()
 
         span_dtos = []
         if span_dbes and to_dto:
@@ -610,13 +604,13 @@ class ObservabilityDAO(ObservabilityDAOInterface):
     ) -> Union[List[SpanDTO], List[NodesDBE]]:
         span_dbes = []
         async with engine.tracing_session() as session:
-            stmt = select(NodesDBE)
+            query = select(NodesDBE)
 
-            stmt = stmt.filter_by(project_id=project_id)
+            query = query.filter_by(project_id=project_id)
 
-            stmt = stmt.filter_by(parent_id=parent_id)
+            query = query.filter_by(parent_id=parent_id)
 
-            span_dbes = (await session.execute(stmt)).scalars().all()
+            span_dbes = (await session.execute(query)).scalars().all()
 
         span_dtos = []
         if span_dbes and to_dto:
@@ -691,48 +685,48 @@ class ObservabilityDAO(ObservabilityDAOInterface):
 
 
 def _chunk(
-    stmt: Select,
+    query: select,
     page: Optional[int] = None,
     size: Optional[int] = None,
     next: Optional[datetime] = None,  # pylint: disable=W0621:redefined-builtin
     stop: Optional[datetime] = None,
-) -> Select:
+) -> select:
     # 1. LIMIT size OFFSET (page - 1) * size
     # -> unstable if windowing.newest is not set
     if page and size:
         limit = size
         offset = (page - 1) * size
 
-        stmt = stmt.limit(limit).offset(offset)
+        query = query.limit(limit).offset(offset)
 
     # 2. WHERE next > created_at LIMIT size
     # -> unstable if created_at is not unique
     elif next and size:
-        stmt = stmt.filter(NodesDBE.created_at < next)
-        stmt = stmt.limit(size)
+        query = query.filter(NodesDBE.created_at < next)
+        query = query.limit(size)
 
     # 3. WHERE next > created_at AND created_at >= stop
     # -> stable thanks to the </<= combination
     elif next and stop:
-        stmt = stmt.filter(NodesDBE.created_at < next)
-        stmt = stmt.filter(NodesDBE.created_at >= stop)
+        query = query.filter(NodesDBE.created_at < next)
+        query = query.filter(NodesDBE.created_at >= stop)
 
     # 4. WHERE LIMIT size
-    # -> useful as a starter
+    # -> useful as a starter query
     elif size:
-        stmt = stmt.limit(size)
+        query = query.limit(size)
 
     # 5. WHERE created_at >= stop
-    # -> useful as a starter
+    # -> useful as a starter query
     elif stop:
-        stmt = stmt.filter(NodesDBE.created_at >= stop)
+        query = query.filter(NodesDBE.created_at >= stop)
 
     # 6. WHERE next > created_at
     # -> rather useless
     elif next:
-        stmt = stmt.filter(NodesDBE.created_at < next)
+        query = query.filter(NodesDBE.created_at < next)
 
-    return stmt
+    return query
 
 
 def _combine(
@@ -895,9 +889,9 @@ def _filters(filtering: FilteringDTO) -> list:
 
 
 def _to_minutes(
-    interval_text: str,
+    window_text: str,
 ) -> int:
-    quantity, unit = interval_text.split()
+    quantity, unit = window_text.split()
     quantity = int(quantity)
 
     if unit == "minute" or unit == "minutes":
@@ -917,7 +911,7 @@ def _to_minutes(
 def _to_timestamps(
     oldest: datetime,
     newest: datetime,
-    interval: int,
+    window: int,
 ) -> List[datetime]:
     buckets = []
 
@@ -938,6 +932,6 @@ def _to_timestamps(
     while bucket_start < _newest:
         buckets.append(bucket_start)
 
-        bucket_start += timedelta(minutes=interval)
+        bucket_start += timedelta(minutes=window)
 
     return buckets

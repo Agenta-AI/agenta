@@ -7,14 +7,11 @@ from pydantic import BaseModel, Field, model_validator, ConfigDict
 from oss.src.utils import traces
 from oss.src.models.api.api_models import Result
 
-from oss.src.core.shared.dtos import Tags, Meta
-
 
 class LegacyEvaluator(BaseModel):
     name: str
     key: str
     direct_use: bool
-    settings_presets: Optional[list[dict]] = None
     settings_template: dict
     description: Optional[str] = None
     oss: Optional[bool] = False
@@ -293,6 +290,7 @@ class LMProvidersEnum(str, Enum):
 
 
 class NewEvaluation(BaseModel):
+    app_id: str
     name: Optional[str] = None
     revisions_ids: List[str]
     evaluators_configs: List[str]
@@ -302,6 +300,7 @@ class NewEvaluation(BaseModel):
 
 
 class NewEvaluatorConfig(BaseModel):
+    app_id: str
     name: str
     evaluator_key: str
     settings_values: dict

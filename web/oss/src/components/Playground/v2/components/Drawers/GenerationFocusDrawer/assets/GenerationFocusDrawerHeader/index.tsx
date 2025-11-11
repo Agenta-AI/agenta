@@ -54,7 +54,7 @@ const GenerationFocusDrawerHeader = ({
                 <RunButton onClick={runRow} disabled={isRunning} />
 
                 <Button icon={<FloppyDisk size={14} />} size="small">
-                    Add to testset
+                    Add to test set
                 </Button>
             </Space>
         </section>

@@ -1,15 +1,19 @@
 from typing import Any, Type, Optional, Union
-from json import dumps, loads
 from random import random
 from asyncio import sleep
+from cachetools import TTLCache
 
 from redis.asyncio import Redis
 from pydantic import BaseModel
+from orjson import dumps, loads
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
+
+# TODO: ADD ENV VARS
+REDIS_HOST = "cache"
+REDIS_PORT = 6378
 
 AGENTA_CACHE_DB = 1
 AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
@@ -27,11 +31,16 @@ CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
 
 r = Redis(
-    host=env.REDIS_CACHE_HOST,
-    port=env.REDIS_CACHE_PORT,
+    host=REDIS_HOST,
+    port=REDIS_PORT,
     db=AGENTA_CACHE_DB,
-    decode_responses=True,
+    decode_responses=False,
     socket_timeout=0.5,  # read/write timeout
+)
+
+lc = TTLCache(
+    maxsize=4_096,
+    ttl=60,
 )
 
 
@@ -100,25 +109,25 @@ async def _scan(pattern: str) -> list[str]:
 
 def _serialize(
     value: Any,
-) -> str:
+) -> bytes:
     if value is None:
-        return "__NULL__"
+        return b"__NULL__"
 
     if isinstance(value, BaseModel):
         return dumps(value.model_dump(mode="json", exclude_none=True))
 
-    elif isinstance(value, list) and all(isinstance(v, BaseModel) for v in value):
+    if isinstance(value, list) and all(isinstance(v, BaseModel) for v in value):
         return dumps([v.model_dump(mode="json", exclude_none=True) for v in value])
 
     return dumps(value)
 
 
 def _deserialize(
-    raw: str,
+    raw: bytes,
     model: Optional[Type[BaseModel]] = None,
     is_list: bool = False,
 ) -> Any:
-    if raw == "__NULL__":
+    if raw == b"__NULL__":
         return None
 
     data = loads(raw)
@@ -148,12 +157,16 @@ async def _delay(
 async def _try_get_and_maybe_renew(
     cache_name: str,
     model: Optional[Type[BaseModel]],
-    is_list: Optional[bool] = False,
+    is_list: bool = False,
     ttl: Optional[int] = None,
 ) -> Optional[Any]:
     data = None
 
-    raw = await r.get(cache_name)
+    raw = (
+        await r.getex(cache_name, ex=ttl)
+        if ttl and ttl > 0
+        else await r.get(cache_name)
+    )
 
     if raw:
         if CACHE_DEBUG:
@@ -164,15 +177,6 @@ async def _try_get_and_maybe_renew(
             )
 
         data = _deserialize(raw, model=model, is_list=is_list)
-
-        if ttl is not None and ttl > 0:
-            if CACHE_DEBUG:
-                log.debug(
-                    "[cache] RENEW",
-                    name=cache_name,
-                )
-
-            await r.expire(cache_name, ttl)
     else:
         if CACHE_DEBUG:
             log.debug(
@@ -189,8 +193,8 @@ async def _maybe_retry_get(
     user_id: Optional[str] = None,
     key: Optional[Union[str, dict]] = None,
     model: Optional[Type[BaseModel]] = None,
-    is_list: Optional[bool] = False,
-    retry: Optional[bool] = True,
+    is_list: bool = False,
+    retry: bool = True,
     *,
     ttl: Optional[int] = None,
     lock_ttl: int,
@@ -281,6 +285,8 @@ async def _maybe_retry_get(
             leakage=leakage_p,
         )
 
+    return None
+
 
 # INTERFACE --------------------------------------------------------------------
 
@@ -291,7 +297,7 @@ async def set_cache(
     user_id: Optional[str] = None,
     key: Optional[Union[str, dict]] = None,
     value: Optional[Any] = None,
-    ttl: Optional[int] = AGENTA_CACHE_TTL,
+    ttl: int = AGENTA_CACHE_TTL,
 ) -> Optional[bool]:
     try:
         cache_name = _pack(
@@ -304,6 +310,8 @@ async def set_cache(
         cache_px = int(ttl * 1000)
 
         await r.set(cache_name, cache_value, px=cache_px)
+
+        lc[cache_name] = value
 
         if CACHE_DEBUG:
             log.debug(
@@ -325,7 +333,7 @@ async def set_cache(
 
         return True
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         log.warn(
             "[cache] SET  ",
             project_id=project_id,
@@ -346,16 +354,16 @@ async def get_cache(
     user_id: Optional[str] = None,
     key: Optional[Union[str, dict]] = None,
     model: Optional[Type[BaseModel]] = None,
-    is_list: Optional[bool] = False,
-    retry: Optional[bool] = True,
+    is_list: bool = False,
+    retry: bool = True,
     *,
     ttl: Optional[int] = None,
-    lock: Optional[int] = AGENTA_CACHE_LOCK_TTL,
-    backoff: Optional[float] = AGENTA_CACHE_BACKOFF_BASE,
-    attempt: Optional[int] = 0,
-    attempts: Optional[int] = AGENTA_CACHE_ATTEMPTS_MAX,
-    jitter: Optional[float] = AGENTA_CACHE_JITTER_SPREAD,
-    leakage: Optional[float] = AGENTA_CACHE_LEAKAGE_PROBABILITY,
+    lock: int = AGENTA_CACHE_LOCK_TTL,
+    backoff: float = AGENTA_CACHE_BACKOFF_BASE,
+    attempt: int = 0,
+    attempts: int = AGENTA_CACHE_ATTEMPTS_MAX,
+    jitter: float = AGENTA_CACHE_JITTER_SPREAD,
+    leakage: float = AGENTA_CACHE_LEAKAGE_PROBABILITY,
 ) -> Optional[Any]:
     try:
         cache_name = _pack(
@@ -365,9 +373,21 @@ async def get_cache(
             user_id=user_id,
         )
 
+        if cache_name in lc:
+            if CACHE_DEBUG:
+                log.debug(
+                    "[cache] HOT  ",
+                    name=cache_name,
+                    value=lc[cache_name] if CACHE_DEBUG_VALUE else "***",
+                )
+
+            return lc[cache_name]
+
         data = await _try_get_and_maybe_renew(cache_name, model, is_list, ttl)
 
         if data is not None:
+            lc[cache_name] = data
+
             return data
 
         if retry:
@@ -425,6 +445,8 @@ async def invalidate_cache(
 
             await r.delete(cache_name)
 
+            lc.pop(cache_name, None)
+
         else:
             cache_name = _pack(
                 namespace=namespace,
@@ -436,7 +458,11 @@ async def invalidate_cache(
             keys = await _scan(cache_name)
 
             for i in range(0, len(keys), AGENTA_CACHE_DELETE_BATCH_SIZE):
-                await r.delete(*keys[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE])
+                batch = keys[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE]
+                await r.delete(*batch)
+
+                for k in batch:
+                    lc.pop(k, None)
 
         if CACHE_DEBUG:
             log.debug(
@@ -446,7 +472,7 @@ async def invalidate_cache(
 
         return True
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         log.warn(
             "[cache] FLUSH",
             project_id=project_id,

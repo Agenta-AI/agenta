@@ -2,12 +2,11 @@
 <p align="center">
   <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
       <picture >
-        <source width="275" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/97e31bfc-b1fc-4d19-b443-5aedf6029017"  >
-        <source width="275" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262"  >
+        <source width="275" media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/cdddf5ad-2352-4920-b1d9-ae7f8d9d7735"  >
+        <source width="275" media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ab75cbac-b807-496f-aab3-57463a33f726"  >
         <img alt="Shows the logo of agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/68e055d4-d7b8-4943-992f-761558c64253" >
       </picture>
   </a>
-
 <div align="center">
   <strong> <h1> The Open-source LLMOps Platform </h1></strong>
   Build reliable LLM applications faster with integrated prompt management, evaluation, and observability.
@@ -84,15 +83,15 @@ Agenta is a platform for building production-grade LLM applications. It helps **
 Collaborate with Subject Matter Experts (SMEs) on prompt engineering and make sure nothing breaks in production.
 
 - **Interactive Playground**: Compare prompts side by side against your test cases
-- **Multi-Model Support**: Experiment with 50+ LLM models or [bring-your-own models](https://docs.agenta.ai/prompt-engineering/playground/custom-providers?utm_source=github&utm_medium=referral&utm_campaign=readme)
+- **Multi-Model Support**: Experiment with 50+ LLM models or [bring-your-own models](https://docs.agenta.ai/prompt-engineering/playground/adding-custom-providers?utm_source=github&utm_medium=referral&utm_campaign=readme)
 - **Version Control**: Version prompts and configurations with branching and environments
 - **Complex Configurations**: Enable SMEs to collaborate on [complex configuration schemas](https://docs.agenta.ai/custom-workflows/overview?utm_source=github&utm_medium=referral&utm_campaign=readme) beyond simple prompts
 
-[Explore prompt management →](https://docs.agenta.ai/prompt-engineering/concepts?utm_source=github&utm_medium=referral&utm_campaign=readme)
+[Explore prompt management →](https://docs.agenta.ai/prompt-engineering/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
 ### 📊 Evaluation & Testing
 Evaluate your LLM applications systematically with both human and automated feedback.
-- **Flexible Testsets**: Create testcases from production data, playground experiments, or upload CSVs
+- **Flexible Test Sets**: Create test cases from production data, playground experiments, or upload CSVs
 - **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or you custom evaluators
 - **UI and API Access**: Run evaluations via UI (for SMEs) or programmatically (for engineers)
 - **Human Feedback Integration**: Collect and incorporate expert annotations

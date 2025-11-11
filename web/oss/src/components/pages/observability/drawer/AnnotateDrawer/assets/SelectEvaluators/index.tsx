@@ -41,7 +41,7 @@ const SelectEvaluators = ({
                 })
             }
         },
-        [selectedEvaluators, evaluators, setTempSelectedEvaluators, setSelectedEvaluators],
+        [selectedEvaluators, evaluators, setTempSelectedEvaluators],
     )
 
     return (

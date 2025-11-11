@@ -42,8 +42,17 @@ class MetersService:
         self,
         *,
         organization_id: str,
+        #
+        key: Optional[str] = None,
+        year: Optional[int] = None,
+        month: Optional[int] = None,
     ) -> List[MeterDTO]:
-        return await self.meters_dao.fetch(organization_id=organization_id)
+        return await self.meters_dao.fetch(
+            organization_id=organization_id,
+            key=key,
+            year=year,
+            month=month,
+        )
 
     async def check(
         self,

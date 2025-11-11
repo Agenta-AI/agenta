@@ -8,6 +8,9 @@ import type {AgentaConfigPrompt, BaseVariant} from "./variant"
 export interface EnhancedVariant<
     T extends Enhanced<AgentaConfigPrompt> = Enhanced<AgentaConfigPrompt>,
 > extends BaseVariant {
+    isChat: boolean
+    isChatVariant: boolean
+    inputParams?: Record<string, any>[]
     appStatus?: boolean
     isCustom: boolean
     prompts: T[]
@@ -24,5 +27,19 @@ export interface EnhancedVariant<
         routePath?: string
         runtimePrefix: string
     }
-    _parentVariant?: string
+    _parentVariant: {
+        name: string
+        id: string
+        variantName: string
+        variantId: string
+        baseId: string
+        baseName: string
+        configName: string
+        parameters: Record<string, any>
+        createdAt: string
+        updatedAt: string
+        createdBy: User
+        templateVariantName: string
+        revision: number
+    }
 }

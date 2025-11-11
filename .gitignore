@@ -21,6 +21,13 @@ myenv/
 
 **/error-*.log
 
+
+# hosting/
+! hosting/docker-compose/oss/.env.oss.dev.example
+! hosting/docker-compose/oss/.env.oss.gh.example
+! hosting/docker-compose/ee/.env.ee.dev.example
+! hosting/docker-compose/ee/.env.ee.gh.example
+
 # examples/
 examples/**/config.toml
 examples/**/agenta.py
@@ -46,5 +53,3 @@ sdk/agenta/templates/main.py
 sdk/agenta/templates/agenta.py
 web/ee/public/__env.js
 web/oss/public/__env.js
-
-web/oss/tests/datalayer/results

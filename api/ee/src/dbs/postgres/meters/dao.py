@@ -101,11 +101,24 @@ class MetersDAO(MetersDAOInterface):
         self,
         *,
         organization_id: str,
+        #
+        key: Optional[str] = None,
+        year: Optional[int] = None,
+        month: Optional[int] = None,
     ) -> list[MeterDTO]:
         async with engine.core_session() as session:
             stmt = select(MeterDBE).filter_by(
                 organization_id=organization_id,
             )  # NO RISK OF DEADLOCK
+
+            if key:
+                stmt = stmt.filter(MeterDBE.key == key)
+
+            if year:
+                stmt = stmt.filter(MeterDBE.year == year)
+
+            if month:
+                stmt = stmt.filter(MeterDBE.month == month)
 
             result = await session.execute(stmt)
             meters = result.scalars().all()
@@ -132,17 +145,16 @@ class MetersDAO(MetersDAOInterface):
         if quota.monthly:
             now = datetime.now(timezone.utc)
 
-            if not anchor:
+            if not anchor or now.day < anchor:
                 meter.year = now.year
                 meter.month = now.month
-
-            if anchor:
-                if now.day < anchor:
-                    meter.year = now.year
-                    meter.month = now.month
+            else:
+                if now.month == 12:
+                    meter.year = now.year + 1
+                    meter.month = 1
                 else:
-                    meter.year = now.year + now.month // 12
-                    meter.month = (now.month + 1) % 12
+                    meter.year = now.year
+                    meter.month = now.month + 1
 
         async with engine.core_session() as session:
             stmt = select(MeterDBE).filter_by(
@@ -185,15 +197,16 @@ class MetersDAO(MetersDAOInterface):
         if quota.monthly:
             now = datetime.now(timezone.utc)
 
-            if not anchor:
-                meter.year = now.year
-                meter.month = now.month
-            elif now.day < anchor:
+            if not anchor or now.day < anchor:
                 meter.year = now.year
                 meter.month = now.month
             else:
-                meter.year = now.year + now.month // 12
-                meter.month = (now.month + 1) % 12
+                if now.month == 12:
+                    meter.year = now.year + 1
+                    meter.month = 1
+                else:
+                    meter.year = now.year
+                    meter.month = now.month + 1
 
         # 2. Calculate proposed value (starting from 0)
         desired_value = meter.value if meter.value is not None else (meter.delta or 0)

@@ -1,12 +1,5 @@
 from typing import Type, Any, Callable, Dict, Optional, Tuple, List
-from inspect import (
-    iscoroutinefunction,
-    isgenerator,
-    isasyncgen,
-    signature,
-    Signature,
-    Parameter,
-)
+from inspect import signature, iscoroutinefunction, Signature, Parameter
 from functools import wraps
 from traceback import format_exception
 from asyncio import sleep
@@ -14,10 +7,6 @@ from uuid import UUID
 from pydantic import BaseModel, HttpUrl, ValidationError
 from os import environ
 
-from starlette.responses import (
-    Response as StarletteResponse,
-    StreamingResponse,
-)
 from fastapi import Body, FastAPI, HTTPException, Request
 
 from agenta.sdk.middleware.mock import MockMiddleware
@@ -28,12 +17,13 @@ from agenta.sdk.middleware.otel import OTelMiddleware
 from agenta.sdk.middleware.auth import AuthHTTPMiddleware
 from agenta.sdk.middleware.cors import CORSMiddleware
 
-from agenta.sdk.contexts.routing import (
-    routing_context_manager,
+from agenta.sdk.context.serving import (
+    serving_context_manager,
     RoutingContext,
 )
-from agenta.sdk.contexts.tracing import (
+from agenta.sdk.context.tracing import (
     tracing_context_manager,
+    tracing_context,
     TracingContext,
 )
 from agenta.sdk.router import router
@@ -43,7 +33,6 @@ from agenta.sdk.utils.helpers import get_current_version
 from agenta.sdk.types import (
     MultipleChoice,
     BaseResponse,
-    StreamResponse,
     MCField,
 )
 
@@ -337,7 +326,7 @@ class entrypoint:
         inline = state.inline
         mock = state.mock
 
-        with routing_context_manager(
+        with serving_context_manager(
             context=RoutingContext(
                 parameters=parameters,
                 secrets=secrets,
@@ -390,37 +379,6 @@ class entrypoint:
                 trace_id,
                 span_id,
             ) = await self.fetch_inline_trace(inline)
-
-        try:
-            if isinstance(result, StarletteResponse):
-                result.headers.setdefault("x-ag-version", "3.0")
-                if content_type:
-                    result.headers.setdefault("x-ag-content-type", content_type)
-                if tree_id:
-                    result.headers.setdefault("x-ag-tree-id", tree_id)
-                if trace_id:
-                    result.headers.setdefault("x-ag-trace-id", trace_id)
-                if span_id:
-                    result.headers.setdefault("x-ag-span-id", span_id)
-
-                return result
-        except:
-            return result
-
-        try:
-            if isasyncgen(result) or isgenerator(result):
-                return StreamResponse(
-                    content=result,
-                    content_type=content_type,
-                    tree_id=tree_id,
-                    trace_id=trace_id,
-                    span_id=span_id,
-                )
-        except:
-            return StreamingResponse(
-                result,
-                media_type="text/event-stream",
-            )
 
         try:
             return BaseResponse(
@@ -529,7 +487,7 @@ class entrypoint:
     async def fetch_inline_trace_id(
         self,
     ):
-        context = TracingContext.get()
+        context = tracing_context.get()
 
         link = context.link
 
@@ -548,7 +506,7 @@ class entrypoint:
         TIMESTEP = 0.1
         NOFSTEPS = TIMEOUT / TIMESTEP
 
-        context = TracingContext.get()
+        context = tracing_context.get()
 
         link = context.link
 

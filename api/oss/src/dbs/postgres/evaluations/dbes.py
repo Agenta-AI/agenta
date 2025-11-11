@@ -10,8 +10,8 @@ from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA
 from oss.src.dbs.postgres.evaluations.dbas import (
     EvaluationRunDBA,
     EvaluationScenarioDBA,
-    EvaluationResultDBA,
-    EvaluationMetricsDBA,
+    EvaluationStepDBA,
+    EvaluationMetricDBA,
     EvaluationQueueDBA,
 )
 
@@ -36,22 +36,6 @@ class EvaluationRunDBE(
         Index(
             "ix_evaluation_runs_project_id",
             "project_id",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_runs_flags",
-            "flags",
-            postgresql_using="gin",
-        ),  # for filtering§
-        Index(
-            "ix_evaluation_runs_tags",
-            "tags",
-            postgresql_using="gin",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_runs_references",
-            "references",
-            postgresql_using="gin",
-            postgresql_ops={"references": "jsonb_path_ops"},
         ),  # for filtering
     )
 
@@ -86,30 +70,15 @@ class EvaluationScenarioDBE(
             "ix_evaluation_scenarios_run_id",
             "run_id",
         ),  # for filtering
-        Index(
-            "ix_evaluation_scenarios_timestamp_interval",
-            "timestamp",
-            "interval",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_scenarios_flags",
-            "flags",
-            postgresql_using="gin",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_scenarios_tags",
-            "tags",
-            postgresql_using="gin",
-        ),  # for filtering
     )
 
 
-class EvaluationResultDBE(
+class EvaluationStepDBE(
     Base,
     ProjectScopeDBA,
-    EvaluationResultDBA,
+    EvaluationStepDBA,
 ):
-    __tablename__ = "evaluation_results"
+    __tablename__ = "evaluation_steps"
 
     __table_args__ = (
         PrimaryKeyConstraint(
@@ -135,51 +104,27 @@ class EvaluationResultDBE(
             "project_id",
             "run_id",
             "scenario_id",
-            "step_key",
-            "repeat_idx",
+            "key",
         ),  # for uniqueness
         Index(
-            "ix_evaluation_results_project_id",
+            "ix_evaluation_steps_project_id",
             "project_id",
         ),  # for filtering
         Index(
-            "ix_evaluation_results_run_id",
+            "ix_evaluation_steps_run_id",
             "run_id",
         ),  # for filtering
         Index(
-            "ix_evaluation_results_scenario_id",
+            "ix_evaluation_steps_scenario_id",
             "scenario_id",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_results_step_key",
-            "step_key",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_results_repeat_idx",
-            "repeat_idx",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_results_timestamp_interval",
-            "timestamp",
-            "interval",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_results_flags",
-            "flags",
-            postgresql_using="gin",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_results_tags",
-            "tags",
-            postgresql_using="gin",
         ),  # for filtering
     )
 
 
-class EvaluationMetricsDBE(
+class EvaluationMetricDBE(
     Base,
     ProjectScopeDBA,
-    EvaluationMetricsDBA,
+    EvaluationMetricDBA,
 ):
     __tablename__ = "evaluation_metrics"
 
@@ -207,7 +152,6 @@ class EvaluationMetricsDBE(
             "project_id",
             "run_id",
             "scenario_id",
-            "timestamp",
         ),  # for uniqueness
         Index(
             "ix_evaluation_metrics_project_id",
@@ -220,21 +164,6 @@ class EvaluationMetricsDBE(
         Index(
             "ix_evaluation_metrics_scenario_id",
             "scenario_id",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_metrics_timestamp_interval",
-            "timestamp",
-            "interval",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_metrics_flags",
-            "flags",
-            postgresql_using="gin",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_metrics_tags",
-            "tags",
-            postgresql_using="gin",
         ),  # for filtering
     )
 
@@ -268,15 +197,5 @@ class EvaluationQueueDBE(
         Index(
             "ix_evaluation_queues_run_id",
             "run_id",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_queues_flags",
-            "flags",
-            postgresql_using="gin",
-        ),  # for filtering
-        Index(
-            "ix_evaluation_queues_tags",
-            "tags",
-            postgresql_using="gin",
         ),  # for filtering
     )

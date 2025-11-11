@@ -1,8 +1,6 @@
-import {useAtomValue} from "jotai"
-
-import {routerAppIdAtom} from "../state/app"
+import {useRouter} from "next/router"
 
 export const useAppId = (): string => {
-    const appId = useAtomValue(routerAppIdAtom)
-    return appId || ""
+    const router = useRouter()
+    return (router.query.app_id ?? "") as string
 }

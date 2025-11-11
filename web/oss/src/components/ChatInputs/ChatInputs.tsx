@@ -11,8 +11,8 @@ import {ChatMessage, ChatRole, JSSTheme} from "@/oss/lib/Types"
 
 import CopyButton from "../CopyButton/CopyButton"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
-import {getTextContent} from "../Playground/adapters/TurnMessageHeaderOptions"
 import PromptImageUpload from "../Playground/Components/PlaygroundVariantPropertyControl/assets/PromptImageUpload"
+import {getTextContent} from "../Playground/Components/PlaygroundVariantPropertyControl/assets/PromptMessageContent/assets/PromptMessageContentOptions"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     root: {

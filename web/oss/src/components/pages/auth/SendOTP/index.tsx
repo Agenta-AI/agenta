@@ -3,6 +3,7 @@ import {useRef, useState} from "react"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Form, FormProps, Input, Typography} from "antd"
 import {OTPRef} from "antd/es/input/OTP"
+import {useRouter} from "next/router"
 import {
     clearLoginAttemptInfo,
     consumeCode,
@@ -10,8 +11,12 @@ import {
 } from "supertokens-auth-react/recipe/passwordless"
 
 import ShowErrorMessage from "@/oss/components/pages/auth/assets/ShowErrorMessage"
+import {LS_ORG_KEY} from "@/oss/contexts/org.context"
+import {useOrgData} from "@/oss/contexts/org.context"
+import {useProfileData} from "@/oss/contexts/profile.context"
+import {useProjectData} from "@/oss/contexts/project.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
+import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {useStyles} from "../assets/style"
 import {SendOTPProps} from "../assets/types"
@@ -26,8 +31,12 @@ const SendOTP = ({
     setIsLoginCodeVisible,
     isInvitedUser,
 }: SendOTPProps) => {
-    const {handleAuthSuccess} = usePostAuthRedirect()
+    const {reset: resetProfileData} = useProfileData()
+    const {reset: resetOrgData} = useOrgData()
+    const {reset: resetProjectData} = useProjectData()
     const classes = useStyles()
+    const router = useRouter()
+
     const [isResendDisabled, setIsResendDisabled] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
 
@@ -78,11 +87,29 @@ const SendOTP = ({
             const response = await consumeCode({userInputCode: values.otp})
 
             if (response.status === "OK") {
+                resetProfileData()
+                resetOrgData()
+                resetProjectData()
                 await clearLoginAttemptInfo()
                 setMessage({message: "Verification successful", type: "success"})
-                // Clear selected org via atom to keep storage in sync
-                const {createdNewRecipeUser, user} = response
-                await handleAuthSuccess({createdNewRecipeUser, user}, {isInvitedUser})
+                localStorage.setItem(LS_ORG_KEY, "")
+                if (
+                    isDemo() &&
+                    response.createdNewRecipeUser &&
+                    response.user.loginMethods.length === 1
+                ) {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept?survey=true")
+                    } else {
+                        await router.push("/post-signup")
+                    }
+                } else {
+                    if (isInvitedUser) {
+                        await router.push("/workspaces/accept")
+                    } else {
+                        await router.push("/apps")
+                    }
+                }
             } else if (response.status === "INCORRECT_USER_INPUT_CODE_ERROR") {
                 const trileLeft =
                     response.maximumCodeInputAttempts - response.failedCodeInputAttemptCount

@@ -7,13 +7,11 @@
 
 import {createCommand, LexicalCommand} from "lexical"
 
-import type {CodeLanguage} from "../plugins/code/types"
-
 export interface InitialContentPayload {
     /** The initial content to be processed */
     content: string
     /** The language for syntax highlighting */
-    language: CodeLanguage
+    language: "json" | "yaml"
     /** Whether this content should be handled by the default plugin */
     preventDefault: () => void
     /** Whether default handling has been prevented */

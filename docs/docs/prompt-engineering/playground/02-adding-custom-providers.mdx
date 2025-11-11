@@ -1,0 +1,148 @@
+---
+title: "Adding Custom LLM Providers"
+description: "Learn how to add and configure custom LLM providers like Azure OpenAI, AWS Bedrock, Ollama, and others to use your own models in Agenta's playground and applications."
+sidebar_position: 3
+---
+
+
+```mdx-code-block
+import { Stream } from '@cloudflare/stream-react';
+import Image from "@theme/IdealImage";
+```
+
+Agenta supports a wide range of LLM providers beyond the default options. This guide shows you how to configure custom providers and models for use in your Agenta applications.
+
+You can integrate self-hosted models into Agenta by adding custom providers such as:
+
+- [Azure OpenAI](#configuring-azure-openai)
+- [AWS Bedrock](#configuring-aws-bedrock)
+- [OpenAI-compatible endpoints](#configuring-openai-compatible-endpoints-eg-ollama) (including self-hosted models, OpenAI finetuned models, [Ollama](#configuring-openai-compatible-endpoints-eg-ollama), etc.)
+
+
+:::info
+You can add custom models to any of the providers already listed in the playground, such as [OpenRouter](#adding-models-to-a-provider-eg-openrouter), Anthropic, Gemini, Cohere, and others. This is especially useful for accessing specialized or new models that aren't included in Agenta's default configurations.
+:::
+
+---
+
+## How to Add Custom LLM Providers
+
+<Stream controls src="acabccbcc814dc051a54bf2c97ff097c" height="400px" />
+<br />
+
+### From Settings
+
+1. Navigate to **Settings** → **Model Hub**.  
+2. Click **Create Custom Provider**.  
+3. Select the provider type and enter the required credentials.  
+4. Click **Save**.  
+
+
+### From the Playground
+
+1. Open any app in the Playground.  
+2. Click the model dropdown menu.  
+3. Select **Add Custom Provider**.  
+
+:::note
+You can add multiple models to the same provider. This allows you to organize related models under a single provider configuration.
+:::
+
+
+## Configuring Azure OpenAI
+
+To add Azure OpenAI models, you'll need the following information:
+
+- **API Key**: Your Azure OpenAI API key  
+- **API Version**: The API version (e.g., `2023-05-15`)  
+- **Endpoint url**: The endpoint of your Azure resource  
+- **Deployment Name**: The name of your model deployment  
+
+### How to Retrieve Azure Credentials
+
+1. **Access the Azure Portal:**  
+  Log in to the [Azure Portal](https://portal.azure.com).  
+
+2. **Locate Azure OpenAI Service:**  
+  - Search for **Azure AI Services** in the portal.  
+  - Click on your resource to view its details.  
+
+3. **Retrieve API Keys and Endpoints:**  
+  - Navigate to the **Keys and Endpoint** section.  
+  - Copy the API key and endpoint URL.  
+
+4. **Find Deployment Names:**  
+  - Go to **Model Deployments**.  
+  - Select the desired deployment and note its name.  
+
+### Configuration Example
+
+```plaintext
+API Key: c98d7a8s7d6a5s4d3a2s1d...
+API Version: 2023-05-15
+API base url: Use here your endpoint URL (e.g., https://accountnameinstance.openai.azure.com
+Deployment Name: Use here the deployment name in Azure (e.g., gpt-4-turbo)
+```
+
+## Configuring AWS Bedrock
+
+To add AWS Bedrock models, you'll need:
+
+- **Access Key ID:** Your AWS access key
+- **Secret Access Key:** Your AWS secret key
+- **Region:** The region where your Bedrock models are deployed
+
+### How to Retrieve AWS Credentials
+
+Refer to these tutorials for detailed instructions:
+  - [AWS Bedrock Getting Started Guide](https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started.html)
+  - [DataCamp AWS Bedrock Tutorial](https://www.datacamp.com/tutorial/aws-bedrock)
+
+
+### Configuration Example
+
+```plaintext
+Access Key ID: xxxxxxxxxx
+Secret Access Key: xxxxxxxxxxxxxxxxxxxxxxx
+Region: <region_name> (e.g eu-central-1)
+Model name: <model_name> (e.g anthropic.claude-3-sonnet-20240229-v1:0)
+```
+
+
+## Configuring OpenAI-Compatible Endpoints (e.g., Ollama)
+
+For any OpenAI-compatible API, including self-hosted models:
+
+- **API Key:** The API authentication key
+- **Base URL:** The API endpoint URL
+
+This configuration works for:
+- Self-hosted models using vLLM
+- LocalAI
+- 3rd party providers with OpenAI-compatible endpoints
+- Fine-tuned OpenAI models
+
+### Configuration Example
+
+```
+API Key: your-api-key
+Base URL: https://your-api-endpoint.com/v1
+```
+
+:::warning
+Make sure to include `/v1` at the end of the Base URL.
+:::
+
+:::warning
+If you're running both Ollama and self-hosting Agenta on your local machine, set the Base URL to http://host.docker.internal:11434/v1 to allow Agenta's completion service (running behind Docker) to access Ollama.
+:::
+
+## Adding Models to a Provider (e.g. OpenRouter)
+
+For some providers like OpenRouter, Agenta does not include all available models due to their high number. To add models to an existing provider:
+
+1. Navigate to **Settings** → **Model Hub**.  
+2. Select the provider you want to add models to.
+3. Enter the API key and an identifier
+4. Add the models you want to use 
+5. Click **Save**  
