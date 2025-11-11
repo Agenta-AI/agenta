@@ -17,8 +17,6 @@ import {
     LexicalNode,
 } from "lexical"
 
-import {safeJson5Parse} from "@/oss/lib/helpers/utils"
-
 import {INITIAL_CONTENT_COMMAND, InitialContentPayload} from "../../commands/InitialContentCommand"
 
 export const store = createStore()
@@ -317,29 +315,14 @@ function InsertInitialCodeBlockPlugin({
                         try {
                             // For JSON/YAML content, parse and format
                             const objectValue =
-                                payload.language === "json"
+                                typeof payload.content === "string"
                                     ? JSON5.parse(payload.content)
                                     : payload.content
                             let value: string
                             if (payload.language === "json") {
                                 value = JSON.stringify(objectValue, null, 2)
                             } else {
-                                try {
-                                    const obj = yaml.load(objectValue)
-                                    if (obj !== undefined) {
-                                        value = yaml.dump(obj as any, {indent: 2})
-                                    } else {
-                                        value = objectValue
-                                    }
-                                } catch {
-                                    // Try JSON as a fallback and then dump to YAML for consistent highlighting
-                                    try {
-                                        const obj = JSON5.parse(objectValue)
-                                        value = yaml.dump(obj as any, {indent: 2})
-                                    } catch {
-                                        value = objectValue
-                                    }
-                                }
+                                value = yaml.dump(objectValue, {indent: 2})
                             }
                             log(" Reconstructing code block due to prop change", {
                                 language: payload.language,
@@ -503,15 +486,17 @@ function InsertInitialCodeBlockPlugin({
 
     useEffect(() => {
         // For JSON/YAML content, use semantic comparison
-        if (prevInitialRef.current) {
-            if (
-                isEqual(
-                    safeJson5Parse(prevInitialRef.current as string),
-                    safeJson5Parse(initialValue),
-                )
-            ) {
-                return // no semantic change
-            }
+        if (prevInitialRef.current !== undefined) {
+            try {
+                if (
+                    isEqual(
+                        JSON5.parse(prevInitialRef.current as string),
+                        JSON5.parse(initialValue),
+                    )
+                ) {
+                    return // no semantic change
+                }
+            } catch {}
         }
 
         prevInitialRef.current = initialValue

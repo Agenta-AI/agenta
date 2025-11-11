@@ -5,7 +5,6 @@ import {Space, Typography} from "antd"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import Avatar from "@/oss/components/Avatar/Avatar"
-import useURL from "@/oss/hooks/useURL"
 
 import {UseDropdownItemsProps} from "./types"
 
@@ -18,16 +17,12 @@ export const useDropdownItems = ({
     project,
     logout,
     projects,
-    interactive,
 }: UseDropdownItemsProps) => {
-    const {projectURL} = useURL()
-
     const filteredOrgs = useMemo(() => {
         return projects.flatMap((project) =>
             orgs.filter((org) => org.id === project.organization_id && !project.is_demo),
         )
     }, [projects, orgs])
-
     const dropdownItems = useMemo(() => {
         if (selectedOrg?.id && user?.id) {
             return [
@@ -39,7 +34,6 @@ export const useDropdownItems = ({
                             <Text>{org.name}</Text>
                         </Space>
                     ),
-                    disabled: !interactive,
                 })),
                 {type: "divider"},
                 {
@@ -63,7 +57,7 @@ export const useDropdownItems = ({
         } else {
             return []
         }
-    }, [interactive, filteredOrgs, logout, orgs, project?.is_demo, selectedOrg?.id, user?.id])
+    }, [filteredOrgs, logout, orgs, project?.is_demo, selectedOrg?.id, user?.id])
 
     return dropdownItems
 }

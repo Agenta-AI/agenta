@@ -1,12 +1,16 @@
-import {useCallback, useState} from "react"
+import {useCallback, useState, useEffect} from "react"
 
 import {Button, message, Spin, Typography} from "antd"
 import dayjs from "dayjs"
 import {useRouter} from "next/router"
 
-import useURL from "@/oss/hooks/useURL"
 import {Plan} from "@/oss/lib/Types"
-import {editSubscriptionInfo, useSubscriptionData, useUsageData} from "@/oss/services/billing"
+import {
+    editSubscriptionInfo,
+    useSubscriptionData,
+    useUsageData,
+    createTrialContinuationCheckout,
+} from "@/oss/services/billing"
 
 import UsageProgressBar from "./assets/UsageProgressBar"
 import AutoRenewalCancelModal from "./Modals/AutoRenewalCancelModal"
@@ -17,9 +21,9 @@ const {Link} = Typography
 
 const Billing = () => {
     const router = useRouter()
-    const {projectURL} = useURL()
     const [isLoadingOpenBillingPortal, setIsLoadingOpenBillingPortal] = useState(false)
-    const {subscription, isSubLoading} = useSubscriptionData()
+    const [isLoadingContinueWithPro, setIsLoadingContinueWithPro] = useState(false)
+    const {subscription, isSubLoading, mutateSubscription} = useSubscriptionData()
     const {usage, isUsageLoading} = useUsageData()
     const [isOpenPricingModal, setIsOpenPricingModal] = useState(false)
     const [isOpenCancelModal, setIsOpenCancelModal] = useState(false)
@@ -43,9 +47,61 @@ const Billing = () => {
         }
     }, [editSubscriptionInfo])
 
+    const handleContinueWithPro = useCallback(async () => {
+        try {
+            setIsLoadingContinueWithPro(true)
+            const successUrl = `${window.location.origin}/settings?tab=billing&trial_upgrade=success`
+            const data = await createTrialContinuationCheckout(successUrl)
+            
+            if (data?.data?.checkout_url) {
+                window.location.href = data.data.checkout_url
+            } else {
+                throw new Error("No checkout URL received")
+            }
+        } catch (error: any) {
+            console.error("Trial continuation error:", error)
+            
+            // Handle specific error messages from backend
+            const errorMessage = error?.response?.data?.message
+            if (errorMessage) {
+                if (errorMessage.includes("already active")) {
+                    message.info("Your subscription is already active! No action needed.")
+                } else if (errorMessage.includes("already added")) {
+                    message.info("Payment method already added! Your Pro subscription will continue after trial.")
+                } else if (errorMessage.includes("already ended")) {
+                    message.warning("Your trial has ended. Please upgrade from the pricing options.")
+                    setIsOpenPricingModal(true)
+                } else {
+                    message.error(errorMessage)
+                }
+            } else {
+                message.error("Unable to continue with Pro. Please try again or contact support if the issue persists.")
+            }
+        } finally {
+            setIsLoadingContinueWithPro(false)
+        }
+    }, [setIsOpenPricingModal])
+
     const navigateToWorkspaceTab = useCallback(() => {
-        router.push(`${projectURL}/settings`, {query: {tab: "workspace"}})
-    }, [router, projectURL])
+        router.push("/settings", {query: {tab: "workspace"}})
+    }, [router])
+
+    // Check for success/error parameters
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search)
+        
+        if (urlParams.get('trial_upgrade') === 'success') {
+            message.success('Payment method added successfully! Your Pro subscription will continue after the trial.')
+            // Clean up URL
+            window.history.replaceState({}, '', '/settings?tab=billing')
+            // Refresh subscription data
+            mutateSubscription()
+        } else if (urlParams.get('trial_upgrade') === 'cancelled') {
+            message.info('Checkout cancelled. You can try again anytime during your trial.')
+            // Clean up URL
+            window.history.replaceState({}, '', '/settings?tab=billing')
+        }
+    }, [mutateSubscription])
 
     if (isSubLoading || isUsageLoading) {
         return (
@@ -61,7 +117,16 @@ const Billing = () => {
                 <div className="flex flex-col items-start gap-2">
                     <Typography.Text className="text-sm font-medium">Current plan</Typography.Text>
                     <Typography.Text className="text-lg font-bold capitalize">
-                        <SubscriptionPlanDetails subscription={subscription} />
+                        {subscription?.free_trial ? (
+                            <div className="flex items-center gap-2">
+                                <span>Pro (Free Trial)</span>
+                                <span className="text-orange-600 font-normal text-sm">
+                                    - {dayjs.unix(subscription.period_end).diff(dayjs(), 'day')} days left
+                                </span>
+                            </div>
+                        ) : (
+                            <SubscriptionPlanDetails subscription={subscription} />
+                        )}
                     </Typography.Text>
                     {subscription?.plan !== Plan.Hobby && (
                         <Typography.Text className="text-[#586673]">
@@ -74,14 +139,50 @@ const Billing = () => {
                         </Typography.Text>
                     )}
 
-                    {subscription?.plan === Plan.Enterprise ? (
+                    {subscription?.plan === Plan.Enterprise ||
+                    subscription?.plan === Plan.Business ? (
                         <Typography.Text className="text-[#586673]">
                             For queries regarding your plan,{" "}
                             <a href="https://cal.com/mahmoud-mabrouk-ogzgey/demo" target="_blank">
                                 click here to contact us
                             </a>
                         </Typography.Text>
-                    ) : subscription?.plan === Plan.Pro || subscription?.plan === Plan.Business ? (
+                    ) : subscription?.free_trial ? (
+                        <div className="space-y-3">
+                            <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-200">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <Typography.Text className="text-blue-800 font-medium">
+                                            You're on Pro (Trial)
+                                        </Typography.Text>
+                                        <Typography.Text className="block text-sm text-blue-700">
+                                            {dayjs.unix(subscription.period_end).diff(dayjs(), 'day')} days remaining
+                                        </Typography.Text>
+                                    </div>
+                                    <Button 
+                                        type="primary" 
+                                        onClick={handleContinueWithPro}
+                                        loading={isLoadingContinueWithPro}
+                                        className="bg-blue-600 hover:bg-blue-700"
+                                    >
+                                        Continue with Pro
+                                    </Button>
+                                </div>
+                            </div>
+                            
+                            <Typography.Text className="text-sm text-gray-500">
+                                Want to switch plans?{" "}
+                                <Button 
+                                    type="link" 
+                                    size="small" 
+                                    onClick={() => setIsOpenPricingModal(true)}
+                                    className="p-0 h-auto"
+                                >
+                                    View options
+                                </Button>
+                            </Typography.Text>
+                        </div>
+                    ) : subscription?.plan === Plan.Pro ? (
                         <div className="flex items-center gap-2">
                             <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
                                 Upgrade plan
@@ -104,7 +205,7 @@ const Billing = () => {
 
                 <div className="w-full grid grid-cols-3 gap-4">
                     {Object.entries(usage)
-                        ?.filter(([key]) => (key !== "users" && key !== "applications"))
+                        ?.filter(([key]) => key !== "users")
                         ?.map(([key, info]) => {
                             return (
                                 <UsageProgressBar

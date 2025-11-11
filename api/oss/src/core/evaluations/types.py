@@ -1,21 +1,17 @@
-from typing import Optional, Dict, List, Union, Literal
+from typing import Optional, Dict, List
 from enum import Enum
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
-
-from oss.src.core.tracing.dtos import (
-    MetricSpec,
-    TracingQuery,
-)
+from pydantic import BaseModel
 
 from oss.src.core.shared.dtos import (
-    Version,
     Identifier,
     Lifecycle,
+    Flags,
+    Tags,
+    Meta,
     Header,
-    Metadata,
     Data,
     Reference,
     Link,
@@ -23,12 +19,6 @@ from oss.src.core.shared.dtos import (
 
 References = Dict[str, Reference]
 Links = Dict[str, Link]
-
-Type = Literal["input", "invocation", "annotation"]
-Origin = Literal["custom", "human", "auto"]
-Target = Union[List[UUID], Dict[UUID, Origin]]
-
-CURRENT_VERSION = "2025-07-14"
 
 
 class EvaluationStatus(str, Enum):
@@ -49,16 +39,16 @@ class EvaluationClosedConflict(Exception):
         message: str = "Cannot modify a closed evaluation.",
         run_id: Optional[UUID] = None,
         scenario_id: Optional[UUID] = None,
-        result_id: Optional[UUID] = None,
-        metrics_id: Optional[UUID] = None,
+        step_id: Optional[UUID] = None,
+        metric_id: Optional[UUID] = None,
     ):
         super().__init__(message)
 
         self.message = message
         self.run_id = run_id
         self.scenario_id = scenario_id
-        self.result_id = result_id
-        self.metrics_id = metrics_id
+        self.step_id = step_id
+        self.metric_id = metric_id
 
     def __str__(self):
         _message = self.message
@@ -67,97 +57,65 @@ class EvaluationClosedConflict(Exception):
             _message += f" run_id={self.run_id}"
         if self.scenario_id:
             _message += f" scenario_id={self.scenario_id}"
-        if self.result_id:
-            _message += f" result_id={self.result_id}"
-        if self.metrics_id:
-            _message += f" metrics_id={self.metrics_id}"
+        if self.step_id:
+            _message += f" step_id={self.step_id}"
+        if self.metric_id:
+            _message += f" metric_id={self.metric_id}"
 
         return _message
 
 
-# - EVALUATION RUN -------------------------------------------------------------
-
-
 class EvaluationRunFlags(BaseModel):
-    is_closed: Optional[bool] = None  # Indicates if the run is modifiable
-    is_live: Optional[bool] = None  # Indicates if the run has live queries
-    is_active: Optional[bool] = None  # Indicates if the run is currently active
-
-
-class EvaluationRunDataStepInput(BaseModel):
-    key: str
-
-
-class EvaluationRunDataStep(BaseModel):
-    key: str
-    type: Type
-    origin: Origin
-    references: Dict[str, Reference]
-    inputs: Optional[List[EvaluationRunDataStepInput]] = None
-
-
-class EvaluationRunDataMappingColumn(BaseModel):
-    kind: str
-    name: str
-
-
-class EvaluationRunDataMappingStep(BaseModel):
-    key: str
-    path: str
-
-
-class EvaluationRunDataMapping(BaseModel):
-    column: EvaluationRunDataMappingColumn
-    step: EvaluationRunDataMappingStep
+    is_closed: Optional[bool] = None
 
 
 class EvaluationRunData(BaseModel):
-    steps: Optional[List[EvaluationRunDataStep]] = None
-    repeats: Optional[int] = 1
-    mappings: Optional[List[EvaluationRunDataMapping]] = None
-
-    @field_validator("repeats")
-    def set_repeats(cls, v):
-        if v is None:
-            return 1
-        return v
+    steps: Optional[List[Data]] = None  # ?
+    mappings: Optional[List[Data]] = None  # ?
+    data: Optional[Data] = None
 
 
-class EvaluationRun(Version, Identifier, Lifecycle, Header, Metadata):
-    flags: Optional[EvaluationRunFlags] = None  # type: ignore
+class EvaluationRun(Identifier, Header, Lifecycle):
+    flags: Optional[EvaluationRunFlags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    status: Optional[EvaluationStatus] = None
+
+    data: Optional[EvaluationRunData] = None
+
+
+class EvaluationRunCreate(Header):
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
 
     status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
     data: Optional[EvaluationRunData] = None
 
 
-class EvaluationRunCreate(Header, Metadata):
-    version: str = CURRENT_VERSION
-
-    flags: Optional[EvaluationRunFlags] = None  # type: ignore
-
-    status: Optional[EvaluationStatus] = None
-
-    data: Optional[EvaluationRunData] = None
-
-
-class EvaluationRunEdit(Identifier, Header, Metadata):
-    version: str = CURRENT_VERSION
-
-    flags: Optional[EvaluationRunFlags] = None  # type: ignore
+class EvaluationRunEdit(Identifier, Header):
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
 
     status: Optional[EvaluationStatus] = None
 
     data: Optional[EvaluationRunData] = None
 
 
-class EvaluationRunQuery(Header, Metadata):
-    flags: Optional[EvaluationRunFlags] = None  # type: ignore
+from typing import Any, Dict, List, Optional, Union
+
+
+class EvaluationRunQuery(BaseModel):
+    flags: Optional[EvaluationRunFlags] = None
+    tags: Optional[Tags] = None
+    # meta can be a dict (AND filter) or a list of dicts (OR filter)
+    meta: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None
+
+    data: Optional[EvaluationRunData] = None
 
     status: Optional[EvaluationStatus] = None
     statuses: Optional[List[EvaluationStatus]] = None
-
-    references: Optional[List[References]] = None
 
     ids: Optional[List[UUID]] = None
 
@@ -165,39 +123,40 @@ class EvaluationRunQuery(Header, Metadata):
 # - EVALUATION SCENARIO --------------------------------------------------------
 
 
-class EvaluationScenario(Version, Identifier, Lifecycle, Metadata):
+class EvaluationScenario(Identifier, Lifecycle):
+    # flags: Optional[Flags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    status: Optional[EvaluationStatus] = None
+
+    run_id: Optional[UUID] = None
+    run: Optional[EvaluationRun] = None
+
+
+class EvaluationScenarioCreate(BaseModel):
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
     status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
-    interval: Optional[int] = None
-    timestamp: Optional[datetime] = None
-    run_id: UUID
+    run_id: Optional[UUID] = None
 
 
-class EvaluationScenarioCreate(Metadata):
-    version: str = CURRENT_VERSION
-
-    status: Optional[EvaluationStatus] = None
-
-    interval: Optional[int] = None
-    timestamp: Optional[datetime] = None
-    run_id: UUID
-
-
-class EvaluationScenarioEdit(Identifier, Metadata):
-    version: str = CURRENT_VERSION
+class EvaluationScenarioEdit(Identifier):
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
 
     status: Optional[EvaluationStatus] = None
 
 
-class EvaluationScenarioQuery(Metadata):
+class EvaluationScenarioQuery(BaseModel):
+    # flags: Optional[Flags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
     status: Optional[EvaluationStatus] = None
     statuses: Optional[List[EvaluationStatus]] = None
-
-    interval: Optional[int] = None
-    intervals: Optional[List[int]] = None
-
-    timestamp: Optional[datetime] = None
-    timestamps: Optional[List[datetime]] = None
 
     run_id: Optional[UUID] = None
     run_ids: Optional[List[UUID]] = None
@@ -205,241 +164,139 @@ class EvaluationScenarioQuery(Metadata):
     ids: Optional[List[UUID]] = None
 
 
-# - EVALUATION RESULT ----------------------------------------------------------
+# - EVALUATION STEP ------------------------------------------------------------
 
 
-class EvaluationResult(Version, Identifier, Lifecycle, Metadata):
-    hash_id: Optional[UUID] = None
-    trace_id: Optional[str] = None
-    testcase_id: Optional[UUID] = None
-    error: Optional[Data] = None
+class EvaluationStep(Identifier, Lifecycle):
+    # flags: Optional[Flags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
 
-    status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
-
-    interval: Optional[int] = None
+    status: Optional[EvaluationStatus] = None
     timestamp: Optional[datetime] = None
-    repeat_idx: Optional[int] = 0
-    step_key: str
-    scenario_id: UUID
-    run_id: UUID
 
-
-class EvaluationResultCreate(Metadata):
-    version: str = CURRENT_VERSION
+    key: str
+    repeat_id: Optional[UUID] = None
+    retry_id: Optional[UUID] = None
 
     hash_id: Optional[UUID] = None
     trace_id: Optional[str] = None
     testcase_id: Optional[UUID] = None
     error: Optional[Data] = None
 
-    status: Optional[EvaluationStatus] = None
+    scenario_id: Optional[UUID] = None
+    scenario: Optional[EvaluationScenario] = None
 
-    interval: Optional[int] = None
-    timestamp: Optional[datetime] = None
-    repeat_idx: Optional[int] = 0
-    step_key: str
-    scenario_id: UUID
-    run_id: UUID
+    run_id: Optional[UUID] = None
+    run: Optional[EvaluationRun] = None
 
 
-class EvaluationResultEdit(Identifier, Metadata):
-    version: str = CURRENT_VERSION
+class EvaluationStepCreate(BaseModel):
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
+
+    key: str
+    repeat_id: Optional[UUID] = None
+    retry_id: Optional[UUID] = None
 
     hash_id: Optional[UUID] = None
     trace_id: Optional[str] = None
     testcase_id: Optional[UUID] = None
     error: Optional[Data] = None
 
+    scenario_id: Optional[UUID] = None
+    run_id: Optional[UUID] = None
+
+
+class EvaluationStepEdit(Identifier):
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
     status: Optional[EvaluationStatus] = None
 
+    hash_id: Optional[UUID] = None
+    trace_id: Optional[str] = None
+    testcase_id: Optional[UUID] = None
+    error: Optional[Data] = None
 
-class EvaluationResultQuery(Metadata):
+
+class EvaluationStepQuery(BaseModel):
+    # flags: Optional[Flags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    key: Optional[str] = None
+    keys: Optional[List[str]] = None
+    repeat_id: Optional[UUID] = None
+    repeat_ids: Optional[List[UUID]] = None
+    retry_id: Optional[UUID] = None
+    retry_ids: Optional[List[UUID]] = None
+
     status: Optional[EvaluationStatus] = None
     statuses: Optional[List[EvaluationStatus]] = None
-
-    interval: Optional[int] = None
-    intervals: Optional[List[int]] = None
-
     timestamp: Optional[datetime] = None
-    timestamps: Optional[List[datetime]] = None
-
-    repeat_idx: Optional[int] = None
-    repeat_idxs: Optional[List[int]] = None
-
-    step_key: Optional[str] = None
-    step_keys: Optional[List[str]] = None
-
-    scenario_id: Optional[UUID] = None
-    scenario_ids: Optional[List[UUID]] = None
 
     run_id: Optional[UUID] = None
     run_ids: Optional[List[UUID]] = None
+    scenario_id: Optional[UUID] = None
+    scenario_ids: Optional[List[UUID]] = None
 
     ids: Optional[List[UUID]] = None
 
 
-# - EVALUATION METRICS ---------------------------------------------------------
+# - EVALUATION METRIC ----------------------------------------------------------
 
 
-class EvaluationMetrics(Version, Identifier, Lifecycle, Metadata):
+class EvaluationMetric(Identifier, Lifecycle):
+    # flags: Optional[Flags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
+    status: Optional[EvaluationStatus] = None
+
+    data: Optional[Data] = None
+
+    scenario_id: Optional[UUID] = None
+    scenario: Optional[EvaluationScenario] = None
+
+    run_id: Optional[UUID] = None
+    run: Optional[EvaluationRun] = None
+
+
+class EvaluationMetricCreate(BaseModel):
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
     status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
     data: Optional[Data] = None
 
-    interval: Optional[int] = None
-    timestamp: Optional[datetime] = None
     scenario_id: Optional[UUID] = None
-    run_id: UUID
+    run_id: Optional[UUID] = None
 
 
-class EvaluationMetricsCreate(Metadata):
-    version: str = CURRENT_VERSION
-
-    status: Optional[EvaluationStatus] = None
-
-    data: Optional[Data] = None
-
-    interval: Optional[int] = None
-    timestamp: Optional[datetime] = None
-    scenario_id: Optional[UUID] = None
-    run_id: UUID
-
-
-class EvaluationMetricsEdit(Identifier, Metadata):
-    version: str = CURRENT_VERSION
+class EvaluationMetricEdit(Identifier):
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
 
     status: Optional[EvaluationStatus] = None
 
     data: Optional[Data] = None
 
 
-class EvaluationMetricsQuery(Metadata):
+class EvaluationMetricQuery(BaseModel):
+    # flags: Optional[Flags] = None
+    tags: Optional[Tags] = None
+    meta: Optional[Meta] = None
+
     status: Optional[EvaluationStatus] = None
     statuses: Optional[List[EvaluationStatus]] = None
 
-    interval: Optional[int] = None
-    intervals: Optional[List[int]] = None
-
-    timestamp: Optional[datetime] = None
-    timestamps: Optional[List[datetime]] = None
-
     scenario_id: Optional[UUID] = None
     scenario_ids: Optional[List[UUID]] = None
-
     run_id: Optional[UUID] = None
     run_ids: Optional[List[UUID]] = None
-
-    ids: Optional[List[UUID]] = None
-
-
-class EvaluationMetricsRefresh(BaseModel):
-    query: Optional[TracingQuery] = None
-    specs: Optional[List[MetricSpec]] = None
-
-    ids: Optional[List[UUID]] = None
-
-
-# - EVALUATION QUEUE -----------------------------------------------------------
-
-
-class EvaluationQueueFlags(BaseModel):
-    is_sequential: bool = False
-
-
-class EvaluationQueueData(BaseModel):
-    user_ids: Optional[List[List[UUID]]] = None
-    scenario_ids: Optional[List[UUID]] = None
-    step_keys: Optional[List[str]] = None
-
-
-class EvaluationQueue(Version, Identifier, Lifecycle, Header, Metadata):
-    flags: Optional[EvaluationQueueFlags] = None  # type: ignore
-
-    status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
-
-    data: Optional[EvaluationQueueData] = None
-
-    run_id: UUID
-
-
-class EvaluationQueueCreate(Header, Metadata):
-    version: str = CURRENT_VERSION
-
-    flags: Optional[EvaluationQueueFlags] = None  # type: ignore
-
-    status: Optional[EvaluationStatus] = None
-
-    data: Optional[EvaluationQueueData] = None
-
-    run_id: UUID
-
-
-class EvaluationQueueEdit(Identifier, Header, Metadata):
-    version: str = CURRENT_VERSION
-
-    flags: Optional[EvaluationQueueFlags] = None  # type: ignore
-
-    status: Optional[EvaluationStatus] = None
-
-    data: Optional[EvaluationQueueData] = None
-
-
-class EvaluationQueueQuery(Header, Metadata):
-    flags: Optional[EvaluationQueueFlags] = None  # type: ignore
-
-    user_id: Optional[UUID] = None
-    user_ids: Optional[List[UUID]] = None
-
-    run_id: Optional[UUID] = None
-    run_ids: Optional[List[UUID]] = None
-
-    ids: Optional[List[UUID]] = None
-
-
-# - SIMPLE EVALUATION ----------------------------------------------------------
-
-
-SimpleEvaluationFlags = EvaluationRunFlags
-
-SimpleEvaluationStatus = EvaluationStatus
-
-
-class SimpleEvaluationData(BaseModel):
-    status: Optional[SimpleEvaluationStatus] = None
-
-    query_steps: Optional[Target] = None
-    testset_steps: Optional[Target] = None
-    application_steps: Optional[Target] = None
-    evaluator_steps: Optional[Target] = None
-
-    repeats: Optional[int] = None
-
-
-class SimpleEvaluation(Version, Identifier, Lifecycle, Header, Metadata):
-    flags: Optional[SimpleEvaluationFlags] = None  # type: ignore
-
-    data: Optional[SimpleEvaluationData] = None
-
-
-class SimpleEvaluationCreate(Header, Metadata):
-    version: str = CURRENT_VERSION
-
-    flags: Optional[SimpleEvaluationFlags] = None  # type: ignore
-
-    data: Optional[SimpleEvaluationData] = None
-
-    jit: Optional[Dict[str, bool]] = None
-
-
-class SimpleEvaluationEdit(Identifier, Header, Metadata):
-    version: str = CURRENT_VERSION
-
-    flags: Optional[SimpleEvaluationFlags] = None  # type: ignore
-
-    data: Optional[SimpleEvaluationData] = None
-
-
-class SimpleEvaluationQuery(Header, Metadata):
-    flags: Optional[SimpleEvaluationFlags] = None  # type: ignore
 
     ids: Optional[List[UUID]] = None

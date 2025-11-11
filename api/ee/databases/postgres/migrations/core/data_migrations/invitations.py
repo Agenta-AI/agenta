@@ -124,19 +124,20 @@ def revert_invitations_transfer_from_new_table_to_old_table(session: Connection)
         TOTAL_MIGRATED = 0
 
         # Count total rows in invitations table
-        stmt = select(func.count()).select_from(InvitationDB)
-        result = session.execute(stmt).scalar()
+        query = select(func.count()).select_from(InvitationDB)
+        result = session.execute(query).scalar()
         TOTAL_INVITATIONS = result if result is not None else 0
         print(f"Total rows in project_invitations table is {TOTAL_INVITATIONS}")
 
         while True:
             # Retrieve a batch of project invitations
-            project_invitations = session.execute(
+            query = session.execute(
                 select(InvitationDB)
                 .offset(offset)
                 .limit(BATCH_SIZE)
                 .options(joinedload(InvitationDB.project))
-            ).fetchall()
+            )
+            project_invitations = query.fetchall()
             if not project_invitations:
                 break
 

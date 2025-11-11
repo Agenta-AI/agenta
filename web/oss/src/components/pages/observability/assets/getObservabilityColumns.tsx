@@ -1,48 +1,41 @@
+import {Space, Tooltip, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
 
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
+import LabelValuePill from "@/oss/components/ui/LabelValuePill"
+import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
+import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {TracesWithAnnotations} from "@/oss/services/observability/types"
 
-import CostCell from "../components/CostCell"
-import DurationCell from "../components/DurationCell"
-import EvaluatorMetricsCell from "../components/EvaluatorMetricsCell"
-import NodeNameCell from "../components/NodeNameCell"
 import StatusRenderer from "../components/StatusRenderer"
-import TimestampCell from "../components/TimestampCell"
-import UsageCell from "../components/UsageCell"
-import {
-    getCost,
-    getLatency,
-    getTokens,
-    getTraceInputs,
-    getTraceOutputs,
-} from "@/oss/state/newObservability"
+
+import {nodeTypeStyles} from "./constants"
 
 interface ObservabilityColumnsProps {
-    evaluatorSlugs: string[]
+    annotations: AnnotationDto[]
 }
 
-export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsProps) => {
-    const columns: ColumnsType<TraceSpanNode> = [
+export const getObservabilityColumns = ({annotations}: ObservabilityColumnsProps) => {
+    const columns: ColumnsType<TracesWithAnnotations> = [
         {
             title: "ID",
-            dataIndex: ["span_id"],
+            dataIndex: ["node", "id"],
             key: "key",
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
-            defaultHidden: true,
             fixed: "left",
             render: (_, record) => {
-                return <ResultTag value1={`# ${record.span_id.split("-")[0]}`} />
+                return <ResultTag value1={`# ${record.node.id.split("-")[0]}`} />
             },
         },
         {
             title: "Name",
-            dataIndex: ["span_name"],
+            dataIndex: ["node", "name"],
             key: "name",
             ellipsis: true,
             width: 200,
@@ -50,19 +43,37 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
                 style: {minWidth: 200},
             }),
             fixed: "left",
-            render: (_, record) => <NodeNameCell name={record.span_name} type={record.span_type} />,
+            render: (_, record) => {
+                const {icon: Icon} = nodeTypeStyles[record.node.type ?? "default"]
+
+                return (
+                    <Space align="center" size={4}>
+                        <div className="grid place-items-center">
+                            <Icon size={16} />
+                        </div>
+                        <Typography>
+                            {record.node.name.length >= 15 ? (
+                                <Tooltip title={record.node.name} placement="bottom">
+                                    {record.node.name.slice(0, 15)}...
+                                </Tooltip>
+                            ) : (
+                                record.node.name
+                            )}
+                        </Typography>
+                    </Space>
+                )
+            },
         },
         {
             title: "Span type",
             key: "span_type",
-            dataIndex: ["span_type"],
-            defaultHidden: true,
+            dataIndex: ["node", "type"],
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
             render: (_, record) => {
-                return <div>{record.span_type}</div>
+                return <div>{record.node.type}</div>
             },
         },
         {
@@ -71,10 +82,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             width: 400,
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
-                const inputs = getTraceInputs(record)
                 return (
                     <TruncatedTooltipTag
-                        children={inputs ? getStringOrJson(inputs) : ""}
+                        children={getStringOrJson(record?.data?.inputs)}
                         placement="bottom"
                     />
                 )
@@ -86,10 +96,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             width: 400,
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
-                const outputs = getTraceOutputs(record)
                 return (
                     <TruncatedTooltipTag
-                        children={outputs ? getStringOrJson(outputs) : ""}
+                        children={getStringOrJson(record?.data?.outputs)}
                         placement="bottom"
                     />
                 )
@@ -99,83 +108,120 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Evaluators",
             key: "evaluators",
             align: "start",
-            children: evaluatorSlugs.map((evaluatorSlug) => ({
+            children: Array.from(
+                new Set(annotations.map((a) => a.references?.evaluator?.slug).filter(Boolean)),
+            ).map((evaluatorSlug) => ({
                 title: "",
                 key: evaluatorSlug,
                 onHeaderCell: () => ({
                     style: {display: "none"},
                 }),
-                render: (_, record) => (
-                    <EvaluatorMetricsCell
-                        invocationKey={`${record.invocationIds?.trace_id || ""}:${record.invocationIds?.span_id || ""}`}
-                        evaluatorSlug={evaluatorSlug}
-                    />
-                ),
+                render: (_, record) => {
+                    const metrics = record.aggregatedEvaluatorMetrics?.[evaluatorSlug || ""]
+                    if (!metrics) {
+                        return <span className="text-gray-500">–</span>
+                    }
+
+                    return (
+                        <div className="flex flex-col gap-[6px]">
+                            <div className="flex items-center justify-between">
+                                <Typography.Text className="text-[10px]">
+                                    {evaluatorSlug}
+                                </Typography.Text>
+
+                                <Typography.Text className="text-[10px]" type="secondary">
+                                    {Object.keys(metrics).length}{" "}
+                                    {Object.keys(metrics).length === 1 ? "metric" : "metrics"}
+                                </Typography.Text>
+                            </div>
+
+                            <div className="flex items-center gap-2 max-w-[450px] overflow-x-auto [&::-webkit-scrollbar]:!w-0">
+                                {Object.entries(metrics).map(([metricName, rawData]) => {
+                                    const data = rawData as {average?: number}
+
+                                    return (
+                                        <LabelValuePill
+                                            key={metricName}
+                                            label={metricName}
+                                            value={`μ ${data.average}`}
+                                            className="!min-w-fit"
+                                        />
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )
+                },
             })),
         },
         {
             title: "Duration",
             key: "duration",
             dataIndex: ["time", "span"],
-            width: 90,
+            width: 80,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 80},
             }),
-            render: (_, record) => {
-                const duration = getLatency(record)
-                return <DurationCell ms={duration} />
-            },
+            render: (_, record) => (
+                <div>
+                    {formatLatency(
+                        record?.metrics?.acc?.duration?.total
+                            ? record?.metrics?.acc?.duration?.total / 1000
+                            : null,
+                    )}
+                </div>
+            ),
         },
         {
             title: "Cost",
             key: "cost",
-            dataIndex: ["attributes", "ag", "metrics", "costs", "cumulative", "total"],
-            width: 90,
+            dataIndex: ["metrics", "acc", "costs", "total"],
+            width: 80,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 80},
             }),
-            render: (_, record) => {
-                const cost = getCost(record)
-                return <CostCell cost={cost} />
-            },
+            render: (_, record) => <div>{formatCurrency(record.metrics?.acc?.costs?.total)}</div>,
         },
         {
             title: "Usage",
             key: "usage",
-            dataIndex: ["attributes", "ag", "metrics", "tokens", "cumulative", "total"],
-            width: 90,
+            dataIndex: ["metrics", "acc", "tokens", "total"],
+            width: 80,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 80},
             }),
-            render: (_, record) => {
-                const tokens = getTokens(record)
-                return <UsageCell tokens={tokens} />
-            },
+            render: (_, record) => (
+                <div>{formatTokenUsage(record.metrics?.acc?.tokens?.total)}</div>
+            ),
         },
         {
             title: "Timestamp",
             key: "timestamp",
-            dataIndex: ["created_at"],
+            dataIndex: ["lifecycle", "created_at"],
             width: 200,
             onHeaderCell: () => ({
                 style: {minWidth: 200},
             }),
-            render: (_, record) => <TimestampCell timestamp={record?.created_at} />,
+            render: (_, record) => {
+                return (
+                    <div>
+                        {formatDay({
+                            date: record.lifecycle?.created_at,
+                            outputFormat: "HH:mm:ss DD MMM YYYY",
+                        })}
+                    </div>
+                )
+            },
         },
         {
             title: "Status",
             key: "status",
-            dataIndex: ["status_code"],
+            dataIndex: ["status", "code"],
             width: 160,
             onHeaderCell: () => ({
                 style: {minWidth: 160},
             }),
-            render: (_, record) =>
-                StatusRenderer({
-                    status: record.status_code,
-                    message: record.status_message,
-                    showMore: true,
-                }),
+            render: (_, record) => StatusRenderer({status: record.status, showMore: true}),
         },
     ]
 

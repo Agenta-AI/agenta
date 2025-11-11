@@ -32,7 +32,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 
 const AnnotationTabItem = ({annotations}: {annotations: AnnotationDto[]}) => {
     const classes = useStyles()
-    const {data: evaluators = []} = useEvaluators({
+    const {data: evaluators} = useEvaluators({
         preview: true,
     })
 

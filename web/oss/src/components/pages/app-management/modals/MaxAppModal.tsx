@@ -43,7 +43,7 @@ const MaxAppModal: React.FC<Props> = ({...props}) => {
             <section className="flex flex-col mt-4">
                 <div className={classes.image}>
                     <Image
-                        src="/assets/Agenta-logo-full-dark-accent.png"
+                        src="/assets/dark-complete-transparent_white_logo.png"
                         alt="aenta-ai"
                         width={226}
                         height={60}

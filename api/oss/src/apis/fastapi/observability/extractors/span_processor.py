@@ -33,7 +33,7 @@ class SpanProcessor:
         self.normalizer = Normalizer()
         self.adapter_registry = AdapterRegistry()
         if not builders:
-            log.warn(
+            log.warning(
                 "SpanProcessor initialized with no builders. Process method will return an empty dict."
             )
         self.builders = builders
@@ -86,7 +86,7 @@ class SpanProcessor:
                 )
 
         if not results and self.builders:
-            log.warn(
+            log.warning(
                 "All builders failed or returned no data for span_id %s (trace_id %s). OTelSpan: %s",
                 otel_span_dto.context.span_id[2:] if otel_span_dto.context else "N/A",
                 otel_span_dto.context.trace_id[2:] if otel_span_dto.context else "N/A",

@@ -1,12 +1,11 @@
 ---
-title: Tracing and Observability for OpenAI Agents SDK with Agenta
+title: Observability for OpenAI Agents SDK with Agenta
 sidebar_label: OpenAI Agents SDK
 description: Learn how to set up observability and tracing for OpenAI Agents SDK using Agenta open-source LLM observability platform. This comprehensive guide covers setup, configuration, and best practices for tracing multi-agent workflows using OpenAI Agents SDK and OpenAI models.
 ---
 
 ```mdx-code-block
 import Image from "@theme/IdealImage";
-import GoogleColabButton from "@site/src/components/GoogleColabButton";
 ```
 
 Learn how to set up tracing for your [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/) applications with **Agenta** for complete observability into your multi-agent application performance, debugging capabilities, and execution observability.
@@ -15,9 +14,9 @@ Learn how to set up tracing for your [OpenAI Agents SDK](https://openai.github.i
 
 > **What is OpenAI Agents?** The [OpenAI Agents](https://github.com/openai/openai-agents-python) SDK is a framework for building AI agents that can interact with tools, run asynchronous operations, and orchestrate complex multi-agent workflows. It provides a structured approach to creating intelligent agents with tool calling capabilities.
 
-<GoogleColabButton notebookPath="examples/jupyter/integrations/openai-agents-integration.ipynb">
-  Open in Google Colaboratory
-</GoogleColabButton>
+:::info
+This tutorial is also available as a [Jupyter notebook](https://github.com/Agenta-AI/agenta/tree/main/examples/jupyter/integrations/openai-agents-integration.ipynb) for interactive learning and experimentation.
+:::
 
 ## Setup Guide
 
@@ -175,7 +174,7 @@ The trace provides visibility into your application's execution, helping you:
 - Analyze orchestration effectiveness and workflow optimization, and identify bottlenecks
 
 :::info
-After setting up observability for your OpenAI Agents SDK application, you can use Agenta's [evaluation](/evaluation/concepts) features to evaluate the performance of your agents.
+After setting up observability for your OpenAI Agents SDK application, you can use Agenta's [evaluation](/evaluation/overview) features to evaluate the performance of your agents.
 :::
 
 ## Real-world Example
@@ -276,4 +275,4 @@ async def content_creation_system(content_brief: str):
 
 ## Next Steps
 
-For more detailed information about Agenta's observability features and advanced configuration options, visit the [Agenta Observability SDK Documentation](/observability/trace-with-python-sdk/setup-tracing).
+For more detailed information about Agenta's observability features and advanced configuration options, visit the [Agenta Observability SDK Documentation](/observability/observability-sdk).

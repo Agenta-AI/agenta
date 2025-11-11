@@ -1,11 +1,11 @@
+import {getProfileValues} from "@/oss/contexts/profile.context"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {getProfileValues} from "@/oss/state/profile"
 
 export const isAnnotationCreatedByCurrentUser = (annotation: AnnotationDto) => {
     const {user} = getProfileValues()
 
     return (
-        annotation.createdById === user?.data?.id &&
+        annotation.createdById === user?.id &&
         annotation.channel === "web" &&
         annotation.origin === "human" &&
         annotation.kind === "adhoc"

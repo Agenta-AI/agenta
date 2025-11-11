@@ -7,7 +7,15 @@
  *
  * @module CodeHighlightNode
  */
-import {TextNode, EditorConfig, LexicalNode, SerializedTextNode, Spread} from "lexical"
+import {
+    TextNode,
+    EditorConfig,
+    LexicalNode,
+    DOMExportOutput,
+    SerializedTextNode,
+    Spread,
+    LexicalEditor,
+} from "lexical"
 
 import styles from "../components/assets/CodeBlockErrorIndicator.module.css"
 /**
@@ -54,13 +62,6 @@ export class CodeHighlightNode extends TextNode {
             node.__validationMessage,
             node.__key,
         )
-    }
-
-    /**
-     * Instance-level clone used by paste utilities.
-     */
-    clone(): CodeHighlightNode {
-        return CodeHighlightNode.clone(this)
     }
 
     /**
@@ -144,6 +145,15 @@ export class CodeHighlightNode extends TextNode {
 
         // Otherwise, let the parent class decide if update is needed
         return super.updateDOM(prevNode as this, dom, config)
+    }
+
+    /**
+     * Exports the node to a DOM representation for external use.
+     * @param editor - The Lexical editor instance
+     * @returns DOM export output
+     */
+    exportDOM(editor: LexicalEditor): DOMExportOutput {
+        return super.exportDOM(editor)
     }
 
     exportJSON(): SerializedCodeHighlightNode {

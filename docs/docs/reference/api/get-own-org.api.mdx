@@ -5,59 +5,97 @@ description: "Get User Organization"
 sidebar_label: "Get User Organization"
 hide_title: true
 hide_table_of_contents: true
-api: eJx9U8tu2zAQ/BVjzoTl9qhTfShSI0ATNM3JEAKa2lhMJZIhl05dQf9erOQ30OogCdoZ7s7MqocPFDVb71Y1SmyJX/yHe/FxC4VIKXiXKKHs8XmxkEdNyUQbhIEST9kYSuk1t7MfBzAUjHdMjgWuQ2itGRsUb0k4PZJpqNPyFqK0Zzt1sLXceR8IJRJH62QIttzKh1WNQcHpjv6H+i71YVBHgN+8keFRy3u2kWqUa2l0OKk6Mx/iVjv7Zxz1IXPIjEEudSP5jnj2nCjOLglQ6Igbf/AQCkFzgxKFv0Clwn8INFHcUUwo1z1ybFGiYQ6pLArT+lzP9ZYc67m2hQ4WQyUMk6Pl/UhZPq7uaf+NdE0R5bq6BDyJt5Od17CTZTrYe9ofDSixzNz4eNZhRWQzsUS9da9+pB98Wo7DzZaPKyiIjMmWxfzTfIFbs67AshbajGtx7D2WoW5cOOmHAnXaSo1Jd1/OBZks+MSddhfn/Subq6FOTjD95iK02jrZrHGE/pDbGle5QUGSqxQan1jKfb/RiZ5jOwzy+T1TlHAqhZ2OVm/EqnU1qKOTktsv2otmYyjIhux0m6dAbn4RyfO0TXdff2IY/gLwUT55
+api: eJx9U01v2zAM/SsBz0Kc7ajTsmHoggJrsa6nwCgYmY3V2pIqUekyw/99oO18Ap0PtiE+ko/vUR34QBHZereqQMOW+Mm/uycft6AgUgreJUqgO/i8WMinomSiDZIBGh6yMZTSc25mvyYwKDDeMTkWOIbQWDM0KF6S5HSQTE0tyl+I0p7t2MFW8uZ9INCQOFonJNhyIwerCnoFDlv6H+qnxPteHQB+80KGh1neso1UgV5Lo6lSecq8i1t09u9A9S5zyAy9POpq5Bvi2WOiODtPAAUtce0nDUFBQK5BQ+HPUKnw7wJNFHcUE+h1Bzk2oKFmDkkXhWl8rua4Jcc4R1tgsHBNYDlEZ98ECn0p5UyOlvdDveX96pb2PwgriqDX5TngQYQftb6EHfXEYG9pf1BHwzJz7eNpSCsE6jFLpLHu2Q/pk4gTt69oXsmJyjLnSHsx/zRffDTMlDBb3q+m/UEz7M+BxwADdSXXUShQQC1aiTFh++UUEJbBJ27RndX7yMQLckdVmP5wERq0TlZwoNBNBq/hwmBQIBaXCmqfWMJdt8FEj7Hpezl+yxTFqFLBDqPFjci2Lnt1UFU8fKW9zGwMBVmlHTZ5NOfqLom3x7W7+f4b+v4fYDlNCA==
 sidebar_class_name: "get api-method"
-info_path: reference/api/agenta-api
+info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
 
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import ParamsDetails from "@theme/ParamsDetails";
-import RequestSchema from "@theme/RequestSchema";
-import StatusCodes from "@theme/StatusCodes";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
-import Heading from "@theme/Heading";
 
 <Heading
   as={"h1"}
   className={"openapi__heading"}
   children={"Get User Organization"}
->
-</Heading>
+></Heading>
 
-<MethodEndpoint
-  method={"get"}
-  path={"/organizations/own"}
-  context={"endpoint"}
->
-  
-</MethodEndpoint>
-
-
+<MethodEndpoint method={"get"} path={"/organizations/own"}></MethodEndpoint>
 
 Get User Organization
 
-<ParamsDetails
-  parameters={undefined}
->
-  
-</ParamsDetails>
-
-<RequestSchema
-  title={"Body"}
-  body={undefined}
->
-  
-</RequestSchema>
-
-<StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"id":{"type":"string","title":"Id"},"name":{"type":"string","title":"Name"}},"type":"object","required":["id","name"],"title":"OrganizationOutput"}}}}}}
->
-  
-</StatusCodes>
-
-
-      
+<div>
+  <div>
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary
+                      style={{}}
+                      className={"openapi-markdown__details-summary-response"}
+                    >
+                      <strong>Schema</strong>
+                    </summary>
+                    <div
+                      style={{ textAlign: "left", marginLeft: "1rem" }}
+                    ></div>
+                    <ul style={{ marginLeft: "1rem" }}>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"id"}
+                        required={true}
+                        schemaName={"Id (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Id" }}
+                      ></SchemaItem>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"name"}
+                        required={true}
+                        schemaName={"Name (string)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "string", title: "Name" }}
+                      ></SchemaItem>
+                    </ul>
+                  </details>
+                </TabItem>
+                <TabItem
+                  label={"Example (from schema)"}
+                  value={"Example (from schema)"}
+                >
+                  <ResponseSamples
+                    responseExample={
+                      '{\n  "id": "string",\n  "name": "string"\n}'
+                    }
+                    language={"json"}
+                  ></ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>

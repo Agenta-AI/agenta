@@ -21,19 +21,13 @@ from .sdk.types import (
     PromptTemplate,
 )
 
-from .sdk.agenta_init import Config, AgentaSingleton, init as _init
 from .sdk.utils.logging import get_module_logger
-from .sdk.utils.costs import calculate_token_usage
 from .sdk.tracing import Tracing, get_tracer
-from .sdk.tracing.conventions import Reference
 from .sdk.decorators.tracing import instrument
-from .sdk.decorators.running import (
-    workflow,
-    application,
-    evaluator,
-)
-from .sdk.decorators.serving import route, app
-from .sdk.context.running import workflow_mode_enabled
+from .sdk.tracing.conventions import Reference
+from .sdk.decorators.routing import entrypoint, app, route
+from .sdk.agenta_init import Config, AgentaSingleton, init as _init
+from .sdk.utils.costs import calculate_token_usage
 from .sdk.litellm import litellm as callbacks
 from .sdk.managers.apps import AppManager
 from .sdk.managers.vault import VaultManager
@@ -43,10 +37,6 @@ from .sdk.managers.variant import VariantManager
 from .sdk.managers.deployment import DeploymentManager
 from .sdk import assets as assets
 from .sdk import tracer
-
-# evaluations
-from .sdk import testsets as testsets
-
 
 config = PreInitObject("agenta.config", Config)
 DEFAULT_AGENTA_SINGLETON_INSTANCE = AgentaSingleton()
@@ -62,7 +52,6 @@ tracer = get_tracer(tracing)
 
 def init(
     host: Optional[str] = None,
-    api_url: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
     redact: Optional[Callable[..., Any]] = None,
@@ -74,7 +63,6 @@ def init(
 
     _init(
         host=host,
-        api_url=api_url,
         api_key=api_key,
         config_fname=config_fname,
         redact=redact,

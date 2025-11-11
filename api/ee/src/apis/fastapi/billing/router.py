@@ -1,9 +1,7 @@
-from typing import Any, Dict
 from os import environ
 from json import loads, decoder
 from uuid import getnode
 from datetime import datetime, timezone
-from dateutil.relativedelta import relativedelta
 
 from fastapi import APIRouter, Request, status, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -49,6 +47,8 @@ FORBIDDEN_RESPONSE = JSONResponse(
 
 
 class SubscriptionsRouter:
+    VERSION = "1.0.0"
+
     def __init__(
         self,
         subscription_service: SubscriptionsService,
@@ -78,6 +78,13 @@ class SubscriptionsRouter:
             self.create_checkout_user_route,
             methods=["POST"],
             operation_id="create_checkout",
+        )
+
+        self.router.add_api_route(
+            "/stripe/trial-checkout/",
+            self.create_trial_continuation_checkout_user_route,
+            methods=["POST"],
+            operation_id="create_trial_continuation_checkout",
         )
 
         self.router.add_api_route(
@@ -325,6 +332,40 @@ class SubscriptionsRouter:
             elif stripe_event.type == "customer.subscription.deleted":
                 event = Event.SUBSCRIPTION_CANCELLED
 
+            elif stripe_event.type == "setup_intent.succeeded":
+                # Handle setup intent for trial continuation
+                setup_intent = stripe_event.data.object
+                subscription_id = setup_intent.metadata.get("subscription_id")
+                
+                if subscription_id:
+                    try:
+                        # Update subscription with payment method
+                        stripe.Subscription.modify(
+                            subscription_id,
+                            default_payment_method=setup_intent.payment_method
+                        )
+                        log.info(
+                            "Payment method added to trial subscription: %s | %s",
+                            organization_id,
+                            subscription_id,
+                        )
+                    except Exception as e:
+                        log.error(
+                            "Failed to update subscription with payment method: %s", e
+                        )
+                        return JSONResponse(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            content={
+                                "status": "error", 
+                                "message": "Failed to update subscription"
+                            },
+                        )
+
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "success"},
+                )
+
             else:
                 log.warn("Skipping stripe event: %s (unsupported)", stripe_event.type)
                 return JSONResponse(
@@ -492,6 +533,132 @@ class SubscriptionsRouter:
 
         return {"checkout_url": checkout.url}
 
+    async def create_trial_continuation_checkout(
+        self,
+        organization_id: str,
+        success_url: str,
+        cancel_url: str,
+    ):
+        """Create checkout session to add payment method to existing trial subscription"""
+        if not stripe.api_key:
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={"status": "error", "message": "Missing Stripe API Key"},
+            )
+
+        # Validation checks
+        subscription = await self.subscription_service.read(
+            organization_id=organization_id
+        )
+
+        if not subscription:
+            return JSONResponse(
+                status_code=status.HTTP_404_NOT_FOUND,
+                content={"status": "error", "message": "Subscription not found"},
+            )
+
+        if not subscription.subscription_id:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "status": "error",
+                    "message": "No active subscription found",
+                },
+            )
+
+        if not subscription.customer_id:
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={"status": "error", "message": "No customer found"},
+            )
+
+        # Get Stripe subscription to verify it's in trial
+        try:
+            stripe_subscription = stripe.Subscription.retrieve(subscription.subscription_id)
+            if stripe_subscription.status != "trialing":
+                if stripe_subscription.status == "active":
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "status": "error",
+                            "message": "Subscription is already active and paid",
+                        },
+                    )
+                elif stripe_subscription.status == "canceled":
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "status": "error",
+                            "message": "Trial has already ended",
+                        },
+                    )
+                else:
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "status": "error",
+                            "message": f"Subscription is in {stripe_subscription.status} state and cannot be upgraded",
+                        },
+                    )
+                    
+            # Check if payment method already exists
+            if stripe_subscription.default_payment_method:
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={
+                        "status": "error",
+                        "message": "Payment method already added to subscription",
+                    },
+                )
+        except stripe.error.InvalidRequestError as e:
+            log.error("Invalid Stripe subscription ID: %s", e)
+            return JSONResponse(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                content={
+                    "status": "error",
+                    "message": "Invalid subscription",
+                },
+            )
+        except Exception as e:
+            log.error("Could not verify subscription status: %s", e)
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={
+                    "status": "error",
+                    "message": "Could not verify subscription status",
+                },
+            )
+
+        # Create setup mode checkout to collect payment method
+        try:
+            checkout = stripe.checkout.Session.create(
+                mode="setup",
+                payment_method_types=["card"],
+                customer=subscription.customer_id,
+                customer_update={"address": "auto", "name": "auto"},
+                billing_address_collection="required",
+                setup_intent_data={
+                    "metadata": {
+                        "organization_id": organization_id,
+                        "subscription_id": subscription.subscription_id,
+                        "target": STRIPE_TARGET,
+                    }
+                },
+                success_url=success_url,
+                cancel_url=cancel_url,
+            )
+        except Exception as e:
+            log.error("Could not create checkout session: %s", e)
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={
+                    "status": "error",
+                    "message": "Could not create checkout session",
+                },
+            )
+
+        return {"checkout_url": checkout.url}
+
     async def fetch_plans(
         self,
         organization_id: str,
@@ -571,146 +738,76 @@ class SubscriptionsRouter:
             organization_id=organization_id,
         )
 
-        if not subscription or not subscription.plan:
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content={
-                    "status": "error",
-                    "message": "Subscription (Agenta) not found",
-                },
-            )
-
         plan = subscription.plan
         anchor = subscription.anchor
 
-        _status: Dict[str, Any] = dict(
-            plan=plan.value,
-            type="standard",
-        )
+        _status = {"plan": plan.value, "type": "standard"}
 
-        if plan == Plan.CLOUD_V0_HOBBY:
-            return _status
-
-        if not subscription.subscription_id:
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content={
-                    "status": "error",
-                    "message": "Subscription (Agenta) not found",
-                },
-            )
-
-        if not stripe.api_key:
-            return JSONResponse(
-                status_code=status.HTTP_403_FORBIDDEN,
-                content={
-                    "status": "error",
-                    "message": "Missing Stripe API Key",
-                },
-            )
-
-        try:
-            _subscription = stripe.Subscription.retrieve(
-                id=subscription.subscription_id,
-            )
-        except Exception:
-            _subscription = None
-
-        if _subscription:
-            _status["period_start"] = int(_subscription.current_period_start)
-            _status["period_end"] = int(_subscription.current_period_end)
-            _status["free_trial"] = _subscription.status == "trialing"
-
-            return _status
-
-        if not anchor or anchor < 1 or anchor > 31:
-            anchor = now.day
-
-        last_day_this_month = (
-            datetime(
-                now.year,
-                now.month,
-                1,
-                tzinfo=timezone.utc,
-            )
-            + relativedelta(
-                months=+1,
-                days=-1,
-            )
-        ).day
-
-        day_this_month = min(anchor, last_day_this_month)
-
-        if now.day < anchor:
-            prev_month = now + relativedelta(
-                months=-1,
-            )
-
-            last_day_prev_month = (
-                datetime(
-                    prev_month.year,
-                    prev_month.month,
-                    1,
-                    tzinfo=timezone.utc,
+        if plan != Plan.CLOUD_V0_HOBBY:
+            if not stripe.api_key:
+                return JSONResponse(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    content={"status": "error", "message": "Missing Stripe API Key"},
                 )
-                + relativedelta(
-                    months=+1,
-                    days=-1,
+
+            if not subscription:
+                return JSONResponse(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    content={
+                        "status": "error",
+                        "message": "Subscription (Agenta) not found",
+                    },
                 )
-            ).day
 
-            day_prev_month = min(anchor, last_day_prev_month)
-
-            period_start = datetime(
-                year=prev_month.year,
-                month=prev_month.month,
-                day=day_prev_month,
-                tzinfo=timezone.utc,
-            )
-            period_end = datetime(
-                year=now.year,
-                month=now.month,
-                day=day_this_month,
-                tzinfo=timezone.utc,
-            )
-        else:
-            period_start = datetime(
-                year=now.year,
-                month=now.month,
-                day=day_this_month,
-                tzinfo=timezone.utc,
-            )
-
-            next_month = now + relativedelta(
-                months=+1,
-            )
-
-            last_day_next_month = (
-                datetime(
-                    next_month.year,
-                    next_month.month,
-                    1,
-                    tzinfo=timezone.utc,
+            try:
+                subscription = stripe.Subscription.retrieve(
+                    id=subscription.subscription_id,
                 )
-                + relativedelta(
-                    months=+1,
-                    days=-1,
-                )
-            ).day
+            except:  # pylint: disable=bare-except
+                subscription = None
 
-            day_next_month = min(anchor, last_day_next_month)
+            if not subscription:
+                if now.day < anchor:
+                    _status["period_start"] = int(
+                        datetime(
+                            year=(now.year + (now.month - 2) // 12),
+                            month=(now.month - 2) % 12 + 1,
+                            day=anchor,
+                            tzinfo=timezone.utc,
+                        ).timestamp()
+                    )
+                    _status["period_end"] = int(
+                        datetime(
+                            year=now.year,
+                            month=now.month,
+                            day=anchor,
+                            tzinfo=timezone.utc,
+                        ).timestamp()
+                    )
+                else:
+                    _status["period_start"] = int(
+                        datetime(
+                            year=now.year,
+                            month=now.month,
+                            day=anchor,
+                            tzinfo=timezone.utc,
+                        ).timestamp()
+                    )
+                    _status["period_end"] = int(
+                        datetime(
+                            year=(now.year + (now.month) // 12),
+                            month=(now.month + 1) % 12,
+                            day=anchor,
+                            tzinfo=timezone.utc,
+                        ).timestamp()
+                    )
 
-            period_end = datetime(
-                year=next_month.year,
-                month=next_month.month,
-                day=day_next_month,
-                tzinfo=timezone.utc,
-            )
-
-        _status["period_start"] = int(period_start.timestamp())
-        _status["period_end"] = int(period_end.timestamp())
-        _status["free_trial"] = False
-        _status["type"] = "custom"
+                _status["free_trial"] = False
+                _status["type"] = "custom"
+            else:
+                _status["period_start"] = subscription.current_period_start
+                _status["period_end"] = subscription.current_period_end
+                _status["free_trial"] = subscription.status == "trialing"
 
         return _status
 
@@ -824,13 +921,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_portal(
             organization_id=request.state.organization_id,
@@ -852,13 +948,12 @@ class SubscriptionsRouter:
         plan: Plan = Query(...),
         success_url: str = Query(...),  # find a way to make this optional or moot
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_checkout(
             organization_id=request.state.organization_id,
@@ -880,17 +975,36 @@ class SubscriptionsRouter:
         )
 
     @intercept_exceptions()
+    async def create_trial_continuation_checkout_user_route(
+        self,
+        request: Request,
+        success_url: str = Query(...),
+        cancel_url: str = Query(None),
+    ):
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
+
+        return await self.create_trial_continuation_checkout(
+            organization_id=request.state.organization_id,
+            success_url=success_url,
+            cancel_url=cancel_url or f"{request.url.scheme}://{request.url.netloc}/settings?tab=billing&trial_upgrade=cancelled",
+        )
+
+    @intercept_exceptions()
     async def fetch_plan_user_route(
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_plans(
             organization_id=request.state.organization_id,
@@ -902,13 +1016,12 @@ class SubscriptionsRouter:
         request: Request,
         plan: Plan = Query(...),
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.switch_plans(
             organization_id=request.state.organization_id,
@@ -931,13 +1044,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_subscription(
             organization_id=request.state.organization_id,
@@ -948,13 +1060,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.cancel_subscription(
             organization_id=request.state.organization_id,
@@ -974,13 +1085,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_usage(
             organization_id=request.state.organization_id,

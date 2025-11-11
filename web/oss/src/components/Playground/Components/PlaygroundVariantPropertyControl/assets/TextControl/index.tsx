@@ -1,7 +1,7 @@
 import {Typography} from "antd"
 import clsx from "clsx"
 
-import {usePlaygroundLayout} from "@/oss/components/Playground/hooks/usePlaygroundLayout"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 
 import SharedEditor from "../../../SharedEditor"
 
@@ -21,10 +21,11 @@ const TextControl = ({
     disabled,
     placeholder,
     isTool,
+    propertyId,
+    variantId,
     ...props
 }: TextControlProps) => {
-    const {isComparisonView} = usePlaygroundLayout()
-    const viewType = isComparisonView ? "comparison" : "single"
+    const {viewType} = usePlayground()
 
     if (viewType === "single" && view !== "focus") {
         return (

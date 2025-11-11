@@ -19,6 +19,4 @@ export interface PromptMessageContentOptionsProps {
     allowFileUpload?: boolean
     uploadCount?: number
     hideMarkdownToggle?: boolean
-    /** Whether the component is in view-only mode or in mutable mode */
-    viewOnly?: boolean
 }

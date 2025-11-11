@@ -7,7 +7,6 @@ import {_AgentaRootsResponse} from "@/oss/services/observability/types"
 import {TreeContent} from "../../pages/observability/drawer/TraceTree"
 
 import {useStyles} from "./assets/styles"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 /**
  * CustomTree is a recursive tree view component for rendering a hierarchy of nodes.
@@ -29,7 +28,7 @@ interface TreeProps {
     /**
      * Root node of the hierarchical data structure.
      */
-    data: TraceSpanNode
+    data: _AgentaRootsResponse
 
     /**
      * Settings for what additional metrics to show in each node.
@@ -52,7 +51,7 @@ interface TreeProps {
 }
 
 const TreeNodeComponent: React.FC<{
-    node: TraceSpanNode
+    node: _AgentaRootsResponse
     isLast: boolean
     settings: {latency: boolean; cost: boolean; tokens: boolean}
     selectedKey: string | null
@@ -81,7 +80,7 @@ const TreeNodeComponent: React.FC<{
                             ? `${classes.nodeLabel} ${shouldShowAsLast ? "last" : ""}`
                             : "flex items-center"
                     }
-                    onClick={() => onSelect(node.span_id)}
+                    onClick={() => onSelect(node.node.id)}
                 >
                     {hasChildren && (
                         <span
@@ -98,7 +97,7 @@ const TreeNodeComponent: React.FC<{
                         className={
                             classes.nodeLabelContent +
                             " " +
-                            (node.span_id === selectedKey ? "bg-[#F5F7FA]" : "")
+                            (node.node?.id === selectedKey ? "bg-[#F5F7FA]" : "")
                         }
                     >
                         <TreeContent value={node} settings={settings} />
