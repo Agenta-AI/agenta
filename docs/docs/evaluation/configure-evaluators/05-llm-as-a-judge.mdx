@@ -2,6 +2,8 @@
 title: "LLM-as-a-Judge"
 ---
 
+import Image from "@theme/IdealImage";
+
 LLM-as-a-Judge is an evaluator that uses an LLM to assess LLM outputs. It's particularly useful for evaluating text generation tasks or chatbots where there's no single correct answer.
 
 ![Configuration of LLM-as-a-judge](/images/evaluation/configure-evaluators-3.png)
@@ -56,4 +58,28 @@ ANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN T
 
 ### The Model
 
-The model can be configured to select one of the supported options (`gpt-3.5-turbo`, `gpt-4o`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `claude-3-5-sonnet`, `claude-3-5-haiku`, `claude-3-5-opus`). To use LLM-as-a-Judge, you'll need to set your OpenAI or Anthropic API key in the settings. The key is saved locally and only sent to our servers for evaluation—it's not stored there.
+The model can be configured to select one of the supported options (`gpt-4o`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `claude-3-5-sonnet`, `claude-3-5-haiku`, `claude-3-5-opus`). To use LLM-as-a-Judge, you'll need to set your OpenAI or Anthropic API key in the settings. The key is saved locally and only sent to our servers for evaluation; it's not stored there.
+
+### Output Schema
+
+You can configure the output schema to control what the LLM evaluator returns. This allows you to get structured feedback tailored to your evaluation needs.
+
+#### Basic Configuration
+
+The basic configuration lets you choose from common output types:
+
+- **Binary**: Returns a simple pass/fail or yes/no judgment
+- **Multiclass**: Returns a classification from a predefined set of categories
+- **Continuous**: Returns a score between a minimum and maximum value
+
+You can also enable **Include Reasoning** to have the evaluator explain its judgment. This option significantly improves the quality of evaluations by making the LLM's decision process transparent.
+
+<Image img={require('/static/images/changelog/changelog-llm-as-a-judge-response-1.png')} alt="Basic output schema configuration" style={{display: 'block', margin: '20px auto', textAlign: 'center'}} />
+
+
+#### Advanced Configuration
+
+For complete control, you can provide a custom JSON schema. This lets you define any output structure you need. For example, you could return multiple scores, confidence levels, detailed feedback categories, or any combination of fields.
+
+
+<Image img={require('/static/images/changelog/changelog-llm-as-a-judge-response-2.png')} alt="Advanced output schema configuration" style={{display: 'block', margin: '20px auto', textAlign: 'center'}} />
