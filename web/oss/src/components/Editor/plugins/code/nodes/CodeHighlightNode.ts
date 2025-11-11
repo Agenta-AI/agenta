@@ -7,9 +7,16 @@
  *
  * @module CodeHighlightNode
  */
-import {TextNode, EditorConfig, LexicalNode, SerializedTextNode, Spread} from "lexical"
+import {
+    TextNode,
+    EditorConfig,
+    LexicalNode,
+    DOMExportOutput,
+    SerializedTextNode,
+    Spread,
+    LexicalEditor,
+} from "lexical"
 
-import styles from "../components/assets/CodeBlockErrorIndicator.module.css"
 /**
  * Represents the serialized form of a CodeHighlightNode.
  * Extends SerializedTextNode with a highlightType property for syntax highlighting.
@@ -57,13 +64,6 @@ export class CodeHighlightNode extends TextNode {
     }
 
     /**
-     * Instance-level clone used by paste utilities.
-     */
-    clone(): CodeHighlightNode {
-        return CodeHighlightNode.clone(this)
-    }
-
-    /**
      * Creates a new CodeHighlightNode instance.
      * @param text - The text content of the node
      * @param highlightType - The type of syntax highlighting to apply
@@ -93,19 +93,21 @@ export class CodeHighlightNode extends TextNode {
         const dom = super.createDOM(config)
 
         // Apply token class based on highlight type
-        dom.className = `${styles["editor-code-highlight"]} token token-${latest.__highlightType}`
+        dom.className = `editor-code-highlight token token-${latest.__highlightType}`
 
         // Ensure empty nodes have a minimum width for caret visibility
         if (latest.getTextContent() === "") {
             dom.classList.add("token-empty")
+            // Set a minimum width to ensure caret visibility
+            dom.style.minWidth = "1px"
+            dom.style.display = "inline-block"
         }
 
         // Add validation error styling if needed
         if (latest.hasValidationError()) {
-            dom.classList.add("validation-error", "has-tooltip")
+            dom.classList.add("token-error", "has-tooltip")
             if (latest.__validationMessage) {
                 dom.setAttribute("data-tooltip", latest.__validationMessage)
-                dom.setAttribute("title", latest.__validationMessage)
             }
         }
 
@@ -146,6 +148,15 @@ export class CodeHighlightNode extends TextNode {
         return super.updateDOM(prevNode as this, dom, config)
     }
 
+    /**
+     * Exports the node to a DOM representation for external use.
+     * @param editor - The Lexical editor instance
+     * @returns DOM export output
+     */
+    exportDOM(editor: LexicalEditor): DOMExportOutput {
+        return super.exportDOM(editor)
+    }
+
     exportJSON(): SerializedCodeHighlightNode {
         return {
             ...super.exportJSON(),
@@ -164,15 +175,6 @@ export class CodeHighlightNode extends TextNode {
             json.hasValidationError,
             json.validationMessage,
         )
-    }
-
-    // Prevent formatting (bold, underline, etc)
-    setFormat(format: number): this {
-        return this
-    }
-
-    canHaveFormat(): boolean {
-        return false
     }
 
     setHighlightType(type: string): void {
@@ -200,7 +202,7 @@ export class CodeHighlightNode extends TextNode {
     }
 
     setValidationMessage(msg: string | null): void {
-        const writable = this.getWritable()
+        const writable = this.getWritable<CodeHighlightNode>()
         writable.__validationMessage = msg
     }
 }
@@ -212,10 +214,10 @@ export class CodeHighlightNode extends TextNode {
  * @returns A new CodeHighlightNode instance
  */
 export function $createCodeHighlightNode(
-    text = "",
-    highlightType = "plain",
-    hasValidationError = false,
-    validationMessage: string | null = null,
+    text: string,
+    highlightType: string,
+    hasValidationError: boolean,
+    validationMessage: string | null,
     key?: string,
 ): CodeHighlightNode {
     return new CodeHighlightNode(text, highlightType, hasValidationError, validationMessage, key)

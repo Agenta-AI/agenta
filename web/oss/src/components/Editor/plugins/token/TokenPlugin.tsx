@@ -2,34 +2,16 @@ import {useEffect, useCallback} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {useLexicalTextEntity} from "@lexical/react/useLexicalTextEntity"
-import {TextNode, $createTextNode, LexicalNode, $isRangeSelection, $getSelection} from "lexical"
+import {TextNode, $createTextNode, LexicalNode, $isRangeSelection} from "lexical"
 
-import {navigateCursor} from "./assets/selectionUtils"
 import {TokenInputNode, $createTokenInputNode, $isTokenInputNode} from "./TokenInputNode"
 import {TokenNode, $createTokenNode, $isTokenNode} from "./TokenNode"
 
-type TemplateFormat = "curly" | "fstring" | "jinja2"
+const FULL_TOKEN_REGEX = /\{\{[^{}]+\}\}/
+const TOKEN_INPUT_REGEX = /\{\{[^{}]*\}?$/
 
-function buildRegexes(templateFormat: TemplateFormat) {
-    if (templateFormat === "jinja2") {
-        // Match complete Jinja2 tokens: variables {{ }}, blocks {% %} (with optional - trim markers), comments {# #}
-        const full = /(\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})/
-        // Match incomplete tokens at end of string: starts of any of the three
-        const input = /(\{\{[\s\S]*$|\{%-?[\s\S]*$|\{%[\s\S]*$|\{#[\s\S]*$)/
-        // Exact match validator for token nodes (entire text content is one token)
-        const exact = /^(\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})$/
-        return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
-    }
-    // Default: curly variable tokens only
-    const full = /\{\{[^{}]*\}\}/
-    const input = /\{\{[^{}]*$/
-    const exact = /^\{\{[^{}]*\}\}$/
-    return {FULL_TOKEN_REGEX: full, TOKEN_INPUT_REGEX: input, EXACT_TOKEN_REGEX: exact}
-}
-
-export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: TemplateFormat}): null {
+export function TokenPlugin(): null {
     const [editor] = useLexicalComposerContext()
-    const {FULL_TOKEN_REGEX, TOKEN_INPUT_REGEX, EXACT_TOKEN_REGEX} = buildRegexes(templateFormat)
 
     useEffect(() => {
         if (!editor.hasNodes([TokenNode, TokenInputNode])) {
@@ -43,7 +25,7 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
 
             if ($isTokenNode(textNode)) {
                 // Handle existing token nodes
-                if (!text || !EXACT_TOKEN_REGEX.test(text)) {
+                if (!text?.match(/^\{\{[^{}]+\}\}$/)) {
                     const parent = textNode.getParent()
                     if (!parent) return
 
@@ -55,7 +37,7 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
 
             if ($isTokenInputNode(textNode)) {
                 // Handle existing token input nodes
-                if (text && EXACT_TOKEN_REGEX.test(text)) {
+                if (text?.match(/^\{\{[^{}]+\}\}$/)) {
                     const tokenNode = $createTokenNode(text)
                     textNode.replace(tokenNode)
                     const spaceNode = $createTextNode(" ")
@@ -75,6 +57,7 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
 
             // Handle potential new tokens
             const tokenMatch = text?.match(FULL_TOKEN_REGEX)
+            const tokenInputMatch = text?.match(TOKEN_INPUT_REGEX)
 
             if (tokenMatch) {
                 const [fullMatch] = tokenMatch
@@ -100,25 +83,6 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
                 if (afterToken) {
                     const afterNode = $createTextNode(afterToken)
                     textNode.insertBefore(afterNode)
-                    if (fullMatch === "{{}}") {
-                        navigateCursor({nodeKey: tokenNode.getKey(), offset: 2})
-                    } else {
-                        // Get the current selection before any transformations
-                        const selection = $getSelection()
-                        const cursorOffset = $isRangeSelection(selection)
-                            ? selection.anchor.offset
-                            : 0
-                        // Calculate the new cursor position based on where it was before
-                        const tokenStart = text.indexOf(fullMatch)
-                        const tokenEnd = tokenStart + fullMatch.length
-
-                        navigateCursor({
-                            nodeKey: afterNode.getKey(),
-                            offset: Math.max(0, cursorOffset - tokenEnd),
-                        })
-                    }
-                } else if (fullMatch === "{{}}") {
-                    navigateCursor({nodeKey: tokenNode.getKey(), offset: 2})
                 } else {
                     const spaceNode = $createTextNode(" ")
                     tokenNode.insertAfter(spaceNode)
@@ -134,6 +98,35 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
                 }
 
                 textNode.remove()
+            } else if (tokenInputMatch) {
+                const [fullMatch] = tokenInputMatch
+                const startOffset = tokenInputMatch.index!
+
+                // Split text into parts
+                const beforeToken = text.slice(0, startOffset)
+                const afterToken = text.slice(startOffset + fullMatch.length)
+
+                // Create nodes
+                const parent = textNode.getParent()
+                if (!parent) return
+
+                if (beforeToken) {
+                    const beforeNode = $createTextNode(beforeToken)
+                    textNode.insertBefore(beforeNode)
+                }
+
+                const tokenInputNode = $createTokenInputNode(fullMatch)
+                textNode.insertBefore(tokenInputNode)
+
+                if (afterToken) {
+                    const afterNode = $createTextNode(afterToken)
+                    tokenInputNode.insertAfter(afterNode)
+                }
+
+                textNode.remove()
+            } else if (text.match(/^\{\{[^{}]*\}?$/)) {
+                const tokenInputNode = $createTokenInputNode(text)
+                textNode.replace(tokenInputNode)
             }
         }
 
@@ -147,45 +140,39 @@ export function TokenPlugin({templateFormat = "curly"}: {templateFormat?: Templa
             unregisterTextNodeTransform()
             unregisterTokenInputNodeTransform()
         }
-    }, [editor, templateFormat])
+    }, [editor])
 
-    const getTokenMatch = useCallback(
-        (text: string) => {
-            const fullTokenMatch = FULL_TOKEN_REGEX.exec(text)
+    const getTokenMatch = useCallback((text: string) => {
+        const fullTokenMatch = FULL_TOKEN_REGEX.exec(text)
 
-            if (fullTokenMatch) {
-                const startOffset = fullTokenMatch.index
-                const endOffset = startOffset + fullTokenMatch[0].length
+        if (fullTokenMatch) {
+            const startOffset = fullTokenMatch.index
+            const endOffset = startOffset + fullTokenMatch[0].length
 
-                return {
-                    end: endOffset,
-                    start: startOffset,
-                }
+            return {
+                end: endOffset,
+                start: startOffset,
             }
+        }
 
-            return null
-        },
-        [templateFormat],
-    )
+        return null
+    }, [])
 
-    const getTokenInputMatch = useCallback(
-        (text: string) => {
-            const matchArr = TOKEN_INPUT_REGEX.exec(text)
+    const getTokenInputMatch = useCallback((text: string) => {
+        const matchArr = TOKEN_INPUT_REGEX.exec(text)
 
-            if (matchArr) {
-                const startOffset = matchArr.index
-                const endOffset = startOffset + matchArr[0].length
+        if (matchArr) {
+            const startOffset = matchArr.index
+            const endOffset = startOffset + matchArr[0].length
 
-                return {
-                    end: endOffset,
-                    start: startOffset,
-                }
+            return {
+                end: endOffset,
+                start: startOffset,
             }
+        }
 
-            return null
-        },
-        [templateFormat],
-    )
+        return null
+    }, [])
 
     const $createTokenNode_ = useCallback((textNode: TextNode) => {
         return $createTokenNode(textNode.getTextContent())

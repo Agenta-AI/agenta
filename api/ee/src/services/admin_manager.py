@@ -139,12 +139,12 @@ Credentials = str
 async def check_user(
     request: UserRequest,
 ) -> Optional[UserRequest]:
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(UserDB).filter_by(
-                email=request.email,
-            )
+    async with engine.core_connection() as connection:
+        stmt = select(UserDB).filter_by(
+            email=request.email,
         )
+
+        result = await connection.execute(stmt=stmt, prepare=True)
 
         user_db = result.scalars().first()
 

@@ -62,7 +62,7 @@ const AddAppFromTemplatedModal = ({
 
     return (
         <Modal
-            destroyOnHidden
+            destroyOnClose
             footer={null}
             title={null}
             className={classes.modalContainer}

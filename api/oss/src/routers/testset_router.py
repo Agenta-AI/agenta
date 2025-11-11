@@ -1,7 +1,6 @@
 import io
 import os
 import csv
-import sys
 import json
 import requests
 from pathlib import Path
@@ -10,19 +9,18 @@ from datetime import datetime, timezone
 
 from pydantic import ValidationError
 from fastapi.responses import JSONResponse
-from fastapi import HTTPException, UploadFile, File, Form, Request, Query
+from fastapi import HTTPException, UploadFile, File, Form, Request
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.converters import testset_db_to_pydantic
 
-from oss.src.utils.common import is_uuid7
 from oss.src.models.api.testset_model import (
     NewTestset,
     DeleteTestsets,
-    TestsetSimpleResponse,
-    TestsetOutputResponse,
+    TestSetSimpleResponse,
+    TestSetOutputResponse,
 )
 
 PARENT_DIRECTORY = Path(__file__).parent
@@ -45,12 +43,9 @@ upload_folder = "./path/to/upload/folder"
 
 TESTSETS_COUNT_LIMIT = 10 * 1_000  # 10,000 testcases per testset
 TESTSETS_SIZE_LIMIT = 10 * 1024 * 1024  # 10 MB per testset
-TESTSETS_FIELD_SIZE_LIMIT = 10 * 1024 * 1024  # 10 MB per CSV field
 
-csv.field_size_limit(TESTSETS_FIELD_SIZE_LIMIT)
-
-TESTSETS_COUNT_WARNING = f"Testset exceeds the maximum count of {TESTSETS_COUNT_LIMIT} testcases per testset."
-TESTSETS_SIZE_WARNING = f"Testset exceeds the maximum size of {TESTSETS_SIZE_LIMIT // (1024 * 1024)} MB per testset."
+TESTSETS_COUNT_WARNING = f"Test set exceeds the maximum count of {TESTSETS_COUNT_LIMIT} test cases per test set."
+TESTSETS_SIZE_WARNING = f"Test set exceeds the maximum size of {TESTSETS_SIZE_LIMIT // (1024 * 1024)} MB per test set."
 
 TESTSETS_SIZE_EXCEPTION = HTTPException(
     status_code=400,
@@ -64,8 +59,8 @@ TESTSETS_COUNT_EXCEPTION = HTTPException(
 
 
 def _validate_testset_limits(rows: List[dict]) -> tuple[int, int]:
-    i = -1
     total_size = 2
+    i = -1
     for i, row in enumerate(rows):
         row_str = json.dumps(row)
         total_size += len(row_str.encode("utf-8"))
@@ -81,7 +76,7 @@ def _validate_testset_limits(rows: List[dict]) -> tuple[int, int]:
 
 
 @router.post(
-    "/upload", response_model=TestsetSimpleResponse, operation_id="upload_file"
+    "/upload/", response_model=TestSetSimpleResponse, operation_id="upload_file"
 )
 async def upload_file(
     request: Request,
@@ -156,10 +151,9 @@ async def upload_file(
     try:
         testset = await db_manager.create_testset(
             project_id=request.state.project_id,
-            #
             testset_data=document,
         )
-        return TestsetSimpleResponse(
+        return TestSetSimpleResponse(
             id=str(testset.id),
             name=document["name"],
             created_at=str(testset.created_at),
@@ -169,7 +163,7 @@ async def upload_file(
 
 
 @router.post(
-    "/endpoint", response_model=TestsetSimpleResponse, operation_id="import_testset"
+    "/endpoint/", response_model=TestSetSimpleResponse, operation_id="import_testset"
 )
 async def import_testset(
     request: Request,
@@ -231,7 +225,7 @@ async def import_testset(
             project_id=request.state.project_id,
             testset_data=document,
         )
-        return TestsetSimpleResponse(
+        return TestSetSimpleResponse(
             id=str(testset.id),
             name=document["name"],
             created_at=str(testset.created_at),
@@ -252,24 +246,20 @@ async def import_testset(
         ) from error
 
 
-@router.post(
-    "/", response_model=TestsetSimpleResponse, operation_id="create_legacy_testset"
-)
+@router.post("/", response_model=TestSetSimpleResponse, operation_id="create_testset")
 async def create_testset(
     csvdata: NewTestset,
     request: Request,
-    #
-    testset_id: Optional[str] = None,
 ):
     """
     Create a testset with given name, save the testset to Postgres.
 
     Args:
-    name (str): name of the testset.
-    testset (Dict[str, str]): testset data.
+    name (str): name of the test set.
+    testset (Dict[str, str]): test set data.
 
     Returns:
-    str: The id of the testset created.
+    str: The id of the test set created.
     """
 
     if is_ee():
@@ -286,11 +276,6 @@ async def create_testset(
                 status_code=403,
             )
 
-    if testset_id is not None and not is_uuid7(testset_id):
-        raise HTTPException(
-            status_code=400, detail="Invalid testset_id format. Must be UUIDv7."
-        )
-
     _validate_testset_limits(csvdata.csvdata)
 
     testset_data = {
@@ -299,20 +284,17 @@ async def create_testset(
     }
     testset_instance = await db_manager.create_testset(
         project_id=request.state.project_id,
-        #
         testset_data=testset_data,
-        #
-        testset_id=testset_id,
     )
     if testset_instance is not None:
-        return TestsetSimpleResponse(
+        return TestSetSimpleResponse(
             id=str(testset_instance.id),
             name=testset_instance.name,  # type: ignore
             created_at=str(testset_instance.created_at),
         )
 
 
-@router.put("/{testset_id}", operation_id="update_testset")
+@router.put("/{testset_id}/", operation_id="update_testset")
 async def update_testset(
     testset_id: str,
     csvdata: NewTestset,
@@ -322,18 +304,14 @@ async def update_testset(
     Update a testset with given id, update the testset in Postgres.
 
     Args:
-    testset_id (str): id of the testset to be updated.
+    testset_id (str): id of the test set to be updated.
     csvdata (NewTestset): New data to replace the old testset.
 
     Returns:
-    str: The id of the testset updated.
+    str: The id of the test set updated.
     """
 
-    testset = await db_manager.fetch_testset_by_id(
-        project_id=request.state.project_id,
-        #
-        testset_id=testset_id,
-    )
+    testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
     if testset is None:
         raise HTTPException(status_code=404, detail="testset not found")
 
@@ -359,11 +337,7 @@ async def update_testset(
         "updated_at": datetime.now(timezone.utc),
     }
     await db_manager.update_testset(
-        project_id=request.state.project_id,
-        #
-        testset_id=str(testset.id),
-        #
-        values_to_update=testset_update,
+        testset_id=str(testset.id), values_to_update=testset_update
     )
     return {
         "status": "success",
@@ -375,9 +349,7 @@ async def update_testset(
 @router.get("/", operation_id="get_testsets")
 async def get_testsets(
     request: Request,
-    #
-    name: Optional[str] = Query(None),
-) -> List[TestsetOutputResponse]:
+) -> List[TestSetOutputResponse]:
     """
     Get all testsets.
 
@@ -387,6 +359,7 @@ async def get_testsets(
     Raises:
     - `HTTPException` with status code 404 if no testsets are found.
     """
+
     try:
         if is_ee():
             has_permission = await check_action_access(
@@ -408,11 +381,10 @@ async def get_testsets(
 
         testsets = await db_manager.fetch_testsets_by_project_id(
             project_id=request.state.project_id,
-            name=name,
         )
 
         return [
-            TestsetOutputResponse(
+            TestSetOutputResponse(
                 _id=str(testset.id),  # type: ignore
                 name=testset.name,
                 created_at=str(testset.created_at),
@@ -422,7 +394,7 @@ async def get_testsets(
         ]
 
     except Exception as e:
-        log.error(f"An error occurred: {str(e)}")
+        log.exception(f"An error occurred: {str(e)}")
 
         raise HTTPException(
             status_code=500,
@@ -430,7 +402,7 @@ async def get_testsets(
         )
 
 
-@router.get("/{testset_id}", operation_id="get_single_testset")
+@router.get("/{testset_id}/", operation_id="get_single_testset")
 async def get_single_testset(
     testset_id: str,
     request: Request,
@@ -446,21 +418,11 @@ async def get_single_testset(
     """
 
     try:
-        testset = await db_manager.fetch_testset_by_id(
-            project_id=request.state.project_id,
-            #
-            testset_id=testset_id,
-        )
-    except Exception as exc:
-        log.error(f"An error occurred: {str(exc)}", exc_info=True)
-        status_code = exc.status_code if hasattr(exc, "status_code") else 500  # type: ignore
-        raise HTTPException(status_code=status_code, detail=str(exc))
-
-    if testset is not None:
+        test_set = await db_manager.fetch_testset_by_id(testset_id=testset_id)
         if is_ee():
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
-                project_id=str(testset.project_id),
+                project_id=str(test_set.project_id),
                 permission=Permission.VIEW_TESTSET,
             )
             if not has_permission:
@@ -470,10 +432,13 @@ async def get_single_testset(
                     {"detail": error_msg},
                     status_code=403,
                 )
-    else:
-        raise HTTPException(status_code=404, detail="testset not found")
 
-    return testset_db_to_pydantic(testset)
+        if test_set is None:
+            raise HTTPException(status_code=404, detail="testset not found")
+        return testset_db_to_pydantic(test_set)
+    except Exception as exc:
+        status_code = exc.status_code if hasattr(exc, "status_code") else 500  # type: ignore
+        raise HTTPException(status_code=status_code, detail=str(exc))
 
 
 @router.delete("/", response_model=List[str], operation_id="delete_testsets")
@@ -493,11 +458,7 @@ async def delete_testsets(
 
     if is_ee():
         for testset_id in payload.testset_ids:
-            testset = await db_manager.fetch_testset_by_id(
-                project_id=request.state.project_id,
-                #
-                testset_id=testset_id,
-            )
+            testset = await db_manager.fetch_testset_by_id(testset_id=testset_id)
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(testset.project_id),
@@ -511,9 +472,5 @@ async def delete_testsets(
                     status_code=403,
                 )
 
-    await db_manager.remove_testsets(
-        project_id=request.state.project_id,
-        #
-        testset_ids=payload.testset_ids,
-    )
+    await db_manager.remove_testsets(testset_ids=payload.testset_ids)
     return payload.testset_ids

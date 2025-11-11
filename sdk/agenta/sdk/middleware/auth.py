@@ -53,7 +53,7 @@ class DenyException(Exception):
         self.content = content
 
 
-class AuthHTTPMiddleware(BaseHTTPMiddleware):
+class AuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: FastAPI):
         super().__init__(app)
 
@@ -157,7 +157,7 @@ class AuthHTTPMiddleware(BaseHTTPMiddleware):
                         # log.debug(f"Timeout error while verify credentials: {exc}")
                         raise DenyException(
                             status_code=504,
-                            content=f"Could not verify credentials: connection to {self.host} timed out. Please check your network connection.",
+                            content="Could not verify credentials: connection to {self.host} timed out. Please check your network connection.",
                         ) from exc
                     except httpx.ConnectError as exc:
                         # log.debug(f"Connection error while verify credentials: {exc}")
@@ -169,7 +169,7 @@ class AuthHTTPMiddleware(BaseHTTPMiddleware):
                         # log.debug(f"Network error while verify credentials: {exc}")
                         raise DenyException(
                             status_code=503,
-                            content=f"Could not verify credentials: connection to {self.host} failed. Please check your network connection.",
+                            content="Could not verify credentials: connection to {self.host} failed. Please check your network connection.",
                         ) from exc
                     except httpx.HTTPError as exc:
                         # log.debug(f"HTTP error while verify credentials: {exc}")

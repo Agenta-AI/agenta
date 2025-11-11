@@ -41,7 +41,7 @@ const EvaluationErrorModal = ({
         <Modal
             open={isErrorModalOpen}
             footer={null}
-            destroyOnHidden
+            destroyOnClose
             title={
                 <>
                     <ExclamationCircleOutlined className="text-red-500 mr-2 mb-3" />

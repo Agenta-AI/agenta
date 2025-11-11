@@ -34,14 +34,14 @@ class Permission(str, Enum):
     READ_SYSTEM = "read_system"
 
     # App and variants
-    VIEW_APPLICATIONS = "view_applications"
-    EDIT_APPLICATIONS = "edit_application"
-
+    VIEW_APPLICATION = "view_application"
+    EDIT_APPLICATION = "edit_application"
+    CREATE_APPLICATION = "create_application"
+    DELETE_APPLICATION = "delete_application"
     CREATE_APP_VARIANT = "create_app_variant"
     DELETE_APP_VARIANT = "delete_app_variant"
-
     MODIFY_VARIANT_CONFIGURATIONS = "modify_variant_configurations"
-    EDIT_APPLICATIONS_VARIANT = "delete_application_variant"
+    DELETE_APPLICATION_VARIANT = "delete_application_variant"
 
     # Service
     RUN_SERVICE = "run_service"
@@ -96,15 +96,10 @@ class Permission(str, Enum):
     # Workflows
     VIEW_WORKFLOWS = "view_workflows"
     EDIT_WORKFLOWS = "edit_workflows"
-    RUN_WORKFLOWS = "run_workflows"
 
     # Evaluators
     VIEW_EVALUATORS = "view_evaluators"
     EDIT_EVALUATORS = "edit_evaluators"
-
-    # Queries
-    VIEW_QUERIES = "view_queries"
-    EDIT_QUERIES = "edit_queries"
 
     # Testsets
     VIEW_TESTSETS = "view_testsets"
@@ -114,31 +109,15 @@ class Permission(str, Enum):
     VIEW_ANNOTATIONS = "view_annotations"
     EDIT_ANNOTATIONS = "edit_annotations"
 
-    # Invocations
-    VIEW_INVOCATIONS = "view_invocations"
-    EDIT_INVOCATIONS = "edit_invocations"
-
     # Evaluations
-    VIEW_EVALUATION_RUNS = "view_evaluation_runs"
-    EDIT_EVALUATION_RUNS = "edit_evaluation_runs"
-
-    VIEW_EVALUATION_SCENARIOS = "view_evaluation_scenarios"
-    EDIT_EVALUATION_SCENARIOS = "edit_evaluation_scenarios"
-
-    VIEW_EVALUATION_RESULTS = "view_evaluation_results"
-    EDIT_EVALUATION_RESULTS = "edit_evaluation_results"
-
-    VIEW_EVALUATION_METRICS = "view_evaluation_metrics"
-    EDIT_EVALUATION_METRICS = "edit_evaluation_metrics"
-
-    VIEW_EVALUATION_QUEUES = "view_evaluation_queues"
-    EDIT_EVALUATION_QUEUES = "edit_evaluation_queues"
+    VIEW_EVALUATIONS = "view_evaluations"
+    EDIT_EVALUATIONS = "edit_evaluations"
 
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
             cls.READ_SYSTEM,
-            cls.VIEW_APPLICATIONS,
+            cls.VIEW_APPLICATION,
             cls.VIEW_SECRET,
             cls.VIEW_APP_ENVIRONMENT_DEPLOYMENT,
             cls.VIEW_TESTSET,
@@ -167,7 +146,7 @@ class Permission(str, Enum):
                     cls.EDIT_ORGANIZATION,
                     cls.DELETE_EVALUATION,
                     cls.MODIFY_USER_ROLES,
-                    cls.EDIT_APPLICATIONS,
+                    cls.DELETE_APPLICATION,
                     cls.DELETE_ORGANIZATION,
                     cls.ADD_USER_TO_WORKSPACE,
                     cls.ADD_USER_TO_ORGANIZATION,

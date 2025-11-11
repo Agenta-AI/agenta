@@ -68,7 +68,7 @@ class RawAgentaApi:
 
     def update_organization(
         self,
-        organization_id: str,
+        org_id: str,
         *,
         name: typing.Optional[str] = OMIT,
         description: typing.Optional[str] = OMIT,
@@ -78,7 +78,7 @@ class RawAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         name : typing.Optional[str]
 
@@ -95,7 +95,7 @@ class RawAgentaApi:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}",
+            f"organizations/{jsonable_encoder(org_id)}",
             method="PUT",
             json={
                 "name": name,
@@ -146,7 +146,7 @@ class RawAgentaApi:
 
     def create_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         *,
         name: str,
         description: typing.Optional[str] = OMIT,
@@ -156,7 +156,7 @@ class RawAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         name : str
 
@@ -173,7 +173,7 @@ class RawAgentaApi:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces",
             method="POST",
             json={
                 "name": name,
@@ -222,7 +222,7 @@ class RawAgentaApi:
 
     def update_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         name: typing.Optional[str] = OMIT,
@@ -233,7 +233,7 @@ class RawAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -252,7 +252,7 @@ class RawAgentaApi:
             Successful Response
         """
         _response = self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}",
             method="PUT",
             json={
                 "name": name,
@@ -448,7 +448,7 @@ class RawAgentaApi:
         workspace_id: str,
         *,
         email: str,
-        organization_id: str,
+        org_id: str,
         role: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> HttpResponse[typing.Optional[typing.Any]]:
@@ -458,7 +458,7 @@ class RawAgentaApi:
         Args:
             workspace_id (str): The ID of the workspace.
             email (str): The email of the user to remove the role from.
-            organization_id (str): The ID of the organization.
+            org_id (str): The ID of the organization.
             role (str): The role to remove from the user.
             request (Request): The FastAPI request object.
 
@@ -475,7 +475,7 @@ class RawAgentaApi:
 
         email : str
 
-        organization_id : str
+        org_id : str
 
         role : str
 
@@ -492,7 +492,7 @@ class RawAgentaApi:
             method="DELETE",
             params={
                 "email": email,
-                "organization_id": organization_id,
+                "org_id": org_id,
                 "role": role,
             },
             request_options=request_options,
@@ -774,7 +774,7 @@ class AsyncRawAgentaApi:
 
     async def update_organization(
         self,
-        organization_id: str,
+        org_id: str,
         *,
         name: typing.Optional[str] = OMIT,
         description: typing.Optional[str] = OMIT,
@@ -784,7 +784,7 @@ class AsyncRawAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         name : typing.Optional[str]
 
@@ -801,7 +801,7 @@ class AsyncRawAgentaApi:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}",
+            f"organizations/{jsonable_encoder(org_id)}",
             method="PUT",
             json={
                 "name": name,
@@ -852,7 +852,7 @@ class AsyncRawAgentaApi:
 
     async def create_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         *,
         name: str,
         description: typing.Optional[str] = OMIT,
@@ -862,7 +862,7 @@ class AsyncRawAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         name : str
 
@@ -879,7 +879,7 @@ class AsyncRawAgentaApi:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces",
             method="POST",
             json={
                 "name": name,
@@ -928,7 +928,7 @@ class AsyncRawAgentaApi:
 
     async def update_workspace(
         self,
-        organization_id: str,
+        org_id: str,
         workspace_id: str,
         *,
         name: typing.Optional[str] = OMIT,
@@ -939,7 +939,7 @@ class AsyncRawAgentaApi:
         """
         Parameters
         ----------
-        organization_id : str
+        org_id : str
 
         workspace_id : str
 
@@ -958,7 +958,7 @@ class AsyncRawAgentaApi:
             Successful Response
         """
         _response = await self._client_wrapper.httpx_client.request(
-            f"organizations/{jsonable_encoder(organization_id)}/workspaces/{jsonable_encoder(workspace_id)}",
+            f"organizations/{jsonable_encoder(org_id)}/workspaces/{jsonable_encoder(workspace_id)}",
             method="PUT",
             json={
                 "name": name,
@@ -1154,7 +1154,7 @@ class AsyncRawAgentaApi:
         workspace_id: str,
         *,
         email: str,
-        organization_id: str,
+        org_id: str,
         role: str,
         request_options: typing.Optional[RequestOptions] = None,
     ) -> AsyncHttpResponse[typing.Optional[typing.Any]]:
@@ -1164,7 +1164,7 @@ class AsyncRawAgentaApi:
         Args:
             workspace_id (str): The ID of the workspace.
             email (str): The email of the user to remove the role from.
-            organization_id (str): The ID of the organization.
+            org_id (str): The ID of the organization.
             role (str): The role to remove from the user.
             request (Request): The FastAPI request object.
 
@@ -1181,7 +1181,7 @@ class AsyncRawAgentaApi:
 
         email : str
 
-        organization_id : str
+        org_id : str
 
         role : str
 
@@ -1198,7 +1198,7 @@ class AsyncRawAgentaApi:
             method="DELETE",
             params={
                 "email": email,
-                "organization_id": organization_id,
+                "org_id": org_id,
                 "role": role,
             },
             request_options=request_options,

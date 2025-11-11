@@ -1,6 +1,5 @@
 import secrets
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote
 
 from fastapi import HTTPException
 
@@ -37,14 +36,14 @@ async def check_existing_invitation(project_id: str, email: str):
         and str(invitation.project_id) == project_id
     ):
         if invitation.expiration_date > datetime.now(timezone.utc):
-            return invitation, None
+            return invitation
 
         else:
-            role = invitation.role
+            # Existing invitation is expired, delete it
             await db_manager.delete_invitation(str(invitation.id))
-            return None, role
+            return None
 
-    return None, None
+    return None
 
 
 async def check_valid_invitation(project_id: str, email: str, token: str):
@@ -95,29 +94,16 @@ async def send_invitation_email(
         bool: True if the email was sent successfully, False otherwise.
     """
 
-    token_param = quote(token, safe="")
-    email_param = quote(email, safe="")
-    org_param = quote(str(organization_id), safe="")
-    workspace_param = quote(str(workspace_id), safe="")
-    project_param = quote(project_id, safe="")
-
-    invite_link = (
-        f"{env.AGENTA_WEB_URL}/auth"
-        f"?token={token_param}"
-        f"&email={email_param}"
-        f"&organization_id={org_param}"
-        f"&workspace_id={workspace_param}"
-        f"&project_id={project_param}"
-    )
+    invitation_link = f"""{env.AGENTA_WEB_URL}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}"""
     if not env.SENDGRID_API_KEY:
-        return invite_link
+        return invitation_link
 
     html_template = email_service.read_email_template("./templates/send_email.html")
     html_content = html_template.format(
         username_placeholder=user.username,
         action_placeholder="invited you to join",
         workspace_placeholder="their organization",
-        call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{env.AGENTA_WEB_URL}/auth?token={token}&organization_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
+        call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{env.AGENTA_WEB_URL}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
     )
 
     if not env.AGENTA_SEND_EMAIL_FROM_ADDRESS:
@@ -186,10 +172,10 @@ async def invite_user_to_organization(
         )
 
     # Check if the user is already a member of the workspace
-    existing_invitation, existing_role = await check_existing_invitation(
+    existing_invitation = await check_existing_invitation(
         project_id=project_id, email=payload.email
     )
-    if existing_invitation or existing_role:
+    if existing_invitation is not None:
         raise HTTPException(
             status_code=400,
             detail="User is already a member of the workspace",
@@ -233,7 +219,7 @@ async def resend_user_organization_invite(
 
     Args:
         user_uid (str): The user uid.
-        organization_id (str): The ID of the organization to invite the user to.
+        org_id (str): The ID of the organization to invite the user to.
         project_id (str): The ID of the project that belongs to the workspace/organization.
         payload (ResendInviteRequest): The payload containing the email address of the user to invite.
     """
@@ -241,12 +227,10 @@ async def resend_user_organization_invite(
     user_performing_action = await db_manager.get_user_with_id(user_id=user_id)
 
     # Check if the email address already has a valid, unused invitation for the workspace
-    existing_invitation, existing_role = await check_existing_invitation(
-        project_id, payload.email
-    )
-    if existing_invitation:
+    existing_invitation = await check_existing_invitation(project_id, payload.email)
+    if existing_invitation is not None:
         invitation = existing_invitation
-    elif existing_role:
+    else:
         # Create a new invitation
         invitation = await create_invitation("editor", project_id, payload.email)
 
@@ -297,8 +281,10 @@ async def accept_organization_invitation(
 
     try:
         user_exists = await db_manager.get_user_with_email(email=email)
-        if user_exists is None:
-            raise HTTPException(status_code=400, detail="User does not exist")
+        if user_exists is not None:
+            raise HTTPException(
+                status_code=400, detail="User is already a member of the organization"
+            )
 
         project_db = await db_manager.get_project_by_organization_id(
             organization_id=organization_id

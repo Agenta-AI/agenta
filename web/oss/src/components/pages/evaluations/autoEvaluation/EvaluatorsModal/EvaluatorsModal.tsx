@@ -1,21 +1,19 @@
 // @ts-nocheck
-import {memo, useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {ModalProps} from "antd"
-import clsx from "clsx"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
-import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
-import {Evaluator, EvaluatorConfig, Variant} from "@/oss/lib/Types"
-import {currentAppAtom} from "@/oss/state/app"
-import {useTestsetsData} from "@/oss/state/testset"
+import {Evaluator, EvaluatorConfig, testset, Variant} from "@/oss/lib/Types"
+import {fetchAllEvaluatorConfigs, fetchAllEvaluators} from "@/oss/services/evaluations/api"
+import {fetchTestsets} from "@/oss/services/testsets/api"
 
 import ConfigureEvaluator from "./ConfigureEvaluator"
 import Evaluators from "./Evaluators"
@@ -25,30 +23,28 @@ interface EvaluatorsModalProps extends ModalProps {
     current: number
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     openedFromNewEvaluation?: boolean
-    appId?: string | null
 }
 
 const EvaluatorsModal = ({
     current,
     setCurrent,
     openedFromNewEvaluation = false,
-    appId: appIdOverride,
-    ...modalProps
+    ...props
 }: EvaluatorsModalProps) => {
-    const routeAppId = useAppId()
-    const appId = appIdOverride ?? routeAppId
+    const appId = useAppId()
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
-    const [evaluators] = useAtom(evaluatorsAtom)
-    const [evaluatorConfigs] = useAtom(evaluatorConfigsAtom)
+
+    const [evaluators, setEvaluators] = useAtom(evaluatorsAtom)
+    const [evaluatorConfigs, setEvaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
-    const {refetchEvaluatorConfigs, isLoadingEvaluatorConfigs: fetchingEvalConfigs} =
-        useFetchEvaluatorsData({appId: appId ?? ""})
+    const [testsets, setTestsets] = useState<testset[] | null>(null)
+    const [fetchingEvalConfigs, setFetchingEvalConfigs] = useState(false)
     const [selectedTestcase, setSelectedTestcase] = useState<{
         testcase: Record<string, any> | null
     }>({
         testcase: null,
     })
-    const currentApp = useAtomValue(currentAppAtom)
+    const {currentApp} = useAppsData()
     const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
     const [editMode, setEditMode] = useState(false)
     const [cloneConfig, setCloneConfig] = useState(false)
@@ -58,17 +54,18 @@ const EvaluatorsModal = ({
         "list",
     )
     const [selectedTestset, setSelectedTestset] = useState("")
-    const {testsets} = useTestsetsData()
 
-    useEffect(() => {
-        if (testsets?.length) {
-            setSelectedTestset(testsets[0]._id)
-        }
-    }, [testsets])
+    const evalConfigFetcher = () => {
+        setFetchingEvalConfigs(true)
+        fetchAllEvaluatorConfigs(appId)
+            .then(setEvaluatorConfigs)
+            .catch(console.error)
+            .finally(() => setFetchingEvalConfigs(false))
+    }
 
-    const {variants: data} = useStatelessVariants()
+    const {data} = useVariants(currentApp)({appId})
 
-    const variants = useMemo(() => groupVariantsByParent(data, true), [data])
+    const variants = useMemo(() => groupVariantsByParent(data?.variants, true), [data?.variants])
 
     useEffect(() => {
         if (variants?.length) {
@@ -76,56 +73,50 @@ const EvaluatorsModal = ({
         }
     }, [data])
 
-    const steps = useMemo(() => {
-        return [
-            {
-                content: (
-                    <Evaluators
-                        evaluatorConfigs={evaluatorConfigs}
-                        handleOnCancel={() => modalProps.onCancel?.({} as any)}
-                        setCurrent={setCurrent}
-                        setSelectedEvaluator={setSelectedEvaluator}
-                        fetchingEvalConfigs={fetchingEvalConfigs}
-                        setEditMode={setEditMode}
-                        setEditEvalEditValues={setEditEvalEditValues}
-                        onSuccess={refetchEvaluatorConfigs}
-                        setCloneConfig={setCloneConfig}
-                        setEvaluatorsDisplay={setEvaluatorsDisplay}
-                        evaluatorsDisplay={evaluatorsDisplay}
-                    />
-                ),
+    useEffect(() => {
+        Promise.all([fetchAllEvaluators(), fetchAllEvaluatorConfigs(appId), fetchTestsets()]).then(
+            ([evaluators, configs, testsets]) => {
+                setEvaluators(evaluators)
+                setEvaluatorConfigs(configs)
+                setTestsets(testsets)
+                if (testsets.length) {
+                    setSelectedTestset(testsets[0]._id)
+                }
             },
-            {
-                content: (
-                    <NewEvaluator
-                        evaluators={evaluators}
-                        setCurrent={setCurrent}
-                        handleOnCancel={() => modalProps.onCancel?.({} as any)}
-                        setSelectedEvaluator={setSelectedEvaluator}
-                        setEvaluatorsDisplay={setEvaluatorsDisplay}
-                        evaluatorsDisplay={evaluatorsDisplay}
-                    />
-                ),
-            },
-        ]
-    }, [
-        evaluatorConfigs,
-        fetchingEvalConfigs,
-        evaluatorsDisplay,
-        evaluators,
-        modalProps.onCancel,
-        setCurrent,
-        setSelectedEvaluator,
-        debugEvaluator,
-        selectedTestcase,
-        selectedVariant,
-        selectedTestset,
-        editMode,
-        cloneConfig,
-        editEvalEditValues,
-        variants,
-        testsets,
-    ])
+        )
+    }, [appId])
+
+    const steps = [
+        {
+            content: (
+                <Evaluators
+                    evaluatorConfigs={evaluatorConfigs}
+                    handleOnCancel={() => props.onCancel?.({} as any)}
+                    setCurrent={setCurrent}
+                    setSelectedEvaluator={setSelectedEvaluator}
+                    fetchingEvalConfigs={fetchingEvalConfigs}
+                    setEditMode={setEditMode}
+                    setEditEvalEditValues={setEditEvalEditValues}
+                    onSuccess={() => evalConfigFetcher()}
+                    setCloneConfig={setCloneConfig}
+                    setEvaluatorsDisplay={setEvaluatorsDisplay}
+                    evaluatorsDisplay={evaluatorsDisplay}
+                />
+            ),
+        },
+        {
+            content: (
+                <NewEvaluator
+                    evaluators={evaluators}
+                    setCurrent={setCurrent}
+                    handleOnCancel={() => props.onCancel?.({} as any)}
+                    setSelectedEvaluator={setSelectedEvaluator}
+                    setEvaluatorsDisplay={setEvaluatorsDisplay}
+                    evaluatorsDisplay={evaluatorsDisplay}
+                />
+            ),
+        },
+    ]
 
     if (selectedEvaluator) {
         steps.push({
@@ -134,18 +125,18 @@ const EvaluatorsModal = ({
                     selectedEvaluator={selectedEvaluator}
                     setCurrent={setCurrent}
                     handleOnCancel={() => {
-                        modalProps.onCancel?.({} as any)
+                        props.onCancel?.({} as any)
                         setEditMode(false)
                         setCloneConfig(false)
                         setEditEvalEditValues(null)
                     }}
                     variants={variants || []}
-                    testsets={testsets || []}
+                    testsets={testsets}
                     onSuccess={() => {
-                        refetchEvaluatorConfigs()
+                        evalConfigFetcher()
                         setEditMode(false)
                         if (openedFromNewEvaluation) {
-                            modalProps.onCancel?.({} as any)
+                            props.onCancel?.({} as any)
                         } else {
                             setCurrent(0)
                         }
@@ -164,7 +155,6 @@ const EvaluatorsModal = ({
                     debugEvaluator={debugEvaluator}
                     selectedTestset={selectedTestset}
                     setSelectedTestset={setSelectedTestset}
-                    appId={appId}
                 />
             ),
         })
@@ -175,27 +165,16 @@ const EvaluatorsModal = ({
             footer={null}
             closeIcon={null}
             title={null}
-            height="85vh"
-            width="90vw"
-            className="[&_>_div]:!h-full [&_.ant-modal-content]:!h-full !overflow-y-hidden min-w-[600px] max-w-[95vw] min-h-[600px]"
+            height={800}
+            width={current === 2 && !debugEvaluator ? "600px" : "90vw"}
+            className="[&_>div]:!h-full [&_.ant-modal-content]:!h-full !overflow-y-hidden transition-width duration-300 ease-in-out min-w-[800px] max-w-[1800px]"
             classNames={{body: "!h-full !overflow-auto"}}
             maskClosable={false}
-            {...modalProps}
+            {...props}
         >
-            <div
-                className={clsx([
-                    "transition-all duration-300 ease-in-out !h-full w-full max-w-full overflow-hidden",
-                    "[&_>_div]:!h-full",
-                    {
-                        "max-w-[600px]": current === 2 && !debugEvaluator,
-                        "max-w-[95vw]": current !== 2 || debugEvaluator,
-                    },
-                ])}
-            >
-                {steps[current]?.content}
-            </div>
+            {steps[current]?.content}
         </EnhancedModal>
     )
 }
 
-export default memo(EvaluatorsModal)
+export default EvaluatorsModal

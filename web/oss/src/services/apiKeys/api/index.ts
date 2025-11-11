@@ -1,6 +1,6 @@
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {getProjectValues} from "@/oss/state/project"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -10,7 +10,7 @@ import {getProjectValues} from "@/oss/state/project"
 //  - delete: DELETE data from server
 
 export const fetchAllListApiKeys = (workspaceId: string, ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     return axios.get(
         `${getAgentaApiUrl()}/keys/?workspace_id=${workspaceId}&project_id=${projectId}`,
@@ -21,7 +21,7 @@ export const fetchAllListApiKeys = (workspaceId: string, ignoreAxiosError = fals
 }
 
 export const createApiKey = (workspaceId: string, ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     return axios.post(
         `${getAgentaApiUrl()}/keys?workspace_id=${workspaceId}&project_id=${projectId}`,
@@ -33,7 +33,7 @@ export const createApiKey = (workspaceId: string, ignoreAxiosError = false) => {
 }
 
 export const deleteApiKey = (prefix: string, ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     return axios.delete(`${getAgentaApiUrl()}/keys/${prefix}?project_id=${projectId}`, {
         _ignoreError: ignoreAxiosError,

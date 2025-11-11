@@ -12,7 +12,7 @@
  *
  * @module AutoCloseBracketsPlugin
  */
-import {useEffect, useRef} from "react"
+import {useEffect} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
@@ -22,14 +22,13 @@ import {
     $getNodeByKey,
     $setSelection,
     $createRangeSelection,
+    $isTabNode,
     COMMAND_PRIORITY_HIGH,
-    SELECTION_CHANGE_COMMAND,
 } from "lexical"
 
 import {$isCodeBlockNode} from "../nodes/CodeBlockNode"
 import {$isCodeHighlightNode, $createCodeHighlightNode} from "../nodes/CodeHighlightNode"
 import {$isCodeLineNode} from "../nodes/CodeLineNode"
-import {$isCodeTabNode} from "../nodes/CodeTabNode"
 import {createLogger} from "../utils/createLogger"
 
 /** Mapping of opening characters to their corresponding closing characters */
@@ -81,18 +80,8 @@ function isInsideString(text: string, offset: number): boolean {
 }
 
 const log = createLogger("AutoCloseBracketsPlugin", {
-    disabled: true,
+    disabled: false,
 })
-
-/**
- * Interface for tracking auto-completion context
- */
-interface AutoCloseContext {
-    nodeKey: string
-    offset: number
-    closingChar: string
-    openingChar: string
-}
 
 /**
  * React component that implements auto-closing behavior for brackets and quotes.
@@ -100,7 +89,6 @@ interface AutoCloseContext {
  *
  * Key features:
  * - Auto-closes matching characters
- * - State-based tracking of auto-completion context
  * - Handles multiple cursor positions
  * - Prevents unwanted closings inside strings
  * - Maintains proper indentation
@@ -111,24 +99,8 @@ interface AutoCloseContext {
 export function AutoCloseBracketsPlugin() {
     const [editor] = useLexicalComposerContext()
 
-    // Track the current auto-completion context
-    const autoCloseContextRef = useRef<AutoCloseContext | null>(null)
-
     useEffect(() => {
-        // Clear auto-close context when selection changes
-        const unregisterSelectionChange = editor.registerCommand(
-            SELECTION_CHANGE_COMMAND,
-            () => {
-                // Clear context when selection changes (user moves cursor)
-                if (autoCloseContextRef.current) {
-                    autoCloseContextRef.current = null
-                }
-                return false
-            },
-            COMMAND_PRIORITY_HIGH,
-        )
-
-        const unregisterKeyDown = editor.registerCommand(
+        return editor.registerCommand(
             KEY_DOWN_COMMAND,
             (event: KeyboardEvent) => {
                 log("KEY_DOWN_COMMAND 1", event.key)
@@ -172,16 +144,16 @@ export function AutoCloseBracketsPlugin() {
                     log("Active selection detected 4")
                     // Get the updated selection after deletion
                     const updatedSelection = $getSelection()
-                    if (!$isRangeSelection(updatedSelection)) return false
+                    if (!$isRangeSelection(updatedSelection)) return
 
                     let anchorNode = updatedSelection.anchor.getNode()
                     log("Active selection detected 5", anchorNode)
                     if (
                         !$isCodeHighlightNode(anchorNode) &&
-                        !$isCodeTabNode(anchorNode) &&
+                        !$isTabNode(anchorNode) &&
                         !$isCodeLineNode(anchorNode)
                     )
-                        return false
+                        return
 
                     const offset = updatedSelection.anchor.offset
                     const text = anchorNode.getTextContent()
@@ -234,7 +206,7 @@ export function AutoCloseBracketsPlugin() {
                             "text",
                         )
                         $setSelection(sel)
-                    } else if ($isCodeTabNode(anchorNode)) {
+                    } else if ($isTabNode(anchorNode)) {
                         newText = newText.trim()
                         const highlightNode = $createCodeHighlightNode(
                             newText,
@@ -270,7 +242,7 @@ export function AutoCloseBracketsPlugin() {
                 let anchorNode = selection.anchor.getNode()
                 let offset = selection.anchor.offset
 
-                if ($isCodeTabNode(anchorNode)) {
+                if ($isTabNode(anchorNode)) {
                     const nextSibling = anchorNode.getNextSibling()
                     if (!nextSibling) {
                         $setSelection(null)
@@ -278,7 +250,6 @@ export function AutoCloseBracketsPlugin() {
                         anchorNode.insertAfter(highlightNode)
                         anchorNode = highlightNode
                         selection = anchorNode.selectStart()
-                        if (!$isRangeSelection(selection)) return false
                         $setSelection(selection)
                         offset = selection.anchor.offset
                     } else {
@@ -293,7 +264,7 @@ export function AutoCloseBracketsPlugin() {
                 // Ensure we're only handling text nodes or empty line nodes
                 // This prevents auto-closing in non-code contexts
                 if (
-                    !$isCodeTabNode(anchorNode) &&
+                    !$isTabNode(anchorNode) &&
                     !$isCodeHighlightNode(anchorNode) &&
                     !$isCodeLineNode(anchorNode)
                 ) {
@@ -326,6 +297,7 @@ export function AutoCloseBracketsPlugin() {
                 log("KEY_DOWN_COMMAND 5")
                 const language = blockNode.getLanguage()
                 const text = anchorNode.getTextContent()
+                const charBefore = text[offset - 1] || ""
                 const charAfter = text[offset] || ""
                 const isStringQuote = key === '"' || key === "'" || key === "`"
 
@@ -344,87 +316,29 @@ export function AutoCloseBracketsPlugin() {
                 }
 
                 /**
-                 * VSCode-like smart quote handling:
-                 * 1. If next char is same quote -> move cursor past it (skip over)
-                 * 2. If we're at the end of a string -> move cursor past closing quote
-                 * 3. If we're starting a new string -> auto-complete with pair
-                 * 4. Prevent bracket auto-closing inside strings
+                 * Handle string quotes with special cases:
+                 * 1. Skip if next char is same quote (just move cursor)
+                 * 2. Check quote balance to maintain valid string state
+                 * 3. Prevent bracket auto-closing inside strings
                  */
-                // Check if we should skip over a closing character based on auto-close context
-                const context = autoCloseContextRef.current
-                if (
-                    context &&
-                    // context.nodeKey === anchorNode.getKey() &&
-                    // context.offset === offset &&
-                    context.closingChar === key
-                ) {
-                    // We're in auto-close context and typing the closing character
-                    // Skip over it instead of inserting
-                    event.preventDefault()
-                    const sel = $createRangeSelection()
-                    sel.anchor.set(anchorNode.getKey(), offset + 1, "text")
-                    sel.focus.set(anchorNode.getKey(), offset + 1, "text")
-                    $setSelection(sel)
-
-                    // Clear the context since we've used it
-                    autoCloseContextRef.current = null
-                    log("[AutoClose] Skipped over closing character:", key)
-                    return true
-                } else {
-                    if ($isCodeHighlightNode(anchorNode)) {
-                        // if this is a text bracket, and the node already is a text block with valid string opening
-                        // and closing, do not autoclose this new bracket
-                        const text = anchorNode.getTextContent()
-                        const textFirst = text[0]
-                        const textLast = text[text.length - 1]
-                        if (
-                            isStringQuote &&
-                            ((textFirst === "'" && textLast === "'") ||
-                                (textFirst === '"' && textLast === '"'))
-                        ) {
-                            return false
-                        }
-                    }
-                }
-
-                // Clear context on any other key press (breaks the auto-close chain)
-                if (context) {
-                    log("[AutoClose] Key press broke auto-close context")
-                    autoCloseContextRef.current = null
-                }
-
                 if (isStringQuote) {
-                    // Check if we're inside a string context
-                    const isCurrentlyInsideString = isInsideString(text, offset)
-
-                    // If we're inside a string and typing the same quote type,
-                    // we might be trying to close the string
-                    if (isCurrentlyInsideString) {
-                        // Count unmatched quotes of this type before cursor
-                        let quoteCount = 0
-                        let escaped = false
-                        for (let i = 0; i < offset; i++) {
-                            const char = text[i]
-                            if (char === "\\" && !escaped) {
-                                escaped = true
-                                continue
-                            }
-                            if (char === key && !escaped) {
-                                quoteCount++
-                            }
-                            escaped = false
-                        }
-
-                        // If odd number of quotes, we're likely closing a string
-                        // Don't auto-complete, just insert the closing quote
-                        if (quoteCount % 2 === 1) {
-                            // Let the default behavior handle this (just insert the quote)
-                            return false
-                        }
+                    // If next char is same quote, just move cursor past it
+                    if (charAfter === key && charBefore !== key) {
+                        event.preventDefault()
+                        anchorNode.select(offset)
+                        return true
                     }
 
-                    // Starting a new string - auto-complete with pair
-                    // (This will be handled by the auto-close logic below)
+                    // Count quotes before and after cursor
+                    const quoteCountBefore = (
+                        text.slice(0, offset).match(new RegExp(`\\${key}`, "g")) || []
+                    ).length
+                    const quoteCountAfter = (
+                        text.slice(offset).match(new RegExp(`\\${key}`, "g")) || []
+                    ).length
+
+                    // Don't auto-close if it would create invalid string state
+                    if ((quoteCountBefore + quoteCountAfter) % 2 !== 0) return false
                 } else if (BRACKETS.includes(key) && insideString) {
                     // Don't auto-close brackets inside strings
                     return false
@@ -478,19 +392,7 @@ export function AutoCloseBracketsPlugin() {
                     sel.anchor.set(updated.getKey(), offset + 1, "text")
                     sel.focus.set(updated.getKey(), offset + 1, "text")
                     $setSelection(sel)
-
-                    // Set auto-close context for the inserted pair
-                    autoCloseContextRef.current = {
-                        nodeKey: updated.getKey(),
-                        offset: offset + 1, // Position after opening char, before closing char
-                        closingChar: close,
-                        openingChar: key,
-                    }
-
-                    log("[AutoCloseBrackets] Set collapsed selection and auto-close context", {
-                        offset: offset + 1,
-                        closingChar: close,
-                    })
+                    log("[AutoCloseBrackets] Set collapsed selection at offset +1")
                 } else {
                     log("[AutoCloseBrackets] Could not find updated node to select")
                 }
@@ -498,12 +400,6 @@ export function AutoCloseBracketsPlugin() {
             },
             COMMAND_PRIORITY_HIGH,
         )
-
-        // Return cleanup function that unregisters both listeners
-        return () => {
-            unregisterSelectionChange()
-            unregisterKeyDown()
-        }
     }, [editor])
 
     return null

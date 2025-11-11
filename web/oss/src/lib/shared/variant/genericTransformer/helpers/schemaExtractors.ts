@@ -6,7 +6,7 @@ import type {
     PrimitiveSchemaType,
 } from "../types"
 
-import {hasType} from "./schema"
+import {hasType, isSchema} from "./schema"
 
 function isPrimitiveSchemaType(type: SchemaType | undefined): type is PrimitiveSchemaType {
     if (!type) return false
@@ -45,7 +45,7 @@ function createPrimitiveSchema(
     }
 }
 
-function _combineSchemas(
+function combineSchemas(
     parentMetadata: Omit<AnyOfSchema, "anyOf">,
     selectedSchema: SchemaProperty,
 ): SchemaProperty {
@@ -116,44 +116,9 @@ function _combineSchemas(
  *
  * In this example, `exampleProperty` can be either a string or an integer.
  */
-// Recursively resolve any nested anyOf occurrences that might appear in
-// array items, object properties, or the schema itself.
-function resolveNestedAnyOf(schema: SchemaProperty): SchemaProperty {
-    // If the schema itself is an AnyOf, extract it first.
-    if ("anyOf" in schema) {
-        return extractFromAnyOf(schema as AnyOfSchema).schema
-    }
-
-    // Handle array -> items
-    if (schema.type === "array" && (schema as any).items) {
-        const itemsSchema = (schema as any).items as SchemaProperty
-        const processedItems = resolveNestedAnyOf(itemsSchema)
-        return {
-            ...schema,
-            items: processedItems,
-        }
-    }
-
-    // Handle object -> properties
-    if (schema.type === "object" && (schema as any).properties) {
-        const processedProps: Record<string, SchemaProperty> = {}
-        for (const [key, propSchema] of Object.entries((schema as any).properties)) {
-            processedProps[key] = resolveNestedAnyOf(propSchema as SchemaProperty)
-        }
-        return {
-            ...schema,
-            properties: processedProps,
-        }
-    }
-
-    // Primitive or already-processed schema
-    return schema
-}
-
 export function extractFromAnyOf(anyOfSchema: AnyOfSchema): ExtractedSchema {
-    // Separate null from non-null branches first
     const nonNullSchemas = anyOfSchema.anyOf.filter(
-        (schema) => !(hasType(schema) && schema.type === "null"),
+        (schema) => hasType(schema) && schema.type !== "null",
     )
 
     const isNullable = anyOfSchema.anyOf.some((schema) => hasType(schema) && schema.type === "null")
@@ -162,15 +127,22 @@ export function extractFromAnyOf(anyOfSchema: AnyOfSchema): ExtractedSchema {
         throw new Error("No valid non-null schema found in anyOf")
     }
 
-    // Recursively process every branch so nested anyOfs are flattened consistently
-    const processedSchemas = nonNullSchemas.map((s) => resolveNestedAnyOf(s as SchemaProperty))
+    // Find the most appropriate schema using isSchema object
+    const selectedSchema =
+        nonNullSchemas.find(isSchema.primitive) ||
+        nonNullSchemas.find(isSchema.array) ||
+        nonNullSchemas.find(isSchema.object) ||
+        nonNullSchemas[0]
 
-    // Combine the parent metadata with ALL processed branches instead of collapsing to one
-    const {anyOf: _discard, ...parentMetadata} = anyOfSchema
-    const combinedSchema: SchemaProperty = {
-        ...parentMetadata,
-        anyOf: processedSchemas,
+    // Type assertion to ensure schema compatibility
+    const typedSelectedSchema: SchemaProperty = {
+        ...selectedSchema,
+        enum: selectedSchema.enum as string[] | undefined,
     }
+
+    // Combine the parent metadata with the selected schema
+    const {anyOf, ...parentMetadata} = anyOfSchema
+    const combinedSchema = combineSchemas(parentMetadata, typedSelectedSchema)
 
     return {
         schema: combinedSchema,

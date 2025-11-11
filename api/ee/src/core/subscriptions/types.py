@@ -11,7 +11,6 @@ from pydantic import BaseModel
 class Plan(str, Enum):
     CLOUD_V0_HOBBY = "cloud_v0_hobby"
     CLOUD_V0_PRO = "cloud_v0_pro"
-    CLOUD_V0_BUSINESS = "cloud_v0_business"
     #
     CLOUD_V0_HUMANITY_LABS = "cloud_v0_humanity_labs"
     CLOUD_V0_X_LABS = "cloud_v0_x_labs"

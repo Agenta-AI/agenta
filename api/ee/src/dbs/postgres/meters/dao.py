@@ -28,14 +28,19 @@ class MetersDAO(MetersDAOInterface):
         pass
 
     async def dump(self) -> list[MeterDTO]:
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = (
                 select(MeterDBE)
-                .filter(MeterDBE.synced != MeterDBE.value)
-                .options(joinedload(MeterDBE.subscription))
+                .filter(
+                    MeterDBE.synced != MeterDBE.value,
+                )
+                .options(
+                    joinedload(MeterDBE.subscription),
+                )
             )  # NO RISK OF DEADLOCK
 
-            result = await session.execute(stmt)
+            result = await connection.execute(stmt=stmt, prepare=True)
+
             meters = result.scalars().all()
 
             return [
@@ -102,12 +107,13 @@ class MetersDAO(MetersDAOInterface):
         *,
         organization_id: str,
     ) -> list[MeterDTO]:
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = select(MeterDBE).filter_by(
                 organization_id=organization_id,
             )  # NO RISK OF DEADLOCK
 
-            result = await session.execute(stmt)
+            result = await connection.execute(stmt=stmt, prepare=True)
+
             meters = result.scalars().all()
 
             return [
@@ -144,7 +150,7 @@ class MetersDAO(MetersDAOInterface):
                     meter.year = now.year + now.month // 12
                     meter.month = (now.month + 1) % 12
 
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = select(MeterDBE).filter_by(
                 organization_id=meter.organization_id,
                 key=meter.key,
@@ -152,7 +158,8 @@ class MetersDAO(MetersDAOInterface):
                 month=meter.month,
             )  # NO RISK OF DEADLOCK
 
-            result = await session.execute(stmt)
+            result = await connection.execute(stmt=stmt, prepare=True)
+
             meter_record = result.scalar_one_or_none()
 
             current_value = meter_record.value if meter_record else 0

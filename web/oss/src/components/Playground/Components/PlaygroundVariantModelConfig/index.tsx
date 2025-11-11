@@ -1,17 +1,17 @@
-import {memo, useState, useCallback, useMemo} from "react"
+import {memo, useState, useCallback} from "react"
 
 import {CaretDown} from "@phosphor-icons/react"
 import {Button, Popover} from "antd"
 
-import {getPromptById, getLLMConfig} from "@/oss/components/Playground/context/promptShape"
-import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
 import {getEnhancedProperties} from "@/oss/lib/shared/variant"
+import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+
+import {componentLogger} from "../../assets/utilities/componentLogger"
+import usePlayground from "../../hooks/usePlayground"
 
 import ModelConfigModal from "./assets/ModelConfigModal"
 import PlaygroundVariantModelConfigTitle from "./assets/PlaygroundVariantModelConfigTitle"
 import type {PlaygroundVariantModelConfigProps} from "./types"
-
-// Deprecated local selector: replaced by direct computation from unified prompts source
 
 /**
  * PlaygroundVariantModelConfig Component
@@ -38,92 +38,98 @@ const PlaygroundVariantModelConfig: React.FC<PlaygroundVariantModelConfigProps> 
     variantId,
     promptId,
     className,
-    viewOnly,
     ...popoverProps // Collect remaining props for Popover
 }) => {
-    // Compute model config from unified prompts source (provider-aware)
-    const prompts = usePromptsSource(variantId)
-    const {propertyIds, modelPropertyId, resolvedModelName} = useMemo(() => {
-        const prompt = getPromptById(prompts, promptId)
-        const llm = getLLMConfig(prompt) || {}
-        const properties =
-            getEnhancedProperties(llm, ["tools", "toolChoice", "responseFormat", "stream"]) || []
-        const ids = properties.map((p: any) => p?.__id).filter(Boolean)
+    const variantSelector = useCallback(
+        (variant: EnhancedVariant) => {
+            const prompt = (variant.prompts || []).find((p) => p.__id === promptId)
+            const llmConfig = prompt?.llmConfig
 
-        // Prefer enhanced model value; fallback to raw string
-        const name =
-            (llm?.model &&
-                (llm.model.value ?? (typeof llm.model === "string" ? llm.model : undefined))) ||
-            undefined
+            const properties =
+                getEnhancedProperties(llmConfig, [
+                    "tools",
+                    "toolChoice",
+                    "responseFormat",
+                    "stream",
+                ]) || []
 
-        return {
-            propertyIds: ids,
-            modelPropertyId: llm?.model?.__id,
-            resolvedModelName: name,
-        }
-    }, [prompts, promptId])
+            return {
+                propertyIds: properties.map((p) => p.__id),
+                modelName: llmConfig?.model?.value,
+            }
+        },
+        [promptId],
+    )
 
-    // Reset no-op for now (mutation removed). Kept to avoid UI breakage.
+    const {propertyIds, modelName, mutateVariant} = usePlayground({
+        variantId,
+        hookId: "PlaygroundVariantModelConfig",
+        variantSelector,
+    })
 
     // Local state for modal visibility
     const [isModalOpen, setIsModalOpen] = useState(false)
 
-    // Keep click noop to let Popover's onOpenChange manage visibility
+    componentLogger("PlaygroundVariantModelConfig", variantId, promptId, propertyIds, modelName)
+
     const handleModalOpen = useCallback((e?: React.MouseEvent): void => {
         e?.preventDefault()
         e?.stopPropagation()
     }, [])
 
-    const handleResetDefaults = useCallback(() => {
-        if (!variantId || !promptId || !propertyIds || propertyIds.length === 0) {
-            console.warn("[RESET-SIMPLE] ⚠️ Missing required parameters for reset")
-            return
-        }
-    }, [variantId, promptId, propertyIds])
+    const handleResetDefaults = useCallback(async () => {
+        mutateVariant?.((variant) => {
+            const prompt = variant?.prompts.find((p) => p.__id === promptId)
+            const llmConfig = prompt?.llmConfig
+            // @ts-ignore
+            const params =
+                variant.parameters?.agConfig || variant.parameters?.ag_config || variant.parameters
 
-    const displayModel = resolvedModelName ?? "Choose a model"
-    const canOpen = (propertyIds?.length || 0) > 0
+            const resetModelName = params?.prompt.llm_config?.model //TODO: Check this @ardaerzin
+
+            if (!llmConfig) return variant
+
+            const {model, ...restOfConfig} = llmConfig
+
+            const properties =
+                getEnhancedProperties(restOfConfig, [
+                    "tools",
+                    "toolChoice",
+                    "responseFormat",
+                    "stream",
+                ]) || []
+
+            properties.forEach((property) => {
+                property.value = null
+            })
+
+            if (model.value !== resetModelName) {
+                llmConfig.model.value = resetModelName
+            }
+
+            return variant
+        })
+    }, [variantId])
 
     return (
         <Popover
             {...popoverProps} // Pass through Popover props
-            open={canOpen && !viewOnly ? isModalOpen : false}
-            onOpenChange={
-                canOpen
-                    ? (open) => {
-                          if (viewOnly) {
-                              setIsModalOpen(false)
-                              return
-                          }
-                          setIsModalOpen(open)
-                      }
-                    : undefined
-            }
-            classNames={{
-                root: "w-full max-w-[300px]",
-            }}
-            destroyOnHidden
+            open={isModalOpen}
+            onOpenChange={setIsModalOpen}
+            overlayClassName="w-full max-w-[300px]"
             trigger={["click"]}
             placement="bottomRight"
             arrow={false}
-            title={
-                <PlaygroundVariantModelConfigTitle
-                    disabled={viewOnly}
-                    handleReset={handleResetDefaults}
-                />
-            }
+            title={<PlaygroundVariantModelConfigTitle handleReset={handleResetDefaults} />}
             content={
-                <ModelConfigModal
-                    variantId={variantId}
-                    propertyIds={propertyIds || []}
-                    disabled={viewOnly}
-                    promptId={promptId}
-                />
+                isModalOpen ? (
+                    <ModelConfigModal variantId={variantId} propertyIds={propertyIds || []} />
+                ) : null
             }
             className={className}
         >
-            <Button onClick={handleModalOpen} disabled={!canOpen || viewOnly}>
-                {displayModel} <CaretDown size={14} />
+            <Button onClick={handleModalOpen}>
+                {modelName ?? "Choose a model"} <CaretDown size={14} />
             </Button>
         </Popover>
     )

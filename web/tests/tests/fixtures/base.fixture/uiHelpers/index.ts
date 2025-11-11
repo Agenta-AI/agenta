@@ -16,7 +16,7 @@ import {
     typeWithDelay,
     waitForPath,
     clickTableRow,
-    selectTableRowInput,
+    selectTableRowInput
 } from "./helpers"
 import {UIHelpers} from "./types"
 
@@ -29,13 +29,7 @@ export const uiHelpers = () => {
             clickTableRow: async (rowText: string) => {
                 await clickTableRow(page, rowText)
             },
-            clickTableRowButton: async ({
-                rowText,
-                buttonName,
-            }: {
-                rowText: string | RegExp
-                buttonName: string | RegExp
-            }) => {
+            clickTableRowButton: async ({rowText, buttonName}: {rowText: string | RegExp; buttonName: string | RegExp}) => {
                 await clickTableRowButton(page, {rowText, buttonName})
             },
             clickTableRowIcon: async ({rowText, icon}: {rowText: string; icon: string}) => {
@@ -84,7 +78,7 @@ export const uiHelpers = () => {
 
             selectTableRowInput: async ({rowText, inputType, checked}) => {
                 await selectTableRowInput({page, rowText, inputType, checked})
-            },
+            },  
         })
     }
 }

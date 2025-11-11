@@ -5,13 +5,13 @@ import {Alert, Form, Input, Modal, Select, Space, Typography, message, theme} fr
 import {useAtom} from "jotai"
 import Link from "next/link"
 
+import {useOrgData} from "@/oss/contexts/org.context"
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {workspaceRolesAtom} from "@/oss/lib/atoms/organization"
 import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataWrapper"
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan} from "@/oss/lib/Types"
 import {inviteToWorkspace} from "@/oss/services/workspace/api"
-import {useOrgData} from "@/oss/state/org"
 
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
 
@@ -23,7 +23,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
     const {selectedOrg, refetch} = useOrgData()
     const [roles] = useAtom(workspaceRolesAtom)
     const {token} = theme.useToken()
-    const organizationId = selectedOrg?.id
+    const orgId = selectedOrg?.id
 
     const filteredRoles = useMemo(() => {
         if (!isDemo()) {
@@ -34,7 +34,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
 
     const onSubmit = useCallback(
         ({emails, role}: {emails: string[]; role: string | null}) => {
-            if (!organizationId) return
+            if (!orgId) return
 
             setLoading(true)
 
@@ -43,7 +43,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                     email,
                     ...(role ? {roles: [role]} : {}),
                 })),
-                organizationId,
+                orgId,
                 workspaceId,
             })
                 .then((responses) => {
@@ -63,7 +63,7 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
                 .catch(console.error)
                 .finally(() => setLoading(false))
         },
-        [organizationId],
+        [orgId],
     )
 
     return (
@@ -196,7 +196,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
             okButtonProps={{loading}}
             width={450}
             onCancel={onCancel}
-            destroyOnHidden
+            destroyOnClose
         >
             <Typography.Paragraph type="secondary">
                 Invite members to your team by entering their emails.{" "}

@@ -38,12 +38,12 @@ class SubscriptionsDAO(SubscriptionsDAOInterface):
         *,
         organization_id: str,
     ) -> Optional[SubscriptionDTO]:
-        async with engine.core_session() as session:
-            result = await session.execute(
-                select(SubscriptionDBE).where(
-                    SubscriptionDBE.organization_id == organization_id,
-                )
+        async with engine.core_connection() as connection:
+            stmt = select(SubscriptionDBE).where(
+                SubscriptionDBE.organization_id == organization_id,
             )
+
+            result = await connection.execute(stmt=stmt, prepare=True)
 
             subscription_dbe = result.scalars().one_or_none()
 

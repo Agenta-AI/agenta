@@ -29,7 +29,7 @@ export interface WithRuns {
               __isRunning?: string
               __result?: TestResult | string | null
               __id?: string
-              message?: Enhanced<MessageWithId> | Enhanced<MessageWithId>[]
+              message?: Enhanced<MessageWithId>
           }
         | undefined
     >

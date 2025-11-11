@@ -182,7 +182,7 @@ async def legacy_create_organization(
             name=payload.name,
             type=payload.type if payload.type else "",
             description=(
-                "Default Workspace"
+                "My Default Workspace"
                 if payload.type == "default"
                 else payload.description
                 if payload.description
@@ -255,12 +255,12 @@ async def user_exists(user_email: str) -> bool:
 async def check_user(
     request: UserRequest,
 ) -> Optional[UserRequest]:
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(UserDB).filter_by(
-                email=request.email,
-            )
+    async with engine.core_connection() as connection:
+        stmt = select(UserDB).filter_by(
+            email=request.email,
         )
+
+        result = await connection.execute(stmt=stmt, prepare=True)
 
         user_db = result.scalars().first()
 

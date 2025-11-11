@@ -1,39 +1,22 @@
 import React from "react"
 
 import {Flex, Space, Typography} from "antd"
-import {useAtomValue} from "jotai"
+import dayjs from "dayjs"
 import {PlusCircle, Timer} from "lucide-react"
 
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
-import {TraceSpanNode} from "@/oss/services/tracing/types"
-import {
-    formattedSpanLatencyAtomFamily,
-    formattedSpanTokensAtomFamily,
-    formattedSpanCostAtomFamily,
-    formattedSpanPromptTokensAtomFamily,
-    formattedSpanCompletionTokensAtomFamily,
-    spanStartTimeAtomFamily,
-    spanEndTimeAtomFamily,
-} from "@/oss/state/newObservability"
+import {TracesWithAnnotations} from "@/oss/services/observability/types"
 
 import {statusMapper} from "../../../components/AvatarTreeContent"
 import StatusRenderer from "../../../components/StatusRenderer"
 
 import {useStyles} from "./assets/styles"
 
-const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
+const TraceDetails = ({activeTrace}: {activeTrace: TracesWithAnnotations}) => {
     const classes = useStyles()
-    const {icon, bgColor, color} = statusMapper(activeTrace?.span_type)
-    const formattedTokens = useAtomValue(formattedSpanTokensAtomFamily(activeTrace))
-    const formattedCost = useAtomValue(formattedSpanCostAtomFamily(activeTrace))
-    const formattedLatency = useAtomValue(formattedSpanLatencyAtomFamily(activeTrace))
-    const formattedPromptTokens = useAtomValue(formattedSpanPromptTokensAtomFamily(activeTrace))
-    const formattedCompletionTokens = useAtomValue(
-        formattedSpanCompletionTokensAtomFamily(activeTrace),
-    )
-    const traceStartTime = useAtomValue(spanStartTimeAtomFamily(activeTrace))
-    const traceEndTime = useAtomValue(spanEndTimeAtomFamily(activeTrace))
+    const {icon, bgColor, color} = statusMapper(activeTrace?.node?.type)
+
     return (
         <Flex vertical gap={12}>
             {/* TODO: Display variant */}
@@ -54,7 +37,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     bordered
                     value1={
                         <>
-                            {icon} {activeTrace?.span_type}
+                            {icon} {activeTrace?.node?.type}
                         </>
                     }
                 />
@@ -62,10 +45,7 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
 
             <Space direction="vertical" size={4}>
                 <Typography.Text className={classes.title}>Status</Typography.Text>
-                <StatusRenderer
-                    status={activeTrace?.status_code}
-                    message={activeTrace?.status_message}
-                />{" "}
+                <StatusRenderer status={activeTrace?.status} />
             </Space>
 
             <Space direction="vertical" size={4}>
@@ -75,7 +55,12 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     className="bg-[rgba(5,23,41,0.06)]"
                     value1={
                         <div className={classes.resultTag}>
-                            <Timer size={14} /> {formattedLatency}
+                            <Timer size={14} />{" "}
+                            {formatLatency(
+                                activeTrace?.metrics?.acc?.duration?.total
+                                    ? activeTrace?.metrics?.acc?.duration?.total / 1000
+                                    : null,
+                            )}
                         </div>
                     }
                 />
@@ -85,7 +70,14 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                 <Typography.Text className={classes.title}>Timestamp</Typography.Text>
 
                 <ResultTag
-                    value1={<div className={classes.resultTag}>Start - {traceStartTime}</div>}
+                    value1={
+                        <div className={classes.resultTag}>
+                            Start -{" "}
+                            {dayjs(activeTrace?.time?.start)
+                                .local()
+                                .format("DD/MM/YYYY, hh:mm:ss A")}
+                        </div>
+                    }
                     bordered={false}
                     className="bg-[rgba(5,23,41,0.06)]"
                 />
@@ -94,7 +86,8 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     className="bg-[rgba(5,23,41,0.06)]"
                     value1={
                         <div className={classes.resultTag}>
-                            End {"  "}- {traceEndTime}
+                            End {"  "}-{" "}
+                            {dayjs(activeTrace?.time?.end).local().format("DD/MM/YYYY, hh:mm:ss A")}
                         </div>
                     }
                 />
@@ -107,17 +100,35 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     value1={
                         <div className={classes.resultTag}>
                             <PlusCircle size={14} />
-                            {formattedTokens} / {formattedCost}
+                            {formatTokenUsage(
+                                activeTrace?.metrics?.unit?.tokens?.total ||
+                                    activeTrace?.metrics?.acc?.tokens?.total,
+                            )}{" "}
+                            /{" "}
+                            {formatCurrency(
+                                activeTrace?.metrics?.unit?.costs?.total ||
+                                    activeTrace?.metrics?.acc?.costs?.total,
+                            )}
                         </div>
                     }
                     popoverContent={
                         <Space direction="vertical">
                             <Space className={classes.tokenContainer}>
-                                <div>{formattedPromptTokens}</div>
+                                <div>
+                                    {formatTokenUsage(
+                                        activeTrace?.metrics?.unit?.tokens?.prompt ||
+                                            activeTrace?.metrics?.acc?.tokens?.prompt,
+                                    )}
+                                </div>
                                 <div>Prompt tokens</div>
                             </Space>
                             <Space className={classes.tokenContainer}>
-                                <div>{formattedCompletionTokens}</div>
+                                <div>
+                                    {formatTokenUsage(
+                                        activeTrace?.metrics?.unit?.tokens?.completion ||
+                                            activeTrace?.metrics?.acc?.tokens?.completion,
+                                    )}
+                                </div>
                                 <div>Completion tokens</div>
                             </Space>
                         </Space>

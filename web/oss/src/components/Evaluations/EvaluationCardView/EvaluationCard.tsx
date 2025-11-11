@@ -1,5 +1,3 @@
-import {memo} from "react"
-
 import {createUseStyles} from "react-jss"
 
 import type {ABTestingEvaluationTableRow} from "@/oss/components/EvaluationTable/types"
@@ -41,7 +39,7 @@ const EvaluationCard: React.FC<Props> = ({
             {variants.map((variant, ix) =>
                 isChat ? (
                     <EvaluationChatResponse
-                        key={`${variant.variantId}-${ix}`}
+                        key={variant.variantId}
                         variant={variant}
                         outputText={
                             evaluationScenario[variant.variantId] ||
@@ -55,7 +53,7 @@ const EvaluationCard: React.FC<Props> = ({
                     />
                 ) : (
                     <EvaluationVariantCard
-                        key={`${variant.variantId}-${ix}`}
+                        key={variant.variantId}
                         variant={variant}
                         outputText={
                             evaluationScenario[variant.variantId] ||
@@ -75,4 +73,4 @@ const EvaluationCard: React.FC<Props> = ({
     )
 }
 
-export default memo(EvaluationCard)
+export default EvaluationCard

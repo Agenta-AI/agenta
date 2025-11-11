@@ -1,72 +1,8 @@
-from typing import List, Dict
-from uuid import UUID
 import os
 import sys
-import unicodedata
-import re
-
 import click
 
 from oss.src.utils.env import env
-
-
-def get_metrics_keys_from_schema(schema=None, path=()) -> List[Dict[str, str]]:
-    metrics = []
-
-    if not isinstance(schema, dict) or "type" not in schema:
-        return metrics
-
-    metric_type = None
-
-    t = schema["type"]
-
-    if t == "object":
-        if "properties" in schema:
-            for key, prop in schema["properties"].items():
-                metrics.extend(get_metrics_keys_from_schema(prop, path + (key,)))
-        else:
-            metric_type = "json"
-
-    elif t == "array" and "items" in schema:
-        if schema["items"].get("type") == "string" and "enum" in schema["items"]:
-            metric_type = "categorical/multiple"
-
-    elif t == "boolean":
-        metric_type = "binary"
-
-    elif t == "string":
-        metric_type = "categorical/single" if "enum" in schema else "string"
-
-    elif t == "number":
-        metric_type = "numeric/continuous"
-
-    elif t == "integer":
-        metric_type = "numeric/discrete"
-
-    if metric_type:
-        metrics.append({"path": ".".join(path), "type": metric_type})
-
-    return metrics
-
-
-def get_slug_from_name_and_id(
-    name: str,
-    id: UUID,  # pylint: disable=redefined-builtin
-) -> str:
-    # Normalize Unicode (e.g., é → e)
-    name = unicodedata.normalize("NFKD", name)
-    # Remove non-ASCII characters
-    name = name.encode("ascii", "ignore").decode("ascii")
-    # Lowercase and remove non-word characters except hyphens and spaces
-    name = re.sub(r"[^\w\s-]", "", name.lower())
-    # Replace any sequence of hyphens or whitespace with a single hyphen
-    name = re.sub(r"[-\s]+", "-", name)
-    # Trim leading/trailing hyphens
-    name = name.strip("-")
-    # Last 12 characters of the ID
-    slug = f"{name}-{id.hex[-12:]}"
-
-    return slug.lower()
 
 
 def parse_url(url: str) -> str:
@@ -80,7 +16,7 @@ def parse_url(url: str) -> str:
         str: The parsed or rewritten URL suitable for the current environment and Docker network mode.
     """
 
-    if "localhost" not in url and "0.0.0.0" not in url:
+    if "localhost" not in url:
         return url
 
     internal_url = os.getenv("AGENTA_API_INTERNAL_URL")
@@ -90,24 +26,12 @@ def parse_url(url: str) -> str:
     docker_network_mode = env.DOCKER_NETWORK_MODE
 
     if not docker_network_mode or docker_network_mode == "bridge":
-        return url.replace(
-            "localhost",
-            "host.docker.internal",
-        ).replace(
-            "0.0.0.0",
-            "host.docker.internal",
-        )
+        return url.replace("localhost", "host.docker.internal")
 
     if docker_network_mode == "host":
         return url
 
-    return url.replace(
-        "localhost",
-        "host.docker.internal",
-    ).replace(
-        "0.0.0.0",
-        "host.docker.internal",
-    )
+    return url.replace("localhost", "host.docker.internal")
 
 
 def warn_deprecated_env_vars():

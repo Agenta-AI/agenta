@@ -58,7 +58,7 @@ def decode_value(
             value = loads(encoded)
             return value
         try:
-            value = value
+            value = loads(value)
         except JSONDecodeError:
             pass
         return value

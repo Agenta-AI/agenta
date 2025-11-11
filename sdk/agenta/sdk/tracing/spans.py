@@ -35,10 +35,6 @@ class CustomSpan(Span):  # INHERITANCE FOR TYPING ONLY
 
     ## --- PROXY METHODS --- ##
 
-    @property
-    def name(self) -> str:
-        return self._span.name
-
     def get_span_context(self):
         return self._span.get_span_context()
 

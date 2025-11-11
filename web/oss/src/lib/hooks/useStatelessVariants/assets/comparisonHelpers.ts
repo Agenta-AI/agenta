@@ -1,4 +1,7 @@
+import {hashMetadata} from "@/oss/lib/hooks/useStatelessVariants/assets/hash"
 import type {EnhancedConfigValue} from "@/oss/lib/shared/variant/genericTransformer/types"
+import {createInputRow, createInputSchema} from "@/oss/lib/shared/variant/inputHelpers"
+import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 
 /**
@@ -19,4 +22,22 @@ export const getUniqueInputKeys = (variants: EnhancedVariant[]): EnhancedConfigV
     )
 
     return Array.from(uniqueKeys)
+}
+
+// TODO: DEPRECATE @ardaerzin
+export const initializeComparisonInputs = (variants: EnhancedVariant[]) => {
+    // Get all unique input keys across all variants
+    const uniqueInputKeys = getUniqueInputKeys(variants)
+
+    const inputStrings = Array.from(uniqueInputKeys).map((enhancedKey) => enhancedKey.value)
+    const inputSchema = createInputSchema(inputStrings)
+    const initialInputRow = createInputRow(inputStrings, inputSchema.itemMetadata)
+
+    const metadataHash = hashMetadata(inputSchema)
+
+    return {
+        __id: generateId(),
+        __metadata: metadataHash,
+        value: [initialInputRow],
+    }
 }

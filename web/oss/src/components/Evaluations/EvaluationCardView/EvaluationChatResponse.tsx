@@ -1,5 +1,3 @@
-import {memo, useMemo} from "react"
-
 import {Space, Typography} from "antd"
 import {createUseStyles} from "react-jss"
 import {v4 as uuidv4} from "uuid"
@@ -41,11 +39,6 @@ const EvaluationChatResponse: React.FC<Props> = ({
             ? parsedOutput.content
             : outputText || ""
 
-    const chatValue = useMemo(
-        () => [{role: ChatRole.Assistant, content: messageContent, id: uuidv4()}],
-        [messageContent],
-    )
-
     return (
         <Space direction="vertical" size="middle">
             {showVariantName && (
@@ -61,9 +54,12 @@ const EvaluationChatResponse: React.FC<Props> = ({
                     </Typography.Text>
                 </Space>
             )}
-            <ChatInputs value={chatValue} readonly />
+            <ChatInputs
+                value={[{role: ChatRole.Assistant, content: messageContent, id: uuidv4()}]}
+                readonly
+            />
         </Space>
     )
 }
 
-export default memo(EvaluationChatResponse)
+export default EvaluationChatResponse

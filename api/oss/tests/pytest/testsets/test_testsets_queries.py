@@ -14,17 +14,15 @@ def mock_data(authed_api):
     tags = {"tag1": "value1", "tag2": "value2"}
     meta = {"meta1": "value1", "meta2": "value2"}
 
-    testcases_data = [
+    testcases = [
         {"column1": "data1", "column2": "data2", "column3": "data3"},
         {"column1": "data6", "column2": "data5", "column3": "data4"},
     ]
 
-    testcases = [{"data": testcase_data} for testcase_data in testcases_data]
-
     testset = {
         "slug": slug,
-        "name": "Testset Name",
-        "description": "This is a testset description.",
+        "name": "Test Set Name",
+        "description": "This is a test set description.",
         "tags": tags,
         "meta": meta,
         "data": {
@@ -51,8 +49,8 @@ def mock_data(authed_api):
 
     testset = {
         "slug": slug,
-        "name": "Another Testset Name",
-        "description": "This is another testset description.",
+        "name": "Another Test Set Name",
+        "description": "This is another test set description.",
         "tags": tags,
         "meta": meta,
         "data": {

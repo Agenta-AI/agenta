@@ -9,21 +9,15 @@ import {
     RightOutlined,
 } from "@ant-design/icons"
 import {Button, Empty, Form, Input, Result, Space, Tooltip, Typography, theme} from "antd"
-import {atom, useAtomValue} from "jotai"
 import debounce from "lodash/debounce"
 import {useLocalStorage} from "usehooks-ts"
 
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import ParamsForm from "@/oss/components/ParamsForm"
-import {useQueryParamState} from "@/oss/state/appState"
+import {useQueryParam} from "@/oss/hooks/useQuery"
 import {EvaluationType} from "@/oss/lib/enums"
 import {testsetRowToChatMessages} from "@/oss/lib/helpers/testset"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import type {ChatMessage, EvaluationScenario} from "@/oss/lib/Types"
-import {inputParamsAtomFamily} from "@/oss/state/newPlayground/core/inputParams"
-import {stablePromptVariablesAtomFamily} from "@/oss/state/newPlayground/core/prompts"
-import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {useStyles} from "./assets/styles"
 import EvaluationCard from "./EvaluationCard"
@@ -47,29 +41,10 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
         Record<string, {lastVisitedScenario: string}>
     >("evaluationsState", {})
 
-    const [scenarioParam, setScenarioParam] = useQueryParamState("evaluationScenario")
-    const fallbackScenarioId = useMemo(() => {
-        return (
-            evaluationsState[evaluation.id]?.lastVisitedScenario || evaluationScenarios[0]?.id || ""
-        )
-    }, [evaluation.id, evaluationScenarios, evaluationsState])
-    const scenarioId = useMemo(() => {
-        if (Array.isArray(scenarioParam)) {
-            return scenarioParam[0] || fallbackScenarioId
-        }
-        if (typeof scenarioParam === "string" && scenarioParam) {
-            return scenarioParam
-        }
-        return fallbackScenarioId
-    }, [scenarioParam, fallbackScenarioId])
-    const setScenarioId = useCallback(
-        (nextId: string) => {
-            if (!nextId) return
-            setScenarioParam(nextId, {method: "replace", shallow: true})
-        },
-        [setScenarioParam],
+    const [scenarioId, setScenarioId] = useQueryParam(
+        "evaluationScenario",
+        evaluationsState[evaluation.id]?.lastVisitedScenario || evaluationScenarios[0]?.id || "",
     )
-
     const [instructionsShown, setInstructionsShown] = useLocalStorage(
         "evalInstructionsShown",
         false,
@@ -102,7 +77,6 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
     const testsetRow = evaluation.testset.csvdata[scenarioIndex]
     const isAbTesting = evaluation.evaluationType === EvaluationType.human_a_b_testing
     const [form] = Form.useForm()
-    const {_variants: _allStatelessVariants} = useStatelessVariants() as any
 
     const loadPrevious = () => {
         if (scenarioIndex === 0) return
@@ -245,103 +219,6 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
         )
     }, [scenarioIndex])
 
-    const routePath = useAtomValue(appUriInfoAtom)?.routePath
-    const selectedRevisionId = (variantData?.[0] as any)?.id as string | undefined
-    const hasRevision = Boolean(variantData?.[0] && selectedRevisionId)
-    const inputParamsSelector = useMemo(
-        () =>
-            (hasRevision && routePath
-                ? inputParamsAtomFamily({variant: variantData[0] as any, routePath})
-                : atom<any[]>([])) as any,
-        [hasRevision ? (variantData?.[0] as any)?.id : undefined, routePath],
-    )
-    const baseInputParams = useAtomValue(inputParamsSelector) as any[]
-    // // Stable variables derived from saved prompts (spec + saved parameters; no live mutations)
-    const variableNames = useAtomValue(
-        hasRevision ? (stablePromptVariablesAtomFamily(selectedRevisionId!) as any) : atom([]),
-    ) as string[]
-    // Avoid creating new atoms during render to prevent infinite update loops
-    const emptyObjAtom = useMemo(() => atom({}), [])
-    const stableFlagsParam = useMemo(
-        () => (selectedRevisionId ? {revisionId: selectedRevisionId} : undefined),
-        [selectedRevisionId],
-    )
-    const flags = useAtomValue(
-        hasRevision && stableFlagsParam
-            ? (variantFlagsAtomFamily(stableFlagsParam) as any)
-            : (emptyObjAtom as any),
-    ) as any
-
-    const derivedInputParams = useMemo(() => {
-        const haveSchemaParams = Array.isArray(baseInputParams) && baseInputParams.length > 0
-
-        // Determine candidate field names
-        let sourceParams: any[] = []
-        if (haveSchemaParams) {
-            sourceParams = baseInputParams
-        } else if (Array.isArray(scenario?.inputs) && scenario.inputs.length > 0) {
-            sourceParams = scenario.inputs
-                .filter((ip: any) => (isChat ? ip.input_name !== "chat" : true))
-                .map((ip: any) => ({name: ip.input_name, type: "string"}))
-        } else {
-            const reserved = new Set([
-                "correct_answer",
-                evaluation?.testset?.testsetChatColumn || "",
-            ])
-            const row = testsetRow || {}
-            sourceParams = Object.keys(row)
-                .filter((k) => !reserved.has(k))
-                .map((k) => ({name: k, type: "string"}))
-        }
-        // Display only stable inputs: filter to stable variable names for non-custom apps
-        // For chat apps, exclude the reserved "chat" key (handled separately below).
-        if (!flags?.isCustom && Array.isArray(variableNames) && variableNames.length > 0) {
-            const allow = new Set(variableNames.filter((name) => (isChat ? name !== "chat" : true)))
-            sourceParams = (sourceParams || []).filter((p: any) => allow.has(p?.name))
-        }
-
-        const withValues = (sourceParams || []).map((item: any) => {
-            const fromScenario = scenario?.inputs.find(
-                (ip: {input_name: string; input_value: string}) => ip.input_name === item.name,
-            )?.input_value
-            const fromRow = (testsetRow as any)?.[item.name]
-            return {
-                ...item,
-                value: fromScenario ?? fromRow ?? "",
-            }
-        })
-
-        if (isChat) {
-            return [...withValues, {name: "chat", type: "string", value: chat}]
-        }
-        return withValues
-    }, [
-        baseInputParams,
-        scenario?.inputs,
-        isChat,
-        chat,
-        evaluation?.testset?.testsetChatColumn,
-        testsetRow,
-        variableNames,
-        flags?.isCustom,
-    ])
-
-    const handleRun = useCallback(async () => {
-        try {
-            // Persist current derived inputs into scenario if missing, so runner sees them
-            const nextInputs = (derivedInputParams || [])
-                .filter((p: any) => p.name !== "chat")
-                .map((p: any) => ({input_name: p.name, input_value: p.value ?? ""}))
-
-            if (Array.isArray(nextInputs) && nextInputs.length > 0) {
-                await updateEvaluationScenarioData(scenarioId, {inputs: nextInputs})
-            }
-        } catch (e) {
-            console.warn("[EvaluationCardView] failed to persist inputs before run", e)
-        }
-        onRun(scenarioId)
-    }, [derivedInputParams, scenarioId, onRun, updateEvaluationScenarioData])
-
     return (
         <div className={classes.root} tabIndex={1} ref={rootRef}>
             {isLoading ? (
@@ -357,9 +234,9 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
                             >
                                 Prev
                             </Button>
-                            <h2 style={{fontSize: 24, margin: 0}}>
+                            <Typography.Title level={2}>
                                 Evaluation: {scenarioIndex + 1}/{evaluationScenarios.length}
-                            </h2>
+                            </Typography.Title>
                             <Button
                                 disabled={scenarioIndex === evaluationScenarios.length - 1}
                                 onClick={loadNext}
@@ -373,35 +250,46 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
 
                         <div>
                             <Typography.Text style={{fontSize: 20}}>Inputs</Typography.Text>
-                            {derivedInputParams.length > 0 || isChat ? (
+                            {variantData[0] ? (
                                 <ParamsForm
                                     isChatVariant={isChat}
-                                    onParamChange={(name, value) => {
-                                        if (isChat && name === "chat") return onChatChange(value)
-                                        const idx =
-                                            scenario?.inputs?.findIndex(
-                                                (ip: any) => ip.input_name === name,
-                                            ) ?? -1
-                                        if (idx === -1) {
-                                            // If the input key does not exist yet (cold load fallback), persist it
-                                            const nextInputs = [
-                                                {input_name: name, input_value: value},
-                                                ...((scenario?.inputs || []).filter(
-                                                    (ip: any) => ip.input_name !== name,
-                                                ) as any[]),
-                                            ]
-                                            updateEvaluationScenarioData(scenarioId, {
-                                                inputs: nextInputs as any,
-                                            })
-                                        } else {
-                                            onInputChange({target: {value}} as any, scenarioId, idx)
-                                        }
-                                    }}
-                                    inputParams={derivedInputParams}
-                                    key={`${scenarioId}-${(variantData?.[0] as any)?.id || ""}`}
+                                    onParamChange={(name, value) =>
+                                        isChat
+                                            ? onChatChange(value)
+                                            : onInputChange(
+                                                  {target: {value}} as any,
+                                                  scenarioId,
+                                                  scenario.inputs.findIndex(
+                                                      (ip) => ip.input_name === name,
+                                                  ),
+                                              )
+                                    }
+                                    inputParams={
+                                        isChat
+                                            ? [
+                                                  ...((
+                                                      (variantData || [])[0]?.inputParams || []
+                                                  ).map((item) => ({
+                                                      ...item,
+                                                      value: scenario.inputs.find(
+                                                          (ip) => ip.input_name === item.name,
+                                                      )?.input_value,
+                                                  })) || []),
+                                                  {name: "chat", value: chat} as any,
+                                              ]
+                                            : ((variantData || [])[0]?.inputParams || []).map(
+                                                  (item) => ({
+                                                      ...item,
+                                                      value: scenario.inputs.find(
+                                                          (ip) => ip.input_name === item.name,
+                                                      )?.input_value,
+                                                  }),
+                                              ) || []
+                                    }
+                                    key={scenarioId}
                                     useChatDefaultValue
                                     form={form}
-                                    onFinish={handleRun}
+                                    onFinish={() => onRun(scenarioId)}
                                     imageSize="large"
                                 />
                             ) : null}
@@ -446,7 +334,7 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
                     </div>
 
                     <div className={classes.sideBar}>
-                        <h4 style={{fontSize: 18, margin: 0}}>Submit your feedback</h4>
+                        <Typography.Title level={4}>Submit your feedback</Typography.Title>
                         {scenario.outputs.length > 0 &&
                             scenario.outputs.every((item) => !!item.variant_output) && (
                                 <Space direction="vertical">

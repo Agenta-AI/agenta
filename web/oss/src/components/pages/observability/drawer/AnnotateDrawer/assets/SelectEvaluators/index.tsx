@@ -14,10 +14,7 @@ const SelectEvaluators = ({
     setTempSelectedEvaluators,
 }: SelectEvaluatorsProps) => {
     const [search, setSearch] = useState("")
-    const {data: evaluators, isLoading} = useEvaluators({
-        preview: true,
-        queries: {is_human: true},
-    })
+    const {data: evaluators, isLoading} = useEvaluators()
 
     const filteredEvals = useMemo(
         () =>
@@ -41,7 +38,7 @@ const SelectEvaluators = ({
                 })
             }
         },
-        [selectedEvaluators, evaluators, setTempSelectedEvaluators, setSelectedEvaluators],
+        [selectedEvaluators, evaluators, setTempSelectedEvaluators],
     )
 
     return (

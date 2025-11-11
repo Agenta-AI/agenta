@@ -5,14 +5,12 @@ interface AddButtonProps extends ButtonProps {
     isRerun?: boolean
     isCancel?: boolean
     isRunAll?: boolean
-    label?: string
 }
 
 const RunButton = ({
     isRerun = false,
     isCancel = false,
     isRunAll = false,
-    label,
     ...props
 }: AddButtonProps) => {
     return (
@@ -23,7 +21,7 @@ const RunButton = ({
             size="small"
             {...props}
         >
-            {isRerun ? "Re run" : isCancel ? "Cancel" : isRunAll ? "Run all" : label || "Run"}
+            {isRerun ? "Re run" : isCancel ? "Cancel" : isRunAll ? "Run all" : "Run"}
         </Button>
     )
 }

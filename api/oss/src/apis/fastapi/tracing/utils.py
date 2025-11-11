@@ -1,11 +1,10 @@
-from typing import Optional, Union, Dict, Tuple, List
+from typing import Optional, Union, Dict, Tuple
 from json import loads, dumps
 from copy import deepcopy
 from hashlib import blake2b
 from traceback import format_exc
-from datetime import datetime
 
-from fastapi import Query
+from fastapi import Query as _Query
 
 from oss.src.utils.logging import get_module_logger
 
@@ -31,10 +30,9 @@ from oss.src.core.tracing.dtos import (
     Formatting,
     Windowing,
     Filtering,
-    TracingQuery,
+    Query,
     Focus,
     Format,
-    MetricSpec,
 )
 
 from oss.src.core.tracing.utils import (
@@ -52,29 +50,15 @@ from oss.src.core.tracing.utils import (
 
 log = get_module_logger(__name__)
 
-TRACE_DEFAULT_KEY = "__default__"
-
 # --- PARSE QUERY DTO ---
 
 
 def _parse_windowing(
-    oldest: Optional[Union[str, int, datetime]] = None,
-    newest: Optional[Union[str, int, datetime]] = None,
+    oldest: Optional[Union[str, int]] = None,
+    newest: Optional[Union[str, int]] = None,
     limit: Optional[int] = None,
-    interval: Optional[int] = None,
-    rate: Optional[float] = None,
+    window: Optional[int] = None,
 ) -> Optional[Windowing]:
-    if all(
-        [
-            oldest is None,
-            newest is None,
-            limit is None,
-            interval is None,
-            rate is None,
-        ]
-    ):
-        return None
-
     oldest = parse_timestamp_to_datetime(oldest)
     newest = parse_timestamp_to_datetime(newest)
 
@@ -82,8 +66,7 @@ def _parse_windowing(
         oldest=oldest,
         newest=newest,
         limit=limit,
-        interval=interval,
-        rate=rate,
+        window=window,
     )
 
     return _windowing
@@ -116,45 +99,43 @@ def _parse_filtering(
 
 
 def _parse_formatting(
-    focus: Focus = Focus.TRACE,
-    format: Format = Format.AGENTA,  # pylint: disable=redefined-builtin
+    focus: Optional[Focus] = Focus.TRACE,
+    format: Optional[Format] = Format.AGENTA,  # pylint: disable=redefined-builtin
 ) -> Optional[Formatting]:
     _formatting = Formatting(
-        focus=focus or Focus.TRACE,
+        focus=focus or Focus.SPAN,
         format=format or Format.AGENTA,
     )
 
     return _formatting
 
 
-def parse_query_from_params_request(
+def parse_query_request(
     # GROUPING
-    focus: Optional[Focus] = Query(None),
-    format: Optional[Format] = Query(None),  # pylint: disable=redefined-builtin
+    focus: Optional[Focus] = _Query(None),
+    format: Optional[Format] = _Query(None),  # pylint: disable=redefined-builtin
     # WINDOWING
-    oldest: Optional[Union[str, int]] = Query(None),
-    newest: Optional[Union[str, int]] = Query(None),
-    limit: Optional[int] = Query(None),
-    interval: Optional[int] = Query(None),
-    rate: Optional[float] = Query(None),
+    oldest: Optional[Union[str, int]] = _Query(None),
+    newest: Optional[Union[str, int]] = _Query(None),
+    limit: Optional[int] = _Query(None),
+    window: Optional[int] = _Query(None),
     # FILTERING
-    filter=Query(None),  # pylint: disable=redefined-builtin
-) -> TracingQuery:
-    return parse_query_from_body_request(
+    filter=_Query(None),  # pylint: disable=redefined-builtin
+) -> Query:
+    return parse_body_request(
         focus=focus,
         format=format,
         #
         oldest=oldest,
         newest=newest,
         limit=limit,
-        interval=interval,
-        rate=rate,
+        window=window,
         #
         filter=filter,
     )
 
 
-def parse_query_from_body_request(
+def parse_body_request(
     # GROUPING
     focus: Optional[Focus] = None,
     format: Optional[Format] = None,  # pylint: disable=redefined-builtin
@@ -162,13 +143,12 @@ def parse_query_from_body_request(
     oldest: Optional[Union[str, int]] = None,
     newest: Optional[Union[str, int]] = None,
     limit: Optional[int] = None,
-    interval: Optional[int] = None,
-    rate: Optional[float] = None,
+    window: Optional[int] = None,
     # FILTERING
     filter: Optional[Union[dict, str]] = None,  # pylint: disable=redefined-builtin
-) -> TracingQuery:
+) -> Query:
     try:
-        _query = TracingQuery(
+        _query = Query(
             formatting=_parse_formatting(
                 focus=focus,
                 format=format,
@@ -177,8 +157,7 @@ def parse_query_from_body_request(
                 oldest=oldest,
                 newest=newest,
                 limit=limit,
-                interval=interval,
-                rate=rate,
+                window=window,
             ),
             filtering=_parse_filtering(
                 filter=filter,
@@ -187,43 +166,41 @@ def parse_query_from_body_request(
     except Exception as e:  # pylint: disable=broad-except
         log.warn(e)
 
-        _query = TracingQuery()
+        _query = None
 
     return _query
 
 
 def merge_queries(
-    query_param: Optional[TracingQuery] = None,
-    query_body: Optional[TracingQuery] = None,
-) -> TracingQuery:
-    if query_param is None and query_body is None:
-        return TracingQuery(
-            formatting=_parse_formatting(),
-            windowing=_parse_windowing(),
-            filtering=_parse_filtering(),
-        )
-
-    if query_body is None and query_param is not None:
-        query_param.filtering = query_param.filtering or Filtering()
-
+    query_param: Optional[Query] = None,
+    query_body: Optional[Query] = None,
+) -> Query:
+    if query_body is None:
+        if query_param.filtering is None:
+            query_param.filtering = Filtering()
         return query_param
 
-    if query_param is None and query_body is not None:
-        query_body.filtering = query_body.filtering or Filtering()
-
+    if query_param is None:
+        if query_body.filtering is None:
+            query_body.filtering = Filtering()
         return query_body
 
-    if query_param is not None and query_body is not None:
-        return TracingQuery(
-            formatting=query_body.formatting or query_param.formatting or Formatting(),
-            windowing=query_body.windowing or query_param.windowing or Windowing(),
-            filtering=query_body.filtering or query_param.filtering or Filtering(),
-        )
-
-    return TracingQuery(
-        formatting=_parse_formatting(),
-        windowing=_parse_windowing(),
-        filtering=_parse_filtering(),
+    return Query(
+        formatting=Formatting(
+            focus=query_param.formatting.focus
+            or query_body.formatting.focus
+            or Focus.TRACE,
+            format=query_param.formatting.format
+            or query_body.formatting.format
+            or Format.AGENTA,
+        ),
+        windowing=Windowing(
+            oldest=query_param.windowing.oldest or query_body.windowing.oldest,
+            newest=query_param.windowing.newest or query_body.windowing.newest,
+            limit=query_param.windowing.limit or query_body.windowing.limit,
+            window=query_param.windowing.window or query_body.windowing.window,
+        ),
+        filtering=query_param.filtering or query_body.filtering or Filtering(),
     )
 
 
@@ -391,43 +368,13 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
 
     cleaned_ag["metrics"] = cleaned_metrics
 
-    # --- references ---
-    references_dict = ensure_nested_dict(ag, "references")
-    cleaned_references = {}
-
-    if isinstance(references_dict, dict):
-        for key in references_dict:
-            if key in REFERENCE_KEYS:
-                entry = {}
-                if references_dict[key].get("id") is not None:
-                    entry["id"] = str(references_dict[key]["id"])
-                if references_dict[key].get("slug") is not None:
-                    entry["slug"] = str(references_dict[key]["slug"])
-                if references_dict[key].get("version") is not None:
-                    entry["version"] = str(references_dict[key]["version"])
-
-                cleaned_references[key] = entry
-
-    cleaned_ag["references"] = cleaned_references or None
-
     # --- passthrough simple optional fields ---
-    for key in ["flags", "tags", "meta", "exception", "hashes"]:
+    for key in ["flags", "tags", "meta", "exception", "references", "hashes"]:
         cleaned_ag[key] = ag.get(key, None)
-
-    # --- move ag.meta.configuration to ag.data.parameters ---
-    if "meta" in cleaned_ag and cleaned_ag["meta"] is not None:
-        if "configuration" in cleaned_ag["meta"]:
-            if cleaned_ag["data"]["parameters"] is None:
-                cleaned_ag["data"]["parameters"] = cleaned_ag["meta"]["configuration"]
-            del cleaned_ag["meta"]["configuration"]
-            if not cleaned_ag["meta"]:
-                cleaned_ag["meta"] = None
 
     # --- unsupported top-level ---
     for key in ag:
         if key not in AgAttributes.model_fields:
-            if key == "refs":
-                continue
             unsupported[key] = ag[key]
 
     cleaned_ag["unsupported"] = unsupported or None
@@ -440,28 +387,17 @@ def initialize_ag_attributes(attributes: Optional[dict]) -> dict:
 
 
 REFERENCE_KEYS = [
-    "testcase",
     "testset",
-    "testset_variant",
-    "testset_revision",
-    "query",
-    "query_variant",
-    "query_revision",
+    "testcase",
     "workflow",
-    "workflow_variant",
-    "workflow_revision",
+    "workflow_variants",
+    "workflow_revisions",
     "application",
-    "application_variant",
-    "application_revision",
+    "application_variants",
+    "application_revisions",
     "evaluator",
-    "evaluator_variant",
-    "evaluator_revision",
-    "environment",
-    "environment_variant",
-    "environment_revision",
-    "snippet",
-    "snippet_variant",
-    "snippet_revision",
+    "evaluator_variants",
+    "evaluator_revisions",
 ]
 
 
@@ -599,6 +535,7 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
 
         if references or links:
             hash_id = make_hash_id(references=references, links=links)
+            # log.debug("parsing span with hash_id", hash_id=hash_id)
 
             if hash_id:
                 hashes = OTelHash(
@@ -611,7 +548,7 @@ def _parse_span_from_request(raw_span: OTelSpan) -> Optional[OTelFlatSpans]:
                 raw_span.hashes = [hashes]
 
     # --- Children ---
-    if isinstance(raw_span, OTelSpan) and raw_span.spans is not None:
+    if raw_span.spans:
         raw_span_dtos.extend(parse_spans_from_request(raw_span.spans))
         raw_span.spans = None
 
@@ -669,20 +606,13 @@ def _parse_span_into_response(
     if marshall:
         pass  # TODO: MARSHALL ATTRIBUTES
 
-    ag = span_dto.attributes.get("ag")
-    if ag:
-        data = ag.get("data") if isinstance(ag, dict) else None
-        outputs = data.get("outputs") if isinstance(data, dict) else None
-        if isinstance(outputs, dict) and TRACE_DEFAULT_KEY in outputs:
-            data["outputs"] = outputs[TRACE_DEFAULT_KEY]
-
     return span_dto
 
 
 def parse_spans_into_response(
     span_dtos: OTelFlatSpans,
-    focus: Focus = Focus.TRACE,
-    format: Format = Format.AGENTA,
+    focus: Focus,
+    format: Format,
 ) -> Optional[Union[OTelFlatSpans, OTelTraceTree]]:
     clean_span_dtos: OTelFlatSpans = []
 
@@ -725,112 +655,3 @@ def parse_spans_into_response(
             spans: OTelFlatSpans = []
 
     return spans if spans else traces
-
-
-# -- ANALYTICS
-
-
-def parse_specs_from_body_request(
-    specs: Optional[Union[list, str]] = None,
-) -> Optional[List[MetricSpec]]:
-    if not specs:
-        return None
-
-    if isinstance(specs, str):
-        try:
-            specs = loads(specs)
-        except Exception as e:  # pylint: disable=broad-except
-            log.warn(f"Error parsing specs string to JSON: {e}")
-            return None
-
-    if isinstance(specs, list):
-        return [MetricSpec(**spec) for spec in specs if isinstance(spec, dict)]
-
-    log.warn("Specs should be a list or a JSON string")
-
-    return None
-
-
-def merge_specs(
-    specs_params: Optional[List[MetricSpec]],
-    specs_body: Optional[List[MetricSpec]],
-) -> List[MetricSpec]:
-    if not specs_params and not specs_body:
-        return []
-    if not specs_params:
-        return specs_body or []
-    if not specs_body:
-        return specs_params or []
-
-    return []
-
-
-def parse_analytics_from_params_request(
-    # GROUPING
-    focus: Optional[Focus] = Query(None),
-    format: Optional[Format] = Query(None),  # pylint: disable=redefined-builtin
-    # WINDOWING
-    oldest: Optional[Union[str, int]] = Query(None),
-    newest: Optional[Union[str, int]] = Query(None),
-    interval: Optional[int] = Query(None),
-    rate: Optional[float] = Query(None),
-    # FILTERING
-    filter=Query(None),  # pylint: disable=redefined-builtin
-    # METRICS SPECS
-    specs=Query(None),
-) -> Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]]:
-    return parse_analytics_from_body_request(
-        focus=focus,
-        format=format,
-        #
-        oldest=oldest,
-        newest=newest,
-        interval=interval,
-        rate=rate,
-        #
-        filter=filter,
-        #
-        specs=specs,
-    )
-
-
-def parse_analytics_from_body_request(
-    # GROUPING
-    focus: Optional[Focus] = None,
-    format: Optional[Format] = None,  # pylint: disable=redefined-builtin
-    # WINDOWING
-    oldest: Optional[Union[str, int]] = None,
-    newest: Optional[Union[str, int]] = None,
-    interval: Optional[int] = None,
-    rate: Optional[float] = None,
-    # FILTERING
-    filter: Optional[Union[dict, str]] = None,  # pylint: disable=redefined-builtin
-    # METRICS SPECS
-    specs: Optional[Union[list, str]] = None,
-) -> Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]]:
-    return (
-        parse_query_from_body_request(
-            focus=focus,
-            format=format,
-            #
-            oldest=oldest,
-            newest=newest,
-            interval=interval,
-            rate=rate,
-            #
-            filter=filter,
-        ),
-        parse_specs_from_body_request(
-            specs=specs,
-        ),
-    )
-
-
-def merge_analytics(
-    analytics_params: Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]],
-    analytics_body: Tuple[Optional[TracingQuery], Optional[List[MetricSpec]]],
-) -> Tuple[TracingQuery, List[MetricSpec]]:
-    return (
-        merge_queries(analytics_params[0], analytics_body[0]),
-        merge_specs(analytics_params[1], analytics_body[1]),
-    )

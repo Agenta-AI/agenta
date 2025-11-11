@@ -1,15 +1,14 @@
 import {useMemo} from "react"
 
 import {Typography} from "antd"
-import {useAtomValue} from "jotai"
 import {createUseStyles} from "react-jss"
 
 import {NewVariantParametersView} from "@/oss/components/VariantsComponents/Drawers/VariantDrawer/assets/Parameters"
+import {useAppsData} from "@/oss/contexts/app.context"
 import {filterVariantParameters} from "@/oss/lib/helpers/utils"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {JSSTheme, Variant} from "@/oss/lib/Types"
 import {DeploymentRevisionConfig} from "@/oss/lib/Types"
-import {currentAppAtom} from "@/oss/state/app"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     title: {
@@ -61,9 +60,14 @@ interface HistoryConfigProps {
 const HistoryConfig = ({depRevisionConfig, variant: propsVariant}: HistoryConfigProps) => {
     const classes = useStyles()
 
-    const currentApp = useAtomValue(currentAppAtom)
+    const {currentApp} = useAppsData()
     // @ts-ignore
-    const {data, isLoading} = useVariants(currentApp, [propsVariant])
+    const {data, isLoading} = useVariants(currentApp)(
+        {
+            appId: currentApp?.app_id,
+        },
+        [propsVariant],
+    )
     const variant = useMemo(
         // @ts-ignore
         () => data?.variants.find((v) => v.id === propsVariant.id),

@@ -8,21 +8,11 @@
  *
  * @module CodeLineNode
  */
-import {ElementNode, LexicalNode, SerializedElementNode, Spread} from "lexical"
-
-import styles from "../components/assets/CodeBlockErrorIndicator.module.css"
-import diffStyles from "../components/assets/DiffCodeBlock.module.css"
-import {ErrorInfo, getValidationManager} from "../plugins/GlobalErrorIndicatorPlugin"
-import {getCurrentEditorId} from "../plugins/SyntaxHighlightPlugin"
-
-/**
- * Diff line types for code diff display
- */
-export type DiffType = "added" | "removed" | "context" | "fold" | null
+import {ElementNode, LexicalNode, SerializedElementNode, DOMExportOutput, Spread} from "lexical"
 
 /**
  * Represents the serialized form of a CodeLineNode.
- * Extends SerializedElementNode with properties for code folding state and diff display.
+ * Extends SerializedElementNode with properties for code folding state.
  */
 export type SerializedCodeLineNode = Spread<
     {
@@ -32,14 +22,6 @@ export type SerializedCodeLineNode = Spread<
         isCollapsed?: boolean
         /** Whether this line is hidden due to parent folding */
         isHidden?: boolean
-        /** Diff type for this line (added, removed, context, or null) */
-        diffType?: DiffType
-        /** Original file line number (for diff display) */
-        oldLineNumber?: number
-        /** New file line number (for diff display) */
-        newLineNumber?: number
-        /** Validation errors for this line */
-        validationErrors?: ErrorInfo[]
     },
     SerializedElementNode
 >
@@ -58,15 +40,7 @@ export class CodeLineNode extends ElementNode {
     __isHidden: boolean
     /** Whether this line is empty */
     __isEmpty: boolean
-    /** Diff type for this line (added, removed, context, or null) */
-    __diffType: DiffType
-    /** Original file line number (for diff display) */
-    __oldLineNumber?: number
-    /** New file line number (for diff display) */
-    __newLineNumber?: number
-    /** Validation errors for this line */
-    __validationErrors: ErrorInfo[]
-    __index = 0
+    __index: number
 
     /**
      * Returns the node type identifier.
@@ -87,15 +61,9 @@ export class CodeLineNode extends ElementNode {
             node.__isFoldable,
             node.__isCollapsed,
             node.__isHidden,
-            node.__isEmpty ?? node.getTextContent().trim() === "",
-            node.__diffType,
-            node.__oldLineNumber,
-            node.__newLineNumber,
+            node.__isEmpty ??
+                (node.getTextContent() === "\u200b" || node.getTextContent().trim() === ""),
         )
-
-        // Copy validation errors directly during cloning
-        clone.__validationErrors = [...node.__validationErrors]
-
         return clone
     }
 
@@ -103,171 +71,18 @@ export class CodeLineNode extends ElementNode {
      * Creates a new CodeLineNode instance.
      * @param key - Optional unique identifier for the node
      */
-    clone(): CodeLineNode {
-        return CodeLineNode.clone(this)
-    }
-
     constructor(
         key?: string,
         isFoldable = false,
         isCollapsed = false,
         isHidden = false,
         isEmpty = false,
-        diffType: DiffType = null,
-        oldLineNumber?: number,
-        newLineNumber?: number,
     ) {
         super(key)
         this.__isFoldable = isFoldable
         this.__isCollapsed = isCollapsed
         this.__isHidden = isHidden
         this.__isEmpty = isEmpty
-        this.__diffType = diffType
-        this.__oldLineNumber = oldLineNumber
-        this.__newLineNumber = newLineNumber
-        this.__validationErrors = []
-        // Note: validationErrors can be set after construction via setValidationErrors()
-    }
-
-    /**
-     * Gets the diff type for this line.
-     * @returns The diff type (added, removed, context, or null)
-     */
-    getDiffType(): DiffType {
-        return this.getLatest().__diffType
-    }
-
-    /**
-     * Sets the diff type for this line.
-     * @param diffType - The diff type to set
-     * @returns This node for chaining
-     */
-    setDiffType(diffType: DiffType): this {
-        const writable = this.getWritable()
-        writable.__diffType = diffType
-        return writable
-    }
-
-    /**
-     * Gets the old line number for this line.
-     * @returns The old line number or undefined
-     */
-    getOldLineNumber(): number | undefined {
-        return this.getLatest().__oldLineNumber
-    }
-
-    /**
-     * Sets the old line number for this line.
-     * @param lineNumber - The old line number to set
-     * @returns This node for chaining
-     */
-    setOldLineNumber(lineNumber: number | undefined): this {
-        const writable = this.getWritable()
-        writable.__oldLineNumber = lineNumber
-        return writable
-    }
-
-    /**
-     * Gets the new line number for this line.
-     * @returns The new line number or undefined
-     */
-    getNewLineNumber(): number | undefined {
-        return this.getLatest().__newLineNumber
-    }
-
-    /**
-     * Sets the new line number for this line.
-     * @param lineNumber - The new line number to set
-     * @returns This node for chaining
-     */
-    setNewLineNumber(lineNumber: number | undefined): this {
-        const writable = this.getWritable()
-        writable.__newLineNumber = lineNumber
-        return writable
-    }
-
-    /**
-     * Gets the validation errors for this line.
-     * Uses the unified ValidationManager as single source of truth.
-     * @returns Array of validation errors for this line
-     */
-    getValidationErrors(): ErrorInfo[] {
-        try {
-            const editorId = getCurrentEditorId()
-            if (!editorId) {
-                // No active editor context; fall back to stored errors
-                return this.getLatest().__validationErrors
-            }
-
-            const manager = getValidationManager(editorId)
-            if (!manager) {
-                // Manager not registered yet for this editor; fall back
-                return this.getLatest().__validationErrors
-            }
-
-            const lineNumber = this.calculateActualLineNumber()
-            return manager.getErrorsForLine(lineNumber)
-        } catch (error) {
-            // Fallback to stored validation errors (for backward compatibility)
-            console.warn(
-                "Failed to retrieve ValidationManager from registry; using stored errors:",
-                error,
-            )
-            return this.getLatest().__validationErrors
-        }
-    }
-
-    /**
-     * Sets the validation errors for this line.
-     * @param errors - Array of validation errors to set
-     * @returns This node for chaining
-     */
-    setValidationErrors(errors: ErrorInfo[]): this {
-        const writable = this.getWritable()
-        writable.__validationErrors = errors
-        return writable
-    }
-
-    /**
-     * Gets the primary validation error for this line (first error).
-     * @returns The primary validation error or null if no errors
-     */
-    getValidationError(): ErrorInfo | null {
-        const errors = this.getValidationErrors()
-        return errors.length > 0 ? errors[0] : null
-    }
-
-    /**
-     * Calculates the actual line number by counting CodeLineNodes in the editor.
-     * This is more reliable than getIndexWithinParent() during node creation/editing.
-     * @returns The actual 1-based line number
-     */
-    private calculateActualLineNumber(): number {
-        try {
-            const parent = this.getParent()
-            if (!parent) {
-                console.warn(`⚠️ Node ${this.__key} has no parent, defaulting to line 1`)
-                return 1
-            }
-
-            const children = parent.getChildren()
-            let lineNumber = 1
-
-            for (const child of children) {
-                if (child === this) {
-                    return lineNumber
-                }
-                if (child.getType() === "code-line") {
-                    lineNumber++
-                }
-            }
-
-            // console.warn(`⚠️ Node ${this.__key} not found in parent children, defaulting to line 1`)
-            return 1
-        } catch (error) {
-            // console.error(`❌ Error calculating line number for node ${this.__key}:`, error)
-            return 1
-        }
     }
 
     /**
@@ -276,51 +91,41 @@ export class CodeLineNode extends ElementNode {
      * @returns HTMLElement representing the code line
      */
     createDOM(): HTMLElement {
-        // called on initial render
         const latest = this.getLatest()
         const element = document.createElement("div")
-        element.classList.add(
-            "editor-code-line",
-            styles["editor-code-line"],
-            diffStyles["editor-code-diff-line"],
-        )
+        element.classList.add("editor-code-line")
         element.setAttribute("data-lexical-node-key", this.__key)
-
-        // Apply diff styling if diff type is set
-        if (latest.__diffType) {
-            element.classList.add(`diff-${latest.__diffType}`)
-            element.setAttribute("data-diff-type", latest.__diffType)
-        }
-
         if (latest.__isHidden) {
             element.classList.add("folded")
         }
 
-        // Set line numbers for GitHub-style diff display (but not for fold lines)
-        if ((latest.__oldLineNumber || latest.__newLineNumber) && latest.__diffType !== "fold") {
-            const oldNum = latest.__oldLineNumber ? latest.__oldLineNumber.toString() : ""
-            const newNum = latest.__newLineNumber ? latest.__newLineNumber.toString() : ""
-            element.setAttribute("data-old-line-number", oldNum)
-            element.setAttribute("data-new-line-number", newNum)
-
-            // CSS pseudo-elements handle the display formatting
-            // Just set the data attributes for CSS to use
+        if (latest.__isFoldable) {
+            const btn = document.createElement("button")
+            btn.className = "fold-toggle"
+            btn.textContent = this.__isCollapsed ? "▸" : "▾"
+            element.appendChild(btn)
         }
 
-        // Apply validation error styling if this line has errors
-        const validationError = latest.getValidationError()
-        if (validationError) {
-            element.classList.add("validation-error")
-            element.setAttribute("data-validation-error", validationError.message)
-            // Also apply inline styles for higher specificity
-            // element.style.backgroundColor = "rgba(255, 165, 0, 0.15)"
-            // element.style.borderRight = "4px solid #ff8c00"
-            // element.style.position = "relative"
+        if (latest.__index !== undefined && latest.__index > 0) {
+            element.setAttribute("data-gutter", latest.__index.toString())
+        } else {
+            const foundIndex = latest.getIndexWithinParent()
+            if (foundIndex >= 0) {
+                element.setAttribute("data-gutter", (foundIndex + 1).toString())
+            } else {
+                element.setAttribute("data-gutter", "")
+            }
         }
 
-        // Store line number on the element for use in event listener
-        const lineNumber = this.calculateActualLineNumber()
-        element.setAttribute("data-line-number", lineNumber.toString())
+        if (latest.__isEmpty === undefined || latest.__isEmpty) {
+            element.classList.add("block")
+            element.classList.remove("flex")
+            // element.classList.toggle("bg-[red]", false)
+        } else {
+            element.classList.remove("block")
+            element.classList.add("flex")
+            // element.classList.toggle("bg-[red]", true)
+        }
 
         return element
     }
@@ -343,110 +148,44 @@ export class CodeLineNode extends ElementNode {
         // Check for any state changes that require DOM updates
         const latest = this.getLatest()
         const latestContent = latest.getTextContent()
-        const isEmpty = latestContent.trim() === ""
+        const isEmpty = latestContent === "\u200b" || latestContent.trim() === ""
         const latestIndex = latest.getIndexWithinParent() + 1
-
-        if (prevNode.__isHidden !== latest.__isHidden) {
-            if (latest.__isHidden) {
-                dom.classList.add("folded")
-                return true
-            } else {
-                dom.classList.remove("folded")
-            }
-        }
-
-        // Handle diff type changes
-        if (prevNode.__diffType !== latest.__diffType) {
-            // Remove old diff classes
-            if (prevNode.__diffType) {
-                dom.classList.remove(`diff-${prevNode.__diffType}`)
-                dom.removeAttribute("data-diff-type")
-            }
-            // Add new diff classes
-            if (latest.__diffType) {
-                dom.classList.add(`diff-${latest.__diffType}`)
-                dom.setAttribute("data-diff-type", latest.__diffType)
-            }
-        }
-
-        // Handle line number changes
-        if (
-            prevNode.__oldLineNumber !== latest.__oldLineNumber ||
-            prevNode.__newLineNumber !== latest.__newLineNumber
-        ) {
-            // Update line numbers for GitHub-style diff display
-            if (latest.__oldLineNumber || latest.__newLineNumber) {
-                const oldNum = latest.__oldLineNumber ? latest.__oldLineNumber.toString() : ""
-                const newNum = latest.__newLineNumber ? latest.__newLineNumber.toString() : ""
-                dom.setAttribute("data-old-line-number", oldNum)
-                dom.setAttribute("data-new-line-number", newNum)
-            } else {
-                // Remove line number attributes if no longer needed
-                dom.removeAttribute("data-old-line-number")
-                dom.removeAttribute("data-new-line-number")
-                // Note: Regular sequential line numbers are now handled by CSS counters
-            }
-        }
-
-        // This ensures the validation error map lookup uses the correct line number
-        const currentLineNumber = this.calculateActualLineNumber()
-        const prevLineNumber = parseInt(dom.getAttribute("data-line-number") || "1")
-        if (currentLineNumber !== prevLineNumber) {
-            dom.setAttribute("data-line-number", currentLineNumber.toString())
-        }
-
-        // Check for validation errors changes
-        const prevValidationErrors = prevNode.getValidationErrors()
-        const currentValidationErrors = latest.getValidationErrors()
-        const validationErrorsChanged =
-            prevValidationErrors.length !== currentValidationErrors.length ||
-            !prevValidationErrors.every(
-                (prevError, index) =>
-                    prevError.id === currentValidationErrors[index]?.id &&
-                    prevError.message === currentValidationErrors[index]?.message,
-            )
-
-        if (validationErrorsChanged) {
-            // Remove previous validation error styling
-            dom.classList.remove("validation-error")
-            dom.removeAttribute("data-validation-error")
-            dom.removeAttribute("title")
-            dom.style.backgroundColor = ""
-            dom.style.borderRight = ""
-            dom.style.position = ""
-
-            // Apply new validation error styling if errors exist
-            if (currentValidationErrors.length > 0) {
-                const primaryError = currentValidationErrors[0]
-                dom.classList.add("validation-error")
-                dom.setAttribute("data-validation-error", primaryError.message)
-
-                // Create debug tooltip with all errors
-                const debugInfo = [
-                    `🐛 VALIDATION ERRORS (${currentValidationErrors.length}):`,
-                    ...currentValidationErrors.map(
-                        (error, index) => `${index + 1}. [${error.type}] ${error.message}`,
-                    ),
-                ].join("\n")
-                dom.setAttribute("title", debugInfo)
-
-                // dom.style.backgroundColor = "rgba(255, 165, 0, 0.15)"
-                // dom.style.borderRight = "4px solid #ff8c00"
-                // dom.style.position = "relative"
-            }
-
-            return true
-        }
 
         if (
             prevNode.__isFoldable !== latest.__isFoldable ||
             prevNode.__isCollapsed !== latest.__isCollapsed ||
+            prevNode.__isHidden !== latest.__isHidden ||
             prevNode.__isEmpty !== isEmpty ||
             prevNode.__index !== latestIndex
         ) {
-            // Note: updateDOM should only update DOM, not node state
-            // The __isEmpty and __index properties will be updated elsewhere
-            // during normal node lifecycle, not during DOM reconciliation
+            if (prevNode.__isEmpty !== isEmpty) {
+                this.getWritable().__isEmpty = isEmpty
+            }
+            if (prevNode.__index !== latestIndex) {
+                this.getWritable().__index = latestIndex
+            }
+            // Remove old button if it exists
+            const oldBtn = dom.querySelector(".fold-toggle")
+            if (oldBtn) {
+                oldBtn.remove()
+            }
+
+            // Add new button if needed
+            if (latest.__isFoldable) {
+                const btn = document.createElement("button")
+                btn.className = "fold-toggle"
+                btn.textContent = latest.__isCollapsed ? "▸" : "▾"
+                btn.style.position = "absolute"
+                btn.style.left = "-1.5em"
+                btn.style.top = "0"
+                btn.style.cursor = "pointer"
+                btn.style.background = "none"
+                btn.style.border = "none"
+                btn.style.fontSize = "1em"
+                dom.appendChild(btn)
+                dom.style.position = "relative"
+            }
+
             return true
         }
 
@@ -486,7 +225,7 @@ export class CodeLineNode extends ElementNode {
      * @returns True if line is hidden, false otherwise
      */
     isHidden(): boolean {
-        return this.getLatest().__isHidden
+        return this.__isHidden
     }
 
     /**
@@ -509,7 +248,7 @@ export class CodeLineNode extends ElementNode {
      * @returns True if line is foldable, false otherwise
      */
     isFoldable(): boolean {
-        return this.getLatest().__isFoldable
+        return this.__isFoldable
     }
 
     /**
@@ -520,28 +259,21 @@ export class CodeLineNode extends ElementNode {
      * @returns True if line is collapsed, false otherwise
      */
     isCollapsed(): boolean {
-        return this.getLatest().__isCollapsed
+        return this.__isCollapsed
     }
 
-    // /**
-    //  * Exports this node to a DOM representation.
-    //  * Creates a new DOM element with current folding state
-    //  * and styling for external use.
-    //  *
-    //  * @returns Object containing the DOM element
-    //  */
-    // exportDOM(): DOMExportOutput {
-    //     return {
-    //         element: this.createDOM(),
-    //     }
-    // }
-
-    // importDOM(): void {
-    //     this.setDiffType(null)
-    //     this.setOldLineNumber(undefined)
-    //     this.setNewLineNumber(undefined)
-    //     this.setValidationErrors([])
-    // }
+    /**
+     * Exports this node to a DOM representation.
+     * Creates a new DOM element with current folding state
+     * and styling for external use.
+     *
+     * @returns Object containing the DOM element
+     */
+    exportDOM(): DOMExportOutput {
+        return {
+            element: this.createDOM(),
+        }
+    }
 
     /**
      * Serializes this node to JSON format.
@@ -555,39 +287,45 @@ export class CodeLineNode extends ElementNode {
             ...super.exportJSON(),
             isFoldable: this.__isFoldable,
             isCollapsed: this.__isCollapsed,
-            isHidden: this.__isHidden,
-            diffType: this.__diffType,
-            validationErrors: this.__validationErrors,
             type: "code-line",
             version: 1,
         }
     }
 
     static importJSON(serializedNode: SerializedCodeLineNode): CodeLineNode {
-        const node = new CodeLineNode(
-            undefined, // key
-            serializedNode.isFoldable ?? false,
-            serializedNode.isCollapsed ?? false,
-            serializedNode.isHidden ?? false,
-            false, // isEmpty - will be calculated
-            serializedNode.diffType ?? null,
-            serializedNode.oldLineNumber,
-            serializedNode.newLineNumber,
-        )
-
-        // Set validation errors directly during deserialization
-        const validationErrors = serializedNode.validationErrors ?? []
-        node.__validationErrors = validationErrors
-
+        const node = new CodeLineNode()
+        node.__isFoldable = serializedNode.isFoldable ?? false
+        node.__isCollapsed = serializedNode.isCollapsed ?? false
         return node
     }
+
+    // /**
+    //  * Indicates this node is not an inline element.
+    //  * CodeLineNodes are always block-level elements that
+    //  * represent full lines of code.
+    //  *
+    //  * @returns Always false as code lines are block elements
+    //  */
+    // isInline(): false {
+    //     return false
+    // }
+
+    // /**
+    //  * Indicates this node can contain no content.
+    //  * Empty lines are valid in code blocks, representing
+    //  * blank lines in the code.
+    //  *
+    //  * @returns Always true as code lines can be empty
+    //  */
+    // canBeEmpty(): boolean {
+    //     return true
+    // }
 }
 
 /**
  * Helper function to create a new CodeLineNode.
  * @returns A new CodeLineNode instance
  */
-
 export function $createCodeLineNode(): CodeLineNode {
     return new CodeLineNode()
 }

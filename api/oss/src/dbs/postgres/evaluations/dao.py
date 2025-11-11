@@ -1,51 +1,37 @@
-from typing import Optional, List, Tuple, Dict
-from uuid import UUID
+from typing import Optional, List
+from uuid import UUID, uuid4
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import not_
-import sqlalchemy
-from sqlalchemy.orm.attributes import flag_modified
-
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.core.shared.dtos import Windowing, Reference
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.evaluations.interfaces import EvaluationsDAOInterface
 from oss.src.core.evaluations.types import EvaluationClosedConflict
 from oss.src.core.evaluations.types import (
-    EvaluationStatus,
     EvaluationRunFlags,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
     EvaluationRunQuery,
-    #
     EvaluationScenario,
     EvaluationScenarioCreate,
     EvaluationScenarioEdit,
     EvaluationScenarioQuery,
-    #
-    EvaluationResult,
-    EvaluationResultCreate,
-    EvaluationResultEdit,
-    EvaluationResultQuery,
-    #
-    EvaluationMetrics,
-    EvaluationMetricsCreate,
-    EvaluationMetricsEdit,
-    EvaluationMetricsQuery,
-    #
-    EvaluationQueue,
-    EvaluationQueueCreate,
-    EvaluationQueueEdit,
-    EvaluationQueueQuery,
+    EvaluationStep,
+    EvaluationStepCreate,
+    EvaluationStepEdit,
+    EvaluationStepQuery,
+    EvaluationMetric,
+    EvaluationMetricCreate,
+    EvaluationMetricEdit,
+    EvaluationMetricQuery,
 )
 
-from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.evaluations.mappings import (
@@ -56,9 +42,8 @@ from oss.src.dbs.postgres.evaluations.mappings import (
 from oss.src.dbs.postgres.evaluations.dbes import (
     EvaluationRunDBE,
     EvaluationScenarioDBE,
-    EvaluationResultDBE,
-    EvaluationMetricsDBE,
-    EvaluationQueueDBE,
+    EvaluationStepDBE,
+    EvaluationMetricDBE,
 )
 
 
@@ -80,43 +65,18 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run: EvaluationRunCreate,
     ) -> Optional[EvaluationRun]:
-        _run = EvaluationRun(
-            **run.model_dump(
-                mode="json",
-                exclude_none=True,
-            ),
-            created_at=datetime.now(timezone.utc),
+        now = datetime.now(timezone.utc)
+        run = EvaluationRun(
+            **run.model_dump(),
+            created_at=now,
             created_by_id=user_id,
         )
-
-        run_references: List[dict] = []
-
-        if _run and _run.data and _run.data.steps:
-            _references: Dict[str, dict] = {}
-
-            for step in _run.data.steps:
-                if not step.references:
-                    continue
-
-                for key, ref in step.references.items():
-                    _key = getattr(ref, "id", None) or key
-                    _references[_key] = ref.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    ) | {"key": str(key)}
-
-            run_references = list(_references.values())
 
         run_dbe = create_dbe_from_dto(
             DBE=EvaluationRunDBE,
             project_id=project_id,
-            dto=_run,
-            #
-            references=run_references,
+            dto=run,
         )
-
-        if _run.data:
-            run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
 
         try:
             async with engine.core_session() as session:
@@ -124,12 +84,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 await session.commit()
 
-                _run = create_dto_from_dbe(
+                run = create_dto_from_dbe(
                     DTO=EvaluationRun,
                     dbe=run_dbe,
                 )
 
-                return _run
+                return run
 
         except Exception as e:
             check_entity_creation_conflict(e)
@@ -145,56 +105,24 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         runs: List[EvaluationRunCreate],
     ) -> List[EvaluationRun]:
-        _runs = [
+        now = datetime.now(timezone.utc)
+        runs = [
             EvaluationRun(
-                **run.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                ),
-                created_at=datetime.now(timezone.utc),
+                **run.model_dump(),
+                created_at=now,
                 created_by_id=user_id,
             )
             for run in runs
         ]
 
-        runs_references: List[List[dict]] = []
-
-        for _run in _runs:
-            run_references: List[dict] = []
-
-            if _run and _run.data and _run.data.steps:
-                _references: Dict[str, dict] = {}
-
-                for step in _run.data.steps:
-                    if not step.references:
-                        continue
-
-                    for key, ref in step.references.items():
-                        _key = getattr(ref, "id", None) or key
-                        _references[_key] = ref.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                        ) | {"key": str(key)}
-
-                run_references = list(_references.values())
-
-            runs_references.append(run_references)
-
-        run_dbes = []
-
-        for i, _run in enumerate(_runs):
-            run_dbe = create_dbe_from_dto(
+        run_dbes = [
+            create_dbe_from_dto(
                 DBE=EvaluationRunDBE,
                 project_id=project_id,
-                dto=_run,
-                #
-                references=runs_references[i],
+                dto=run,
             )
-
-            if _run.data:
-                run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
-
-            run_dbes.append(run_dbe)
+            for run in runs
+        ]
 
         try:
             async with engine.core_session() as session:
@@ -202,7 +130,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 await session.commit()
 
-                _runs = [
+                runs = [
                     create_dto_from_dbe(
                         DTO=EvaluationRun,
                         dbe=run_dbe,
@@ -210,7 +138,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     for run_dbe in run_dbes
                 ]
 
-                return _runs
+                return runs
 
         except Exception as e:
             check_entity_creation_conflict(e)
@@ -225,30 +153,27 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_id: UUID,
     ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id == run_id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await connection.execute(stmt=stmt, prepare=True)
 
-            run_dbe = res.scalars().first()
+            run_dbe = result.scalars().first()
 
             if run_dbe is None:
                 return None
 
-            _run = create_dto_from_dbe(
+            run = create_dto_from_dbe(
                 DTO=EvaluationRun,
                 dbe=run_dbe,
             )
 
-            return _run
+            return run
 
     @suppress_exceptions(default=[])
     async def fetch_runs(
@@ -258,22 +183,19 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run_ids: List[UUID],
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
             stmt = stmt.limit(len(run_ids))
 
-            res = await session.execute(stmt)
+            result = await connection.execute(stmt=stmt, prepare=True)
 
-            run_dbes = res.scalars().all()
+            run_dbes = result.scalars().all()
 
-            _runs = [
+            runs = [
                 create_dto_from_dbe(
                     DTO=EvaluationRun,
                     dbe=run_dbe,
@@ -281,7 +203,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 for run_dbe in run_dbes
             ]
 
-            return _runs
+            return runs
 
     @suppress_exceptions()
     async def edit_run(
@@ -295,17 +217,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id == run.id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            run_dbe = res.scalars().first()
+            run_dbe = result.scalars().first()
 
             if run_dbe is None:
                 return None
@@ -317,43 +236,21 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=run.id,
                 )
 
-            run_references: List[dict] = []
-
-            if run and run.data and run.data.steps:
-                _references: Dict[str, dict] = {}
-
-                for step in run.data.steps:
-                    if not step.references:
-                        continue
-
-                    for key, ref in step.references.items():
-                        _key = getattr(ref, "id", None) or key
-                        _references[_key] = ref.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                        ) | {"key": str(key)}
-
-                run_references = list(_references.values())
-
             run_dbe = edit_dbe_from_dto(
                 dbe=run_dbe,
                 dto=run,
                 updated_at=datetime.now(timezone.utc),
                 updated_by_id=user_id,
-                references=run_references,
             )
-
-            if run.data:
-                run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
 
             await session.commit()
 
-            _run = create_dto_from_dbe(
+            run = create_dto_from_dbe(
                 DTO=EvaluationRun,
                 dbe=run_dbe,
             )
 
-            return _run
+            return run
 
     @suppress_exceptions(default=[])
     async def edit_runs(
@@ -369,17 +266,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
             stmt = stmt.limit(len(run_ids))
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            run_dbes = res.scalars().all()
+            run_dbes = result.scalars().all()
 
             if not run_dbes:
                 return []
@@ -389,7 +283,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
-                        run_id=run_dbe.id,  # type: ignore
+                        run_id=run_dbe.id,
                     )
 
                 run = next(
@@ -397,41 +291,17 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     None,
                 )
 
-                if run is None:
-                    continue
-
-                run_references: List[dict] = []
-
-                if run and run.data and run.data.steps:
-                    _references: Dict[str, dict] = {}
-
-                    for step in run.data.steps:
-                        if not step.references:
-                            continue
-
-                        for key, ref in step.references.items():
-                            _key = getattr(ref, "id", None) or key
-                            _references[_key] = ref.model_dump(
-                                mode="json",
-                                exclude_none=True,
-                            ) | {"key": str(key)}
-
-                    run_references = list(_references.values())
-
-                run_dbe = edit_dbe_from_dto(
-                    dbe=run_dbe,
-                    dto=run,
-                    updated_at=datetime.now(timezone.utc),
-                    updated_by_id=user_id,
-                    references=run_references,
-                )
-
-                if run.data:
-                    run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
+                if run is not None:
+                    run_dbe = edit_dbe_from_dto(
+                        dbe=run_dbe,
+                        dto=run,
+                        updated_at=datetime.now(timezone.utc),
+                        updated_by_id=user_id,
+                    )
 
             await session.commit()
 
-            _runs = [
+            runs = [
                 create_dto_from_dbe(
                     DTO=EvaluationRun,
                     dbe=run_dbe,
@@ -439,7 +309,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 for run_dbe in run_dbes
             ]
 
-            return _runs
+            return runs
 
     @suppress_exceptions()
     async def delete_run(
@@ -452,17 +322,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id == run_id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            run_dbe = res.scalars().first()
+            run_dbe = result.scalars().first()
 
             if run_dbe is None:
                 return None
@@ -484,17 +351,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
             stmt = stmt.limit(len(run_ids))
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            run_dbes = res.scalars().all()
+            run_dbes = result.scalars().all()
 
             if not run_dbes:
                 return []
@@ -504,9 +368,184 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             await session.commit()
 
-            run_ids = [run_dbe.id for run_dbe in run_dbes]  # type: ignore
+            run_ids = [run_dbe.id for run_dbe in run_dbes]
 
             return run_ids
+
+    @suppress_exceptions()
+    async def archive_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+    ) -> Optional[EvaluationRun]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationRunDBE).filter(
+                EvaluationRunDBE.project_id == project_id,
+                EvaluationRunDBE.id == run_id,
+            )
+
+            stmt = stmt.limit(1)
+
+            result = await session.execute(stmt)
+
+            run_dbe = result.scalars().first()
+
+            if run_dbe is None:
+                return None
+
+            if not run_dbe.flags:
+                run_dbe.flags = EvaluationRunFlags().model_dump(mode="json")
+
+            run_dbe.flags["is_closed"] = True
+
+            now = datetime.now(timezone.utc)
+            run_dbe.updated_at = now
+            run_dbe.updated_by_id = user_id
+            run_dbe.deleted_at = now
+            run_dbe.deleted_by_id = user_id
+
+            await session.commit()
+
+            run = create_dto_from_dbe(
+                DTO=EvaluationRun,
+                dbe=run_dbe,
+            )
+
+            return run
+
+    @suppress_exceptions(default=[])
+    async def archive_runs(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_ids: List[UUID],
+    ) -> List[EvaluationRun]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationRunDBE).filter(
+                EvaluationRunDBE.project_id == project_id,
+                EvaluationRunDBE.id.in_(run_ids),
+            )
+
+            stmt = stmt.limit(len(run_ids))
+
+            result = await session.execute(stmt)
+
+            run_dbes = result.scalars().all()
+
+            if not run_dbes:
+                return []
+
+            for run_dbe in run_dbes:
+                if not run_dbe.flags:
+                    run_dbe.flags = EvaluationRunFlags().model_dump(mode="json")
+
+                run_dbe.flags["is_closed"] = True
+
+            now = datetime.now(timezone.utc)
+            for run_dbe in run_dbes:
+                run_dbe.updated_at = now
+                run_dbe.updated_by_id = user_id
+                run_dbe.deleted_at = now
+                run_dbe.deleted_by_id = user_id
+
+            await session.commit()
+
+            runs = [
+                create_dto_from_dbe(
+                    DTO=EvaluationRun,
+                    dbe=run_dbe,
+                )
+                for run_dbe in run_dbes
+            ]
+
+            return runs
+
+    @suppress_exceptions()
+    async def unarchive_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+    ) -> Optional[EvaluationRun]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationRunDBE).filter(
+                EvaluationRunDBE.project_id == project_id,
+                EvaluationRunDBE.id == run_id,
+            )
+
+            stmt = stmt.limit(1)
+
+            result = await session.execute(stmt)
+
+            run_dbe = result.scalars().first()
+
+            if run_dbe is None:
+                return None
+
+            now = datetime.now(timezone.utc)
+            run_dbe.updated_at = now
+            run_dbe.updated_by_id = user_id
+            run_dbe.deleted_at = None
+            run_dbe.deleted_by_id = None
+
+            await session.commit()
+
+            run = create_dto_from_dbe(
+                DTO=EvaluationRun,
+                dbe=run_dbe,
+            )
+
+            return run
+
+    @suppress_exceptions(default=[])
+    async def unarchive_runs(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_ids: List[UUID],
+    ) -> List[EvaluationRun]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationRunDBE).filter(
+                EvaluationRunDBE.project_id == project_id,
+                EvaluationRunDBE.id.in_(run_ids),
+            )
+
+            stmt = stmt.limit(len(run_ids))
+
+            result = await session.execute(stmt)
+
+            run_dbes = result.scalars().all()
+
+            if not run_dbes:
+                return []
+
+            now = datetime.now(timezone.utc)
+            for run_dbe in run_dbes:
+                run_dbe.updated_at = now
+                run_dbe.updated_by_id = user_id
+                run_dbe.deleted_at = None
+                run_dbe.deleted_by_id = None
+
+            await session.commit()
+
+            runs = [
+                create_dto_from_dbe(
+                    DTO=EvaluationRun,
+                    dbe=run_dbe,
+                )
+                for run_dbe in run_dbes
+            ]
+
+            return runs
 
     @suppress_exceptions()
     async def close_run(
@@ -516,51 +555,39 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         run_id: UUID,
-        #
-        status: Optional[EvaluationStatus] = None,
     ) -> Optional[EvaluationRun]:
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id == run_id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            run_dbe = res.scalars().first()
+            run_dbe = result.scalars().first()
 
             if run_dbe is None:
                 return None
 
-            if status:
-                run_dbe.status = status.value
-                flag_modified(run_dbe, "status")
+            if not run_dbe.flags:
+                run_dbe.flags = EvaluationRunFlags().model_dump(mode="json")
 
-            if run_dbe.flags is None:
-                run_dbe.flags = EvaluationRunFlags().model_dump(  # type: ignore
-                    mode="json",
-                    exclude_none=True,
-                )
+            run_dbe.flags["is_closed"] = True
 
-            # run_dbe.flags["is_closed"] = True  # type: ignore
-            flag_modified(run_dbe, "flags")
-
-            run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
-            run_dbe.updated_by_id = user_id  # type: ignore
+            now = datetime.now(timezone.utc)
+            run_dbe.updated_at = now
+            run_dbe.updated_by_id = user_id
 
             await session.commit()
 
-            _run = create_dto_from_dbe(
+            run = create_dto_from_dbe(
                 DTO=EvaluationRun,
                 dbe=run_dbe,
             )
 
-            return _run
+            return run
 
     @suppress_exceptions(default=[])
     async def close_runs(
@@ -570,41 +597,35 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         run_ids: List[UUID],
-    ) -> List[EvaluationRun]:
+    ) -> List[UUID]:
         async with engine.core_session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.id.in_(run_ids),
             )
 
             stmt = stmt.limit(len(run_ids))
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            run_dbes = res.scalars().all()
+            run_dbes = result.scalars().all()
 
             if not run_dbes:
                 return []
 
+            now = datetime.now(timezone.utc)
             for run_dbe in run_dbes:
-                if run_dbe.flags is None:
-                    run_dbe.flags = EvaluationRunFlags().model_dump(  # type: ignore
-                        mode="json",
-                        exclude_none=True,
-                    )
+                if not run_dbe.flags:
+                    run_dbe.flags = EvaluationRunFlags().model_dump(mode="json")
 
-                # run_dbe.flags["is_closed"] = True  # type: ignore
-                flag_modified(run_dbe, "flags")
+                run_dbe.flags["is_closed"] = True
 
-                run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
-                run_dbe.updated_by_id = user_id  # type: ignore
+                run_dbe.updated_at = now
+                run_dbe.updated_by_id = user_id
 
             await session.commit()
 
-            _runs = [
+            runs = [
                 create_dto_from_dbe(
                     DTO=EvaluationRun,
                     dbe=run_dbe,
@@ -612,107 +633,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 for run_dbe in run_dbes
             ]
 
-            return _runs
-
-    @suppress_exceptions()
-    async def open_run(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        run_id: UUID,
-    ) -> Optional[EvaluationRun]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationRunDBE).filter(
-                EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
-                EvaluationRunDBE.id == run_id,
-            )
-
-            stmt = stmt.limit(1)
-
-            res = await session.execute(stmt)
-
-            run_dbe = res.scalars().first()
-
-            if run_dbe is None:
-                return None
-
-            if run_dbe.flags is None:
-                run_dbe.flags = EvaluationRunFlags().model_dump(  # type: ignore
-                    mode="json",
-                    exclude_none=True,
-                )
-
-            run_dbe.flags["is_closed"] = False  # type: ignore
-            flag_modified(run_dbe, "flags")
-
-            run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
-            run_dbe.updated_by_id = user_id  # type: ignore
-
-            await session.commit()
-
-            _run = create_dto_from_dbe(
-                DTO=EvaluationRun,
-                dbe=run_dbe,
-            )
-
-            return _run
-
-    @suppress_exceptions(default=[])
-    async def open_runs(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        run_ids: List[UUID],
-    ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationRunDBE).filter(
-                EvaluationRunDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationRunDBE).filter(
-                EvaluationRunDBE.id.in_(run_ids),
-            )
-
-            stmt = stmt.limit(len(run_ids))
-
-            res = await session.execute(stmt)
-
-            run_dbes = res.scalars().all()
-
-            if not run_dbes:
-                return []
-
-            for run_dbe in run_dbes:
-                if run_dbe.flags is None:
-                    run_dbe.flags = EvaluationRunFlags().model_dump(  # type: ignore
-                        mode="json",
-                        exclude_none=True,
-                    )
-
-                run_dbe.flags["is_closed"] = False  # type: ignore
-                flag_modified(run_dbe, "flags")
-
-                run_dbe.updated_at = datetime.now(timezone.utc)  # type: ignore
-                run_dbe.updated_by_id = user_id  # type: ignore
-
-            await session.commit()
-
-            _runs = [
-                create_dto_from_dbe(
-                    DTO=EvaluationRun,
-                    dbe=run_dbe,
-                )
-                for run_dbe in run_dbes
-            ]
-
-            return _runs
+            return runs
 
     @suppress_exceptions(default=[])
     async def query_runs(
@@ -720,93 +641,75 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         *,
         project_id: UUID,
         #
-        run: Optional[EvaluationRunQuery] = None,
+        run: EvaluationRunQuery,
+        #
+        include_archived: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationRun]:
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
             )
 
-            if run is not None:
-                if run.ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.id.in_(run.ids),
-                    )
-
-                if run.references is not None:
-                    run_references: List[dict] = list()
-
-                    for _references in run.references:
-                        for key, ref in _references.items():
-                            # _key = getattr(ref, "id", None) or key
-                            run_references.append(
-                                ref.model_dump(
-                                    mode="json",
-                                    exclude_none=True,
-                                )
-                                # | {"key": str(key)}
-                            )
-
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.references.contains(run_references),
-                    )
-
-                if run.flags is not None:
-                    run_flags = run.flags.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    )
-
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.flags.contains(run_flags),
-                    )
-
-                if run.tags is not None:
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.tags.contains(run.tags),
-                    )
-
-                if run.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.meta.contains(run.meta),
-                    )
-
-                if run.status is not None:
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.status == run.status,
-                    )
-
-                if run.statuses is not None:
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.status.in_(run.statuses),
-                    )
-
-                if run.name is not None:
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.name.ilike(f"%{run.name}%"),
-                    )
-
-                if run.description is not None:
-                    stmt = stmt.filter(
-                        EvaluationRunDBE.description.ilike(f"%{run.description}%"),
-                    )
-
-            if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=EvaluationRunDBE,
-                    attribute="id",  # UUID7
-                    order="descending",  # jobs-style
-                    windowing=windowing,
+            if run.flags is not None:
+                stmt = stmt.filter(
+                    EvaluationRunDBE.flags.contains(
+                        run.flags.model_dump(mode="json"),
+                    ),
                 )
 
-            res = await session.execute(stmt)
+            if run.tags is not None:
+                stmt = stmt.filter(
+                    EvaluationRunDBE.tags.contains(run.tags),
+                )
 
-            run_dbes = res.scalars().all()
+            if run.meta is not None:
+                stmt = stmt.filter(
+                    EvaluationRunDBE.meta.contains(run.meta),
+                )
 
-            _runs = [
+            if run.status is not None:
+                stmt = stmt.filter(
+                    EvaluationRunDBE.status == run.status,
+                )
+
+            if run.statuses is not None:
+                stmt = stmt.filter(
+                    EvaluationRunDBE.status.in_(run.statuses),
+                )
+
+            if include_archived is not True:
+                stmt = stmt.filter(
+                    EvaluationRunDBE.deleted_at.is_(None),
+                )
+
+            stmt.order_by(EvaluationRunDBE.created_at.desc())
+
+            if windowing is not None:
+                if windowing.next is not None:
+                    stmt = stmt.filter(
+                        EvaluationRunDBE.id > windowing.next,
+                    )
+
+                if windowing.start is not None:
+                    stmt = stmt.filter(
+                        EvaluationRunDBE.created_at > windowing.start,
+                    )
+
+                if windowing.stop is not None:
+                    stmt = stmt.filter(
+                        EvaluationRunDBE.created_at <= windowing.stop,
+                    )
+
+                if windowing.limit is not None:
+                    stmt = stmt.limit(windowing.limit)
+
+            result = await connection.execute(stmt)
+
+            run_dbes = result.scalars().all()
+
+            runs = [
                 create_dto_from_dbe(
                     DTO=EvaluationRun,
                     dbe=run_dbe,
@@ -814,58 +717,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 for run_dbe in run_dbes
             ]
 
-            return _runs
-
-    @suppress_exceptions(default=[])
-    async def fetch_live_runs(
-        self,
-        *,
-        windowing: Optional[Windowing] = None,
-    ) -> List[Tuple[UUID, EvaluationRun]]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationRunDBE)
-
-            stmt = stmt.filter(
-                not_(EvaluationRunDBE.flags.contains({"is_closed": True})),
-            )
-
-            stmt = stmt.filter(
-                EvaluationRunDBE.flags.contains({"is_live": True}),
-            )
-
-            stmt = stmt.filter(
-                EvaluationRunDBE.flags.contains({"is_active": True}),
-            )
-
-            stmt = stmt.filter(
-                EvaluationRunDBE.status == "running",
-            )
-
-            if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=EvaluationRunDBE,
-                    attribute="id",  # UUID7
-                    order="descending",  # jobs-style
-                    windowing=windowing,
-                )
-
-            res = await session.execute(stmt)
-
-            run_dbes = res.scalars().all()
-
-            _runs = [
-                (
-                    UUID(str(run_dbe.project_id)),
-                    create_dto_from_dbe(
-                        DTO=EvaluationRun,
-                        dbe=run_dbe,
-                    ),
-                )
-                for run_dbe in run_dbes
-            ]
-
-            return _runs
+            return runs
 
     # - EVALUATION SCENARIO ----------------------------------------------------
 
@@ -888,19 +740,17 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 run_id=scenario.run_id,
             )
 
-        _scenario = EvaluationScenario(
-            **scenario.model_dump(
-                mode="json",
-                exclude_none=True,
-            ),
-            created_at=datetime.now(timezone.utc),
+        now = datetime.now(timezone.utc)
+        scenario = EvaluationScenario(
+            **scenario.model_dump(),
+            created_at=now,
             created_by_id=user_id,
         )
 
         scenario_dbe = create_dbe_from_dto(
             DBE=EvaluationScenarioDBE,
             project_id=project_id,
-            dto=_scenario,
+            dto=scenario,
         )
 
         try:
@@ -909,12 +759,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 await session.commit()
 
-                _scenario = create_dto_from_dbe(
+                scenario = create_dto_from_dbe(
                     DTO=EvaluationScenario,
                     dbe=scenario_dbe,
                 )
 
-                return _scenario
+                return scenario
 
         except Exception as e:
             check_entity_creation_conflict(e)
@@ -941,13 +791,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=scenario.run_id,
                 )
 
-        _scenarios = [
+        now = datetime.now(timezone.utc)
+        scenarios = [
             EvaluationScenario(
-                **scenario.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                ),
-                created_at=datetime.now(timezone.utc),
+                **scenario.model_dump(),
+                created_at=now,
                 created_by_id=user_id,
             )
             for scenario in scenarios
@@ -957,9 +805,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             create_dbe_from_dto(
                 DBE=EvaluationScenarioDBE,
                 project_id=project_id,
-                dto=_scenario,
+                dto=scenario,
             )
-            for _scenario in _scenarios
+            for scenario in scenarios
         ]
 
         try:
@@ -968,7 +816,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 await session.commit()
 
-                _scenarios = [
+                scenarios = [
                     create_dto_from_dbe(
                         DTO=EvaluationScenario,
                         dbe=scenario_dbe,
@@ -976,7 +824,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     for scenario_dbe in scenario_dbes
                 ]
 
-                return _scenarios
+                return scenarios
 
         except Exception as e:
             check_entity_creation_conflict(e)
@@ -991,30 +839,27 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_id: UUID,
     ) -> Optional[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.id == scenario_id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await connection.execute(stmt=stmt, prepare=True)
 
-            scenario_dbe = res.scalars().first()
+            scenario_dbe = result.scalars().first()
 
             if scenario_dbe is None:
                 return None
 
-            _scenario = create_dto_from_dbe(
+            scenario = create_dto_from_dbe(
                 DTO=EvaluationScenario,
                 dbe=scenario_dbe,
             )
 
-            return _scenario
+            return scenario
 
     @suppress_exceptions(default=[])
     async def fetch_scenarios(
@@ -1024,22 +869,19 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         scenario_ids: List[UUID],
     ) -> List[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.id.in_(scenario_ids),
             )
 
             stmt = stmt.limit(len(scenario_ids))
 
-            res = await session.execute(stmt)
+            result = await connection.execute(stmt=stmt, prepare=True)
 
-            scenario_dbes = res.scalars().all()
+            scenario_dbes = result.scalars().all()
 
-            _scenarios = [
+            scenarios = [
                 create_dto_from_dbe(
                     DTO=EvaluationScenario,
                     dbe=scenario_dbe,
@@ -1047,7 +889,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 for scenario_dbe in scenario_dbes
             ]
 
-            return _scenarios
+            return scenarios
 
     @suppress_exceptions()
     async def edit_scenario(
@@ -1061,17 +903,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.id == scenario.id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            scenario_dbe = res.scalars().first()
+            scenario_dbe = result.scalars().first()
 
             if scenario_dbe is None:
                 return None
@@ -1079,13 +918,13 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             run_flags = await _get_run_flags(
                 session=session,
                 project_id=project_id,
-                run_id=scenario_dbe.run_id,  # type: ignore
+                run_id=scenario_dbe.run_id,
             )
 
             if run_flags.get("is_closed", False):
                 raise EvaluationClosedConflict(
-                    run_id=scenario_dbe.run_id,  # type: ignore
-                    scenario_id=scenario_dbe.id,  # type: ignore
+                    run_id=scenario_dbe.run_id,
+                    scenario_id=scenario_dbe.id,
                 )
 
             scenario_dbe = edit_dbe_from_dto(
@@ -1097,12 +936,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             await session.commit()
 
-            _scenario = create_dto_from_dbe(
+            scenario = create_dto_from_dbe(
                 DTO=EvaluationScenario,
                 dbe=scenario_dbe,
             )
 
-            return _scenario
+            return scenario
 
     @suppress_exceptions(default=[])
     async def edit_scenarios(
@@ -1118,17 +957,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.id.in_(scenario_ids),
             )
 
             stmt = stmt.limit(len(scenario_ids))
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            scenario_dbes = res.scalars().all()
+            scenario_dbes = result.scalars().all()
 
             if not scenario_dbes:
                 return []
@@ -1137,13 +973,13 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 run_flags = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=scenario_dbe.run_id,  # type: ignore
+                    run_id=scenario_dbe.run_id,
                 )
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
-                        run_id=scenario_dbe.run_id,  # type: ignore
-                        scenario_id=scenario_dbe.id,  # type: ignore
+                        run_id=scenario_dbe.run_id,
+                        scenario_id=scenario_dbe.id,
                     )
 
                 scenario = next(
@@ -1161,7 +997,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             await session.commit()
 
-            _scenarios = [
+            scenarios = [
                 create_dto_from_dbe(
                     DTO=EvaluationScenario,
                     dbe=scenario_dbe,
@@ -1169,7 +1005,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 for scenario_dbe in scenario_dbes
             ]
 
-            return _scenarios
+            return scenarios
 
     @suppress_exceptions()
     async def delete_scenario(
@@ -1182,31 +1018,28 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.id == scenario_id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            scenario_dbe = res.scalars().first()
+            scenario_dbe = result.scalars().first()
 
-            if not scenario_dbe:
+            if scenario_dbe is None:
                 return None
 
             run_flags = await _get_run_flags(
                 session=session,
                 project_id=project_id,
-                run_id=scenario_dbe.run_id,  # type: ignore
+                run_id=scenario_dbe.run_id,
             )
 
             if run_flags.get("is_closed", False):
                 raise EvaluationClosedConflict(
-                    run_id=scenario_dbe.run_id,  # type: ignore
-                    scenario_id=scenario_dbe.id,  # type: ignore
+                    run_id=scenario_dbe.run_id,
+                    scenario_id=scenario_dbe.id,
                 )
 
             await session.delete(scenario_dbe)
@@ -1226,17 +1059,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         async with engine.core_session() as session:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.id.in_(scenario_ids),
             )
 
             stmt = stmt.limit(len(scenario_ids))
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            scenario_dbes = res.scalars().all()
+            scenario_dbes = result.scalars().all()
 
             if not scenario_dbes:
                 return []
@@ -1245,20 +1075,20 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 run_flags = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=scenario_dbe.run_id,  # type: ignore
+                    run_id=scenario_dbe.run_id,
                 )
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
-                        run_id=scenario_dbe.run_id,  # type: ignore
-                        scenario_id=scenario_dbe.id,  # type: ignore
+                        run_id=scenario_dbe.run_id,
+                        scenario_id=scenario_dbe.id,
                     )
 
                 await session.delete(scenario_dbe)
 
             await session.commit()
 
-            scenario_ids = [scenario_dbe.id for scenario_dbe in scenario_dbes]  # type: ignore
+            scenario_ids = [scenario_dbe.id for scenario_dbe in scenario_dbes]
 
             return scenario_ids
 
@@ -1268,90 +1098,78 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         *,
         project_id: UUID,
         #
-        scenario: Optional[EvaluationScenarioQuery] = None,
+        scenario: EvaluationScenarioQuery,
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationScenario]:
-        async with engine.core_session() as session:
+        async with engine.core_connection() as connection:
             stmt = select(EvaluationScenarioDBE).filter(
                 EvaluationScenarioDBE.project_id == project_id,
             )
 
-            if scenario is not None:
-                if scenario.ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.id.in_(scenario.ids),
-                    )
-
-                if scenario.run_id is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.run_id == scenario.run_id,
-                    )
-
-                if scenario.run_ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.run_id.in_(scenario.run_ids),
-                    )
-
-                if scenario.timestamp is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.timestamp == scenario.timestamp,
-                    )
-
-                if scenario.timestamps is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.timestamp.in_(scenario.timestamps),
-                    )
-
-                if scenario.interval is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.interval == scenario.interval,
-                    )
-
-                if scenario.intervals is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.interval.in_(scenario.intervals),
-                    )
-
-                if scenario.flags is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.flags.contains(scenario.flags),
-                    )
-
-                if scenario.tags is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.tags.contains(scenario.tags),
-                    )
-
-                if scenario.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.meta.contains(scenario.meta),
-                    )
-
-                if scenario.status is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.status == scenario.status,
-                    )
-
-                if scenario.statuses is not None:
-                    stmt = stmt.filter(
-                        EvaluationScenarioDBE.status.in_(scenario.statuses),
-                    )
-
-            if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=EvaluationScenarioDBE,
-                    attribute="id",  # UUID7
-                    order="ascending",  # data-style
-                    windowing=windowing,
+            if scenario.run_id is not None:
+                stmt = stmt.filter(
+                    EvaluationScenarioDBE.run_id == scenario.run_id,
                 )
 
-            res = await session.execute(stmt)
+            if scenario.run_ids is not None:
+                stmt = stmt.filter(
+                    EvaluationScenarioDBE.run_id.in_(scenario.run_ids),
+                )
 
-            scenario_dbes = res.scalars().all()
+            # if scenario.flags is not None:
+            #     stmt = stmt.filter(
+            #         EvaluationScenarioDBE.flags.contains(
+            #             scenario.flags.model_dump(mode="json"),
+            #         ),
+            #     )
 
-            _scenarios = [
+            if scenario.tags is not None:
+                stmt = stmt.filter(
+                    EvaluationScenarioDBE.tags.contains(scenario.tags),
+                )
+
+            if scenario.meta is not None:
+                stmt = stmt.filter(
+                    EvaluationScenarioDBE.meta.contains(scenario.meta),
+                )
+
+            if scenario.status is not None:
+                stmt = stmt.filter(
+                    EvaluationScenarioDBE.status == scenario.status,
+                )
+
+            if scenario.statuses is not None:
+                stmt = stmt.filter(
+                    EvaluationScenarioDBE.status.in_(scenario.statuses),
+                )
+
+            stmt.order_by(EvaluationScenarioDBE.created_at.desc())
+
+            if windowing is not None:
+                if windowing.next is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.id > windowing.next,
+                    )
+
+                if windowing.start is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.created_at > windowing.start,
+                    )
+
+                if windowing.stop is not None:
+                    stmt = stmt.filter(
+                        EvaluationScenarioDBE.created_at <= windowing.stop,
+                    )
+
+                if windowing.limit is not None:
+                    stmt = stmt.limit(windowing.limit)
+
+            result = await connection.execute(stmt)
+
+            scenario_dbes = result.scalars().all()
+
+            scenarios = [
                 create_dto_from_dbe(
                     DTO=EvaluationScenario,
                     dbe=scenario_dbe,
@@ -1359,56 +1177,58 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 for scenario_dbe in scenario_dbes
             ]
 
-            return _scenarios
+            return scenarios
 
-    # - EVALUATION RESULT ------------------------------------------------------
+    # - EVALUATION STEP --------------------------------------------------------
 
     @suppress_exceptions(exclude=[EntityCreationConflict])
-    async def create_result(
+    async def create_step(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        result: EvaluationResultCreate,
-    ) -> Optional[EvaluationResult]:
+        step: EvaluationStepCreate,
+    ) -> Optional[EvaluationStep]:
         run_flags = await _get_run_flags(
             project_id=project_id,
-            run_id=result.run_id,
+            run_id=step.run_id,
         )
 
         if run_flags.get("is_closed", False):
             raise EvaluationClosedConflict(
-                run_id=result.run_id,
+                run_id=step.run_id,
             )
 
-        _result = EvaluationResult(
-            **result.model_dump(
-                mode="json",
-                exclude_none=True,
-            ),
-            created_at=datetime.now(timezone.utc),
+        step.repeat_id = step.repeat_id or uuid4()
+        step.scenario_id = step.scenario_id or uuid4()
+
+        now = datetime.now(timezone.utc)
+        step = EvaluationStep(
+            **step.model_dump(),
+            created_at=now,
             created_by_id=user_id,
+            timestamp=now,
         )
 
-        result_dbe = create_dbe_from_dto(
-            DBE=EvaluationResultDBE,
+        step_dbe = create_dbe_from_dto(
+            DBE=EvaluationStepDBE,
             project_id=project_id,
-            dto=_result,
+            dto=step,
         )
 
         try:
             async with engine.core_session() as session:
-                session.add(result_dbe)
+                session.add(step_dbe)
 
                 await session.commit()
 
-                _result = create_dto_from_dbe(
-                    DTO=EvaluationResult,
-                    dbe=result_dbe,
+                step = create_dto_from_dbe(
+                    DTO=EvaluationStep,
+                    dbe=step_dbe,
                 )
 
-                return _result
+                return step
 
         except Exception as e:
             check_entity_creation_conflict(e)
@@ -1416,472 +1236,516 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             raise
 
     @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
-    async def create_results(
+    async def create_steps(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        results: List[EvaluationResultCreate],
-    ) -> List[EvaluationResult]:
-        for result in results:
+        steps: List[EvaluationStepCreate],
+    ) -> List[EvaluationStep]:
+        for step in steps:
             run_flags = await _get_run_flags(
                 project_id=project_id,
-                run_id=result.run_id,
+                run_id=step.run_id,
             )
 
             if run_flags.get("is_closed", False):
                 raise EvaluationClosedConflict(
-                    run_id=result.run_id,
+                    run_id=step.run_id,
                 )
+
+            step.repeat_id = step.repeat_id or uuid4()
+            step.retry_id = step.retry_id or uuid4()
 
         async with engine.core_session() as session:
-            _results = [
-                EvaluationResult(
-                    **result.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    ),
-                    created_at=datetime.now(timezone.utc),
+            now = datetime.now(timezone.utc)
+            steps = [
+                EvaluationStep(
+                    **step.model_dump(),
+                    created_at=now,
                     created_by_id=user_id,
+                    timestamp=now,
                 )
-                for result in results
+                for step in steps
             ]
 
-            result_dbes = [
+            step_dbes = [
                 create_dbe_from_dto(
-                    DBE=EvaluationResultDBE,
+                    DBE=EvaluationStepDBE,
                     project_id=project_id,
-                    dto=_result,
+                    dto=step,
                 )
-                for _result in _results
+                for step in steps
             ]
 
-            session.add_all(result_dbes)
+            session.add_all(step_dbes)
 
             await session.commit()
 
-            _results = [
+            steps = [
                 create_dto_from_dbe(
-                    DTO=EvaluationResult,
-                    dbe=result_dbe,
+                    DTO=EvaluationStep,
+                    dbe=step_dbe,
                 )
-                for result_dbe in result_dbes
+                for step_dbe in step_dbes
             ]
 
-            return _results
+            return steps
 
     @suppress_exceptions()
-    async def fetch_result(
+    async def fetch_step(
         self,
         *,
         project_id: UUID,
         #
-        result_id: UUID,
-    ) -> Optional[EvaluationResult]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.id == result_id,
+        step_id: UUID,
+    ) -> Optional[EvaluationStep]:
+        async with engine.core_connection() as connection:
+            stmt = select(EvaluationStepDBE).filter(
+                EvaluationStepDBE.project_id == project_id,
+                EvaluationStepDBE.id == step_id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await connection.execute(stmt=stmt, prepare=True)
 
-            result_dbe = res.scalars().first()
+            step_dbe = result.scalars().first()
 
-            if result_dbe is None:
+            if step_dbe is None:
                 return None
 
-            _result = create_dto_from_dbe(
-                DTO=EvaluationResult,
-                dbe=result_dbe,
+            step = create_dto_from_dbe(
+                DTO=EvaluationStep,
+                dbe=step_dbe,
             )
 
-            return _result
+            return step
 
     @suppress_exceptions(default=[])
-    async def fetch_results(
+    async def fetch_steps(
         self,
         *,
         project_id: UUID,
         #
-        result_ids: List[UUID],
-    ) -> List[EvaluationResult]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.project_id == project_id,
+        step_ids: List[UUID],
+    ) -> List[EvaluationStep]:
+        async with engine.core_connection() as connection:
+            stmt = select(EvaluationStepDBE).filter(
+                EvaluationStepDBE.project_id == project_id,
+                EvaluationStepDBE.id.in_(step_ids),
             )
 
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.id.in_(result_ids),
-            )
+            stmt = stmt.limit(len(step_ids))
 
-            stmt = stmt.limit(len(result_ids))
+            result = await connection.execute(stmt=stmt, prepare=True)
 
-            res = await session.execute(stmt)
+            step_dbes = result.scalars().all()
 
-            result_dbes = res.scalars().all()
-
-            _results = [
+            steps = [
                 create_dto_from_dbe(
-                    DTO=EvaluationResult,
-                    dbe=result_dbe,
+                    DTO=EvaluationStep,
+                    dbe=step_dbe,
                 )
-                for result_dbe in result_dbes
+                for step_dbe in step_dbes
             ]
 
-            return _results
+            return steps
 
     @suppress_exceptions()
-    async def edit_result(
+    async def edit_step(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        result: EvaluationResultEdit,
-    ) -> Optional[EvaluationResult]:
+        step: EvaluationStepEdit,
+    ) -> Optional[EvaluationStep]:
         async with engine.core_session() as session:
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.id == result.id,
+            stmt = select(EvaluationStepDBE).filter(
+                EvaluationStepDBE.project_id == project_id,
+                EvaluationStepDBE.id == step.id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            result_dbe = res.scalars().first()
+            step_dbe = result.scalars().first()
 
-            if result_dbe is None:
+            if step_dbe is None:
                 return None
 
             run_flags = await _get_run_flags(
                 session=session,
                 project_id=project_id,
-                run_id=result_dbe.run_id,  # type: ignore
+                run_id=step_dbe.run_id,
             )
 
             if run_flags.get("is_closed", False):
                 raise EvaluationClosedConflict(
-                    run_id=result_dbe.run_id,  # type: ignore
-                    scenario_id=result_dbe.scenario_id,  # type: ignore
-                    result_id=result_dbe.id,  # type: ignore
+                    run_id=step_dbe.run_id,
+                    scenario_id=step_dbe.scenario_id,
+                    step_id=step_dbe.id,
                 )
 
-            result_dbe = edit_dbe_from_dto(
-                dbe=result_dbe,
-                dto=result,
+            step_dbe = edit_dbe_from_dto(
+                dbe=step_dbe,
+                dto=step,
+                timestamp=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
                 updated_by_id=user_id,
             )
 
             await session.commit()
 
-            _result = create_dto_from_dbe(
-                DTO=EvaluationResult,
-                dbe=result_dbe,
+            step = create_dto_from_dbe(
+                DTO=EvaluationStep,
+                dbe=step_dbe,
             )
 
-            return _result
+            return step
 
     @suppress_exceptions(default=[])
-    async def edit_results(
+    async def edit_steps(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
         #
-        results: List[EvaluationResultEdit],
-    ) -> List[EvaluationResult]:
-        result_ids = [result.id for result in results]
+        steps: List[EvaluationStepEdit],
+    ) -> List[EvaluationStep]:
+        step_ids = [step.id for step in steps]
 
         async with engine.core_session() as session:
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.project_id == project_id,
+            stmt = select(EvaluationStepDBE).filter(
+                EvaluationStepDBE.project_id == project_id,
+                EvaluationStepDBE.id.in_(step_ids),
             )
 
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.id.in_(result_ids),
-            )
+            stmt = stmt.limit(len(step_ids))
 
-            stmt = stmt.limit(len(result_ids))
+            result = await session.execute(stmt)
 
-            res = await session.execute(stmt)
+            step_dbes = result.scalars().all()
 
-            result_dbes = res.scalars().all()
-
-            if not result_dbes:
+            if not step_dbes:
                 return []
 
-            for result_dbe in result_dbes:
+            for step_dbe in step_dbes:
                 run_flags = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=result_dbe.run_id,  # type: ignore
+                    run_id=step_dbe.run_id,
                 )
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
-                        run_id=result_dbe.run_id,  # type: ignore
-                        scenario_id=result_dbe.scenario_id,  # type: ignore
-                        result_id=result_dbe.id,  # type: ignore
+                        run_id=step_dbe.run_id,
+                        scenario_id=step_dbe.scenario_id,
+                        step_id=step_dbe.id,
                     )
 
-                result = next(
-                    (s for s in results if s.id == result_dbe.id),
+                step = next(
+                    (s for s in steps if s.id == step_dbe.id),
                     None,
                 )
 
-                if result is not None:
-                    result_dbe = edit_dbe_from_dto(
-                        dbe=result_dbe,
-                        dto=result,
+                if step is not None:
+                    step_dbe = edit_dbe_from_dto(
+                        dbe=step_dbe,
+                        dto=step,
+                        timestamp=datetime.now(timezone.utc),
                         updated_at=datetime.now(timezone.utc),
                         updated_by_id=user_id,
                     )
 
             await session.commit()
 
-            _results = [
+            steps = [
                 create_dto_from_dbe(
-                    DTO=EvaluationResult,
-                    dbe=result_dbe,
+                    DTO=EvaluationStep,
+                    dbe=step_dbe,
                 )
-                for result_dbe in result_dbes
+                for step_dbe in step_dbes
             ]
 
-            return _results
+            return steps
 
     @suppress_exceptions()
-    async def delete_result(
+    async def delete_step(
         self,
         *,
         project_id: UUID,
         #
-        result_id: UUID,
+        step_id: UUID,
     ) -> Optional[UUID]:
         async with engine.core_session() as session:
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.id == result_id,
+            stmt = select(EvaluationStepDBE).filter(
+                EvaluationStepDBE.project_id == project_id,
+                EvaluationStepDBE.id == step_id,
             )
 
             stmt = stmt.limit(1)
 
-            res = await session.execute(stmt)
+            result = await session.execute(stmt)
 
-            result_dbe = res.scalars().first()
+            step_dbe = result.scalars().first()
 
-            if result_dbe is None:
+            if step_dbe is None:
                 return None
 
             run_flags = await _get_run_flags(
                 session=session,
                 project_id=project_id,
-                run_id=result_dbe.run_id,  # type: ignore
+                run_id=step_dbe.run_id,
             )
 
             if run_flags.get("is_closed", False):
                 raise EvaluationClosedConflict(
-                    run_id=result_dbe.run_id,  # type: ignore
-                    scenario_id=result_dbe.scenario_id,  # type: ignore
-                    result_id=result_dbe.id,  # type: ignore
+                    run_id=step_dbe.run_id,
+                    scenario_id=step_dbe.scenario_id,
+                    step_id=step_dbe.id,
                 )
 
-            await session.delete(result_dbe)
+            await session.delete(step_dbe)
 
             await session.commit()
 
-            return result_id
+            return step_id
 
     @suppress_exceptions(default=[])
-    async def delete_results(
+    async def delete_steps(
         self,
         *,
         project_id: UUID,
         #
-        result_ids: List[UUID],
+        step_ids: List[UUID],
     ) -> List[UUID]:
         async with engine.core_session() as session:
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.project_id == project_id,
+            stmt = select(EvaluationStepDBE).filter(
+                EvaluationStepDBE.project_id == project_id,
+                EvaluationStepDBE.id.in_(step_ids),
             )
 
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.id.in_(result_ids),
-            )
+            stmt = stmt.limit(len(step_ids))
 
-            stmt = stmt.limit(len(result_ids))
+            result = await session.execute(stmt)
 
-            res = await session.execute(stmt)
+            step_dbes = result.scalars().all()
 
-            result_dbes = res.scalars().all()
-
-            if not result_dbes:
+            if not step_dbes:
                 return []
 
-            for result_dbe in result_dbes:
+            for step_dbe in step_dbes:
                 run_flags = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=result_dbe.run_id,  # type: ignore
+                    run_id=step_dbe.run_id,
                 )
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
-                        run_id=result_dbe.run_id,  # type: ignore
-                        scenario_id=result_dbe.scenario_id,  # type: ignore
-                        result_id=result_dbe.id,  # type: ignore
+                        run_id=step_dbe.run_id,
+                        scenario_id=step_dbe.scenario_id,
+                        step_id=step_dbe.id,
                     )
 
-                await session.delete(result_dbe)
+                await session.delete(step_dbe)
 
             await session.commit()
 
-            return result_ids
+            return step_ids
 
     @suppress_exceptions(default=[])
-    async def query_results(
+    async def query_steps(
         self,
         *,
         project_id: UUID,
         #
-        result: Optional[EvaluationResultQuery] = None,
+        step: EvaluationStepQuery,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[EvaluationResult]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationResultDBE).filter(
-                EvaluationResultDBE.project_id == project_id,
+    ) -> List[EvaluationStep]:
+        async with engine.core_connection() as connection:
+            stmt = select(EvaluationStepDBE).filter(
+                EvaluationStepDBE.project_id == project_id,
             )
 
-            if result is not None:
-                if result.ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.id.in_(result.ids),
-                    )
-
-                if result.run_id is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.run_id == result.run_id,
-                    )
-
-                if result.run_ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.run_id.in_(result.run_ids),
-                    )
-
-                if result.scenario_id is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.scenario_id == result.scenario_id,
-                    )
-
-                if result.scenario_ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.scenario_id.in_(result.scenario_ids),
-                    )
-
-                if result.step_key is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.step_key == result.step_key,
-                    )
-
-                if result.step_keys is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.step_key.in_(result.step_keys),
-                    )
-
-                if result.repeat_idx is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.repeat_idx == result.repeat_idx,
-                    )
-
-                if result.repeat_idxs is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.repeat_idx.in_(result.repeat_idxs),
-                    )
-
-                if result.timestamp is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.timestamp == result.timestamp,
-                    )
-
-                if result.timestamps is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.timestamp.in_(result.timestamps),
-                    )
-
-                if result.interval is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.interval == result.interval,
-                    )
-
-                if result.intervals is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.interval.in_(result.intervals),
-                    )
-
-                if result.flags is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.flags.contains(result.flags),
-                    )
-
-                if result.tags is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.tags.contains(result.tags),
-                    )
-
-                if result.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.meta.contains(result.meta),
-                    )
-
-                if result.status is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.status == result.status,
-                    )
-
-                if result.statuses is not None:
-                    stmt = stmt.filter(
-                        EvaluationResultDBE.status.in_(result.statuses),
-                    )
-
-            if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=EvaluationResultDBE,
-                    attribute="id",  # UUID7
-                    order="ascending",  # data-style
-                    windowing=windowing,
+            if step.ids is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.id.in_(step.ids),
                 )
 
-            res = await session.execute(stmt)
+            if step.run_id is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.run_id == step.run_id,
+                )
 
-            result_dbes = res.scalars().all()
+            if step.run_ids is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.run_id.in_(step.run_ids),
+                )
 
-            results = [
+            if step.scenario_id is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.scenario_id == step.scenario_id,
+                )
+
+            if step.scenario_ids is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.scenario_id.in_(step.scenario_ids),
+                )
+
+            # if step.flags is not None:
+            #     stmt = stmt.filter(
+            #         EvaluationStepDBE.flags.contains(
+            #             step.flags.model_dump(mode="json"),
+            #         ),
+            #     )
+
+            if step.tags is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.tags.contains(step.tags),
+                )
+
+            if step.meta is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.meta.contains(step.meta),
+                )
+
+            if step.key is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.key == step.key,
+                )
+
+            if step.keys is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.key.in_(step.keys),
+                )
+
+            if step.repeat_id is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.repeat_id == step.repeat_id,
+                )
+
+            if step.repeat_ids is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.repeat_id.in_(step.repeat_ids),
+                )
+
+            if step.retry_id is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.retry_id == step.retry_id,
+                )
+
+            if step.retry_ids is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.retry_id.in_(step.retry_ids),
+                )
+
+            if step.status is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.status == step.status,
+                )
+
+            if step.statuses is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.status.in_(step.statuses),
+                )
+
+            if step.timestamp is not None:
+                stmt = stmt.filter(
+                    EvaluationStepDBE.timestamp > step.timestamp,
+                )
+
+            stmt.order_by(EvaluationStepDBE.created_at.desc())
+
+            if windowing is not None:
+                if windowing.next is not None:
+                    stmt = stmt.filter(
+                        EvaluationStepDBE.id > windowing.next,
+                    )
+
+                if windowing.start is not None:
+                    stmt = stmt.filter(
+                        EvaluationStepDBE.created_at > windowing.start,
+                    )
+
+                if windowing.stop is not None:
+                    stmt = stmt.filter(
+                        EvaluationStepDBE.created_at <= windowing.stop,
+                    )
+
+                if windowing.limit is not None:
+                    stmt = stmt.limit(windowing.limit)
+
+            result = await connection.execute(stmt)
+
+            step_dbes = result.scalars().all()
+
+            steps = [
                 create_dto_from_dbe(
-                    DTO=EvaluationResult,
-                    dbe=result_dbe,
+                    DTO=EvaluationStep,
+                    dbe=step_dbe,
                 )
-                for result_dbe in result_dbes
+                for step_dbe in step_dbes
             ]
 
-            return results
+            return steps
 
-    # - EVALUATION METRICS -----------------------------------------------------
+    # - EVALUATION METRIC -----------------------------------------------------
+
+    @suppress_exceptions(exclude=[EntityCreationConflict])
+    async def create_metric(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        metric: EvaluationMetricCreate,
+    ) -> Optional[EvaluationMetric]:
+        run_flags = await _get_run_flags(
+            project_id=project_id,
+            run_id=metric.run_id,
+        )
+
+        if run_flags.get("is_closed", False):
+            raise EvaluationClosedConflict(
+                run_id=metric.run_id,
+            )
+
+        now = datetime.now(timezone.utc)
+        metric = EvaluationMetric(
+            **metric.model_dump(),
+            created_at=now,
+            created_by_id=user_id,
+        )
+
+        metric_dbe = create_dbe_from_dto(
+            DBE=EvaluationMetricDBE,
+            project_id=project_id,
+            dto=metric,
+        )
+
+        try:
+            async with engine.core_session() as session:
+                session.add(metric_dbe)
+
+                await session.commit()
+
+                metric = create_dto_from_dbe(
+                    DTO=EvaluationMetric,
+                    dbe=metric_dbe,
+                )
+
+                return metric
+
+        except Exception as e:
+            check_entity_creation_conflict(e)
+
+            raise
 
     @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
     async def create_metrics(
@@ -1890,8 +1754,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         project_id: UUID,
         user_id: UUID,
         #
-        metrics: List[EvaluationMetricsCreate],
-    ) -> List[EvaluationMetrics]:
+        metrics: List[EvaluationMetricCreate],
+    ) -> List[EvaluationMetric]:
         for metric in metrics:
             run_flags = await _get_run_flags(
                 project_id=project_id,
@@ -1903,13 +1767,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=metric.run_id,
                 )
 
-        _metrics = [
-            EvaluationMetrics(
-                **metric.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                ),
-                created_at=datetime.now(timezone.utc),
+        now = datetime.now(timezone.utc)
+        metrics = [
+            EvaluationMetric(
+                **metric.model_dump(),
+                created_at=now,
                 created_by_id=user_id,
             )
             for metric in metrics
@@ -1917,11 +1779,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
         metric_dbes = [
             create_dbe_from_dto(
-                DBE=EvaluationMetricsDBE,
+                DBE=EvaluationMetricDBE,
                 project_id=project_id,
-                dto=_metric,
+                dto=metric,
             )
-            for _metric in _metrics
+            for metric in metrics
         ]
 
         try:
@@ -1930,20 +1792,50 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 await session.commit()
 
-                _metrics = [
+                metrics = [
                     create_dto_from_dbe(
-                        DTO=EvaluationMetrics,
+                        DTO=EvaluationMetric,
                         dbe=metric_dbe,
                     )
                     for metric_dbe in metric_dbes
                 ]
 
-                return _metrics
+                return metrics
 
         except Exception as e:
             check_entity_creation_conflict(e)
 
             raise
+
+    @suppress_exceptions()
+    async def fetch_metric(
+        self,
+        *,
+        project_id: UUID,
+        #
+        metric_id: UUID,
+    ) -> Optional[EvaluationMetric]:
+        async with engine.core_connection() as connection:
+            stmt = select(EvaluationMetricDBE).filter(
+                EvaluationMetricDBE.project_id == project_id,
+                EvaluationMetricDBE.id == metric_id,
+            )
+
+            stmt = stmt.limit(1)
+
+            result = await connection.execute(stmt=stmt, prepare=True)
+
+            metric_dbe = result.scalars().first()
+
+            if metric_dbe is None:
+                return None
+
+            metric = create_dto_from_dbe(
+                DTO=EvaluationMetric,
+                dbe=metric_dbe,
+            )
+
+            return metric
 
     @suppress_exceptions(default=[])
     async def fetch_metrics(
@@ -1951,32 +1843,82 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         *,
         project_id: UUID,
         #
-        metrics_ids: List[UUID],
-    ) -> List[EvaluationMetrics]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationMetricsDBE).filter(
-                EvaluationMetricsDBE.project_id == project_id,
+        metric_ids: List[UUID],
+    ) -> List[EvaluationMetric]:
+        async with engine.core_connection() as connection:
+            stmt = select(EvaluationMetricDBE).filter(
+                EvaluationMetricDBE.project_id == project_id,
+                EvaluationMetricDBE.id.in_(metric_ids),
             )
 
-            stmt = select(EvaluationMetricsDBE).filter(
-                EvaluationMetricsDBE.id.in_(metrics_ids),
-            )
+            stmt = stmt.limit(len(metric_ids))
 
-            stmt = stmt.limit(len(metrics_ids))
+            result = await connection.execute(stmt=stmt, prepare=True)
 
-            res = await session.execute(stmt)
+            metric_dbes = result.scalars().all()
 
-            metric_dbes = res.scalars().all()
-
-            _metrics = [
+            metrics = [
                 create_dto_from_dbe(
-                    DTO=EvaluationMetrics,
+                    DTO=EvaluationMetric,
                     dbe=metric_dbe,
                 )
                 for metric_dbe in metric_dbes
             ]
 
-            return _metrics
+            return metrics
+
+    @suppress_exceptions()
+    async def edit_metric(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        metric: EvaluationMetricEdit,
+    ) -> Optional[EvaluationMetric]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationMetricDBE).filter(
+                EvaluationMetricDBE.project_id == project_id,
+                EvaluationMetricDBE.id == metric.id,
+            )
+
+            stmt = stmt.limit(1)
+
+            result = await session.execute(stmt)
+
+            metric_dbe = result.scalars().first()
+
+            if metric_dbe is None:
+                return None
+
+            run_flags = await _get_run_flags(
+                session=session,
+                project_id=project_id,
+                run_id=metric_dbe.run_id,
+            )
+
+            if run_flags.get("is_closed", False):
+                raise EvaluationClosedConflict(
+                    run_id=metric_dbe.run_id,
+                    scenario_id=metric_dbe.scenario_id,
+                    metric_id=metric_dbe.id,
+                )
+
+            metric_dbe = edit_dbe_from_dto(
+                dbe=metric_dbe,
+                dto=metric,
+                updated_at=datetime.now(timezone.utc),
+                updated_by_id=user_id,
+            )
+
+            await session.commit()
+
+            metric = create_dto_from_dbe(
+                DTO=EvaluationMetric,
+                dbe=metric_dbe,
+            )
+
+            return metric
 
     @suppress_exceptions(default=[])
     async def edit_metrics(
@@ -1985,24 +1927,21 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         project_id: UUID,
         user_id: UUID,
         #
-        metrics: List[EvaluationMetricsEdit],
-    ) -> List[EvaluationMetrics]:
-        metrics_ids = [metric.id for metric in metrics]
+        metrics: List[EvaluationMetricEdit],
+    ) -> List[EvaluationMetric]:
+        metric_ids = [metric.id for metric in metrics]
 
         async with engine.core_session() as session:
-            stmt = select(EvaluationMetricsDBE).filter(
-                EvaluationMetricsDBE.project_id == project_id,
+            stmt = select(EvaluationMetricDBE).filter(
+                EvaluationMetricDBE.project_id == project_id,
+                EvaluationMetricDBE.id.in_(metric_ids),
             )
 
-            stmt = select(EvaluationMetricsDBE).filter(
-                EvaluationMetricsDBE.id.in_(metrics_ids),
-            )
+            stmt = stmt.limit(len(metric_ids))
 
-            stmt = stmt.limit(len(metrics_ids))
+            result = await session.execute(stmt)
 
-            res = await session.execute(stmt)
-
-            metric_dbes = res.scalars().all()
+            metric_dbes = result.scalars().all()
 
             if not metric_dbes:
                 return []
@@ -2011,14 +1950,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 run_flags = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=metric_dbe.run_id,  # type: ignore
+                    run_id=metric_dbe.run_id,
                 )
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
-                        run_id=metric_dbe.run_id,  # type: ignore
-                        scenario_id=metric_dbe.scenario_id,  # type: ignore
-                        metrics_id=metric_dbe.id,  # type: ignore
+                        run_id=metric_dbe.run_id,
+                        scenario_id=metric_dbe.scenario_id,
+                        metric_id=metric_dbe.id,
                     )
 
                 metric = next(
@@ -2036,15 +1975,57 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             await session.commit()
 
-            _metrics = [
+            metrics = [
                 create_dto_from_dbe(
-                    DTO=EvaluationMetrics,
+                    DTO=EvaluationMetric,
                     dbe=metric_dbe,
                 )
                 for metric_dbe in metric_dbes
             ]
 
-            return _metrics
+            return metrics
+
+    @suppress_exceptions()
+    async def delete_metric(
+        self,
+        *,
+        project_id: UUID,
+        #
+        metric_id: UUID,
+    ) -> Optional[UUID]:
+        async with engine.core_session() as session:
+            stmt = select(EvaluationMetricDBE).filter(
+                EvaluationMetricDBE.project_id == project_id,
+                EvaluationMetricDBE.id == metric_id,
+            )
+
+            stmt = stmt.limit(1)
+
+            result = await session.execute(stmt)
+
+            metric_dbe = result.scalars().first()
+
+            if metric_dbe is None:
+                return None
+
+            run_flags = await _get_run_flags(
+                session=session,
+                project_id=project_id,
+                run_id=metric_dbe.run_id,
+            )
+
+            if run_flags.get("is_closed", False):
+                raise EvaluationClosedConflict(
+                    run_id=metric_dbe.run_id,
+                    scenario_id=metric_dbe.scenario_id,
+                    metric_id=metric_dbe.id,
+                )
+
+            await session.delete(metric_dbe)
+
+            await session.commit()
+
+            return metric_id
 
     @suppress_exceptions(default=[])
     async def delete_metrics(
@@ -2052,25 +2033,22 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         *,
         project_id: UUID,
         #
-        metrics_ids: Optional[List[UUID]] = None,
+        metric_ids: Optional[List[UUID]] = None,
     ) -> List[UUID]:
         async with engine.core_session() as session:
-            if metrics_ids is None:
+            if metric_ids is None:
                 return []
 
-            stmt = select(EvaluationMetricsDBE).filter(
-                EvaluationMetricsDBE.project_id == project_id,
+            stmt = select(EvaluationMetricDBE).filter(
+                EvaluationMetricDBE.project_id == project_id,
+                EvaluationMetricDBE.id.in_(metric_ids),
             )
 
-            stmt = select(EvaluationMetricsDBE).filter(
-                EvaluationMetricsDBE.id.in_(metrics_ids),
-            )
+            stmt = stmt.limit(len(metric_ids))
 
-            stmt = stmt.limit(len(metrics_ids))
+            result = await session.execute(stmt)
 
-            res = await session.execute(stmt)
-
-            metric_dbes = res.scalars().all()
+            metric_dbes = result.scalars().all()
 
             if not metric_dbes:
                 return []
@@ -2079,21 +2057,21 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 run_flags = await _get_run_flags(
                     session=session,
                     project_id=project_id,
-                    run_id=metric_dbe.run_id,  # type: ignore
+                    run_id=metric_dbe.run_id,
                 )
 
                 if run_flags.get("is_closed", False):
                     raise EvaluationClosedConflict(
-                        run_id=metric_dbe.run_id,  # type: ignore
-                        scenario_id=metric_dbe.scenario_id,  # type: ignore
-                        metrics_id=metric_dbe.id,  # type: ignore
+                        run_id=metric_dbe.run_id,
+                        scenario_id=metric_dbe.scenario_id,
+                        metric_id=metric_dbe.id,
                     )
 
                 await session.delete(metric_dbe)
 
             await session.commit()
 
-            return metrics_ids
+            return metric_ids
 
     @suppress_exceptions(default=[])
     async def query_metrics(
@@ -2101,567 +2079,96 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         *,
         project_id: UUID,
         #
-        metric: Optional[EvaluationMetricsQuery] = None,
+        metric: EvaluationMetricQuery,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[EvaluationMetrics]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationMetricsDBE).filter(
-                EvaluationMetricsDBE.project_id == project_id,
+    ) -> List[EvaluationMetric]:
+        async with engine.core_connection() as connection:
+            stmt = select(EvaluationMetricDBE).filter(
+                EvaluationMetricDBE.project_id == project_id,
             )
 
-            if metric is not None:
-                if metric.ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.id.in_(metric.ids),
-                    )
-
-                if metric.run_id is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.run_id == metric.run_id,
-                    )
-
-                if metric.run_ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.run_id.in_(metric.run_ids),
-                    )
-
-                if metric.scenario_id is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.scenario_id == metric.scenario_id,
-                    )
-
-                if metric.scenario_ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.scenario_id.in_(metric.scenario_ids),
-                    )
-
-                if metric.timestamp is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.timestamp == metric.timestamp,
-                    )
-
-                if metric.timestamps is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.timestamp.in_(metric.timestamps),
-                    )
-
-                if metric.interval is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.interval == metric.interval,
-                    )
-
-                if metric.intervals is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.interval.in_(metric.intervals),
-                    )
-
-                if metric.flags is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.flags.contains(metric.flags),
-                    )
-
-                if metric.tags is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.tags.contains(metric.tags),
-                    )
-
-                if metric.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.meta.contains(metric.meta),
-                    )
-
-                if metric.status is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.status == metric.status,
-                    )
-
-                if metric.statuses is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.status.in_(metric.statuses),
-                    )
-
-            if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=EvaluationMetricsDBE,
-                    attribute="id",  # UUID7
-                    order="descending",  # jobs-style
-                    windowing=windowing,
+            if metric.run_id is not None:
+                stmt = stmt.filter(
+                    EvaluationMetricDBE.run_id == metric.run_id,
                 )
 
-            res = await session.execute(stmt)
+            if metric.run_ids is not None:
+                stmt = stmt.filter(
+                    EvaluationMetricDBE.run_id.in_(metric.run_ids),
+                )
 
-            metric_dbes = res.scalars().all()
+            if metric.scenario_id is not None:
+                stmt = stmt.filter(
+                    EvaluationMetricDBE.scenario_id == metric.scenario_id,
+                )
+
+            if metric.scenario_ids is not None:
+                stmt = stmt.filter(
+                    EvaluationMetricDBE.scenario_id.in_(metric.scenario_ids),
+                )
+
+            # if metric.flags is not None:
+            #     stmt = stmt.filter(
+            #         EvaluationMetricDBE.flags.contains(
+            #             metric.flags.model_dump(mode="json"),
+            #         ),
+            #     )
+
+            if metric.tags is not None:
+                stmt = stmt.filter(
+                    EvaluationMetricDBE.tags.contains(metric.tags),
+                )
+
+            if metric.meta is not None:
+                stmt = stmt.filter(
+                    EvaluationMetricDBE.meta.contains(metric.meta),
+                )
+
+            if metric.status is not None:
+                stmt = stmt.filter(
+                    EvaluationMetricDBE.status == metric.status,
+                )
+
+            if metric.statuses is not None:
+                stmt = stmt.filter(
+                    EvaluationMetricDBE.status.in_(metric.statuses),
+                )
+
+            stmt.order_by(EvaluationMetricDBE.created_at.desc())
+
+            if windowing is not None:
+                if windowing.next is not None:
+                    stmt = stmt.filter(
+                        EvaluationMetricDBE.id > windowing.next,
+                    )
+
+                if windowing.start is not None:
+                    stmt = stmt.filter(
+                        EvaluationMetricDBE.created_at > windowing.start,
+                    )
+
+                if windowing.stop is not None:
+                    stmt = stmt.filter(
+                        EvaluationMetricDBE.created_at <= windowing.stop,
+                    )
+
+                if windowing.limit is not None:
+                    stmt = stmt.limit(windowing.limit)
+
+            result = await connection.execute(stmt)
+
+            metric_dbes = result.scalars().all()
 
             metrics = [
                 create_dto_from_dbe(
-                    DTO=EvaluationMetrics,
+                    DTO=EvaluationMetric,
                     dbe=metric_dbe,
                 )
                 for metric_dbe in metric_dbes
             ]
 
             return metrics
-
-    # - EVALUATION QUEUE -------------------------------------------------------
-
-    @suppress_exceptions(exclude=[EntityCreationConflict])
-    async def create_queue(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        queue: EvaluationQueueCreate,
-    ) -> Optional[EvaluationQueue]:
-        run_flags = await _get_run_flags(
-            project_id=project_id,
-            run_id=queue.run_id,
-        )
-
-        if run_flags.get("is_closed", False):
-            raise EvaluationClosedConflict(
-                run_id=queue.run_id,
-            )
-
-        _queue = EvaluationQueue(
-            **queue.model_dump(
-                mode="json",
-                exclude_none=True,
-            ),
-            created_at=datetime.now(timezone.utc),
-            created_by_id=user_id,
-        )
-
-        if _queue.data and _queue.data.user_ids:
-            _queue.data.user_ids = [  # type: ignore
-                [str(repeat_user_id) for repeat_user_id in repeat_user_ids]
-                for repeat_user_ids in _queue.data.user_ids
-            ]
-
-        queue_dbe = create_dbe_from_dto(
-            DBE=EvaluationQueueDBE,
-            project_id=project_id,
-            dto=queue,
-        )
-
-        try:
-            async with engine.core_session() as session:
-                session.add(queue_dbe)
-
-                await session.commit()
-
-                _queue = create_dto_from_dbe(
-                    DTO=EvaluationQueue,
-                    dbe=queue_dbe,
-                )
-
-                return _queue
-
-        except Exception as e:
-            check_entity_creation_conflict(e)
-
-            raise
-
-    @suppress_exceptions(default=[], exclude=[EntityCreationConflict])
-    async def create_queues(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        queues: List[EvaluationQueueCreate],
-    ) -> List[EvaluationQueue]:
-        for queue in queues:
-            run_flags = await _get_run_flags(
-                project_id=project_id,
-                run_id=queue.run_id,
-            )
-
-            if run_flags.get("is_closed", False):
-                raise EvaluationClosedConflict(
-                    run_id=queue.run_id,
-                )
-
-        _queues = [
-            EvaluationQueue(
-                **queue.model_dump(
-                    mode="json",
-                    exclude_none=True,
-                ),
-                created_at=datetime.now(timezone.utc),
-                created_by_id=user_id,
-            )
-            for queue in queues
-        ]
-
-        for _queue in _queues:
-            if _queue.data and _queue.data.user_ids:
-                _queue.data.user_ids = [  # type: ignore
-                    [str(repeat_user_id) for repeat_user_id in repeat_user_ids]
-                    for repeat_user_ids in _queue.data.user_ids
-                ]
-
-        queue_dbes = [
-            create_dbe_from_dto(
-                DBE=EvaluationQueueDBE,
-                project_id=project_id,
-                dto=queue,
-            )
-            for queue in queues
-        ]
-
-        try:
-            async with engine.core_session() as session:
-                session.add_all(queue_dbes)
-
-                await session.commit()
-
-                _queues = [
-                    create_dto_from_dbe(
-                        DTO=EvaluationQueue,
-                        dbe=queue_dbe,
-                    )
-                    for queue_dbe in queue_dbes
-                ]
-
-                return _queues
-
-        except Exception as e:
-            check_entity_creation_conflict(e)
-
-            raise
-
-    @suppress_exceptions()
-    async def fetch_queue(
-        self,
-        *,
-        project_id: UUID,
-        #
-        queue_id: UUID,
-    ) -> Optional[EvaluationQueue]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.id == queue_id,
-            )
-
-            stmt = stmt.limit(1)
-
-            res = await session.execute(stmt)
-
-            queue_dbe = res.scalars().first()
-
-            if queue_dbe is None:
-                return None
-
-            _queue = create_dto_from_dbe(
-                DTO=EvaluationQueue,
-                dbe=queue_dbe,
-            )
-
-            return _queue
-
-    @suppress_exceptions(default=[])
-    async def fetch_queues(
-        self,
-        *,
-        project_id: UUID,
-        #
-        queue_ids: List[UUID],
-    ) -> List[EvaluationQueue]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.id.in_(queue_ids),
-            )
-
-            stmt = stmt.limit(len(queue_ids))
-
-            res = await session.execute(stmt)
-
-            queue_dbes = res.scalars().all()
-
-            _queues = [
-                create_dto_from_dbe(
-                    DTO=EvaluationQueue,
-                    dbe=queue_dbe,
-                )
-                for queue_dbe in queue_dbes
-            ]
-
-            return _queues
-
-    @suppress_exceptions()
-    async def edit_queue(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        queue: EvaluationQueueEdit,
-    ) -> Optional[EvaluationQueue]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.id == queue.id,
-            )
-
-            stmt = stmt.limit(1)
-
-            res = await session.execute(stmt)
-
-            queue_dbe = res.scalars().first()
-
-            if queue_dbe is None:
-                return None
-
-            run_flags = await _get_run_flags(
-                session=session,
-                project_id=project_id,
-                run_id=queue_dbe.run_id,  # type: ignore
-            )
-
-            if run_flags.get("is_closed", False):
-                raise EvaluationClosedConflict(
-                    run_id=queue_dbe.run_id,
-                    queue_id=queue_dbe.id,  # type: ignore
-                )
-
-            queue_dbe = edit_dbe_from_dto(
-                dbe=queue_dbe,
-                dto=queue,
-                updated_at=datetime.now(timezone.utc),
-                updated_by_id=user_id,
-            )
-
-            await session.commit()
-
-            _queue = create_dto_from_dbe(
-                DTO=EvaluationQueue,
-                dbe=queue_dbe,
-            )
-
-            return _queue
-
-    @suppress_exceptions(default=[])
-    async def edit_queues(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        queues: List[EvaluationQueueEdit],
-    ) -> List[EvaluationQueue]:
-        queue_ids = [queue.id for queue in queues]
-
-        async with engine.core_session() as session:
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.id.in_(queue_ids),
-            )
-
-            stmt = stmt.limit(len(queue_ids))
-
-            res = await session.execute(stmt)
-
-            queue_dbes = res.scalars().all()
-
-            if not queue_dbes:
-                return []
-
-            for queue_dbe in queue_dbes:
-                run_flags = await _get_run_flags(
-                    session=session,
-                    project_id=project_id,
-                    run_id=queue_dbe.run_id,  # type: ignore
-                )
-
-                if run_flags.get("is_closed", False):
-                    raise EvaluationClosedConflict(
-                        run_id=queue_dbe.run_id,
-                        queue_id=queue_dbe.id,  # type: ignore
-                    )
-
-                queue = next(
-                    (q for q in queues if q.id == queue_dbe.id),
-                    None,
-                )
-
-                if queue is not None:
-                    queue_dbe = edit_dbe_from_dto(
-                        dbe=queue_dbe,
-                        dto=queue,
-                        updated_at=datetime.now(timezone.utc),
-                        updated_by_id=user_id,
-                    )
-
-            await session.commit()
-
-            _queues = [
-                create_dto_from_dbe(
-                    DTO=EvaluationQueue,
-                    dbe=queue_dbe,
-                )
-                for queue_dbe in queue_dbes
-            ]
-
-            return _queues
-
-    @suppress_exceptions()
-    async def delete_queue(
-        self,
-        *,
-        project_id: UUID,
-        #
-        queue_id: UUID,
-    ) -> Optional[UUID]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.id == queue_id,
-            )
-
-            stmt = stmt.limit(1)
-
-            res = await session.execute(stmt)
-
-            queue_dbe = res.scalars().first()
-
-            if queue_dbe is None:
-                return None
-
-            await session.delete(queue_dbe)
-
-            await session.commit()
-
-            return queue_id
-
-    @suppress_exceptions(default=[])
-    async def delete_queues(
-        self,
-        *,
-        project_id: UUID,
-        #
-        queue_ids: List[UUID],
-    ) -> List[UUID]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.project_id == project_id,
-            )
-
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.id.in_(queue_ids),
-            )
-
-            stmt = stmt.limit(len(queue_ids))
-
-            res = await session.execute(stmt)
-
-            queue_dbes = res.scalars().all()
-
-            if not queue_dbes:
-                return []
-
-            for queue_dbe in queue_dbes:
-                await session.delete(queue_dbe)
-
-            await session.commit()
-
-            return queue_ids
-
-    @suppress_exceptions(default=[])
-    async def query_queues(
-        self,
-        *,
-        project_id: UUID,
-        #
-        queue: Optional[EvaluationQueueQuery] = None,
-        #
-        windowing: Optional[Windowing] = None,
-    ) -> List[EvaluationQueue]:
-        async with engine.core_session() as session:
-            stmt = select(EvaluationQueueDBE).filter(
-                EvaluationQueueDBE.project_id == project_id,
-            )
-
-            if queue is not None:
-                if queue.ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.id.in_(queue.ids),
-                    )
-
-                if queue.run_id is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.run_id == queue.run_id,
-                    )
-
-                if queue.run_ids is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.run_id.in_(queue.run_ids),
-                    )
-
-                if queue.flags is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.flags.contains(queue.flags),
-                    )
-
-                if queue.tags is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.tags.contains(queue.tags),
-                    )
-
-                if queue.meta is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.meta.contains(queue.meta),
-                    )
-
-                if queue.name is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.name.contains(queue.name),
-                    )
-
-                if queue.description is not None:
-                    stmt = stmt.filter(
-                        EvaluationQueueDBE.description.contains(queue.description),
-                    )
-
-            if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=EvaluationQueueDBE,
-                    attribute="id",  # UUID7
-                    order="descending",  # jobs-style
-                    windowing=windowing,
-                )
-
-            res = await session.execute(stmt)
-
-            queue_dbes = res.scalars().all()
-
-            queues = [
-                create_dto_from_dbe(
-                    DTO=EvaluationQueue,
-                    dbe=queue_dbe,
-                )
-                for queue_dbe in queue_dbes
-            ]
-
-            return queues
 
     # --------------------------------------------------------------------------
 
@@ -2682,13 +2189,9 @@ async def _get_run_flags(
 
     stmt = select(EvaluationRunDBE.flags).filter(
         EvaluationRunDBE.project_id == project_id,
-    )
-    stmt = select(EvaluationRunDBE.flags).filter(
         EvaluationRunDBE.id == run_id,
     )
-
-    res = await session.execute(stmt)
-
-    run_flags = res.scalars().first()
+    result = await session.execute(stmt)
+    run_flags = result.scalars().first()
 
     return run_flags or {}

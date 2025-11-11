@@ -1,14 +1,25 @@
 // @ts-nocheck
-import {useState, useEffect, useCallback, useMemo, useRef} from "react"
+import {useState, useEffect, useCallback, useMemo} from "react"
 
-import SecondaryButton from "@agenta/oss/src/components/SecondaryButton/SecondaryButton"
-import {Button, Card, Col, Input, Radio, Row, Space, Statistic, Table, message} from "antd"
+import {
+    Button,
+    Card,
+    Col,
+    Input,
+    Radio,
+    Row,
+    Space,
+    Statistic,
+    Table,
+    Typography,
+    message,
+} from "antd"
 import type {ColumnType} from "antd/es/table"
-import {getDefaultStore, useAtomValue} from "jotai"
 import debounce from "lodash/debounce"
 import {useRouter} from "next/router"
 
-import {useQueryParamState} from "@/oss/state/appState"
+import {useAppsData} from "@/oss/contexts/app.context"
+import {useQueryParam} from "@/oss/hooks/useQuery"
 import {EvaluationFlow} from "@/oss/lib/enums"
 import {exportABTestingEvaluationData} from "@/oss/lib/helpers/evaluate"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
@@ -20,34 +31,25 @@ import {
     getStringOrJson,
 } from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
-import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
-import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
+import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import type {BaseResponse, EvaluationScenario, KeyValuePair, Variant} from "@/oss/lib/Types"
 import {callVariant} from "@/oss/services/api"
 import {updateEvaluationScenario, updateEvaluation} from "@/oss/services/human-evaluations/api"
 import {useEvaluationResults} from "@/oss/services/human-evaluations/hooks/useEvaluationResults"
-import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {
-    stablePromptVariablesAtomFamily,
-    transformedPromptsAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
-import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {appUriInfoAtom, appSchemaAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import EvaluationCardView from "../Evaluations/EvaluationCardView"
 import {VARIANT_COLORS} from "../Evaluations/EvaluationCardView/assets/styles"
 import EvaluationVotePanel from "../Evaluations/EvaluationCardView/EvaluationVotePanel"
 import VariantAlphabet from "../Evaluations/EvaluationCardView/VariantAlphabet"
+import SecondaryButton from "../SecondaryButton/SecondaryButton"
 
 import {useABTestingEvaluationTableStyles} from "./assets/styles"
 import ParamsFormWithRun from "./components/ParamsFormWithRun"
 import type {ABTestingEvaluationTableProps, ABTestingEvaluationTableRow} from "./types"
 
-// Note: Avoid Typography.Title to prevent EllipsisMeasure/ResizeObserver loops
+const {Title} = Typography
 
 /**
  *
@@ -64,15 +66,19 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
     const classes = useABTestingEvaluationTableStyles()
     const router = useRouter()
     const appId = router.query.app_id as string
-    const uriObject = useAtomValue(appUriInfoAtom)
-    const store = getDefaultStore()
     const evalVariants = [...evaluation.variants]
+    const {currentApp} = useAppsData()
 
-    const {variants: data, isLoading: isVariantsLoading} = useStatelessVariants()
+    const {data, isLoading: isVariantsLoading} = useVariants(currentApp)(
+        {
+            appId: appId,
+        },
+        evalVariants,
+    )
 
-    // // Select the correct variant revisions for this evaluation
+    // Select the correct variant revisions for this evaluation
     const variantData = useMemo(() => {
-        const allVariantData = data || []
+        const allVariantData = data?.variants || []
         if (!allVariantData.length) return []
 
         return evaluation.variants.map((evVariant, idx) => {
@@ -98,26 +104,11 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
 
             return selected || evVariant
         })
-    }, [data, evaluation.variants, evaluation.variant_revision_ids, evaluation.revisions])
+    }, [data?.variants, evaluation.variants, evaluation.variant_revision_ids, evaluation.revisions])
 
     const [rows, setRows] = useState<ABTestingEvaluationTableRow[]>([])
     const [, setEvaluationStatus] = useState<EvaluationFlow>(evaluation.status)
-    const [viewModeParam, setViewModeParam] = useQueryParamState("viewMode")
-    const viewMode = useMemo(() => {
-        if (Array.isArray(viewModeParam)) {
-            return viewModeParam[0] ?? "card"
-        }
-        if (typeof viewModeParam === "string" && viewModeParam) {
-            return viewModeParam
-        }
-        return "card"
-    }, [viewModeParam])
-    const setViewMode = useCallback(
-        (nextMode: string) => {
-            setViewModeParam(nextMode, {method: "replace", shallow: true})
-        },
-        [setViewModeParam],
-    )
+    const [viewMode, setViewMode] = useQueryParam("viewMode", "card")
     const {data: evaluationResults, mutate} = useEvaluationResults({
         evaluationId: evaluation.id,
         onSuccess: () => {
@@ -148,81 +139,27 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
         debounce((data: Partial<EvaluationScenario>, scenarioId) => {
             updateEvaluationScenarioData(scenarioId, data)
         }, 800),
-        [],
+        [evaluationScenarios],
     )
 
     useEffect(() => {
         if (evaluationScenarios) {
-            setRows(() => {
+            setRows((prevRows) => {
                 const obj = [...evaluationScenarios]
-                const spec = store.get(appSchemaAtom) as any
-                const routePath = uriObject?.routePath
-
-                obj.forEach((item, rowIndex) => {
-                    // Map outputs into row shape for table columns
-                    item.outputs.forEach((op) => (item[op.variant_id] = op.variant_output))
-
-                    try {
-                        // Build a stable input name set from variants (schema for custom, stable prompts otherwise)
-                        const names = new Set<string>()
-                        ;(variantData || []).forEach((v: any) => {
-                            const rid = v?.id
-                            if (!rid) return
-                            const flags = store.get(
-                                variantFlagsAtomFamily({revisionId: rid}),
-                            ) as any
-                            if (flags?.isCustom && spec) {
-                                extractInputKeysFromSchema(spec as any, routePath).forEach((k) =>
-                                    names.add(k),
-                                )
-                            } else {
-                                const vars = store.get(
-                                    stablePromptVariablesAtomFamily(rid),
-                                ) as string[]
-                                ;(vars || []).forEach((k) => names.add(k))
-                            }
-                        })
-
-                        const chatCol = evaluation?.testset?.testsetChatColumn || ""
-                        const reserved = new Set(["correct_answer", chatCol])
-                        const testRow = evaluation?.testset?.csvdata?.[rowIndex] || {}
-
-                        const existing = new Set(
-                            (Array.isArray(item.inputs) ? item.inputs : [])
-                                .map((ip: any) => ip?.input_name)
-                                .filter(Boolean),
-                        )
-
-                        const nextInputs = Array.isArray(item.inputs) ? [...item.inputs] : []
-                        Array.from(names)
-                            .filter((k) => typeof k === "string" && k && !reserved.has(k))
-                            .forEach((k) => {
-                                if (!existing.has(k)) {
-                                    nextInputs.push({
-                                        input_name: k,
-                                        input_value: (testRow as any)?.[k] ?? "",
-                                    })
-                                }
-                            })
-                        item.inputs = nextInputs
-                    } catch {
-                        // best-effort prepopulation only
-                    }
-                })
-
+                obj.forEach((item) =>
+                    item.outputs.forEach((op) => (item[op.variant_id] = op.variant_output)),
+                )
                 return obj
             })
         }
-    }, [evaluationScenarios, variantData, uriObject?.routePath, evaluation?.testset?.csvdata])
+    }, [evaluationScenarios])
 
     const handleInputChange = useCallback(
         (e: React.ChangeEvent<HTMLTextAreaElement>, id: string, inputIndex: number) => {
             setRows((oldRows) => {
                 const rowIndex = oldRows.findIndex((row) => row.id === id)
-                const newRows = [...oldRows]
-                if (newRows[rowIndex] && newRows[rowIndex].inputs?.[inputIndex]) {
-                    newRows[rowIndex].inputs[inputIndex].input_value = e.target.value
-                }
+                const newRows = [...rows]
+                newRows[rowIndex].inputs[inputIndex].input_value = e.target.value
                 return newRows
             })
         },
@@ -240,26 +177,6 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
         [],
     )
 
-    // Upsert a single input value into a row by scenario id
-    const upsertRowInput = useCallback((rowId: string, name: string, value: any) => {
-        setRows((old) => {
-            const idx = old.findIndex((r) => r.id === rowId)
-            if (idx === -1) return old
-            const next = [...old]
-            const row = {...next[idx]}
-            const inputs = Array.isArray(row.inputs) ? [...row.inputs] : []
-            const pos = inputs.findIndex((ip) => ip.input_name === name)
-            if (pos === -1) {
-                inputs.push({input_name: name, input_value: value})
-            } else if (inputs[pos]?.input_value !== value) {
-                inputs[pos] = {...inputs[pos], input_value: value}
-            }
-            row.inputs = inputs
-            next[idx] = row as any
-            return next
-        })
-    }, [])
-
     const updateEvaluationScenarioData = useCallback(
         async (id: string, data: Partial<EvaluationScenario>, showNotification = true) => {
             await updateEvaluationScenario(
@@ -275,22 +192,18 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 evaluation.evaluationType,
             )
                 .then(() => {
-                    setRows((prev) => {
-                        const next = [...prev]
-                        const idx = next.findIndex((r) => r.id === id)
-                        if (idx >= 0) {
-                            Object.keys(data).forEach((key) => {
-                                // @ts-ignore
-                                next[idx][key] = data[key as keyof EvaluationScenario] as any
-                            })
-                        }
-                        return next
+                    Object.keys(data).forEach((key) => {
+                        setRowValue(
+                            evaluationScenarios.findIndex((item) => item.id === id),
+                            key,
+                            data[key as keyof EvaluationScenario],
+                        )
                     })
                     if (showNotification) message.success("Evaluation Updated!")
                 })
                 .catch(console.error)
         },
-        [evaluation.evaluationType, evaluation.id],
+        [evaluation.evaluationType, evaluation.id, evaluationScenarios, setRowValue],
     )
 
     const handleVoteClick = useCallback(
@@ -315,28 +228,17 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
         [rows, setRowValue, updateEvaluationScenarioData, evalVariants],
     )
 
-    // Keep stable refs to callback handlers to avoid re-creating table columns
-    // Initialize with no-ops to avoid TDZ when functions are declared below
-    const runEvaluationRef = useRef<
-        (id: string, count?: number, showNotification?: boolean) => void
-    >(() => {})
-    const handleInputChangeRef = useRef<
-        (e: React.ChangeEvent<HTMLTextAreaElement>, id: string, inputIndex: number) => void
-    >(() => {})
-    const handleVoteClickRef = useRef<(id: string, vote: string) => void>(() => {})
-    // // Note: assign .current values after handlers are defined (see below)
-
     const runEvaluation = useCallback(
         async (id: string, count = 1, showNotification = true) => {
             const _variantData = variantData
             const rowIndex = rows.findIndex((row) => row.id === id)
-            const testRow = evaluation?.testset?.csvdata?.[rowIndex] || {}
-
-            // Derive request schema once
-            const spec = store.get(appSchemaAtom) as any
-            const routePath = uriObject?.routePath
-            const requestSchema: any = spec ? getRequestSchema(spec as any, {routePath}) : undefined
-            const hasMessagesProp = Boolean(requestSchema?.properties?.messages)
+            const inputParamsDict = rows[rowIndex].inputs.reduce(
+                (acc: Record<string, any>, item) => {
+                    acc[item.input_name] = item.input_value
+                    return acc
+                },
+                {},
+            )
 
             const outputs = rows[rowIndex].outputs.reduce(
                 (acc, op) => ({...acc, [op.variant_id]: op.variant_output}),
@@ -347,152 +249,29 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 evalVariants.map(async (variant: Variant, idx: number) => {
                     setRowValue(rowIndex, variant.variantId, "loading...")
 
-                    const isChatTestset = !!evaluation?.testset?.testsetChatColumn
-
-                    const rawMessages = isChatTestset
-                        ? testsetRowToChatMessages(evaluation.testset.csvdata[rowIndex], false)
-                        : []
-
-                    const sanitizedMessages = rawMessages.map((msg) => {
-                        if (!Array.isArray(msg.content)) return msg
-                        return {
-                            ...msg,
-                            content: msg.content.filter((part) => {
-                                return part.type !== "image_url" || part.image_url.url.trim() !== ""
-                            }),
-                        }
-                    })
-
                     try {
-                        // Build stable optional parameters using atom-based prompts (stable params)
-                        const revisionId = _variantData?.[idx]?.id as string | undefined
-                        const flags = revisionId
-                            ? (store.get(variantFlagsAtomFamily({revisionId})) as any)
-                            : undefined
-                        const isCustom = Boolean(flags?.isCustom)
-                        // Determine effective input keys per variant
-                        const schemaKeys = spec
-                            ? extractInputKeysFromSchema(spec as any, routePath)
-                            : []
-                        const stableFromParams: string[] = (() => {
-                            try {
-                                const params = (_variantData[idx] as any)?.parameters
-                                const ag = params?.ag_config ?? params ?? {}
-                                const s = new Set<string>()
-                                Object.values(ag || {}).forEach((cfg: any) => {
-                                    const arr = cfg?.input_keys
-                                    if (Array.isArray(arr)) {
-                                        arr.forEach((k) => {
-                                            if (typeof k === "string" && k) s.add(k)
-                                        })
-                                    }
-                                })
-                                return Array.from(s)
-                            } catch {
-                                return []
-                            }
-                        })()
-
-                        console.log("stableFromParams", stableFromParams)
-                        // Also include stable variables derived from saved prompts (handles cases where input_keys are not explicitly listed)
-                        const stableFromPrompts: string[] = revisionId
-                            ? (store.get(stablePromptVariablesAtomFamily(revisionId)) as string[])
-                            : []
-                        const effectiveKeys = isCustom
-                            ? schemaKeys
-                            : Array.from(
-                                  new Set([
-                                      ...(stableFromParams || []),
-                                      ...(stableFromPrompts || []),
-                                  ]),
-                              ).filter((k) => typeof k === "string" && k && k !== "chat")
-
-                        // Build input params strictly from effective keys using testcase (with row overrides)
-                        let inputParamsDict: Record<string, any> = {}
-                        if (Array.isArray(effectiveKeys) && effectiveKeys.length > 0) {
-                            effectiveKeys.forEach((key) => {
-                                const fromRowInput = rows[rowIndex]?.inputs?.find(
-                                    (ip) => ip.input_name === key,
-                                )?.input_value
-                                const fromTestcase = (testRow as any)?.[key]
-                                if (fromRowInput !== undefined) inputParamsDict[key] = fromRowInput
-                                else if (fromTestcase !== undefined)
-                                    inputParamsDict[key] = fromTestcase
-                            })
-                        } else {
-                            // Fallback: preserve previous behavior if keys unavailable
-                            inputParamsDict = rows[rowIndex].inputs.reduce(
-                                (acc: Record<string, any>, item) => {
-                                    acc[item.input_name] = item.input_value
-                                    return acc
-                                },
-                                {},
-                            )
-                        }
-                        // Fallback: if chat testset, hydrate from test row keys as needed
-                        if (isChatTestset) {
-                            const testRow = evaluation?.testset?.csvdata?.[rowIndex] || {}
-                            const reserved = new Set([
-                                "correct_answer",
-                                evaluation?.testset?.testsetChatColumn || "",
-                            ])
-                            Object.keys(testRow)
-                                .filter((k) => !reserved.has(k))
-                                .forEach((k) => {
-                                    if (!(k in inputParamsDict))
-                                        inputParamsDict[k] = (testRow as any)[k]
-                                })
-                        }
-
-                        const stableOptional = revisionId
-                            ? store.get(
-                                  transformedPromptsAtomFamily({
-                                      revisionId,
-                                      useStableParams: true,
-                                  }),
-                              )
-                            : undefined
-
-                        const optionalParameters =
-                            stableOptional ||
-                            (_variantData[idx]?.parameters
-                                ? transformToRequestBody({
-                                      variant: _variantData[idx],
-                                      allMetadata: getAllMetadata(),
-                                      prompts:
-                                          spec && _variantData[idx]
-                                              ? derivePromptsFromSpec(
-                                                    _variantData[idx] as any,
-                                                    spec as any,
-                                                    uriObject?.routePath,
-                                                ) || []
-                                              : [],
-                                      // Keep request shape aligned with OpenAPI schema
-                                      isChat: hasMessagesProp,
-                                      isCustom,
-                                      customProperties: undefined,
-                                  })
-                                : (_variantData[idx]?.promptOptParams as any))
-                        // For new arch, variable inputs must live under requestBody.inputs
-                        // Mark them as non-"input" so callVariant places them under "inputs"
-                        const synthesizedParamDef = Object.keys(inputParamsDict).map((name) => ({
-                            name,
-                            input: false,
-                        })) as any
-
                         const result = await callVariant(
                             inputParamsDict,
-                            synthesizedParamDef,
-                            optionalParameters,
+                            variantData[idx].inputParams!,
+                            variantData[idx].parameters
+                                ? transformToRequestBody({
+                                      variant: variantData[idx],
+                                      allMetadata: getAllMetadata(),
+                                  })
+                                : variantData[idx].promptOptParams!,
                             appId || "",
-                            _variantData[idx].baseId || "",
-                            sanitizedMessages,
+                            variantData[idx].baseId || "",
+                            variantData[idx].isChatVariant
+                                ? testsetRowToChatMessages(
+                                      evaluation.testset.csvdata[rowIndex],
+                                      false,
+                                  )
+                                : [],
                             undefined,
                             true,
-                            !!_variantData[idx]._parentVariant, // isNewVariant (new arch if parent exists)
-                            isCustom,
-                            uriObject,
-                            _variantData[idx].variantId,
+                            !!variantData[idx].parameters, // isNewVariant
+                            variantData[idx].isCustom,
+                            variantData[idx].uriObject,
                         )
 
                         let res: BaseResponse | undefined
@@ -558,13 +337,6 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
         ],
     )
 
-    // Now that handlers are declared, update stable refs
-    useEffect(() => {
-        runEvaluationRef.current = runEvaluation
-        handleInputChangeRef.current = handleInputChange
-        handleVoteClickRef.current = handleVoteClick
-    }, [runEvaluation, handleInputChange, handleVoteClick])
-
     const runAllEvaluations = useCallback(async () => {
         setEvaluationStatus(EvaluationFlow.EVALUATION_STARTED)
         batchExecute(rows.map((row) => () => runEvaluation(row.id!, rows.length - 1, false)))
@@ -602,22 +374,19 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     dataIndex: columnKey,
                     key: columnKey,
                     width: "20%",
-                    render: (text: any, record: ABTestingEvaluationTableRow) => {
-                        const value =
-                            text ||
-                            record?.[columnKey] ||
-                            record.outputs?.find((o: any) => o.variant_id === columnKey)
-                                ?.variant_output ||
-                            ""
-                        return (
-                            <div className="max-w-[350px] max-h-[350px] overflow-y-auto">
-                                {value}
-                            </div>
-                        )
+                    render: (text: any, record: ABTestingEvaluationTableRow, rowIndex: number) => {
+                        if (text) return text
+                        if (record.outputs && record.outputs.length > 0) {
+                            const outputValue = record.outputs.find(
+                                (output: any) => output.variant_id === columnKey,
+                            )?.variant_output
+                            return <div>{outputValue}</div>
+                        }
+                        return ""
                     },
                 }
             }),
-        [evalVariants, evaluation.revisions],
+        [evalVariants],
     )
 
     const columns = useMemo(() => {
@@ -627,7 +396,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 title: (
                     <div className={classes.inputTestContainer}>
                         <div>
-                            <span> Inputs (Testset: </span>
+                            <span> Inputs (Test set: </span>
                             <span className={classes.inputTest}>{evaluation.testset.name}</span>
                             <span> )</span>
                         </div>
@@ -641,8 +410,14 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                             evaluation={evaluation}
                             record={record}
                             rowIndex={rowIndex}
-                            onRun={() => runEvaluationRef.current(record.id!)}
-                            onParamChange={(name, value) => upsertRowInput(record.id!, name, value)}
+                            onRun={() => runEvaluation(record.id!)}
+                            onParamChange={(name, value) =>
+                                handleInputChange(
+                                    {target: {value}} as any,
+                                    record.id,
+                                    record?.inputs.findIndex((ip) => ip.input_name === name),
+                                )
+                            }
                             variantData={variantData}
                             isLoading={isVariantsLoading}
                         />
@@ -690,7 +465,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                                     type="comparison"
                                     value={record.vote || ""}
                                     variants={evalVariants}
-                                    onChange={(vote) => handleVoteClickRef.current(record.id, vote)}
+                                    onChange={(vote) => handleVoteClick(record.id, vote)}
                                     loading={record.vote === "loading"}
                                     vertical
                                     key={record.id}
@@ -724,18 +499,11 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                 },
             },
         ]
-    }, [
-        isVariantsLoading,
-        evaluation.testset.name,
-        classes.inputTestContainer,
-        classes.inputTest,
-        dynamicColumns,
-        evalVariants,
-    ])
+    }, [runEvaluation, isVariantsLoading, rows])
 
     return (
         <div>
-            <h2 style={{fontSize: 24, margin: 0}}>{EvaluationTypeLabels.human_a_b_testing}</h2>
+            <Title level={2}>{EvaluationTypeLabels.human_a_b_testing}</Title>
             <div>
                 <Row align="middle">
                     <Col span={12}>
@@ -759,7 +527,7 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                     </Col>
 
                     <Col span={12}>
-                        <Card variant="outlined" className={classes.card}>
+                        <Card bordered={true} className={classes.card}>
                             <Row justify="end">
                                 <Col span={10}>
                                     <Statistic

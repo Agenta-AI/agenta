@@ -95,7 +95,7 @@ const ComparisonVote: React.FC<ComparisonVoteProps> = ({
         <div className={classes.btnRow} style={{flexDirection: vertical ? "column" : undefined}}>
             {variants.map((variant, ix) => (
                 <ConfigProvider
-                    key={`${variant.variantId}-${ix}`}
+                    key={variant.variantId}
                     theme={{
                         components: {
                             Button: {
@@ -186,8 +186,8 @@ const GradingVote: React.FC<GradingVoteProps> = ({
 
     return (
         <div className={classes.gradeRoot}>
-            {variants.map((variant, ix) => (
-                <div key={`${variant.variantId}-${ix}`}>
+            {variants.map((variant) => (
+                <div key={variant.variantId}>
                     <Typography.Text className={classes.variantName} strong>
                         {variant.variantName}
                     </Typography.Text>
@@ -252,8 +252,8 @@ const NumericScoreVote: React.FC<NumericScoreVoteProps> = ({
 
     return (
         <div className={classes.gradeRoot}>
-            {variants.map((variant, ix) => (
-                <div key={`${variant.variantId}-${ix}`}>
+            {variants.map((variant) => (
+                <div key={variant.variantId}>
                     {showVariantName && (
                         <Typography.Text className={classes.variantName} strong>
                             {variant.variantName}
@@ -307,12 +307,12 @@ const RatingVote: React.FC<RatingVoteProps> = ({
 
     return (
         <div className={classes.gradeRoot}>
-            {variants.map((variant, ix) => {
+            {variants.map((variant) => {
                 const score = value.find((item) => item.variantId === variant.variantId)?.score
                 const finalValue = typeof score !== "number" ? null : score / 25 + 1
 
                 return (
-                    <div key={`${variant.variantId}-${ix}`}>
+                    <div key={variant.variantId}>
                         {showVariantName && (
                             <Typography.Text className={classes.variantName} strong>
                                 {variant.variantName}

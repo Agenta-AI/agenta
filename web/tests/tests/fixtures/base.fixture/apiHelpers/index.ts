@@ -3,14 +3,7 @@ import {expect, Page} from "@playwright/test"
 import {UseFn} from "../../types"
 import {FixtureContext} from "../types"
 
-import {
-    ApiVariant,
-    APP_TYPE,
-    ListAppsItem,
-    SnakeToCamelCaseKeys,
-    testset,
-} from "../../../../../oss/src/lib/Types"
-import {EvaluationRun} from "../../../../../oss/src/lib/hooks/usePreviewEvaluations/types"
+import {ApiVariant, APP_TYPE, ListAppsItem, testset} from "../../../../../oss/src/lib/Types"
 import type {ApiHandlerOptions, ApiHelpers} from "./types"
 
 export const waitForApiResponse = async <T>(page: Page, options: ApiHandlerOptions<T>) => {
@@ -25,28 +18,15 @@ export const waitForApiResponse = async <T>(page: Page, options: ApiHandlerOptio
     })
 
     if (validateStatus) {
-        expect(response.ok()).toBe(true)
+        expect(response.status()).toBe(200)
     }
 
-    // Safely attempt to parse JSON if available
-    let data: any = null
-    const text = await response.text()
-
-    try {
-        data = text ? JSON.parse(text) : null
-    } catch (e) {
-        // Could log or ignore if expected
-        console.warn("Response is not valid JSON:", e)
-    }
-
-    if (responseHandler && data) {
-        await responseHandler(data)
-    }
-
-    return data
+    const data = await response.json()
+    if (responseHandler) await responseHandler(data)
+    return data as T
 }
 
-export const getApp = async (page: Page, type: APP_TYPE = "completion") => {
+export const getApp = async (page: Page, type?: APP_TYPE) => {
     await page.goto("/apps")
     await page.waitForURL("/apps")
 
@@ -124,33 +104,6 @@ export const getVariants = async (page: Page, appId: string) => {
     return variants
 }
 
-export const getEvaluationRuns = async (page: Page) => {
-    const evaluationRunsResponse = await waitForApiResponse<{
-        runs: SnakeToCamelCaseKeys<EvaluationRun>[]
-        count: number
-    }>(page, {
-        route: `/api/preview/evaluations/runs/query`,
-        method: "POST",
-    })
-
-    const evaluationRuns = await evaluationRunsResponse
-
-    // Fix: Check for .runs array in the response
-    expect(Array.isArray(evaluationRuns.runs)).toBe(true)
-    expect(evaluationRuns.runs.length).toBeGreaterThan(0)
-
-    if (!evaluationRuns.runs.length) {
-        console.error("[App Fixture] No evaluation runs found")
-        throw new Error("No evaluation runs found")
-    }
-
-    console.log(
-        "[Playground E2E] Evaluation runs API response:",
-        JSON.stringify(evaluationRuns, null, 2),
-    )
-    return evaluationRuns.runs
-}
-
 export const apiHelpers = () => {
     return async ({page}: FixtureContext, use: UseFn<ApiHelpers>) => {
         await use({
@@ -165,9 +118,6 @@ export const apiHelpers = () => {
             },
             getVariants: async (appId: string) => {
                 return await getVariants(page, appId)
-            },
-            getEvaluationRuns: async () => {
-                return await getEvaluationRuns(page)
             },
         })
     }
