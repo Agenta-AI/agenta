@@ -18,7 +18,10 @@ COPY ee/package.json ./ee/yarn.lock* ./ee/package-lock.json* ./ee/pnpm-lock.yaml
 COPY oss/package.json ./oss/yarn.lock* ./oss/package-lock.json* ./oss/pnpm-lock.yaml* ./oss/.npmrc* ./oss/
 COPY ./pnpm-workspace.yaml ./turbo.json ./
 
-COPY ./entrypoint.sh /app/entrypoint.sh   
+COPY ./entrypoint.sh /app/entrypoint.sh
+
+# Copy patches directory before running pnpm i
+COPY ./patches /app/patches/
 
 RUN pnpm i
 
