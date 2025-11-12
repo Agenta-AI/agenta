@@ -478,38 +478,60 @@ const DebugSection = ({
                 messages: ChatMessage[]
             }
 
-            if (selectedVariant?.parameters) {
-                const routePath = uriObject?.routePath || ""
-                const spec = appSchema as any
-                const req = spec ? (getRequestSchema as any)(spec, {routePath}) : undefined
-                const hasInputsProp = Boolean(req?.properties?.inputs)
-                const hasMessagesProp = Boolean(req?.properties?.messages)
-                const isCustomBySchema = Boolean(spec) && !hasInputsProp && !hasMessagesProp
-                const isCustom = Boolean(flags?.isCustom) || isCustomBySchema
+            // Only use schema/uri when they belong to the same app as the selected variant
+            const selectedAppId = (selectedVariant as any)?.appId
+            const uriAppId = (uriObject as any)?.appId || (uriObject as any)?.app_id
+            const isSameAppAsUri = selectedAppId && uriAppId && selectedAppId === uriAppId
 
-                let effectiveKeys: string[] = []
-                if (isCustom) {
-                    effectiveKeys = spec ? extractInputKeysFromSchema(spec, routePath) : []
-                } else {
-                    const fromParams = (() => {
-                        try {
-                            const p = (selectedVariant as any)?.parameters
-                            const ag = p?.ag_config ?? p ?? {}
-                            const s = new Set<string>()
-                            Object.values(ag || {}).forEach((cfg: any) => {
-                                const arr = cfg?.input_keys
-                                if (Array.isArray(arr))
-                                    arr.forEach((k) => typeof k === "string" && k && s.add(k))
-                            })
-                            return Array.from(s)
-                        } catch {
-                            return [] as string[]
-                        }
-                    })()
-                    effectiveKeys = Array.from(
-                        new Set([...(fromParams || []), ...(stableVarNames || [])]),
-                    ).filter((k) => k && k !== "chat")
+            const safeSpec: any | undefined = isSameAppAsUri ? appSchema : undefined
+            const safeRoutePath: string = isSameAppAsUri ? uriObject?.routePath || "" : ""
+            const safeUriObject = isSameAppAsUri ? uriObject : undefined
+
+            if (selectedVariant?.parameters) {
+                const fromParams = (() => {
+                    try {
+                        const p = (selectedVariant as any)?.parameters
+                        const ag = p?.ag_config ?? p ?? {}
+                        const s = new Set<string>()
+                        Object.values(ag || {}).forEach((cfg: any) => {
+                            const arr = cfg?.input_keys
+                            if (Array.isArray(arr))
+                                arr.forEach((k) => typeof k === "string" && k && s.add(k))
+                        })
+                        return Array.from(s)
+                    } catch {
+                        return [] as string[]
+                    }
+                })()
+
+                let effectiveKeys: string[] = Array.from(
+                    new Set([...(fromParams || []), ...(stableVarNames || [])]),
+                ).filter((k) => k && k !== "chat")
+
+                let hasInputsProp = false
+                let hasMessagesPropFromSchema = false
+                if (safeSpec) {
+                    const req = (getRequestSchema as any)(safeSpec, {routePath: safeRoutePath})
+                    hasInputsProp = Boolean(req?.properties?.inputs)
+                    hasMessagesPropFromSchema = Boolean(req?.properties?.messages)
                 }
+
+                const isCustomFromFlag = Boolean(
+                    flags?.isCustom ?? (selectedVariant as any)?.isCustom,
+                )
+                const isCustomBySchema = safeSpec
+                    ? Boolean(safeSpec) && !hasInputsProp && !hasMessagesPropFromSchema
+                    : false
+                const isCustom = isCustomFromFlag || isCustomBySchema
+
+                if (isCustom && safeSpec) {
+                    const schemaKeys = extractInputKeysFromSchema(safeSpec, safeRoutePath) || []
+                    effectiveKeys = Array.from(new Set([...(effectiveKeys || []), ...schemaKeys]))
+                }
+
+                const isChatBySchema = safeSpec ? hasMessagesPropFromSchema : null
+                const isChatByKeys = (effectiveKeys || []).includes("messages")
+                const isChat = isChatBySchema !== null ? isChatBySchema : isChatByKeys
 
                 params.inputs = (effectiveKeys || []).map((name) => ({name, input: false}))
 
@@ -519,14 +541,14 @@ const DebugSection = ({
                           variant: selectedVariant,
                           allMetadata: getAllMetadata(),
                           prompts:
-                              spec && selectedVariant
+                              safeSpec && selectedVariant
                                   ? derivePromptsFromSpec(
                                         selectedVariant as any,
-                                        spec as any,
-                                        routePath,
+                                        safeSpec as any,
+                                        safeRoutePath,
                                     ) || []
                                   : [],
-                          isChat: hasMessagesProp,
+                          isChat,
                           isCustom,
                           customProperties: isCustom ? customProps : undefined,
                       })
@@ -558,21 +580,52 @@ const DebugSection = ({
                 } else {
                     params.parameters = baseParameters
                 }
-                params.isChatVariant = hasMessagesProp
-                params.messages = hasMessagesProp
-                    ? extractChatMessages(selectedTestcase.testcase)
-                    : []
+
+                let messagesFromTestcase = extractChatMessages(selectedTestcase.testcase)
+                let messagesFromParams = Array.isArray((params.parameters as any)?.messages)
+                    ? (params.parameters as any).messages
+                    : undefined
+
+                if (isChat) {
+                    const finalMessages =
+                        messagesFromTestcase && messagesFromTestcase.length > 0
+                            ? messagesFromTestcase
+                            : messagesFromParams && messagesFromParams.length > 0
+                              ? messagesFromParams
+                              : []
+
+                    if (finalMessages.length === 0) {
+                        setIsRunningVariant(false)
+                        message.error(
+                            "This application requires chat 'messages', but none were provided or generated. Add messages to your testcase or prompt template.",
+                        )
+                        return
+                    }
+
+                    params.messages = finalMessages
+                } else {
+                    params.messages = []
+                }
+
+                params.isChatVariant = isChat
                 params.isCustom = isCustom
             } else {
                 const {parameters, inputs} = await getAllVariantParameters(appId, selectedVariant)
                 params.parameters = parameters
                 params.inputs = inputs
-                const hasMessagesInput = (params.inputs || []).some((p) => p.name === "messages")
+                const hasMessagesInput = (inputs || []).some((p) => p.name === "messages")
                 params.isChatVariant = hasMessagesInput
                 params.messages = hasMessagesInput
                     ? extractChatMessages(selectedTestcase.testcase)
                     : []
                 params.isCustom = selectedVariant?.isCustom
+                if (hasMessagesInput && params.messages.length === 0) {
+                    setIsRunningVariant(false)
+                    message.error(
+                        "This application requires chat 'messages', but none were provided. Add messages to your testcase.",
+                    )
+                    return
+                }
             }
 
             const testcaseDict = selectedTestcase.testcase
@@ -594,7 +647,7 @@ const DebugSection = ({
                 true,
                 selectedVariant?.parameters && !!selectedVariant?._parentVariant,
                 params.isCustom,
-                uriObject,
+                safeUriObject, // <<< ensure we don't pass a foreign URI
                 selectedVariant?.variantId,
             )
 
