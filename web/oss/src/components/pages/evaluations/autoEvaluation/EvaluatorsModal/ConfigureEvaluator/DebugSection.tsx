@@ -695,7 +695,7 @@ const DebugSection = ({
     const variantName = selectedVariant?.variantName || "variant"
 
     return (
-        <section className="flex flex-col gap-4 h-full pb-10 w-[50%]">
+        <section className="flex flex-col gap-4 h-full pb-10 w-[50%] mt-2">
             <div className="flex flex-col gap-4 min-w-0">
                 <Space direction="vertical" size={0}>
                     <Typography.Text className={classes.title}>Test evaluator</Typography.Text>
