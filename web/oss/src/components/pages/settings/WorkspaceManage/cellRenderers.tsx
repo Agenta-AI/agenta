@@ -15,7 +15,7 @@ import {
     resendInviteToWorkspace,
     unAssignWorkspaceRole,
 } from "@/oss/services/workspace/api"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 
 export const Actions: React.FC<{
@@ -29,7 +29,7 @@ export const Actions: React.FC<{
     const isMember = user.status === "member"
 
     const [resendLoading, setResendLoading] = useState(false)
-    const {refetch} = useOrgData()
+    const {refetch} = useOrganizationData()
 
     if (hidden) return null
 
@@ -114,13 +114,13 @@ export const Roles: React.FC<{
 }> = ({member, signedInUser, organizationId, workspaceId}) => {
     const [loading, setLoading] = useState(false)
     const {roles} = useWorkspaceRoles()
-    const {selectedOrg, refetch} = useOrgData()
+    const {selectedOrganization, refetch} = useOrganizationData()
     const {subscription}: {subscription?: any} = useSubscriptionDataWrapper() ?? {
         subscription: undefined,
     }
 
     const {user} = member
-    const isOwner = user.id === selectedOrg?.owner
+    const isOwner = user.id === selectedOrganization?.owner
     const readOnly = user.id === signedInUser?.id || user.status !== "member" || isOwner
     const role = member.roles[0]
 

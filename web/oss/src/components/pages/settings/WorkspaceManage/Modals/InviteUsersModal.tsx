@@ -11,7 +11,7 @@ import {useSubscriptionDataWrapper} from "@/oss/lib/helpers/useSubscriptionDataW
 import {isDemo, snakeToTitle} from "@/oss/lib/helpers/utils"
 import {Plan} from "@/oss/lib/Types"
 import {inviteToWorkspace} from "@/oss/services/workspace/api"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 
 import {InviteFormProps, InviteUsersModalProps} from "./assets/types"
 
@@ -20,10 +20,10 @@ const InviteForm: FC<InviteFormProps> = ({onSuccess, workspaceId, form, setLoadi
         subscription: undefined,
     }
 
-    const {selectedOrg, refetch} = useOrgData()
+    const {selectedOrganization, refetch} = useOrganizationData()
     const [roles] = useAtom(workspaceRolesAtom)
     const {token} = theme.useToken()
-    const organizationId = selectedOrg?.id
+    const organizationId = selectedOrganization?.id
 
     const filteredRoles = useMemo(() => {
         if (!isDemo()) {

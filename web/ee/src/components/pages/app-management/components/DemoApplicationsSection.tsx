@@ -3,7 +3,7 @@ import Image from "next/image"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme} from "@/oss/lib/Types"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 import {useProjectData} from "@/oss/state/project"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -32,12 +32,12 @@ const {Text, Title, Paragraph} = Typography
 const DemoApplicationsSection = () => {
     const classes = useStyles()
     const {projects} = useProjectData()
-    const {changeSelectedOrg} = useOrgData()
+    const {changeSelectedOrganization} = useOrganizationData()
 
     const handleViewDemoSwitch = () => {
         const project = projects.find((p) => !!p.is_demo)
         if (project && project.organization_id) {
-            changeSelectedOrg(project.organization_id)
+            changeSelectedOrganization(project.organization_id)
         }
     }
 

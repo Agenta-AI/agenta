@@ -11,7 +11,7 @@ export const useProfileData = () => {
 
     const reset = useCallback(async () => {
         await queryClient.invalidateQueries({queryKey: ["profile"]})
-        await queryClient.invalidateQueries({queryKey: ["orgs"]})
+        await queryClient.invalidateQueries({queryKey: ["organizations"]})
     }, [queryClient])
 
     return {

@@ -2,7 +2,7 @@ import {getDefaultStore} from "jotai"
 import {eagerAtom} from "jotai-eager"
 
 import {appStateSnapshotAtom} from "@/oss/state/appState"
-import {selectedOrgAtom} from "@/oss/state/org/selectors/org"
+import {selectedOrganizationAtom} from "@/oss/state/organization/selectors/organization"
 
 import {recentAppIdAtom} from "../app"
 
@@ -11,8 +11,8 @@ export interface URLState {
     workspaceId: string
     workspaceName: string
     projectId: string | null
-    baseOrgURL: string
-    orgURL: string
+    baseOrganizationURL: string
+    organizationURL: string
     baseProjectURL: string
     projectURL: string
     baseAppURL: string
@@ -22,19 +22,19 @@ export interface URLState {
 
 export const urlAtom = eagerAtom<URLState>((get) => {
     const snapshot = get(appStateSnapshotAtom)
-    const selectedOrg = get(selectedOrgAtom)
+    const selectedOrganization = get(selectedOrganizationAtom)
     const recentlyVisitedAppId = get(recentAppIdAtom)
     const {workspaceId, projectId, appId} = snapshot
 
-    const workspaceName = selectedOrg?.name ?? ""
-    const resolvedWorkspaceId = workspaceId ?? selectedOrg?.id ?? ""
+    const workspaceName = selectedOrganization?.name ?? ""
+    const resolvedWorkspaceId = workspaceId ?? selectedOrganization?.id ?? ""
 
-    const baseOrgURL = "/w"
+    const baseOrganizationURL = "/w"
     // Build URLs with workspace id (not name)
-    const orgURL = resolvedWorkspaceId
-        ? `${baseOrgURL}/${encodeURIComponent(resolvedWorkspaceId)}`
+    const organizationURL = resolvedWorkspaceId
+        ? `${baseOrganizationURL}/${encodeURIComponent(resolvedWorkspaceId)}`
         : ""
-    const baseProjectURL = resolvedWorkspaceId ? `${orgURL}/p` : ""
+    const baseProjectURL = resolvedWorkspaceId ? `${organizationURL}/p` : ""
     const projectURL =
         resolvedWorkspaceId && projectId ? `${baseProjectURL}/${encodeURIComponent(projectId)}` : ""
     const baseAppURL = resolvedWorkspaceId && projectId ? `${projectURL}/apps` : ""
@@ -53,8 +53,8 @@ export const urlAtom = eagerAtom<URLState>((get) => {
         workspaceId: resolvedWorkspaceId,
         workspaceName,
         projectId: projectId ?? null,
-        baseOrgURL,
-        orgURL,
+        baseOrganizationURL,
+        organizationURL,
         baseProjectURL,
         projectURL,
         baseAppURL,
@@ -69,8 +69,8 @@ export const getURLValues = () => {
 }
 
 export interface WaitForUrlOptions {
-    // Wait until org is known
-    requireOrg?: boolean
+    // Wait until organization is known
+    requireOrganization?: boolean
     // Wait until projectId-backed URLs are available
     requireProject?: boolean
     // Wait until appId-backed URLs are available
@@ -80,8 +80,8 @@ export interface WaitForUrlOptions {
 }
 
 const satisfies = (state: URLState, opts: WaitForUrlOptions) => {
-    const {requireOrg = false, requireProject = true, requireApp = false} = opts || {}
-    if (requireOrg && !state.workspaceName) return false
+    const {requireOrganization = false, requireProject = true, requireApp = false} = opts || {}
+    if (requireOrganization && !state.workspaceName) return false
     if (requireProject && !state.baseProjectURL) return false
     if (requireApp && !state.appURL) return false
     // For project-level readiness also ensure baseAppURL is known for convenience

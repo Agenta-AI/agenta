@@ -7,7 +7,7 @@ import {createUseStyles} from "react-jss"
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
 
 interface GetStartedSectionProps {
-    selectedOrg: any
+    selectedOrganization: any
     apps: ListAppsItem[]
     setIsMaxAppModalOpen: (value: SetStateAction<boolean>) => void
     setIsAddAppFromTemplatedModal: (value: SetStateAction<boolean>) => void
@@ -56,7 +56,7 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
 const {Title, Text} = Typography
 
 const GetStartedSection = ({
-    selectedOrg,
+    selectedOrganization,
     apps,
     setIsAddAppFromTemplatedModal,
     setIsMaxAppModalOpen,

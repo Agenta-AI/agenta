@@ -28,15 +28,15 @@ const useURL = () => {
         } = {}) => {
             // Treat workspaceName param as an id for URL purposes
             const wsId = workspaceName || url.workspaceId
-            const org = `${url.baseOrgURL}/${encodeURIComponent(wsId)}`
-            let target = org
+            const organization = `${url.baseOrganizationURL}/${encodeURIComponent(wsId)}`
+            let target = organization
 
             if (!onlyWs) {
                 if (url.projectId) {
                     target += `/p/${url.projectId}/apps`
                 } else {
-                    // If project is not ready yet, fall back to org root
-                    return org
+                    // If project is not ready yet, fall back to organization root
+                    return organization
                 }
             }
 
@@ -56,7 +56,7 @@ const useURL = () => {
 
             return target
         },
-        [url.appId, url.workspaceId, url.projectId, url.baseOrgURL],
+        [url.appId, url.workspaceId, url.projectId, url.baseOrganizationURL],
     )
 
     const redirectUrl = useCallback(
@@ -71,7 +71,7 @@ const useURL = () => {
     const isValidAppRoute = useCallback(
         (path?: string) => {
             const pathOnly = (path ?? appState.asPath ?? "").split("?")[0]
-            const isAtOrgRoot = pathOnly === "/w"
+            const isAtOrganizationRoot = pathOnly === "/w"
             const isAtWsRoot = /^\/w\/[^/]+$/.test(pathOnly)
             const isAtWsProjectRoot = /^\/w\/[^/]+\/p\/?$/.test(pathOnly)
             const hasReadyBase = Boolean(url.baseAppURL)
@@ -79,7 +79,7 @@ const useURL = () => {
             // Fallback regex when baseAppURL isn't ready yet
             const matchesValidAppPattern = /^\/w\/[^/]+\/p\/[^/]+\/apps(\/|$)/.test(pathOnly)
             const validLocation = hasReadyBase ? isUnderAppBase : matchesValidAppPattern
-            return !isAtOrgRoot && !isAtWsRoot && !isAtWsProjectRoot && validLocation
+            return !isAtOrganizationRoot && !isAtWsRoot && !isAtWsProjectRoot && validLocation
         },
         [appState.asPath, url.baseAppURL],
     )
@@ -91,8 +91,8 @@ const useURL = () => {
         baseURL: url.baseAppURL,
         buildUrl,
         redirectUrl,
-        baseOrgURL: url.baseOrgURL,
-        orgURL: url.orgURL,
+        baseOrganizationURL: url.baseOrganizationURL,
+        organizationURL: url.organizationURL,
         baseProjectURL: url.baseProjectURL,
         projectURL: url.projectURL,
         baseAppURL: url.baseAppURL,

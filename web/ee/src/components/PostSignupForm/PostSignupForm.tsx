@@ -6,11 +6,11 @@ import Image from "next/image"
 import {useRouter} from "next/router"
 import {MultipleSurveyQuestion} from "posthog-js"
 
-import ListOfOrgs from "@/oss/components/Sidebar/components/ListOfOrgs"
+import ListOfOrganizations from "@/oss/components/Sidebar/components/ListOfOrganizations"
 import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {useSurvey} from "@/oss/lib/helpers/analytics/hooks/useSurvey"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 import {useProfileData} from "@/oss/state/profile"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
@@ -23,7 +23,7 @@ const PostSignupForm = () => {
     const posthog = usePostHogAg()
     const {user} = useProfileData()
     const classes = useStyles()
-    const {orgs} = useOrgData()
+    const {organizations} = useOrganizationData()
     const selectedHearAboutUsOption = Form.useWatch("hearAboutUs", form)
     const formData = Form.useWatch([], form)
     const [stepOneFormData, setStepOneFormData] = useState<any>({} as any)
@@ -63,7 +63,7 @@ const PostSignupForm = () => {
             const context = await waitForWorkspaceContext({
                 timeoutMs: 1500,
                 requireProjectId: false,
-                requireOrgData: true,
+                requireOrganizationanizationData: true,
             })
             const fallbackPath = buildPostLoginPath(context)
 
@@ -351,12 +351,12 @@ const PostSignupForm = () => {
                     height={40}
                 />
 
-                <ListOfOrgs
+                <ListOfOrganizations
                     collapsed={false}
                     interactive={true}
-                    orgSelectionEnabled={false}
+                    organizationSelectionEnabled={false}
                     buttonProps={{className: "w-[186px] !p-1 !h-10 rounded"}}
-                    overrideOrgId={orgs?.[0]?.id}
+                    overrideOrganizationId={organizations?.[0]?.id}
                 />
             </section>
 

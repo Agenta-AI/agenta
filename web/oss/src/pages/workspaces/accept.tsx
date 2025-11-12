@@ -7,8 +7,8 @@ import {useLocalStorage} from "usehooks-ts"
 import {message} from "@/oss/components/AppMessageContext"
 import ContentSpinner from "@/oss/components/Spinner/ContentSpinner"
 import {acceptWorkspaceInvite} from "@/oss/services/workspace/api"
-import {useOrgData} from "@/oss/state/org"
-import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
+import {useOrganizationData} from "@/oss/state/organization"
+import {cacheWorkspaceOrganizationPair} from "@/oss/state/organization/selectors/organization"
 import {useProjectData} from "@/oss/state/project"
 import {jwtReadyAtom} from "@/oss/state/session/jwt"
 import {buildPostLoginPath} from "@/oss/state/url/postLoginRedirect"
@@ -19,7 +19,7 @@ const processedTokens = new Set<string>()
 const Accept: FC = () => {
     const [invite, , removeInvite] = useLocalStorage<any>("invite", {})
     const inviteFromState = useAtomValue(activeInviteAtom)
-    const {refetch: refetchOrganization, loading: loadingOrgs} = useOrgData()
+    const {refetch: refetchOrganization, loading: loadingOrganizations} = useOrganizationData()
     const {refetch: refetchProject, isLoading: loadingProjects} = useProjectData()
     const router = useRouter()
     const accept = useRef(false)
@@ -88,7 +88,7 @@ const Accept: FC = () => {
                     await refetchProject()
 
                     const targetWorkspace = workspaceId || organizationId
-                    cacheWorkspaceOrgPair(targetWorkspace, organizationId)
+                    cacheWorkspaceOrganizationPair(targetWorkspace, organizationId)
                     store.set(activeInviteAtom, null)
                     removeInvite()
                     if (isSurvey) {
@@ -113,7 +113,7 @@ const Accept: FC = () => {
                     if (error?.response?.status === 409) {
                         message.error("You're already a member of this workspace")
                         const targetWorkspace = workspaceId || organizationId
-                        cacheWorkspaceOrgPair(targetWorkspace, organizationId)
+                        cacheWorkspaceOrganizationPair(targetWorkspace, organizationId)
                         store.set(activeInviteAtom, null)
                         removeInvite()
 
@@ -154,7 +154,7 @@ const Accept: FC = () => {
 
                 if (alreadyMember) {
                     message.info("You are already a member of this workspace")
-                    cacheWorkspaceOrgPair(workspaceId || organizationId, organizationId)
+                    cacheWorkspaceOrganizationPair(workspaceId || organizationId, organizationId)
                 } else {
                     console.error("[invite] accept failed", error)
                     message.error(detailMessage)

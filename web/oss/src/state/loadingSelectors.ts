@@ -2,7 +2,7 @@ import {atom} from "jotai"
 import {selectAtom, atomFamily} from "jotai/utils"
 
 import {appsQueryAtom} from "@/oss/state/app/atoms/fetcher"
-import {orgsQueryAtom, selectedOrgQueryAtom} from "@/oss/state/org/selectors/org"
+import {organizationsQueryAtom, selectedOrganizationQueryAtom} from "@/oss/state/organization/selectors/organization"
 import {profileQueryAtom} from "@/oss/state/profile/selectors/user"
 import {projectsQueryAtom} from "@/oss/state/project/selectors/project"
 
@@ -14,8 +14,8 @@ import {variantsQueryAtom, variantRevisionsQueryFamily} from "./variant/atoms/fe
 export const profilePendingAtom = selectAtom(profileQueryAtom, (q) => q.isPending)
 export const appsPendingAtom = selectAtom(appsQueryAtom, (q) => q.isPending)
 export const projectsPendingAtom = selectAtom(projectsQueryAtom, (q) => q.isPending)
-export const orgsListPendingAtom = selectAtom(orgsQueryAtom, (q) => q.isPending)
-export const orgDetailsPendingAtom = selectAtom(selectedOrgQueryAtom, (q) => q.isPending)
+export const organizationsListPendingAtom = selectAtom(organizationsQueryAtom, (q) => q.isPending)
+export const organizationDetailsPendingAtom = selectAtom(selectedOrganizationQueryAtom, (q) => q.isPending)
 export const variantsPendingAtom = selectAtom(variantsQueryAtom, (q) => q.isPending)
 
 // For atom families, we need to create a family of pending atoms

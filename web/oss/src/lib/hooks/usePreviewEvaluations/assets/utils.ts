@@ -21,7 +21,7 @@ import {WorkspaceMember, SnakeToCamelCaseKeys, PreviewTestset} from "@/oss/lib/T
 import {useAppList} from "@/oss/state/app/hooks"
 import {transformedPromptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 // import {getProjectValues} from "@/oss/state/project"
 
 const pickString = (...values: unknown[]): string | undefined => {
@@ -509,8 +509,8 @@ const useEnrichEvaluationRun = ({
           runIndex?: RunIndex,
       ) => EnrichedEvaluationRun)
     | undefined => {
-    const {selectedOrg} = useOrgData()
-    const members = selectedOrg?.default_workspace?.members || []
+    const {selectedOrganization} = useOrganizationData()
+    const members = selectedOrganization?.default_workspace?.members || []
     const routeAppId = useAppId()
     const isProjectScope = !routeAppId
     const appList = useAppList()

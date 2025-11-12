@@ -10,20 +10,20 @@ import {EvaluationType} from "@/oss/lib/enums"
 import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
 import {GenericObject, Variant} from "@/oss/lib/Types"
 import {createNewEvaluation} from "@/oss/services/human-evaluations/api"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 import {variantsAtom} from "@/oss/state/variant/atoms/fetcher"
 
 const EvaluationShare: React.FC = () => {
     const router = useRouter()
-    const {changeSelectedOrg, selectedOrg, loading} = useOrgData()
+    const {changeSelectedOrganization, selectedOrganization, loading} = useOrganizationData()
     const called = useRef(false)
     const {baseAppURL} = useURL()
 
     useEffect(() => {
-        const {app, org, variants: variantIds, testset, type} = router.query
+        const {app, organization, variants: variantIds, testset, type} = router.query
 
         //1. check all the required params are present
-        if (app && org && testset && type && Array.isArray(variantIds) && !loading) {
+        if (app && organization && testset && type && Array.isArray(variantIds) && !loading) {
             const executor = async () => {
                 //make sure this is only called once
                 if (called.current) {
@@ -69,9 +69,9 @@ const EvaluationShare: React.FC = () => {
                 router.push(`${baseAppURL}/${app}/annotations/${type}/${evalId}`)
             }
 
-            if (selectedOrg?.id !== org) {
-                //2. change the selected org to the one in the query
-                changeSelectedOrg(org as string, () => {
+            if (selectedOrganization?.id !== organization) {
+                //2. change the selected organization to the one in the query
+                changeSelectedOrganization(organization as string, () => {
                     executor()
                 })
             } else {

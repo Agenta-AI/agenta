@@ -28,7 +28,7 @@ import {
 } from "@/oss/services/tracing/lib/helpers"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 import {selectedAppIdAtom} from "@/oss/state/app/selectors/app"
-import {getOrgValues} from "@/oss/state/org"
+import {getOrganizationValues} from "@/oss/state/organization"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {sessionExistsAtom} from "../../session"
@@ -484,8 +484,8 @@ export const annotationLinksAtom = eagerAtom((get) =>
 // Annotations query ------------------------------------------------------------
 export const annotationsQueryAtom = atomWithQuery((get) => {
     const links = get(annotationLinksAtom)
-    const {selectedOrg} = getOrgValues()
-    const members = selectedOrg?.default_workspace?.members || []
+    const {selectedOrganization} = getOrganizationValues()
+    const members = selectedOrganization?.default_workspace?.members || []
 
     return {
         queryKey: ["annotations", links],

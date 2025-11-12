@@ -5,7 +5,7 @@ import {useRouter} from "next/router"
 import {signOut} from "supertokens-auth-react/recipe/session"
 import {useSessionContext} from "supertokens-auth-react/recipe/session"
 
-import {resetOrgData} from "@/oss/state/org"
+import {resetOrganizationData} from "@/oss/state/organization"
 import {resetProfileData} from "@/oss/state/profile"
 import {resetProjectData} from "@/oss/state/project"
 import {sessionExistsAtom, sessionLoadingAtom} from "@/oss/state/session"
@@ -34,7 +34,7 @@ export const useSession: () => {
             signOut()
                 .then(async () => {
                     resetProfileData()
-                    resetOrgData()
+                    resetOrganizationData()
                     resetProjectData()
                     const posthog = (await import("posthog-js")).default
                     posthog.reset()

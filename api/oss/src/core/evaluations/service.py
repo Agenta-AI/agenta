@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from celery import current_app as celery_dispatch
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta, Data
@@ -178,7 +179,7 @@ class EvaluationsService:
 
             try:
                 log.info(
-                    "[LIVE] Dispatching...",
+                    "[LIVE]",
                     project_id=project_id,
                     run_id=run.id,
                     #
@@ -186,24 +187,19 @@ class EvaluationsService:
                     oldest=oldest,
                 )
 
-                celery_dispatch.send_task(  # type: ignore
-                    "src.tasks.evaluations.live.evaluate",
-                    kwargs=dict(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        run_id=run.id,
-                        #
-                        newest=newest,
-                        oldest=oldest,
-                    ),
-                )
-
-                log.info(
-                    "[LIVE] Dispatched.   ",
-                    project_id=project_id,
-                    run_id=run.id,
-                )
+                if is_ee():
+                    celery_dispatch.send_task(  # type: ignore
+                        "src.tasks.evaluations.live.evaluate",
+                        kwargs=dict(
+                            project_id=project_id,
+                            user_id=user_id,
+                            #
+                            run_id=run.id,
+                            #
+                            newest=newest,
+                            oldest=oldest,
+                        ),
+                    )
 
             except Exception as e:  # pylint: disable=broad-exception-caught
                 log.error(f"[LIVE] Error refreshing run {run.id}: {e}", exc_info=True)
@@ -1561,26 +1557,29 @@ class SimpleEvaluationsService:
                     return None
 
                 if _evaluation.data.query_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_queries",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
-                    )
+                    if is_ee():
+                        celery_dispatch.send_task(  # type: ignore
+                            "src.tasks.evaluations.batch.evaluate_queries",
+                            kwargs=dict(
+                                project_id=project_id,
+                                user_id=user_id,
+                                #
+                                run_id=run.id,
+                            ),
+                        )
 
                 elif _evaluation.data.testset_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_testsets",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
-                    )
+                    if is_ee():
+                        # TODO: Fix typing ?
+                        celery_dispatch.send_task(  # type: ignore
+                            "src.tasks.evaluations.batch.evaluate_testsets",
+                            kwargs=dict(
+                                project_id=project_id,
+                                user_id=user_id,
+                                #
+                                run_id=run.id,
+                            ),
+                        )
 
                 return _evaluation
 

@@ -16,8 +16,8 @@ const WorkspaceRedirect = () => {
         if (!workspaceId || !Array.isArray(projects)) return null
         const belonging = projects.filter((project) => {
             const workspaceMatch = project.workspace_id === workspaceId
-            const orgMatch = project.organization_id === workspaceId
-            return workspaceMatch || orgMatch
+            const organizationMatch = project.organization_id === workspaceId
+            return workspaceMatch || organizationMatch
         })
         if (!belonging.length) return null
         const nonDemo = belonging.find((project) => !project.is_demo)

@@ -10,7 +10,7 @@ import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
 import {queryClient} from "@/oss/lib/api/queryClient"
 import AuthProvider from "@/oss/lib/helpers/auth/AuthProvider"
-import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
+import {selectedOrganizationIdAtom} from "@/oss/state/organization/selectors/organization"
 import {useUser} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 import GlobalStateProvider from "@/oss/state/Providers"
@@ -38,7 +38,7 @@ const inter = Inter({
 })
 
 const PreloadQueries = () => {
-    useAtomValue(selectedOrgIdAtom)
+    useAtomValue(selectedOrganizationIdAtom)
     useUser()
     useProjectData()
 

@@ -1,6 +1,6 @@
 import {FC, useMemo} from "react"
 
-import {ApartmentOutlined, KeyOutlined} from "@ant-design/icons"
+import {ApartmentOutlined, KeyOutlined, ProjectOutlined} from "@ant-design/icons"
 import {ArrowLeft, Sparkle, Receipt} from "@phosphor-icons/react"
 import {Button, Divider} from "antd"
 import clsx from "clsx"
@@ -11,7 +11,7 @@ import {useQueryParam} from "@/oss/hooks/useQuery"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {isDemo} from "@/oss/lib/helpers/utils"
 
-import ListOfOrgs from "./components/ListOfOrgs"
+import ListOfOrganizations from "./components/ListOfOrganizations"
 import SidebarMenu from "./components/SidebarMenu"
 import {SidebarConfig} from "./types"
 
@@ -32,9 +32,14 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
                 icon: <ApartmentOutlined />,
             },
             {
+                key: "projects",
+                title: "Projects",
+                icon: <ProjectOutlined />,
+            },
+            {
                 key: "secrets",
                 title: "Model Hub",
-                icon: <Sparkle size={16} className="mt-0.5" />,
+                icon: <Sparkle size={12} className="mt-0.5" />,
             },
             {
                 key: "apiKeys",
@@ -46,7 +51,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
             list.push({
                 key: "billing",
                 title: "Usage & Billing",
-                icon: <Receipt size={16} className="mt-0.5" />,
+                icon: <Receipt size={12} className="mt-0.5" />,
             })
         }
         return list
@@ -82,7 +87,7 @@ const SettingsSidebar: FC<SettingsSidebarProps> = ({lastPath}) => {
 
             <Divider className="mb-1 mt-0" />
             <div className="w-full flex flex-col gap-3">
-                <ListOfOrgs collapsed={collapsed} buttonProps={{type: "text"}} />
+                <ListOfOrganizations collapsed={collapsed} buttonProps={{type: "text"}} />
                 <SidebarMenu
                     items={items}
                     collapsed={collapsed}

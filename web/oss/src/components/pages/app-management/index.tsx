@@ -17,7 +17,7 @@ import {createAndStartTemplate, deleteApp, ServiceType} from "@/oss/services/app
 import useTemplates from "@/oss/services/app-selector/hooks/useTemplates"
 import {useAppsData} from "@/oss/state/app"
 import {appCreationStatusAtom, resetAppCreationAtom} from "@/oss/state/appCreation/status"
-import {useOrgData} from "@/oss/state/org"
+import {useOrganizationData} from "@/oss/state/organization"
 import {useProfileData} from "@/oss/state/profile"
 
 import {getTemplateKey, timeout} from "./assets/helpers"
@@ -70,7 +70,7 @@ const AppManagement: React.FC = () => {
     const {apps, error, mutate} = useAppsData()
 
     const {secrets} = useVaultSecret()
-    const {selectedOrg} = useOrgData()
+    const {selectedOrganization} = useOrganizationData()
 
     const [{data: templates = [], isLoading: fetchingTemplate}, noTemplateMessage] = useTemplates()
 
@@ -157,7 +157,7 @@ const AppManagement: React.FC = () => {
                         <Title className="!m-0">App Management</Title>
 
                         <GetStartedSection
-                            selectedOrg={selectedOrg}
+                            selectedOrganization={selectedOrganization}
                             apps={apps}
                             setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
                             setIsMaxAppModalOpen={setIsMaxAppModalOpen}
@@ -168,7 +168,7 @@ const AppManagement: React.FC = () => {
                         <ObservabilityDashboardSection />
 
                         <ApplicationManagementSection
-                            selectedOrg={selectedOrg}
+                            selectedOrganization={selectedOrganization}
                             apps={apps}
                             setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal}
                             setIsMaxAppModalOpen={setIsMaxAppModalOpen}

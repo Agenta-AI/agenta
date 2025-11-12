@@ -127,8 +127,7 @@ async def aurl(
 ) -> str:
     response = authed_api()(
         method="GET",
-        endpoint=f"/projects",
-        params={"scope": "project"},
+        endpoint=f"/projects/current",
     )
 
     try:

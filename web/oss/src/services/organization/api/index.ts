@@ -2,13 +2,13 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 
 import {fetchJson, getBaseUrl} from "../../../lib/api/assets/fetchClient"
-import {Org, OrgDetails} from "../../../lib/Types"
+import {Organization, OrganizationDetails} from "../../../lib/Types"
 
 /**
  * Fetch all organizations using modern fetchJson
- * Replaces the old axios-based fetchAllOrgsList
+ * Replaces the old axios-based fetchAllOrganizationsList
  */
-export const fetchAllOrgsList = async (): Promise<Org[]> => {
+export const fetchAllOrganizationsList = async (): Promise<Organization[]> => {
     const base = getBaseUrl()
     const url = new URL("api/organizations", base)
 
@@ -39,13 +39,13 @@ export const fetchAllOrgsList = async (): Promise<Org[]> => {
 
 /**
  * Fetch single organization details using modern fetchJson
- * Replaces the old axios-based fetchSingleOrg
+ * Replaces the old axios-based fetchSingleOrganization
  */
-export const fetchSingleOrg = async ({
+export const fetchSingleOrganization = async ({
     organizationId,
 }: {
     organizationId: string
-}): Promise<OrgDetails | null> => {
+}): Promise<OrganizationDetails | null> => {
     const base = getBaseUrl()
     const url = new URL(`api/organizations/${organizationId}`, base)
 

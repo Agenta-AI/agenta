@@ -14,7 +14,7 @@ import {
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
 import {fetchAllEvaluators, fetchAllEvaluatorConfigs} from "@/oss/services/evaluators"
 import {selectedAppIdAtom} from "@/oss/state/app"
-import {selectedOrgAtom} from "@/oss/state/org"
+import {selectedOrganizationAtom} from "@/oss/state/organization"
 import {userAtom} from "@/oss/state/profile"
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -132,8 +132,8 @@ export const evaluatorsQueryAtomFamily = atomFamily(
         atomWithQuery<Evaluator[] | EvaluatorPreviewDto[]>((get) => {
             const projectId = overrideProjectId ?? get(projectIdAtom)
             const user = get(userAtom) as {id?: string} | null
-            const selectedOrg = get(selectedOrgAtom)
-            const members = selectedOrg?.default_workspace?.members ?? []
+            const selectedOrganization = get(selectedOrganizationAtom)
+            const members = selectedOrganization?.default_workspace?.members ?? []
             const projectKey = projectId ?? NO_PROJECT_KEY
 
             const enabled = Boolean(projectId && user?.id)
