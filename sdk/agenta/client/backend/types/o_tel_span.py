@@ -45,8 +45,7 @@ class OTelSpan(UniversalBaseModel):
         model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
             extra="allow",
             frozen=True,
-            json_schema_extra=lambda schema,
-            model: None,  # Disable schema generation to prevent recursion
+            json_schema_extra=lambda schema, model: None,  # fmt: off
         )  # type: ignore # Pydantic v2
     else:
 
