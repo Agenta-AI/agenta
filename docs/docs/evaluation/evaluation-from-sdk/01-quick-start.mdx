@@ -37,6 +37,7 @@ Set your environment variables:
 ```bash
 export AGENTA_API_KEY="your-api-key"
 export AGENTA_HOST="https://cloud.agenta.ai"
+export OPENAI_API_KEY="your-openai-api-key" # Required for LLM-as-a-judge evaluator
 ```
 
 ## Step 1: Initialize Agenta
@@ -134,7 +135,6 @@ async def run_evaluation():
     # Create a testset from your data
     testset = await ag.testsets.acreate(
         name="Country Capitals",
-        description="Test cases for capital city questions",
         data=test_data,
     )
 
