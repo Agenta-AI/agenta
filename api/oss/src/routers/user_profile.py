@@ -39,9 +39,9 @@ async def user_profile(request: Request):
 
     user = await db_manager.get_user_with_id(user_id=request.state.user_id)
 
-    assert (
-        user is not None
-    ), "User not found. Please ensure that the user_id is specified correctly."
+    assert user is not None, (
+        "User not found. Please ensure that the user_id is specified correctly."
+    )
 
     user = User(
         id=str(user.id),
