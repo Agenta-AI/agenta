@@ -146,10 +146,12 @@ class AnnotationsService:
             )
 
             if simple_evaluator:
-                evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-                    project_id=project_id,
-                    #
-                    evaluator_ref=Reference(id=simple_evaluator.id),
+                evaluator_revision = (
+                    await self.evaluators_service.fetch_evaluator_revision(
+                        project_id=project_id,
+                        #
+                        evaluator_ref=Reference(id=simple_evaluator.id),
+                    )
                 )
         elif evaluator_revision.evaluator_id:
             simple_evaluator = await self.simple_evaluators_service.fetch(
@@ -333,10 +335,12 @@ class AnnotationsService:
             )
 
             if simple_evaluator:
-                evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-                    project_id=project_id,
-                    #
-                    evaluator_ref=Reference(id=simple_evaluator.id),
+                evaluator_revision = (
+                    await self.evaluators_service.fetch_evaluator_revision(
+                        project_id=project_id,
+                        #
+                        evaluator_ref=Reference(id=simple_evaluator.id),
+                    )
                 )
 
         if not evaluator_revision or not evaluator_revision.data:

@@ -317,9 +317,9 @@ async def accept_workspace_invitation(
 
         invitation = await check_valid_invitation(project_id, user.email, token)
         if invitation is not None:
-            assert (
-                invitation.role is not None
-            ), "Invitation does not have any workspace role"
+            assert invitation.role is not None, (
+                "Invitation does not have any workspace role"
+            )
             await db_manager_ee.add_user_to_workspace_and_org(
                 organization, workspace, user, project_id, invitation.role
             )

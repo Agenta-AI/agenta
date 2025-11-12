@@ -1804,10 +1804,12 @@ class SimpleEvaluationsService:
                         )
                         return None
 
-                    testset_revision = await self.testsets_service.fetch_testset_revision(
-                        project_id=project_id,
-                        #
-                        testset_ref=testset_ref,
+                    testset_revision = (
+                        await self.testsets_service.fetch_testset_revision(
+                            project_id=project_id,
+                            #
+                            testset_ref=testset_ref,
+                        )
                     )
 
                     if (
@@ -2035,10 +2037,12 @@ class SimpleEvaluationsService:
                         )
                         return None
 
-                    evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-                        project_id=project_id,
-                        #
-                        evaluator_ref=evaluator_ref,
+                    evaluator_revision = (
+                        await self.evaluators_service.fetch_evaluator_revision(
+                            project_id=project_id,
+                            #
+                            evaluator_ref=evaluator_ref,
+                        )
                     )
 
                     if (
@@ -2058,10 +2062,12 @@ class SimpleEvaluationsService:
             for evaluator_revision_id, origin in (evaluator_steps or {}).items():
                 evaluator_revision_ref = Reference(id=evaluator_revision_id)
 
-                evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-                    project_id=project_id,
-                    #
-                    evaluator_revision_ref=evaluator_revision_ref,
+                evaluator_revision = (
+                    await self.evaluators_service.fetch_evaluator_revision(
+                        project_id=project_id,
+                        #
+                        evaluator_revision_ref=evaluator_revision_ref,
+                    )
                 )
 
                 if not evaluator_revision or not evaluator_revision.slug:
@@ -2080,10 +2086,12 @@ class SimpleEvaluationsService:
 
                 evaluator_variant_ref = Reference(id=evaluator_revision.variant_id)
 
-                evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
-                    project_id=project_id,
-                    #
-                    evaluator_variant_ref=evaluator_variant_ref,
+                evaluator_variant = (
+                    await self.evaluators_service.fetch_evaluator_variant(
+                        project_id=project_id,
+                        #
+                        evaluator_variant_ref=evaluator_variant_ref,
+                    )
                 )
 
                 if not evaluator_variant:
