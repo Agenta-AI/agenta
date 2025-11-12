@@ -18,11 +18,11 @@ RUN pip install --upgrade pip \
 #
 COPY ./oss /app/oss/
 COPY ./entrypoint.py ./pyproject.toml /app/
-COPY ./sdk /sdk/
+# COPY ./sdk /sdk/
 
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi \
-    && pip install --force-reinstall --upgrade /sdk/
+    && poetry install --no-interaction --no-ansi 
+    # && pip install --force-reinstall --upgrade /sdk/
 
 #
 
