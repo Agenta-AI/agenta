@@ -66,12 +66,14 @@ jobs:
           EE_VERSION=$new_version
           cd ..
           
-          cd oss/
+          cd oss
           current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
           pnpm pkg set version="$new_version"
           OSS_VERSION=$new_version
-          cd ../..
+          cd ..
+
+          cd ..
 
           cd sdk
           poetry version $BUMP_TYPE
