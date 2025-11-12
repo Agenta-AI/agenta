@@ -132,17 +132,13 @@ class MetersDAO(MetersDAOInterface):
         if quota.monthly:
             now = datetime.now(timezone.utc)
 
-            if not anchor:
-                meter.year = now.year
-                meter.month = now.month
+            if not anchor or now.day < anchor:
+                year, month = now.year, now.month
+            else:
+                year = now.year + now.month // 12
+                month = ((now.month + 1) % 12) or 12
 
-            if anchor:
-                if now.day < anchor:
-                    meter.year = now.year
-                    meter.month = now.month
-                else:
-                    meter.year = now.year + now.month // 12
-                    meter.month = (now.month + 1) % 12
+            meter.year, meter.month = year, month
 
         async with engine.core_session() as session:
             stmt = select(MeterDBE).filter_by(
@@ -185,15 +181,13 @@ class MetersDAO(MetersDAOInterface):
         if quota.monthly:
             now = datetime.now(timezone.utc)
 
-            if not anchor:
-                meter.year = now.year
-                meter.month = now.month
-            elif now.day < anchor:
-                meter.year = now.year
-                meter.month = now.month
+            if not anchor or now.day < anchor:
+                year, month = now.year, now.month
             else:
-                meter.year = now.year + now.month // 12
-                meter.month = (now.month + 1) % 12
+                year = now.year + now.month // 12
+                month = ((now.month + 1) % 12) or 12
+
+            meter.year, meter.month = year, month
 
         # 2. Calculate proposed value (starting from 0)
         desired_value = meter.value if meter.value is not None else (meter.delta or 0)

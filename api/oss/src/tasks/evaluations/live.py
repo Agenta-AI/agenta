@@ -253,7 +253,9 @@ def evaluate(
         steps = run.data.steps
 
         input_steps = {
-            step.key: step for step in steps if step.type == "input"  # --------
+            step.key: step
+            for step in steps
+            if step.type == "input"  # --------
         }
         invocation_steps = {
             step.key: step for step in steps if step.type == "invocation"
@@ -490,9 +492,9 @@ def evaluate(
                 )
             )
 
-            assert (
-                len(results) == nof_traces
-            ), f"Failed to create evaluation results for run {run_id}!"
+            assert len(results) == nof_traces, (
+                f"Failed to create evaluation results for run {run_id}!"
+            )
             # ------------------------------------------------------------------
 
             scenario_has_errors: Dict[int, int] = dict()
@@ -772,9 +774,9 @@ def evaluate(
                         )
                     )
 
-                    assert (
-                        len(results) == 1
-                    ), f"Failed to create evaluation result for scenario with id {scenario.id}!"
+                    assert len(results) == 1, (
+                        f"Failed to create evaluation result for scenario with id {scenario.id}!"
+                    )
                 # --------------------------------------------------------------
 
                 scenario_edit = EvaluationScenarioEdit(
