@@ -41,9 +41,9 @@ class TestVaultSecretsAPI:
             json=valid_secret_payload,
         )
 
-        assert (
-            create_response.status_code == 403
-        ), "Secret creation cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+        assert create_response.status_code == 403, (
+            "Secret creation cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+        )
 
         created_secret_message = create_response.json()["detail"]
         assert (
@@ -84,9 +84,9 @@ class TestVaultSecretsAPI:
             "secrets",
             json=invalid_payload,
         )
-        assert (
-            response.status_code == 422
-        ), "Should reject payload with invalid secret kind"
+        assert response.status_code == 422, (
+            "Should reject payload with invalid secret kind"
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.secret_creation
@@ -104,9 +104,9 @@ class TestVaultSecretsAPI:
             "secrets",
             json=invalid_payload,
         )
-        assert (
-            response.status_code == 422
-        ), "Should reject payload with invalid secret provider kind"
+        assert response.status_code == 422, (
+            "Should reject payload with invalid secret provider kind"
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.secret_retrieval
@@ -204,9 +204,9 @@ class TestVaultSecretsAPI:
             json=update_payload,
         )
 
-        assert (
-            update_response.status_code == 403
-        ), "Secret update cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+        assert update_response.status_code == 403, (
+            "Secret update cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+        )
 
         update_response_message = update_response.json()["detail"]
         assert (
@@ -233,9 +233,9 @@ class TestVaultSecretsAPI:
         get_response = await async_client.get(
             f"secrets/{secret_id}",
         )
-        assert (
-            get_response.status_code == 404
-        ), "Deleted secret should not be retrievable"
+        assert get_response.status_code == 404, (
+            "Deleted secret should not be retrievable"
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.secret_deletion
@@ -254,9 +254,9 @@ class TestVaultSecretsAPI:
             f"secrets/{secret_id}",
             headers={"Authorization": f"ApiKey {os.environ.get('VIEWER_API_KEY', '')}"},
         )
-        assert (
-            delete_response.status_code == 403
-        ), "Secret update cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+        assert delete_response.status_code == 403, (
+            "Secret update cannot be successful. Given that apikey belongs to a user with 'viewer' role."
+        )
 
         delete_response_message = delete_response.json()["detail"]
         assert (
@@ -272,6 +272,6 @@ class TestVaultSecretsAPI:
         response = await async_client.delete(
             f"secrets/{non_existent_id}",
         )
-        assert (
-            response.status_code == 204
-        ), "Should always return 204 since the endpoint is idempotent"
+        assert response.status_code == 204, (
+            "Should always return 204 since the endpoint is idempotent"
+        )
