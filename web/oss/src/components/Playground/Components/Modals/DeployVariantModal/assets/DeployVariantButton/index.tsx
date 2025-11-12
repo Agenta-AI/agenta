@@ -1,16 +1,14 @@
-import {cloneElement, isValidElement, useMemo, useState} from "react"
+import {cloneElement, isValidElement, useMemo} from "react"
 
 import {CloudArrowUp} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
-import dynamic from "next/dynamic"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
 import {variantByRevisionIdAtomFamily} from "@/oss/components/Playground/state/atoms"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
+
+import {openDeployVariantModalAtom} from "../../store/deployVariantModalStore"
 
 import {DeployVariantButtonProps} from "./types"
-
-const DeployVariantModal = dynamic(() => import("../.."), {ssr: false})
 
 const DeployVariantButton = ({
     variantId,
@@ -20,28 +18,31 @@ const DeployVariantButton = ({
     children,
     ...props
 }: DeployVariantButtonProps) => {
-    const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
-    const {
-        environments: _environments,
-        mutate: mutateEnv,
-        isEnvironmentsLoading,
-    } = useEnvironments()
+    const openDeployModal = useSetAtom(openDeployVariantModalAtom)
 
-    // Focused read for the specific revision's metadata
-    const variant = useAtomValue(variantByRevisionIdAtomFamily(revisionId)) as any
+    const revisionKey = revisionId ?? variantId ?? ""
+    const variant = revisionKey ? (useAtomValue(variantByRevisionIdAtomFamily(revisionKey)) as any) : null
 
-    const {environments, variantName, revision} = useMemo(() => {
+    const payload = useMemo(() => {
+        const inferredRevisionId = revisionId ?? variant?.id ?? null
+        const inferredParentVariantId =
+            typeof variant?.variantId === "string" ? variant.variantId : variantId ?? null
+
+        const variantName = variant?.variantName ?? variant?.name ?? label ?? "Variant"
+        const revision = variant?.revisionNumber ?? variant?.revision ?? ""
+
         return {
-            variantName: variant?.variantName || "",
-            revision: (variant as any)?.revisionNumber ?? (variant as any)?.revision ?? "",
-            environments: _environments,
+            parentVariantId: inferredParentVariantId ?? null,
+            revisionId: inferredRevisionId ?? null,
+            variantName,
+            revision,
+            mutate: undefined,
         }
-    }, [variant, _environments])
+    }, [variant, variantId, revisionId, label])
 
-    const onSuccess = async () => {
-        // Just refetch environments - the revisionListAtom will automatically update
-        // when the deployment state changes through SWR revalidation
-        await mutateEnv()
+    const handleOpen = () => {
+        if (!payload.revisionId && !payload.parentVariantId) return
+        openDeployModal(payload as any)
     }
 
     return (
@@ -52,33 +53,19 @@ const DeployVariantButton = ({
                         onClick: () => void
                     }>,
                     {
-                        onClick: () => {
-                            setIsDeployModalOpen(true)
-                        },
+                        onClick: handleOpen,
                     },
                 )
             ) : (
                 <EnhancedButton
                     type="text"
                     icon={icon && <CloudArrowUp size={14} />}
-                    onClick={() => setIsDeployModalOpen(true)}
+                    onClick={handleOpen}
                     tooltipProps={icon && !label ? {title: "Deploy"} : {}}
                     label={label}
                     {...props}
                 />
             )}
-
-            <DeployVariantModal
-                open={isDeployModalOpen}
-                onCancel={() => setIsDeployModalOpen(false)}
-                variantId={variantId}
-                revisionId={revisionId}
-                environments={environments}
-                mutate={onSuccess}
-                variantName={variantName}
-                revision={revision}
-                isLoading={isEnvironmentsLoading}
-            />
         </>
     )
 }

@@ -10,7 +10,7 @@ import EvalRunOverviewViewer from "../../../components/EvalRunOverviewViewer"
  */
 const EvalResultsView = ({runId}: {runId: string}) => {
     return (
-        <section className="overflow-y-auto flex flex-col gap-4">
+        <section className="overflow-y-auto flex flex-col gap-4" id="tour-human-eval-results-view">
             <EvalRunOverviewViewer />
         </section>
     )

@@ -12,11 +12,7 @@ def parse_metadata(
     flags: Optional[str] = None,
     tags: Optional[str] = None,
     meta: Optional[str] = None,
-) -> Tuple[
-    Optional[Flags],
-    Optional[Tags],
-    Optional[Meta],
-]:
+) -> Tuple[Optional[Flags], Optional[Tags], Optional[Meta],]:
     _flags = None
     try:
         _flags = loads(flags) if flags else None

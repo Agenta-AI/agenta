@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.62.1",
+    "version": "0.62.0",
     "workspaces": [
         "ee",
         "oss",
@@ -75,6 +75,9 @@
         "overrides": {
             "prismjs@<1.30.0": ">=1.30.0",
             "@babel/runtime@<7.26.10": ">=7.26.10"
+        },
+        "patchedDependencies": {
+            "nextstepjs@2.1.2": "patches/nextstepjs@2.1.2.patch"
         }
     }
 }

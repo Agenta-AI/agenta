@@ -69,7 +69,7 @@ const TreeNodeComponent: React.FC<{
     const shouldShowAsLast = isLast && (!hasChildren || (hasChildren && !expanded))
 
     return (
-        <div className={isRoot ? "pl-2" : "relative pl-5"}>
+        <div className={isRoot ? "pl-2" : "relative pl-5"} id="tour-trace-tree-panel">
             <div
                 className={
                     !isRoot ? `${classes.treeLine} ${shouldShowAsLast ? "last" : ""}` : undefined

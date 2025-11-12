@@ -30,6 +30,7 @@ interface Props {
     messageOptionProps?: Partial<ComponentProps<typeof TurnMessageHeaderOptions>>
     toolCallsView?: {title?: string; json: string} | null
     toolIndex?: number
+    containerId?: string
 }
 
 const TurnMessageAdapter: React.FC<Props> = ({
@@ -52,6 +53,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
     handleRerun: propsHandleRerun,
     resultHashes: propsResultHashes,
     toolIndex = 0,
+    containerId,
 }) => {
     const editorIdRef = useRef(uuidv4())
     const turn = useAtomValue(chatTurnsByIdFamilyAtom(rowId)) as any
@@ -321,6 +323,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
         toolPayloads.map((p) => (
             <div
                 key={p.callId}
+                id={containerId}
                 className={clsx(
                     "w-full",
                     {
@@ -394,6 +397,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 },
                 messageProps?.className,
             )}
+            id={containerId}
         >
             <MessageEditor
                 id={editorIdRef.current}

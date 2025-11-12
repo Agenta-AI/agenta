@@ -257,7 +257,7 @@ const ScenarioAnnotationPanel: FC<ScenarioAnnotationPanelProps> = ({
     const hasAnyTrace = useMemo(() => _invocationSteps.some((s) => s.traceId), [_invocationSteps])
 
     return (
-        <Card className={className} classNames={classNames}>
+        <Card className={className} classNames={classNames} id="tour-human-eval-annotation-panel">
             <div className="flex flex-col gap-6">
                 {_invocationSteps.map((invStep) => {
                     return (

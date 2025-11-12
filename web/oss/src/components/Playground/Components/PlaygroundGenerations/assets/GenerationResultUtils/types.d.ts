@@ -4,4 +4,6 @@ export interface GenerationResultUtilsProps {
     className?: string
     result: TestResult | null | undefined
     showStatus?: boolean
+    tourTargetId?: string
+    traceButtonTourId?: string
 }

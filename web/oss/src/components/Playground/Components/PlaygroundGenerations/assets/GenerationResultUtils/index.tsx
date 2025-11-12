@@ -17,6 +17,8 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
     className,
     showStatus = true,
     result,
+    tourTargetId,
+    traceButtonTourId,
 }) => {
     const tree = result?.response?.tree
     const node = tree?.nodes?.[0]
@@ -40,8 +42,18 @@ const GenerationResultUtils: React.FC<GenerationResultUtilsProps> = ({
     const formattedCosts = useMemo(() => formatCurrency(costs), [costs])
 
     return (
-        <div className={clsx("flex items-center gap-1", className)}>
-            <TraceDrawerButton result={result} size="small" type="default" />
+        <div
+            className={clsx("flex items-center gap-1", className)}
+            id={tourTargetId}
+            data-tour-target={tourTargetId ? "true" : undefined}
+        >
+            <TraceDrawerButton
+                result={result}
+                size="small"
+                type="default"
+                id={traceButtonTourId}
+                data-tour-target={traceButtonTourId ? "true" : undefined}
+            />
 
             {showStatus && <StatusRenderer status={status} />}
 

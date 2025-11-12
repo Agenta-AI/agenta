@@ -35,7 +35,7 @@ log = get_module_logger(__name__)
 
 stripe.api_key = environ.get("STRIPE_API_KEY")
 
-MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
+MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xff:02x}" for ele in range(40, -1, -8))
 STRIPE_WEBHOOK_SECRET = environ.get("STRIPE_WEBHOOK_SECRET")
 STRIPE_TARGET = environ.get("STRIPE_TARGET") or MAC_ADDRESS
 AGENTA_PRICING = loads(environ.get("AGENTA_PRICING") or "{}")

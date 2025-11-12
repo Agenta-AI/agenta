@@ -40,11 +40,12 @@ const PlaygroundVariantConfigEditors = ({
 
     return (
         <div className={clsx("flex flex-col", className)} {...divProps}>
-            {promptIds.map((promptId) => (
+            {promptIds.map((promptId, index) => (
                 <PlaygroundVariantConfigPrompt
                     key={`${variantId}:${promptId as string}`}
                     promptId={promptId}
                     variantId={variantId}
+                    enableTourTarget={index === 0}
                 />
             ))}
             <PlaygroundVariantCustomProperties

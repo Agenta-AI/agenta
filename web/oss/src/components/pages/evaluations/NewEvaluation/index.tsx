@@ -504,8 +504,10 @@ const NewEvaluationModal = <Preview extends boolean = true>({
             title={<span>New {evaluationType === "auto" ? "Auto" : "Human"} Evaluation</span>}
             onOk={onSubmit}
             okText="Start Evaluation"
+            okButtonProps={{id: "tour-new-eval-start"}}
             maskClosable={false}
             width={1200}
+            zIndex={900}
             className={classes.modalContainer}
             confirmLoading={submitLoading}
             afterClose={afterClose}

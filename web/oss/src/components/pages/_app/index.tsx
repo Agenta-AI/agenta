@@ -5,6 +5,7 @@ import {useAtomValue} from "jotai"
 import type {AppProps} from "next/app"
 import dynamic from "next/dynamic"
 import {Inter} from "next/font/google"
+import {NextStepProvider} from "nextstepjs"
 
 import ThemeContextProvider from "@/oss/components/Layout/ThemeContextProvider"
 import GlobalScripts from "@/oss/components/Scripts/GlobalScripts"
@@ -18,6 +19,7 @@ import ThemeContextBridge from "@/oss/ThemeContextBridge"
 
 import AppGlobalWrappers from "../../AppGlobalWrappers"
 import AppContextComponent from "../../AppMessageContext"
+import CustomNextStepProvider from "../../Onboarding/components/CustomNextStepProvider"
 
 enableMapSet()
 
@@ -51,31 +53,35 @@ export default function App({Component, pageProps, ...rest}: AppProps) {
             <GlobalScripts />
 
             <main className={`${inter.variable} font-sans`}>
-                <QueryClientProvider client={queryClient}>
-                    <AuthProvider pageProps={pageProps}>
-                        <GlobalStateProvider>
-                            <CustomPosthogProvider
-                                config={{
-                                    persistence: "localStorage+cookie",
-                                }}
-                            >
-                                <ThemeContextProvider>
-                                    <AppComponent>
-                                        <ThemeContextBridge>
-                                            <PreloadQueries />
-                                            <Layout>
-                                                <AppContextComponent />
-                                                <Component {...pageProps} />
-                                                <NoMobilePageWrapper />
-                                            </Layout>
-                                            <AppGlobalWrappers />
-                                        </ThemeContextBridge>
-                                    </AppComponent>
-                                </ThemeContextProvider>
-                            </CustomPosthogProvider>
-                        </GlobalStateProvider>
-                    </AuthProvider>
-                </QueryClientProvider>
+                <NextStepProvider>
+                    <QueryClientProvider client={queryClient}>
+                        <AuthProvider pageProps={pageProps}>
+                            <GlobalStateProvider>
+                                <CustomNextStepProvider>
+                                    <CustomPosthogProvider
+                                        config={{
+                                            persistence: "localStorage+cookie",
+                                        }}
+                                    >
+                                        <ThemeContextProvider>
+                                            <AppComponent>
+                                                <ThemeContextBridge>
+                                                    <PreloadQueries />
+                                                    <Layout>
+                                                        <AppContextComponent />
+                                                        <Component {...pageProps} />
+                                                        <NoMobilePageWrapper />
+                                                    </Layout>
+                                                    <AppGlobalWrappers />
+                                                </ThemeContextBridge>
+                                            </AppComponent>
+                                        </ThemeContextProvider>
+                                    </CustomPosthogProvider>
+                                </CustomNextStepProvider>
+                            </GlobalStateProvider>
+                        </AuthProvider>
+                    </QueryClientProvider>
+                </NextStepProvider>
             </main>
         </>
     )

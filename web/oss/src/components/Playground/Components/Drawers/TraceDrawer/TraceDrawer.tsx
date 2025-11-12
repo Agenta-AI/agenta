@@ -6,6 +6,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import NextViewport from "@/oss/components/Onboarding/components/NextViewport"
 import useTraceDrawer from "@/oss/components/pages/observability/drawer/hooks/useTraceDrawer"
 import TraceSidePanel from "@/oss/components/pages/observability/drawer/TraceSidePanel"
 import {useObservability} from "@/oss/state/newObservability"
@@ -15,6 +16,7 @@ import {clearTraceParamAtom} from "@/oss/state/url"
 import {
     isDrawerOpenAtom,
     closeTraceDrawerAtom,
+    TRACE_DRAWER_VIEWPORT_ID,
     setTraceDrawerActiveSpanAtom,
     setTraceDrawerTraceAtom,
 } from "./store/traceDrawerStore"
@@ -154,8 +156,9 @@ const TraceDrawer = () => {
             closeOnLayoutClick={false}
             afterOpenChange={handleAfterOpenChange}
             className="[&_.ant-drawer-body]:p-0"
+            zIndex={900}
         >
-            <div className="h-full w-full">
+            <NextViewport id={TRACE_DRAWER_VIEWPORT_ID} className="h-full w-full">
                 <Spin spinning={Boolean(isLoading)} tip="Loading trace…" size="large">
                     <div className="h-full">
                         <Splitter className="h-[calc(100%-48px)]">
@@ -186,7 +189,7 @@ const TraceDrawer = () => {
                         </Splitter>
                     </div>
                 </Spin>
-            </div>
+            </NextViewport>
         </EnhancedDrawer>
     )
 }

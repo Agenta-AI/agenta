@@ -77,12 +77,13 @@ const EvalRunScenarioCardBody: FC<EvalRunScenarioCardBodyProps> = ({scenarioId, 
     const renderRuns = useCallback(() => {
         if (!invocationSteps.length) return null
 
-        return invocationSteps.map((invStep: any) => (
+        return invocationSteps.map((invStep: any, index: number) => (
             <InvocationRun
                 key={invStep.id}
                 invStep={invStep}
                 scenarioId={scenarioId}
                 runId={effectiveRunId}
+                isPrimary={index === 0}
             />
         ))
     }, [scenarioId, invocationSteps, effectiveRunId])

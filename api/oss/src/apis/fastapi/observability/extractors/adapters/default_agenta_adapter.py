@@ -40,7 +40,9 @@ class DefaultAgentaAdapter(BaseAdapter):
 
         # Exceptions - Rebuilt from attributes.events to match previous output structure
         exception_events = attributes.get_events_by_name("exception")
-        if exception_events:  # Process the first one if multiple exist, or adapt if all should be processed
+        if (
+            exception_events
+        ):  # Process the first one if multiple exist, or adapt if all should be processed
             event_data = exception_events[0]
             # Ensure timestamp is decoded and formatted as previously (likely to string by decode_value if it's datetime)
             decoded_ts = decode_value(event_data.timestamp)

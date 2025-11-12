@@ -1,0 +1,27 @@
+import {Tour} from "nextstepjs"
+
+export type OnboardingState = "idle" | "started" | "done" | "error" | "skipped"
+
+export type UserOnboardingStatus<T = OnboardingState> = {
+    apps: T
+    playground: T
+    playgroundPostRun: T
+    evaluations: T
+    observability: T
+    trace: T
+}
+
+export type OnboardingStep = Tour["steps"][number] & {
+    onEnter?: () => void
+    onExit?: () => void
+    onCleanup?: () => void
+    onboardingSection?: keyof UserOnboardingStatus
+}
+
+export type CurrentOnboardingStep = OnboardingStep
+
+export interface CurrentOnboardingStepExtended extends CurrentOnboardingStep {
+    location?: string
+    currentStep?: number
+    totalSteps?: number
+}

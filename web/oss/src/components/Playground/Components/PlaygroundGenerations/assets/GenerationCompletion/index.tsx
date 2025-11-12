@@ -25,7 +25,7 @@ const GenerationCompletion = ({
 
     // Use derived row IDs: returns normalized ids; for completion with none, exposes a virtual default id
     const inputRowIds = useAtomValue(generationInputRowIdsAtom) as string[]
-    const inputRowId = inputRowIds[0] || null
+    const primaryRowId = inputRowIds[0] || null
 
     // EFFICIENT MUTATION: Use dedicated mutation atom instead of complex useCallback logic
     const addNewInputRow = useSetAtom(inputRowIdsAtom)
@@ -39,16 +39,18 @@ const GenerationCompletion = ({
             {viewType === "comparison" ? (
                 <GenerationCompletionRow
                     variantId={variantId}
-                    rowId={rowId || inputRowId || inputRowIds?.[0]}
+                    rowId={rowId || primaryRowId || inputRowIds?.[0]}
                     className={rowClassName}
+                    isPrimaryRow
                 />
             ) : (
-                (inputRowIds || []).map((rowIdItem) => (
+                (inputRowIds || []).map((rowIdItem, index) => (
                     <GenerationCompletionRow
                         key={rowIdItem}
                         variantId={variantId}
                         rowId={rowIdItem}
                         className={rowClassName}
+                        isPrimaryRow={index === 0}
                     />
                 ))
             )}

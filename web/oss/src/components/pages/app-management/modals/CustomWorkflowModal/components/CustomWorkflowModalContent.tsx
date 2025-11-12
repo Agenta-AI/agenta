@@ -250,7 +250,7 @@ const CustomWorkflowModalContent = ({
                 </Text>
             )}
 
-            <div className="space-y-1">
+            <div className="space-y-1" id="tour-custom-app-name-input">
                 <SharedEditor
                     header={<Typography className={classes.label}>App name *</Typography>}
                     initialValue={values.appName}
@@ -301,22 +301,23 @@ const CustomWorkflowModalContent = ({
                 )}
             </div>
 
-            <SharedEditor
-                header={<Typography className={classes.label}>Workflow URL *</Typography>}
-                initialValue={workflowUrlInput}
-                handleChange={(value) => {
-                    setValues((draft) => {
-                        draft.appUrl = value
-                    })
-                    setCustomWorkflowAppValues?.((prev) => ({...prev, appUrl: value}))
-                }}
-                editorType="border"
-                placeholder="Enter workflow URL"
-                editorClassName="!border-none !shadow-none px-0"
-                className="py-1 px-[11px] !w-auto"
-                useAntdInput
-            />
-
+            <div id="tour-custom-app-url-input">
+                <SharedEditor
+                    header={<Typography className={classes.label}>Workflow URL *</Typography>}
+                    initialValue={workflowUrlInput}
+                    handleChange={(value) => {
+                        setValues((draft) => {
+                            draft.appUrl = value
+                        })
+                        setCustomWorkflowAppValues?.((prev) => ({...prev, appUrl: value}))
+                    }}
+                    editorType="border"
+                    placeholder="Enter workflow URL"
+                    editorClassName="!border-none !shadow-none px-0"
+                    className="py-1 px-[11px] !w-auto"
+                    useAntdInput
+                />
+            </div>
             {
                 <CustomWorkflowModalFooter
                     handleCancelButton={() => props.onCancel?.({} as any)}
