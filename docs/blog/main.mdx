@@ -10,33 +10,6 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
-### [Customize LLM-as-a-Judge Output Schemas](/changelog/customize-llm-as-a-judge-output-schemas)
-
-_10 November 2025_
-
-**v0.62.0**
-
-<div style={{display: 'flex', justifyContent: 'center', gap: '24px', margin: '20px 0'}}>
-  <Image
-    img={require('/static/images/changelog/changelog-llm-as-a-judge-response-1.png')}
-    alt="Custom output schemas in LLM-as-a-Judge - Example 1"
-    style={{width: '48%', minWidth: 0}}
-  />
-  <Image
-    img={require('/static/images/changelog/changelog-llm-as-a-judge-response-2.png')}
-    alt="Custom output schemas in LLM-as-a-Judge - Example 2"
-    style={{width: '48%', minWidth: 0}}
-  />
-</div>
-
-The LLM-as-a-Judge evaluator now supports custom output schemas. Create multiple feedback outputs per evaluator with any structure you need.
-
-You can configure output types (binary, multiclass), include reasoning to improve prediction quality, or provide a raw JSON schema with any structure you define. Use these custom schemas in your evaluations to capture exactly the feedback you need.
-
-Learn more in the [LLM-as-a-Judge documentation](/evaluation/configure-evaluators/llm-as-a-judge).
-
----
-
 ### [Documentation Overhaul](/changelog/documentation-architecture-overhaul)
 
 _3 November 2025_
@@ -297,7 +270,7 @@ This is useful to:
 - Run custom evaluation workflows
 - Measure application performance in real-time
 
-Check out the how to [annotate traces from API](/observability/trace-with-python-sdk/annotate-traces) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
+Check out the how to [annotate traces from API](/observability/trace-with-python-sdk/annotate-traces) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/observability/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
 
 <Image
   style={{

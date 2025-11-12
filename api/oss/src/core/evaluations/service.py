@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from celery import current_app as celery_dispatch
 
+from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta, Data
@@ -178,7 +179,7 @@ class EvaluationsService:
 
             try:
                 log.info(
-                    "[LIVE] Dispatching...",
+                    "[LIVE]",
                     project_id=project_id,
                     run_id=run.id,
                     #
@@ -186,24 +187,19 @@ class EvaluationsService:
                     oldest=oldest,
                 )
 
-                celery_dispatch.send_task(  # type: ignore
-                    "src.tasks.evaluations.live.evaluate",
-                    kwargs=dict(
-                        project_id=project_id,
-                        user_id=user_id,
-                        #
-                        run_id=run.id,
-                        #
-                        newest=newest,
-                        oldest=oldest,
-                    ),
-                )
-
-                log.info(
-                    "[LIVE] Dispatched.   ",
-                    project_id=project_id,
-                    run_id=run.id,
-                )
+                if is_ee():
+                    celery_dispatch.send_task(  # type: ignore
+                        "src.tasks.evaluations.live.evaluate",
+                        kwargs=dict(
+                            project_id=project_id,
+                            user_id=user_id,
+                            #
+                            run_id=run.id,
+                            #
+                            newest=newest,
+                            oldest=oldest,
+                        ),
+                    )
 
             except Exception as e:  # pylint: disable=broad-exception-caught
                 log.error(f"[LIVE] Error refreshing run {run.id}: {e}", exc_info=True)
@@ -1561,26 +1557,29 @@ class SimpleEvaluationsService:
                     return None
 
                 if _evaluation.data.query_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_queries",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
-                    )
+                    if is_ee():
+                        celery_dispatch.send_task(  # type: ignore
+                            "src.tasks.evaluations.batch.evaluate_queries",
+                            kwargs=dict(
+                                project_id=project_id,
+                                user_id=user_id,
+                                #
+                                run_id=run.id,
+                            ),
+                        )
 
                 elif _evaluation.data.testset_steps:
-                    celery_dispatch.send_task(  # type: ignore
-                        "src.tasks.evaluations.batch.evaluate_testsets",
-                        kwargs=dict(
-                            project_id=project_id,
-                            user_id=user_id,
-                            #
-                            run_id=run.id,
-                        ),
-                    )
+                    if is_ee():
+                        # TODO: Fix typing ?
+                        celery_dispatch.send_task(  # type: ignore
+                            "src.tasks.evaluations.batch.evaluate_testsets",
+                            kwargs=dict(
+                                project_id=project_id,
+                                user_id=user_id,
+                                #
+                                run_id=run.id,
+                            ),
+                        )
 
                 return _evaluation
 
@@ -1804,12 +1803,10 @@ class SimpleEvaluationsService:
                         )
                         return None
 
-                    testset_revision = (
-                        await self.testsets_service.fetch_testset_revision(
-                            project_id=project_id,
-                            #
-                            testset_ref=testset_ref,
-                        )
+                    testset_revision = await self.testsets_service.fetch_testset_revision(
+                        project_id=project_id,
+                        #
+                        testset_ref=testset_ref,
                     )
 
                     if (
@@ -2037,12 +2034,10 @@ class SimpleEvaluationsService:
                         )
                         return None
 
-                    evaluator_revision = (
-                        await self.evaluators_service.fetch_evaluator_revision(
-                            project_id=project_id,
-                            #
-                            evaluator_ref=evaluator_ref,
-                        )
+                    evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+                        project_id=project_id,
+                        #
+                        evaluator_ref=evaluator_ref,
                     )
 
                     if (
@@ -2062,12 +2057,10 @@ class SimpleEvaluationsService:
             for evaluator_revision_id, origin in (evaluator_steps or {}).items():
                 evaluator_revision_ref = Reference(id=evaluator_revision_id)
 
-                evaluator_revision = (
-                    await self.evaluators_service.fetch_evaluator_revision(
-                        project_id=project_id,
-                        #
-                        evaluator_revision_ref=evaluator_revision_ref,
-                    )
+                evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+                    project_id=project_id,
+                    #
+                    evaluator_revision_ref=evaluator_revision_ref,
                 )
 
                 if not evaluator_revision or not evaluator_revision.slug:
@@ -2086,12 +2079,10 @@ class SimpleEvaluationsService:
 
                 evaluator_variant_ref = Reference(id=evaluator_revision.variant_id)
 
-                evaluator_variant = (
-                    await self.evaluators_service.fetch_evaluator_variant(
-                        project_id=project_id,
-                        #
-                        evaluator_variant_ref=evaluator_variant_ref,
-                    )
+                evaluator_variant = await self.evaluators_service.fetch_evaluator_variant(
+                    project_id=project_id,
+                    #
+                    evaluator_variant_ref=evaluator_variant_ref,
                 )
 
                 if not evaluator_variant:

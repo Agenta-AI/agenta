@@ -511,24 +511,20 @@ def field_match_test_v0(
     correct_answer = inputs[correct_answer_key]
 
     if not isinstance(outputs, str) and not isinstance(outputs, dict):
-        # raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
-        return {"success": False}
+        raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
 
     outputs_dict = outputs
     if isinstance(outputs, str):
         try:
             outputs_dict = loads(outputs)
         except json.JSONDecodeError as e:
-            # raise InvalidOutputsV0Error(expected="dict", got=outputs) from e
-            return {"success": False}
+            raise InvalidOutputsV0Error(expected="dict", got=outputs) from e
 
     if not isinstance(outputs_dict, dict):
-        # raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
-        return {"success": False}
+        raise InvalidOutputsV0Error(expected=["dict", "str"], got=outputs)
 
     if not json_field in outputs_dict:
-        # raise MissingOutputV0Error(path=json_field)
-        return {"success": False}
+        raise MissingOutputV0Error(path=json_field)
 
     # --------------------------------------------------------------------------
     success = outputs_dict[json_field] == correct_answer
@@ -780,9 +776,7 @@ async def auto_ai_critique_v0(
             got=model,
         )
 
-    response_type = parameters.get("response_type") or (
-        "json_schema" if template_version == "4" else "text"
-    )
+    response_type = parameters.get("response_type") or "text"
 
     if not response_type in ["text", "json_object", "json_schema"]:
         raise InvalidConfigurationParameterV0Error(

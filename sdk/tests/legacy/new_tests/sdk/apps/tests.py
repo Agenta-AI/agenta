@@ -44,9 +44,9 @@ class TestAppsManagerCoverage:
 
         # ASSERT
         assert response.app_name == app_name
-        assert isinstance(response.model_dump(), dict), (
-            "Response data is not a dictionary."
-        )
+        assert isinstance(
+            response.model_dump(), dict
+        ), "Response data is not a dictionary."
 
         # CLEANUP
         await delete_application(

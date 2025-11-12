@@ -2,7 +2,12 @@ from fastapi import FastAPI
 
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.routers import workspace_router, organization_router
+from ee.src.routers import (
+    workspace_router,
+    organization_router,
+    evaluation_router,
+    human_evaluation_router,
+)
 
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
@@ -66,9 +71,27 @@ def extend_main(app: FastAPI):
         prefix="/workspaces",
     )
 
+    app.include_router(
+        evaluation_router.router,
+        prefix="/evaluations",
+        tags=["Evaluations"],
+    )
+
+    app.include_router(
+        human_evaluation_router.router,
+        prefix="/human-evaluations",
+        tags=["Human-Evaluations"],
+    )
+
     # --------------------------------------------------------------------------
 
     return app
+
+
+def load_tasks():
+    import ee.src.tasks.evaluations.live
+    import ee.src.tasks.evaluations.legacy
+    import ee.src.tasks.evaluations.batch
 
 
 def extend_app_schema(app: FastAPI):
