@@ -1,0 +1,463 @@
+---
+title: "Configuring Evaluators"
+sidebar_label: "Configuring Evaluators"
+description: "Learn how to create custom evaluators and use built-in evaluators to check your application's output"
+sidebar_position: 2
+---
+
+# Configuring Evaluators
+
+Evaluators are functions that check if your application's output is correct. You can write your own custom evaluators or use Agenta's built-in evaluators.
+
+## Custom Evaluators
+
+Custom evaluators are Python functions decorated with `@ag.evaluator`. They receive inputs from your test data and the application's output, then return a dictionary with scores.
+
+### Basic Structure
+
+```python
+import agenta as ag
+
+@ag.evaluator(
+    slug="my_evaluator",
+    name="My Evaluator",
+    description="Checks if the output meets my criteria"
+)
+async def my_evaluator(expected: str, outputs: str):
+    is_correct = outputs == expected
+    return {
+        "score": 1.0 if is_correct else 0.0,
+        "success": is_correct,
+    }
+```
+
+The evaluator decorator takes these parameters:
+
+- **slug** (required): A unique identifier for your evaluator
+- **name** (optional): A human-readable name shown in the UI
+- **description** (optional): Explains what the evaluator checks
+
+### Understanding Evaluator Inputs
+
+Evaluators receive two types of inputs:
+
+1. **Test case fields**: Any field from your test data
+2. **Application output**: Always called `outputs`
+
+When you run an evaluation, Agenta passes both the test case data and what your application returned to the evaluator.
+
+**Example:**
+
+```python
+# Your test case
+test_case = {
+    "question": "What is 2+2?",
+    "correct_answer": "4",
+    "difficulty": "easy"
+}
+
+# Your evaluator can access any of these fields
+@ag.evaluator(slug="math_checker")
+async def math_checker(
+    correct_answer: str,    # From test case
+    difficulty: str,         # From test case
+    outputs: str            # What the application returned
+):
+    # Check if the application's output matches the correct answer
+    is_correct = outputs == correct_answer
+
+    # You can use other fields in your logic
+    if difficulty == "easy":
+        return {"score": 1.0 if is_correct else 0.0}
+    else:
+        # More lenient scoring for hard questions
+        return {"score": 0.5 if is_correct else 0.0}
+```
+
+### Return Values
+
+Evaluators must return a dictionary. You can include any metrics you want, but these fields have special meaning:
+
+- **score**: A numeric value (typically 0.0 to 1.0) indicating quality
+- **success**: A boolean flag indicating pass/fail
+
+```python
+@ag.evaluator(slug="detailed_checker")
+async def detailed_checker(expected: str, outputs: str):
+    return {
+        "score": 0.85,              # Overall score
+        "success": True,             # Did it pass?
+        "length_match": len(outputs) == len(expected),
+        "exact_match": outputs == expected,
+        "custom_metric": 42,
+    }
+```
+
+All values in the result dictionary are stored and displayed in the evaluation results.
+
+### Practical Examples
+
+#### Case-Insensitive Match
+
+```python
+@ag.evaluator(
+    slug="case_insensitive_match",
+    name="Case Insensitive Match"
+)
+async def case_insensitive_match(expected: str, outputs: str):
+    match = outputs.lower() == expected.lower()
+    return {
+        "score": 1.0 if match else 0.0,
+        "success": match,
+    }
+```
+
+#### Length Check
+
+```python
+@ag.evaluator(
+    slug="length_validator",
+    name="Length Validator"
+)
+async def length_validator(outputs: str):
+    """Check if output is within acceptable length."""
+    length = len(outputs)
+    is_valid = 10 <= length <= 500
+
+    return {
+        "success": is_valid,
+        "length": length,
+        "score": 1.0 if is_valid else 0.0,
+    }
+```
+
+#### Contains Keywords
+
+```python
+@ag.evaluator(
+    slug="keyword_checker",
+    name="Keyword Checker"
+)
+async def keyword_checker(keywords: list[str], outputs: str):
+    """Check if output contains required keywords."""
+    found = [kw for kw in keywords if kw.lower() in outputs.lower()]
+    score = len(found) / len(keywords) if keywords else 0.0
+
+    return {
+        "score": score,
+        "success": score >= 0.8,
+        "found_keywords": found,
+        "missing_keywords": [kw for kw in keywords if kw not in found],
+    }
+```
+
+## Built-in Evaluators
+
+Agenta provides pre-built evaluators for common evaluation tasks. You import them from `agenta.sdk.workflows.builtin` and pass them directly to the `aevaluate()` function.
+
+### LLM-as-a-Judge
+
+The LLM-as-a-judge evaluator uses a language model to evaluate your application's output. This is useful when you need nuanced judgments that simple string matching cannot provide.
+
+```python
+from agenta.sdk.workflows import builtin
+from agenta.sdk.evaluations import aevaluate
+
+llm_evaluator = builtin.auto_ai_critique(
+    slug="quality_evaluator",
+    name="Quality Evaluator",
+    description="Uses an LLM to judge response quality",
+    correct_answer_key="expected_answer",
+    model="gpt-3.5-turbo",  # or "gpt-4", "claude-3-sonnet", etc.
+    prompt_template=[
+        {
+            "role": "system",
+            "content": "You are an expert evaluator of AI responses.",
+        },
+        {
+            "role": "user",
+            "content": (
+                "Expected answer: {{expected_answer}}\n"
+                "Actual answer: {{outputs}}\n\n"
+                "Rate the quality of the actual answer from 0.0 to 1.0.\n"
+                "Respond with ONLY a number, nothing else."
+            ),
+        },
+    ],
+)
+
+# Use it in evaluation
+result = await aevaluate(
+    testsets=[testset.id],
+    applications=[my_app],
+    evaluators=[llm_evaluator],
+)
+```
+
+**Parameters:**
+
+- **slug** (required): Unique identifier for the evaluator
+- **prompt_template** (required): List of message dictionaries with `role` and `content`
+  - Use `{{field_name}}` placeholders that will be replaced with test case values
+  - `{{outputs}}` is always available for the application's output
+- **correct_answer_key** (optional): Field name in test case containing the expected answer
+- **model** (optional): Which LLM to use (default: "gpt-3.5-turbo")
+- **name** (optional): Display name
+- **description** (optional): Description of what this evaluator checks
+
+The prompt template uses curly brace syntax `{{variable}}` for placeholders. All fields from your test case are available, plus `{{outputs}}`.
+
+### String Matching Evaluators
+
+#### Exact Match
+
+Checks if the output exactly matches the expected answer.
+
+```python
+from agenta.sdk.workflows import builtin
+from agenta.sdk.evaluations import aevaluate
+
+exact_match = builtin.auto_exact_match(
+    correct_answer_key="expected"
+)
+
+# Use in evaluation
+result = await aevaluate(
+    testsets=[testset.id],
+    applications=[my_app],
+    evaluators=[exact_match],
+)
+```
+
+**Parameters:**
+- **correct_answer_key** (optional): Field name in test case with expected value (default: "correct_answer")
+
+**Returns:**
+- `success`: True if output exactly matches expected value
+
+#### Starts With
+
+Checks if the output starts with a specific prefix.
+
+```python
+prefix_check = builtin.auto_starts_with(
+    prefix="Answer:",
+    case_sensitive=True
+)
+```
+
+**Parameters:**
+- **prefix** (required): The string the output should start with
+- **case_sensitive** (optional): Whether to match case (default: True)
+
+**Returns:**
+- `success`: True if output starts with the prefix
+
+#### Ends With
+
+Checks if the output ends with a specific suffix.
+
+```python
+suffix_check = builtin.auto_ends_with(
+    suffix="Thank you!",
+    case_sensitive=False
+)
+```
+
+**Parameters:**
+- **suffix** (required): The string the output should end with
+- **case_sensitive** (optional): Whether to match case (default: True)
+
+**Returns:**
+- `success`: True if output ends with the suffix
+
+#### Contains
+
+Checks if the output contains a substring.
+
+```python
+contains_check = builtin.auto_contains(
+    substring="important keyword",
+    case_sensitive=False
+)
+```
+
+**Parameters:**
+- **substring** (required): The string to search for
+- **case_sensitive** (optional): Whether to match case (default: True)
+
+**Returns:**
+- `success`: True if output contains the substring
+
+#### Contains Any
+
+Checks if the output contains at least one of several substrings.
+
+```python
+any_check = builtin.auto_contains_any(
+    substrings=["hello", "hi", "greetings"],
+    case_sensitive=False
+)
+```
+
+**Parameters:**
+- **substrings** (required): List of strings to search for
+- **case_sensitive** (optional): Whether to match case (default: True)
+
+**Returns:**
+- `success`: True if output contains at least one substring
+
+#### Contains All
+
+Checks if the output contains all of several substrings.
+
+```python
+all_check = builtin.auto_contains_all(
+    substrings=["name", "age", "email"],
+    case_sensitive=False
+)
+```
+
+**Parameters:**
+- **substrings** (required): List of strings that must all be present
+- **case_sensitive** (optional): Whether to match case (default: True)
+
+**Returns:**
+- `success`: True if output contains all substrings
+
+### Regex Evaluator
+
+Checks if the output matches a regular expression pattern.
+
+```python
+regex_check = builtin.auto_regex_test(
+    regex_pattern=r"\d{3}-\d{3}-\d{4}",  # Phone number pattern
+    regex_should_match=True,
+    case_sensitive=False
+)
+```
+
+**Parameters:**
+- **regex_pattern** (required): Regular expression pattern to test
+- **regex_should_match** (optional): Whether pattern should match (default: True)
+- **case_sensitive** (optional): Whether to match case (default: True)
+
+**Returns:**
+- `success`: True if pattern match result equals `regex_should_match`
+
+### JSON Evaluators
+
+#### Contains JSON
+
+Checks if the output contains valid JSON.
+
+```python
+json_check = builtin.auto_contains_json()
+```
+
+**Returns:**
+- `success`: True if output contains parseable JSON
+
+#### JSON Field Match
+
+Checks if a specific field in JSON output matches the expected value.
+
+```python
+field_check = builtin.field_match_test(
+    json_field="status",
+    correct_answer_key="expected_status"
+)
+```
+
+**Parameters:**
+- **json_field** (required): Name of field to extract from JSON output
+- **correct_answer_key** (optional): Test case field with expected value (default: "correct_answer")
+
+**Returns:**
+- `success`: True if extracted field matches expected value
+
+#### JSON Diff
+
+Compares JSON structures and calculates similarity score.
+
+```python
+json_diff = builtin.auto_json_diff(
+    correct_answer_key="expected_json",
+    threshold=0.8,
+    compare_schema_only=False
+)
+```
+
+**Parameters:**
+- **correct_answer_key** (optional): Test case field with expected JSON (default: "correct_answer")
+- **threshold** (optional): Minimum similarity score to pass (default: 0.5)
+- **predict_keys** (optional): Whether to predict which keys to compare (default: False)
+- **case_insensitive_keys** (optional): Whether to ignore case in key names (default: False)
+- **compare_schema_only** (optional): Only compare structure, not values (default: False)
+
+**Returns:**
+- `score`: Similarity score from 0.0 to 1.0
+- `success`: True if score meets threshold
+
+### Similarity Evaluators
+
+#### Levenshtein Distance
+
+Calculates edit distance between output and expected value.
+
+```python
+levenshtein = builtin.auto_levenshtein_distance(
+    correct_answer_key="expected",
+    threshold=0.8,
+    case_sensitive=False
+)
+```
+
+**Parameters:**
+- **correct_answer_key** (optional): Test case field with expected value (default: "correct_answer")
+- **case_sensitive** (optional): Whether to match case (default: True)
+- **threshold** (optional): Minimum similarity to pass (default: 0.5)
+
+**Returns:**
+- `score`: Normalized similarity score from 0.0 to 1.0
+- `success`: True if score meets threshold
+
+#### Similarity Match
+
+Uses Python's SequenceMatcher to calculate similarity.
+
+```python
+similarity = builtin.auto_similarity_match(
+    correct_answer_key="expected",
+    threshold=0.75
+)
+```
+
+**Parameters:**
+- **correct_answer_key** (optional): Test case field with expected value (default: "correct_answer")
+- **threshold** (optional): Minimum similarity to pass (default: 0.5)
+
+**Returns:**
+- `score`: Similarity ratio from 0.0 to 1.0
+- `success`: True if score meets threshold
+
+#### Semantic Similarity
+
+Uses embeddings to measure semantic similarity.
+
+```python
+semantic = builtin.auto_semantic_similarity(
+    correct_answer_key="expected",
+    embedding_model="text-embedding-3-small",
+    threshold=0.8
+)
+```
+
+**Parameters:**
+- **correct_answer_key** (optional): Test case field with expected value (default: "correct_answer")
+- **embedding_model** (optional): OpenAI embedding model (default: "text-embedding-3-small")
+- **threshold** (optional): Minimum similarity to pass (default: 0.5)
+
+**Returns:**
+- `score`: Cosine similarity from 0.0 to 1.0
+- `success`: True if score meets threshold
