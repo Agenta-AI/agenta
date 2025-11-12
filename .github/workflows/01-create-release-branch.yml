@@ -56,42 +56,32 @@ jobs:
           npm install semver -g
 
           cd web
-          echo "web version:" $(pnpm pkg get version | tr -d '"') "(before)"
           pnpm version $BUMP_TYPE
-          echo "web version:" $(pnpm pkg get version | tr -d '"') "(after)"
           WEB_VERSION=$(pnpm pkg get version | tr -d '"')
           
           cd ee
           current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
-          echo "web (ee) version:" $(pnpm pkg get version | tr -d '"') "(before)"
           pnpm pkg set version="$new_version"
-          echo "web (ee) version:" $(pnpm pkg get version | tr -d '"') "(after)"
           EE_VERSION=$new_version
           cd ..
           
           cd oss
           current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
           new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
-          echo "web (oss) version:" $(pnpm pkg get version | tr -d '"') "(before)"
           pnpm pkg set version="$new_version"
-          echo "web (oss) version:" $(pnpm pkg get version | tr -d '"') "(after)"
           OSS_VERSION=$new_version
           cd ..
 
           cd ..
 
           cd sdk
-          echo "sdk version:" $(poetry version -s) "(before)"
           poetry version $BUMP_TYPE
-          echo "sdk version:" $(poetry version -s) "(after)"
           SDK_VERSION=$(poetry version -s)
           cd ..
 
           cd api
-          echo "api version:" $(poetry version -s) "(before)"
           poetry version $BUMP_TYPE
-          echo "api version:" $(poetry version -s) "(after)"
           API_VERSION=$(poetry version -s)
           cd ..
 
