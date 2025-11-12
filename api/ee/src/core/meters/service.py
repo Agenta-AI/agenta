@@ -65,16 +65,17 @@ class MetersService:
 
     async def report(self):
         if not stripe.api_key:
-            log.warn("Missing Stripe API Key.")
+            log.warn("[report] Missing Stripe API Key.")
             return
 
         log.info("[report] Starting meter report job")
 
         try:
+            log.info("[report] Dumping meters to sync")
             meters = await self.dump()
             log.info(f"[report] Dumped {len(meters)} meters to sync")
         except Exception as e:  # pylint: disable=broad-exception-caught
-            log.error("Error dumping meters: %s", e)
+            log.error("[report] Error dumping meters: %s", e)
             return
 
         reported_count = 0
@@ -152,12 +153,12 @@ class MetersService:
 
                             reported_count += 1
                             log.info(
-                                f"[stripe] updating:  {meter.organization_id} |         | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value}"
+                                f"[report] [stripe]  {meter.organization_id} |         | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value}"
                             )
 
                         except Exception as e:  # pylint: disable=broad-exception-caught
                             log.error(
-                                f"Error modifying subscription for {meter.organization_id}/{meter.key}: %s",
+                                f"[report] Error modifying subscription for {meter.organization_id}/{meter.key}: %s",
                                 e,
                             )
                             error_count += 1
@@ -184,12 +185,12 @@ class MetersService:
 
                             reported_count += 1
                             log.info(
-                                f"[stripe] reporting: {meter.organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value - meter.synced}"
+                                f"[report] [stripe] {meter.organization_id} | {(('0' if (meter.month != 0 and meter.month < 10) else '') + str(meter.month)) if meter.month != 0 else '  '}.{meter.year if meter.year else '    '} | {'sync ' if meter.key.value in REPORTS else '     '} | {meter.key}: {meter.value - meter.synced}"
                             )
 
                         except Exception as e:  # pylint: disable=broad-exception-caught
                             log.error(
-                                f"Error creating meter event for {meter.organization_id}/{meter.key}: %s",
+                                f"[report] Error creating meter event for {meter.organization_id}/{meter.key}: %s",
                                 e,
                             )
                             error_count += 1
@@ -197,7 +198,8 @@ class MetersService:
 
             except Exception as e:  # pylint: disable=broad-exception-caught
                 log.error(
-                    f"Error reporting meter {meter.organization_id}/{meter.key}: %s", e
+                    f"E[report] rror reporting meter {meter.organization_id}/{meter.key}: %s",
+                    e,
                 )
                 error_count += 1
 
@@ -215,7 +217,7 @@ class MetersService:
                 synced_count += 1
             except Exception as e:  # pylint: disable=broad-exception-caught
                 log.error(
-                    f"Error setting synced value for {meter.organization_id}/{meter.key}: %s",
+                    f"[report] Error setting synced value for {meter.organization_id}/{meter.key}: %s",
                     e,
                 )
                 sync_error_count += 1
@@ -225,9 +227,9 @@ class MetersService:
         )
 
         try:
-            log.info(f"[report] Calling bump for {len(meters)} meters")
+            log.info(f"[report] Bumping {len(meters)} meters")
             await self.bump(meters=meters)
-            log.info(f"[report] Bump completed successfully")
+            log.info("[report] Bumped successfully")
         except Exception as e:  # pylint: disable=broad-exception-caught
-            log.error("Error bumping meters: %s", e)
+            log.error("[report] Error bumping meters: %s", e)
             return
