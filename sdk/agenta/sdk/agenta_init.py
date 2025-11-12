@@ -97,9 +97,9 @@ class AgentaSingleton:
             _api_url = _host + "/api"
 
         try:
-            assert _host and isinstance(
-                _host, str
-            ), "Host is required. Please provide a valid host or set AGENTA_HOST environment variable."
+            assert _host and isinstance(_host, str), (
+                "Host is required. Please provide a valid host or set AGENTA_HOST environment variable."
+            )
             self.host = parse_url(url=_host)
             self.api_url = self.host + "/api"
         except AssertionError as e:

@@ -24,9 +24,9 @@ class TestVariantManager:
         )
 
         # ASSERT: Verify response
-        assert (
-            response.status_code == 200
-        ), f"Failed to add config for variant {test_variant_slug}"
+        assert response.status_code == 200, (
+            f"Failed to add config for variant {test_variant_slug}"
+        )
         response_data = response.json()
         assert "params" in response_data, "Response missing 'params'"
         assert "url" in response_data, "Response missing 'url'"
@@ -55,9 +55,9 @@ class TestVariantManager:
 
         # ASSERT: Verify error response for duplicate
         assert response.status_code == 400, "Expected 400 error for duplicate config"
-        assert (
-            response.json()["detail"] == "Config already exists."
-        ), "Incorrect error message for duplicate config"
+        assert response.json()["detail"] == "Config already exists.", (
+            "Incorrect error message for duplicate config"
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.variant_manager
@@ -79,12 +79,12 @@ class TestVariantManager:
         )
 
         # ASSERT: Verify error response for non-existent application
-        assert (
-            response.status_code == 404
-        ), "Expected 404 error for non-existent application"
-        assert (
-            response.json()["detail"] == "Config not found."
-        ), "Incorrect error message for non-existent application"
+        assert response.status_code == 404, (
+            "Expected 404 error for non-existent application"
+        )
+        assert response.json()["detail"] == "Config not found.", (
+            "Incorrect error message for non-existent application"
+        )
 
     @pytest.mark.asyncio
     @pytest.mark.variant_manager
