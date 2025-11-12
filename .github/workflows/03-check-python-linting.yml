@@ -1,5 +1,8 @@
 name: 03 - check python linting
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     paths:
