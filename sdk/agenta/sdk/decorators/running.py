@@ -53,13 +53,11 @@ class InvokeFn(Protocol):
     async def __call__(
         self,
         request: Union[WorkflowServiceRequest, dict],
-    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
-        ...
+    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]: ...
 
 
 class InspectFn(Protocol):
-    async def __call__(self) -> WorkflowServiceRequest:
-        ...
+    async def __call__(self) -> WorkflowServiceRequest: ...
 
 
 class Workflow:
@@ -81,8 +79,7 @@ class Workflow:
         credentials: Optional[str] = None,
         #
         **kwargs,
-    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]:
-        ...
+    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse]: ...
 
     async def inspect(
         self,
@@ -90,8 +87,7 @@ class Workflow:
         credentials: Optional[str] = None,
         #
         **kwargs,
-    ) -> WorkflowServiceRequest:
-        ...
+    ) -> WorkflowServiceRequest: ...
 
     def __call__(self, *args, **kwargs) -> Any:
         return self._fn(*args, **kwargs)
