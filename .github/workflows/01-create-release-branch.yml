@@ -50,7 +50,7 @@ jobs:
       - name: Bump versions and compare
         id: bump_versions
         run: |
-          BUMP_TYPE=${{ inputs.bump-type }}
+          BUMP_TYPE=${{ inputs.release-type }}
           echo "Bumping versions to $BUMP_TYPE"
 
           npm install semver -g
