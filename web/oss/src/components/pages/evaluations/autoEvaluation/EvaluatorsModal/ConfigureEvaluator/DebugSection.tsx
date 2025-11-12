@@ -7,25 +7,12 @@ import {
     ExclamationCircleOutlined,
     MoreOutlined,
 } from "@ant-design/icons"
-import {Editor} from "@monaco-editor/react"
 import {Database, Lightning, Play} from "@phosphor-icons/react"
-import {
-    Button,
-    Divider,
-    Dropdown,
-    Flex,
-    FormInstance,
-    message,
-    Space,
-    Tabs,
-    Tooltip,
-    Typography,
-} from "antd"
+import {Button, Dropdown, Flex, FormInstance, message, Space, Tabs, Tooltip, Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
-import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {mapTestcaseAndEvalValues, transformTraceKeysInSettings} from "@/oss/lib/helpers/evaluate"
@@ -78,6 +65,8 @@ import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {buildVariantFromRevision} from "./variantUtils"
+import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import clsx from "clsx"
 
 interface DebugSectionProps {
     selectedTestcase: {
@@ -130,10 +119,18 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         fontWeight: theme.fontWeightMedium,
     },
     editor: {
-        border: `1px solid ${theme.colorBorder}`,
-        borderRadius: theme.borderRadius,
-        overflow: "hidden",
         minHeight: "180px",
+        height: "100%",
+        maxHeight: 200,
+        overflow: "auto",
+        "&.agenta-shared-editor": {
+            borderColor: theme.colorBorder,
+            borderRadius: theme.borderRadius,
+        },
+        "& .agenta-editor-wrapper": {
+            minHeight: "180px",
+            height: "100%",
+        },
     },
     variantTab: {
         flex: 1,
@@ -176,7 +173,6 @@ const DebugSection = ({
 }: DebugSectionProps) => {
     const appId = useAppId()
     const classes = useStyles()
-    const {appTheme} = useAppTheme()
     const uriObject = useAtomValue(appUriInfoAtom)
     const appSchema = useAtomValue(appSchemaAtom)
     const {apps: availableApps = []} = useAppsData()
@@ -738,16 +734,13 @@ const DebugSection = ({
                     </div>
 
                     <div className="flex-1 w-full overflow-hidden">
-                        <Editor
-                            className={classes.editor}
-                            width="100%"
-                            height="100%"
-                            language="json"
-                            theme={`vs-${appTheme}`}
-                            value={getStringOrJson(
+                        <SharedEditor
+                            className={`${classes.editor} h-full`}
+                            editorType="border"
+                            initialValue={getStringOrJson(
                                 selectedTestcase.testcase ? formatJson(selectedTestcase) : "",
                             )}
-                            onChange={(value) => {
+                            handleChange={(value) => {
                                 try {
                                     if (value) {
                                         const parsedValue = JSON.parse(value)
@@ -757,12 +750,12 @@ const DebugSection = ({
                                     console.error("Failed to parse testcase JSON", error)
                                 }
                             }}
-                            options={{
-                                wordWrap: "on",
-                                minimap: {enabled: false},
-                                lineNumbers: "off",
-                                scrollBeyondLastLine: false,
+                            editorProps={{
+                                codeOnly: true,
+                                language: "json",
+                                showLineNumbers: false,
                             }}
+                            syncWithInitialValueChanges={true}
                         />
                     </div>
                 </div>
@@ -843,25 +836,24 @@ const DebugSection = ({
                                 label: "Output",
                                 children: (
                                     <div className="w-full h-full overflow-hidden">
-                                        <Editor
-                                            className={classes.editor}
-                                            width="100%"
-                                            height="100%"
-                                            language="markdown"
-                                            theme={`vs-${appTheme}`}
-                                            value={variantResult}
-                                            options={{
-                                                wordWrap: "on",
-                                                minimap: {enabled: false},
-                                                lineNumbers: "off",
-                                                lineDecorationsWidth: 0,
-                                                scrollBeyondLastLine: false,
+                                        <SharedEditor
+                                            className={`${classes.editor} h-full`}
+                                            editorClassName={clsx([
+                                                "!border-none !shadow-none px-0 overflow-hidden",
+                                            ])}
+                                            editorType="border"
+                                            useAntdInput
+                                            antdInputProps={{
+                                                textarea: true,
+                                                autoSize: {minRows: 10, maxRows: 10},
                                             }}
-                                            onChange={(value) => {
+                                            initialValue={variantResult}
+                                            handleChange={(value) => {
                                                 if (value) {
                                                     setVariantResult(value)
                                                 }
                                             }}
+                                            syncWithInitialValueChanges={true}
                                         />
                                     </div>
                                 ),
@@ -871,22 +863,13 @@ const DebugSection = ({
                                 label: "Trace",
                                 children: (
                                     <div className="w-full h-full overflow-hidden">
-                                        <Editor
-                                            className={classes.editor}
-                                            width="100%"
-                                            height="100%"
-                                            language="json"
-                                            theme={`vs-${appTheme}`}
-                                            value={
+                                        <SharedEditor
+                                            className={`${classes.editor} h-full`}
+                                            editorType="border"
+                                            initialValue={
                                                 traceTree.trace ? getStringOrJson(traceTree) : ""
                                             }
-                                            options={{
-                                                wordWrap: "on",
-                                                minimap: {enabled: false},
-                                                lineNumbers: "off",
-                                                scrollBeyondLastLine: false,
-                                            }}
-                                            onChange={(value) => {
+                                            handleChange={(value) => {
                                                 try {
                                                     if (value) {
                                                         const parsedValue = JSON.parse(value)
@@ -899,6 +882,12 @@ const DebugSection = ({
                                                     )
                                                 }
                                             }}
+                                            editorProps={{
+                                                codeOnly: true,
+                                                language: "json",
+                                                showLineNumbers: false,
+                                            }}
+                                            syncWithInitialValueChanges={true}
                                         />
                                     </div>
                                 ),
@@ -948,21 +937,21 @@ const DebugSection = ({
                                 label: "Output",
                                 children: (
                                     <div className="w-full h-full overflow-hidden">
-                                        <Editor
-                                            className={classes.editor}
-                                            width="100%"
-                                            height="100%"
-                                            language="yaml"
-                                            theme={`vs-${appTheme}`}
-                                            options={{
-                                                wordWrap: "on",
-                                                minimap: {enabled: false},
+                                        <SharedEditor
+                                            className={`${classes.editor} h-full`}
+                                            readOnly
+                                            disabled
+                                            state="disabled"
+                                            editorType="border"
+                                            initialValue={formatOutput(outputResult)}
+                                            editorProps={{
+                                                codeOnly: true,
+                                                language: "yaml",
                                                 readOnly: true,
-                                                lineNumbers: "off",
-                                                lineDecorationsWidth: 0,
-                                                scrollBeyondLastLine: false,
+                                                disabled: true,
+                                                showLineNumbers: false,
                                             }}
-                                            value={formatOutput(outputResult)}
+                                            syncWithInitialValueChanges={true}
                                         />
                                     </div>
                                 ),
