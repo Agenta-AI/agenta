@@ -748,14 +748,13 @@ class EvaluatorsRouter:
         *,
         evaluator_revision_retrieve_request: EvaluatorRevisionRetrieveRequest,
     ) -> EvaluatorRevisionResponse:
-        if is_ee():
-            if not await check_action_access(  # type: ignore
-                project_id=request.state.project_id,
-                user_uid=request.state.user_id,
-                #
-                permission=Permission.VIEW_EVALUATORS,  # type: ignore
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await check_action_access(  # type: ignore
+            project_id=request.state.project_id,
+            user_uid=request.state.user_id,
+            #
+            permission=Permission.VIEW_EVALUATORS,  # type: ignore
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
 
         cache_key = {
             "artifact_ref": evaluator_revision_retrieve_request.evaluator_ref,  # type: ignore
