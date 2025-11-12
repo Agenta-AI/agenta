@@ -83,12 +83,12 @@ class MetersService:
         error_count = 0
 
         for meter in meters:
-            log.debug(
+            log.info(
                 f"[report] Processing meter {meter.organization_id}/{meter.key} (value={meter.value}, synced={meter.synced})"
             )
 
             if meter.subscription is None:
-                log.debug(
+                log.info(
                     f"[report] Skipping meter {meter.organization_id}/{meter.key} - no subscription"
                 )
                 skipped_count += 1
@@ -170,7 +170,7 @@ class MetersService:
                             delta = meter.value - meter.synced
 
                             if delta <= 0:
-                                log.debug(
+                                log.info(
                                     f"[report] Skipping meter {meter.organization_id}/{meter.key} - delta is {delta}"
                                 )
                                 skipped_count += 1

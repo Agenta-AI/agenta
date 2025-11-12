@@ -38,7 +38,7 @@ class MetersDAO(MetersDAOInterface):
                     .options(joinedload(MeterDBE.subscription))
                 )  # NO RISK OF DEADLOCK
 
-                log.debug(
+                log.info(
                     "[report] [dump] Executing query for meters where synced != value"
                 )
                 result = await session.execute(stmt)
@@ -51,7 +51,7 @@ class MetersDAO(MetersDAOInterface):
                 dto_list = []
                 for meter in meters:
                     try:
-                        log.debug(
+                        log.info(
                             f"[report] [dump] Processing meter {meter.organization_id}/{meter.key} year={meter.year} month={meter.month} value={meter.value} synced={meter.synced}"
                         )
 
@@ -65,11 +65,11 @@ class MetersDAO(MetersDAOInterface):
                                 active=meter.subscription.active,
                                 anchor=meter.subscription.anchor,
                             )
-                            log.debug(
+                            log.info(
                                 f"[report] [dump] Meter {meter.organization_id}/{meter.key} has subscription (customer_id={meter.subscription.customer_id}, plan={meter.subscription.plan})"
                             )
                         else:
-                            log.debug(
+                            log.warn(
                                 f"[report] [dump] Meter {meter.organization_id}/{meter.key} has NO subscription"
                             )
 
@@ -128,7 +128,7 @@ class MetersDAO(MetersDAOInterface):
 
             for meter in sorted_meters:
                 try:
-                    log.debug(
+                    log.info(
                         f"[report] [bump] Updating meter {meter.organization_id}/{meter.key} year={meter.year} month={meter.month} synced={meter.synced}"
                     )
 
@@ -151,7 +151,7 @@ class MetersDAO(MetersDAOInterface):
                             f"[report] [bump] No rows updated for meter {meter.organization_id}/{meter.key} year={meter.year} month={meter.month}"
                         )
                     else:
-                        log.debug(
+                        log.info(
                             f"[report] [bump] Updated {result.rowcount} row(s) for meter {meter.organization_id}/{meter.key}"
                         )
 
