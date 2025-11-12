@@ -807,15 +807,50 @@ class SubscriptionsRouter:
     async def report_usage(
         self,
     ):
+        log.info("[report] [endpoint] Trigger")
+
+        report_ongoing = await get_cache(
+            namespace="meters:report",
+            key={},
+        )
+
+        if report_ongoing:
+            log.info("[report] [endpoint] Skipped (ongoing)")
+
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"status": "skipped"},
+            )
+
+        await set_cache(
+            namespace="meters:report",
+            key={},
+            value=True,
+            ttl=60 * 60,  # 1 hour
+        )
+
+        log.info("[report] [endpoint] Lock acquired")
+
         try:
+            log.info("[report] [endpoint] Reporting usage started")
             await self.subscription_service.meters_service.report()
+            log.info("[report] [endpoint] Reporting usage completed")
+
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={"status": "success"},
+            )
+
         except Exception as e:
             raise HTTPException(status_code=500, detail="unexpected error") from e
 
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={"status": "success"},
-        )
+        finally:
+            await invalidate_cache(
+                namespace="meters:report",
+                key={},
+            )
+
+            log.info("[report] [endpoint] Lock released")
 
     # ROUTES
 

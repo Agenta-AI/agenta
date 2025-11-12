@@ -84,7 +84,7 @@ class MetersService:
 
         for meter in meters:
             log.info(
-                f"[report] Processing meter {meter.organization_id}/{meter.key} (value={meter.value}, synced={meter.synced})"
+                f"[report] Processing meter {meter.organization_id}/{meter.key} (year={meter.year}, month={meter.month}) (value={meter.value}, synced={meter.synced})"
             )
 
             if meter.subscription is None:
