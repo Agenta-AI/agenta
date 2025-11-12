@@ -33,7 +33,6 @@ testset = await ag.testsets.acreate(
         {"country": "Spain", "capital": "Madrid"}
     ],
     name="Country Capitals",
-    description="A testset of countries and their capitals",
 )
 
 print(f"Created testset with ID: {testset.id}")
@@ -47,7 +46,6 @@ print(f"Slug: {testset.slug}")
 **Parameters:**
 - `data`: A list of dictionaries containing your test data. Each dictionary represents one testcase.
 - `name`: The name of your testset.
-- `description` (optional): A description of what this testset contains.
 
 **Returns:** A `TestsetRevision` object containing:
 - `id`: The UUID of the created testset
@@ -62,7 +60,6 @@ print(f"Slug: {testset.slug}")
     "id": "01963413-3d39-7650-80ce-3ad5d688da6c",
     "name": "Country Capitals",
     "slug": "3ad5d688da6c",
-    "description": "A testset of countries and their capitals",
     "data": {
         "testcases": [
             {"data": {"country": "Germany", "capital": "Berlin"}},
@@ -252,7 +249,7 @@ else:
 </Tabs>
 
 :::tip Helper Pattern
-This pattern shows how you can implement your own helper functions to filter and find testsets based on custom criteria. You can extend this to search by description, tags, or other metadata fields.
+This pattern shows how you can implement your own helper functions to filter and find testsets based on custom criteria. You can extend this to search by tags or other metadata fields.
 :::
 
 ## Working with Test Data
