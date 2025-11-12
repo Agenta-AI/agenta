@@ -656,9 +656,9 @@ class entrypoint:
     def add_func_params_to_parser(self, updated_params: list) -> None:
         """Add function parameters to function signature."""
         for name, param in signature(self.func).parameters.items():
-            assert len(param.default.__class__.__bases__) == 1, (
-                f"Inherited standard type of {param.default.__class__} needs to be one."
-            )
+            assert (
+                len(param.default.__class__.__bases__) == 1
+            ), f"Inherited standard type of {param.default.__class__} needs to be one."
             updated_params.append(
                 Parameter(
                     name,
@@ -718,9 +718,9 @@ class entrypoint:
                                     -1
                                 ]  # Extract schema name
                                 if schema_name in schema_name_map:
-                                    content["schema"]["$ref"] = (
-                                        f"#/components/schemas/{schema_name_map[schema_name]}"
-                                    )
+                                    content["schema"][
+                                        "$ref"
+                                    ] = f"#/components/schemas/{schema_name_map[schema_name]}"
 
                     if "responses" in method:
                         for status_code, response in method["responses"].items():
@@ -734,9 +734,9 @@ class entrypoint:
                                             -1
                                         ]  # Extract schema name
                                         if schema_name in schema_name_map:
-                                            content["schema"]["$ref"] = (
-                                                f"#/components/schemas/{schema_name_map[schema_name]}"
-                                            )
+                                            content["schema"][
+                                                "$ref"
+                                            ] = f"#/components/schemas/{schema_name_map[schema_name]}"
 
             # ✅ Update OpenAPI schema with fixed schemas
             openapi_schema["components"]["schemas"] = updated_schemas
