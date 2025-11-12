@@ -24,7 +24,7 @@ from agenta.sdk.contexts.tracing import (
 
 log = get_module_logger(__name__)
 
-_ASYNC_EXPORT = environ.get("AGENTA_OTLP_ASYNC_EXPORT", "true").lower() in TRUTHY
+_ASYNC_EXPORT = environ.get("AGENTA_OTLP_ASYNC_EXPORT", "false").lower() in TRUTHY
 
 
 class InlineTraceExporter(SpanExporter):
