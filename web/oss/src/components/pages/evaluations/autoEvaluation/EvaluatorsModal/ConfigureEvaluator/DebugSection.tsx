@@ -740,10 +740,7 @@ const DebugSection = ({
     }
 
     const testcaseEditorKey = useMemo(
-        () =>
-            `testcase-${selectedTestset}-${JSON.stringify(
-                selectedTestcase.testcase ?? {},
-            )}`,
+        () => `testcase-${selectedTestset}-${JSON.stringify(selectedTestcase.testcase ?? {})}`,
         [selectedTestset, selectedTestcase.testcase],
     )
 
