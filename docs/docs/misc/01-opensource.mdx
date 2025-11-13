@@ -6,9 +6,9 @@ description: Agenta offers both MIT-licensed open source LLMOps tools and commer
 
 ## Our Approach
 
-Agenta follows an open-core model. The core platform is fully open source (MIT-licensed), giving you flexibility and control. Commercial features provide advanced functionality and support.
+Agenta follows an open-core model. All functional features (including prompt management, observability, evaluations, and custom workflows) are fully open source under the MIT license.  Commercial features focus on enterprise needs like team management, support, and enterprise-specific capabilities.
 
-We believe this approach offers the best balance. It gives you the freedom to use our core features without restrictions while allowing us to maintain a sustainable business model. 
+We believe this approach offers the best balance. You get freedom to use all functional features without restrictions. We maintain a sustainable business model through enterprise services and support. 
 
 ### Why Open Source?
 
@@ -17,12 +17,11 @@ Open source matters for an LLMOps platform like Agenta because it gives you:
 1. **Flexibility**: Modify and customize the software to fit your needs.
 2. **Independence**: Avoid vendor lock-in, ensuring long-term project continuity.
 3. **Community Support**: Benefit from contributions and shared improvements from the community.
-
 ### License Information
 
 The Agenta open-core is licensed under the MIT license. Everything in our public repositories is open source, with no closed-source components included. All SDKs, client libraries, and APIs are fully open source under MIT. You can self-host it, modify it, and use it in commercial projects without restrictions.
 
-Advanced features (like evaluations, monitoring, and team management) are available through our [free and paid plans](https://agenta.ai/pricing), either in our cloud service or as an enterprise self-hosted solution.
+Enterprise features (like team management, support, and custom SSO) are available through our [free and paid plans](https://agenta.ai/pricing), either in our cloud service or as an enterprise self-hosted solution.
 
 
 ## Feature Availability
@@ -36,11 +35,11 @@ Here's what's available in each version:
 | Basic Authentication | ✅ | ✅ |
 | Observability & Analytics | ✅ | ✅ |
 | API Access | ✅ | ✅ |
-| Human Evaluation | ❌ | ✅ |
-| Automatic Evaluation | ❌ | ✅ |
-| Custom Workflows | ❌ | ✅ |
+| Human Evaluation | ✅ | ✅ |
+| Automatic Evaluation | ✅ | ✅ |
+| Custom Workflows | ✅ | ✅ |
 | Role-Based Access Control | ❌ | ✅ |
-| Multi-team Organizations | ❌ | ✅ |
+| Custom SSO (coming soon) | ❌ | ✅ |
 | Support | ❌ | ✅ |
 
 ## Self-Hosting Agenta
@@ -62,6 +61,15 @@ All contributions to the open-source repositories will be licensed under MIT.
 
 ### Is it safe to use the open-source version in an enterprise environment?
 Yes, there is no risk of executing any enterprise-restricted code when using the open-source version, as everything in our public repositories is MIT-licensed.
+
+### What features remain commercial-only?
+
+All functional features for building and evaluating LLM applications are now open source. The commercial version focuses on enterprise and team needs:
+- Team Management: Role-based access control and multi-team organizations
+- Support: Professional support with SLAs
+- Enterprise Features: Custom SSO (coming soon) and other enterprise-specific capabilities
+
+The open-source version includes evaluations, observability, custom workflows, and prompt management.
 
 ### Can I get professional support for the open-source version?
 Community support is available via GitHub and Discord. Professional support requires the commercial version.
