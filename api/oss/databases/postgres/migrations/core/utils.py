@@ -73,9 +73,7 @@ async def get_current_migration_head_from_db(engine: AsyncEngine):
 
     async with engine.connect() as connection:
         try:
-            result = await connection.execute(
-                text("SELECT version_num FROM alembic_version")
-            )  # type: ignore
+            result = await connection.execute(text("SELECT version_num FROM alembic_version"))  # type: ignore
         except (asyncpg.exceptions.UndefinedTableError, ProgrammingError):
             # Note: If the alembic_version table does not exist, it will result in raising an UndefinedTableError exception.
             # We need to suppress the error and return a list with the alembic_version table name to inform the user that there is a pending migration \
@@ -85,9 +83,9 @@ async def get_current_migration_head_from_db(engine: AsyncEngine):
             return "alembic_version"
 
         migration_heads = [row[0] for row in result.fetchall()]
-        assert len(migration_heads) == 1, (
-            "There can only be one migration head stored in the database."
-        )
+        assert (
+            len(migration_heads) == 1
+        ), "There can only be one migration head stored in the database."
         return migration_heads[0]
 
 

@@ -177,10 +177,10 @@ def ensure_server(fastapi_server, http_client):
                 return
 
             print(
-                f"Health check attempt {i + 1}/10 failed with status {response.status_code}"
+                f"Health check attempt {i+1}/10 failed with status {response.status_code}"
             )
         except (ConnectionError, TimeoutError) as e:
-            print(f"Health check attempt {i + 1}/10 failed: {e}")
+            print(f"Health check attempt {i+1}/10 failed: {e}")
             time.sleep(2)
 
     stdout, stderr = process.communicate(timeout=1)

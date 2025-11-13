@@ -221,7 +221,7 @@ class TestWorkflowRevisionsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/revisions/?include_archived=true&limit=1",
+            "/preview/workflows/revisions/?include_archived=true" "&limit=1",
         )
         # ----------------------------------------------------------------------
 

@@ -77,9 +77,9 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     # @pytest.mark.asyncio
     # @pytest.mark.typical
@@ -148,9 +148,9 @@ class TestDatasetsCreation:
         response = await http_client.get(f"/testsets/{testset['id']}", headers=headers)
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert "id" in response.json(), f"Failed for case: {description}"
 
         # Cleanup
@@ -191,9 +191,9 @@ class TestDatasetsCreation:
         await delete_testset(http_client, response_data["id"], headers)
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert "id" in response_data, f"Failed for case: {description}"
 
     @pytest.mark.asyncio
@@ -213,9 +213,9 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -241,9 +241,9 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -260,9 +260,9 @@ class TestDatasetsCreation:
         response_data = response.json()
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 0, f"Failed for case: {description}"
 
     @pytest.mark.asyncio
@@ -282,9 +282,9 @@ class TestDatasetsCreation:
         response_data = response.json()
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 1, f"Failed for case: {description}"
 
         # Cleanup
@@ -308,9 +308,9 @@ class TestDatasetsCreation:
         response_data = response.json()
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 3, f"Failed for case: {description}"
 
         # Cleanup
@@ -335,9 +335,9 @@ class TestDatasetsCreation:
         response_data = response.json()
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 6, f"Failed for case: {description}"
 
         # Cleanup
@@ -368,9 +368,9 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
         # Cleanup
         await delete_testset(http_client, testset["id"], owner_headers)
@@ -391,9 +391,9 @@ class TestDatasetsCreation:
         response = await http_client.get("/testsets", headers=owner_headers)
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -410,9 +410,9 @@ class TestDatasetsCreation:
         response_data = response.json()
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 0, f"Failed for case: {description}"
 
     @pytest.mark.asyncio
@@ -432,9 +432,9 @@ class TestDatasetsCreation:
         response_data = response.json()
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 1, f"Failed for case: {description}"
 
         # Cleanup
@@ -458,9 +458,9 @@ class TestDatasetsCreation:
         response_data = response.json()
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 3, f"Failed for case: {description}"
 
         # Cleanup
@@ -485,9 +485,9 @@ class TestDatasetsCreation:
         response_data = response.json()
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 6, f"Failed for case: {description}"
 
         # Cleanup
@@ -518,9 +518,9 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
         # Cleanup
         await delete_testset(http_client, testset["id"], owner_headers)
@@ -541,9 +541,9 @@ class TestDatasetsCreation:
         response = await http_client.get("/testsets", headers=owner_headers)
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -565,9 +565,9 @@ class TestDatasetsCreation:
         response_data = response.json()
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert response_data["_id"] == testset["id"], f"Failed for case: {description}"
 
         # Cleanup
@@ -592,9 +592,9 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
         # Cleanup
         await delete_testset(http_client, testset["id"], headers)
@@ -622,9 +622,9 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
         # Cleanup
         await delete_testset(http_client, testset["id"], member_headers)
@@ -650,9 +650,9 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -674,9 +674,9 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -698,6 +698,6 @@ class TestDatasetsCreation:
         )
 
         # Assert
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"

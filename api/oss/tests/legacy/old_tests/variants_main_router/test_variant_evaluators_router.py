@@ -183,9 +183,9 @@ async def wait_for_evaluation_to_finish(evaluation_id):
             return
         await asyncio.sleep(intervals)
 
-    assert False, (
-        f"Evaluation status did not become '{EvaluationStatusEnum.EVALUATION_FINISHED}' within the specified polling time"
-    )
+    assert (
+        False
+    ), f"Evaluation status did not become '{EvaluationStatusEnum.EVALUATION_FINISHED}' within the specified polling time"
 
 
 async def create_evaluation_with_evaluator(evaluator_config_name):

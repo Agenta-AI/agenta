@@ -292,9 +292,9 @@ async def setup_evaluation(
                 testset_id=UUID(testset_id),
             )
 
-            assert testset_response.count != 0, (
-                f"Testset with id {testset_id} not found!"
-            )
+            assert (
+                testset_response.count != 0
+            ), f"Testset with id {testset_id} not found!"
 
             testset = testset_response.testset
             testcases = testset.data.testcases
@@ -334,9 +334,9 @@ async def setup_evaluation(
                 query_ref=query_ref,
             )
 
-            assert query_revision is not None, (
-                f"Query revision with id {query_id} not found!"
-            )
+            assert (
+                query_revision is not None
+            ), f"Query revision with id {query_id} not found!"
 
             query_revision_ref = Reference(
                 id=query_revision.id,
@@ -352,9 +352,9 @@ async def setup_evaluation(
                 ),
             )
 
-            assert query_variant is not None, (
-                f"Query variant with id {query_revision.variant_id} not found!"
-            )
+            assert (
+                query_variant is not None
+            ), f"Query variant with id {query_revision.variant_id} not found!"
 
             query_variant_ref = Reference(
                 id=query_variant.id,
@@ -374,9 +374,9 @@ async def setup_evaluation(
         if revision_id:
             revision = await fetch_app_variant_revision_by_id(revision_id)
 
-            assert revision is not None, (
-                f"App revision with id {revision_id} not found!"
-            )
+            assert (
+                revision is not None
+            ), f"App revision with id {revision_id} not found!"
 
             application_references["revision"] = Reference(
                 id=UUID(str(revision.id)),
@@ -384,9 +384,9 @@ async def setup_evaluation(
 
             variant = await fetch_app_variant_by_id(str(revision.variant_id))
 
-            assert variant is not None, (
-                f"App variant with id {revision.variant_id} not found!"
-            )
+            assert (
+                variant is not None
+            ), f"App variant with id {revision.variant_id} not found!"
 
             application_references["variant"] = Reference(
                 id=UUID(str(variant.id)),
@@ -402,9 +402,9 @@ async def setup_evaluation(
 
             deployment = await get_deployment_by_id(str(revision.base.deployment_id))
 
-            assert deployment is not None, (
-                f"Deployment with id {revision.base.deployment_id} not found!"
-            )
+            assert (
+                deployment is not None
+            ), f"Deployment with id {revision.base.deployment_id} not found!"
 
             uri = parse_url(url=deployment.uri)
 
@@ -412,9 +412,9 @@ async def setup_evaluation(
 
             revision_parameters = revision.config_parameters
 
-            assert revision_parameters is not None, (
-                f"Revision parameters for variant {variant.id} not found!"
-            )
+            assert (
+                revision_parameters is not None
+            ), f"Revision parameters for variant {variant.id} not found!"
 
             invocation_steps_keys.append(
                 get_slug_from_name_and_id(app.app_name, revision.id)
@@ -498,18 +498,18 @@ async def setup_evaluation(
                 workflow_ref=workflow_ref,
             )
 
-            assert workflow_revision is not None, (
-                f"Workflow revision with id {workflow_ref.id} not found!"
-            )
+            assert (
+                workflow_revision is not None
+            ), f"Workflow revision with id {workflow_ref.id} not found!"
 
             workflow_revision_ref = Reference(
                 id=workflow_revision.id,
                 slug=workflow_revision.slug,
             )
 
-            evaluator_references[annotation_step_key]["revision"] = (
-                workflow_revision_ref
-            )
+            evaluator_references[annotation_step_key][
+                "revision"
+            ] = workflow_revision_ref
 
             evaluators[annotation_step_key]["revision"] = workflow_revision
 
@@ -520,9 +520,9 @@ async def setup_evaluation(
                 ),
             )
 
-            assert workflow_variant is not None, (
-                f"Workflow variant with id {workflow_revision.variant_id} not found!"
-            )
+            assert (
+                workflow_variant is not None
+            ), f"Workflow variant with id {workflow_revision.variant_id} not found!"
 
             workflow_variant_ref = Reference(
                 id=workflow_variant.id,
@@ -893,9 +893,9 @@ def annotate(
             fetch_app_variant_by_id(str(revision.variant_id)),
         )
 
-        assert variant is not None, (
-            f"App variant with id {revision.variant_id} not found!"
-        )
+        assert (
+            variant is not None
+        ), f"App variant with id {revision.variant_id} not found!"
 
         app = loop.run_until_complete(
             fetch_app_by_id(str(variant.app_id)),
@@ -907,9 +907,9 @@ def annotate(
             get_deployment_by_id(str(revision.base.deployment_id)),
         )
 
-        assert deployment is not None, (
-            f"Deployment with id {revision.base.deployment_id} not found!"
-        )
+        assert (
+            deployment is not None
+        ), f"Deployment with id {revision.base.deployment_id} not found!"
 
         uri = parse_url(url=deployment.uri)
 
@@ -917,9 +917,9 @@ def annotate(
 
         revision_parameters = revision.config_parameters
 
-        assert revision_parameters is not None, (
-            f"Revision parameters for variant {variant.id} not found!"
-        )
+        assert (
+            revision_parameters is not None
+        ), f"Revision parameters for variant {variant.id} not found!"
         # ----------------------------------------------------------------------
 
         # fetch evaluators -----------------------------------------------------
@@ -997,9 +997,9 @@ def annotate(
             )
         )
 
-        assert len(scenarios) == nof_testcases, (
-            f"Failed to create evaluation scenarios for run {run_id}!"
-        )
+        assert (
+            len(scenarios) == nof_testcases
+        ), f"Failed to create evaluation scenarios for run {run_id}!"
         # ----------------------------------------------------------------------
 
         # create input steps ---------------------------------------------------
@@ -1025,9 +1025,9 @@ def annotate(
             )
         )
 
-        assert len(steps) == nof_testcases, (
-            f"Failed to create evaluation steps for run {run_id}!"
-        )
+        assert (
+            len(steps) == nof_testcases
+        ), f"Failed to create evaluation steps for run {run_id}!"
         # ----------------------------------------------------------------------
 
         # flatten testcases ----------------------------------------------------
@@ -1101,9 +1101,9 @@ def annotate(
             )
         )
 
-        assert len(steps) == nof_testcases, (
-            f"Failed to create evaluation steps for run {run_id}!"
-        )
+        assert (
+            len(steps) == nof_testcases
+        ), f"Failed to create evaluation steps for run {run_id}!"
         # ----------------------------------------------------------------------
 
         run_has_errors = 0
@@ -1431,9 +1431,9 @@ def annotate(
                         )
                     )
 
-                    assert len(steps) == 1, (
-                        f"Failed to create evaluation step for scenario with id {scenario.id}!"
-                    )
+                    assert (
+                        len(steps) == 1
+                    ), f"Failed to create evaluation step for scenario with id {scenario.id}!"
             # ------------------------------------------------------------------
 
             scenario_edit = EvaluationScenarioEdit(
@@ -1452,9 +1452,9 @@ def annotate(
                 )
             )
 
-            assert scenario, (
-                f"Failed to edit evaluation scenario with id {scenario.id}!"
-            )
+            assert (
+                scenario
+            ), f"Failed to edit evaluation scenario with id {scenario.id}!"
 
             if scenario_status != EvaluationStatus.FAILURE:
                 try:

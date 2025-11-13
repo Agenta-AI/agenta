@@ -39,12 +39,12 @@ class TestAppCreationManagement:
         response_data = response.json()
 
         # Assert: Verify the response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
-        assert response_data["app_name"] == app_data["app_name"], (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
+        assert (
+            response_data["app_name"] == app_data["app_name"]
+        ), f"Failed for case: {description}"
 
         # Cleanup: Remove application
         await delete_application(http_client, response_data["app_id"], headers)
@@ -64,9 +64,9 @@ class TestAppCreationManagement:
         response = await http_client.post("/apps", json=app_data, headers=headers)
 
         # Assert: Verify the response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -86,9 +86,9 @@ class TestAppCreationManagement:
         response = await http_client.post("/apps", json=app_data, headers=headers)
 
         # Assert: Verify the response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
         # Cleanup: Remove application
         app_cleanup_response = await http_client.get("/apps", headers=headers)
@@ -120,9 +120,9 @@ class TestAppCreationManagement:
         )
 
         # Assert: Verify the response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -213,9 +213,9 @@ class TestAppCreationManagement:
         response_data = response.json()
 
         # Assert: Verify the response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == len(elements), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
@@ -236,9 +236,9 @@ class TestAppCreationManagement:
         response_data = response.json()
 
         # Assert: Verify the response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 1, f"Failed for case: {description}"
 
         # Cleanup: Remove application
@@ -263,9 +263,9 @@ class TestAppCreationManagement:
         response_data = response.json()
 
         # Assert: Verify the response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 3, f"Failed for case: {description}"
 
         # Cleanup: Remove applications
@@ -291,9 +291,9 @@ class TestAppCreationManagement:
         response_data = response.json()
 
         # Assert: Verify the response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
         assert len(response_data) == 6, f"Failed for case: {description}"
 
         # Cleanup: Remove applications
@@ -326,9 +326,9 @@ class TestAppCreationManagement:
         )
 
         # Assert: Verify the response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
         # Cleanup: Delete the application with valid principal
         await delete_application(http_client, app["app_id"], owner_headers)
@@ -361,9 +361,9 @@ class TestAppCreationManagement:
             list_of_status_codes.append(response.status_code)
 
         # Assert: Verify the response
-        assert list_of_status_codes.count(expected_status) == 3, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            list_of_status_codes.count(expected_status) == 3
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical

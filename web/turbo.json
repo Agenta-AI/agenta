@@ -1,5 +1,9 @@
 {
     "$schema": "https://turbo.build/schema.json",
+    "remoteCache": {
+        "teamSlug":"agenta",
+        "apiUrl":"http://localhost:3040"
+    },
     "tasks": {
         "dev": {
             "cache": false
@@ -11,10 +15,10 @@
             "cache": false
         },
         "@agenta/ee#build": {
-            "outputs": [".next/**"]
+            "outputs": [".next/**", "!.next/cache/**"]
         },
         "@agenta/oss#build": {
-            "outputs": [".next/**"]
+            "outputs": [".next/**", "!.next/cache/**"]
         }
     },
     "globalDependencies": ["*/**/tsconfig.json"]

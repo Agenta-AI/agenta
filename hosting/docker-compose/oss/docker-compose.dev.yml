@@ -265,6 +265,20 @@ services:
         volumes:
             - cache-data:/data
 
+    turbo-cache:
+        image: ducktors/turborepo-remote-cache:2.6.1
+        ports:
+            - "3040:3000"
+        environment:
+            TURBO_TOKEN: ${TURBO_TOKEN:-localtoken}
+            STORAGE_PROVIDER: ${STORAGE_PROVIDER:-s3}
+            STORAGE_PATH: ${STORAGE_PATH:-agenta-turbocache}
+            AWS_REGION: ${AWS_REGION:-us-east-1}
+            AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+            AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+            S3_ENDPOINT: ${S3_ENDPOINT:-} # e.g. https://nyc3.digitaloceanspaces.com
+        volumes:
+            - turbo-cache-data:/cache
         networks:
             - agenta-network
 
@@ -327,3 +341,4 @@ volumes:
     redis-data:
     cache-data:
     nextjs_cache:
+    turbo-cache-data:

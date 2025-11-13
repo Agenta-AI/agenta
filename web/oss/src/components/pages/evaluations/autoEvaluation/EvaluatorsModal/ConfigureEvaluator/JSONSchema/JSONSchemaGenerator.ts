@@ -23,15 +23,15 @@ export function generateJSONSchema(config: SchemaConfig): GeneratedJSONSchema {
     const {responseFormat, includeReasoning, continuousConfig, categoricalOptions} = config
 
     const properties: Record<string, any> = {}
-    const required: string[] = ["score"]
+    const required: string[] = ["correctness"]
 
     // Base description is always "The grade results"
     const baseDescription = "The grade results"
 
-    // Add the main score field based on response format
+    // Add the main correctness field based on response format
     switch (responseFormat) {
         case "continuous":
-            properties.score = {
+            properties.correctness = {
                 type: "number",
                 description: baseDescription,
                 minimum: continuousConfig?.minimum ?? 0,
@@ -40,7 +40,7 @@ export function generateJSONSchema(config: SchemaConfig): GeneratedJSONSchema {
             break
 
         case "boolean":
-            properties.score = {
+            properties.correctness = {
                 type: "boolean",
                 description: baseDescription,
             }
@@ -53,14 +53,14 @@ export function generateJSONSchema(config: SchemaConfig): GeneratedJSONSchema {
                     .map((opt) => `"${opt.name}": ${opt.description}`)
                     .join("| ")
 
-                properties.score = {
+                properties.correctness = {
                     type: "string",
                     description: `${baseDescription}. Categories: ${categoryDescriptions}`,
                     enum: enumValues,
                 }
             } else {
                 // Fallback if no categories defined
-                properties.score = {
+                properties.correctness = {
                     type: "string",
                     description: baseDescription,
                 }
@@ -97,43 +97,43 @@ export function parseJSONSchema(schemaString: string): SchemaConfig | null {
         // Handle both old format (direct schema) and new format (with name wrapper)
         const schema = parsed.schema || parsed
 
-        if (!schema.properties || !schema.properties.score) {
+        if (!schema.properties || !schema.properties.correctness) {
             return null
         }
 
-        const score = schema.properties.score
+        const correctness = schema.properties.correctness
         const hasReasoning = !!schema.properties.comment
 
         let responseFormat: SchemaConfig["responseFormat"] = "boolean"
         let continuousConfig: SchemaConfig["continuousConfig"]
         let categoricalOptions: SchemaConfig["categoricalOptions"]
 
-        if (score.type === "number") {
+        if (correctness.type === "number") {
             responseFormat = "continuous"
             continuousConfig = {
-                minimum: score.minimum ?? 0,
-                maximum: score.maximum ?? 10,
+                minimum: correctness.minimum ?? 0,
+                maximum: correctness.maximum ?? 10,
             }
-        } else if (score.type === "boolean") {
+        } else if (correctness.type === "boolean") {
             responseFormat = "boolean"
-        } else if (score.type === "string" && score.enum) {
+        } else if (correctness.type === "string" && correctness.enum) {
             responseFormat = "categorical"
 
             // Parse category descriptions from the description field
-            const desc = score.description || ""
+            const desc = correctness.description || ""
             const categoriesMatch = desc.match(/Categories: (.+)/)
 
             if (categoriesMatch) {
                 const categoriesStr = categoriesMatch[1]
                 const categoryPairs = categoriesStr.split("| ")
 
-                categoricalOptions = score.enum.map((name: string) => {
+                categoricalOptions = correctness.enum.map((name: string) => {
                     const pair = categoryPairs.find((p: string) => p.startsWith(`"${name}":`))
                     const description = pair ? pair.split(": ")[1] || "" : ""
                     return {name, description}
                 })
             } else {
-                categoricalOptions = score.enum.map((name: string) => ({
+                categoricalOptions = correctness.enum.map((name: string) => ({
                     name,
                     description: "",
                 }))

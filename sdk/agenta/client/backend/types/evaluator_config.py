@@ -11,16 +11,14 @@ class EvaluatorConfig(UniversalBaseModel):
     name: str
     project_id: str
     evaluator_key: str
-    settings_values: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = (
-        None
-    )
+    settings_values: typing.Optional[
+        typing.Dict[str, typing.Optional[typing.Any]]
+    ] = None
     created_at: str
     updated_at: str
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

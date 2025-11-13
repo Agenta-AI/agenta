@@ -72,10 +72,9 @@ class DraftArticle(dspy.Module):
         outline = self.build_outline(topic=topic)
         sections = []
         for heading, subheadings in outline.section_subheadings.items():
-            section, subheadings = (
-                f"## {heading}",
-                [f"### {subheading}" for subheading in subheadings],
-            )
+            section, subheadings = f"## {heading}", [
+                f"### {subheading}" for subheading in subheadings
+            ]
             section = self.draft_section(
                 topic=outline.title,
                 section_heading=section,
