@@ -739,6 +739,38 @@ const DebugSection = ({
         }
     }
 
+    const testcaseEditorKey = useMemo(
+        () =>
+            `testcase-${selectedTestset}-${JSON.stringify(
+                selectedTestcase.testcase ?? {},
+            )}`,
+        [selectedTestset, selectedTestcase.testcase],
+    )
+
+    const variantOutputEditorKey = useMemo(
+        () =>
+            `variant-output-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
+                selectedTestcase.testcase ?? {},
+            )}`,
+        [selectedVariant?.variantId, selectedTestcase.testcase],
+    )
+
+    const traceEditorKey = useMemo(
+        () =>
+            `trace-${selectedVariant?.variantId ?? "none"}-${JSON.stringify(
+                traceTree.trace ?? {},
+            )}`,
+        [selectedVariant?.variantId, traceTree.trace],
+    )
+
+    const evaluatorOutputEditorKey = useMemo(
+        () =>
+            `evaluator-output-${selectedEvaluator.key}-${JSON.stringify(
+                selectedTestcase.testcase ?? {},
+            )}`,
+        [selectedEvaluator.key, selectedTestcase.testcase],
+    )
+
     // Helper to print "App / Variant" nicely
     const appName = selectedApp?.name || selectedApp?.app_name || "app"
     const variantName = selectedVariant?.variantName || "variant"
@@ -788,6 +820,7 @@ const DebugSection = ({
 
                     <div className="flex-1 w-full overflow-hidden">
                         <SharedEditor
+                            key={testcaseEditorKey}
                             className={`${classes.editor} h-full`}
                             editorType="border"
                             initialValue={getStringOrJson(
@@ -890,6 +923,7 @@ const DebugSection = ({
                                 children: (
                                     <div className="w-full h-full overflow-hidden">
                                         <SharedEditor
+                                            key={`debug-output-${variantResult}`}
                                             className={`${classes.editor} h-full`}
                                             editorClassName={clsx([
                                                 "!border-none !shadow-none px-0 overflow-hidden",
@@ -917,6 +951,7 @@ const DebugSection = ({
                                 children: (
                                     <div className="w-full h-full overflow-hidden">
                                         <SharedEditor
+                                            key={`debug-trace-${traceTree?.trace}`}
                                             className={`${classes.editor} h-full`}
                                             editorType="border"
                                             initialValue={
@@ -991,6 +1026,7 @@ const DebugSection = ({
                                 children: (
                                     <div className="w-full h-full overflow-hidden">
                                         <SharedEditor
+                                            key={`debug-output-${variantResult}`}
                                             className={`${classes.editor} h-full`}
                                             readOnly
                                             disabled
