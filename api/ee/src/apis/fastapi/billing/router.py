@@ -822,12 +822,12 @@ class SubscriptionsRouter:
                 content={"status": "skipped"},
             )
 
-        await set_cache(
-            namespace="meters:report",
-            key={},
-            value=True,
-            ttl=60 * 60,  # 1 hour
-        )
+        # await set_cache(
+        #     namespace="meters:report",
+        #     key={},
+        #     value=True,
+        #     ttl=60 * 60,  # 1 hour
+        # )
 
         log.info("[report] [endpoint] Lock acquired")
 
