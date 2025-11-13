@@ -74,6 +74,7 @@ class MetersService:
         log.info("[report] ============================================")
 
         BATCH_SIZE = 100
+        MAX_BATCHES = 50  # Safety limit: 50 batches * 100 meters = 5000 meters max
         total_reported = 0
         total_skipped = 0
         total_errors = 0
@@ -81,6 +82,13 @@ class MetersService:
 
         while True:
             batch_number += 1
+
+            if batch_number > MAX_BATCHES:
+                log.error(
+                    f"[report] ⚠️  Reached maximum batch limit ({MAX_BATCHES}), stopping to prevent infinite loop"
+                )
+                break
+
             log.info(f"[report] Processing batch #{batch_number}")
 
             try:

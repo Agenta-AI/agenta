@@ -22,6 +22,8 @@ if [ -n "${CURL_EXIT:-}" ]; then
         6)  echo "   Could not resolve host" >> /proc/1/fd/1 ;;
         7)  echo "   Failed to connect to host" >> /proc/1/fd/1 ;;
         28) echo "   Operation timeout (exceeded 900s / 15 minutes)" >> /proc/1/fd/1 ;;
+        52) echo "   Empty reply from server (server closed connection)" >> /proc/1/fd/1 ;;
+        56) echo "   Failure in receiving network data" >> /proc/1/fd/1 ;;
         *)  echo "   Unknown curl error" >> /proc/1/fd/1 ;;
     esac
 else
