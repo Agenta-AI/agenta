@@ -1,0 +1,101 @@
+---
+title: "Evaluation SDK"
+slug: evaluation-sdk
+date: 2025-11-12
+tags: [v0.62.0]
+description: "Run programmatic evaluations of complex AI agents and workflows from code. Evaluate agents built with any framework with full control over test data and evaluation logic. View results in the Agenta dashboard with traces and comparison views."
+---
+
+The Evaluation SDK lets you run evaluations programmatically from code. You get full control over test data and evaluation logic. You can evaluate agents built with any framework and view results in the Agenta dashboard.
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/1sZASEjvoOA"
+    title="Evaluation SDK - Demonstration"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+## Why Programmatic Evaluation?
+
+Complex AI agents need evaluation that goes beyond UI-based testing. The Evaluation SDK provides code-level control over test data and evaluation logic. You can test agents built with any framework. Run evaluations in your CI/CD pipeline. Debug complex workflows with full trace visibility.
+
+## Key Capabilities
+
+### Test Data Management
+Create test sets directly in your code or fetch existing ones from Agenta. Test sets can include ground truth data for reference-based evaluation or work without it for evaluators that only need the output.
+
+### Built-in Evaluators
+The SDK includes LLM-as-a-Judge, semantic similarity, and regex matching evaluators. You can also write custom Python evaluators for your specific requirements.
+
+### Reusable Configurations
+Save evaluator configurations in Agenta to reuse them across runs. Configure an evaluator once, then reference it in multiple evaluations.
+
+### Span-Level Evaluation
+Evaluate your agent end to end or test specific spans in the execution trace. Test individual components like retrieval steps or tool calls separately.
+
+### Run on Your Infrastructure
+Evaluations run on your infrastructure. Results appear in the Agenta dashboard with full traces and comparison views.
+
+## Getting Started
+
+Install the SDK:
+
+```bash
+pip install agenta
+```
+
+Here's a minimal example evaluating a simple agent:
+
+```python
+import agenta as ag
+from agenta.sdk.evaluations import aevaluate
+
+# Initialize
+ag.init()
+
+# Define your application
+@ag.application(slug="my_agent")
+async def my_agent(question: str):
+    # Your agent logic here
+    return answer
+
+# Define an evaluator
+@ag.evaluator(slug="correctness_check")
+async def correctness_check(expected: str, outputs: str):
+    return {
+        "score": 1.0 if outputs == expected else 0.0,
+        "success": outputs == expected,
+    }
+
+# Create test data
+testset = await ag.testsets.acreate(
+    name="Agent Tests",
+    data=[
+        {"question": "What is 2+2?", "expected": "4"},
+        {"question": "What is the capital of France?", "expected": "Paris"},
+    ],
+)
+
+# Run evaluation
+result = await aevaluate(
+    name="Agent Correctness Test",
+    testsets=[testset.id],
+    applications=[my_agent],
+    evaluators=[correctness_check],
+)
+
+print(f"View results: {result['dashboard_url']}")
+```
+
+## Dashboard Integration
+
+Every evaluation run gets a shareable dashboard link. The dashboard shows full execution traces, comparison views for different versions, aggregated metrics, and individual test case details.
+
+## Next Steps
+
+Check out the [Quick Start Guide](/evaluation/evaluation-from-sdk/quick-start) to build your first evaluation.
