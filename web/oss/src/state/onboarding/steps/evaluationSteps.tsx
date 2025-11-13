@@ -8,6 +8,156 @@ import {
 import {urlStateAtom} from "@/oss/components/EvalRunDetails/state/urlState"
 import type {EvalRunUrlState} from "@/oss/components/EvalRunDetails/state/urlState"
 import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
+import {
+    activeEvaluationPanelAtom,
+    type EvaluationPanelKey,
+} from "@/oss/components/pages/evaluations/NewEvaluation/state/activeEvaluationPanelAtom"
+import {
+    openOnlineEvaluationDrawerAtom,
+    closeOnlineEvaluationDrawerAtom,
+} from "@/oss/components/pages/evaluations/onlineEvaluation/state/drawerAtom"
+import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
+import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
+
+type EvaluationSelector =
+    | "#tour-new-eval-tab-application"
+    | "#tour-new-eval-tab-variant"
+    | "#tour-new-eval-tab-testset"
+    | "#tour-new-eval-tab-evaluators"
+    | "#tour-new-eval-tab-advanced"
+    | "#tour-new-eval-content-application"
+    | "#tour-new-eval-content-variant"
+    | "#tour-new-eval-content-testset"
+    | "#tour-new-eval-content-evaluators"
+    | "#tour-new-eval-content-advanced"
+
+const EVAL_TAB_BY_SELECTOR: Record<EvaluationSelector, EvaluationPanelKey> = {
+    "#tour-new-eval-tab-application": "appPanel",
+    "#tour-new-eval-content-application": "appPanel",
+    "#tour-new-eval-tab-variant": "variantPanel",
+    "#tour-new-eval-content-variant": "variantPanel",
+    "#tour-new-eval-tab-testset": "testsetPanel",
+    "#tour-new-eval-content-testset": "testsetPanel",
+    "#tour-new-eval-tab-evaluators": "evaluatorPanel",
+    "#tour-new-eval-content-evaluators": "evaluatorPanel",
+    "#tour-new-eval-tab-advanced": "advancedSettingsPanel",
+    "#tour-new-eval-content-advanced": "advancedSettingsPanel",
+}
+
+const ensureEvalTab = (selector?: string | null) => {
+    if (!selector) return
+    const tab = (EVAL_TAB_BY_SELECTOR as any)[selector]
+    if (!tab) return
+    getDefaultStore().set(activeEvaluationPanelAtom, tab)
+}
+
+// Online Evaluation steps utilities (module scope)
+const openOnlineEvalDrawer = () => {
+    getDefaultStore().set(openOnlineEvaluationDrawerAtom)
+}
+const closeOnlineEvalDrawer = () => {
+    getDefaultStore().set(closeOnlineEvaluationDrawerAtom)
+}
+
+const BASE_ONLINE_STEPS = [
+    {
+        icon: "🧪",
+        title: "Start an online evaluation",
+        content: <span>Create a live evaluation that continuously scores incoming traffic.</span>,
+        selector: "#tour-online-start-new-evaluation",
+        side: "bottom" as const,
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        // viewportID: "tour-online-start-new-evaluation",
+        onCleanup: closeOnlineEvalDrawer,
+        onEnter: closeOnlineEvalDrawer,
+    },
+    {
+        icon: "📝",
+        title: "Name the evaluation",
+        content: <span>Give your evaluation a clear, descriptive name.</span>,
+        selector: "#tour-online-name-input",
+        side: "top" as const,
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        onEnter: openOnlineEvalDrawer,
+        onCleanup: closeOnlineEvalDrawer,
+        // viewportID: "tour-online-start-new-evaluation",
+    },
+    {
+        icon: "🔎",
+        title: "Define the query",
+        content: <span>Choose filters and sampling to control which traffic is evaluated.</span>,
+        selector: "#tour-online-query-section",
+        side: "right" as const,
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        onEnter: openOnlineEvalDrawer,
+        onCleanup: closeOnlineEvalDrawer,
+        // viewportID: "tour-online-start-new-evaluation",
+    },
+    {
+        icon: "🤖",
+        title: "Select evaluator",
+        content: <span>Pick the evaluator to score your results.</span>,
+        selector: "#tour-online-evaluator-select",
+        side: "right" as const,
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        onEnter: openOnlineEvalDrawer,
+        onCleanup: closeOnlineEvalDrawer,
+    },
+    {
+        icon: "🚀",
+        title: "Create online evaluation",
+        content: <span>Launch the live evaluation. You can monitor results in the table.</span>,
+        selector: "#tour-online-create-button",
+        side: "top" as const,
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 6,
+        pointerRadius: 12,
+        onEnter: openOnlineEvalDrawer,
+        onCleanup: closeOnlineEvalDrawer,
+    },
+]
+
+const resolveOnlineEvaluationTour = (): TourDefinition => {
+    const configs = getDefaultStore().get(evaluatorConfigsAtom) || []
+    const hasCompatibleEvaluators = Array.isArray(configs) && configs.length > 0
+    const steps = hasCompatibleEvaluators
+        ? BASE_ONLINE_STEPS
+        : [
+              BASE_ONLINE_STEPS[0],
+              {
+                  icon: "🧩",
+                  title: "Configure evaluators",
+                  content: (
+                      <span>
+                          If you don’t have a supported evaluator yet, open the evaluator registry
+                          to add one (LLM judge, Code, Regex, or Webhook).
+                      </span>
+                  ),
+                  selector: "#tour-online-configure-evaluators",
+                  side: "bottom" as const,
+                  showControls: true,
+                  showSkip: true,
+                  pointerPadding: 12,
+                  pointerRadius: 12,
+                  onCleanup: closeOnlineEvalDrawer,
+              },
+              ...BASE_ONLINE_STEPS.slice(1),
+          ]
+    return [{tour: "online-evaluation-quickstart", steps}]
+}
 
 const openAutoEvalModal = () => {
     getDefaultStore().set(openAutoEvaluationModalAtom)
@@ -17,7 +167,7 @@ const closeAutoEvalModal = () => {
     getDefaultStore().set(closeAutoEvaluationModalAtom)
 }
 
-const AUTO_EVALUATION_STEPS: TourDefinition = [
+const AUTO_EVALUATION_STEPS: TourDefinition[number]["steps"] = [
     {
         icon: "🧪",
         title: "Start an evaluation",
@@ -36,39 +186,23 @@ const AUTO_EVALUATION_STEPS: TourDefinition = [
         onEnter: closeAutoEvalModal,
         onCleanup: closeAutoEvalModal,
     },
-    {
-        icon: "⚙️",
-        title: "Manage evaluators",
-        content: (
-            <span>
-                Need a new heuristic or AI critique? Configure evaluator templates in this workspace
-                before running them inside an evaluation.
-            </span>
-        ),
-        selector: "#tour-configure-evaluator",
-        side: "bottom",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: closeAutoEvalModal,
-        onCleanup: closeAutoEvalModal,
-    },
     // {
-    //     icon: "🧭",
-    //     title: "Guided setup",
+    //     icon: "⚙️",
+    //     title: "Manage evaluators",
     //     content: (
     //         <span>
-    //             The modal walks you through every requirement—just keep the sections checked to move
-    //             ahead confidently.
+    //             Need a new heuristic or AI critique? Configure evaluator templates in this workspace
+    //             before running them inside an evaluation.
     //         </span>
     //     ),
-    //     selector: "#tour-new-evaluation-modal",
-    //     side: "left",
+    //     selector: "#tour-configure-evaluator",
+    //     side: "bottom",
     //     showControls: true,
     //     showSkip: true,
     //     pointerPadding: 12,
     //     pointerRadius: 12,
+    //     onEnter: closeAutoEvalModal,
+    //     onCleanup: closeAutoEvalModal,
     // },
     {
         icon: "📱",
@@ -79,33 +213,58 @@ const AUTO_EVALUATION_STEPS: TourDefinition = [
                 infrastructure.
             </span>
         ),
-        selector: "#tour-new-eval-tab-application",
-        side: "right",
+        selector: "#tour-new-eval-content-application",
+        side: "bottom",
         showControls: true,
         showSkip: true,
         pointerPadding: 12,
         pointerRadius: 12,
-        onEnter: openAutoEvalModal,
+        onEnter: (step?: {selector?: string | null}) => {
+            ensureEvalTab(step?.selector ?? null)
+            openAutoEvalModal()
+        },
         onCleanup: closeAutoEvalModal,
     },
     {
         icon: "🧬",
-        title: "Select variants",
+        title: "Select variant",
         content: (
             <span>
                 Add the variants or revisions you want to measure. You can revisit this to compare
                 multiple revisions.
             </span>
         ),
-        selector: "#tour-new-eval-tab-variant",
-        side: "right",
+        // selector: "#tour-new-eval-tab-variant",
+        selector: "#tour-new-eval-content-variant",
+        side: "top",
         showControls: true,
         showSkip: true,
         pointerPadding: 12,
         pointerRadius: 12,
-        onEnter: openAutoEvalModal,
-        onCleanup: closeAutoEvalModal,
+        onEnter: (step?: {selector?: string | null}) => {
+            ensureEvalTab(step?.selector ?? null)
+            openAutoEvalModal()
+        },
+        // onCleanup: closeAutoEvalModal,
     },
+    // {
+    //     icon: "🔎",
+    //     title: "Variant details",
+    //     content: (
+    //         <span>
+    //             Review selected variants here. You can remove or add more revisions before
+    //             continuing.
+    //         </span>
+    //     ),
+    //     selector: "#tour-new-eval-content-variant",
+    //     side: "right",
+    //     showControls: true,
+    //     showSkip: true,
+    //     pointerPadding: 12,
+    //     pointerRadius: 12,
+    //     // onEnter: (step?: { selector?: string | null }) => ensureEvalTab(step?.selector ?? null),
+    //     onCleanup: closeAutoEvalModal,
+    // },
     {
         icon: "📊",
         title: "Attach a testset",
@@ -115,49 +274,70 @@ const AUTO_EVALUATION_STEPS: TourDefinition = [
                 accurate scoring.
             </span>
         ),
-        selector: "#tour-new-eval-tab-testset",
-        side: "right",
+        // selector: "#tour-new-eval-tab-testset",
+        selector: "#tour-new-eval-content-testset",
+        side: "top",
         showControls: true,
         showSkip: true,
         pointerPadding: 12,
         pointerRadius: 12,
-        onEnter: openAutoEvalModal,
-        onCleanup: closeAutoEvalModal,
+        // onEnter: (step) => {
+        //     ensureEvalTab(step?.selector)
+        //     openAutoEvalModal()
+        // },
+        // onCleanup: closeAutoEvalModal,
     },
+    // {
+    //     icon: "🔎",
+    //     title: "Testset details",
+    //     content: (
+    //         <span>
+    //             Verify the chosen testset and adjust selections. Ensure required columns are
+    //             available.
+    //         </span>
+    //     ),
+    //     selector: "#tour-new-eval-content-testset",
+    //     side: "right",
+    //     showControls: true,
+    //     showSkip: true,
+    //     pointerPadding: 12,
+    //     pointerRadius: 12,
+    //     onEnter: (step) => ensureEvalTab(step?.selector),
+    //     onCleanup: closeAutoEvalModal,
+    // },
     {
-        icon: "🤖",
+        icon: "🔎",
         title: "Choose evaluators",
         content: (
             <span>
-                Stack automatic evaluators, regex checks, or AI critiques to judge each response
-                from different angles.
+                Confirm evaluator choices and settings. You can remove any tag to deselect an
+                evaluator.
             </span>
         ),
-        selector: "#tour-new-eval-tab-evaluators",
+        selector: "#tour-new-eval-content-evaluators",
         side: "right",
         showControls: true,
         showSkip: true,
         pointerPadding: 12,
         pointerRadius: 12,
-        onEnter: openAutoEvalModal,
+        onEnter: (step) => ensureEvalTab(step?.selector),
         onCleanup: closeAutoEvalModal,
     },
     {
-        icon: "🧩",
+        icon: "🔎",
         title: "Tune advanced settings",
         content: (
             <span>
-                Control rate limits and required columns so your evaluation executes safely and uses
-                the right answers.
+                Review and fine-tune rate limits and the expected answer column before launching.
             </span>
         ),
-        selector: "#tour-new-eval-tab-advanced",
+        selector: "#tour-new-eval-content-advanced",
         side: "right",
         showControls: true,
         showSkip: true,
         pointerPadding: 12,
         pointerRadius: 12,
-        onEnter: openAutoEvalModal,
+        onEnter: (step) => ensureEvalTab(step?.selector),
         onCleanup: closeAutoEvalModal,
     },
     {
@@ -318,8 +498,24 @@ const ensureHumanEvalView = (selector?: string | null) => {
     })
 }
 
-const resolveDefaultEvaluationTour = (): TourDefinition => {
-    return AUTO_EVALUATION_TOUR
+const resolveDefaultEvaluationTour = (location: OnboardingStepsContext["location"]): TourDefinition => {
+    const lastVisited = getDefaultStore().get(lastVisitedEvaluationAtom)
+    if (lastVisited === "online_evaluation") {
+        return resolveOnlineEvaluationTour()
+    }
+
+    if (location?.scope === "project") {
+        return AUTO_EVALUATION_TOUR
+    }
+
+    return [
+        {
+            tour: "auto-evaluation-quickstart",
+            steps: AUTO_EVALUATION_TOUR[0].steps.filter(
+                (step) => step.selector !== "#tour-new-eval-content-application",
+            ),
+        },
+    ]
 }
 
 const resolveHumanEvaluationTour = (ctx: OnboardingStepsContext): TourDefinition => {
@@ -340,7 +536,7 @@ const resolveEvaluationTour = (ctx: OnboardingStepsContext): TourDefinition => {
     }
 
     if (isListRoute) {
-        return resolveDefaultEvaluationTour()
+        return resolveDefaultEvaluationTour(location)
     }
 
     return []
