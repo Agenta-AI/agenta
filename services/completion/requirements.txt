@@ -4,6 +4,7 @@ boto3
 structlog
 newrelic
 
+
 # test
 google-auth>=2.23,<3
 google-cloud-aiplatform>=1.38
