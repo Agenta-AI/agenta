@@ -11,9 +11,15 @@ const GenerationResultUtils = dynamic(() => import("../GenerationResultUtils"), 
 
 interface Props {
     result: any
+    resultUtilsTourId?: string
+    traceButtonTourId?: string
 }
 
-export default function GenerationResponsePanel({result}: Props) {
+export default function GenerationResponsePanel({
+    result,
+    resultUtilsTourId,
+    traceButtonTourId,
+}: Props) {
     const {toolData, isJSON, displayValue} = useMemo(
         () => deriveToolViewModelFromResult(result),
         [result],
@@ -24,7 +30,14 @@ export default function GenerationResponsePanel({result}: Props) {
             <ToolCallView
                 resultData={toolData}
                 className="w-full"
-                footer={<GenerationResultUtils className="mt-2" result={result} />}
+                footer={
+                    <GenerationResultUtils
+                        className="mt-2"
+                        result={result}
+                        tourTargetId={resultUtilsTourId}
+                        traceButtonTourId={traceButtonTourId}
+                    />
+                }
             />
         )
     }
@@ -39,7 +52,14 @@ export default function GenerationResponsePanel({result}: Props) {
             disabled
             className="w-full"
             editorClassName="min-h-4 [&_p:first-child]:!mt-0"
-            footer={<GenerationResultUtils className="mt-2" result={result} />}
+            footer={
+                <GenerationResultUtils
+                    className="mt-2"
+                    result={result}
+                    tourTargetId={resultUtilsTourId}
+                    traceButtonTourId={traceButtonTourId}
+                />
+            }
             handleChange={() => undefined}
         />
     )

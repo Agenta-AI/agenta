@@ -172,9 +172,9 @@ class WorkflowServiceVersion(BaseModel):
 class WorkflowServiceInterface(WorkflowServiceVersion):
     uri: Optional[str] = None  # str (Enum) w/ validation
     url: Optional[str] = None  # str w/ validation
-    headers: Optional[Dict[str, Union[Reference, str]]] = (
-        None  # either hardcoded or a secret
-    )
+    headers: Optional[
+        Dict[str, Union[Reference, str]]
+    ] = None  # either hardcoded or a secret
     # handler: Optional[Callable] = None
 
     schemas: Optional[Dict[str, Schema]] = None  # json-schema instead of pydantic

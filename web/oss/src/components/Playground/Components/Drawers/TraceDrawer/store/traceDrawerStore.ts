@@ -10,6 +10,10 @@ export interface TraceDrawerState {
     activeSpanId: string | null
 }
 
+export type TraceDrawerTabKey = "overview" | "raw_data" | "annotations"
+
+export const TRACE_DRAWER_VIEWPORT_ID = "trace-drawer-viewport"
+
 export const initialTraceDrawerState: TraceDrawerState = {
     open: false,
     traceId: null,
@@ -21,9 +25,11 @@ export const traceDrawerAtom = atomWithImmer<TraceDrawerState>(initialTraceDrawe
 export const isDrawerOpenAtom = atom((get) => get(traceDrawerAtom).open)
 export const traceDrawerTraceIdAtom = atom((get) => get(traceDrawerAtom).traceId)
 export const traceDrawerActiveSpanIdAtom = atom((get) => get(traceDrawerAtom).activeSpanId)
+export const traceDrawerActiveTabAtom = atom<TraceDrawerTabKey>("overview")
 
 export const resetTraceDrawerAtom = atom(null, (_get, set) => {
     set(traceDrawerAtom, initialTraceDrawerState)
+    set(traceDrawerActiveTabAtom, "overview")
 })
 
 export const closeTraceDrawerAtom = atom(null, (_get, set) => {

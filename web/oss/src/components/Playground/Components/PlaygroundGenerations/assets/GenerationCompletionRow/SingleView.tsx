@@ -31,6 +31,7 @@ interface Props {
     runRow: () => void
     cancelRow: () => void
     containerClassName?: string
+    enableTourTargets?: boolean
 }
 
 const SingleView = ({
@@ -45,6 +46,7 @@ const SingleView = ({
     runRow,
     cancelRow,
     containerClassName,
+    enableTourTargets = false,
 }: Props) => {
     const variableIds = useAtomValue(
         useMemo(
@@ -52,6 +54,9 @@ const SingleView = ({
             [rowId, variantId],
         ),
     ) as string[]
+    const outputPanelId = enableTourTargets ? "tour-playground-output-panel" : undefined
+    const resultUtilsId = enableTourTargets ? "tour-playground-result-utils" : undefined
+    const traceButtonId = enableTourTargets ? "tour-playground-trace-button" : undefined
 
     return (
         <div
@@ -63,7 +68,10 @@ const SingleView = ({
                 containerClassName,
             ])}
         >
-            <div className={clsx("flex gap-1 items-start", {"flex flex-col gap-4 w-full": isChat})}>
+            <div
+                id={enableTourTargets ? "tour-playground-variable" : undefined}
+                className={clsx("flex gap-1 items-start", {"flex flex-col gap-4 w-full": isChat})}
+            >
                 {variableIds.length > 0 && (
                     <>
                         <div className="shrink-0 top-[48px] sticky bg-colorBgContainer z-[10] w-[100px]">
@@ -72,29 +80,24 @@ const SingleView = ({
                             </Typography>
                         </div>
                         <div className="flex flex-col grow gap-2 w-full">
-                            {variableIds.map((id) => {
-                                return (
-                                    <div
+                            {variableIds.map((id) => (
+                                <div key={id} className={clsx(["relative group/item px-0 py-2"])}>
+                                    <VariableControlAdapter
+                                        variantId={variantId}
+                                        propertyId={id}
                                         key={id}
-                                        className={clsx(["relative group/item px-0 py-2"])}
-                                    >
-                                        <VariableControlAdapter
-                                            variantId={variantId}
-                                            propertyId={id}
-                                            key={id}
-                                            rowId={rowId}
-                                            className={clsx(["*:!border-none"])}
-                                            // disabled={disableForCustom}
-                                            // placeholder={
-                                            //     disableForCustom
-                                            //         ? "Insert a {{variable}} in your template to create an input."
-                                            //         : "Enter value"
-                                            // }
-                                            editorProps={{enableTokens: false}}
-                                        />
-                                    </div>
-                                )
-                            })}
+                                        rowId={rowId}
+                                        className={clsx(["*:!border-none"])}
+                                        // disabled={disableForCustom}
+                                        // placeholder={
+                                        //     disableForCustom
+                                        //         ? "Insert a {{variable}} in your template to create an input."
+                                        //         : "Enter value"
+                                        // }
+                                        editorProps={{enableTokens: false}}
+                                    />
+                                </div>
+                            ))}
                         </div>
                     </>
                 )}
@@ -121,6 +124,7 @@ const SingleView = ({
             {!inputOnly ? (
                 <div className="w-full flex gap-1">
                     <div
+                        id={enableTourTargets ? "tour-playground-run-button" : undefined}
                         className={clsx("flex items-start justify-start h-fit w-[100px] shrink-0")}
                     >
                         {!isBusy ? (
@@ -130,7 +134,10 @@ const SingleView = ({
                         )}
                     </div>
 
-                    <div className={clsx(["w-full flex flex-col gap-4  pb-2 mr-[52px]"])}>
+                    <div
+                        className={clsx(["w-full flex flex-col gap-4  pb-2 mr-[52px]"])}
+                        id={outputPanelId}
+                    >
                         {isBusy ? (
                             <TypingIndicator />
                         ) : !result ? (
@@ -138,7 +145,11 @@ const SingleView = ({
                         ) : result.error ? (
                             <ErrorPanel result={result} />
                         ) : result.response ? (
-                            <GenerationResponsePanel result={result} />
+                            <GenerationResponsePanel
+                                result={result}
+                                resultUtilsTourId={resultUtilsId}
+                                traceButtonTourId={traceButtonId}
+                            />
                         ) : null}
                     </div>
                 </div>

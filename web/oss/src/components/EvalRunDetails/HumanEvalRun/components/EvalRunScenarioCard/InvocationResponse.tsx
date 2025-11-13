@@ -12,7 +12,12 @@ import RunEvalScenarioButton from "../RunEvalScenarioButton"
 
 import {InvocationResponseProps} from "./types"
 
-const InvocationResponse = ({scenarioId, stepKey, runId}: InvocationResponseProps) => {
+const InvocationResponse = ({
+    scenarioId,
+    stepKey,
+    runId,
+    highlightTour = false,
+}: InvocationResponseProps) => {
     const {status, trace, value, messageNodes} = useInvocationResult({scenarioId, stepKey, runId})
     const editorKey = trace?.trace_id ?? trace?.id ?? `${scenarioId}-${stepKey}-${runId}`
 
@@ -22,7 +27,16 @@ const InvocationResponse = ({scenarioId, stepKey, runId}: InvocationResponseProp
                 <Typography.Title level={4} className="!font-medium !m-0">
                     Model Response
                 </Typography.Title>
-                <RunEvalScenarioButton stepKey={stepKey} scenarioId={scenarioId} runId={runId} />
+                <div
+                    id={highlightTour ? "tour-human-eval-run-button" : undefined}
+                    className="flex items-center"
+                >
+                    <RunEvalScenarioButton
+                        stepKey={stepKey}
+                        scenarioId={scenarioId}
+                        runId={runId}
+                    />
+                </div>
             </div>
 
             {messageNodes ? (

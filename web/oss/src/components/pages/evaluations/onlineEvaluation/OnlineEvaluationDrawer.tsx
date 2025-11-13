@@ -71,6 +71,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
     const samplingRate = Form.useWatch("sampling_rate", form)
     const isHistorical = Form.useWatch("historical", form) ?? false
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isDrawerOpened, setIsDrawerOpened] = useState(false)
     const router = useRouter()
 
     const {
@@ -416,12 +417,15 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
             width={520}
             destroyOnClose
             closeOnLayoutClick={false}
+            zIndex={900}
             styles={{body: {padding: 0}, footer: {padding: 8}}}
+            afterOpenChange={(open) => setIsDrawerOpened(open)}
             footer={
                 <div className="w-full flex items-center justify-end gap-2">
                     <div className="flex items-center gap-2">
                         <Button onClick={onClose}>Cancel</Button>
                         <Button
+                            id="tour-online-create-button"
                             type="primary"
                             onClick={handleSubmit}
                             loading={isSubmitting}
@@ -448,6 +452,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                             key: "general",
                             label: buildPanelHeader("General"),
                             style: {marginBottom: 4},
+                            id: isDrawerOpened ? "tour-online-name-input" : undefined,
                             children: (
                                 <>
                                     <Form.Item
@@ -504,6 +509,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                             key: "query",
                             label: buildPanelHeader("Query", querySummary),
                             style: {marginBottom: 4},
+                            id: "tour-online-query-section",
                             children: (
                                 <>
                                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -565,6 +571,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                             key: "evaluator",
                             label: buildPanelHeader("Evaluator", evaluatorSummary),
                             style: {marginBottom: 4},
+                            id: "tour-online-evaluator-select",
                             children: (
                                 <>
                                     <Form.Item

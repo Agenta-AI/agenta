@@ -1,6 +1,8 @@
 import {getDefaultStore} from "jotai"
 import {eagerAtom} from "jotai-eager"
+import {selectAtom} from "jotai/utils"
 
+import type {AppStateSnapshot, RouteLayer} from "@/oss/state/appState"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {selectedOrgAtom} from "@/oss/state/org/selectors/org"
 
@@ -19,6 +21,169 @@ export interface URLState {
     recentlyVisitedAppURL: string
     appURL: string
 }
+
+export type URLLocationScope =
+    | "root"
+    | "auth"
+    | "post-signup"
+    | "workspace"
+    | "project"
+    | "app"
+    | "public"
+    | "unknown"
+
+export interface URLLocationState {
+    scope: URLLocationScope
+    routeLayer: RouteLayer
+    section: string | null
+    subsection: string | null
+    trail: string
+    key: string
+}
+
+const createLocationState = (
+    scope: URLLocationScope,
+    routeLayer: RouteLayer,
+    section: string | null,
+    subsection: string | null,
+    trail: string,
+): URLLocationState => {
+    const normalizedSection = section ?? null
+    const normalizedSubsection = subsection ?? null
+    const normalizedTrail = trail || ""
+    const keyParts = [scope]
+
+    if (normalizedSection) {
+        keyParts.push(normalizedSection)
+    }
+    if (normalizedSubsection) {
+        keyParts.push(normalizedSubsection)
+    }
+    if (
+        normalizedTrail &&
+        normalizedTrail !== normalizedSection &&
+        normalizedTrail !== normalizedSubsection
+    ) {
+        keyParts.push(normalizedTrail)
+    }
+
+    return {
+        scope,
+        routeLayer,
+        section: normalizedSection,
+        subsection: normalizedSubsection,
+        trail: normalizedTrail,
+        key: keyParts.join("|"),
+    }
+}
+
+const resolveLocationFromSnapshot = (snapshot: AppStateSnapshot): URLLocationState => {
+    const {segments, restPath, routeLayer} = snapshot
+    const [first, second] = segments
+
+    if (segments.length === 0) {
+        return createLocationState("root", routeLayer, null, null, "")
+    }
+
+    if (first === "auth") {
+        const authRest = segments.slice(1)
+        return createLocationState(
+            "auth",
+            routeLayer,
+            authRest[0] ?? null,
+            authRest[1] ?? null,
+            authRest.join("/"),
+        )
+    }
+
+    if (first === "post-signup") {
+        const postSignupRest = segments.slice(1)
+        return createLocationState(
+            "post-signup",
+            routeLayer,
+            postSignupRest[0] ?? null,
+            postSignupRest[1] ?? null,
+            postSignupRest.join("/"),
+        )
+    }
+
+    if (first === "workspaces" && second === "accept") {
+        const acceptRest = segments.slice(2)
+        return createLocationState(
+            "auth",
+            routeLayer,
+            "workspaces-accept",
+            acceptRest[0] ?? null,
+            acceptRest.join("/"),
+        )
+    }
+
+    if (first === "w") {
+        if (segments.length === 1) {
+            return createLocationState("workspace", routeLayer, null, null, "")
+        }
+
+        if (routeLayer === "app") {
+            const section = restPath[0] ?? null
+            return createLocationState(
+                "app",
+                routeLayer,
+                section,
+                restPath[1] ?? null,
+                restPath.join("/"),
+            )
+        }
+        if (routeLayer === "project") {
+            const projectSegments = restPath.length > 0 ? restPath : segments.slice(4)
+            return createLocationState(
+                "project",
+                routeLayer,
+                projectSegments[0] ?? null,
+                projectSegments[1] ?? null,
+                projectSegments.join("/"),
+            )
+        }
+        if (routeLayer === "workspace" || routeLayer === "root") {
+            return createLocationState(
+                "workspace",
+                routeLayer,
+                restPath[0] ?? null,
+                restPath[1] ?? null,
+                restPath.join("/"),
+            )
+        }
+
+        if (routeLayer === "unknown") {
+            const workspaceRest = segments.slice(2)
+            return createLocationState(
+                "workspace",
+                routeLayer,
+                workspaceRest[0] ?? null,
+                workspaceRest[1] ?? null,
+                workspaceRest.join("/"),
+            )
+        }
+    }
+
+    const fallbackScope: URLLocationScope = routeLayer === "unknown" ? "unknown" : "public"
+
+    return createLocationState(
+        fallbackScope,
+        routeLayer,
+        first ?? null,
+        segments[1] ?? null,
+        segments.slice(1).join("/"),
+    )
+}
+
+const urlLocationEquality = (prev: URLLocationState, next: URLLocationState) =>
+    prev.key === next.key && prev.routeLayer === next.routeLayer
+
+export const urlLocationAtom = selectAtom(
+    appStateSnapshotAtom,
+    resolveLocationFromSnapshot,
+    urlLocationEquality,
+)
 
 export const urlAtom = eagerAtom<URLState>((get) => {
     const snapshot = get(appStateSnapshotAtom)

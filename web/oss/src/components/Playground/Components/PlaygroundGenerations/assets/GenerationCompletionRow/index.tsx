@@ -31,6 +31,7 @@ const GenerationCompletionRow = ({
     view,
     disabled,
     forceSingle,
+    isPrimaryRow = false,
     ...props
 }: GenerationCompletionRowProps) => {
     const classes = useStyles()
@@ -103,6 +104,8 @@ const GenerationCompletionRow = ({
         await cancelTests({rowId, variantIds, reason: "user_cancelled"} as any)
     }, [cancelTests, displayedVariantIds, variantId, viewType, rowId])
 
+    const enableTourTargets = Boolean(isPrimaryRow && viewType === "single" && !!variantId)
+
     // Single view content
     return forceSingle || (viewType === "single" && view !== "focus" && variantId) ? (
         <SingleView
@@ -117,6 +120,7 @@ const GenerationCompletionRow = ({
             runRow={runRow}
             cancelRow={cancelRow}
             containerClassName={classes.container}
+            enableTourTargets={enableTourTargets}
         />
     ) : (
         <DefaultView
@@ -131,6 +135,7 @@ const GenerationCompletionRow = ({
             runRow={runRow}
             cancelRow={cancelRow}
             isBusy={isBusy}
+            enableTourTargets={enableTourTargets}
         />
     )
 }

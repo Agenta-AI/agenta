@@ -58,7 +58,7 @@ const EvalRunScenarioCard = ({scenarioId, runId, viewType = "list"}: EvalRunScen
             <EvalRunScenarioCardBody scenarioId={scenarioId} runId={runId} />
         </Card>
     ) : (
-        <div className="flex flex-col gap-4 w-full">
+        <div className="flex flex-col gap-4 w-full" id="tour-human-eval-io-panel">
             <EvalRunScenarioCardBody scenarioId={scenarioId} runId={runId} />
         </div>
     )

@@ -16,9 +16,9 @@ class TestAuthentication:
         response = await http_client.get("apps", headers=headers)
 
         # ASSERT: verify response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -35,9 +35,9 @@ class TestAuthentication:
         response = await http_client.get("apps", headers=headers)
 
         # ASSERT: verify response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"
 
     @pytest.mark.asyncio
     @pytest.mark.typical
@@ -54,6 +54,6 @@ class TestAuthentication:
         response = await http_client.get("apps", headers=headers)
 
         # ASSERT: verify response
-        assert response.status_code == expected_status, (
-            f"Failed for case: {description}"
-        )
+        assert (
+            response.status_code == expected_status
+        ), f"Failed for case: {description}"

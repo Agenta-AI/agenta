@@ -57,6 +57,7 @@ const DeployVariantModalContent = ({variantName, revision, isLoading}: any) => {
             </Typography.Text>
 
             <Table
+                id="tour-playground-deploy-modal-table"
                 rowSelection={{
                     type: "radio",
                     columnWidth: 48,

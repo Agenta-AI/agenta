@@ -78,9 +78,7 @@ class UniversalBaseModel(pydantic.BaseModel):
         )
 
         @pydantic.model_serializer(mode="wrap", when_used="json")  # type: ignore[attr-defined]
-        def serialize_model(
-            self, handler: pydantic.SerializerFunctionWrapHandler
-        ) -> Any:  # type: ignore[name-defined]
+        def serialize_model(self, handler: pydantic.SerializerFunctionWrapHandler) -> Any:  # type: ignore[name-defined]
             serialized = handler(self)
             data = {
                 k: serialize_datetime(v) if isinstance(v, dt.datetime) else v
@@ -262,10 +260,7 @@ def universal_root_validator(
 ) -> Callable[[AnyCallable], AnyCallable]:
     def decorator(func: AnyCallable) -> AnyCallable:
         if IS_PYDANTIC_V2:
-            return cast(
-                AnyCallable,
-                pydantic.model_validator(mode="before" if pre else "after")(func),
-            )  # type: ignore[attr-defined]
+            return cast(AnyCallable, pydantic.model_validator(mode="before" if pre else "after")(func))  # type: ignore[attr-defined]
         return cast(AnyCallable, pydantic.root_validator(pre=pre)(func))  # type: ignore[call-overload]
 
     return decorator
@@ -276,12 +271,7 @@ def universal_field_validator(
 ) -> Callable[[AnyCallable], AnyCallable]:
     def decorator(func: AnyCallable) -> AnyCallable:
         if IS_PYDANTIC_V2:
-            return cast(
-                AnyCallable,
-                pydantic.field_validator(field_name, mode="before" if pre else "after")(
-                    func
-                ),
-            )  # type: ignore[attr-defined]
+            return cast(AnyCallable, pydantic.field_validator(field_name, mode="before" if pre else "after")(func))  # type: ignore[attr-defined]
         return cast(AnyCallable, pydantic.validator(field_name, pre=pre)(func))
 
     return decorator

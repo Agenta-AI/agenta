@@ -106,10 +106,7 @@ class NormalizerMiddleware:
     async def _normalize_response(
         self,
         result: Any,
-    ) -> Union[
-        WorkflowServiceBatchResponse,
-        WorkflowServiceStreamResponse,
-    ]:
+    ) -> Union[WorkflowServiceBatchResponse, WorkflowServiceStreamResponse,]:
         if isawaitable(result):
             result = await result
 

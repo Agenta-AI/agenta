@@ -9,11 +9,13 @@ import Link from "next/link"
 import {breadcrumbAtom, type BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
-import {useAppState} from "@/oss/state/appState"
+import {resolveOnboardingSection} from "@/oss/state/onboarding"
+import {urlLocationAtom} from "@/oss/state/url"
 
 import packageJsonData from "../../../../package.json"
 import EnhancedButton from "../../Playground/assets/EnhancedButton"
 import TooltipWithCopyAction from "../../TooltipWithCopyAction"
+import OnboardingTriggerButton from "../../Onboarding/components/OnboardingTriggerButton"
 
 import {useStyles, type StyleProps} from "./styles"
 
@@ -70,11 +72,19 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const breadcrumbs = useAtomValue(breadcrumbAtom)
     const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
-    const appState = useAppState()
+    const userLocation = useAtomValue(urlLocationAtom)
     const breadcrumbItems = useMemo(
         () => breadcrumbItemsGenerator(breadcrumbs || {}),
         [breadcrumbs],
     )
+    const showOnboardingTriggerButton = useMemo(() => {
+        const normalizedSection = resolveOnboardingSection(userLocation.section)
+        return (
+            normalizedSection === "apps" ||
+            normalizedSection === "playground" ||
+            normalizedSection === "playgroundPostRun"
+        )
+    }, [userLocation.section])
 
     return (
         <section
@@ -122,6 +132,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
             </div>
 
             <div className={clsx(classes.topRightBar, "shrink-0")}>
+                {showOnboardingTriggerButton && <OnboardingTriggerButton />}
                 <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>
