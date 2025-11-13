@@ -27,8 +27,11 @@ class MetersDAO(MetersDAOInterface):
     def __init__(self):
         pass
 
-    async def dump(self) -> list[MeterDTO]:
-        log.info("[report] [dump] Starting meter dump")
+    async def dump(
+        self,
+        limit: Optional[int] = None,
+    ) -> list[MeterDTO]:
+        log.info(f"[report] [dump] Starting (limit={limit or 'none'})")
 
         async with engine.core_session() as session:
             try:
@@ -36,25 +39,25 @@ class MetersDAO(MetersDAOInterface):
                     select(MeterDBE)
                     .filter(MeterDBE.synced != MeterDBE.value)
                     .options(joinedload(MeterDBE.subscription))
-                )  # NO RISK OF DEADLOCK
-
-                log.info(
-                    "[report] [dump] Executing query for meters where synced != value"
+                    .order_by(
+                        MeterDBE.organization_id,
+                        MeterDBE.key,
+                        MeterDBE.year,
+                        MeterDBE.month,
+                    )
                 )
+
+                if limit:
+                    stmt = stmt.limit(limit)
+
                 result = await session.execute(stmt)
                 meters = result.scalars().all()
 
-                log.info(
-                    f"[report] [dump] Found {len(meters)} meters with synced != value"
-                )
+                log.info(f"[report] [dump] Found {len(meters)} unsynced meters")
 
                 dto_list = []
                 for meter in meters:
                     try:
-                        log.info(
-                            f"[report] [dump] Processing meter {meter.organization_id}/{meter.key} year={meter.year} month={meter.month} value={meter.value} synced={meter.synced}"
-                        )
-
                         subscription_dto = None
                         if meter.subscription:
                             subscription_dto = SubscriptionDTO(
@@ -64,13 +67,6 @@ class MetersDAO(MetersDAOInterface):
                                 plan=meter.subscription.plan,
                                 active=meter.subscription.active,
                                 anchor=meter.subscription.anchor,
-                            )
-                            log.info(
-                                f"[report] [dump] Meter {meter.organization_id}/{meter.key} has subscription (customer_id={meter.subscription.customer_id}, plan={meter.subscription.plan})"
-                            )
-                        else:
-                            log.warn(
-                                f"[report] [dump] Meter {meter.organization_id}/{meter.key} has NO subscription"
                             )
 
                         meter_dto = MeterDTO(
@@ -84,20 +80,18 @@ class MetersDAO(MetersDAOInterface):
                         )
                         dto_list.append(meter_dto)
 
-                    except Exception as e:
+                    except Exception:
                         log.error(
-                            f"[report] [dump] Error converting meter {meter.organization_id if hasattr(meter, 'organization_id') else 'UNKNOWN'} to DTO: %s",
-                            e,
+                            f"[report] [dump] Error converting meter to DTO",
+                            exc_info=True,
                         )
                         continue
 
-                log.info(
-                    f"[report] [dump] Successfully converted {len(dto_list)} meters to DTOs"
-                )
+                log.info(f"[report] [dump] Converted {len(dto_list)} meters to DTOs")
                 return dto_list
 
-            except Exception as e:
-                log.error(f"[report] [dump] Error executing dump query: %s", e)
+            except Exception:
+                log.error("[report] [dump] Error executing query", exc_info=True)
                 raise
 
     async def bump(
@@ -105,33 +99,20 @@ class MetersDAO(MetersDAOInterface):
         meters: list[MeterDTO],
     ) -> None:
         if not meters:
-            log.info("[report] [bump] No meters to bump")
             return
 
-        log.info(f"[report] [bump] Starting bump for {len(meters)} meters")
+        log.info(f"[report] [bump] Starting for {len(meters)} meters")
 
-        # Sort for consistent lock acquisition
         sorted_meters = sorted(
             meters,
-            key=lambda m: (
-                m.organization_id,
-                m.key,
-                m.year,
-                m.month,
-            ),
+            key=lambda m: (m.organization_id, m.key, m.year, m.month),
         )
 
-        log.info(f"[report] [bump] Sorted {len(sorted_meters)} meters")
-
         async with engine.core_session() as session:
-            updates_executed = 0
+            updated_count = 0
 
             for meter in sorted_meters:
                 try:
-                    log.info(
-                        f"[report] [bump] Updating meter {meter.organization_id}/{meter.key} year={meter.year} month={meter.month} synced={meter.synced}"
-                    )
-
                     stmt = (
                         update(MeterDBE)
                         .where(
@@ -144,35 +125,29 @@ class MetersDAO(MetersDAOInterface):
                     )
 
                     result = await session.execute(stmt)
-                    updates_executed += 1
 
                     if result.rowcount == 0:
                         log.warn(
-                            f"[report] [bump] No rows updated for meter {meter.organization_id}/{meter.key} year={meter.year} month={meter.month}"
+                            f"[report] [bump] No rows updated for {meter.organization_id}/{meter.key}"
                         )
                     else:
-                        log.info(
-                            f"[report] [bump] Updated {result.rowcount} row(s) for meter {meter.organization_id}/{meter.key}"
-                        )
+                        updated_count += result.rowcount
 
-                except Exception as e:
+                except Exception:
                     log.error(
-                        f"[report] [bump] Error executing update for meter {meter.organization_id}/{meter.key}: %s",
-                        e,
+                        f"[report] [bump] Error updating meter {meter.organization_id}/{meter.key}",
+                        exc_info=True,
                     )
-                    raise  # Re-raise to trigger rollback
+                    raise
 
-            log.info(
-                f"[report] [bump] Executed {updates_executed} update statements, committing transaction"
-            )
+            log.info(f"[report] [bump] Committing {updated_count} updates")
 
             try:
                 await session.commit()
-                log.info(f"[report] [bump] Transaction committed successfully")
-            except Exception as e:
-                log.error(f"[report] [bump] Error committing transaction: %s", e)
+                log.info(f"[report] [bump] ✅ Committed successfully")
+            except Exception:
+                log.error("[report] [bump] ❌ Commit failed", exc_info=True)
                 await session.rollback()
-                log.error(f"[report] [bump] Transaction rolled back")
                 raise
 
     async def fetch(
