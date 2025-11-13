@@ -67,13 +67,13 @@ interface TreeNodeComponentProps {
 }
 
 const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
-    node, 
-    isLast, 
-    settings, 
-    selectedKey, 
-    onSelect, 
+    node,
+    isLast,
+    settings,
+    selectedKey,
+    onSelect,
     isRoot = false,
-    enableTour = false
+    enableTour = false,
 }) => {
     const classes = useStyles()
     const [expanded, setExpanded] = useState(true)
@@ -85,9 +85,9 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
     const shouldShowAsLast = isLast && (!hasChildren || (hasChildren && !expanded))
 
     return (
-        <div 
-            className={isRoot ? "pl-2" : "relative pl-5"} 
-            {...(enableTour && { id: "tour-trace-tree-panel" })}
+        <div
+            className={isRoot ? "pl-2" : "relative pl-5"}
+            {...(enableTour && {id: "tour-trace-tree-panel"})}
         >
             <div
                 className={
@@ -146,11 +146,11 @@ const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
 }
 
 const CustomTree: React.FC<TreeProps> = ({
-    data, 
-    settings, 
-    selectedKey, 
+    data,
+    settings,
+    selectedKey,
     onSelect,
-    enableTour = false
+    enableTour = false,
 }) => {
     return (
         <div className={"h-full overflow-y-auto p-2"}>

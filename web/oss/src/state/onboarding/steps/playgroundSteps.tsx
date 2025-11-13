@@ -251,6 +251,7 @@ const buildPostRunSteps = (mode: "completion" | "chat") => {
             pointerPadding: 12,
             pointerRadius: 12,
             onboardingSection: "playgroundPostRun" as const,
+            viewportId: "scrollable-viewport",
             onEnter: () => closeTraceDrawer(),
         },
         ...TRACE_STEPS_FOR_PLAYGROUND,

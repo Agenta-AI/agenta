@@ -498,7 +498,9 @@ const ensureHumanEvalView = (selector?: string | null) => {
     })
 }
 
-const resolveDefaultEvaluationTour = (location: OnboardingStepsContext["location"]): TourDefinition => {
+const resolveDefaultEvaluationTour = (
+    location: OnboardingStepsContext["location"],
+): TourDefinition => {
     const lastVisited = getDefaultStore().get(lastVisitedEvaluationAtom)
     if (lastVisited === "online_evaluation") {
         return resolveOnlineEvaluationTour()

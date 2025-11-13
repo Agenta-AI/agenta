@@ -164,9 +164,12 @@ const NewEvaluationModal = <Preview extends boolean = true>({
 
     const {secrets} = useVaultSecret()
 
-    const handlePanelChange = useCallback((key: string | string[]) => {
-        setActivePanel(key as any)
-    }, [setActivePanel])
+    const handlePanelChange = useCallback(
+        (key: string | string[]) => {
+            setActivePanel(key as any)
+        },
+        [setActivePanel],
+    )
 
     const afterClose = useCallback(() => {
         props?.afterClose?.()

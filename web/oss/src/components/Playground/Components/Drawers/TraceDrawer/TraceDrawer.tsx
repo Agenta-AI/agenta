@@ -6,7 +6,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
-import NextViewport from "@/oss/components/Onboarding/components/NextViewport"
 import useTraceDrawer from "@/oss/components/pages/observability/drawer/hooks/useTraceDrawer"
 import TraceSidePanel from "@/oss/components/pages/observability/drawer/TraceSidePanel"
 import {useObservability} from "@/oss/state/newObservability"

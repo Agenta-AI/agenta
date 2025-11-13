@@ -462,7 +462,6 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                         style={{marginBottom: 12}}
                                     >
                                         <Input
-                                           
                                             className="w-full"
                                             placeholder="Testing evaluator"
                                             allowClear
@@ -581,7 +580,7 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                                         style={{marginBottom: 12}}
                                         rules={[{required: true, message: "Select an evaluator"}]}
                                     >
-                                        <Select                                        
+                                        <Select
                                             className="w-full"
                                             placeholder="Select"
                                             options={evaluatorOptions}

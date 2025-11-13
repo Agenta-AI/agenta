@@ -109,14 +109,7 @@ const OnboardingCard = ({
 
             updateOnboardingStatus({section: resolvedSection, status})
         },
-        [
-            step,
-            skipTour,
-            isNewUser,
-            userSection,
-            updateOnboardingStatus,
-            runCleanupHandlers,
-        ],
+        [step, skipTour, isNewUser, userSection, updateOnboardingStatus, runCleanupHandlers],
     )
 
     const normalized = useMemo(() => normalizeStep(step), [step])

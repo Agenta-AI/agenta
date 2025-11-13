@@ -132,7 +132,8 @@ const playgroundHasFirstRunAtom = atom((get) => {
     return Object.values(statuses).some((entry) => {
         if (!entry) return false
         const hasCompletedRun =
-            entry.resultHash !== undefined && (entry.isRunning === false || entry.isRunning === undefined)
+            entry.resultHash !== undefined &&
+            (entry.isRunning === false || entry.isRunning === undefined)
         return hasCompletedRun
     })
 })
