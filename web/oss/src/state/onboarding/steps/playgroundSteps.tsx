@@ -23,7 +23,7 @@ const closeTraceDrawer = () => {
     getDefaultStore().set(closeTraceDrawerAtom)
 }
 
-const TRACE_STEPS_FOR_PLAYGROUND = TRACE_DRAWER_STEPS.slice(0, 4).map((step) => {
+const TRACE_STEPS_FOR_PLAYGROUND = TRACE_DRAWER_STEPS.slice(0, 5).map((step) => {
     if (step.selector === "#tour-trace-tree-panel") {
         return {
             ...step,
