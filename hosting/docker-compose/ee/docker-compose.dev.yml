@@ -219,14 +219,14 @@ services:
 
     postgres:
         image: postgres:16.2
-        
+
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         ports:
             - "5432:5432"
-        
+
         restart: always
-        
+
         networks:
             - agenta-network
         volumes:
@@ -234,6 +234,33 @@ services:
             - ../../../api/ee/databases/postgres/init-db-ee.sql:/docker-entrypoint-initdb.d/init-db.sql
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U username -d agenta_ee_core"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    clickhouse:
+        image: clickhouse/clickhouse-server:24.3
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+        ports:
+            - "8123:8123"  # HTTP interface
+            - "9000:9000"  # Native protocol
+
+        restart: always
+
+        networks:
+            - agenta-network
+        volumes:
+            - clickhouse-data:/var/lib/clickhouse
+
+        ulimits:
+            nofile:
+                soft: 262144
+                hard: 262144
+
+        healthcheck:
+            test: ["CMD", "wget", "--spider", "-q", "localhost:8123/ping"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -367,6 +394,7 @@ networks:
 
 volumes:
     postgres-data:
+    clickhouse-data:
     rabbitmq-data:
     redis-data:
     cache-data:
