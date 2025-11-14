@@ -791,9 +791,6 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
 
             secrets = await SecretsManager.retrieve_secrets()
 
-            log.debug(inputs)
-            log.debug(secrets)
-
             openai_api_key = None  # secrets.get("OPENAI_API_KEY")
             anthropic_api_key = None  # secrets.get("ANTHROPIC_API_KEY")
             openrouter_api_key = None  # secrets.get("OPENROUTER_API_KEY")
