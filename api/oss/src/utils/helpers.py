@@ -159,7 +159,7 @@ def warn_deprecated_env_vars():
         click.echo(
             click.style(
                 "\n\nPlease refer to the docs for migration details:\n"
-                "  → https://docs.agenta.ai/misc/environment-variables\n\n"
+                "  → https://agenta.ai/docs/misc/environment-variables\n\n"
                 "Some of these values have been migrated automatically, but you must manually remove the old ones.",
                 fg="yellow",
             )
