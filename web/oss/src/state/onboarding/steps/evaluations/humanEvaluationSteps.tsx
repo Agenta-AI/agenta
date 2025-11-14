@@ -1,7 +1,7 @@
 import {EvalRunUrlState, urlStateAtom} from "@/oss/components/EvalRunDetails/state/urlState"
 import {getDefaultStore} from "jotai"
 import {OnboardingStepsContext, TourDefinition} from "../types"
-import {isHumanEvaluationRunsAvailableAtom, isUserInRunPageAtom} from "../../atoms/helperAtom"
+import {isHumanEvaluatorAvailableAtom, isUserInRunPageAtom} from "../../atoms/helperAtom"
 
 // Functions
 const onChangeTab = (tab: string) => {
@@ -118,7 +118,7 @@ const HUMAN_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
 
 // Helper functions
 export const resolveOnlineEvaluationSteps = () => {
-    const hasEvaluators = getDefaultStore().get(isHumanEvaluationRunsAvailableAtom)
+    const hasEvaluators = getDefaultStore().get(isHumanEvaluatorAvailableAtom)
     if (hasEvaluators) return [{tour: "online-evaluation-quickstart", steps: []}]
 
     if (!hasEvaluators) return [{tour: "configure-new-evaluator", steps: []}]
