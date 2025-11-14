@@ -1,0 +1,28 @@
+name: 02 - check python formatting
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'api/**'
+      - 'sdk/**'
+  workflow_dispatch:
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Ruff
+        run: pip install ruff==0.14.0
+
+      - name: Run Ruff formatting check
+        run: ruff format --check api sdk

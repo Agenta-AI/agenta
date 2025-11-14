@@ -185,7 +185,7 @@ class TestWorkflowVariantsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/variants/?include_archived=true" "&limit=1",
+            "/preview/workflows/variants/?include_archived=true&limit=1",
         )
         # ----------------------------------------------------------------------
 

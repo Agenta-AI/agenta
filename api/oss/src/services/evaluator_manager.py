@@ -138,13 +138,13 @@ async def create_ready_to_use_evaluators(project_id: str):
         }
 
         for setting_name, default_value in settings_values.items():
-            assert (
-                default_value != ""
-            ), f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
+            assert default_value != "", (
+                f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
+            )
 
-        assert hasattr(evaluator, "name") and hasattr(
-            evaluator, "key"
-        ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
+        assert hasattr(evaluator, "name") and hasattr(evaluator, "key"), (
+            f"'name' and 'key' does not exist in the evaluator: {evaluator}"
+        )
         await db_manager.create_evaluator_config(
             project_id=project_id,
             name=evaluator.name,
