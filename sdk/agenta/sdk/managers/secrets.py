@@ -1,6 +1,7 @@
 import re
 from typing import Optional, Dict, Any, List
 
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.contexts.routing import RoutingContext
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.assets import model_to_provider_mapping as _standard_providers
@@ -8,6 +9,8 @@ from agenta.sdk.assets import model_to_provider_mapping as _standard_providers
 from agenta.sdk.middlewares.running.vault import get_secrets
 
 import agenta as ag
+
+log = get_module_logger(__name__)
 
 
 class SecretsManager:
