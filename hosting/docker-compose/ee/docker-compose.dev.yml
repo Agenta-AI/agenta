@@ -245,7 +245,7 @@ services:
             - ${ENV_FILE:-./.env.ee.dev}
         ports:
             - "8123:8123"  # HTTP interface
-            - "9000:9000"  # Native protocol
+            - "9001:9000"  # Native protocol (host:container - using 9001 to avoid conflict)
 
         restart: always
 

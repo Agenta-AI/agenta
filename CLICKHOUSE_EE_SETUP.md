@@ -9,7 +9,7 @@ Add the following lines to your `.env.ee.dev.local` file:
 ```bash
 # ClickHouse Configuration (Optional - disabled by default)
 CLICKHOUSE_HOST=clickhouse
-CLICKHOUSE_PORT=9000
+CLICKHOUSE_PORT=9000  # Internal Docker port (host port is 9001 to avoid conflicts)
 CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=
 CLICKHOUSE_DATABASE=agenta_ee_tracing
@@ -60,10 +60,13 @@ Once ClickHouse is running stable, enable dual-write mode to start sending spans
 
 3. **Verify data is being written:**
    ```bash
-   # Connect to ClickHouse
+   # Option A: Connect from inside the container
    docker exec -it agenta-ee-dev-clickhouse-1 clickhouse-client
 
-   # Check if tables were created
+   # Option B: Connect from your host machine (using port 9001)
+   clickhouse-client --host localhost --port 9001
+
+   # Once connected, check if tables were created
    SHOW TABLES;
 
    # Count spans
@@ -128,8 +131,15 @@ python -m oss.databases.clickhouse.migrations.migrate_postgres_to_clickhouse
 
 ## ClickHouse Ports
 
+**Inside Docker Network** (used by API container):
 - **9000**: Native TCP protocol (used by clickhouse-driver) ✅ Primary
 - **8123**: HTTP interface (for REST API, health checks) 🔍 Monitoring
+
+**From Your Host Machine** (for debugging):
+- **localhost:9001** → maps to container's 9000 (native protocol)
+- **localhost:8123** → maps to container's 8123 (HTTP interface)
+
+**Note**: Port 9001 is used on the host to avoid conflicts with other services. Inside the Docker network, containers communicate using the standard port 9000.
 
 ## Rollback Plan
 
@@ -171,9 +181,12 @@ With ClickHouse enabled:
 docker logs agenta-ee-dev-clickhouse-1
 
 # Common issue: Port already in use
-sudo lsof -i :9000
-sudo lsof -i :8123
+# Note: We use port 9001 on host to avoid conflicts
+lsof -i :9001
+lsof -i :8123
 ```
+
+**Already fixed**: The docker-compose uses port 9001 on the host (instead of 9000) to avoid conflicts with other services that might be using port 9000.
 
 ### "clickhouse-driver is not installed" error
 
