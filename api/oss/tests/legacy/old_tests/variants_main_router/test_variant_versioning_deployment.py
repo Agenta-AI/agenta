@@ -80,6 +80,6 @@ async def test_deploy_to_environment(deploy_to_environment_payload):
             )
             list_of_response_status_codes.append(response.status_code)
 
-        assert (
-            list_of_response_status_codes.count(200) == 3
-        ), "The list does not contain 3 occurrences of 200 status code"
+        assert list_of_response_status_codes.count(200) == 3, (
+            "The list does not contain 3 occurrences of 200 status code"
+        )

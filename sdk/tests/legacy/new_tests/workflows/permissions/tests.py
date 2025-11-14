@@ -67,9 +67,9 @@ class TestMockCompletion:
         response_data = response.json()
 
         # Assert: Verify the response
-        assert (
-            response.status_code == expected_status
-        ), f"Failed for case: {description}"
-        assert (
-            response.json().get("detail") == "Service execution not allowed."
-        ), f"Failed for case: {description}"
+        assert response.status_code == expected_status, (
+            f"Failed for case: {description}"
+        )
+        assert response.json().get("detail") == "Service execution not allowed.", (
+            f"Failed for case: {description}"
+        )
