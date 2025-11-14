@@ -15,12 +15,14 @@ from ..core.pydantic_utilities import (
 class OTelLink(UniversalBaseModel):
     span_id: str
     trace_id: str
-    attributes: typing.Optional[
-        typing.Dict[str, typing.Optional["FullJsonOutput"]]
-    ] = None
+    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
+        None
+    )
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:

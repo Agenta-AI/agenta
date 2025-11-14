@@ -490,10 +490,12 @@ class TestsetsService:
         )
 
         if testset_revision.data and testset_revision.data.testcase_ids:
-            testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
-                project_id=project_id,
-                #
-                testcase_ids=testset_revision.data.testcase_ids,
+            testset_revision.data.testcases = (
+                await self.testcases_service.fetch_testcases(
+                    project_id=project_id,
+                    #
+                    testcase_ids=testset_revision.data.testcase_ids,
+                )
             )
 
         return testset_revision
@@ -556,10 +558,12 @@ class TestsetsService:
         )
 
         if testset_revision.data and testset_revision.data.testcase_ids:
-            testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
-                project_id=project_id,
-                #
-                testcase_ids=testset_revision.data.testcase_ids,
+            testset_revision.data.testcases = (
+                await self.testcases_service.fetch_testcases(
+                    project_id=project_id,
+                    #
+                    testcase_ids=testset_revision.data.testcase_ids,
+                )
             )
 
         return testset_revision
@@ -595,10 +599,12 @@ class TestsetsService:
         )
 
         if testset_revision.data and testset_revision.data.testcase_ids:
-            testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
-                project_id=project_id,
-                #
-                testcase_ids=testset_revision.data.testcase_ids,
+            testset_revision.data.testcases = (
+                await self.testcases_service.fetch_testcases(
+                    project_id=project_id,
+                    #
+                    testcase_ids=testset_revision.data.testcase_ids,
+                )
             )
 
         return testset_revision
@@ -691,10 +697,12 @@ class TestsetsService:
             )
 
             if testset_revision.data and testset_revision.data.testcase_ids:
-                testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
-                    project_id=project_id,
-                    #
-                    testcase_ids=testset_revision.data.testcase_ids,
+                testset_revision.data.testcases = (
+                    await self.testcases_service.fetch_testcases(
+                        project_id=project_id,
+                        #
+                        testcase_ids=testset_revision.data.testcase_ids,
+                    )
                 )
 
             testset_revisions.append(testset_revision)
@@ -750,10 +758,12 @@ class TestsetsService:
         )
 
         if testset_revision.data and testset_revision.data.testcase_ids:
-            testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
-                project_id=project_id,
-                #
-                testcase_ids=testset_revision.data.testcase_ids,
+            testset_revision.data.testcases = (
+                await self.testcases_service.fetch_testcases(
+                    project_id=project_id,
+                    #
+                    testcase_ids=testset_revision.data.testcase_ids,
+                )
             )
 
         return testset_revision
@@ -785,10 +795,12 @@ class TestsetsService:
             )
 
             if testset_revision.data and testset_revision.data.testcase_ids:
-                testset_revision.data.testcases = await self.testcases_service.fetch_testcases(
-                    project_id=project_id,
-                    #
-                    testcase_ids=testset_revision.data.testcase_ids,
+                testset_revision.data.testcases = (
+                    await self.testcases_service.fetch_testcases(
+                        project_id=project_id,
+                        #
+                        testcase_ids=testset_revision.data.testcase_ids,
+                    )
                 )
 
             testset_revisions.append(testset_revision)

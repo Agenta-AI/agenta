@@ -1,0 +1,143 @@
+name: 01 - create release branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      release-type:
+        description: "release type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  bump-version:
+    name: Bump version and create PR
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump_versions.outputs.NEW_VERSION }}
+      versions_match: ${{ steps.bump_versions.outputs.VERSIONS_MATCH }}
+      pr_number: ${{ steps.create-pr.outputs.pull-request-number }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Bump versions and compare
+        id: bump_versions
+        run: |
+          BUMP_TYPE=${{ inputs.release-type }}
+          echo "Bumping versions to $BUMP_TYPE"
+
+          npm install semver -g
+
+          cd web
+          pnpm version $BUMP_TYPE
+          WEB_VERSION=$(pnpm pkg get version | tr -d '"')
+          
+          cd ee
+          current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
+          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          pnpm pkg set version="$new_version"
+          EE_VERSION=$new_version
+          cd ..
+          
+          cd oss
+          current_version=$(pnpm pkg get version | awk -F': ' '/[0-9]+\.[0-9]+\.[0-9]+/ {print $2}' | tr -d '"')
+          new_version=$(npx semver "$current_version" -i $BUMP_TYPE)
+          pnpm pkg set version="$new_version"
+          OSS_VERSION=$new_version
+          cd ..
+
+          cd ..
+
+          cd sdk
+          poetry version $BUMP_TYPE
+          SDK_VERSION=$(poetry version -s)
+          cd ..
+
+          cd api
+          poetry version $BUMP_TYPE
+          API_VERSION=$(poetry version -s)
+          cd ..
+
+          WEB_VERSION=$(echo "$WEB_VERSION" | tr -d '[:space:]')
+          EE_VERSION=$(echo "$EE_VERSION" | tr -d '[:space:]')
+          OSS_VERSION=$(echo "$OSS_VERSION" | tr -d '[:space:]')
+          SDK_VERSION=$(echo "$SDK_VERSION" | tr -d '[:space:]')
+          API_VERSION=$(echo "$API_VERSION" | tr -d '[:space:]')
+
+          echo "WEB_VERSION='$WEB_VERSION'"
+          echo "EE_VERSION='$EE_VERSION'"
+          echo "OSS_VERSION='$OSS_VERSION'"
+          echo "SDK_VERSION='$SDK_VERSION'"
+          echo "API_VERSION='$API_VERSION'"
+
+          if [ "$EE_VERSION" = "$OSS_VERSION" ] && [ "$OSS_VERSION" = "$WEB_VERSION" ] && [ "$WEB_VERSION" = "$SDK_VERSION" ] && [ "$SDK_VERSION" = "$API_VERSION" ]; then
+              echo "VERSIONS_MATCH=true" >> $GITHUB_OUTPUT
+              echo "NEW_VERSION=$WEB_VERSION" >> $GITHUB_OUTPUT
+          else
+              echo "VERSIONS_MATCH=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.bump_versions.outputs.VERSIONS_MATCH == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: v${{ steps.bump_versions.outputs.NEW_VERSION }}
+          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          branch: release/v${{ steps.bump_versions.outputs.NEW_VERSION }}
+          delete-branch: true
+          title: "v${{ steps.bump_versions.outputs.NEW_VERSION }}"
+          body: |
+            New version v${{ steps.bump_versions.outputs.NEW_VERSION }} in
+            - (web)
+            - web/oss
+            - web/ee
+            - sdk
+            - api
+
+      - name: Fail if versions don't match
+        if: steps.bump_versions.outputs.VERSIONS_MATCH != 'true'
+        run: |
+          echo "Versions in the three folders do not match. Please check and update manually."
+          exit 1
+
+  create-tag:
+    needs: bump-version
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create and push tag
+        run: |
+          git config --global user.name "${{ github.actor }}"
+          git config --global user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git tag -a "v${{ needs.bump-version.outputs.new_version }}" -m "Version ${{ needs.bump-version.outputs.new_version }}"
+          git push origin "v${{ needs.bump-version.outputs.new_version }}"

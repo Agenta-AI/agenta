@@ -56,7 +56,8 @@ def create_default_project_for_workspaces(session: Connection):
             for workspace in workspaces:
                 # Create a new default project for each workspace
                 get_or_create_workspace_default_project(
-                    session=session, workspace=workspace  # type: ignore
+                    session=session,
+                    workspace=workspace,  # type: ignore
                 )
 
             # Commit the changes for the current batch
