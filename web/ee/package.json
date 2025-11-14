@@ -29,7 +29,7 @@
         "@ant-design/cssinjs": "^1.22.1",
         "@ant-design/icons": "^5.5.2",
         "@ant-design/v5-patch-for-react-19": "^1.0.3",
-        "@lexical/code-shiki": "^0.35.0",
+        "@lexical/code-shiki": "^0.38.2",
         "@monaco-editor/react": "^4.7.0-rc.0",
         "@phosphor-icons/react": "^2.1.10",
         "@tanstack/query-core": "^5.87.1",
