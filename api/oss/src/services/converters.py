@@ -13,7 +13,6 @@ from oss.src.models.api.evaluation_model import (
     HumanEvaluationScenario,
     EvaluationScenarioOutput,
 )
-from oss.src.services import db_manager
 from oss.src.models.db_models import (
     EvaluationDB,
     HumanEvaluationDB,
