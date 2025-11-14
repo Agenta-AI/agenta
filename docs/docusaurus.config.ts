@@ -10,11 +10,11 @@ const config: Config = {
   title: "Docs - Agenta",
   tagline: "The LLMOps platform.",
   favicon: "images/favicon.ico",
-  // Set the production url of your site here
-  url: "https://docs.agenta.ai",
+  // Public site lives on the main domain under /docs
+  url: "https://agenta.ai",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: "/",
+  baseUrl: "/docs/",
   organizationName: "Agenta-AI",
   projectName: "agenta",
   onBrokenLinks: "throw",
@@ -30,16 +30,17 @@ const config: Config = {
   },
 
   scripts: [
-
     {
-      src: 'https://www.googletagmanager.com/gtag/js?id=G-LTF78FZS33',
+      src: "https://www.googletagmanager.com/gtag/js?id=G-LTF78FZS33",
       async: true,
     },
     {
-      src: '/ga-script.js',
+      // Served by Docusaurus from static/ under the baseUrl
+      src: "/docs/ga-script.js",
       async: true,
-    }, {
-      src: "/hotjar.js",
+    },
+    {
+      src: "/docs/hotjar.js",
       async: true,
     },
   ],
@@ -304,7 +305,7 @@ const config: Config = {
       "posthog-docusaurus",
       {
         apiKey: process.env.POSTHOG_API_KEY || "dummy",  // Posthog is only available on the prod website
-        appUrl: "https://docs.agenta.ai",
+        appUrl: "https://agenta.ai/docs",
         enableInDevelopment: false, // optional
         api_host: "https://app.posthog.com",
       },
