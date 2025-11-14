@@ -34,6 +34,14 @@ class EnvironSettings(BaseModel):
     ALEMBIC_CFG_PATH_CORE: str = os.getenv("ALEMBIC_CFG_PATH_CORE") or ""
     ALEMBIC_CFG_PATH_TRACING: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or ""
 
+    # CLICKHOUSE (OPTIONAL)
+    CLICKHOUSE_HOST: str = os.getenv("CLICKHOUSE_HOST") or "clickhouse"
+    CLICKHOUSE_PORT: int = int(os.getenv("CLICKHOUSE_PORT") or "9000")
+    CLICKHOUSE_USER: str = os.getenv("CLICKHOUSE_USER") or "default"
+    CLICKHOUSE_PASSWORD: str = os.getenv("CLICKHOUSE_PASSWORD") or ""
+    CLICKHOUSE_DATABASE: str = os.getenv("CLICKHOUSE_DATABASE") or "agenta_oss_tracing"
+    USE_CLICKHOUSE: bool = (os.getenv("USE_CLICKHOUSE") or "false").lower() in _TRUTHY
+
     # TASK QUEUE / BROKER (REQUIRED)
     REDIS_URL: str = os.getenv("REDIS_URL") or ""
     RABBITMQ_DEFAULT_USER: str = os.getenv("RABBITMQ_DEFAULT_USER") or "guest"

@@ -208,7 +208,7 @@ services:
 
     postgres:
         image: postgres:16.2
-        
+
         restart: always
         ports:
             - "5432:5432"
@@ -224,6 +224,28 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
+
+    clickhouse:
+        image: clickhouse/clickhouse-server:latest
+
+        restart: always
+        ports:
+            - "8123:8123"
+            - "9000:9000"
+        networks:
+            - agenta-network
+        volumes:
+            - clickhouse-data:/var/lib/clickhouse/
+        environment:
+            CLICKHOUSE_DB: agenta_oss_tracing
+            CLICKHOUSE_USER: default
+            CLICKHOUSE_PASSWORD: ""
+        healthcheck:
+            test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8123/ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
 
     rabbitmq:
         image: rabbitmq:3-management
@@ -323,6 +345,7 @@ networks:
 
 volumes:
     postgres-data:
+    clickhouse-data:
     rabbitmq-data:
     redis-data:
     cache-data:
