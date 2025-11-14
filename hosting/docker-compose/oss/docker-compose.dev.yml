@@ -231,7 +231,7 @@ services:
         restart: always
         ports:
             - "8123:8123"
-            - "9000:9000"
+            - "8900:9000"  # Using port 8900 on host to avoid conflicts
         networks:
             - agenta-network
         volumes:

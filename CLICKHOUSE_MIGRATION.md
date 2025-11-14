@@ -55,7 +55,7 @@ Add these to your `.env.oss.dev` or deployment configuration:
 ```bash
 # ClickHouse Configuration
 CLICKHOUSE_HOST=clickhouse              # Default: clickhouse (Docker service name)
-CLICKHOUSE_PORT=9000                    # Default: 9000 (native protocol)
+CLICKHOUSE_PORT=9000                    # Internal Docker port (host uses 8900)
 CLICKHOUSE_USER=default                 # Default: default
 CLICKHOUSE_PASSWORD=""                  # Default: empty
 CLICKHOUSE_DATABASE=agenta_oss_tracing  # Default: agenta_oss_tracing
@@ -72,7 +72,7 @@ clickhouse:
     restart: always
     ports:
         - "8123:8123"  # HTTP interface
-        - "9000:9000"  # Native protocol
+        - "8900:9000"  # Native protocol (host:container)
     networks:
         - agenta-network
     volumes:
@@ -348,7 +348,7 @@ ERROR: Failed to load ClickHouse DAO: [Errno 111] Connection refused
 
 **Solution**:
 - Check if ClickHouse service is running: `docker ps | grep clickhouse`
-- Verify port 9000 is accessible: `telnet localhost 9000`
+- Verify port 8900 is accessible: `telnet localhost 8900`
 - Check ClickHouse logs: `docker logs agenta-clickhouse`
 - Ensure `CLICKHOUSE_HOST` and `CLICKHOUSE_PORT` are correct
 

@@ -9,7 +9,7 @@ Add the following lines to your `.env.ee.dev.local` file:
 ```bash
 # ClickHouse Configuration (Optional - disabled by default)
 CLICKHOUSE_HOST=clickhouse
-CLICKHOUSE_PORT=9000  # Internal Docker port (host port is 9001 to avoid conflicts)
+CLICKHOUSE_PORT=9000  # Internal Docker port (host port is 8900 to avoid conflicts)
 CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=
 CLICKHOUSE_DATABASE=agenta_ee_tracing
@@ -63,8 +63,8 @@ Once ClickHouse is running stable, enable dual-write mode to start sending spans
    # Option A: Connect from inside the container
    docker exec -it agenta-ee-dev-clickhouse-1 clickhouse-client
 
-   # Option B: Connect from your host machine (using port 9001)
-   clickhouse-client --host localhost --port 9001
+   # Option B: Connect from your host machine (using port 8900)
+   clickhouse-client --host localhost --port 8900
 
    # Once connected, check if tables were created
    SHOW TABLES;
@@ -136,10 +136,10 @@ python -m oss.databases.clickhouse.migrations.migrate_postgres_to_clickhouse
 - **8123**: HTTP interface (for REST API, health checks) 🔍 Monitoring
 
 **From Your Host Machine** (for debugging):
-- **localhost:9001** → maps to container's 9000 (native protocol)
+- **localhost:8900** → maps to container's 9000 (native protocol)
 - **localhost:8123** → maps to container's 8123 (HTTP interface)
 
-**Note**: Port 9001 is used on the host to avoid conflicts with other services. Inside the Docker network, containers communicate using the standard port 9000.
+**Note**: Port 8900 is used on the host to avoid conflicts with other services (like Jupyter kernels). Inside the Docker network, containers communicate using the standard port 9000.
 
 ## Rollback Plan
 
@@ -181,12 +181,12 @@ With ClickHouse enabled:
 docker logs agenta-ee-dev-clickhouse-1
 
 # Common issue: Port already in use
-# Note: We use port 9001 on host to avoid conflicts
-lsof -i :9001
+# Note: We use port 8900 on host to avoid conflicts
+lsof -i :8900
 lsof -i :8123
 ```
 
-**Already fixed**: The docker-compose uses port 9001 on the host (instead of 9000) to avoid conflicts with other services that might be using port 9000.
+**Already fixed**: The docker-compose uses port 8900 on the host (instead of 9000) to avoid conflicts with other services (like Jupyter kernels or other dev tools).
 
 ### "clickhouse-driver is not installed" error
 
