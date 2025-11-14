@@ -785,10 +785,6 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             if inputs and isinstance(inputs, dict) and correct_answer_key:
                 correct_answer = inputs[correct_answer_key]
 
-            from agenta.sdk.contexts.running import RunningContext
-
-            log.debug(RunningContext.get())
-
             secrets = await SecretsManager.retrieve_secrets()
 
             openai_api_key = None  # secrets.get("OPENAI_API_KEY")
