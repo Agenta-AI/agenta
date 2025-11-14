@@ -72,7 +72,7 @@ async def prepare_csvdata_and_create_evaluation_scenario(
             msg = f"""
             Columns in the testset should match the names of the inputs in the variant.
             Inputs names in variant are: {[variant_input for variant_input in payload_inputs]} while
-            columns in testset are: {[col for col in datum.keys() if col != 'correct_answer']}
+            columns in testset are: {[col for col in datum.keys() if col != "correct_answer"]}
             """
             raise HTTPException(
                 status_code=400,
@@ -405,9 +405,9 @@ async def create_new_evaluation(
         variant_revision_id=revision_id
     )
 
-    assert (
-        variant_revision and variant_revision.revision is not None
-    ), f"Variant revision with {revision_id} cannot be None"
+    assert variant_revision and variant_revision.revision is not None, (
+        f"Variant revision with {revision_id} cannot be None"
+    )
 
     assert testset is not None, f"Testset with id {testset_id} does not exist"
 

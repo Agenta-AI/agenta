@@ -191,7 +191,7 @@ def smart_format_content(content: Any, max_length: int = 200) -> str:
         if len(content) <= max_length:
             return content
         else:
-            return f"{content[:max_length-3]}..."
+            return f"{content[: max_length - 3]}..."
 
     if isinstance(content, (dict, list)):
         try:
@@ -213,7 +213,7 @@ def smart_format_content(content: Any, max_length: int = 200) -> str:
                     if len(full_preview) <= max_length:
                         return full_preview
                     else:
-                        return f"{full_preview[:max_length-3]}..."
+                        return f"{full_preview[: max_length - 3]}..."
                 else:  # list
                     count = len(content)
                     item_preview = (
@@ -411,7 +411,7 @@ def _format_with_unicode_table(
             if "\n" in val_str:
                 # Take first line for table display
                 val_str = val_str.split("\n")[0]
-            formatted.append(f" {val_str:<{width-2}} ")
+            formatted.append(f" {val_str:<{width - 2}} ")
         return left + mid.join(formatted) + right
 
     # Responsive column widths
@@ -541,7 +541,7 @@ async def display_evaluation_results(
     for i, scenario in enumerate(scenario_iterator):
         if not RICH_AVAILABLE and show_detailed_logs:
             print(
-                f"   📄 scenario {i+1}/{len(scenarios_to_process)}: {scenario['scenario'].id}"
+                f"   📄 scenario {i + 1}/{len(scenarios_to_process)}: {scenario['scenario'].id}"
             )  # type:ignore
         elif show_detailed_logs:
             print(f"          scenario_id={scenario['scenario'].id}")  # type:ignore

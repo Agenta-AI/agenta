@@ -135,12 +135,12 @@ async def terminate_and_remove_app_variant(
         Exception: Any other exception raised during the operation.
     """
 
-    assert (
-        app_variant_id or app_variant_db
-    ), "Either app_variant_id or app_variant_db must be provided"
-    assert not (
-        app_variant_id and app_variant_db
-    ), "Only one of app_variant_id or app_variant_db must be provided"
+    assert app_variant_id or app_variant_db, (
+        "Either app_variant_id or app_variant_db must be provided"
+    )
+    assert not (app_variant_id and app_variant_db), (
+        "Only one of app_variant_id or app_variant_db must be provided"
+    )
 
     if app_variant_id:
         app_variant_db = await db_manager.fetch_app_variant_by_id(app_variant_id)
