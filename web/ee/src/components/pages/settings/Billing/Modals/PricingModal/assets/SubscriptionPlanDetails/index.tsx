@@ -13,10 +13,13 @@ const SubscriptionPlanDetails = ({subscription}: {subscription: SubscriptionType
     const end = dayjs.unix(subscription.period_end)
     const now = dayjs()
 
-    const diffHumanized = dayjs.duration(end.diff(now)).humanize(true)
-
-    const trialText = `trial ends ${diffHumanized}`
-
+    const isFuture = end.isAfter(now)
+    const diffHumanized = dayjs.duration(Math.abs(end.diff(now))).humanize(false)
+    const trialText = subscription.free_trial
+        ? isFuture
+            ? `trial ends in ${diffHumanized}`
+            : `trial ended ${diffHumanized} ago`
+        : ""
     return (
         <>
             {subscription?.plan?.split("_")[2]}{" "}
