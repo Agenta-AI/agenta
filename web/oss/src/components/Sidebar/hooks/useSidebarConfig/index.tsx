@@ -150,7 +150,7 @@ export const useSidebarConfig = () => {
                 {
                     key: "docs",
                     title: "Documentation",
-                    link: "https://docs.agenta.ai/",
+                    link: "https://agenta.ai/docs/",
                     icon: <Scroll size={16} />,
                     divider: true,
                 },
