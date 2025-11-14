@@ -1,0 +1,64 @@
+---
+title: "Online Evaluation"
+slug: online-evaluation
+date: 2025-11-11
+tags: [v0.62.0]
+description: "Automatically evaluate every request to your LLM application in production. Catch hallucinations and off-brand responses as they happen, filter problematic traces, and add failing cases to your test sets for continuous improvement."
+---
+
+Online Evaluation automatically evaluates every request to your LLM application in production. Catch quality issues like hallucinations and off-brand responses as they happen.
+
+<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
+  <iframe
+    width="100%"
+    height="500"
+    src="https://www.youtube.com/embed/rP3CiRmu3io"
+    title="Online Evaluation - Demonstration"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  ></iframe>
+</div>
+
+## How It Works
+
+Online Evaluation runs evaluators on your production traces automatically. Monitor quality in real time instead of discovering issues through user complaints.
+
+## Key Features
+
+### Automatic Evaluation
+Every request to your application gets evaluated automatically. The system runs your configured evaluators on each trace as it arrives.
+
+### Evaluator Configuration
+Configure evaluators like LLM-as-a-Judge with custom prompts tailored to your quality criteria. Use any evaluator that works in regular evaluations.
+
+### Span-Level Evaluation
+Create online evaluations with filters for specific spans in your traces. Evaluate just the retrieval step in your RAG pipeline or focus on specific tool calls in your agent.
+
+### Sampling Control
+Set sampling rates to control costs. Evaluate every request during testing, then sample a percentage in production to balance quality monitoring with budget.
+
+### Filtering and Analysis
+View all evaluated requests in one place. Filter traces by evaluation scores to find problematic cases. Jump into detailed traces to understand what went wrong.
+
+### Build Better Test Sets
+Add problematic cases directly to your test sets. Turn production failures into regression tests.
+
+## Setup
+
+Setting up online evaluation takes a few minutes:
+
+1. Navigate to the Online Evaluation section
+2. Select the evaluators you want to run
+3. Configure sampling rates and span filters if needed
+4. Enable the online evaluation
+
+Your application traces will be automatically evaluated as they arrive.
+
+## Use Cases
+
+Catch hallucinations by running fact-checking evaluators on every response. Monitor brand compliance using LLM-as-a-Judge evaluators with custom prompts. Track RAG quality by evaluating retrieval in real time. Monitor agent reliability by checking tool calls and reasoning steps. Build better test sets by capturing edge cases from production.
+
+## Next Steps
+
+Learn about [configuring evaluators](/evaluation/configure-evaluators/overview) for your quality criteria.

@@ -144,7 +144,7 @@ class TestWorkflowsQueries:
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "GET",
-            "/preview/workflows/?include_archived=true" "&limit=1",
+            "/preview/workflows/?include_archived=true&limit=1",
         )
         # ----------------------------------------------------------------------
 

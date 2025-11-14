@@ -33,9 +33,9 @@ class WorkflowRevision(UniversalBaseModel):
     slug: typing.Optional[str] = None
     id: typing.Optional[str] = None
     flags: typing.Optional[WorkflowFlags] = None
-    metadata: typing.Optional[
-        typing.Dict[str, typing.Optional["FullJsonOutput"]]
-    ] = None
+    metadata: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
+        None
+    )
     data: typing.Optional[WorkflowData] = None
     artifact_id: typing.Optional[str] = None
     artifact: typing.Optional[Artifact] = None
@@ -43,7 +43,9 @@ class WorkflowRevision(UniversalBaseModel):
     variant: typing.Optional[WorkflowVariant] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:

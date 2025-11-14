@@ -734,9 +734,10 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
             raise e
 
     if (
-        input.settings.get("version") == "4"
-    ) and (  # this check is used when running in the background (celery)
-        type(input.settings.get("prompt_template", "")) is not str
+        (input.settings.get("version") == "4")
+        and (  # this check is used when running in the background (celery)
+            type(input.settings.get("prompt_template", "")) is not str
+        )
     ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
         try:
             parameters = input.settings or dict()
@@ -930,9 +931,10 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
         except Exception as e:
             raise RuntimeError(f"Evaluation failed: {str(e)}")
     elif (
-        input.settings.get("version") == "3"
-    ) and (  # this check is used when running in the background (celery)
-        type(input.settings.get("prompt_template", "")) is not str
+        (input.settings.get("version") == "3")
+        and (  # this check is used when running in the background (celery)
+            type(input.settings.get("prompt_template", "")) is not str
+        )
     ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
         try:
             parameters = input.settings or dict()
@@ -1089,9 +1091,10 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
         except Exception as e:
             raise RuntimeError(f"Evaluation failed: {str(e)}")
     elif (
-        input.settings.get("version") == "2"
-    ) and (  # this check is used when running in the background (celery)
-        type(input.settings.get("prompt_template", "")) is not str
+        (input.settings.get("version") == "2")
+        and (  # this check is used when running in the background (celery)
+            type(input.settings.get("prompt_template", "")) is not str
+        )
     ):  # this check is used when running in the frontend (since in that case we'll alway have version 2)
         try:
             prompt_template = input.settings.get("prompt_template", "")
@@ -1547,9 +1550,9 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
 
     # 1. extract llm app output if app output format is v2+
     app_output = input.inputs["prediction"]
-    assert isinstance(
-        app_output, (str, dict)
-    ), "App output is expected to be a string or a JSON object"
+    assert isinstance(app_output, (str, dict)), (
+        "App output is expected to be a string or a JSON object"
+    )
     app_output = (
         app_output.get("data", "") if isinstance(app_output, dict) else app_output
     )
@@ -1557,9 +1560,7 @@ async def json_diff(input: EvaluatorInputInterface) -> EvaluatorOutputInterface:
         try:
             app_output = json.loads(app_output)
         except json.JSONDecodeError:
-            app_output = (
-                {}
-            )  # we will return 0 score for json diff in case we cannot parse the output as json
+            app_output = {}  # we will return 0 score for json diff in case we cannot parse the output as json
 
     score = compare_jsons(
         ground_truth=ground_truth,

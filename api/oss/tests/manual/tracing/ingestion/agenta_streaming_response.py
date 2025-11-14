@@ -9,6 +9,7 @@ This example demonstrates the main issues with Agenta observability:
 2. Batch size configuration issues with OpenTelemetry environment variables
 
 """
+
 from dotenv import load_dotenv
 
 import asyncio
