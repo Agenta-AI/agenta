@@ -1,9 +1,9 @@
 import {APP_MANAGEMENT_TOURS} from "./appManagementSteps"
-import {OnboardingStepsContext, TourDefinition} from "./types"
-import {EVALUATION_TOURS} from "./evaluationSteps"
+import {evaluationTour} from "./evaluations"
 import {OBSERVABILITY_TOURS} from "./observabilitySteps"
 import {PLAYGROUND_TOURS, resolvePlaygroundPostRunTour} from "./playgroundSteps"
 import {TRACE_TOURS} from "./traceSteps"
+import {OnboardingStepsContext, TourDefinition} from "./types"
 
 export const TOUR_STEPS: Record<string, (ctx: OnboardingStepsContext) => TourDefinition> = {
     apps: (ctx) => {
@@ -15,14 +15,9 @@ export const TOUR_STEPS: Record<string, (ctx: OnboardingStepsContext) => TourDef
     playgroundPostRun: (_ctx) => {
         return resolvePlaygroundPostRunTour()
     },
-    // evaluations: (ctx) => {
-    //     return EVALUATION_TOURS[ctx.userContext?.userRole](ctx)
-    // },
-    // observability: (ctx) => {
-    //     const resolver =
-    //         OBSERVABILITY_TOURS[ctx.userContext?.userRole] ?? OBSERVABILITY_TOURS.Hobbyist
-    //     return resolver(ctx)
-    // },
+    evaluations: (ctx) => {
+        return evaluationTour(ctx)
+    },
     trace: (ctx) => {
         const resolver = TRACE_TOURS[ctx.userContext?.userRole] ?? TRACE_TOURS.Hobbyist
         return resolver(ctx)

@@ -132,7 +132,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
             </div>
 
             <div className={clsx(classes.topRightBar, "shrink-0")}>
-                {showOnboardingTriggerButton && <OnboardingTriggerButton />}
+                <OnboardingTriggerButton />
                 <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>
