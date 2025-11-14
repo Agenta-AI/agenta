@@ -389,7 +389,9 @@ async def list_apps(
     """
 
     if is_ee():
-        user_org_workspace_data = await get_user_org_and_workspace_id(request.state.user_id)  # type: ignore
+        user_org_workspace_data = await get_user_org_and_workspace_id(
+            request.state.user_id
+        )  # type: ignore
         has_permission = await check_rbac_permission(  # type: ignore
             user_org_workspace_data=user_org_workspace_data,
             project_id=request.state.project_id,

@@ -26,6 +26,62 @@ export const shippedFeatures: ShippedFeature[] = [
   // Evaluation: 86B7FF
   // Integration: FFA500
   {
+    id: "evaluation-sdk",
+    title: "Programmatic Evaluation through the SDK",
+    description:
+      "Run evaluations programmatically from code with full control over test data and evaluation logic. Evaluate agents built with any framework and view results in the Agenta dashboard.",
+    changelogPath: "/changelog/evaluation-sdk",
+    shippedAt: "2025-11-11",
+    labels: [
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
+    id: "online-evaluation",
+    title: "Online Evaluation",
+    description:
+      "Automatically evaluate every request to your LLM application in production. Catch hallucinations and off-brand responses as they happen instead of discovering them through user complaints.",
+    changelogPath: "/changelog/online-evaluation",
+    shippedAt: "2025-11-11",
+    labels: [
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
+    id: "llm-judge-structured-output",
+    title: "Customize LLM-as-a-Judge Output Schemas",
+    description:
+      "Configure LLM-as-a-Judge evaluators with custom output schemas. Use binary, multiclass, or custom JSON formats. Enable reasoning for better evaluation quality.",
+    changelogPath: "/changelog/customize-llm-as-a-judge-output-schemas",
+    shippedAt: "2025-11-10",
+    labels: [
+      {
+        name: "Evaluation",
+        color: "86B7FF",
+      },
+    ],
+  },
+  {
+    id: "structured-output-playground",
+    title: "Structured Output Support in the Playground",
+    description:
+      "Define and validate structured output formats in the playground. Save structured output schemas as part of your prompt configuration.",
+    changelogPath: "/changelog/structured-output-support-in-the-playground",
+    shippedAt: "2025-04-15",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
     id: "vertex-ai-provider-support",
     title: "Vertex AI Provider Support",
     description:
@@ -172,13 +228,14 @@ export const shippedFeatures: ShippedFeature[] = [
       },
     ],
   },
+];
+export const inProgressFeatures: PlannedFeature[] = [
   {
-    id: "structured-output-playground",
-    title: "Structured Output Support in the Playground",
+    id: "prompt-folders",
+    title: "Folders for Prompt Organization",
     description:
-      "We support now structured output in the playground. You can now define and validate structured output formats and save them as part of your prompt.",
-    changelogPath: "/changelog/structured-output-support-in-the-playground",
-    shippedAt: "2025-04-15",
+      "Create folders and subfolders to organize prompts in the playground. Move prompts between folders and search within specific folders to structure prompt libraries.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2859",
     labels: [
       {
         name: "Playground",
@@ -186,19 +243,16 @@ export const shippedFeatures: ShippedFeature[] = [
       },
     ],
   },
-];
-export const inProgressFeatures: PlannedFeature[] = [
   {
-    id: "llm-judge-structured-output",
-    title:
-      "Structured Output and Multiple Outputs in LLM-as-a-Judge Evaluators",
+    id: "projects-workspaces",
+    title: "Projects and Workspaces",
     description:
-      "Use structured output formats and generate multiple output fields (explanation, confidence, suggestions, issue categories) in LLM-as-a-judge evaluators.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2855",
+      "Improve organization structure by adding projects. Create projects for different products and scope resources to specific projects.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2860",
     labels: [
       {
-        name: "Evaluation",
-        color: "86B7FF",
+        name: "Misc",
+        color: "000000",
       },
     ],
   },
@@ -242,32 +296,6 @@ export const inProgressFeatures: PlannedFeature[] = [
     ],
   },
   {
-    id: "online-evaluation",
-    title: "Online Evaluation",
-    description:
-      "Adding the ability to configure evaluators (llm-as-a-judge or custom) and run them automatically on new traces.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2721",
-    labels: [
-      {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-    ],
-  },
-  {
-    id: "evaluation-sdk",
-    title: "Programmatic Evaluation through the SDK",
-    description:
-      "Until now evaluations were only available as managed by Agenta. We are now adding the ability to run evaluations programmatically through the SDK.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2725",
-    labels: [
-      {
-        name: "Evaluation",
-        color: "86B7FF",
-      },
-    ],
-  },
-  {
     id: "date-range-filtering",
     title: "Date Range Filtering in Metrics Dashboard",
     description:
@@ -283,32 +311,6 @@ export const inProgressFeatures: PlannedFeature[] = [
 ];
 
 export const plannedFeatures: PlannedFeature[] = [
-  {
-    id: "prompt-folders",
-    title: "Folders for Prompt Organization",
-    description:
-      "Create folders and subfolders to organize prompts in the playground. Move prompts between folders and search within specific folders to structure prompt libraries.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2859",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "projects-workspaces",
-    title: "Projects and Workspaces",
-    description:
-      "Improve organization structure by adding projects and workspaces. Create projects for different products, set up workspaces for different environments or teams, and scope resources to specific workspaces.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2860",
-    labels: [
-      {
-        name: "Misc",
-        color: "000000",
-      },
-    ],
-  },
   {
     id: "ai-prompt-refinement",
     title: "AI-Powered Prompt Refinement in the Playground",

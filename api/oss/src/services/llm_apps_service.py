@@ -146,9 +146,9 @@ async def make_payload(
             payload["ag_config"] = parameters
         elif param["type"] == "input":
             item = datapoint.get(param["name"], parameters.get(param["name"], ""))
-            assert (
-                param["name"] != "ag_config"
-            ), "ag_config should be handled separately"
+            assert param["name"] != "ag_config", (
+                "ag_config should be handled separately"
+            )
             payload[param["name"]] = item
 
         # in case of dynamic inputs (as in our templates)

@@ -35,14 +35,16 @@ class OTelFlatSpan(UniversalBaseModel):
     end_time: typing.Optional[OTelFlatSpanOutputEndTime] = None
     status_code: typing.Optional[OTelStatusCode] = None
     status_message: typing.Optional[str] = None
-    attributes: typing.Optional[
-        typing.Dict[str, typing.Optional["FullJsonOutput"]]
-    ] = None
+    attributes: typing.Optional[typing.Dict[str, typing.Optional["FullJsonOutput"]]] = (
+        None
+    )
     events: typing.Optional[typing.List[OTelEvent]] = None
     links: typing.Optional[typing.List[OTelLink]] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
+            extra="allow", frozen=True
+        )  # type: ignore # Pydantic v2
     else:
 
         class Config:
