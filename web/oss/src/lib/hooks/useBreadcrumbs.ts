@@ -6,6 +6,7 @@ import {
     appendBreadcrumbAtom,
     clearBreadcrumbsAtom,
     prependBreadcrumbAtom,
+    removeBreadcrumbsAtom,
     setBreadcrumbsAtom,
     type BreadcrumbAtom,
 } from "@/oss/lib/atoms/breadcrumb"
@@ -15,12 +16,14 @@ export const useBreadcrumbs = () => {
     const appendBreadcrumb = useSetAtom(appendBreadcrumbAtom)
     const prependBreadcrumb = useSetAtom(prependBreadcrumbAtom)
     const clearBreadcrumbs = useSetAtom(clearBreadcrumbsAtom)
+    const removeBreadcrumbs = useSetAtom(removeBreadcrumbsAtom)
 
     return {
         setBreadcrumbs,
         appendBreadcrumb,
         prependBreadcrumb,
         clearBreadcrumbs,
+        removeBreadcrumbs,
     }
 }
 
@@ -43,24 +46,37 @@ export const useBreadcrumbsEffect = (
     }: {breadcrumbs: BreadcrumbAtom; type?: "prepend" | "append" | "new"; condition?: boolean},
     deps: React.DependencyList = [],
 ) => {
-    const {setBreadcrumbs, clearBreadcrumbs, appendBreadcrumb, prependBreadcrumb} = useBreadcrumbs()
+    const {
+        setBreadcrumbs,
+        clearBreadcrumbs,
+        appendBreadcrumb,
+        prependBreadcrumb,
+        removeBreadcrumbs,
+    } = useBreadcrumbs()
 
     useEffect(() => {
-        if (condition) {
-            if (type === "prepend") {
-                prependBreadcrumb(breadcrumbs)
-            } else if (type === "append") {
-                appendBreadcrumb(breadcrumbs)
-            } else {
-                setBreadcrumbs(breadcrumbs)
+        if (!condition) return
+
+        const keys = Object.keys(breadcrumbs)
+        if (!keys.length) return
+
+        if (type === "prepend") {
+            prependBreadcrumb(breadcrumbs)
+            return () => {
+                removeBreadcrumbs(keys)
             }
         }
 
-        // Cleanup: reset to URL-based breadcrumbs when component unmounts
-        return () => {
-            if (type === "new") {
-                clearBreadcrumbs()
+        if (type === "append") {
+            appendBreadcrumb(breadcrumbs)
+            return () => {
+                removeBreadcrumbs(keys)
             }
+        }
+
+        setBreadcrumbs(breadcrumbs)
+        return () => {
+            clearBreadcrumbs()
         }
     }, deps)
 }
