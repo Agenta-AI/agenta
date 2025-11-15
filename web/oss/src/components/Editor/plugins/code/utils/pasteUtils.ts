@@ -174,7 +174,6 @@ export function $insertLinesWithSelectionAndIndent({
                 }
                 latestLine.insertAfter(lineNode)
                 latestLine = lineNode
-                // parentBlock.insertBefore(lineNode, parentBlock.getChildAtIndex(insertIdx))
                 insertIdx++
             }
         }
@@ -191,21 +190,40 @@ export function $insertLinesWithSelectionAndIndent({
     clonedTrailingLines.forEach((l, i) => {
         parentBlock.getChildAtIndex(insertIdx - 1 + i).insertAfter(l)
     })
-    // Restore selection at end of last inserted line
-    const lastInserted = parentBlock.getChildAtIndex(insertIdx - 1)
-    if (lastInserted && typeof lastInserted.getLastChild === "function") {
-        const lastChild = lastInserted.getLastChild()
-        if (
-            lastChild &&
-            typeof lastChild.getKey === "function" &&
-            typeof lastChild.getTextContentSize === "function"
-        ) {
-            const newSelection = $createRangeSelection()
-            newSelection.anchor.set(lastChild.getKey(), lastChild.getTextContentSize(), "text")
-            newSelection.focus.set(lastChild.getKey(), lastChild.getTextContentSize(), "text")
-            $setSelection(newSelection)
+
+    // --- Selection restore: put cursor at the end of the pasted block ---
+    const lastInsertedLine = parentBlock.getChildAtIndex(insertIdx - 1) as CodeLineNode | null
+    if (!lastInsertedLine) {
+        return
+    }
+
+    const childrenOfLast = lastInsertedLine.getChildren()
+
+    // Find the last non-empty text-like child (so we don't land on an empty indent node)
+    let targetNode: any = null
+    for (let i = childrenOfLast.length - 1; i >= 0; i--) {
+        const child = childrenOfLast[i] as any
+        if (typeof child.getTextContentSize === "function" && child.getTextContentSize() > 0) {
+            targetNode = child
+            break
         }
     }
+
+    if (!targetNode) {
+        // Fallback: select end of the line
+        if (typeof (lastInsertedLine as any).selectEnd === "function") {
+            ;(lastInsertedLine as any).selectEnd()
+        }
+        return
+    }
+
+    const offset = targetNode.getTextContentSize()
+    const key = targetNode.getKey()
+    const newSelection = $createRangeSelection()
+
+    newSelection.anchor.set(key, offset, "text")
+    newSelection.focus.set(key, offset, "text")
+    $setSelection(newSelection)
 }
 
 export function $createNodeForLineWithTabs(line: string, language: CodeLanguage) {
