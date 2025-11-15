@@ -54,18 +54,20 @@ class DualWriteTracingDAO(TracingDAOInterface):
 
                 # Check if ClickHouse is available
                 self._clickhouse_dao = ClickHouseTracingDAO()
+                logger.info("ClickHouse DAO loaded successfully")
             except Exception as e:
-                logger.warning(
-                    f"Failed to load ClickHouse DAO: {e}. "
-                    "Continuing with PostgreSQL only."
+                import traceback
+                logger.error(
+                    f"Failed to load ClickHouse DAO: {e}\n{traceback.format_exc()}"
                 )
+                logger.warning("Continuing with PostgreSQL only.")
                 self.use_clickhouse = False
                 self._clickhouse_dao = None
 
         return self._clickhouse_dao
 
     async def _write_to_clickhouse_async(
-        self, operation_name: str, *args, **kwargs
+        self, operation_name: str, clickhouse_operation, *args, **kwargs
     ) -> None:
         """
         Safely write to ClickHouse without blocking main operation.
@@ -76,8 +78,8 @@ class DualWriteTracingDAO(TracingDAOInterface):
             return
 
         try:
-            # ClickHouse operations will be implemented later
-            logger.debug(f"ClickHouse write operation: {operation_name}")
+            await clickhouse_operation(*args, **kwargs)
+            logger.debug(f"ClickHouse write operation succeeded: {operation_name}")
         except Exception as e:
             logger.warning(
                 f"ClickHouse write operation failed ({operation_name}): {e}"
@@ -103,8 +105,9 @@ class DualWriteTracingDAO(TracingDAOInterface):
 
         # Optionally write to ClickHouse (fire and forget)
         if self.use_clickhouse and self.clickhouse_dao:
-            self._write_to_clickhouse_async(
+            await self._write_to_clickhouse_async(
                 "create_span",
+                self.clickhouse_dao.create_span,
                 project_id=project_id,
                 user_id=user_id,
                 span_dto=span_dto,
@@ -130,8 +133,9 @@ class DualWriteTracingDAO(TracingDAOInterface):
 
         # Optionally write to ClickHouse (fire and forget)
         if self.use_clickhouse and self.clickhouse_dao:
-            self._write_to_clickhouse_async(
+            await self._write_to_clickhouse_async(
                 "create_spans",
+                self.clickhouse_dao.create_spans,
                 project_id=project_id,
                 user_id=user_id,
                 span_dtos=span_dtos,

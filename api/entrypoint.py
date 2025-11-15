@@ -49,7 +49,7 @@ from oss.src.dbs.postgres.workflows.dbes import (
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.observability.dao import ObservabilityDAO
-from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.postgres.tracing.dao_dual_write import DualWriteTracingDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
@@ -194,7 +194,7 @@ secrets_dao = SecretsDAO()
 
 observability_dao = ObservabilityDAO()
 
-tracing_dao = TracingDAO()
+tracing_dao = DualWriteTracingDAO()
 
 testcases_dao = BlobsDAO(
     BlobDBE=TestcaseBlobDBE,

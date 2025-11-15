@@ -255,6 +255,13 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+
+        environment:
+            CLICKHOUSE_DB: ${CLICKHOUSE_DATABASE:-agenta_ee_tracing}
+            CLICKHOUSE_USER: ${CLICKHOUSE_USER:-default}
+            CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+            CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+
         ports:
             - "8123:8123"  # HTTP interface
             - "8900:9000"  # Native protocol (host:container - using 8900 to avoid conflict)
