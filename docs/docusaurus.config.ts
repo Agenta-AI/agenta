@@ -307,7 +307,8 @@ const config: Config = {
         apiKey: process.env.POSTHOG_API_KEY || "dummy",  // Posthog is only available on the prod website
         appUrl: "https://agenta.ai/docs",
         enableInDevelopment: false, // optional
-        api_host: "https://app.posthog.com",
+        api_host: "https://alef.agenta.ai",
+        ui_host: "https://us.posthog.com",
       },
     ],
     [
