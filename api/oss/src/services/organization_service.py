@@ -18,6 +18,7 @@ def generate_invitation_token(token_length: int = 16):
 async def check_existing_invitation(project_id: str, email: str):
     """
     Checks if there is an existing invitation for a given project and email address.
+    Email is normalized to lowercase to match SuperTokens behavior.
 
     Args:
         project_id (str): The ID of the project for which the invitation is being checked.
@@ -26,14 +27,17 @@ async def check_existing_invitation(project_id: str, email: str):
     Returns:
     - invitation (InvitationDB): The existing invitation if it is valid and not expired. Otherwise, returns None.
     """
+    
+    # Normalize email to lowercase to match SuperTokens behavior
+    normalized_email = email.lower()
 
     invitation = await db_manager.get_project_invitation_by_email(
-        project_id=project_id, email=email
+        project_id=project_id, email=normalized_email
     )
     if (
         invitation is not None
         and not invitation.used
-        and invitation.email == email
+        and invitation.email.lower() == normalized_email
         and str(invitation.project_id) == project_id
     ):
         if invitation.expiration_date > datetime.now(timezone.utc):
@@ -50,6 +54,7 @@ async def check_existing_invitation(project_id: str, email: str):
 async def check_valid_invitation(project_id: str, email: str, token: str):
     """
     Check if a project invitation is valid for a given user and token.
+    Email is normalized to lowercase to match SuperTokens behavior.
 
     Args:
         project_id (str): The ID of the project for which the invitation is being checked.
@@ -60,9 +65,12 @@ async def check_valid_invitation(project_id: str, email: str, token: str):
         InvitationDB or None: Returns the invitation object if it's valid and not expired.
                               Returns None if the invitation is not found or has expired.
     """
+    
+    # Normalize email to lowercase to match SuperTokens behavior
+    normalized_email = email.lower()
 
     invitation = await db_manager.get_project_invitation_by_token_and_email(
-        project_id, token, email
+        project_id, token, normalized_email
     )
     if invitation is not None and invitation.expiration_date > datetime.now(
         timezone.utc
@@ -135,6 +143,7 @@ async def send_invitation_email(
 async def create_invitation(role: str, project_id: str, email: str):
     """
     Creates a new invitation for a user to join an organization.
+    Email is normalized to lowercase to match SuperTokens behavior.
 
     Args:
         role (str): The role to be assigned to the invited user in the organization.
@@ -148,12 +157,15 @@ async def create_invitation(role: str, project_id: str, email: str):
 
     token = generate_invitation_token()
     expiration_date = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    # Normalize email to lowercase to match SuperTokens behavior
+    normalized_email = email.lower()
 
     invitation = await db_manager.create_user_invitation_to_organization(
         project_id=project_id,
         token=token,
         role=role,
-        email=email,
+        email=normalized_email,
         expiration_date=expiration_date,
     )
     return invitation
@@ -178,8 +190,11 @@ async def invite_user_to_organization(
 
     user_performing_action = await db_manager.get_user_with_id(user_id=user_id)
 
+    # Normalize email to lowercase to match SuperTokens behavior
+    normalized_email = payload.email.lower()
+    
     # Check that the user is not inviting themselves
-    if payload.email == user_performing_action.email:
+    if normalized_email == user_performing_action.email.lower():
         raise HTTPException(
             status_code=400,
             detail="You cannot invite yourself to a workspace",
@@ -187,7 +202,7 @@ async def invite_user_to_organization(
 
     # Check if the user is already a member of the workspace
     existing_invitation, existing_role = await check_existing_invitation(
-        project_id=project_id, email=payload.email
+        project_id=project_id, email=normalized_email
     )
     if existing_invitation or existing_role:
         raise HTTPException(
@@ -196,12 +211,12 @@ async def invite_user_to_organization(
         )
 
     # Create a new invitation since user hasn't been invited
-    invitation = await create_invitation("editor", project_id, payload.email)
+    invitation = await create_invitation("editor", project_id, normalized_email)
 
     # Get project by id
     project_db = await db_manager.get_project_by_id(project_id=project_id)
 
-    # Send the invitation email
+    # Send the invitation email (use original email for display purposes)
     send_email = await send_invitation_email(
         payload.email,
         invitation.token,  # type: ignore
@@ -240,15 +255,18 @@ async def resend_user_organization_invite(
 
     user_performing_action = await db_manager.get_user_with_id(user_id=user_id)
 
+    # Normalize email to lowercase to match SuperTokens behavior
+    normalized_email = payload.email.lower()
+
     # Check if the email address already has a valid, unused invitation for the workspace
     existing_invitation, existing_role = await check_existing_invitation(
-        project_id, payload.email
+        project_id, normalized_email
     )
     if existing_invitation:
         invitation = existing_invitation
     elif existing_role:
         # Create a new invitation
-        invitation = await create_invitation("editor", project_id, payload.email)
+        invitation = await create_invitation("editor", project_id, normalized_email)
 
     # Get project by id
     project_db = await db_manager.get_project_by_id(project_id=project_id)
