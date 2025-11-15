@@ -162,7 +162,7 @@ async def check_for_new_migrations():
     if len(pending_migration_head) >= 1 and isinstance(pending_migration_head[0], str):
         click.echo(
             click.style(
-                f"\nWe have detected that there are pending database migrations {pending_migration_head} that need to be applied to keep the application up to date. To ensure the application functions correctly with the latest updates, please follow the guide here => https://docs.agenta.ai/self-host/migration/applying-schema-migration\n",
+                f"\nWe have detected that there are pending database migrations {pending_migration_head} that need to be applied to keep the application up to date. To ensure the application functions correctly with the latest updates, please follow the guide here => https://agenta.ai/docs/self-host/migration/applying-schema-migration\n",
                 fg="yellow",
             ),
             color=True,

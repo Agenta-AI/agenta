@@ -1,8 +1,10 @@
 {
-    "rewrites": [
-        {
-            "source": "/docs/:path*",
-            "destination": "/:path*"
-        }
-    ]
+  "rewrites": [
+    {
+      "source": "/docs/:path*",
+      "destination": "/:path*"
+    }
+  ],
+  "trailingSlash": false
 }
+

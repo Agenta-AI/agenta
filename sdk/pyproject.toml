@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "agenta"
-version = "0.62.2"
+version = "0.62.3"
 description = "The SDK for agenta is an open-source LLMOps platform."
 readme = "README.md"
 authors = [
@@ -15,7 +15,7 @@ classifiers = [
 ]
 homepage = "https://agenta.ai"
 repository = "https://github.com/agenta-ai/agenta"
-documentation = "https://docs.agenta.ai"
+documentation = "https://agenta.ai/docs/"
 keywords = ["LLMOps", "LLM", "evaluation", "prompt engineering"]
 
 exclude = [

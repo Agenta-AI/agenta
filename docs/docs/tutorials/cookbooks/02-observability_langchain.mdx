@@ -104,7 +104,7 @@ prompt_template = ChatPromptTemplate([
 llm = ChatOpenAI(model="gpt-4o-mini")
 
 loader = WebBaseLoader(
-    web_paths=("https://docs.agenta.ai/prompt-engineering/managing-prompts-programatically/create-and-commit",),
+    web_paths=("https://agenta.ai/docs/prompt-engineering/managing-prompts-programatically/create-and-commit",),
     bs_kwargs=dict(
         parse_only=bs4.SoupStrainer('article')  # Only parse the core
     ),
