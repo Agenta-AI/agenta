@@ -212,7 +212,11 @@ const ScenarioTable = ({runId: propRunId}: {runId?: string}) => {
     }
 
     return (
-        <div ref={tableContainerRef} className="grow flex flex-col w-full min-h-0">
+        <div
+            ref={tableContainerRef}
+            className="grow flex flex-col w-full min-h-0"
+            id={evalType === "online" ? "tour-online-eval-results-table" : undefined}
+        >
             <div
                 className={clsx([
                     "relative w-full flex-1 min-h-0",

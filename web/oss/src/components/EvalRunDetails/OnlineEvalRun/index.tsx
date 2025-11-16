@@ -2,8 +2,8 @@ import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
-import dynamic from "next/dynamic"
 
+import NextViewport from "@/oss/components/Onboarding/components/NextViewport"
 import {evalAtomStore} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import EvalRunHeader from "../AutoEvalRun/components/EvalRunHeader"
@@ -25,6 +25,13 @@ const OnlineEvalRunDetails = ({name, id, isLoading}: OnlineEvalRunDetailsProps) 
     const store = evalAtomStore()
     const viewType = useAtomValue(viewTypeAtom, {store})
 
+    const viewportId =
+        viewType === "overview"
+            ? "online-eval-overview-viewport"
+            : viewType === "configuration"
+              ? "online-eval-configuration-viewport"
+              : "online-eval-results-viewport"
+
     // No special skeleton for now; render minimal shell if loading
     if (isLoading) {
         return (
@@ -41,15 +48,17 @@ const OnlineEvalRunDetails = ({name, id, isLoading}: OnlineEvalRunDetailsProps) 
                 {"!overflow-hidden": viewType === "results"},
             ])}
         >
-            <EvalRunHeader name={name} id={id} />
+            <NextViewport id={viewportId}>
+                <EvalRunHeader name={name} id={id} />
 
-            {viewType === "overview" ? (
-                <EvalRunOverviewViewer type="online" />
-            ) : viewType === "results" ? (
-                <VirtualizedScenarioTable />
-            ) : viewType === "configuration" ? (
-                <ConfigurationViewer />
-            ) : null}
+                {viewType === "overview" ? (
+                    <EvalRunOverviewViewer type="online" />
+                ) : viewType === "results" ? (
+                    <VirtualizedScenarioTable />
+                ) : viewType === "configuration" ? (
+                    <ConfigurationViewer />
+                ) : null}
+            </NextViewport>
         </section>
     )
 }
