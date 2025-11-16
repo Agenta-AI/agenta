@@ -42,8 +42,8 @@ const RunTraceHeader = ({
     const enriched = state?.enrichedRun
     const {buildUrl} = useURL()
     const {trace: runTrace} = useInvocationResult({
-        scenarioId: scId,
-        stepKey: stepKey,
+        scenarioId: scId ?? "",
+        stepKey: stepKey ?? "",
         editorType: "simple",
         viewType: "single",
         runId: rId,

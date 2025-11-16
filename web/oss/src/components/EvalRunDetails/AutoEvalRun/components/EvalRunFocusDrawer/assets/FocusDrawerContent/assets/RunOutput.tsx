@@ -114,8 +114,8 @@ const RunOutput = ({
         hasError: err,
         trace,
     } = useInvocationResult({
-        scenarioId,
-        stepKey,
+        scenarioId: scenarioId ?? "",
+        stepKey: stepKey ?? "",
         editorType: "simple",
         viewType: evalType === "online" ? "table" : "single",
         runId,

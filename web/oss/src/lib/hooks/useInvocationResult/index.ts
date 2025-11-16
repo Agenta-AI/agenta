@@ -134,18 +134,20 @@ export function useInvocationResult({
         let cancelled = false
         ;(async () => {
             try {
-                const filtering = JSON.stringify({
-                    conditions: [{key: "tree.id", operator: "in", value: [traceId]}],
-                })
-                const response = await axios.get("/observability/v1/traces", {
-                    params: {project_id: projectId, filtering, limit: 1},
-                })
+                const response = await axios.get(`/preview/tracing/traces/${traceId}`)
+
                 if (cancelled) return
-                const tree = response?.data?.trees?.[0]
-                if (tree) {
-                    setRemoteTrace(tree)
-                } else {
+
+                const count = response?.data?.count || 0
+                const traces = response?.data?.traces
+                const trace = Object.values(traces)[0]
+                const spans = trace?.spans || {}
+                const root_span = Object.values(spans).find((s: any) => !s.parent_id)
+
+                if (count === 0 || !root_span) {
                     setRemoteTraceError(new Error("Trace not found"))
+                } else {
+                    setRemoteTrace(root_span)
                 }
             } catch (error) {
                 if (!cancelled) setRemoteTraceError(error)
