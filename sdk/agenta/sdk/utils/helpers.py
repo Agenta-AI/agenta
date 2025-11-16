@@ -28,10 +28,6 @@ def parse_url(url: str) -> str:
     if "localhost" not in url:
         return url
 
-    internal_url = os.getenv("AGENTA_API_INTERNAL_URL")
-    if internal_url:
-        return internal_url
-
     docker_network_mode = os.getenv("DOCKER_NETWORK_MODE")
 
     if docker_network_mode and docker_network_mode.lower() == "bridge":
