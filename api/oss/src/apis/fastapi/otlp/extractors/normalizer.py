@@ -2,11 +2,11 @@ from typing import List, Optional
 from copy import copy
 from datetime import datetime, timezone
 
-from oss.src.core.observability.dtos import (
+from oss.src.core.otel.dtos import (
     OTelSpanDTO,
     OTelStatusCode,
 )
-from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
+from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
     CanonicalAttributes,
     EventData,
     LinkData,

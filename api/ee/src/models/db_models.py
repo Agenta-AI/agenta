@@ -20,7 +20,6 @@ from oss.src.models.db_models import (
     mutable_json_type,
 )
 from oss.src.dbs.postgres.shared.base import Base
-from oss.src.dbs.postgres.observability.dbes import NodesDBE
 
 
 class OrganizationDB(OssOrganizationDB):

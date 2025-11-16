@@ -39,7 +39,7 @@ LIMITED_EVENTS_PER_AUTH = {
 if POSTHOG_API_KEY:
     posthog.api_key = POSTHOG_API_KEY
     posthog.host = POSTHOG_HOST
-    log.info("PostHog initialized with host %s", POSTHOG_HOST)
+    log.info("Agenta - PostHog URL: %s", POSTHOG_HOST)
 else:
     log.warn("PostHog API key not found in environment variables")
 

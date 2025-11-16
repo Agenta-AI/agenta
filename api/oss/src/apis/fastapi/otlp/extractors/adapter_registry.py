@@ -2,25 +2,25 @@ from typing import List
 
 from oss.src.utils.logging import get_module_logger
 
-log = get_module_logger(__name__)
-
-from oss.src.apis.fastapi.observability.extractors.base_adapter import BaseAdapter
-from oss.src.apis.fastapi.observability.extractors.canonical_attributes import (
+from oss.src.apis.fastapi.otlp.extractors.base_adapter import BaseAdapter
+from oss.src.apis.fastapi.otlp.extractors.canonical_attributes import (
     CanonicalAttributes,
     SpanFeatures,
 )
-from oss.src.apis.fastapi.observability.extractors.adapters.openllmetry_adapter import (
+from oss.src.apis.fastapi.otlp.extractors.adapters.openllmetry_adapter import (
     OpenLLMmetryAdapter,
 )
-from oss.src.apis.fastapi.observability.extractors.adapters.openinference_adapter import (
+from oss.src.apis.fastapi.otlp.extractors.adapters.openinference_adapter import (
     OpenInferenceAdapter,
 )
-from oss.src.apis.fastapi.observability.extractors.adapters.logfire_adapter import (
+from oss.src.apis.fastapi.otlp.extractors.adapters.logfire_adapter import (
     LogfireAdapter,
 )
-from oss.src.apis.fastapi.observability.extractors.adapters.default_agenta_adapter import (
+from oss.src.apis.fastapi.otlp.extractors.adapters.default_agenta_adapter import (
     DefaultAgentaAdapter,
 )
+
+log = get_module_logger(__name__)
 
 
 class AdapterRegistry:
