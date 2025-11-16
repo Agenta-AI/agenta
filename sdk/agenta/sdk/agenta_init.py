@@ -85,6 +85,7 @@ class AgentaSingleton:
 
         _api_url = (
             api_url
+            or getenv("AGENTA_API_INTERNAL_URL")
             or getenv("AGENTA_API_URL")
             or config.get("api_url")
             or None  # NO FALLBACK
