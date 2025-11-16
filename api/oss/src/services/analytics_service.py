@@ -223,12 +223,12 @@ def _get_event_name_from_path(
     # <----------- End of Evaluation Events ------------->
 
     # <----------- Observability Events ------------->
-    if method == "POST" and (
-        "/otlp/v1/traces" in path or "/observability/v1/otlp/traces" in path
-    ):
+    if method == "POST" and "/otlp/v1/traces" in path:
         return "spans_created"
 
-    elif method == "GET" and "/observability/v1/traces" in path:
+    elif method == "GET" and (
+        "/tracing" in path or "/invocations" in path or "/annotations" in path
+    ):
         return "spans_fetched"
     # <----------- End of Observability Events ------------->
 
