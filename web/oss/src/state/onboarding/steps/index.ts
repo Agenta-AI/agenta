@@ -15,14 +15,14 @@ export const TOUR_STEPS: Record<string, (ctx: OnboardingStepsContext) => TourDef
     playgroundPostRun: (_ctx) => {
         return resolvePlaygroundPostRunTour()
     },
-    evaluations: (ctx) => {
-        return EVALUATION_TOURS[ctx.userContext?.userRole](ctx)
-    },
-    observability: (ctx) => {
-        const resolver =
-            OBSERVABILITY_TOURS[ctx.userContext?.userRole] ?? OBSERVABILITY_TOURS.Hobbyist
-        return resolver(ctx)
-    },
+    // evaluations: (ctx) => {
+    //     return EVALUATION_TOURS[ctx.userContext?.userRole](ctx)
+    // },
+    // observability: (ctx) => {
+    //     const resolver =
+    //         OBSERVABILITY_TOURS[ctx.userContext?.userRole] ?? OBSERVABILITY_TOURS.Hobbyist
+    //     return resolver(ctx)
+    // },
     trace: (ctx) => {
         const resolver = TRACE_TOURS[ctx.userContext?.userRole] ?? TRACE_TOURS.Hobbyist
         return resolver(ctx)

@@ -9,6 +9,8 @@ import Link from "next/link"
 import {breadcrumbAtom, type BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb"
 import {sidebarCollapsedAtom} from "@/oss/lib/atoms/sidebar"
 import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
+import {resolveOnboardingSection} from "@/oss/state/onboarding"
+import {urlLocationAtom} from "@/oss/state/url"
 
 import packageJsonData from "../../../../package.json"
 import EnhancedButton from "../../Playground/assets/EnhancedButton"
@@ -70,10 +72,19 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const classes = useStyles({themeMode: appTheme} as StyleProps)
     const breadcrumbs = useAtomValue(breadcrumbAtom)
     const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
+    const userLocation = useAtomValue(urlLocationAtom)
     const breadcrumbItems = useMemo(
         () => breadcrumbItemsGenerator(breadcrumbs || {}),
         [breadcrumbs],
     )
+    const showOnboardingTriggerButton = useMemo(() => {
+        const normalizedSection = resolveOnboardingSection(userLocation.section)
+        return (
+            normalizedSection === "apps" ||
+            normalizedSection === "playground" ||
+            normalizedSection === "playgroundPostRun"
+        )
+    }, [userLocation.section])
 
     return (
         <section
@@ -121,7 +132,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
             </div>
 
             <div className={clsx(classes.topRightBar, "shrink-0")}>
-                <OnboardingTriggerButton />
+                {showOnboardingTriggerButton && <OnboardingTriggerButton />}
                 <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>

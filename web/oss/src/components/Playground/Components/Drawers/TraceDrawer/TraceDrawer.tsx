@@ -163,7 +163,6 @@ const TraceDrawer = () => {
             afterOpenChange={handleAfterOpenChange}
             className="[&_.ant-drawer-body]:p-0"
             zIndex={900}
-            autoFocus={false}
         >
             <Spin spinning={Boolean(isLoading)} tip="Loading trace…" size="large">
                 <div className="h-full">

@@ -56,7 +56,7 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
             normalizedSection
 
         const sectionStatus = userOnboardingJourneyStatus[tourSection]
-        if (sectionStatus === "done") return
+        if (sectionStatus === "done" || sectionStatus === "skipped") return
 
         const signature = `${tourSection}:${currentTour.tour}:${currentTour.steps?.length ?? 0}`
         if (autoStartSignatureRef.current === signature) return
