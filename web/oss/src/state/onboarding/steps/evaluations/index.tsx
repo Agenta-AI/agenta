@@ -17,8 +17,8 @@ export const evaluationTour = (ctx: OnboardingStepsContext) => {
     }
 
     if (currentEval === "auto_evaluation" || evalType === "auto") {
-        const resolver = (AUTO_EVALUATION_TOURS as any)[role] ?? AUTO_EVALUATION_TOURS.Hobbyist
-        return resolver(ctx)
+        // const resolver = (AUTO_EVALUATION_TOURS as any)[role] ?? AUTO_EVALUATION_TOURS.Hobbyist
+        return []
     }
 
     if (currentEval === "human_evaluation" || evalType === "human") {

@@ -18,6 +18,7 @@ import TooltipWithCopyAction from "../../TooltipWithCopyAction"
 import OnboardingTriggerButton from "../../Onboarding/components/OnboardingTriggerButton"
 
 import {useStyles, type StyleProps} from "./styles"
+import {lastVisitedEvaluationAtom} from "../../pages/evaluations/state/lastVisitedEvaluationAtom"
 
 const breadcrumbItemsGenerator = (breadcrumbs: BreadcrumbAtom): {title: React.ReactNode}[] => {
     if (!breadcrumbs) return []
@@ -73,6 +74,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
     const breadcrumbs = useAtomValue(breadcrumbAtom)
     const [collapsed, setCollapsed] = useAtom(sidebarCollapsedAtom)
     const userLocation = useAtomValue(urlLocationAtom)
+    const currentEval = useAtomValue(lastVisitedEvaluationAtom)
     const breadcrumbItems = useMemo(
         () => breadcrumbItemsGenerator(breadcrumbs || {}),
         [breadcrumbs],
@@ -82,9 +84,10 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
         return (
             normalizedSection === "apps" ||
             normalizedSection === "playground" ||
-            normalizedSection === "playgroundPostRun"
+            normalizedSection === "playgroundPostRun" ||
+            (normalizedSection === "evaluations" && currentEval === "online_evaluation")
         )
-    }, [userLocation.section])
+    }, [userLocation.section, currentEval])
 
     return (
         <section
@@ -132,7 +135,7 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
             </div>
 
             <div className={clsx(classes.topRightBar, "shrink-0")}>
-                <OnboardingTriggerButton />
+                {showOnboardingTriggerButton && <OnboardingTriggerButton />}
                 <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>
