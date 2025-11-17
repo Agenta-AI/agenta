@@ -1,6 +1,6 @@
 {
     "name": "@agenta/ee",
-    "version": "0.62.0",
+    "version": "0.62.4",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -29,7 +29,7 @@
         "@ant-design/cssinjs": "2.0.0-alpha.9",
         "@ant-design/icons": "^6.1.0",
         "@ant-design/v5-patch-for-react-19": "^1.0.3",
-        "@lexical/code-shiki": "^0.35.0",
+        "@lexical/code-shiki": "^0.38.2",
         "@monaco-editor/react": "^4.7.0-rc.0",
         "@phosphor-icons/react": "^2.1.10",
         "@tanstack/query-core": "^5.90.9",

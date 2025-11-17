@@ -223,10 +223,12 @@ class route:
 
         async def invoke_endpoint(req: Request, request: WorkflowServiceRequest):
             credentials = req.state.auth.get("credentials")
+            secrets = req.state.auth.get("secrets")
 
             try:
                 response = await workflow.invoke(
                     request=request,
+                    secrets=secrets,
                     credentials=credentials,
                 )
 

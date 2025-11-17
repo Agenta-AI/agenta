@@ -36,10 +36,7 @@ const config: Config = {
       async: true,
     },
     {
-      src: '/ga-script.js',
-      async: true,
-    }, {
-      src: "/hotjar.js",
+      src: "/docs/hotjar.js",
       async: true,
     },
   ],
