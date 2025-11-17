@@ -40,7 +40,7 @@ export const transformSecret = (secrets: CustomSecretDTO[] | StandardSecretDTO[]
                 deepinfra: "DEEPINFRA_API_KEY",
                 alephalpha: "ALEPHALPHA_API_KEY",
                 groq: "GROQ_API_KEY",
-                mistralai: "MISTRAL_API_KEY",
+                mistral: "MISTRAL_API_KEY",
                 anthropic: "ANTHROPIC_API_KEY",
                 perplexityai: "PERPLEXITYAI_API_KEY",
                 together_ai: "TOGETHERAI_API_KEY",

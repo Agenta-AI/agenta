@@ -6,17 +6,19 @@ import httpx
 from fastapi import FastAPI, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import suppress, display_exception
 from agenta.client.backend.types import SecretDto as SecretDTO
 from agenta.client.backend.types import (
-    StandardProviderKind,
     StandardProviderDto as StandardProviderDTO,
     StandardProviderSettingsDto as StandardProviderSettingsDTO,
 )
 
 import agenta as ag
+
+log = get_module_logger(__name__)
 
 
 AGENTA_RUNTIME_PREFIX = getenv("AGENTA_RUNTIME_PREFIX", "")
@@ -26,10 +28,20 @@ _ALWAYS_ALLOW_LIST = [
     f"{AGENTA_RUNTIME_PREFIX}/openapi.json",
 ]
 
-_PROVIDER_KINDS = []
-
-for provider_kind in StandardProviderKind.__args__[0].__args__:  # type: ignore
-    _PROVIDER_KINDS.append(provider_kind)
+_PROVIDER_KINDS = [
+    "openai",
+    "cohere",
+    "anyscale",
+    "deepinfra",
+    "alephalpha",
+    "groq",
+    "mistral",
+    "anthropic",
+    "perplexityai",
+    "togetherai",
+    "openrouter",
+    "gemini",
+]
 
 _AUTH_ENABLED = (
     getenv("AGENTA_SERVICE_MIDDLEWARE_AUTH_ENABLED", "true").lower() in TRUTHY
@@ -124,7 +136,7 @@ class VaultMiddleware(BaseHTTPMiddleware):
 
                 local_secrets.append(secret.model_dump())
         except DenyException as e:  # pylint: disable=bare-except
-            print(e.status_code, e.content)
+            log.warning(f"Agenta [secrets] {e.status_code}: {e.content}")
             allow_secrets = False
         except:  # pylint: disable=bare-except
             display_exception("Vault: Local Secrets Exception")
