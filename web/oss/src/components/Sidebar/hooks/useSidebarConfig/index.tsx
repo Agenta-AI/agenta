@@ -33,7 +33,7 @@ export const useSidebarConfig = () => {
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
 
-    const hasProjectURL = !Boolean(projectURL)
+    const hasProjectURL = Boolean(projectURL)
 
     const sidebarConfig: SidebarConfig[] = [
         {
@@ -41,21 +41,21 @@ export const useSidebarConfig = () => {
             title: "App Management",
             link: baseAppURL,
             icon: <AppstoreOutlined size={16} />,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "app-testsets-link",
             title: "Testsets",
             link: `${projectURL}/testsets`,
             icon: <DatabaseOutlined size={16} />,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "app-observability-link",
             title: "Observability",
             link: `${projectURL}/observability`,
             icon: <ChartLineUp size={16} />,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "project-evaluators-link",
@@ -63,7 +63,7 @@ export const useSidebarConfig = () => {
             link: `${projectURL}/evaluators`,
             // isHidden: !isDemo(),
             icon: <Gauge size={16} />,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "project-evaluations-link",
@@ -71,7 +71,7 @@ export const useSidebarConfig = () => {
             link: `${projectURL}/evaluations`,
             // isHidden: !isDemo(),
             icon: <ChartDonut size={16} />,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: `${currentApp?.app_name || ""}_key`,
@@ -85,7 +85,7 @@ export const useSidebarConfig = () => {
             link: `${appURL || recentlyVisitedAppURL}/overview`,
             icon: <Desktop size={16} />,
             isHidden: !currentApp && !recentlyVisitedAppId,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "app-playground-link",
@@ -93,7 +93,7 @@ export const useSidebarConfig = () => {
             link: `${appURL || recentlyVisitedAppURL}/playground`,
             icon: <Rocket size={16} />,
             isHidden: !currentApp && !recentlyVisitedAppId,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "app-variants-link",
@@ -101,7 +101,7 @@ export const useSidebarConfig = () => {
             link: `${appURL || recentlyVisitedAppURL}/variants`,
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <Lightning size={16} />,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "app-evaluations-link",
@@ -109,7 +109,7 @@ export const useSidebarConfig = () => {
             link: `${appURL || recentlyVisitedAppURL}/evaluations`,
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <ChartDonut size={16} />,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "app-traces-link",
@@ -117,7 +117,7 @@ export const useSidebarConfig = () => {
             icon: <TreeView size={16} />,
             isHidden: !currentApp && !recentlyVisitedAppId,
             link: `${appURL || recentlyVisitedAppURL}/traces`,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "app-deployments-link",
@@ -125,7 +125,7 @@ export const useSidebarConfig = () => {
             link: `${appURL || recentlyVisitedAppURL}/deployments`,
             isHidden: !currentApp && !recentlyVisitedAppId,
             icon: <CloudArrowUp size={16} />,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "settings-link",
@@ -134,7 +134,7 @@ export const useSidebarConfig = () => {
             icon: <Gear size={16} />,
             isBottom: true,
             tooltip: "Settings",
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "invite-teammate-link",
@@ -144,7 +144,7 @@ export const useSidebarConfig = () => {
             isBottom: true,
             tooltip: "Invite Teammate",
             isHidden: !doesSessionExist || !selectedOrg,
-            disabled: hasProjectURL,
+            disabled: !hasProjectURL,
         },
         {
             key: "support-chat-link",
