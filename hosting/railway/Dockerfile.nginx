@@ -1,0 +1,21 @@
+FROM nginx:alpine
+
+# Copy custom nginx configuration
+COPY hosting/railway/nginx.conf /etc/nginx/nginx.conf
+
+# Add IPv6 localhost support
+RUN echo "::1 localhost" >> /etc/hosts
+
+# Create nginx user if it doesn't exist
+RUN addgroup -g 101 -S nginx 2>/dev/null || true && \
+    adduser -S -D -H -u 101 -h /var/cache/nginx -s /sbin/nologin -G nginx -g nginx nginx 2>/dev/null || true
+
+# Expose port 80
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
+
+# Run nginx
+CMD ["nginx", "-g", "daemon off;"]

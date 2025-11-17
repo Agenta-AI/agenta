@@ -1,0 +1,34 @@
+# Railway Config-as-Code Example for Agenta API Service
+# Copy this file to your service root directory and rename to railway.toml
+# Customize for each service as needed
+
+# This example is for the API service
+# Create similar files for web, worker, cron, completion, chat services
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "oss/docker/Dockerfile.gh"
+
+[deploy]
+startCommand = "uvicorn entrypoint:app --host :: --port $PORT --root-path /api"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ALWAYS"
+restartPolicyMaxRetries = 10
+
+# Run database migrations before deploying API
+preDeployCommand = "python -m oss.databases.postgres.migrations.runner"
+
+# Grace period for shutdown
+drainingSeconds = 30
+
+# Number of seconds to overlap deployments for zero-downtime
+overlapSeconds = 60
+
+# Example: Environment-specific overrides
+[environments.production.deploy]
+restartPolicyMaxRetries = 3
+drainingSeconds = 60
+
+[environments.staging.deploy]
+healthcheckTimeout = 60

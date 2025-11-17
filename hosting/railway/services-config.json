@@ -1,0 +1,196 @@
+{
+  "services": [
+    {
+      "name": "nginx",
+      "type": "custom",
+      "rootDirectory": "/",
+      "dockerfilePath": "hosting/railway/Dockerfile.nginx",
+      "startCommand": "nginx -g 'daemon off;'",
+      "healthcheckPath": "/health",
+      "publicDomain": true,
+      "port": 80,
+      "description": "Nginx reverse proxy - routes traffic to all internal services"
+    },
+    {
+      "name": "web",
+      "type": "application",
+      "rootDirectory": "/web",
+      "dockerfilePath": "oss/docker/Dockerfile.gh",
+      "startCommand": "node ./oss/server.js",
+      "healthcheckPath": "/",
+      "publicDomain": false,
+      "port": 3000,
+      "description": "Next.js frontend application"
+    },
+    {
+      "name": "api",
+      "type": "application",
+      "rootDirectory": "/api",
+      "dockerfilePath": "oss/docker/Dockerfile.gh",
+      "startCommand": "uvicorn entrypoint:app --host :: --port $PORT --root-path /api",
+      "preDeployCommand": "python -m oss.databases.postgres.migrations.runner",
+      "healthcheckPath": "/health",
+      "publicDomain": false,
+      "port": 8000,
+      "description": "FastAPI backend API"
+    },
+    {
+      "name": "worker",
+      "type": "application",
+      "rootDirectory": "/api",
+      "dockerfilePath": "oss/docker/Dockerfile.gh",
+      "startCommand": "celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1",
+      "publicDomain": false,
+      "description": "Celery background worker for async tasks"
+    },
+    {
+      "name": "cron",
+      "type": "application",
+      "rootDirectory": "/api",
+      "dockerfilePath": "oss/docker/Dockerfile.gh",
+      "startCommand": "cron -f",
+      "publicDomain": false,
+      "description": "Cron service for scheduled tasks"
+    },
+    {
+      "name": "completion",
+      "type": "application",
+      "rootDirectory": "/services/completion",
+      "dockerfilePath": "oss/docker/Dockerfile.gh",
+      "startCommand": "python oss/src/main.py",
+      "publicDomain": false,
+      "port": 80,
+      "description": "Completion service for LLM completions"
+    },
+    {
+      "name": "chat",
+      "type": "application",
+      "rootDirectory": "/services/chat",
+      "dockerfilePath": "oss/docker/Dockerfile.gh",
+      "startCommand": "python oss/src/main.py",
+      "publicDomain": false,
+      "port": 80,
+      "description": "Chat service for conversational AI"
+    },
+    {
+      "name": "postgres",
+      "type": "database",
+      "image": "postgres:16.2",
+      "volumes": [
+        {
+          "mountPath": "/var/lib/postgresql/data"
+        }
+      ],
+      "port": 5432,
+      "healthcheck": {
+        "command": "pg_isready -U $POSTGRES_USER",
+        "interval": 10,
+        "timeout": 5,
+        "retries": 5
+      },
+      "environmentVariables": {
+        "POSTGRES_USER": "agenta_user",
+        "POSTGRES_PASSWORD": "<required-secure-password>",
+        "POSTGRES_DB": "agenta_oss"
+      },
+      "description": "PostgreSQL database - consider using Railway managed PostgreSQL instead",
+      "alternativeOption": "Use Railway PostgreSQL plugin for managed database with automatic backups"
+    },
+    {
+      "name": "rabbitmq",
+      "type": "infrastructure",
+      "image": "rabbitmq:3-management",
+      "volumes": [
+        {
+          "mountPath": "/var/lib/rabbitmq"
+        }
+      ],
+      "ports": [5672, 15672],
+      "healthcheck": {
+        "command": "rabbitmq-diagnostics check_port_connectivity",
+        "interval": 10,
+        "timeout": 5,
+        "retries": 5
+      },
+      "environmentVariables": {
+        "RABBITMQ_DEFAULT_USER": "guest",
+        "RABBITMQ_DEFAULT_PASS": "<required-secure-password>"
+      },
+      "description": "RabbitMQ message broker for Celery"
+    },
+    {
+      "name": "redis",
+      "type": "infrastructure",
+      "image": "redis:latest",
+      "volumes": [
+        {
+          "mountPath": "/data"
+        }
+      ],
+      "port": 6379,
+      "healthcheck": {
+        "command": "redis-cli ping",
+        "interval": 10,
+        "timeout": 5,
+        "retries": 5
+      },
+      "description": "Redis for Celery backend - consider using Railway Redis plugin",
+      "alternativeOption": "Use Railway Redis plugin for managed Redis"
+    },
+    {
+      "name": "cache",
+      "type": "infrastructure",
+      "image": "redis:latest",
+      "startCommand": "redis-server --port 6378 --appendonly no --appendfsync no --save \"\" --maxmemory 128mb --maxmemory-policy allkeys-lru",
+      "volumes": [
+        {
+          "mountPath": "/data"
+        }
+      ],
+      "port": 6378,
+      "healthcheck": {
+        "command": "redis-cli -p 6378 ping",
+        "interval": 10,
+        "timeout": 5,
+        "retries": 5
+      },
+      "description": "Redis cache instance (separate from main Redis)"
+    },
+    {
+      "name": "supertokens",
+      "type": "infrastructure",
+      "image": "registry.supertokens.io/supertokens-postgresql",
+      "port": 3567,
+      "dependsOn": ["postgres"],
+      "healthcheck": {
+        "command": "bash -c 'exec 3<>/dev/tcp/127.0.0.1/3567 && echo -e \"GET /hello HTTP/1.1\\r\\nhost: 127.0.0.1:3567\\r\\nConnection: close\\r\\n\\r\\n\" >&3 && cat <&3 | grep \"Hello\"'",
+        "interval": 10,
+        "timeout": 5,
+        "retries": 5
+      },
+      "environmentVariables": {
+        "POSTGRESQL_CONNECTION_URI": "postgresql://agenta_user:password@postgres.railway.internal:5432/agenta_oss_supertokens"
+      },
+      "description": "Supertokens authentication service"
+    }
+  ],
+  "deploymentOrder": [
+    "Step 1: Infrastructure services",
+    ["postgres", "redis", "cache", "rabbitmq"],
+    "Step 2: Wait for all infrastructure to be healthy",
+    ["supertokens"],
+    "Step 3: Application services",
+    ["api", "worker", "cron"],
+    "Step 4: Frontend and microservices",
+    ["web", "completion", "chat"],
+    "Step 5: Reverse proxy",
+    ["nginx"]
+  ],
+  "notes": {
+    "ipv6": "All services MUST listen on :: (IPv6) for Railway private networking",
+    "privateNetworking": "Use <service>.railway.internal:<port> for inter-service communication",
+    "publicDomain": "Only nginx should have public domain enabled",
+    "volumes": "Volumes required for postgres, redis, cache, rabbitmq",
+    "managedServices": "Consider using Railway managed PostgreSQL and Redis for better reliability"
+  }
+}
