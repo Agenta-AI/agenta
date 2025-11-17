@@ -1,6 +1,6 @@
 import {Tour} from "nextstepjs"
 
-import {CurrentOnboardingStepExtended} from "../types"
+import {CurrentOnboardingStepExtended, UserOnboardingStatus} from "../types"
 import {URLLocationState} from "@/oss/state/url"
 
 export type OnboardingStepsContext = {
@@ -11,6 +11,7 @@ export type OnboardingStepsContext = {
     } | null
     currentStep: CurrentOnboardingStepExtended | null
     location: URLLocationState | null
+    userOnboardingStatus: UserOnboardingStatus
 }
 
 export interface CustomTour extends Tour {

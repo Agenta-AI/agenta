@@ -108,7 +108,7 @@ const PostSignupForm = () => {
                 setUserOnboardingProfileContext({
                     userRole:
                         stepOneFormData.userRole === "Subject Matter Expert"
-                            ? "SME"
+                            ? "sme"
                             : stepOneFormData.userRole,
                     userExperience: stepOneFormData.userExperience,
                     userInterest: values.userInterests,

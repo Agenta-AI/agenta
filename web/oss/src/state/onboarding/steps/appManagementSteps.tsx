@@ -218,7 +218,10 @@ const ONLINE_EVAL_RUN_SECTION_STEPS = withOnboardingSection(
 
 const SME_TOUR_CACHE = new Map<string, TourDefinition>()
 
-const resolveSmeJourneyTour = (): TourDefinition => {
+const resolveSmeJourneyTour = (ctx: OnboardingStepsContext): TourDefinition => {
+    if(ctx.userOnboardingStatus.fullJourney !== "idle"){
+        return resolveGlobalAppTour()
+    }
     const store = getDefaultStore()
     const isChat = store.get(appChatModeAtom)
     const playgroundRoute = getPlaygroundRoute()
@@ -278,8 +281,7 @@ const APP_MANAGEMENT_TOUR_MAP: Record<string, (ctx: OnboardingStepsContext) => T
     Hobbyist: () => resolveGlobalAppTour(),
     "ML/AI Engineer or Data scientist": () => resolveGlobalAppTour(),
     "Frontend / Backend Developer": () => resolveGlobalAppTour(),
-    SME: () => resolveSmeJourneyTour(),
-    sme: () => resolveSmeJourneyTour(),
+    sme: (ctx) => resolveSmeJourneyTour(ctx),
 }
 
 export const APP_MANAGEMENT_TOURS = new Proxy(APP_MANAGEMENT_TOUR_MAP, {
