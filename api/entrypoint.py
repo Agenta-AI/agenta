@@ -177,6 +177,7 @@ app.add_middleware(
         "http://0.0.0.0:3000",
         "http://0.0.0.0:3001",
         "https://docs.agenta.ai",
+        "https://agenta.ai",
     ],
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,

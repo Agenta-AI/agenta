@@ -112,7 +112,7 @@ jobs:
           author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
           branch: release/v${{ steps.bump_versions.outputs.NEW_VERSION }}
           delete-branch: true
-          title: "v${{ steps.bump_versions.outputs.NEW_VERSION }}"
+          title: "[release] v${{ steps.bump_versions.outputs.NEW_VERSION }}"
           body: |
             New version v${{ steps.bump_versions.outputs.NEW_VERSION }} in
             - (web)

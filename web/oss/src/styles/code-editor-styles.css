@@ -77,6 +77,29 @@
         text-shadow: none !important;
     }
 
+        &.no-line-numbers {
+        .editor-code {
+            counter-reset: none;
+        }
+
+        .editor-code-line {
+            padding-left: 16px !important;
+            text-indent: 0;
+
+            &.diff-context,
+            &.diff-removed,
+            &.diff-added {
+                padding-left: 16px !important;
+            }
+
+            &::before,
+            &::after {
+                display: none !important;
+                content: none !important;
+            }
+        }
+    }
+
     .editor-code-line {
         overflow-wrap: break-word;
         text-wrap-mode: wrap;
