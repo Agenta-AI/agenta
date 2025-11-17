@@ -143,7 +143,8 @@ async def environment_db_to_output(
 ) -> EnvironmentOutput:
     deployed_app_variant_id = (
         str(environment_db.deployed_app_variant_id)
-        if environment_db.deployed_app_variant_id and isinstance(environment_db.deployed_app_variant_id, uuid.UUID)  # type: ignore
+        if environment_db.deployed_app_variant_id
+        and isinstance(environment_db.deployed_app_variant_id, uuid.UUID)  # type: ignore
         else None
     )
     if deployed_app_variant_id:
