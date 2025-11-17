@@ -165,7 +165,7 @@ services:
         command: sh -c "python -m ee.databases.postgres.migrations.runner"
 
     completion:
-        build: 
+        build:
             context: ../../../services/completion
             dockerfile: ee/docker/Dockerfile.dev
 
@@ -175,10 +175,10 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
-            
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
-            
+
         labels:
             - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
             - "traefik.http.routers.completion.entrypoints=web"
@@ -187,16 +187,27 @@ services:
             - "traefik.http.routers.completion.middlewares=completion-strip"
             - "traefik.http.services.completion.loadbalancer.server.port=80"
             - "traefik.http.routers.completion.service=completion"
-        
+
         restart: always
-        
+
         networks:
             - agenta-network
-        
-        command: ["python", "oss/src/main.py"]
+
+        command:
+            [
+                "uvicorn",
+                "oss.src.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "80",
+                "--reload",
+                "--root-path",
+                "/services/completion",
+            ]
 
     chat:
-        build: 
+        build:
             context: ../../../services/chat
             dockerfile: ee/docker/Dockerfile.dev
 
@@ -206,10 +217,10 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
-            
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
-            
+
         labels:
             - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
             - "traefik.http.routers.chat.entrypoints=web"
@@ -218,13 +229,24 @@ services:
             - "traefik.http.routers.chat.middlewares=chat-strip"
             - "traefik.http.services.chat.loadbalancer.server.port=80"
             - "traefik.http.routers.chat.service=chat"
-        
+
         restart: always
-        
+
         networks:
             - agenta-network
 
-        command: ["python", "oss/src/main.py"]
+        command:
+            [
+                "uvicorn",
+                "oss.src.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "80",
+                "--reload",
+                "--root-path",
+                "/services/chat",
+            ]
 
     postgres:
         image: postgres:16.2
