@@ -106,7 +106,10 @@ const PostSignupForm = () => {
             try {
                 // Getting the user onboarding profile context from the form data to use in onboarding system
                 setUserOnboardingProfileContext({
-                    userRole: stepOneFormData.userRole,
+                    userRole:
+                        stepOneFormData.userRole === "Subject Matter Expert"
+                            ? "SME"
+                            : stepOneFormData.userRole,
                     userExperience: stepOneFormData.userExperience,
                     userInterest: values.userInterests,
                 })

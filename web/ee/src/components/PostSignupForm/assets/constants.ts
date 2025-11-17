@@ -15,6 +15,7 @@ const USER_ROLES = {
         "Frontend / Backend Developer",
         "Product Owner",
         "Executive (VP / C-Level)",
+        "Subject Matter Expert",
     ],
 }
 const USER_INTERESTS = {
