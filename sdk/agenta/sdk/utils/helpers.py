@@ -20,21 +20,26 @@ def parse_url(url: str) -> str:
         str: The parsed or rewritten URL suitable for the current environment and Docker network mode.
     """
 
-    # Normalize: remove trailing slash and /api suffix
     url = url.rstrip("/")
-    if url.endswith("/api"):
-        url = url[: -len("/api")]
 
-    if "localhost" not in url:
+    if "localhost" not in url and "0.0.0.0" not in url:
         return url
 
     docker_network_mode = os.getenv("DOCKER_NETWORK_MODE")
 
     if docker_network_mode and docker_network_mode.lower() == "bridge":
-        return url.replace("localhost", "host.docker.internal")
+        return url.replace(
+            "localhost",
+            "host.docker.internal",
+        ).replace(
+            "0.0.0.0",
+            "host.docker.internal",
+        )
 
-    if not docker_network_mode or docker_network_mode.lower() == "host":
+    if (
+        not docker_network_mode
+        or (docker_network_mode and docker_network_mode.lower()) == "host"
+    ):
         return url
 
-    # For any other network mode, return the URL unchanged
     return url
