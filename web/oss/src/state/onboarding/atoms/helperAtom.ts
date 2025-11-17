@@ -49,7 +49,7 @@ export const isOnlineEvaluationScenarioAvailableAtom = atom((get) => {
 })
 
 //
-export const isOnlineEvaluationRunsAvailableAtom = atom((get) => {
+export const isOnlineEvaluatorAvailableAtom = atom((get) => {
     const configs: any[] = get(evaluatorConfigsAtom) || []
     const baseEvaluators: any[] = get(evaluatorsAtom) || []
 
@@ -124,7 +124,7 @@ export const isOnlineEvaluationRunsAvailableAtom = atom((get) => {
 })
 
 // ********************************* HUMAN EVALUATION ATOMS ********************************* //
-export const isHumanEvaluationRunsAvailableAtom = atom((get) => {
+export const isHumanEvaluatorAvailableAtom = atom((get) => {
     const params = {
         projectId: null,
         preview: true,

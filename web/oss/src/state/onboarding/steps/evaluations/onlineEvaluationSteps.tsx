@@ -3,7 +3,7 @@ import {
     closeOnlineEvaluationDrawerAtom,
 } from "@/oss/components/pages/evaluations/onlineEvaluation/state/drawerAtom"
 import {getDefaultStore} from "jotai"
-import {isOnlineEvaluationRunsAvailableAtom, isUserInRunPageAtom} from "../../atoms/helperAtom"
+import {isOnlineEvaluatorAvailableAtom, isUserInRunPageAtom} from "../../atoms/helperAtom"
 import {OnboardingStepsContext, TourDefinition} from "../types"
 
 // Functions
@@ -85,14 +85,15 @@ const CREATE_NEW_ONLINE_EVALUATION_STEPS = [
 
 // Helper functions
 export const resolveOnlineEvaluationSteps = () => {
-    const hasRuns = getDefaultStore().get(isOnlineEvaluationRunsAvailableAtom)
-    if (hasRuns)
+    const hasEvaluators = getDefaultStore().get(isOnlineEvaluatorAvailableAtom)
+console.log("hasEvaluators", hasEvaluators)
+    if (hasEvaluators)
         return [{tour: "online-evaluation-quickstart", steps: CREATE_NEW_ONLINE_EVALUATION_STEPS}]
 
-    if (!hasRuns) return [{tour: "configure-new-evaluator", steps: []}]
+    if (!hasEvaluators) return []
 
     const isUserInRunPage = getDefaultStore().get(isUserInRunPageAtom)
-    if (isUserInRunPage) return [{tour: "online-evaluation-page-tour", steps: []}]
+    if (isUserInRunPage) return []
     return []
 }
 
