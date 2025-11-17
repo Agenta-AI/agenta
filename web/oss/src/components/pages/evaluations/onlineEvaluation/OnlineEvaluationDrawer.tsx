@@ -510,7 +510,6 @@ const OnlineEvaluationDrawer = ({open, onClose, onCreate}: OnlineEvaluationDrawe
                             key: "query",
                             label: buildPanelHeader("Query", querySummary),
                             style: {marginBottom: 4},
-                            id: "tour-online-query-section",
                             children: (
                                 <>
                                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">

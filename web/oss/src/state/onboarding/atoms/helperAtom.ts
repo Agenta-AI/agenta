@@ -4,7 +4,6 @@ import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
 import {currentAppContextAtom} from "@/oss/state/app/selectors/app"
 import {playgroundLoadingAtom} from "@/oss/state/loadingSelectors"
 import {getCurrentRunId, totalCountFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import {onlineEvaluationsCountAtom} from "@/oss/lib/hooks/usePreviewEvaluations"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {evaluatorsQueryAtomFamily} from "@/oss/state/evaluators"
 import {
@@ -48,7 +47,7 @@ export const isOnlineEvaluationScenarioAvailableAtom = atom((get) => {
     return scenarioCount > 0
 })
 
-//
+// This atom is used to determine if the user have evaluators available to run online evaluation
 export const isOnlineEvaluatorAvailableAtom = atom((get) => {
     const configs: any[] = get(evaluatorConfigsAtom) || []
     const baseEvaluators: any[] = get(evaluatorsAtom) || []
@@ -137,8 +136,3 @@ export const isHumanEvaluatorAvailableAtom = atom((get) => {
 })
 
 // ********************************* GENERAL EVALUATION ATOMS ********************************* //
-
-export const isUserInRunPageAtom = atom((get) => {
-    const runId = getCurrentRunId()
-    return !!runId
-})

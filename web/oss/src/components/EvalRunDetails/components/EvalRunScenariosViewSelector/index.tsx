@@ -23,6 +23,14 @@ const EvalRunScenariosViewSelector = () => {
     const router = useRouter()
 
     // Sync local atom from urlStateAtom changes
+    const resolveTourId = (value: string) => {
+        if (evalType !== "online") return undefined
+        if (value === "overview") return "tour-online-eval-tab-overview"
+        if (value === "results") return "tour-online-eval-tab-results"
+        if (value === "configuration") return "tour-online-eval-tab-configuration"
+        return undefined
+    }
+
     return (
         <div className="flex items-center gap-2 shrink-0">
             <Radio.Group
@@ -71,6 +79,7 @@ const EvalRunScenariosViewSelector = () => {
                             key={option.value}
                             value={option.value}
                             disabled={option.disabled}
+                            id={resolveTourId(option.value)}
                         >
                             {option.label}
                         </Radio.Button>
