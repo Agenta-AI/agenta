@@ -119,9 +119,9 @@ const HUMAN_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
 // Helper functions
 export const resolveOnlineEvaluationSteps = (ctx: OnboardingStepsContext) => {
     const hasEvaluators = getDefaultStore().get(isHumanEvaluatorAvailableAtom)
-    if (hasEvaluators) return [{tour: "online-evaluation-quickstart", steps: []}]
+    if (hasEvaluators) return []
 
-    if (!hasEvaluators) return [{tour: "configure-new-evaluator", steps: []}]
+    if (!hasEvaluators) return []
 
     if (ctx.location?.subsection === "results") {
         return [{tour: "online-evaluation-page-tour", steps: HUMAN_EVAL_RUN_STEPS}]
