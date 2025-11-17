@@ -3,6 +3,7 @@ import {useCallback, useMemo, useState} from "react"
 import {Gauge, Plus} from "@phosphor-icons/react"
 import {Button, message} from "antd"
 import {useRouter} from "next/router"
+import {useAtom, useSetAtom} from "jotai"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
@@ -30,6 +31,11 @@ import OnlineEvaluationRowActions from "./components/OnlineEvaluationRowActions"
 import QueryFiltersCell from "./components/QueryFiltersCell"
 import useOnlineEvaluations from "./hooks/useOnlineEvaluations"
 import OnlineEvaluationDrawer from "./OnlineEvaluationDrawer"
+import {
+    onlineEvaluationDrawerAtom,
+    openOnlineEvaluationDrawerAtom,
+    closeOnlineEvaluationDrawerAtom,
+} from "./state/drawerAtom"
 
 // A minimal Online Evaluations view that shows the table structure with a proper empty state
 // until the Online evaluations data model and fetching are implemented.
@@ -46,7 +52,9 @@ const OnlineEvaluation = ({viewType = "evaluation", scope = "project"}: OnlineEv
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [isDeletingEvaluations, setIsDeletingEvaluations] = useState(false)
     const {baseAppURL, projectURL} = useURL()
-    const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false)
+    const [drawerState] = useAtom(onlineEvaluationDrawerAtom)
+    const openDrawer = useSetAtom(openOnlineEvaluationDrawerAtom)
+    const closeDrawer = useSetAtom(closeOnlineEvaluationDrawerAtom)
     const routeAppId = useAppId()
     const activeAppId = scope === "app" ? routeAppId || undefined : undefined
     const {evaluations, isLoading, mutate, isValidating} = useOnlineEvaluations({
@@ -620,13 +628,15 @@ const OnlineEvaluation = ({viewType = "evaluation", scope = "project"}: OnlineEv
                                 {((scope === "app" && activeAppId) || scope === "project") && (
                                     <>
                                         <Button
+                                            id="tour-online-start-new-evaluation"
                                             type="primary"
                                             icon={<Plus size={14} />}
-                                            onClick={() => setIsCreateDrawerOpen(true)}
+                                            onClick={() => openDrawer()}
                                         >
                                             Start new evaluation
                                         </Button>
                                         <Button
+                                            id="tour-online-configure-evaluators"
                                             icon={<Gauge size={14} className="mt-0.5" />}
                                             onClick={() =>
                                                 router.push(
@@ -704,11 +714,11 @@ const OnlineEvaluation = ({viewType = "evaluation", scope = "project"}: OnlineEv
                 loading={isLoading || isValidating}
             />
             <OnlineEvaluationDrawer
-                open={isCreateDrawerOpen}
-                onClose={() => setIsCreateDrawerOpen(false)}
+                open={drawerState.open}
+                onClose={() => closeDrawer()}
                 onCreate={() => {
                     void mutate()
-                    setIsCreateDrawerOpen(false)
+                    closeDrawer()
                 }}
             />
             <DeleteEvaluationModal
