@@ -10,7 +10,7 @@ overrides:
 
 patchedDependencies:
   nextstepjs@2.1.2:
-    hash: f2fb5bcbb48c1ccdc866554908cfee767e783d127466ce8ee981d198ac893baa
+    hash: 95c404834e49ac4119b81c6da5eaa54ec3d4d2c41be037ce1e77488b259bfb1a
     path: patches/nextstepjs@2.1.2.patch
 
 importers:
@@ -272,7 +272,7 @@ importers:
         version: 21.1.0
       swc-loader:
         specifier: ^0.2.6
-        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17))(esbuild@0.25.12))
+        version: 0.2.6(@swc/core@1.11.8(@swc/helpers@0.5.17))(webpack@5.98.0(@swc/core@1.11.8(@swc/helpers@0.5.17))(esbuild@0.25.10))
       swr:
         specifier: ^2.3.0
         version: 2.3.3(react@19.0.0)
@@ -558,7 +558,7 @@ importers:
         version: 15.5.2(@playwright/test@1.53.1)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       nextstepjs:
         specifier: ^2.1.2
-        version: 2.1.2(patch_hash=f2fb5bcbb48c1ccdc866554908cfee767e783d127466ce8ee981d198ac893baa)(motion@12.23.24(@emotion/is-prop-valid@0.7.3)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(next@15.5.2(@playwright/test@1.53.1)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+        version: 2.1.2(patch_hash=95c404834e49ac4119b81c6da5eaa54ec3d4d2c41be037ce1e77488b259bfb1a)(motion@12.23.24(@emotion/is-prop-valid@0.7.3)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(next@15.5.2(@playwright/test@1.53.1)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       papaparse:
         specifier: ^5.5.3
         version: 5.5.3
@@ -4042,6 +4042,7 @@ packages:
     resolution: {integrity: sha512-Quz3MvAwHxVYNXsOByL7xI5EB2WYOeFswqaHIA3qOK3isRWTxiplBEocmmru6XmxDB2L7jDNYtYA4FyimoAFEw==}
     engines: {node: '>=8.17.0'}
     hasBin: true
+    bundledDependencies: []
 
   jsonpointer@5.0.1:
     resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
@@ -10063,7 +10064,7 @@ snapshots:
       - '@babel/core'
       - babel-plugin-macros
 
-  nextstepjs@2.1.2(patch_hash=f2fb5bcbb48c1ccdc866554908cfee767e783d127466ce8ee981d198ac893baa)(motion@12.23.24(@emotion/is-prop-valid@0.7.3)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(next@15.5.2(@playwright/test@1.53.1)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
+  nextstepjs@2.1.2(patch_hash=95c404834e49ac4119b81c6da5eaa54ec3d4d2c41be037ce1e77488b259bfb1a)(motion@12.23.24(@emotion/is-prop-valid@0.7.3)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(next@15.5.2(@playwright/test@1.53.1)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
     dependencies:
       motion: 12.23.24(@emotion/is-prop-valid@0.7.3)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react: 19.0.0

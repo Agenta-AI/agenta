@@ -7,8 +7,8 @@ index a34d899..4216c52 100644
  import DynamicPortal from './DynamicPortal';
  import SmoothSpotlight from './SmoothSpotlight';
 +
-+const MIN_SELECTOR_LOOKUP_ATTEMPTS = 3;
-+const SELECTOR_LOOKUP_DELAY_MS = 200;
++const MIN_SELECTOR_LOOKUP_ATTEMPTS = 10;
++const SELECTOR_LOOKUP_DELAY_MS = 50;
  /**
   * NextStepReact component for rendering the onboarding steps.
   *
