@@ -35,11 +35,6 @@ const config: Config = {
       async: true,
     },
     {
-      // Served by Docusaurus from static/ under the baseUrl
-      src: "/docs/ga-script.js",
-      async: true,
-    },
-    {
       src: "/docs/hotjar.js",
       async: true,
     },
