@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "docusaurus start --port 5000 --host 0.0.0.0",
+    "start": "docusaurus start --port 5000 --host 0.0.0.0 --config docusaurus.config.dev.ts",
+    "start:prod": "docusaurus start --port 5000 --host 0.0.0.0",
     "build": "docusaurus build",
+    "build:dev": "docusaurus build --config docusaurus.config.dev.ts",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",

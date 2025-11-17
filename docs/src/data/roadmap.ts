@@ -25,6 +25,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Observability: DE74FF
   // Evaluation: 86B7FF
   // Integration: FFA500
+    {
+    id: "jinja2-playground",
+    title: "Jinja2 Template Support in the Playground",
+    description:
+      "Use Jinja2 templating in prompts to add conditional logic, filters, and template blocks. The template format is stored in the configuration schema, and the SDK handles rendering automatically.",
+    changelogPath: "/docs/changelog/jinja2-template-support",
+    shippedAt: "2025-11-17",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
   {
     id: "evaluation-sdk",
     title: "Programmatic Evaluation through the SDK",
@@ -253,19 +267,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       {
         name: "Misc",
         color: "000000",
-      },
-    ],
-  },
-  {
-    id: "jinja2-playground",
-    title: "Jinja2 Template Support in the Playground",
-    description:
-      "Add Jinja2 template support to enable conditional logic, filters, and template blocks in prompts. The prompt type will be stored in the schema, and the SDK will handle rendering.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2856",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
       },
     ],
   },
