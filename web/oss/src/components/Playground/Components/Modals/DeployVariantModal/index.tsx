@@ -93,9 +93,11 @@ const DeployVariantModal = ({
             confirmLoading={isLoading}
             title="Deploy variant"
             onOk={() => deployVariants()}
+            zIndex={900}
             okButtonProps={{
                 icon: <Rocket size={14} className="mt-0.5" />,
                 disabled: !selectedEnvName.length,
+                id: "tour-playground-deploy-modal-confirm",
             }}
             classNames={{footer: "flex items-center justify-end"}}
             afterClose={() => onClose()}

@@ -50,20 +50,32 @@ const EvalRunScenariosViewSelector = () => {
                 defaultValue={evalType === "online" ? "results" : "focus"}
                 value={ENABLE_CARD_VIEW ? viewType : viewType === "list" ? "focus" : viewType}
             >
-                {(evalType === "human"
-                    ? VIEW_HUMAN_OPTIONS
-                    : evalType === "online"
-                      ? VIEW_ONLINE_OPTIONS
-                      : VIEW_AUTO_OPTIONS
-                ).map((option) => (
-                    <Radio.Button
-                        key={option.value}
-                        value={option.value}
-                        disabled={option.disabled}
-                    >
-                        {option.label}
-                    </Radio.Button>
-                ))}
+                <div
+                    id={
+                        viewType === "focus"
+                            ? "tour-human-eval-focus-tab"
+                            : viewType === "table"
+                              ? "tour-human-eval-table-view"
+                              : viewType === "results"
+                                ? "tour-human-eval-results-tab"
+                                : ""
+                    }
+                >
+                    {(evalType === "human"
+                        ? VIEW_HUMAN_OPTIONS
+                        : evalType === "online"
+                          ? VIEW_ONLINE_OPTIONS
+                          : VIEW_AUTO_OPTIONS
+                    ).map((option) => (
+                        <Radio.Button
+                            key={option.value}
+                            value={option.value}
+                            disabled={option.disabled}
+                        >
+                            {option.label}
+                        </Radio.Button>
+                    ))}
+                </div>
             </Radio.Group>
         </div>
     )

@@ -3,7 +3,7 @@ import {memo, useCallback, useMemo, useState} from "react"
 import {ArrowsLeftRight, Export, Gauge, Plus, Trash} from "@phosphor-icons/react"
 import {Button, Space, Input, message, theme, Typography} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {useAtom, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import {useRouter} from "next/router"
@@ -30,6 +30,11 @@ import {buildEvaluationNavigationUrl} from "../../utils"
 import {useStyles} from "./styles"
 
 import {AutoEvaluationHeaderProps} from "./types"
+import {
+    autoEvaluationModalAtom,
+    closeAutoEvaluationModalAtom,
+    openAutoEvaluationModalAtom,
+} from "@/oss/components/pages/evaluations/NewEvaluation/state/autoEvaluationModalAtom"
 
 const isLegacyEvaluation = (evaluation: any): boolean => "aggregated_results" in evaluation
 
@@ -72,10 +77,12 @@ const AutoEvaluationHeader = ({
     // atoms
     const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom)
     const setTempEvaluation = useSetAtom(tempEvaluationAtom)
+    const autoEvaluationModalState = useAtomValue(autoEvaluationModalAtom)
+    const openAutoEvaluationModal = useSetAtom(openAutoEvaluationModalAtom)
+    const closeAutoEvaluationModal = useSetAtom(closeAutoEvaluationModalAtom)
 
     // local states
     const [searchTerm, setSearchTerm] = useState("")
-    const [newEvalModalOpen, setNewEvalModalOpen] = useState(false)
 
     const onExport = useCallback(() => {
         try {
@@ -503,7 +510,8 @@ const AutoEvaluationHeader = ({
                         <Button
                             icon={<Plus size={14} />}
                             className={classes.button}
-                            onClick={() => setNewEvalModalOpen(true)}
+                            // id="tour-start-new-evaluation"
+                            onClick={() => openAutoEvaluationModal()}
                         >
                             Create new
                         </Button>
@@ -519,13 +527,15 @@ const AutoEvaluationHeader = ({
                                         type="primary"
                                         icon={<Plus size={14} />}
                                         className={classes.button}
-                                        onClick={() => setNewEvalModalOpen(true)}
+                                        id="tour-start-new-evaluation"
+                                        onClick={() => openAutoEvaluationModal()}
                                     >
                                         Start new evaluation
                                     </Button>
                                     <Button
                                         icon={<Gauge size={14} className="mt-0.5" />}
                                         className={classes.button}
+                                        id="tour-configure-evaluator"
                                         onClick={() => {
                                             router.push(`${projectURL}/evaluators?tab=automatic`)
                                         }}
@@ -600,9 +610,9 @@ const AutoEvaluationHeader = ({
 
             {(scope === "app" && activeAppId) || scope === "project" ? (
                 <NewEvaluationModal
-                    open={newEvalModalOpen}
+                    open={autoEvaluationModalState.open}
                     onCancel={() => {
-                        setNewEvalModalOpen(false)
+                        closeAutoEvaluationModal()
                     }}
                     onSuccess={(res) => {
                         const runningEvaluations = res.data.runs || []
@@ -634,7 +644,7 @@ const AutoEvaluationHeader = ({
                         })
 
                         refetch()
-                        setNewEvalModalOpen(false)
+                        closeAutoEvaluationModal()
                     }}
                     evaluationType="auto"
                     preview={false}

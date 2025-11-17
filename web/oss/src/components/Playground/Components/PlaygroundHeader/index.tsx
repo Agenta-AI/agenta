@@ -137,7 +137,7 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({
                     </Typography>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2" id="tour-playground-variant-toolbar">
                     <SelectVariant
                         showAsCompare
                         multiple

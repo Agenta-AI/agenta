@@ -24,6 +24,7 @@ interface Props {
     runRow: () => void
     cancelRow: () => void
     isBusy: boolean
+    enableTourTargets?: boolean
 }
 
 const DefaultView = ({
@@ -38,6 +39,7 @@ const DefaultView = ({
     runRow,
     cancelRow,
     isBusy,
+    enableTourTargets = false,
 }: Props) => {
     const variableIds = useAtomValue(
         useMemo(
@@ -49,6 +51,7 @@ const DefaultView = ({
     return (
         <>
             <div
+                id={enableTourTargets ? "tour-playground-variable" : undefined}
                 className={clsx([
                     "flex flex-col gap-4",
                     {"max-w-[calc(100%-158px)]": viewType !== "comparison" && !isChat},
@@ -97,7 +100,6 @@ const DefaultView = ({
                                 )}
                             </div>
                         ))}
-
                         {!inputOnly && variableIds.length === 0 ? (
                             <GenerationVariableOptions
                                 variantId={variantId as string}

@@ -73,7 +73,10 @@ const nodeToText = (node: any): string => {
     if (typeof node === "string" || typeof node === "number") return String(node)
     if (typeof node === "boolean") return node ? "true" : "false"
     if (Array.isArray(node)) {
-        return node.map((item) => nodeToText(item)).filter(Boolean).join(" ")
+        return node
+            .map((item) => nodeToText(item))
+            .filter(Boolean)
+            .join(" ")
     }
     if (isValidElement(node)) {
         return stripHtml(renderToStaticMarkup(node))
@@ -153,7 +156,7 @@ const flattenColumnsForExport = (
                 col.key ??
                     (Array.isArray(col.dataIndex)
                         ? col.dataIndex.join(".")
-                        : col.dataIndex ?? ""),
+                        : (col.dataIndex ?? "")),
             )
 
         if (!header.trim()) return
@@ -287,10 +290,7 @@ const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvalua
         [columns, hiddenColumns],
     )
 
-    const exportColumns = useMemo(
-        () => flattenColumnsForExport(visibleColumns),
-        [visibleColumns],
-    )
+    const exportColumns = useMemo(() => flattenColumnsForExport(visibleColumns), [visibleColumns])
 
     const handleDelete = useCallback(
         async (ids: string[]) => {
@@ -336,9 +336,7 @@ const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvalua
     const recordIndexLookup = useMemo(() => {
         const map = new Map<string, number>()
         mergedEvaluations.forEach((evaluation, idx) => {
-            const key = (
-                "id" in evaluation ? evaluation.id : evaluation.key
-            )?.toString()
+            const key = ("id" in evaluation ? evaluation.id : evaluation.key)?.toString()
             if (key) {
                 map.set(key, idx)
             }
@@ -432,7 +430,7 @@ const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvalua
         try {
             const rows = selectedEvaluations.map((item) => {
                 const key = ("id" in item ? item.id : item.key)?.toString()
-                const recordIndex = key ? recordIndexLookup.get(key) ?? 0 : 0
+                const recordIndex = key ? (recordIndexLookup.get(key) ?? 0) : 0
                 const row: Record<string, string> = {}
 
                 exportColumns.forEach(({header, column}) => {
@@ -452,20 +450,14 @@ const CustomEvaluation = ({scope = "app", viewType = "evaluation"}: CustomEvalua
 
             const {currentApp} = getAppValues()
             const filenameBase =
-                currentApp?.app_name ||
-                (scope === "project" ? "all_applications" : "evaluations")
+                currentApp?.app_name || (scope === "project" ? "all_applications" : "evaluations")
             const filename = `${filenameBase.replace(/\s+/g, "_")}_custom_evaluations.csv`
             downloadCsv(filename, csvData)
         } catch (error) {
             console.error("Failed to export custom evaluations", error)
             message.error("Failed to export evaluations")
         }
-    }, [
-        selectedEvaluations,
-        exportColumns,
-        recordIndexLookup,
-        scope,
-    ])
+    }, [selectedEvaluations, exportColumns, recordIndexLookup, scope])
 
     return (
         <section className="flex flex-col gap-2 pb-4">

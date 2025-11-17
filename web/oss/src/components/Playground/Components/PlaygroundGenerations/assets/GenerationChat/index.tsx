@@ -1,8 +1,6 @@
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {atom} from "jotai"
-import {useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import LastTurnFooterControls from "@/oss/components/Playground/Components/ChatCommon/LastTurnFooterControls"
 import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
@@ -41,7 +39,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
              * meaning when there's
              */}
             {!!variantId &&
-                inputRowIds.map((inputRowId) => (
+                inputRowIds.map((inputRowId, index) => (
                     <GenerationCompletionRow
                         key={inputRowId}
                         variantId={variantId}
@@ -53,6 +51,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                                     isComparisonView,
                             },
                         ])}
+                        isPrimaryRow={index === 0}
                     />
                 ))}
 
@@ -89,12 +88,13 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
                                     />
                                 )
                             })}
-                        {turnIds.map((turnId) => (
+                        {turnIds.map((turnId, index) => (
                             <GenerationChatTurnNormalized
                                 key={turnId}
                                 turnId={turnId}
                                 variantId={variantId as string}
                                 withControls={false}
+                                enableTourTargets={!!variantId && index === 0}
                             />
                         ))}
                         {turnIds.length > 0 ? (

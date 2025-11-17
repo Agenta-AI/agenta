@@ -10,6 +10,8 @@ export interface PlaygroundVariantConfigPromptComponentProps extends CollapsePro
     promptId: string
     /** Whether the prompt is mutable or view only */
     viewOnly?: boolean
+    /** Whether to expose onboarding target ids */
+    enableTourTarget?: boolean
 }
 
 /**

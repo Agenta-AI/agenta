@@ -32,10 +32,12 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
     promptId,
     className,
     viewOnly = false,
+    enableTourTarget = false,
     ...props
 }) => {
     const defaultActiveKey = useRef(["1"])
     const classes = useStyles()
+    const promptSectionId = enableTourTarget ? "tour-playground-prompt" : undefined
 
     const items = useMemo(
         () => [
@@ -59,11 +61,12 @@ const PlaygroundVariantConfigPrompt: React.FC<PlaygroundVariantConfigPromptCompo
                         variantId={variantId}
                         promptId={promptId}
                         viewOnly={viewOnly}
+                        id={promptSectionId}
                     />
                 ),
             },
         ],
-        [variantId, promptId, viewOnly],
+        [variantId, promptId, viewOnly, promptSectionId],
     )
 
     return (

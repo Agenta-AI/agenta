@@ -84,7 +84,9 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         </Button>
                     </Tooltip>
 
-                    <LoadTestsetButton label="Load testset" variantId={variantId} />
+                    <div id="tour-playground-load-testset">
+                        <LoadTestsetButton label="Load testset" variantId={variantId} />
+                    </div>
 
                     <TestsetDrawerButton
                         label="Add all to testset"
@@ -92,6 +94,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                         size="small"
                         disabled={isRunning}
                         resultHashes={resultHashes}
+                        id="tour-playground-add-testset"
                     />
 
                     {!isRunning ? (
