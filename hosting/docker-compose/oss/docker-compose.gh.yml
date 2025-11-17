@@ -46,8 +46,21 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            - SCRIPT_NAME=/api
 
-        command: [ "uvicorn", "entrypoint:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--root-path", "/api" ]
+        command: >
+            newrelic-admin run-program gunicorn entrypoint:app
+            --bind 0.0.0.0:8000
+            --worker-class uvicorn.workers.UvicornWorker
+            --workers 2
+            --max-requests 10000
+            --max-requests-jitter 1000
+            --timeout 60
+            --graceful-timeout 60
+            --log-level info
+            --access-logfile -
+            --error-logfile -
 
         depends_on:
             postgres:
@@ -71,8 +84,18 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
 
-        command: >
-            celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "celery",
+                "-A",
+                "entrypoint.celery_app",
+                "worker",
+                "--concurrency=1",
+                "--max-tasks-per-child=1",
+                "--prefetch-multiplier=1"
+            ]
 
         depends_on:
             - postgres
@@ -145,8 +168,21 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            - SCRIPT_NAME=/services/completion
 
-        command: [ "python", "oss/src/main.py" ]
+        command: >
+            newrelic-admin run-program gunicorn oss.src.main:app
+            --bind 0.0.0.0:80
+            --worker-class uvicorn.workers.UvicornWorker
+            --workers 2
+            --max-requests 10000
+            --max-requests-jitter 1000
+            --timeout 60
+            --graceful-timeout 60
+            --log-level info
+            --access-logfile -
+            --error-logfile -
 
         restart: always
 
@@ -159,6 +195,8 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.oss.gh}
+        environment:
+            - SCRIPT_NAME=/services/chat
         extra_hosts:
             - "host.docker.internal:host-gateway"
         labels:
@@ -172,7 +210,18 @@ services:
         networks:
             - agenta-oss-gh-network
 
-        command: [ "python", "oss/src/main.py" ]
+        command: >
+            newrelic-admin run-program gunicorn oss.src.main:app
+            --bind 0.0.0.0:80
+            --worker-class uvicorn.workers.UvicornWorker
+            --workers 2
+            --max-requests 10000
+            --max-requests-jitter 1000
+            --timeout 60
+            --graceful-timeout 60
+            --log-level info
+            --access-logfile -
+            --error-logfile -
 
         restart: always
 
