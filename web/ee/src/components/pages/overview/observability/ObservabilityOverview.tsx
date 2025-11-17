@@ -26,10 +26,10 @@ const ObservabilityOverview = () => {
     const defaultGraphProps = useMemo<React.ComponentProps<typeof AreaChart>>(
         () => ({
             className: "h-[168px] p-0",
-            colors: ["cyan", "red"],
+            colors: ["blue-400", "red"],
             connectNulls: true,
             tickGap: 15,
-            curveType: "monotone",
+            curveType: "linear",
             showGridLines: false,
             showLegend: false,
             index: "timestamp",

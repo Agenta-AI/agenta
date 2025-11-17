@@ -23,8 +23,10 @@ import {useAppsData} from "@/oss/state/app"
 const CustomWorkflowHistory: any = dynamic(
     () => import("@/oss/components/pages/app-management/drawers/CustomWorkflowHistory"),
 )
-const ObservabilityOverview: any = dynamic(
-    () => import("@/oss/components/pages/overview/observability/ObservabilityOverview"),
+const ObservabilityOverview: any = dynamic(() =>
+    import("@agenta/ee/src/components/pages/overview/observability/ObservabilityWithTimeFilter")
+        .then((mod) => mod)
+        .catch(() => import("@/oss/components/pages/overview/observability/ObservabilityOverview")),
 )
 
 const AutoEvaluation = dynamic(

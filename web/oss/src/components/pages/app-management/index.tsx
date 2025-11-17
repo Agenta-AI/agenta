@@ -7,6 +7,7 @@ import dynamic from "next/dynamic"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ResultComponent from "@/oss/components/ResultComponent/ResultComponent"
+import TimeFilter from "@/oss/components/TimeFilter"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {type LlmProvider} from "@/oss/lib/helpers/llmProviders"
@@ -41,8 +42,14 @@ const SetupTracingModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/SetupTracingModal"),
 )
 
-const ObservabilityDashboardSection: any = dynamic(
-    () => import("@/oss/components/pages/app-management/components/ObservabilityDashboardSection"),
+const ObservabilityDashboardSection: any = dynamic(() =>
+    import(
+        "@agenta/ee/src/components/pages/app-management/components/ObservabilityWithTimeFilter"
+    )
+        .then((mod) => mod)
+        .catch(() =>
+            import("@/oss/components/pages/app-management/components/ObservabilityDashboardSection"),
+        ),
 )
 const {Title} = Typography
 

@@ -63,12 +63,16 @@ export const transformTracingResponse = (data: TraceSpanNode[]): TraceSpanNode[]
 export const rangeToIntervalMinutes = (range: string): number => {
     switch (range) {
         case "1h":
+        case "6_hours":
             return 60
         case "24h":
+        case "24_hours":
             return 60
         case "7d":
+        case "7_days":
             return 360
         case "30d":
+        case "30_days":
             return 720
         default:
             return 720
@@ -77,8 +81,15 @@ export const rangeToIntervalMinutes = (range: string): number => {
 
 export const normalizeDurationSeconds = (d = 0) => d / 1_000
 
-export const formatTick = (ts: number | string, range: string) =>
-    dayjs(ts).format(range === "24_hours" ? "h:mm a" : range === "7_days" ? "ddd" : "D MMM")
+export const formatTick = (ts: number | string, range: string) => {
+    const format =
+        range === "6_hours" || range === "24_hours"
+            ? "h:mm a"
+            : range === "7_days"
+              ? "ddd"
+              : "D MMM"
+    return dayjs(ts).local().format(format)
+}
 
 export function tracingToGeneration(tracing: TracingDashboardData, range: string) {
     const buckets = tracing.buckets ?? []

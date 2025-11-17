@@ -243,9 +243,9 @@ class ObservabilityDAO(ObservabilityDAOInterface):
                 await session.execute(stmt)
 
                 # WINDOWING
-                today = datetime.now()
+                today_utc = datetime.utcnow()
                 start_of_next_day = datetime.combine(
-                    today + timedelta(days=1), time.min
+                    today_utc + timedelta(days=1), time.min
                 )
 
                 oldest = None

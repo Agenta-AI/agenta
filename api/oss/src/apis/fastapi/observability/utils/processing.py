@@ -471,15 +471,19 @@ def _parse_time_range(
     quantity, unit = interval_text.split("_")
     quantity = int(quantity)
 
-    today = datetime.now()
-    newest = datetime.combine(today.date(), time.max)
+    # Use UTC time to ensure consistent bucket calculation
+    now_utc = datetime.utcnow()
 
     if unit == "hours":
+        # For hours, round up to the next hour boundary to include current bucket
+        newest = now_utc.replace(minute=59, second=59, microsecond=999999)
         oldest = newest - timedelta(hours=quantity)
         interval = 60  # 1 hour
         return newest, oldest, interval
 
     elif unit == "days":
+        # For days, use end of current day
+        newest = datetime.combine(now_utc.date(), time.max)
         oldest = newest - timedelta(days=quantity)
         interval = 1440  # 1 day
         return newest, oldest, interval
