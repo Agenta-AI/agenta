@@ -21,12 +21,12 @@ const DeployVariantButton = ({
     const openDeployModal = useSetAtom(openDeployVariantModalAtom)
 
     const revisionKey = revisionId ?? variantId ?? ""
-    const variant = revisionKey ? (useAtomValue(variantByRevisionIdAtomFamily(revisionKey)) as any) : null
+    const variant = useAtomValue(variantByRevisionIdAtomFamily(revisionKey)) as any
 
     const payload = useMemo(() => {
         const inferredRevisionId = revisionId ?? variant?.id ?? null
         const inferredParentVariantId =
-            typeof variant?.variantId === "string" ? variant.variantId : variantId ?? null
+            typeof variant?.variantId === "string" ? variant.variantId : (variantId ?? null)
 
         const variantName = variant?.variantName ?? variant?.name ?? label ?? "Variant"
         const revision = variant?.revisionNumber ?? variant?.revision ?? ""
