@@ -762,15 +762,11 @@ async def ai_critique(input: EvaluatorInputInterface) -> EvaluatorOutputInterfac
 
             prompt_template: List = parameters.get("prompt_template") or list()
 
-            template_version = parameters.get("version") or "3"
+            template_version = parameters.get("version") or "4"
 
-            default_format = "fstring" if template_version == "2" else "curly"
+            template_format = parameters.get("template_format") or "curly"
 
-            template_format = parameters.get("template_format") or default_format
-
-            response_type = input.settings.get("response_type") or (
-                "json_schema" if template_version == "4" else "text"
-            )
+            response_type = input.settings.get("response_type") or "json_schema"
 
             json_schema = input.settings.get("json_schema") or None
 

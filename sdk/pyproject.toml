@@ -15,7 +15,7 @@ classifiers = [
 ]
 homepage = "https://agenta.ai"
 repository = "https://github.com/agenta-ai/agenta"
-documentation = "https://docs.agenta.ai"
+documentation = "https://agenta.ai/docs/"
 keywords = ["LLMOps", "LLM", "evaluation", "prompt engineering"]
 
 exclude = [

@@ -4,6 +4,7 @@ from typing import Callable, Dict, Optional, List, Any
 
 import httpx
 
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import suppress, display_exception
@@ -19,6 +20,8 @@ from agenta.client.backend.types import (
 )
 
 import agenta as ag
+
+log = get_module_logger(__name__)
 
 
 _PROVIDER_KINDS = []
@@ -81,7 +84,7 @@ async def get_secrets(api_url, credentials) -> list:
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                f"{api_url}/vault/v1/secrets",
+                f"{api_url}/vault/v1/secrets/",
                 headers=headers,
             )
 

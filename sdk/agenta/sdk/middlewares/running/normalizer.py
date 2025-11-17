@@ -250,7 +250,7 @@ class NormalizerMiddleware:
                 stacktrace=exc.stacktrace,
             )
         else:
-            type = "https://docs.agenta.ai/errors#v1:sdk:unknown-workflow-invoke-error"
+            type = "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error"
 
             code = getattr(exc, "status_code") if hasattr(exc, "status_code") else 500
 

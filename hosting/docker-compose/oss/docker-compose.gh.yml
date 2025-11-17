@@ -81,10 +81,14 @@ services:
         restart: always
 
     cron:
-        image: agenta-oss-dev-api:latest
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
 
         env_file:
-            - ${ENV_FILE:-./.env.oss.dev}
+            - ${ENV_FILE:-./.env.oss.gh}
 
         depends_on:
             - postgres
@@ -96,7 +100,7 @@ services:
         restart: always
         
         networks:
-            - agenta-network
+            - agenta-oss-gh-network
 
         command: cron -f
 

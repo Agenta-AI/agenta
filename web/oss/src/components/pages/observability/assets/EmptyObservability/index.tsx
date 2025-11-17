@@ -28,7 +28,7 @@ const EmptyObservability = () => {
                 }}
                 secondaryCta={{
                     text: "Learn More",
-                    onClick: () => router.push("https://docs.agenta.ai/observability/quickstart"),
+                    onClick: () => router.push("https://agenta.ai/docs/observability/quickstart"),
                     tooltip:
                         "Explore more about tracking and analyzing your app's observability data.",
                 }}
