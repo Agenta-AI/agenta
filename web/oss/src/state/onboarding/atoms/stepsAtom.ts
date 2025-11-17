@@ -3,7 +3,6 @@ import {eagerAtom} from "jotai-eager"
 import {atomWithStorage} from "jotai/utils"
 import {Tour} from "nextstepjs"
 import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
-import {runStatusByRowRevisionAtom} from "@/oss/state/generation/entities"
 
 import {userAtom} from "../../profile"
 import {sessionExistsAtom} from "../../session"
@@ -15,19 +14,19 @@ import {
     OnboardingState,
     UserOnboardingStatus,
 } from "../types"
+import {playgroundHasFirstRunAtom} from "./helperAtom"
 
 const NEW_USER_STORAGE_KEY = "new-user"
 const USER_ONBOARDING_STATE_TRACKER = "user-onboarding-state-tracker"
 const USER_ONBOARDING_PROFILE_CONTEXT_STORAGE_KEY = "user-onboarding-profile-context"
 
+/**
+ * @deprecated this is no longer useful anymore
+ */
 export const isNewUserStorageAtom = atomWithStorage(NEW_USER_STORAGE_KEY, false)
-
-export const userOnboardingProfileContextAtom = atomWithStorage<{
-    userRole: string
-    userExperience: string
-    userInterest: string
-} | null>(USER_ONBOARDING_PROFILE_CONTEXT_STORAGE_KEY, null)
-
+/**
+ * @deprecated this is no longer useful anymore
+ */
 export const isNewUserAtom = eagerAtom((get) => {
     const user = get(userAtom)
     const sessionExists = get(sessionExistsAtom)
@@ -36,6 +35,14 @@ export const isNewUserAtom = eagerAtom((get) => {
     return !!sessionExists && !!user && isNewUser
 })
 
+// Rename to userOnboardingProfileAtom
+export const userOnboardingProfileContextAtom = atomWithStorage<{
+    userRole: string
+    userExperience: string
+    userInterest: string
+} | null>(USER_ONBOARDING_PROFILE_CONTEXT_STORAGE_KEY, null)
+
+// old
 const defaultUserOnboardingState: UserOnboardingStatus = {
     apps: "idle",
     playground: "idle",
@@ -43,6 +50,19 @@ const defaultUserOnboardingState: UserOnboardingStatus = {
     evaluations: "idle",
     observability: "idle",
     trace: "idle",
+}
+// new
+const defaultNewUserOnboardingState: UserOnboardingStatus = {
+    apps: "idle",
+    playground: "idle",
+    playgroundPostRun: "idle",
+    evaluations: "idle",
+    autoEvaluations: "idle",
+    humanEvaluations: "idle",
+    onlineEvaluations: "idle",
+    observability: "idle",
+    trace: "idle",
+    annotate: "idle",
 }
 
 export const ONBOARDING_SECTIONS = Object.keys(defaultUserOnboardingState) as Array<
@@ -127,16 +147,7 @@ export const triggerOnboardingAtom = atom<{
     type?: "beginner" | "advanced"
 } | null>(null)
 
-const playgroundHasFirstRunAtom = atom((get) => {
-    const statuses = get(runStatusByRowRevisionAtom) || {}
-    return Object.values(statuses).some((entry) => {
-        if (!entry) return false
-        const hasCompletedRun =
-            entry.resultHash !== undefined && (entry.isRunning === false || entry.isRunning === undefined)
-        return hasCompletedRun
-    })
-})
-
+// rename to onboardingStateAtom
 export const newOnboardingStateAtom = atom<Tour[]>((get) => {
     const appStatusLoading = get(appStatusLoadingAtom)
     const onboardingProfile = get(userOnboardingProfileContextAtom)

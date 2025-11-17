@@ -13,4 +13,9 @@ export type OnboardingStepsContext = {
     location: URLLocationState | null
 }
 
-export type TourDefinition = Tour[]
+export interface CustomTour extends Tour {
+    onEnter?: (step?: {selector?: string | null}) => void
+    onCleanup?: (step?: {selector?: string | null}) => void
+}
+
+export type TourDefinition = CustomTour[]
