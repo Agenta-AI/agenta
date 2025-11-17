@@ -95,37 +95,33 @@ const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
 
     // Ensure selected evaluation is valid for current scope
     useEffect(() => {
+        if (!router.isReady) return
+
         const allowed = allowedOptionsByScope[scope]
             .filter((option) => !option.disabled)
             .map((option) => option.value)
-        if (!selectedEvaluation || !router.query.selectedEvaluation) {
-            setSelectedEvaluation(defaultKey)
-            return
-        }
 
-        if (!allowed.includes(selectedEvaluation)) {
+        // If nothing selected yet, or current selection isn't allowed for this scope,
+        // normalize to defaultKey if allowed, otherwise first allowed.
+        if (!selectedEvaluation || !allowed.includes(selectedEvaluation)) {
             const fallback = allowed.includes(defaultKey) ? defaultKey : allowed[0]
-            setSelectedEvaluation(fallback)
+            if (fallback && fallback !== selectedEvaluation) {
+                setSelectedEvaluation(fallback)
+            }
         }
-    }, [
-        selectedEvaluation,
-        defaultKey,
-        setSelectedEvaluation,
-        scope,
-        router.query.selectedEvaluation,
-    ])
+    }, [router.isReady, scope, selectedEvaluation, defaultKey, setSelectedEvaluation])
 
     const options = allowedOptionsByScope[scope]
 
     useEffect(() => {
-        if (
-            selectedEvaluation &&
-            selectedEvaluation !== defaultKey &&
-            options.some((option) => option.value === selectedEvaluation && !option.disabled)
-        ) {
+        if (!router.isReady) return
+        const isSelectable = options.some(
+            (option) => option.value === selectedEvaluation && !option.disabled,
+        )
+        if (selectedEvaluation && selectedEvaluation !== defaultKey && isSelectable) {
             setDefaultKey(selectedEvaluation)
         }
-    }, [selectedEvaluation, defaultKey, setDefaultKey, options])
+    }, [router.isReady, selectedEvaluation, defaultKey, setDefaultKey, options])
 
     useBreadcrumbsEffect(
         {
