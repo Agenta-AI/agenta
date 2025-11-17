@@ -22,6 +22,7 @@ import {
     fullJourneyStateAtom,
 } from "@/oss/state/onboarding/atoms/helperAtom"
 import {WelcomeModalProps} from "../../types"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 const WelcomeModalContent = dynamic(() => import("./assets/WelcomeModalContent"), {ssr: false})
 
@@ -35,6 +36,7 @@ const WelcomeModal = ({open, ...props}: WelcomeModalProps) => {
     const setDemoEvaluationContext = useSetAtom(demoOnlineEvaluationAtom)
     const setLastVisitedEvaluation = useSetAtom(lastVisitedEvaluationAtom)
     const setFullJourneyState = useSetAtom(fullJourneyStateAtom)
+    const posthog = usePostHogAg()
 
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isStartingTour, setIsStartingTour] = useState(false)
@@ -57,17 +59,26 @@ const WelcomeModal = ({open, ...props}: WelcomeModalProps) => {
         if (sectionStatus !== "idle") return
 
         setIsModalOpen(true)
-    }, [isNewUser, userLocation, userOnboardingJourneyStatus])
+        posthog?.capture("onboarding_welcome_action", {
+            action: "visible",
+        })
+    }, [isNewUser, userLocation, userOnboardingJourneyStatus, posthog, isSme])
 
     const onSkip = useCallback(() => {
         if (isStartingTour) return
+        posthog?.capture("onboarding_welcome_action", {
+            action: "skip",
+        })
         updateOnboardingStatus({section: "apps", status: "skipped"})
         setFullJourneyState({active: false, state: null, journeyId: null})
         updateOnboardingStatus({section: "fullJourney", status: "skipped"})
         setIsModalOpen(false)
-    }, [isStartingTour, updateOnboardingStatus, setFullJourneyState])
+    }, [isStartingTour, updateOnboardingStatus, setFullJourneyState, posthog, isSme])
 
     const onStartTour = useCallback(async () => {
+        posthog?.capture("onboarding_welcome_action", {
+            action: "start",
+        })
         if (!isSme) {
             setFullJourneyState({active: false, state: null, journeyId: null})
             setTriggerOnboarding({state: "apps"})
@@ -97,6 +108,7 @@ const WelcomeModal = ({open, ...props}: WelcomeModalProps) => {
         setLastVisitedEvaluation,
         setTriggerOnboarding,
         setFullJourneyState,
+        posthog,
     ])
 
     return (

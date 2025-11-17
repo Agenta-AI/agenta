@@ -17,6 +17,7 @@ import {
 import type {UserOnboardingStatus} from "@/oss/state/onboarding"
 import {urlLocationAtom} from "@/oss/state/url"
 import {fullJourneyStateAtom} from "@/oss/state/onboarding/atoms/helperAtom"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 const {Text} = Typography
 
@@ -53,6 +54,7 @@ const OnboardingCard = ({
     const fullJourneyState = useAtomValue(fullJourneyStateAtom)
     const setFullJourneyState = useSetAtom(fullJourneyStateAtom)
     const setTriggerOnboarding = useSetAtom(triggerOnboardingAtom)
+    const posthog = usePostHogAg()
 
     const cleanupHandlersRef = useRef<Set<() => void>>(new Set())
 
@@ -80,6 +82,15 @@ const OnboardingCard = ({
             cleanupHandlersRef.current.add(extendedStep.onCleanup)
         }
 
+        const resolvedSection =
+            extendedStep?.onboardingSection ?? resolveOnboardingSection(userSection)
+        posthog?.capture("onboarding_step_viewed", {
+            title: step?.title,
+            stepIndex: currentStep,
+            totalSteps,
+            section: resolvedSection,
+        })
+
         return () => {
             extendedStep?.onExit?.()
         }
@@ -92,13 +103,31 @@ const OnboardingCard = ({
         }
     }, [setCurrentStep, runCleanupHandlers])
 
+    const captureStepAction = useCallback(
+        (action: string) => {
+            const extendedStep = step as StepWithEffects | undefined
+            const resolvedSection =
+                extendedStep?.onboardingSection ?? resolveOnboardingSection(userSection)
+            posthog?.capture("onboarding_step_action", {
+                action,
+                title: step?.title,
+                stepIndex: currentStep,
+                totalSteps,
+                section: resolvedSection,
+            })
+        },
+        [step, posthog, currentStep, totalSteps, userSection],
+    )
+
     const onPrevStep = useCallback(() => {
+        captureStepAction("previous")
         prevStep()
-    }, [prevStep])
+    }, [captureStepAction, prevStep])
 
     const onNextStep = useCallback(() => {
+        captureStepAction("next")
         nextStep()
-    }, [nextStep])
+    }, [captureStepAction, nextStep])
 
     const onSkipStep = useCallback(
         (status: string) => {
@@ -112,6 +141,7 @@ const OnboardingCard = ({
                 extendedStep?.onboardingSection ?? resolveOnboardingSection(userSection)
             if (!resolvedSection) return
 
+            captureStepAction(status === "done" ? "finish" : "skip")
             updateOnboardingStatus({section: resolvedSection, status})
 
             if (fullJourneyState.active) {
@@ -130,6 +160,7 @@ const OnboardingCard = ({
             fullJourneyState.active,
             setFullJourneyState,
             setTriggerOnboarding,
+            captureStepAction,
         ],
     )
 

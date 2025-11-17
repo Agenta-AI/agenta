@@ -12,6 +12,7 @@ import {urlLocationAtom} from "@/oss/state/url"
 import {useEffect, useRef} from "react"
 import {useNextStep} from "nextstepjs"
 import {fullJourneyStateAtom} from "@/oss/state/onboarding/atoms/helperAtom"
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
     const onboardingSteps = useAtomValue(newOnboardingStateAtom)
@@ -24,6 +25,7 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
     const setFullJourneyState = useSetAtom(fullJourneyStateAtom)
     const {startNextStep} = useNextStep()
     const autoStartSignatureRef = useRef<string | null>(null)
+    const posthog = usePostHogAg()
 
     const previousSectionRef = useRef(userLocation.section)
     useEffect(() => {
@@ -68,6 +70,11 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
         if (autoStartSignatureRef.current === signature) return
 
         autoStartSignatureRef.current = signature
+        posthog?.capture("onboarding_tour_started", {
+            tourId: currentTour.tour,
+            section: tourSection,
+            trigger: "auto",
+        })
         startNextStep(currentTour.tour)
     }, [
         isNewUser,
@@ -88,8 +95,15 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
         if (lastManualTriggerRef.current === manualTrigger) return
 
         lastManualTriggerRef.current = manualTrigger
-        startNextStep(onboardingSteps[0]?.tour)
-    }, [manualTrigger, onboardingSteps, startNextStep])
+        const tourId = onboardingSteps[0]?.tour
+        if (!tourId) return
+        posthog?.capture("onboarding_tour_started", {
+            tourId,
+            trigger: "manual",
+            section: manualTrigger.state,
+        })
+        startNextStep(tourId)
+    }, [manualTrigger, onboardingSteps, startNextStep, posthog, fullJourneyState.journeyId])
 
     const handleComplete = () => {
         setTriggerOnboarding(null)
