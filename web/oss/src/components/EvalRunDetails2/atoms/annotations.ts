@@ -7,9 +7,9 @@ import {uuidToTraceId, uuidToSpanId} from "@/oss/lib/hooks/useAnnotations/assets
 import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getProjectValues} from "@/oss/state/project"
+import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
 
-import createBatchFetcher, {BatchFetcher} from "./createBatchFetcher"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 
 const annotationBatcherCache = new Map<string, BatchFetcher<string, AnnotationDto | null>>()

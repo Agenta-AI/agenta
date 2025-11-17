@@ -3,17 +3,17 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {uuidToTraceId} from "@/oss/lib/helpers/traceUtils"
 import type {
     TraceData,
     TraceNode,
     TraceTree,
 } from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
-import {getProjectValues} from "@/oss/state/project"
-
 import {transformTracesResponseToTree} from "@/oss/services/tracing/lib/helpers"
 import type {TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
-import {uuidToTraceId} from "@/oss/lib/helpers/traceUtils"
-import createBatchFetcher, {BatchFetcher} from "./createBatchFetcher"
+import {getProjectValues} from "@/oss/state/project"
+import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
+
 import {activeEvaluationRunIdAtom} from "./previewRun"
 
 const traceBatcherCache = new Map<string, BatchFetcher<string, TraceData | null>>()

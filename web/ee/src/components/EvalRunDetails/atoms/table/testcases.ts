@@ -5,8 +5,8 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import type {PreviewTestCase} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
+import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 
-import createBatchFetcher, {BatchFetcher} from "../createBatchFetcher"
 import {activeEvaluationRunIdAtom} from "../previewRun"
 
 const testcaseBatcherCache = new Map<string, BatchFetcher<string, PreviewTestCase | null>>()

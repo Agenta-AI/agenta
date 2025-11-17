@@ -7,10 +7,10 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 import {getProjectValues} from "@/oss/state/project"
+import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 
 import {resolveValueBySegments, splitPath} from "../utils/valueAccess"
 
-import createBatchFetcher, {BatchFetcher} from "./createBatchFetcher"
 import {
     createMetricProcessor,
     isLegacyValueLeaf,

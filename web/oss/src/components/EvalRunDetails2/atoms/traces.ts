@@ -12,10 +12,10 @@ import type {
 import {transformTracesResponseToTree} from "@/oss/services/tracing/lib/helpers"
 import type {TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
 import {getProjectValues} from "@/oss/state/project"
+import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 
 import {resolveInvocationTraceValue} from "../utils/traceValue"
 
-import createBatchFetcher, {BatchFetcher} from "./createBatchFetcher"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 
 const traceBatcherCache = new Map<string, BatchFetcher<string, TraceData | null>>()

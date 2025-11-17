@@ -5,8 +5,8 @@ import {atomWithQuery} from "jotai-tanstack-query"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {getProjectValues} from "@/oss/state/project"
+import createBatchFetcher, {BatchFetcher} from "@/oss/state/utils/createBatchFetcher"
 
-import createBatchFetcher, {BatchFetcher} from "./createBatchFetcher"
 import {activeEvaluationRunIdAtom, previewEvaluationRunQueryAtom} from "./previewRun"
 import {ACTIVE_RUN_REFETCH_INTERVAL, isActiveEvaluationStatus} from "./status"
 
