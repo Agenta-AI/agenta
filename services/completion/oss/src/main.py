@@ -1,5 +1,5 @@
 import agenta
-import service  # This will register the routes with the FastAPI application
+import oss.src.service  # This will register the routes with the FastAPI application
 
 # Expose the FastAPI app for Gunicorn
 app = agenta.app
