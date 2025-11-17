@@ -85,7 +85,7 @@ export const transformSecret = (secrets: CustomSecretDTO[] | StandardSecretDTO[]
 
 export const llmAvailableProviders: LlmProvider[] = [
     {title: "OpenAI", key: "", name: "OPENAI_API_KEY"},
-    {title: "Mistral AI", key: "", name: "MISTRAL_API_KEY"},
+    {title: "Mistral AI", key: "", name: "MISTRALAI_API_KEY"},
     {title: "Cohere", key: "", name: "COHERE_API_KEY"},
     {title: "Anthropic", key: "", name: "ANTHROPIC_API_KEY"},
     {title: "Anyscale", key: "", name: "ANYSCALE_API_KEY"},
