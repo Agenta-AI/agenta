@@ -1,4 +1,4 @@
-import {atom} from "jotai"
+import {atom, getDefaultStore} from "jotai"
 import {eagerAtom} from "jotai-eager"
 import {atomWithStorage} from "jotai/utils"
 import {Tour} from "nextstepjs"
@@ -15,6 +15,7 @@ import {
     UserOnboardingStatus,
 } from "../types"
 import {playgroundHasFirstRunAtom, fullJourneyStateAtom} from "./helperAtom"
+import {posthogAtom} from "@/oss/lib/helpers/analytics/store/atoms"
 
 const NEW_USER_STORAGE_KEY = "new-user"
 const USER_ONBOARDING_STATE_TRACKER = "user-onboarding-state-tracker"
@@ -123,6 +124,11 @@ export const updateUserOnboardingStatusAtom = atom(
         if (currentStatus[params.section] === params.status) return
 
         set(userOnboardingStatusAtom, {...currentStatus, [params.section]: params.status})
+        const posthog = getDefaultStore().get(posthogAtom)
+        posthog?.capture("onboarding_tour_status", {
+            section: params.section,
+            status: params.status,
+        })
     },
 )
 
