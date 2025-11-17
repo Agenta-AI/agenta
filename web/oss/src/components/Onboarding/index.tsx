@@ -134,6 +134,7 @@ const OnboardingCard = ({
             const extendedStep = step as StepWithEffects | undefined
             runCleanupHandlers()
             skipTour?.()
+            setTriggerOnboarding(null)
             if (!status) return
             if (!isNewUser) return
 
