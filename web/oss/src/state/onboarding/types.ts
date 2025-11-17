@@ -9,6 +9,7 @@ export type UserOnboardingStatus<T = OnboardingState> = {
     evaluations: T
     observability: T
     trace: T
+    fullJourney: T
 }
 
 export type OnboardingStep = Tour["steps"][number] & {

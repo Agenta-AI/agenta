@@ -11,6 +11,8 @@ import {
     ENABLE_CORRECT_ANSWER_KEY_FILTER,
 } from "@/oss/components/pages/evaluations/onlineEvaluation/constants"
 import {collectEvaluatorCandidates} from "@/oss/components/pages/evaluations/onlineEvaluation/utils/evaluatorDetails"
+import type {EvaluatorConfig} from "@/oss/lib/Types"
+import type {SimpleEvaluationPayload} from "@/oss/services/onlineEvaluations/api"
 
 // ********************************* PLAYGROUND ATOMS ********************************* //
 /**
@@ -136,3 +138,26 @@ export const isHumanEvaluatorAvailableAtom = atom((get) => {
 })
 
 // ********************************* GENERAL EVALUATION ATOMS ********************************* //
+export const isUserInRunPageAtom = atom((get) => {
+    const runId = getCurrentRunId()
+    return !!runId
+})
+
+export type DemoOnlineEvaluationContext = {
+    evaluation: SimpleEvaluationPayload
+    evaluatorConfig: EvaluatorConfig
+    queryId: string
+    queryRevisionId: string
+}
+
+export const demoOnlineEvaluationAtom = atom<DemoOnlineEvaluationContext | null>(null)
+
+export const fullJourneyStateAtom = atom<{
+    active: boolean
+    state?: string | null
+    journeyId?: string | null
+}>({
+    active: false,
+    state: null,
+    journeyId: null,
+})
