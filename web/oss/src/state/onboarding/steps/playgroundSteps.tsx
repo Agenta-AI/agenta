@@ -60,156 +60,140 @@ const closeDeployModal = () => {
     getDefaultStore().set(closeDeployVariantModalAtom)
 }
 
-const PLAYGROUND_COMPLETION_TOUR: TourDefinition = [
+export const PLAYGROUND_COMPLETION_TOUR: TourDefinition[number]["steps"] = [
     {
-        tour: "playground-completion-quickstart",
-        steps: [
-            {
-                icon: "🧠",
-                title: "Shape the prompt",
-                content: (
-                    <span>
-                        Edit your system and user messages here to steer how Agenta completes the
-                        request.
-                    </span>
-                ),
-                selector: "#tour-playground-prompt",
-                side: "right",
-                showControls: true,
-                showSkip: true,
-                pointerPadding: 12,
-                pointerRadius: 12,
-            },
-            {
-                icon: "🎛️",
-                title: "Set test variables",
-                content: (
-                    <span>
-                        Provide example values for your template inputs to preview different
-                        scenarios.
-                    </span>
-                ),
-                selector: "#tour-playground-variable",
-                side: "right",
-                showControls: true,
-                showSkip: true,
-                pointerPadding: 12,
-                pointerRadius: 12,
-                viewportId: "scrollable-viewport",
-            },
-            {
-                icon: "🧪",
-                title: "Load a saved testset",
-                content: (
-                    <span>
-                        Reuse curated scenarios by loading a testset. It auto-populates the
-                        variables so you can replay regressions instantly.
-                    </span>
-                ),
-                selector: "#tour-playground-load-testset",
-                side: "bottom",
-                showControls: true,
-                showSkip: true,
-                pointerPadding: 12,
-                pointerRadius: 12,
-            },
-            {
-                icon: "⚡️",
-                title: "Run the prompt",
-                content: (
-                    <span>
-                        Execute the prompt with the current variables to inspect the output.
-                    </span>
-                ),
-                selector: "#tour-playground-run-button",
-                side: "bottom",
-                showControls: true,
-                showSkip: true,
-                pointerPadding: 6,
-                pointerRadius: 12,
-                viewportId: "scrollable-viewport",
-            },
-        ],
+        icon: "🧠",
+        title: "Shape the prompt",
+        content: (
+            <span>
+                Edit your system and user messages here to steer how Agenta completes the request.
+            </span>
+        ),
+        selector: "#tour-playground-prompt",
+        side: "right",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+    },
+    {
+        icon: "🎛️",
+        title: "Set test variables",
+        content: (
+            <span>
+                Provide example values for your template inputs to preview different scenarios.
+            </span>
+        ),
+        selector: "#tour-playground-variable",
+        side: "right",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        viewportId: "scrollable-viewport",
+    },
+    {
+        icon: "🧪",
+        title: "Load a saved testset",
+        content: (
+            <span>
+                Reuse curated scenarios by loading a testset. It auto-populates the variables so you
+                can replay regressions instantly.
+            </span>
+        ),
+        selector: "#tour-playground-load-testset",
+        side: "bottom",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+    },
+    {
+        icon: "⚡️",
+        title: "Run the prompt",
+        content: <span>Execute the prompt with the current variables to inspect the output.</span>,
+        selector: "#tour-playground-run-button",
+        side: "bottom",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 6,
+        pointerRadius: 12,
+        viewportId: "scrollable-viewport",
     },
 ]
 
-const PLAYGROUND_CHAT_TOUR: TourDefinition = [
+export const PLAYGROUND_CHAT_TOUR: TourDefinition[number]["steps"] = [
     {
-        tour: "playground-chat-quickstart",
-        steps: [
-            {
-                icon: "🧠",
-                title: "Craft the system prompt",
-                content: (
-                    <span>
-                        Define high-level guidance for your assistant. This prompt sets the tone for
-                        every reply.
-                    </span>
-                ),
-                selector: "#tour-playground-prompt",
-                side: "right",
-                showControls: true,
-                showSkip: true,
-                pointerPadding: 12,
-                pointerRadius: 12,
-            },
-            {
-                icon: "📥",
-                title: "Set conversation context",
-                content: (
-                    <span>
-                        Provide any scenario-specific inputs so the model understands the user’s
-                        request before chat begins.
-                    </span>
-                ),
-                selector: "#tour-playground-variable",
-                side: "right",
-                showControls: true,
-                showSkip: true,
-                pointerPadding: 12,
-                pointerRadius: 12,
-                viewportId: "scrollable-viewport",
-            },
-            {
-                icon: "💬",
-                title: "Write the user message",
-                content: (
-                    <span>
-                        Type the first user turn to kick off your conversation and test the flow.
-                    </span>
-                ),
-                selector: "#tour-chat-user-message",
-                side: "left",
-                showControls: true,
-                showSkip: true,
-                pointerPadding: 12,
-                pointerRadius: 12,
-                viewportId: "scrollable-viewport",
-            },
-            {
-                icon: "⚡️",
-                title: "Run the chat turn",
-                content: (
-                    <span>
-                        Execute the chat turn to preview the assistant response and iterate quickly.
-                    </span>
-                ),
-                selector: "#tour-playground-run-button",
-                side: "bottom",
-                showControls: true,
-                showSkip: true,
-                pointerPadding: 12,
-                pointerRadius: 12,
-                viewportId: "scrollable-viewport",
-            },
-        ],
+        icon: "🧠",
+        title: "Craft the system prompt",
+        content: (
+            <span>
+                Define high-level guidance for your assistant. This prompt sets the tone for every
+                reply.
+            </span>
+        ),
+        selector: "#tour-playground-prompt",
+        side: "right",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+    },
+    {
+        icon: "📥",
+        title: "Set conversation context",
+        content: (
+            <span>
+                Provide any scenario-specific inputs so the model understands the user’s request
+                before chat begins.
+            </span>
+        ),
+        selector: "#tour-playground-variable",
+        side: "right",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        viewportId: "scrollable-viewport",
+    },
+    {
+        icon: "💬",
+        title: "Write the user message",
+        content: (
+            <span>Type the first user turn to kick off your conversation and test the flow.</span>
+        ),
+        selector: "#tour-chat-user-message",
+        side: "left",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        viewportId: "scrollable-viewport",
+    },
+    {
+        icon: "⚡️",
+        title: "Run the chat turn",
+        content: (
+            <span>
+                Execute the chat turn to preview the assistant response and iterate quickly.
+            </span>
+        ),
+        selector: "#tour-playground-run-button",
+        side: "bottom",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        viewportId: "scrollable-viewport",
     },
 ]
 
 const getPlaygroundTourDefinition = (): TourDefinition => {
     const store = getDefaultStore()
     const isChat = store.get(appChatModeAtom)
-    return isChat ? PLAYGROUND_CHAT_TOUR : PLAYGROUND_COMPLETION_TOUR
+    return isChat
+        ? [{tour: "playground-chat-quickstart", steps: PLAYGROUND_CHAT_TOUR}]
+        : [{tour: "playground-completion-quickstart", steps: PLAYGROUND_COMPLETION_TOUR}]
 }
 
 const buildPostRunSteps = (mode: "completion" | "chat") => {

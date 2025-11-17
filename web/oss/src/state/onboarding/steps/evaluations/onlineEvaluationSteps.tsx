@@ -28,7 +28,7 @@ const ensureOnlineEvalView = (view: "overview" | "results" | "configuration") =>
 }
 
 // Steps for creating online eval
-const CREATE_NEW_ONLINE_EVALUATION_STEPS = [
+export const CREATE_NEW_ONLINE_EVALUATION_STEPS = [
     {
         icon: "🧪",
         title: "Start an online evaluation",
@@ -84,16 +84,11 @@ const CREATE_NEW_ONLINE_EVALUATION_STEPS = [
 ]
 
 // Steps for general online eval run page view
-const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
+export const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
     {
         icon: "📊",
         title: "Live results table",
-        content: (
-            <span>
-                Keep this table open to watch traces stream in. We wrapped it with a synced viewport
-                so the highlights stay aligned while you scroll through the rows.
-            </span>
-        ),
+        content: <span>Monitor live evaluation results here in real-time.</span>,
         selector: "#tour-online-eval-results-table",
         side: "left",
         showControls: true,
@@ -105,12 +100,7 @@ const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
     {
         icon: "🔄",
         title: "Refresh on demand",
-        content: (
-            <span>
-                Trigger an immediate refresh to pull the latest run status and scenario counts
-                instead of waiting for the auto refresher.
-            </span>
-        ),
+        content: <span>Trigger an immediate refresh to pull the latest scenarios.</span>,
         selector: "#tour-online-eval-refresh-button",
         side: "bottom",
         showControls: true,
@@ -122,12 +112,7 @@ const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
     {
         icon: "🗂️",
         title: "Switch to overview",
-        content: (
-            <span>
-                Use the Overview tab to leave the live table and inspect aggregate scoring
-                dashboards.
-            </span>
-        ),
+        content: <span>Use the Overview tab to inspect aggregate scoring dashboards.</span>,
         selector: "#tour-online-eval-tab-overview",
         side: "bottom",
         showControls: true,
@@ -139,12 +124,7 @@ const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
     {
         icon: "🏁",
         title: "Overview & evaluator scores",
-        content: (
-            <span>
-                Switch to the overview tab to review aggregated evaluator scores. This section is
-                now inside a viewport-aware container so the tour follows as you scroll.
-            </span>
-        ),
+        content: <span>View the aggregated evaluation scores here.</span>,
         selector: "#tour-online-eval-score-section",
         side: "left",
         showControls: true,
@@ -186,23 +166,6 @@ const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
         pointerPadding: 12,
         pointerRadius: 12,
         onEnter: () => ensureOnlineEvalView("overview"),
-    },
-    {
-        icon: "⚙️",
-        title: "Configuration tab",
-        content: (
-            <span>
-                Use the configuration tab to review filters, sampling, and evaluator settings that
-                power this online run.
-            </span>
-        ),
-        selector: "#tour-online-eval-configuration-panel",
-        side: "left",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 16,
-        pointerRadius: 12,
-        onEnter: () => ensureOnlineEvalView("configuration"),
     },
 ]
 

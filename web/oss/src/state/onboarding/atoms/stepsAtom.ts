@@ -14,7 +14,7 @@ import {
     OnboardingState,
     UserOnboardingStatus,
 } from "../types"
-import {playgroundHasFirstRunAtom} from "./helperAtom"
+import {playgroundHasFirstRunAtom, fullJourneyStateAtom} from "./helperAtom"
 
 const NEW_USER_STORAGE_KEY = "new-user"
 const USER_ONBOARDING_STATE_TRACKER = "user-onboarding-state-tracker"
@@ -50,6 +50,7 @@ const defaultUserOnboardingState: UserOnboardingStatus = {
     evaluations: "idle",
     observability: "idle",
     trace: "idle",
+    fullJourney: "idle",
 }
 // new
 const defaultNewUserOnboardingState: UserOnboardingStatus = {
@@ -74,6 +75,7 @@ const ONBOARDING_SECTION_ALIASES: Record<string, keyof UserOnboardingStatus> = {
     trace: "trace",
     "trace-drawer": "trace",
     "playground-post-run": "playgroundPostRun",
+    "full-journey": "fullJourney",
 }
 
 const mergeUserOnboardingStatus = (state?: Partial<UserOnboardingStatus>): UserOnboardingStatus => {
@@ -157,8 +159,20 @@ export const newOnboardingStateAtom = atom<Tour[]>((get) => {
     const manualTrigger = get(triggerOnboardingAtom)
     const currentStep = get(currentOnboardingStepWithLocationAtom)
     const hasPlaygroundRun = get(playgroundHasFirstRunAtom)
+    const fullJourneyState = get(fullJourneyStateAtom)
+    const fullJourneyStatus = userOnboardingJourneyStatus.fullJourney
 
     if (appStatusLoading) return []
+
+    const resolveStepsForState = (stateKey: keyof typeof TOUR_STEPS) => {
+        const tourSteps = TOUR_STEPS[stateKey]
+        if (!tourSteps) return []
+        return tourSteps({
+            userContext: onboardingProfile,
+            currentStep,
+            location: userLocation,
+        })
+    }
 
     if (manualTrigger) {
         const requestedState = manualTrigger.state as keyof typeof TOUR_STEPS
@@ -166,17 +180,15 @@ export const newOnboardingStateAtom = atom<Tour[]>((get) => {
             requestedState === "playground" && hasPlaygroundRun
                 ? ("playgroundPostRun" as keyof typeof TOUR_STEPS)
                 : requestedState
+        return resolveStepsForState(effectiveState)
+    }
 
-        const tourSteps = TOUR_STEPS[effectiveState]
-        if (!tourSteps) return []
-
-        const steps = tourSteps({
-            userContext: onboardingProfile,
-            currentStep,
-            location: userLocation,
-        })
-
-        return steps
+    if (fullJourneyState.active && fullJourneyState.state) {
+        if (fullJourneyStatus && fullJourneyStatus !== "idle") {
+            return []
+        }
+        const stateKey = fullJourneyState.state as keyof typeof TOUR_STEPS
+        return resolveStepsForState(stateKey)
     }
 
     if (isNewUser) {
