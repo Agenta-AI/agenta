@@ -1,16 +1,18 @@
 import {useEffect, useMemo, useState} from "react"
 
-import {EvaluationType} from "@/oss/lib/enums"
+import deepEqual from "fast-deep-equal"
 
 import type {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
-import usePreviewEvaluations from "../../../../../lib/hooks/usePreviewEvaluations"
-import deepEqual from "fast-deep-equal"
+import {EvaluationType} from "@/oss/lib/enums"
+
+import usePreviewEvaluations from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
 interface UseOnlineEvaluationsOptions {
     appId?: string
     scope?: "app" | "project"
 }
 const useOnlineEvaluations = ({appId, scope}: UseOnlineEvaluationsOptions = {}) => {
+    console.log("useOnlineEvaluations")
     const appFilter = scope === "app" ? (appId ?? null) : null
     const {swrData, runs} = usePreviewEvaluations({
         types: [EvaluationType.online],

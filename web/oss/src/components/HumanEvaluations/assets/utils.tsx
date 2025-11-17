@@ -34,10 +34,14 @@ import {BasicStats} from "@/oss/services/runMetrics/api/types"
 import {appDetailQueryAtomFamily} from "@/oss/state/app"
 
 import {GeneralAutoEvalMetricColumns} from "../../EvalRunDetails/components/VirtualizedScenarioTable/assets/constants"
-import {extractPrimaryInvocation, extractEvaluationAppId} from "../../pages/evaluations/utils"
+import {
+    extractPrimaryInvocation,
+    extractEvaluationAppId,
+} from "@agenta/oss/src/components/pages/evaluations/utils"
 import {EvaluationRow} from "../types"
 
 import EvaluationStatusCell from "./EvaluationStatusCell"
+import EvaluatorMetricBar from "./EvaluatorMetricBar"
 import {LegacyEvalResultCell, LegacyEvalResultCellTitle} from "./LegacyEvalResultCell"
 import MetricDetailsPopover from "./MetricDetailsPopover"
 import {formatMetricValue} from "./MetricDetailsPopover/assets/utils"

@@ -1,5 +1,14 @@
-import dynamic from "next/dynamic"
+import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
+import {useQueryClient} from "@tanstack/react-query"
+import {Alert, Checkbox, Divider, Input, Menu, Table, Tooltip, Typography} from "antd"
+import {ColumnsType} from "antd/es/table"
+import clsx from "clsx"
+import {useAtomValue} from "jotai"
+import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
+
+import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {Testset, testset} from "@/oss/lib/Types"
@@ -7,16 +16,9 @@ import {fetchTestset} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
 import {urlAtom} from "@/oss/state/url"
 import {appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
-import {useQueryClient} from "@tanstack/react-query"
-import {Checkbox, Divider, Input, Menu, Tooltip, Typography} from "antd"
-import {ColumnsType} from "antd/es/table"
-import {useAtomValue} from "jotai"
-import {memo, useCallback, useEffect, useMemo, useState} from "react"
-import {useRouter} from "next/router"
-import clsx from "clsx"
+
 import {useTestsetInputsAnalysis} from "../../hooks/useTestsetInputsAnalysis"
 import {LoadTestsetModalContentProps} from "../types"
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 
 const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
     ssr: false,
@@ -32,7 +34,10 @@ const LoadTestsetModalContent = ({
     isLoadingTestset,
     isChat,
 }: LoadTestsetModalContentProps) => {
-    const {testsets, columnsByTestsetId, isLoading} = useTestsetsData({enabled: modalProps.open})
+    console.log("LoadTestsetModalContent")
+    const {testsets, columnsByTestsetId} = useTestsetsData({
+        enabled: modalProps.open,
+    })
     const queryClient = useQueryClient()
     const router = useRouter()
 

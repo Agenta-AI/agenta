@@ -45,7 +45,7 @@ const HelpAndSupportSection = () => {
             </Space>
 
             <div className="flex items-center w-full gap-4">
-                <Link className={classes.helperCard} href="https://agenta.ai/docs/" target="_blank">
+                <Link className={classes.helperCard} href="https://docs.agenta.ai/" target="_blank">
                     <BookOpen size={24} />
                     <Text>Check out docs</Text>
                     <ArrowRight size={18} />

@@ -55,14 +55,12 @@ export const useSidebarConfig = () => {
             key: "project-evaluators-link",
             title: "Evaluators",
             link: `${projectURL}/evaluators`,
-            // isHidden: !isDemo(),
             icon: <Gauge size={16} />,
         },
         {
             key: "project-evaluations-link",
             title: "Evaluations",
             link: `${projectURL}/evaluations`,
-            // isHidden: !isDemo(),
             icon: <ChartDonut size={16} />,
         },
         {
@@ -150,7 +148,7 @@ export const useSidebarConfig = () => {
                 {
                     key: "docs",
                     title: "Documentation",
-                    link: "https://agenta.ai/docs/",
+                    link: "https://docs.agenta.ai/",
                     icon: <Scroll size={16} />,
                     divider: true,
                 },

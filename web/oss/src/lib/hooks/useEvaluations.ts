@@ -61,6 +61,7 @@ const useEvaluations = ({
     evalType?: "human" | "auto" | "custom"
     appId?: string | null
 }) => {
+    console.log("useEvaluations")
     const routeAppId = useAppId()
     const appId = (appIdOverride ?? routeAppId) || undefined
     const {apps: availableApps = []} = useAppsData()

@@ -5,7 +5,7 @@ import sys
 import json
 import requests
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
 
 from pydantic import ValidationError
@@ -42,6 +42,40 @@ router = APIRouter()
 log = get_module_logger(__name__)
 
 upload_folder = "./path/to/upload/folder"
+
+
+def _infer_columns_from_csvdata(csvdata: Any) -> List[str]:
+    if not isinstance(csvdata, list) or len(csvdata) == 0:
+        return []
+
+    first_row = csvdata[0]
+    if not isinstance(first_row, dict):
+        return []
+
+    data_section = first_row.get("data")
+    if isinstance(data_section, dict):
+        return [str(key) for key in data_section.keys()]
+
+    return [str(key) for key in first_row.keys()]
+
+
+def _infer_columns_from_revision_data(revision_data: Any) -> List[str]:
+    testcases = getattr(revision_data, "testcases", None)
+    if not isinstance(testcases, list) or len(testcases) == 0:
+        return []
+
+    first_case = testcases[0]
+    data_section = None
+    if hasattr(first_case, "data"):
+        data_section = getattr(first_case, "data")
+    elif isinstance(first_case, dict):
+        maybe_data = first_case.get("data")
+        data_section = maybe_data if isinstance(maybe_data, dict) else first_case
+
+    if isinstance(data_section, dict) and data_section:
+        return [str(key) for key in data_section.keys()]
+
+    return []
 
 TESTSETS_COUNT_LIMIT = 10 * 1_000  # 10,000 testcases per testset
 TESTSETS_SIZE_LIMIT = 10 * 1024 * 1024  # 10 MB per testset
@@ -417,6 +451,7 @@ async def get_testsets(
                 name=testset.name,
                 created_at=str(testset.created_at),
                 updated_at=str(testset.updated_at),
+                columns=_infer_columns_from_csvdata(testset.csvdata),
             )
             for testset in testsets
         ]

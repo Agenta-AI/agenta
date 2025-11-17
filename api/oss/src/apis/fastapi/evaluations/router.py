@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
@@ -17,6 +17,7 @@ from oss.src.core.evaluations.service import (
     EvaluationsService,
     SimpleEvaluationsService,
 )
+from oss.src.core.evaluations.types import EvaluationMetrics
 
 from oss.src.apis.fastapi.evaluations.models import (
     # EVALUATION RUNS
@@ -608,7 +609,7 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        runs = await self.evaluations_service.query_runs(
+        runs, next_window = await self.evaluations_service.query_runs(
             project_id=UUID(request.state.project_id),
             #
             run=run_query_request.run,
@@ -619,6 +620,7 @@ class EvaluationsRouter:
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
+            windowing=next_window,
         )
 
         return runs_response
@@ -1307,15 +1309,40 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        metrics = await self.evaluations_service.refresh_metrics(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            run_id=run_id,
-            scenario_id=scenario_id,
-            timestamp=timestamp,
-            interval=interval,
-        )
+        scenario_ids = request.query_params.getlist("scenario_ids")
+
+        metrics: List[EvaluationMetrics] = []
+
+        if scenario_ids:
+            for raw_scenario_id in dict.fromkeys(scenario_ids):
+                try:
+                    scenario_uuid = UUID(raw_scenario_id)
+                except ValueError:
+                    log.warning(
+                        "[WARN] Ignoring invalid scenario_id during metrics refresh",
+                        extra={"scenario_id": raw_scenario_id},
+                    )
+                    continue
+
+                metrics.extend(
+                    await self.evaluations_service.refresh_metrics(
+                        project_id=UUID(request.state.project_id),
+                        user_id=UUID(request.state.user_id),
+                        run_id=run_id,
+                        scenario_id=scenario_uuid,
+                        timestamp=timestamp,
+                        interval=interval,
+                    )
+                )
+        else:
+            metrics = await self.evaluations_service.refresh_metrics(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                run_id=run_id,
+                scenario_id=scenario_id,
+                timestamp=timestamp,
+                interval=interval,
+            )
 
         metrics_response = EvaluationMetricsResponse(
             count=len(metrics),

@@ -78,7 +78,7 @@ const DemoApplicationsSection = () => {
                                 className="flex-1"
                                 // className="flex-[0.3]"
                                 target="_blank"
-                                href="https://agenta.ai/docs/tutorials/cookbooks/RAG-QA-docs"
+                                href="https://docs.agenta.ai/tutorials/cookbooks/RAG-QA-docs"
                             >
                                 Read Tutorial
                             </Button>

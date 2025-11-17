@@ -59,6 +59,7 @@ export interface testset {
     name: string
     created_at: string
     updated_at: string
+    columns?: string[]
 }
 
 export interface Testset {
@@ -67,6 +68,7 @@ export interface Testset {
     created_at: string
     updated_at: string
     csvdata: KeyValuePair[]
+    columns?: string[]
 }
 
 export interface PreviewTestcase {

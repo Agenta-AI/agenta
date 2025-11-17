@@ -1,7 +1,7 @@
 import {getDefaultStore} from "jotai"
 
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {EnrichedEvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+import {EnrichedEvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import type {WorkspaceMember} from "@/oss/lib/Types"
 import {getJWT} from "@/oss/services/api"

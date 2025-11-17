@@ -215,9 +215,9 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                 {/* Grid and highlight lines */}
                                 {isVertical ? (
                                     <g>
-                                        {xTicks.map((tick) => (
+                                        {xTicks.map((tick, idx) => (
                                             <line
-                                                key={tick}
+                                                key={`grid-vertical-${idx}`}
                                                 x1={margin.left}
                                                 y1={margin.top + yScaleVertical(tick)}
                                                 x2={margin.left + plotWidth}
@@ -248,9 +248,9 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                     </g>
                                 ) : (
                                     <g>
-                                        {xTicks.map((tick) => (
+                                        {xTicks.map((tick, idx) => (
                                             <line
-                                                key={tick}
+                                                key={`grid-horizontal-${idx}`}
                                                 x1={margin.left + xScaleHorizontal(tick)}
                                                 y1={margin.top}
                                                 x2={margin.left + xScaleHorizontal(tick)}

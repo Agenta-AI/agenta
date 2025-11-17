@@ -5,14 +5,14 @@ import {atom, getDefaultStore, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
 import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
-import useEvaluatorConfigs from "@/oss/lib/hooks/useEvaluatorConfigs"
-import useEvaluators from "@/oss/lib/hooks/useEvaluators"
-import {fetchEvaluatorById} from "@/oss/services/evaluators"
 import {
     evaluationRunStateFamily,
     runIndexFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import type {RunIndex} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
+import useEvaluatorConfigs from "@/oss/lib/hooks/useEvaluatorConfigs"
+import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+import {fetchEvaluatorById} from "@/oss/services/evaluators"
 
 import {
     displayedScenarioIdsFamily,
@@ -176,8 +176,6 @@ const useExpandableComparisonDataSource = ({
     comparisonRunIds,
 }: UseExpandableComparisonDataSourceProps) => {
     const store = getDefaultStore()
-    // const fetchMultipleRuns = useSetAtom(multiRunDataFetcherAtom)
-
     const comparisonRunsSteps = useAtomValue(comparisonRunsStepsAtom(comparisonRunIds))
     const baseTestcases = useAtomValue(testcaseForScenarios(baseRunId))
     const comparisonRunIndexes = useAtomValue(comparisonRunIndexesAtom(comparisonRunIds))

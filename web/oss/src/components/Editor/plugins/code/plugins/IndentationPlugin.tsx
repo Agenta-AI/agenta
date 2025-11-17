@@ -294,7 +294,6 @@ export function IndentationPlugin() {
                     } else {
                         // If no content, add an empty CodeHighlightNode to ensure line is selectable
                         // This will be properly styled by the CodeHighlightNode.createDOM method
-                        // trailing.append($createCodeHighlightNode("arda", "plain", false, null))
                         log("📎 Inserted new line content", {
                             trailingContent: trailing.getTextContent(),
                         })

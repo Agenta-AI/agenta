@@ -39,14 +39,12 @@ class SpanDto(UniversalBaseModel):
     refs: typing.Optional[typing.Dict[str, typing.Optional[typing.Any]]] = None
     links: typing.Optional[typing.List[LinkDto]] = None
     otel: typing.Optional[OTelExtraDto] = None
-    nodes: typing.Optional[typing.Dict[str, typing.Optional["SpanDtoNodesValue"]]] = (
-        None
-    )
+    nodes: typing.Optional[
+        typing.Dict[str, typing.Optional["SpanDtoNodesValue"]]
+    ] = None
 
     if IS_PYDANTIC_V2:
-        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(
-            extra="allow", frozen=True
-        )  # type: ignore # Pydantic v2
+        model_config: typing.ClassVar[pydantic.ConfigDict] = pydantic.ConfigDict(extra="allow", frozen=True)  # type: ignore # Pydantic v2
     else:
 
         class Config:

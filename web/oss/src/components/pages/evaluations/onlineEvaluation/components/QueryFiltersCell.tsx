@@ -7,7 +7,7 @@ import FiltersPreview from "./FiltersPreview"
 import {
     retrieveQueryRevision,
     type QueryFilteringPayload,
-} from "../../../../../services/onlineEvaluations/api"
+} from "@/oss/services/onlineEvaluations/api"
 
 type RowRecord = any
 

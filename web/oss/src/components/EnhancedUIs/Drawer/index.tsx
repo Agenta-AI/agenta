@@ -19,9 +19,16 @@ const EnhancedDrawer = ({children, closeOnLayoutClick = true, ...props}: Enhance
         if (!shouldRender) return
 
         function handleClickOutside(event: MouseEvent) {
-            if ((event.target as HTMLElement).closest(".variant-table-row")) {
+            const target = event.target as HTMLElement | null
+            if (!target) return
+
+            if (
+                target.closest(".variant-table-row") ||
+                target.closest(".scenario-row") ||
+                target.closest("[data-focus-drawer-trigger]")
+            ) {
                 return
-            } else if (closeOnLayoutClick && (event.target as HTMLElement).closest(".ant-layout")) {
+            } else if (closeOnLayoutClick && target.closest(".ant-layout")) {
                 onClose?.({} as any)
             }
         }

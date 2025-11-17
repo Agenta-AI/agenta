@@ -35,6 +35,7 @@ const SelectTestsetSection = ({
     className,
     ...props
 }: SelectTestsetSectionProps) => {
+    console.log("SelectTestsetSection")
     const [searchTerm, setSearchTerm] = useState("")
     const {testsets: fetchedTestsets, columnsByTestsetId} = useTestsetsData()
     const testsets = useMemo(() => {

@@ -17,6 +17,7 @@ const parseInvocationMetadata = (
 ): {
     appId?: string
     appName?: string
+    variantId?: string
     revisionId?: string
     variantName?: string
     revisionLabel?: string | number
@@ -45,11 +46,11 @@ const parseInvocationMetadata = (
         references.applicationRef ||
         references.application_ref
     const variantRef =
+        references.applicationVariant ||
+        references.application_variant ||
         references.variant ||
         references.variantRef ||
         references.variant_ref ||
-        references.applicationVariant ||
-        references.application_variant ||
         applicationRevision?.variant ||
         applicationRef?.variant
 
@@ -83,13 +84,26 @@ const parseInvocationMetadata = (
         invocationStep.key,
     )
 
-    const rawRevisionId = pickString(
+    const revisionReference =
+        applicationRevision ||
+        references.revision ||
+        variantRef?.revision ||
+        variantRef?.revisionRef ||
+        variantRef?.revision_ref ||
+        applicationRef?.revision
+
+    const rawVariantId = pickString(
         variantRef?.id,
-        variantRef?.revisionId,
-        variantRef?.revision_id,
-        applicationRevision?.id,
-        applicationRevision?.revisionId,
-        applicationRevision?.revision_id,
+        variantRef?.variantId,
+        variantRef?.variant_id,
+        variantRef?.appVariantId,
+        variantRef?.app_variant_id,
+    )
+
+    const rawRevisionId = pickString(
+        revisionReference?.id,
+        revisionReference?.revisionId,
+        revisionReference?.revision_id,
     )
 
     const revisionLabel =
@@ -97,16 +111,17 @@ const parseInvocationMetadata = (
             variantRef?.version,
             variantRef?.revision,
             variantRef?.revisionLabel,
-            applicationRevision?.revision,
-            applicationRevision?.version,
-            applicationRevision?.name,
+            revisionReference?.revision,
+            revisionReference?.version,
+            revisionReference?.name,
         ) ?? null
 
-    if (!rawAppId && !rawRevisionId && !rawVariantName) return null
+    if (!rawAppId && !rawRevisionId && !rawVariantId && !rawVariantName) return null
 
     return {
         appId: rawAppId,
         appName: rawAppName,
+        variantId: rawVariantId,
         revisionId: rawRevisionId,
         variantName: rawVariantName,
         revisionLabel: revisionLabel ?? undefined,
@@ -118,6 +133,7 @@ export const extractPrimaryInvocation = (
 ): {
     appId?: string
     appName?: string
+    variantId?: string
     revisionId?: string
     variantName?: string
     revisionLabel?: string | number
@@ -137,6 +153,14 @@ export const extractPrimaryInvocation = (
                   (typeof variant?.app_id === "string" ? variant.app_id : undefined) ||
                   (typeof variant?.applicationId === "string" ? variant.applicationId : undefined),
               appName: (variant as any)?.appName || (variant as any)?.appSlug,
+              variantId:
+                  pickString(
+                      (variant as any)?.variantId,
+                      (variant as any)?.variant_id,
+                      (variant as any)?.appVariantId,
+                      (variant as any)?.app_variant_id,
+                      (variant as any)?.id,
+                  ) ?? undefined,
               revisionId:
                   (variant as any)?.id ||
                   (typeof variant?.revisionId === "string" ? variant.revisionId : undefined) ||
@@ -152,9 +176,10 @@ export const extractPrimaryInvocation = (
     const resolved = {
         appId: metadataFromSteps?.appId ?? variantDetails?.appId,
         appName: metadataFromSteps?.appName ?? variantDetails?.appName,
-        revisionId: variantDetails?.revisionId ?? metadataFromSteps?.revisionId,
-        variantName: variantDetails?.variantName ?? metadataFromSteps?.variantName,
-        revisionLabel: variantDetails?.revisionLabel ?? metadataFromSteps?.revisionLabel,
+        variantId: metadataFromSteps?.variantId ?? variantDetails?.variantId,
+        revisionId: metadataFromSteps?.revisionId ?? variantDetails?.revisionId,
+        variantName: metadataFromSteps?.variantName ?? variantDetails?.variantName,
+        revisionLabel: metadataFromSteps?.revisionLabel ?? variantDetails?.revisionLabel,
     }
 
     return resolved

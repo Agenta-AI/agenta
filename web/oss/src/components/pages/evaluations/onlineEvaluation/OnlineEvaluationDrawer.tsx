@@ -2,7 +2,6 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 import type {ReactNode} from "react"
 
 import {Button, Collapse, DatePicker, Form, Input, Select, Switch, Tooltip, Typography} from "antd"
-import dayjs from "dayjs"
 import type {Dayjs} from "dayjs"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
@@ -15,6 +14,7 @@ import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
 import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
 import {getColorPairFromStr} from "@/oss/lib/helpers/colors"
+import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import type {EvaluatorPreviewDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
@@ -26,7 +26,7 @@ import {
     type QueryRevisionDataPayload,
     type SimpleEvaluationCreatePayload,
     type SimpleQueryCreatePayload,
-} from "../../../../services/onlineEvaluations/api"
+} from "@/oss/services/onlineEvaluations/api"
 
 import {
     buildQuerySlug,

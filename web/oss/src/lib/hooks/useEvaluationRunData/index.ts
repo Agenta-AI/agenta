@@ -11,7 +11,6 @@ import {useAppId} from "@/oss/hooks/useAppId"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {isDemo} from "@/oss/lib/helpers/utils"
-import useEnrichEvaluationRun from "@/oss/lib/hooks/usePreviewEvaluations/assets/utils"
 import {Evaluation, GenericObject, PreviewTestset} from "@/oss/lib/Types"
 import {
     fetchAllEvaluationScenarios as fetchAllLegacyAutoEvaluationScenarios,
@@ -33,6 +32,8 @@ import {collectProjectVariantReferences} from "../usePreviewEvaluations/projectV
 
 import {evalAtomStore, evaluationRunStateFamily, loadingStateAtom} from "./assets/atoms"
 import {buildRunIndex} from "./assets/helpers/buildRunIndex"
+
+import useEnrichEvaluationRun from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/assets/utils"
 
 const fetchLegacyScenariosData = async (
     evaluationId: string,

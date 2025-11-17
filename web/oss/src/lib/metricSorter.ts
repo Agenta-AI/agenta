@@ -1,4 +1,4 @@
-import {extractPrimitive, metricCompare} from "./metricUtils"
+import {metricCompare, extractPrimitive} from "@/oss/lib/metricUtils"
 
 /**
  * Build an Ant Design-compatible sorter object that compares metric values in a row-agnostic way.

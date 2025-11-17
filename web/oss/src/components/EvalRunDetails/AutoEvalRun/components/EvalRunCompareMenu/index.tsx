@@ -11,8 +11,8 @@ import {useRunId} from "@/oss/contexts/RunIdContext"
 import useFocusInput from "@/oss/hooks/useFocusInput"
 import {EvaluationType} from "@/oss/lib/enums"
 import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
-import {EnrichedEvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+import usePreviewEvaluations from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
+import {EnrichedEvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 import {urlStateAtom} from "../../../state/urlState"
 

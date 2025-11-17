@@ -3,6 +3,7 @@ from uuid import UUID
 from asyncio import sleep
 
 from oss.src.core.tracing.dtos import OTelSpansTree
+from oss.src.core.evaluations.types import EvaluationRun
 
 # Divides cleanly into 1, 2, 3, 4, 5, 6, 8, 10, ...
 BLOCKS = 1 * 2 * 3 * 4 * 5
@@ -151,3 +152,61 @@ async def fetch_trace(
             await sleep(delay)
 
     return None
+
+
+def determine_evaluation_kind(run: EvaluationRun) -> str:
+    """Infer the evaluation kind for a run using metadata, flags and step origins."""
+
+    meta = getattr(run, "meta", None)
+    if isinstance(meta, dict):
+        meta_dict = meta
+    else:  # pragma: no branch
+        try:
+            meta_dict = meta.model_dump()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover - defensive fallback
+            try:
+                meta_dict = dict(meta) if meta is not None else {}
+            except Exception:
+                meta_dict = {}
+
+    if isinstance(meta_dict, dict):
+        meta_kind = meta_dict.get("evaluation_kind") or meta_dict.get("evaluationKind")
+        if isinstance(meta_kind, str) and meta_kind.strip():
+            return meta_kind.strip().lower()
+
+    flags = run.flags
+    if flags and getattr(flags, "is_live", None):
+        return "online"
+
+    source = None
+    if isinstance(meta_dict, dict):
+        source = meta_dict.get("source") or meta_dict.get("origin")
+    if isinstance(source, str) and "online" in source.lower():
+        return "online"
+
+    steps = []
+    data = getattr(run, "data", None)
+    if data and getattr(data, "steps", None):
+        try:
+            steps = list(data.steps)
+        except TypeError:  # pragma: no cover - defensive path
+            steps = []
+
+    has_human = False
+    has_custom = False
+    for step in steps:
+        origin = getattr(step, "origin", None)
+        step_type = getattr(step, "type", None)
+        if origin == "human" or (step_type == "annotation" and origin == "human"):
+            has_human = True
+        if origin == "custom" or step_type == "custom":
+            has_custom = True
+
+    if has_human:
+        return "human"
+    if has_custom:
+        return "custom"
+    if flags and getattr(flags, "is_live", None):
+        return "online"
+
+    return "auto"

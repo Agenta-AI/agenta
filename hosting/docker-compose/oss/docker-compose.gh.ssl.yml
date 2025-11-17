@@ -105,15 +105,10 @@ services:
         restart: always
 
     cron:
-        build:
-            context: ../../../api
-            dockerfile: oss/docker/Dockerfile.gh
-
-        volumes:
-            - /var/run/docker.sock:/var/run/docker.sock
+        image: agenta-oss-dev-api:latest
 
         env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
+            - ${ENV_FILE:-./.env.oss.dev}
 
         depends_on:
             - postgres
@@ -125,7 +120,7 @@ services:
         restart: always
         
         networks:
-            - agenta-gh-ssl-network
+            - agenta-network
 
         command: cron -f
 

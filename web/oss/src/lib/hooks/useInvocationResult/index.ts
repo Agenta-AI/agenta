@@ -8,6 +8,7 @@ import {useRunId} from "@agenta/oss/src/contexts/RunIdContext"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {readInvocationResponse} from "@/oss/lib/helpers/traceUtils"
+import {resolveInvocationTraceValue} from "@/oss/components/EvalRunDetails2/utils/traceValue"
 import {projectIdAtom} from "@/oss/state/project/selectors/project"
 
 import {getCurrentRunId} from "../useEvaluationRunData/assets/atoms/migrationHelper"
@@ -193,7 +194,8 @@ export function useInvocationResult({
     const {
         trace: _trace,
         value: derivedVal,
-        rawValue,
+        rawValue: initialRawValue,
+        resolvedPath,
     } = readInvocationResponse({
         scenarioData: scenarioDataWithFallback,
         stepKey,
@@ -204,6 +206,10 @@ export function useInvocationResult({
     })
 
     const trace = status?.trace || _trace
+    let rawValue = initialRawValue
+    if (rawValue === undefined && resolvedPath) {
+        rawValue = resolveInvocationTraceValue(trace ?? undefined, resolvedPath)
+    }
     // For auto evaluation only
     const errorMessage = useMemo(() => {
         if (evalType !== "auto") return ""

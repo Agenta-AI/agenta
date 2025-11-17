@@ -1,4 +1,4 @@
-import {ChangeEvent, useCallback, useRef, useState} from "react"
+import {useCallback, useRef, useState} from "react"
 
 import {Input} from "antd"
 import clsx from "clsx"
@@ -32,7 +32,6 @@ const SharedEditor = ({
     baseProperty,
     variantId,
     syncWithInitialValueChanges = false,
-    antdInputProps,
     ...props
 }: SharedEditorProps) => {
     const normalizedInitialValue = initialValue ?? ""
@@ -65,13 +64,6 @@ const SharedEditor = ({
     if (syncWithInitialValueChanges) {
         mountInitialValueRef.current = normalizedInitialValue
     }
-
-    const handleAntdInputChange = useCallback(
-        (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-            handleLocalValueChange(event.target.value)
-        },
-        [handleLocalValueChange],
-    )
 
     return (
         <div
@@ -113,27 +105,14 @@ const SharedEditor = ({
             {header}
 
             {useAntdInput ? (
-                (() => {
-                    const {className: antdClassName, textarea, ...antdRest} = antdInputProps ?? {}
-                    const commonProps = {
-                        placeholder,
-                        value: localValue,
-                        onChange: handleAntdInputChange,
-                        className: clsx(
-                            "!bg-transparent",
-                            "!text-inherit",
-                            editorClassName,
-                            antdClassName,
-                        ),
-                        disabled,
-                    }
-
-                    if (textarea) {
-                        return <Input.TextArea {...commonProps} {...antdRest} />
-                    }
-
-                    return <Input {...commonProps} {...antdRest} />
-                })()
+                <Input
+                    placeholder={placeholder}
+                    value={localValue}
+                    onChange={(value) => handleLocalValueChange(value.target.value)}
+                    className={clsx("!bg-transparent", "!text-inherit", editorClassName)}
+                    disabled={disabled}
+                    {...editorProps}
+                />
             ) : (
                 <EditorWrapper
                     placeholder={placeholder}

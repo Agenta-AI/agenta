@@ -4,6 +4,13 @@ import {Collapse, Form, Segmented, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
+import EvaluatorDetailsPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/EvaluatorDetailsPreview"
+import FiltersPreview from "@/oss/components/pages/evaluations/onlineEvaluation/components/FiltersPreview"
+import ReadOnlyBox from "@/oss/components/pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
+import {EVALUATOR_CATEGORY_LABEL_MAP} from "@/oss/components/pages/evaluations/OnlineEvaluation/constants"
+import {useEvaluatorDetails} from "@/oss/components/pages/evaluations/OnlineEvaluation/hooks/useEvaluatorDetails"
+import {useEvaluatorTypeFromConfigs} from "@/oss/components/pages/evaluations/OnlineEvaluation/hooks/useEvaluatorTypeFromConfigs"
+import {useEvaluatorTypeMeta} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeMeta"
 import {useRunId} from "@/oss/contexts/RunIdContext"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
@@ -14,19 +21,12 @@ import {
     type QueryConditionPayload,
     type QueryFilteringPayload,
 } from "../../../../../services/onlineEvaluations/api"
-import EvaluatorDetailsPreview from "../../../../pages/evaluations/onlineEvaluation/components/EvaluatorDetailsPreview"
-import FiltersPreview from "../../../../pages/evaluations/onlineEvaluation/components/FiltersPreview"
-import ReadOnlyBox from "../../../../pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
-import {EVALUATOR_CATEGORY_LABEL_MAP} from "../../../../pages/evaluations/onlineEvaluation/constants"
-import {useEvaluatorDetails} from "../../../../pages/evaluations/onlineEvaluation/hooks/useEvaluatorDetails"
-import {useEvaluatorTypeFromConfigs} from "../../../../pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeFromConfigs"
-import {useEvaluatorTypeMeta} from "../../../../pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeMeta"
 
 const {Text} = Typography
 const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
 
 const resolveTimestamp = (
-    ...values: Array<string | number | null | undefined>
+    ...values: (string | number | null | undefined)[]
 ): string | number | null => {
     for (const value of values) {
         if (value === undefined || value === null || value === "") continue

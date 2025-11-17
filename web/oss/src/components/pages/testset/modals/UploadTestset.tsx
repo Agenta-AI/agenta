@@ -278,7 +278,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         )}
 
                                         <Typography.Link
-                                            href="https://agenta.ai/docs/evaluation/create-testsets#creating-a-testset-from-a-csv-or-json"
+                                            href="https://docs.agenta.ai/evaluation/create-testsets#creating-a-testset-from-a-csv-or-json"
                                             target="_blank"
                                         >
                                             <Button>Read the docs</Button>

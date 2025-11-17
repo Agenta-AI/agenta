@@ -1,11 +1,10 @@
-import type {Filter, FilterConditions} from "@/oss/lib/Types"
 import {inferReferenceOptionKey} from "@/oss/components/pages/observability/assets/filters/referenceUtils"
-
+import type {Filter, FilterConditions} from "@/oss/lib/Types"
 import type {
     QueryConditionPayload,
     QueryFilteringPayload,
     QueryRevisionDataPayload,
-} from "../../../../../services/onlineEvaluations/api"
+} from "@/oss/services/onlineEvaluations/api"
 
 const slugify = (value: string) =>
     value

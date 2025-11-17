@@ -9,6 +9,7 @@ import router from "next/router"
 
 import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import useURL from "@/oss/hooks/useURL"
+import {getEvaluatorTags} from "@/oss/lib/helpers/evaluate"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
@@ -18,6 +19,131 @@ import type {SelectEvaluatorSectionProps} from "../../types"
 const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
     ssr: false,
 })
+
+const normalizeTagValue = (raw: string | undefined | null) =>
+    raw
+        ? raw
+              .toString()
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, "_")
+              .replace(/_+/g, "_")
+              .replace(/^_|_$/g, "")
+        : ""
+
+const KEYWORD_TO_CATEGORY: Record<string, string> = {
+    regex: "functional",
+    functional: "functional",
+    validator: "functional",
+    validation: "functional",
+    exact: "functional",
+    match: "functional",
+    similarity: "similarity",
+    similar: "similarity",
+    cosine: "similarity",
+    classifier: "classifiers",
+    classify: "classifiers",
+    classification: "classifiers",
+    detection: "classifiers",
+    toxic: "classifiers",
+    llm: "ai_llm",
+    ai: "ai_llm",
+    gpt: "ai_llm",
+    openai: "ai_llm",
+    anthropic: "ai_llm",
+    mistral: "ai_llm",
+    groq: "ai_llm",
+}
+
+const CATEGORY_COLOR_MAP: Record<string, string> = {
+    rag: "cyan",
+    classifiers: "volcano",
+    similarity: "geekblue",
+    ai_llm: "purple",
+    functional: "gold",
+}
+
+const collectTagCandidates = (record: Partial<EvaluatorDto<"response">>) => {
+    const registry = new Set<string>()
+    const push = (value: unknown) => {
+        if (!value) return
+        normalizeTagValue(String(value))
+            .split("_")
+            .forEach((segment) => {
+                if (segment) registry.add(segment)
+            })
+        registry.add(normalizeTagValue(String(value)))
+    }
+
+    const tags = record?.tags
+    if (Array.isArray(tags)) tags.forEach(push)
+    else if (typeof tags === "string") tags.split(/[,;]/).forEach(push)
+    else if (tags && typeof tags === "object") {
+        Object.values(tags).forEach(push)
+    }
+
+    const meta = (record as any)?.meta ?? {}
+    const flags = (record as any)?.flags ?? {}
+
+    ;[meta, flags].forEach((source) => {
+        if (!source || typeof source !== "object") return
+        if (Array.isArray(source.tags)) {
+            source.tags.forEach(push)
+        }
+        push(source.category)
+        push(source.type)
+    })
+
+    const service = record?.data?.service
+    if (service) {
+        push(service.agenta)
+        push(service.type)
+    }
+    if (service?.format) {
+        push((service.format as any)?.type)
+        if (Array.isArray((service.format as any)?.required)) {
+            ;(service.format as any).required.forEach(push)
+        }
+    }
+
+    // include evaluator slug/name tokens for heuristics
+    ;[record.slug, record.name].forEach((value) => {
+        if (!value) return
+        value
+            .toString()
+            .toLowerCase()
+            .split(/[^a-z0-9]+/g)
+            .filter(Boolean)
+            .forEach((token) => registry.add(token))
+    })
+
+    return Array.from(registry)
+}
+
+const inferEvaluatorTypeLabel = (
+    record: EvaluatorDto<"response">,
+    labelMap: Record<string, string>,
+) => {
+    const candidates = collectTagCandidates(record)
+
+    for (const candidate of candidates) {
+        const normalized = normalizeTagValue(candidate)
+        if (labelMap[normalized]) {
+            return {label: labelMap[normalized], slug: normalized}
+        }
+    }
+
+    for (const candidate of candidates) {
+        const normalized = normalizeTagValue(candidate)
+        for (const [keyword, category] of Object.entries(KEYWORD_TO_CATEGORY)) {
+            if (normalized.includes(keyword) && labelMap[category]) {
+                return {label: labelMap[category], slug: category}
+            }
+        }
+    }
+
+    return {label: undefined, slug: undefined}
+}
 
 const EvaluatorMetrics = memo(({evaluator}: {evaluator: EvaluatorDto<"response">}) => {
     const metrics = getMetricsFromEvaluator(evaluator)
@@ -86,6 +212,14 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     const prevSelectedAppIdRef = useRef<string | undefined>()
     const {refetchEvaluatorConfigs} = fetchData
 
+    const evaluatorTypeLabelMap = useMemo(() => {
+        const entries = getEvaluatorTags()
+        return entries.reduce<Record<string, string>>((acc, entry) => {
+            acc[normalizeTagValue(entry.value)] = entry.label
+            return acc
+        }, {})
+    }, [])
+
     useEffect(() => {
         if (!selectedAppId) {
             prevSelectedAppIdRef.current = selectedAppId
@@ -134,11 +268,20 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                 },
             },
             {
-                title: "Slug",
-                dataIndex: "slug",
-                key: "slug",
+                title: "Type",
+                dataIndex: "type",
+                key: "type",
                 render: (_, record: EvaluatorDto<"response">) => {
-                    return <div>{record.slug}</div>
+                    const {label, slug} = inferEvaluatorTypeLabel(record, evaluatorTypeLabelMap)
+                    if (!label) {
+                        return <Tag bordered={false}>Unknown</Tag>
+                    }
+                    const color = slug ? (CATEGORY_COLOR_MAP[slug] ?? undefined) : undefined
+                    return (
+                        <Tag bordered={false} color={color ?? "blue"}>
+                            {label}
+                        </Tag>
+                    )
                 },
             },
             {
@@ -150,7 +293,7 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                 ),
             },
         ],
-        [],
+        [evaluatorTypeLabelMap],
     )
 
     const columnsConfig: ColumnsType<EvaluatorConfig> = useMemo(

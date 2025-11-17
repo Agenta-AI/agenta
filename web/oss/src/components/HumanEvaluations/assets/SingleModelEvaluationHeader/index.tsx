@@ -23,9 +23,12 @@ import {EvaluationRow} from "../../types"
 import {useStyles} from "../styles"
 import {extractEvaluationStatus, getMetricSummaryValue} from "../utils"
 
-const NewEvaluationModal = dynamic(() => import("../../../pages/evaluations/NewEvaluation"), {
-    ssr: false,
-})
+const NewEvaluationModal = dynamic(
+    () => import("@agenta/oss/src/components/pages/evaluations/NewEvaluation"),
+    {
+        ssr: false,
+    },
+)
 const DeleteEvaluationModal = dynamic(
     () => import("@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"),
     {ssr: false},

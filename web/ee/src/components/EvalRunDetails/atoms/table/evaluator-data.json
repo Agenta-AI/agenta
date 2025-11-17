@@ -1,0 +1,58 @@
+{
+    "name": "Exact Match",
+    "created_at": "2025-09-03T18:48:00.847294Z",
+    "updated_at": "2025-09-15T14:32:28.457249Z",
+    "created_by_id": "01990682-5736-79e0-8c67-31d342094efc",
+    "updated_by_id": "01990682-5736-79e0-8c67-31d342094efc",
+    "slug": "exact-match-3006a55597be",
+    "id": "01990682-5754-7423-b42e-3006a55597be",
+    "flags": {
+        "is_custom": false,
+        "is_evaluator": true,
+        "is_human": false
+    },
+    "data": {
+        "version": "2025.07.14",
+        "uri": "agenta:built-in:auto_exact_match:v0",
+        "schemas": {
+            "outputs": {
+                "type": "object",
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "required": ["success"],
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "parameters": {
+            "correct_answer_key": "correct_answer"
+        },
+        "service": {
+            "agenta": "0.1.0",
+            "format": {
+                "type": "object",
+                "$schema": "http://json-schema.org/schema#",
+                "required": ["outputs"],
+                "properties": {
+                    "outputs": {
+                        "type": "object",
+                        "$schema": "https://json-schema.org/draft/2020-12/schema",
+                        "required": ["success"],
+                        "properties": {
+                            "success": {
+                                "type": "boolean"
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            }
+        },
+        "configuration": {
+            "correct_answer_key": "correct_answer"
+        }
+    }
+}

@@ -115,7 +115,7 @@ const SetupTracingModalContent = ({
                 <Text>Set up tracing</Text>
                 <Button
                     target="_blank"
-                    href="https://agenta.ai/docs/observability/observability-sdk"
+                    href="https://docs.agenta.ai/observability/observability-sdk"
                 >
                     <Play />
                     Tutorial

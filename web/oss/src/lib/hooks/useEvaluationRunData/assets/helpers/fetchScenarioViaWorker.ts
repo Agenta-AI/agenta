@@ -84,9 +84,7 @@ const performFetch = async (
     }
 
     const {jwt, apiUrl, projectId} = await buildAuthContext()
-    const {fetchStepsViaWorker} = await import(
-        "@/oss/lib/evalRunner/bulkWorker"
-    )
+    const {fetchStepsViaWorker} = await import("@/oss/lib/evalRunner/bulkWorker")
 
     const store = evalAtomStore()
 

@@ -1,0 +1,135 @@
+{
+    "created_at": "2025-09-09T07:16:27.148661Z",
+    "updated_at": "2025-09-09T07:16:31.858211Z",
+    "created_by_id": "01990682-5736-79e0-8c67-31d342094efc",
+    "updated_by_id": "01990682-5736-79e0-8c67-31d342094efc",
+    "name": "helpful-v3-chat-1-pt2pa",
+    "id": "01992d55-4590-7b33-b3bd-18e775041fe8",
+    "status": "success",
+    "data": {
+        "steps": [
+            {
+                "key": "chat-1-1367970c6c25",
+                "type": "input",
+                "origin": "auto",
+                "references": {
+                    "testset": {
+                        "id": "019910f4-0828-7370-9b6f-1367970c6c25"
+                    }
+                }
+            },
+            {
+                "key": "chatty-81f61c12b63e",
+                "type": "invocation",
+                "inputs": [
+                    {
+                        "key": "chat-1-1367970c6c25"
+                    }
+                ],
+                "origin": "auto",
+                "references": {
+                    "application": {
+                        "id": "019906d0-c9ed-7552-acc3-40c989c7d697"
+                    },
+                    "application_variant": {
+                        "id": "01991a62-373b-7882-bd76-2880c46f224a"
+                    },
+                    "application_revision": {
+                        "id": "01991ab3-1546-7303-9988-81f61c12b63e"
+                    }
+                }
+            },
+            {
+                "key": "exact-match-3006a55597be",
+                "type": "annotation",
+                "inputs": [
+                    {
+                        "key": "chat-1-1367970c6c25"
+                    },
+                    {
+                        "key": "chatty-81f61c12b63e"
+                    }
+                ],
+                "origin": "auto",
+                "references": {
+                    "evaluator": {
+                        "id": "01990682-5754-7423-b42e-3006a55597be",
+                        "slug": "exact-match-3006a55597be"
+                    },
+                    "evaluator_variant": {
+                        "id": "019910e8-4263-7760-91ad-c61cc0688d9a",
+                        "slug": "ea70c65d4d364132b85f7f0974379b87",
+                        "version": null
+                    },
+                    "evaluator_revision": {
+                        "id": "01992d55-4d1d-7ff0-bbef-73ff1d49cb12",
+                        "slug": "5269b4a7ff1243cab5995321d34a7eda",
+                        "version": null
+                    }
+                }
+            }
+        ],
+        "mappings": [
+            {
+                "step": {
+                    "key": "chat-1-1367970c6c25",
+                    "path": "data.context"
+                },
+                "column": {
+                    "kind": "testset",
+                    "name": "context"
+                }
+            },
+            {
+                "step": {
+                    "key": "chat-1-1367970c6c25",
+                    "path": "data.messages"
+                },
+                "column": {
+                    "kind": "testset",
+                    "name": "messages"
+                }
+            },
+            {
+                "step": {
+                    "key": "chat-1-1367970c6c25",
+                    "path": "data.correct_answer"
+                },
+                "column": {
+                    "kind": "testset",
+                    "name": "correct_answer"
+                }
+            },
+            {
+                "step": {
+                    "key": "chat-1-1367970c6c25",
+                    "path": "data.testcase_dedup_id"
+                },
+                "column": {
+                    "kind": "testset",
+                    "name": "testcase_dedup_id"
+                }
+            },
+            {
+                "step": {
+                    "key": "chatty-81f61c12b63e",
+                    "path": "attributes.ag.data.outputs"
+                },
+                "column": {
+                    "kind": "invocation",
+                    "name": "outputs"
+                }
+            },
+            {
+                "step": {
+                    "key": "exact-match-3006a55597be",
+                    "path": "attributes.ag.data.outputs.success"
+                },
+                "column": {
+                    "kind": "annotation",
+                    "name": "success"
+                }
+            }
+        ]
+    }
+}

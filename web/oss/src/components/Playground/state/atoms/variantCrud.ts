@@ -274,8 +274,6 @@ export const saveVariantMutationAtom = atom(
                 const newRevisionId = waitResult.newestRevisionId
                 const previousRevisionId = variantId
 
-                let logicalIdsForNewRevision: string[] = []
-
                 const currentDisplayedVariants = get(selectedVariantsAtom)
                 const updatedVariants = currentDisplayedVariants.map((id) =>
                     id === variantId ? newRevisionId : id,

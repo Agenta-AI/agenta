@@ -16,9 +16,9 @@ import DeploymentOverview from "@/oss/components/pages/overview/deployments/Depl
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
 import useURL from "@/oss/hooks/useURL"
 import type {JSSTheme} from "@/oss/lib/Types"
-import {deleteApp} from "@/oss/services/app-selector/api"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useAppsData} from "@/oss/state/app"
+
+import {LatestEvaluationRunsTable} from "@/agenta-oss-common/components/EvaluationRunsTablePOC"
 
 const CustomWorkflowHistory: any = dynamic(
     () => import("@/oss/components/pages/app-management/drawers/CustomWorkflowHistory"),
@@ -27,22 +27,12 @@ const ObservabilityOverview: any = dynamic(
     () => import("@/oss/components/pages/overview/observability/ObservabilityOverview"),
 )
 
-const AutoEvaluation = dynamic(
-    () => import("@/oss/components/pages/evaluations/autoEvaluation/AutoEvaluation"),
-    {ssr: false},
-)
-
 const AbTestingEvaluation = dynamic(
     () => import("@/oss/components/HumanEvaluations/AbTestingEvaluation"),
     {ssr: false},
 )
 
-const SingleModelEvaluation = dynamic(
-    () => import("@/oss/components/HumanEvaluations/SingleModelEvaluation"),
-    {ssr: false},
-)
-
-const {Title, Text} = Typography
+const {Text} = Typography
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     container: {
@@ -117,6 +107,8 @@ const OverviewPage = () => {
     const classes = useStyles()
     const [isCustomWorkflowHistoryDrawerOpen, setIsCustomWorkflowHistoryDrawerOpen] =
         useState(false)
+    const {appId, baseAppURL} = useURL()
+    const {currentApp} = useAppsData()
 
     return (
         <>
@@ -126,9 +118,29 @@ const OverviewPage = () => {
                 <DeploymentOverview />
                 <VariantsOverview />
 
-                <AutoEvaluation viewType="overview" />
+                <LatestEvaluationRunsTable
+                    evaluationKind="auto"
+                    appId={appId}
+                    projectIdOverride={currentApp?.project_id ?? null}
+                    title="Latest Auto Evaluations"
+                    viewAllHref={
+                        baseAppURL && appId
+                            ? `${baseAppURL}/${appId}/evaluations?kind=auto`
+                            : undefined
+                    }
+                />
+                <LatestEvaluationRunsTable
+                    evaluationKind="human"
+                    appId={appId}
+                    projectIdOverride={currentApp?.project_id ?? null}
+                    title="Latest Human Evaluations"
+                    viewAllHref={
+                        baseAppURL && appId
+                            ? `${baseAppURL}/${appId}/evaluations?kind=human`
+                            : undefined
+                    }
+                />
                 <AbTestingEvaluation viewType="overview" />
-                <SingleModelEvaluation viewType="overview" />
             </div>
 
             <CustomWorkflowHistory

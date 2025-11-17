@@ -14,6 +14,9 @@ import ResponsiveMetricChart from "./assets/ResponsiveMetricChart"
 import {buildChartData, format3Sig, formatMetricValue} from "./assets/utils"
 import {MetricDetailsPopoverProps} from "./types"
 
+const ENABLE_METRIC_CHART = true
+const ENABLE_PRIMITIVE_TABLE = true
+
 /**
  * MetricDetailsPopover is a React functional component that provides a detailed view
  * of metric information within a popover. It displays both a tabular representation
@@ -41,16 +44,19 @@ const MetricDetailsPopover: FC<MetricDetailsPopoverProps> = memo(
         const [open, setOpen] = useState(false)
         const handleOpenChange = useCallback((v: boolean) => setOpen(v), [])
 
-        const extraEntries = useMemo(() => Object.entries(extraDimensions), [extraDimensions])
+        const extraEntries = useMemo(
+            () => (ENABLE_PRIMITIVE_TABLE ? Object.entries(extraDimensions) : []),
+            [extraDimensions],
+        )
 
         const chartData = useMemo(
-            () => (open ? buildChartData(extraDimensions) : []),
+            () => (ENABLE_METRIC_CHART && open ? buildChartData(extraDimensions) : []),
             [open, extraDimensions],
         )
 
         // Dynamically compute the pixel width required for Y-axis labels
         const labelWidth = useMemo(() => {
-            if (!chartData.length) return 0
+            if (!ENABLE_METRIC_CHART || !chartData.length) return 0
             const canvas = document.createElement("canvas")
             const ctx = canvas.getContext("2d")
             if (!ctx) return 0
@@ -60,7 +66,7 @@ const MetricDetailsPopover: FC<MetricDetailsPopoverProps> = memo(
         }, [chartData])
 
         const primitiveEntries = useMemo(() => {
-            if (!open || hidePrimitiveTable) return []
+            if (!ENABLE_PRIMITIVE_TABLE || !open || hidePrimitiveTable) return []
             // const order = ["mean", "std", "min", "max", "count", "total", "binSize"]
             const order = ["mean", "std", "min", "max", "count", "sum", "binSize", "unique", "rank"]
             const allowed = new Set(order)
@@ -78,7 +84,7 @@ const MetricDetailsPopover: FC<MetricDetailsPopoverProps> = memo(
         }, [open, hidePrimitiveTable, extraEntries])
 
         const tableNode = useMemo(() => {
-            if (!primitiveEntries.length) return null
+            if (!ENABLE_PRIMITIVE_TABLE || !primitiveEntries.length) return null
 
             return (
                 <table className="w-full text-[10px]">
@@ -149,7 +155,7 @@ const MetricDetailsPopover: FC<MetricDetailsPopoverProps> = memo(
 
         const frequencyData = useMemo(() => {
             // Only build for categorical/frequency charts without edge
-            if (isCategoricalChart && !hasEdge) {
+            if (ENABLE_METRIC_CHART && isCategoricalChart && !hasEdge) {
                 // buildChartData returns [{ name, value }] but ResponsiveFrequencyChart expects [{ label, count }]
                 return buildChartData(extraDimensions).map((d) => ({
                     label: d.name,
@@ -160,7 +166,7 @@ const MetricDetailsPopover: FC<MetricDetailsPopoverProps> = memo(
         }, [extraDimensions, isCategoricalChart, hasEdge])
 
         const chartNode = useMemo(() => {
-            if (!open) return null
+            if (!ENABLE_METRIC_CHART || !open) return null
             // Histogram (hasEdge): use ResponsiveMetricChart
             if (chartData.length > 0 && isCategoricalChart && hasEdge) {
                 return (

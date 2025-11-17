@@ -115,6 +115,7 @@ const EvaluatorVariantModal = ({
     selectedTestsetId,
     ...props
 }: EvaluatorVariantModalProps) => {
+    console.log("EvaluatorVariantModal")
     const classes = useStyles()
     const appIdFromRoute = useAppId()
     const isAppScoped = Boolean(appIdFromRoute)
@@ -164,7 +165,9 @@ const EvaluatorVariantModal = ({
         )
     }, [appOptions, appSearchTerm])
 
-    const {columnsByTestsetId} = useTestsetsData({enabled: Boolean(props.open)})
+    const {columnsByTestsetId} = useTestsetsData({
+        enabled: Boolean(props.open),
+    })
 
     const testsetCsvQuery = useAtomValue(
         useMemo(

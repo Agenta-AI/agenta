@@ -26,31 +26,12 @@ export interface NewEvaluationModalProps extends ModalProps {
 
 export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement> {
     evaluationType: "auto" | "human"
-    activePanel: string | null
-    selectedTestsetId: string
-    selectedVariantRevisionIds: string[]
-    selectedEvalConfigs: string[]
-    evaluationName: string
     preview?: boolean
-    isLoading?: boolean
-    setSelectedTestsetId: Dispatch<SetStateAction<string>>
+    open: boolean
     onSuccess?: () => void
-    handlePanelChange: (key: string | string[]) => void
-    setSelectedVariantRevisionIds: Dispatch<SetStateAction<string[]>>
-    setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
-    setEvaluationName: Dispatch<SetStateAction<string>>
-    isOpen?: boolean
-    testsets: testset[]
-    variants?: EnhancedVariant[]
-    variantsLoading?: boolean
-    evaluators: Evaluator[] | EvaluatorDto<"response">[]
-    evaluatorConfigs: EvaluatorConfig[]
-    advanceSettings: LLMRunRateLimitWithCorrectAnswer
-    setAdvanceSettings: Dispatch<SetStateAction<LLMRunRateLimitWithCorrectAnswer>>
-    appOptions: NewEvaluationAppOption[]
-    selectedAppId: string
-    onSelectApp: (value: string) => void
-    appSelectionDisabled?: boolean
+    onRegisterSubmit: (handler: () => Promise<void> | void) => void
+    onLoadingChange: (loading: boolean) => void
+    onReset?: () => void
 }
 
 export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {

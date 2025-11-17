@@ -133,7 +133,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
         )
 
     else:
-        type = "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error"
+        type = "https://docs.agenta.ai/errors#v1:sdk:unknown-workflow-invoke-error"
 
         code = (
             getattr(exception, "status_code")

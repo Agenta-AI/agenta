@@ -31,14 +31,16 @@ const VariantDetailsWithStatus = ({
     const isDirty = showStable ? false : _isDirty
 
     return (
-        <div className={clsx(["flex items-center justify-between", className])}>
-            <VariantDetails
-                variantName={hideName ? "" : variantName}
-                revision={revision}
-                variant={variant}
-                showRevisionAsTag={showRevisionAsTag}
-                hasChanges={isDirty}
-            />
+        <div className={clsx(["flex items-center justify-between gap-2 min-w-0", className])}>
+            <div className="min-w-0 flex-1">
+                <VariantDetails
+                    variantName={hideName ? "" : variantName}
+                    revision={revision}
+                    variant={variant}
+                    showRevisionAsTag={showRevisionAsTag}
+                    hasChanges={isDirty}
+                />
+            </div>
             {showBadges && variant && <EnvironmentStatus variant={variant} />}
         </div>
     )

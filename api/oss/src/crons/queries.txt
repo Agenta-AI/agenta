@@ -1,2 +1,2 @@
 * * * * * root echo "cron test $(date)" >> /proc/1/fd/1 2>&1
-* * * * * root sh /queries.sh >> /proc/1/fd/1 2>&1
+*/1 * * * * root sh /queries.sh >> /proc/1/fd/1 2>&1

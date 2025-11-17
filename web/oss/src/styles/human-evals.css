@@ -48,16 +48,20 @@ body {
     }
 
     .agenta-scenario-table {
-        .ant-table-tbody > tr {
+        .ant-table-row {
             cursor: pointer;
         }
-        .ant-table-row {
-            &.ant-table-row-hover,
-            &:hover {
-                > td {
-                    background-color: #9ab7ff !important;
-                }
-            }
+
+        [role="row"] {
+            transition: background-color 200ms ease;
+        }
+
+        [role="row"].evaluation-runs-table__row--highlighted {
+            background-color: #e9efff !important;
+        }
+
+        [role="row"].evaluation-runs-table__row--highlighted .ant-table-cell-fix-left {
+            background-color: inherit !important;
         }
     }
 }

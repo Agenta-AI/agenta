@@ -167,6 +167,18 @@ const generateColumnWidth = (col: BaseColumn) => {
     return 20
 }
 
+const sumColumnWidths = (columns: EnhancedColumnType<TableRow>[]) =>
+    columns.reduce((sum, column) => {
+        if (!column) return sum
+        const width =
+            typeof column.width === "number"
+                ? column.width
+                : typeof column.minWidth === "number"
+                  ? column.minWidth
+                  : 0
+        return sum + (width ?? 0)
+    }, 0)
+
 const orderRank = (def: EnhancedColumnType<TableRow>): number => {
     if (def.key === "#") return 0
     if (def.key === "timestamp") return 1
@@ -274,16 +286,22 @@ export function buildAntdColumns(
             const sorter = sortable ? scenarioMetricSorter(c, runId) : undefined
 
             if (c.children) {
-                // drop empty wrapper groups
+                const builtChildren = buildAntdColumns(c.children, runId, options)
+                const childrenWidth = sumColumnWidths(builtChildren)
+                const groupWidth = Math.max(common.width ?? 0, childrenWidth)
+                const groupMinWidth = Math.max(common.minWidth ?? 0, childrenWidth)
+                const groupProps = {...common, width: groupWidth, minWidth: groupMinWidth}
+
                 if ((!c.title && !c.name) || c.kind === "metrics_group") {
                     return {
-                        ...common,
+                        ...groupProps,
                         __editLabel: editLabel,
-                        children: buildAntdColumns(c.children, runId, options),
+                        children: builtChildren,
                     } as EnhancedColumnType<TableRow>
                 }
                 if (c.key === "__metrics_group__" || c.key?.startsWith("metrics_")) {
                     return {
+                        ...groupProps,
                         title: (
                             <span className="flex items-center gap-1 whitespace-nowrap">
                                 {c.key === "__metrics_group__" ? "Metrics" : (c.title ?? "")}
@@ -341,16 +359,16 @@ export function buildAntdColumns(
                                 />
                             )
                         },
-                        children: buildAntdColumns(c.children, runId, options),
+                        children: builtChildren,
                     }
                 }
 
                 return {
-                    ...common,
+                    ...groupProps,
                     __editLabel: editLabel,
                     title: titleCase(c.title ?? c.name),
                     key: c.key ?? c.name,
-                    children: buildAntdColumns(c.children, runId, options),
+                    children: builtChildren,
                 } as EnhancedColumnType<TableRow>
             }
 

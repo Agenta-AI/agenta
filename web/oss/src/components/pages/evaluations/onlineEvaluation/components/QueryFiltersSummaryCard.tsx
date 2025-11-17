@@ -7,7 +7,7 @@ import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import type {
     QueryFilteringPayload,
     QueryWindowingPayload,
-} from "../../../../../services/onlineEvaluations/api"
+} from "@/oss/services/onlineEvaluations/api"
 
 import FiltersPreview from "./FiltersPreview"
 

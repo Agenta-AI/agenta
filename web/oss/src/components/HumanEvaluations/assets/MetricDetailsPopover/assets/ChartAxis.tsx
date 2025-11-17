@@ -65,7 +65,7 @@ export const ChartAxis: FC<ChartAxisProps> = ({
         {yLabels && yLabelScale
             ? yLabels.map((label, idx) => (
                   <text
-                      key={"ylabel-" + idx}
+                      key={`ylabel-${idx}`}
                       x={margin.left - 8}
                       y={margin.top + yLabelScale(idx) + 4}
                       fill="#8c8c8c"
@@ -75,9 +75,9 @@ export const ChartAxis: FC<ChartAxisProps> = ({
                       {label}
                   </text>
               ))
-            : yTicks?.map((tick) => (
+            : yTicks?.map((tick, idx) => (
                   <text
-                      key={"ytick-" + tick}
+                      key={`ytick-${idx}`}
                       x={margin.left - 8}
                       y={margin.top + yScale(tick) + 4}
                       fill="#8c8c8c"

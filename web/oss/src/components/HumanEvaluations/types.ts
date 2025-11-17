@@ -1,6 +1,6 @@
 import {Key} from "react"
 
-import {EnrichedEvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+import {EnrichedEvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 import {SingleModelEvaluationListTableDataType} from "@/oss/lib/Types"
 import {BasicStats} from "@/oss/services/runMetrics/api/types"
 

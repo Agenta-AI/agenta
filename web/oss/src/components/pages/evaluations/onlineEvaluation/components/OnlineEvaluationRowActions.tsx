@@ -2,9 +2,10 @@ import {memo, useMemo, useState} from "react"
 
 import {MoreOutlined} from "@ant-design/icons"
 import {Note, Play, Stop, Trash} from "@phosphor-icons/react"
-import {Button, Dropdown, MenuProps, message} from "antd"
+import {Button, Dropdown, MenuProps} from "antd"
 import {useRouter} from "next/router"
 
+import {message} from "@/oss/components/AppMessageContext"
 import {startSimpleEvaluation, stopSimpleEvaluation} from "@/oss/services/onlineEvaluations/api"
 
 import {extractPrimaryInvocation, buildEvaluationNavigationUrl} from "../../utils"

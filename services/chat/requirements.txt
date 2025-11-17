@@ -2,8 +2,6 @@ agenta
 uvicorn
 boto3
 structlog
-newrelic
-
 
 # test
 google-auth>=2.23,<3

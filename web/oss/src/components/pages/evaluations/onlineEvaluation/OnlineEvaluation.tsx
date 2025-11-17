@@ -1,9 +1,10 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {Gauge, Plus} from "@phosphor-icons/react"
-import {Button, message} from "antd"
+import {Button} from "antd"
 import {useRouter} from "next/router"
 
+import {message} from "@/oss/components/AppMessageContext"
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import EditColumns from "@/oss/components/Filters/EditColumns"
@@ -19,11 +20,11 @@ import useRunMetricsMap from "@/oss/lib/hooks/useRunMetricsMap"
 import {getMetricConfig} from "@/oss/lib/metrics/utils"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 import {EvaluationStatus} from "@/oss/lib/Types"
+import {retrieveQueryRevision} from "@/oss/services/onlineEvaluations/api"
 import {getProjectValues} from "@/oss/state/project"
 
-import {retrieveQueryRevision} from "../../../../services/onlineEvaluations/api"
-import {GeneralAutoEvalMetricColumns} from "../../../EvalRunDetails/components/VirtualizedScenarioTable/assets/constants"
-import EvaluationStatusCell from "../../../HumanEvaluations/assets/EvaluationStatusCell"
+import {GeneralAutoEvalMetricColumns} from "../../../../../../ee/src/components/EvalRunDetails/components/VirtualizedScenarioTable/assets/constants"
+import EvaluationStatusCell from "../../../../../../ee/src/components/HumanEvaluations/assets/EvaluationStatusCell"
 import {buildEvaluationNavigationUrl} from "../utils"
 
 import OnlineEvaluationRowActions from "./components/OnlineEvaluationRowActions"

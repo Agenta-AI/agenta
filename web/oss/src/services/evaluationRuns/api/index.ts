@@ -110,7 +110,7 @@ const buildInvocationStep = (revision: EnhancedVariant, inputKey: string) => {
     return {
         key: invocationKey,
         type: "invocation",
-        origin: "human",
+        origin: "auto",
         references,
         inputs: [{key: inputKey}],
     }

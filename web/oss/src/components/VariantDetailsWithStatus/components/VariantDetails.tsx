@@ -78,8 +78,12 @@ const VariantDetails = ({
         }
     }
     return (
-        <Space size={4}>
-            {variantName ? <Typography>{variantName}</Typography> : null}
+        <Space size={4} className="min-w-0 flex-nowrap">
+            {variantName ? (
+                <Typography.Text className="truncate max-w-full block">
+                    {variantName}
+                </Typography.Text>
+            ) : null}
             {revision !== undefined &&
                 (showRevisionAsTag ? (
                     <Tag className={`bg-[rgba(5,23,41,0.06)]`} bordered={false}>

@@ -393,9 +393,9 @@ async def get_variant_revision(
     revision_number: int,
     request: Request,
 ):
-    assert variant_id != "undefined", (
-        "Variant id is required to retrieve variant revision"
-    )
+    assert (
+        variant_id != "undefined"
+    ), "Variant id is required to retrieve variant revision"
     app_variant = await db_manager.fetch_app_variant_by_id(app_variant_id=variant_id)
 
     if is_ee():
@@ -517,6 +517,16 @@ class ConfigRequestModel(ConfigDTO):
 
 class ConfigResponseModel(ConfigDTO):
     pass
+
+
+class ConfigsQueryRequestModel(BaseModel):
+    variant_refs: Optional[List[ReferenceRequestModel]] = None
+    application_ref: Optional[ReferenceRequestModel] = None
+
+
+class ConfigsResponseModel(BaseModel):
+    count: int = 0
+    configs: List[ConfigDTO] = []
 
 
 @router.post(
@@ -690,6 +700,47 @@ async def configs_fork(
     )
 
     return config
+
+
+@router.post(
+    "/configs/query",
+    operation_id="configs_query",
+    response_model=ConfigsResponseModel,
+)
+@intercept_exceptions()
+async def configs_query(
+    request: Request,
+    query: ConfigsQueryRequestModel,
+) -> ConfigsResponseModel:
+    variant_refs = query.variant_refs or []
+
+    if not variant_refs:
+        return ConfigsResponseModel(count=0, configs=[])
+
+    seen_keys = set()
+    configs: List[ConfigDTO] = []
+
+    for ref in variant_refs:
+        dedup_key = (
+            str(ref.id) if ref.id else None,
+            ref.slug or None,
+            ref.version or None,
+        )
+        if dedup_key in seen_keys:
+            continue
+        seen_keys.add(dedup_key)
+
+        config = await fetch_config_by_variant_ref(
+            project_id=request.state.project_id,
+            variant_ref=ref,
+            application_ref=query.application_ref,
+            user_id=request.state.user_id,
+        )
+
+        if config:
+            configs.append(config)
+
+    return ConfigsResponseModel(count=len(configs), configs=configs)
 
 
 @router.post(

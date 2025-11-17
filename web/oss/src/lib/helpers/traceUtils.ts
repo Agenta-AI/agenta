@@ -65,7 +65,14 @@ export function readInvocationResponse({
     forceTrace?: TraceTree
     scenarioId?: string
     evalType?: "auto" | "online" | "human"
-}): {trace?: any; value?: any; rawValue?: any; testsetId?: string; testcaseId?: string} {
+}): {
+    trace?: any
+    value?: any
+    rawValue?: any
+    testsetId?: string
+    testcaseId?: string
+    resolvedPath?: string
+} {
     if (!scenarioData) return {}
 
     const invocationSteps: any[] = Array.isArray(scenarioData.invocationSteps)
@@ -126,6 +133,7 @@ export function readInvocationResponse({
     const resolvedCandidates = Array.from(
         new Set(candidatePaths.filter((p): p is string => typeof p === "string" && p.length)),
     )
+    const resolvedPath = resolvedCandidates[0]
     // --- END PATH RESOLUTION LOGIC ---
 
     // --- MAPPING LOGIC FOR TESTSET/TESTCASE INFERENCE ---
@@ -164,31 +172,19 @@ export function readInvocationResponse({
         }
         candidateNodes.push(invocationTrace)
     }
-    const primaryNode = candidateNodes[0]
-    const trace =
+    const primaryTraceNode =
         Array.isArray(candidateNodes) && candidateNodes.length ? candidateNodes[0] : undefined
+    const resolvedTrace = invocationTrace ?? primaryTraceNode
 
     // First priority: optimistic result override (e.g., UI enqueue)
     let rawValue = optimisticResult
 
-    if (rawValue === undefined && resolvedCandidates.length) {
-        const sources = [
-            ...candidateNodes,
-            invocationStep?.data,
-            invocationStep?.result,
-            invocationStep,
-        ].filter(Boolean)
-
-        for (const candidate of resolvedCandidates) {
-            for (const source of sources) {
-                const resolved = resolvePath(source, candidate)
-                if (resolved !== undefined) {
-                    rawValue = resolved
-                    break
-                }
-            }
-            if (rawValue !== undefined) {
-                break
+    if (rawValue === undefined && resolvedPath) {
+        rawValue = resolvePath(primaryTraceNode, resolvedPath)
+        if (rawValue === undefined) {
+            for (const node of candidateNodes.slice(1)) {
+                rawValue = resolvePath(node, resolvedPath)
+                if (rawValue !== undefined) break
             }
         }
     }
@@ -212,5 +208,12 @@ export function readInvocationResponse({
             }
         }
     }
-    return {trace, value, rawValue, testsetId, testcaseId}
+    return {
+        trace: resolvedTrace,
+        value,
+        rawValue,
+        testsetId,
+        testcaseId,
+        resolvedPath,
+    }
 }

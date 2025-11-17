@@ -33,7 +33,8 @@ Choose Traefik unless you have specific requirements for Nginx.
 Clone the Agenta repository to your server:
 
 ```bash
-git clone --depth 1 https://github.com/Agenta-AI/agenta && cd agenta
+git clone https://github.com/agenta-ai/agenta
+cd agenta
 ```
 
 ## Step 2: Configure Your Deployment
@@ -48,12 +49,7 @@ Agenta uses environment variables to configure how it runs on your server. The m
 
 ### Edit the Configuration File
 
-First copy the template configuration:
-```bash
-cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
-```
-
-Then, open the environment configuration file:
+Open the environment configuration file:
 
 ```bash
 nano hosting/docker-compose/oss/.env.oss.gh

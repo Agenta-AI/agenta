@@ -5,7 +5,7 @@ import clsx from "clsx"
 import {Resizable} from "react-resizable"
 
 export const ResizableTitle = memo((props: any) => {
-    const {onResize, width, minWidth, ...restProps} = props
+    const {onResize, onResizeStop, onResizeStart, width, minWidth = 80, ...restProps} = props
 
     // Local live width to avoid forcing parent re-renders on every drag frame
     const [liveWidth, setLiveWidth] = useState<number | undefined>(width)
@@ -17,6 +17,10 @@ export const ResizableTitle = memo((props: any) => {
     if (!width) {
         return <th {...restProps} />
     }
+
+    const clamp = (value: number | undefined) =>
+        Math.max(typeof value === "number" ? value : minWidth, minWidth)
+
     return (
         <Resizable
             width={liveWidth ?? width}
@@ -28,8 +32,29 @@ export const ResizableTitle = memo((props: any) => {
                 />
             }
             onResize={(e: any, data: any) => {
-                setLiveWidth(data.size.width)
-                onResize && onResize(e, data)
+                const nextWidth = clamp(data.size.width)
+                setLiveWidth(nextWidth)
+                onResize?.(e, {
+                    ...data,
+                    size: {
+                        ...data.size,
+                        width: nextWidth,
+                    },
+                })
+            }}
+            onResizeStart={(e: any, data: any) => {
+                onResizeStart?.(e, data)
+            }}
+            onResizeStop={(e: any, data: any) => {
+                const nextWidth = clamp(data.size.width)
+                setLiveWidth(nextWidth)
+                onResizeStop?.(e, {
+                    ...data,
+                    size: {
+                        ...data.size,
+                        width: nextWidth,
+                    },
+                })
             }}
             draggableOpts={{enableUserSelectHack: false}}
         >
@@ -38,8 +63,8 @@ export const ResizableTitle = memo((props: any) => {
                 style={{
                     ...restProps.style,
                     paddingRight: 8,
-                    minWidth: 80,
-                    width: (liveWidth ?? width) || 160,
+                    minWidth,
+                    width: liveWidth ?? width,
                 }}
                 className={clsx([restProps.className, {"select-none": onResize}])}
             >

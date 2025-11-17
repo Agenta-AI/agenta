@@ -143,8 +143,7 @@ async def environment_db_to_output(
 ) -> EnvironmentOutput:
     deployed_app_variant_id = (
         str(environment_db.deployed_app_variant_id)
-        if environment_db.deployed_app_variant_id
-        and isinstance(environment_db.deployed_app_variant_id, uuid.UUID)  # type: ignore
+        if environment_db.deployed_app_variant_id and isinstance(environment_db.deployed_app_variant_id, uuid.UUID)  # type: ignore
         else None
     )
     if deployed_app_variant_id:
@@ -230,6 +229,21 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
     )
 
 
+def _extract_columns_from_csvdata(csvdata: Any) -> List[str]:
+    if not isinstance(csvdata, list) or len(csvdata) == 0:
+        return []
+
+    first_row = csvdata[0]
+    if not isinstance(first_row, dict):
+        return []
+
+    data_section = first_row.get("data")
+    if isinstance(data_section, dict):
+        return [str(key) for key in data_section.keys()]
+
+    return [str(key) for key in first_row.keys()]
+
+
 def testset_db_to_pydantic(testset_db: TestsetDB) -> TestsetOutput:
     """
     Convert a TestsetDB object to a TestsetAPI object.
@@ -246,6 +260,7 @@ def testset_db_to_pydantic(testset_db: TestsetDB) -> TestsetOutput:
         created_at=str(testset_db.created_at),
         updated_at=str(testset_db.updated_at),
         id=str(testset_db.id),
+        columns=_extract_columns_from_csvdata(testset_db.csvdata),
     )
 
 

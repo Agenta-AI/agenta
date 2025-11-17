@@ -30,6 +30,8 @@ export interface StepMeta {
     upstream: string[]
     /** Raw references blob – may contain application, evaluator, etc. */
     refs: Record<string, any>
+    /** Step origin ("auto" | "human" | other) when provided */
+    origin?: string
 }
 
 export interface RunIndex {
@@ -56,36 +58,51 @@ export function buildRunIndex(rawRun: any): RunIndex {
     const evaluatorSlugToId = new Map<string, string>()
 
     // 1️⃣  Index steps -------------------------------------------------------
-    const shouldLog =
-        process.env.NODE_ENV !== "production" &&
-        typeof window !== "undefined" &&
+    const isBrowser = typeof window !== "undefined"
+    const shouldLogRunIndex = process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" && isBrowser
+    const shouldLogDetails =
+        shouldLogRunIndex &&
         (rawRun?.evaluation_type === "online" ||
             rawRun?.data?.evaluation_type === "online" ||
             rawRun?.meta?.evaluation_type === "online")
 
     for (const s of rawRun?.data?.steps ?? []) {
-        let kind: StepKind = "annotation"
         const refs = s.references ?? {}
-        const hasInvocationReference =
-            Boolean(refs.applicationRevision) ||
-            Boolean(refs.application) ||
+        const rawType = typeof s.type === "string" ? s.type.toLowerCase() : ""
+        const hasTestsetReference = Boolean(refs.testset)
+        const hasQueryReference =
             Boolean(refs.query) ||
             Boolean(refs.query_revision) ||
             Boolean(refs.queryRevision) ||
             Boolean(refs.query_variant) ||
             Boolean(refs.queryVariant)
-        if (refs.testset) {
-            kind = "input"
-        } else if (refs.evaluator) {
-            kind = "annotation"
-            if (refs.evaluator.slug) {
-                evaluatorSlugToId.set(refs.evaluator.slug, refs.evaluator.id)
-            }
-        } else if (hasInvocationReference) {
-            kind = "invocation"
+        const hasInvocationReference =
+            Boolean(refs.applicationRevision) ||
+            Boolean(refs.application) ||
+            Boolean(refs.application_variant) ||
+            Boolean(refs.applicationVariant) ||
+            Boolean(refs.agent) ||
+            Boolean(refs.agent_revision) ||
+            Boolean(refs.agentRevision)
+
+        let kind: StepKind =
+            rawType === "input" || rawType === "invocation" || rawType === "annotation"
+                ? (rawType as StepKind)
+                : "annotation"
+
+        if (refs.evaluator?.slug) {
+            evaluatorSlugToId.set(refs.evaluator.slug, refs.evaluator.id)
         }
 
-        if (shouldLog) {
+        if (refs.evaluator) {
+            kind = "annotation"
+        } else if (hasInvocationReference) {
+            kind = "invocation"
+        } else if (hasTestsetReference || hasQueryReference) {
+            kind = "input"
+        }
+
+        if (shouldLogDetails) {
             console.debug("[EvalRun][buildRunIndex] Step classified", {
                 key: s.key,
                 refs: Object.keys(refs || {}),
@@ -93,12 +110,15 @@ export function buildRunIndex(rawRun: any): RunIndex {
             })
         }
 
+        const origin = typeof s.origin === "string" ? s.origin : undefined
+
         steps[s.key] = {
             key: s.key,
             kind,
             origin: typeof s.origin === "string" ? s.origin : undefined,
             upstream: (s.inputs ?? []).map((i: any) => i.key),
             refs: s.references ?? {},
+            origin,
         }
     }
 
@@ -108,16 +128,18 @@ export function buildRunIndex(rawRun: any): RunIndex {
         const rawKind = typeof m.column.kind === "string" ? m.column.kind.toLowerCase() : ""
         const colKind: StepKind =
             stepKind ||
-            (rawKind === "testset" || rawKind.includes("testset") || rawKind.includes("input")
+            (rawKind === "testset" ||
+            rawKind.includes("testset") ||
+            rawKind.includes("input") ||
+            rawKind.includes("query")
                 ? "input"
                 : rawKind === "invocation" ||
                     rawKind.includes("invocation") ||
-                    rawKind.includes("application") ||
-                    rawKind.includes("query")
+                    rawKind.includes("application")
                   ? "invocation"
                   : "annotation")
 
-        if (shouldLog) {
+        if (shouldLogDetails) {
             console.debug("[EvalRun][buildRunIndex] Column mapping", {
                 column: m.column?.name,
                 rawKind: m.column?.kind,
@@ -147,6 +169,31 @@ export function buildRunIndex(rawRun: any): RunIndex {
         if (meta.kind === "annotation") annotationKeys.add(meta.key)
         if (meta.kind === "input") inputKeys.add(meta.key)
     }
+
+    // if (shouldLogRunIndex) {
+    //     try {
+    //         const sampleColumns = Object.entries(columnsByStep).map(([stepKey, cols]) => ({
+    //             stepKey,
+    //             columnCount: cols.length,
+    //             sample: cols.slice(0, 3).map((col) => ({
+    //                 name: col.name,
+    //                 kind: col.kind,
+    //                 path: col.path,
+    //             })),
+    //         }))
+
+    //         // console.info("[EvalRunDetails2][RunIndex] constructed", {
+    //         //     runId: rawRun?.id ?? rawRun?.run_id ?? rawRun?.runId ?? rawRun?.data?.id,
+    //         //     stepCount: Object.keys(steps).length,
+    //         //     inputKeys: [...inputKeys],
+    //         //     invocationKeys: [...invocationKeys],
+    //         //     annotationKeys: [...annotationKeys],
+    //         //     columnsByStep: sampleColumns,
+    //         // })
+    //     } catch (error) {
+    //         console.warn("[EvalRunDetails2][RunIndex] failed to log summary", {error})
+    //     }
+    // }
 
     return {steps, columnsByStep, invocationKeys, annotationKeys, inputKeys}
 }

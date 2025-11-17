@@ -8,7 +8,7 @@ import {useRouter} from "next/router"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
-import {EnrichedEvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+import {EnrichedEvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 import {urlStateAtom} from "../../state/urlState"
 

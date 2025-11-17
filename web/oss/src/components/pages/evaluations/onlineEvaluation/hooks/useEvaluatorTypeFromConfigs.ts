@@ -4,6 +4,8 @@ import {useAtomValue} from "jotai"
 
 import {evaluatorConfigsAtom} from "@/oss/lib/atoms/evaluation"
 import useEvaluatorConfigs from "@/oss/lib/hooks/useEvaluatorConfigs"
+import useEvaluators from "@/oss/lib/hooks/useEvaluators"
+import type {Evaluator} from "@/oss/lib/Types"
 
 import {EVALUATOR_CATEGORY_LABEL_MAP} from "../constants"
 import {collectEvaluatorCandidates} from "../utils/evaluatorDetails"
@@ -18,6 +20,9 @@ export const useEvaluatorTypeFromConfigs = ({
     const cached = useAtomValue(evaluatorConfigsAtom)
     const {data: fetched} = useEvaluatorConfigs({})
     const configs = cached && cached.length ? cached : fetched
+    const baseEvaluatorsResult = useEvaluators()
+    const baseEvaluators =
+        (baseEvaluatorsResult.data as Evaluator[] | undefined)?.filter(Boolean) ?? []
 
     return useMemo(() => {
         if (!evaluator || !Array.isArray(configs) || configs.length === 0) {
@@ -42,22 +47,30 @@ export const useEvaluatorTypeFromConfigs = ({
 
         if (!match) return {label: undefined, color: undefined}
 
-        // 1) Try label from config.tags using category map
-        const tags: string[] = Array.isArray(match.tags)
+        const tagsFromMatch: string[] = Array.isArray(match.tags)
             ? (match.tags as string[])
             : typeof (match as any)?.tags === "string"
               ? [(match as any).tags as string]
               : []
 
-        for (const raw of tags) {
-            if (!raw) continue
-            const lower = raw.toString().trim().toLowerCase()
+        const normalizedTags = tagsFromMatch.map((tag) => tag?.toString().trim()).filter(Boolean)
+
+        const resolveLabelFromTag = (tag: string | undefined) => {
+            if (!tag) return undefined
+            const lower = tag.toLowerCase()
             const slugified = lower
                 .replace(/[^a-z0-9]+/g, "_")
                 .replace(/_+/g, "_")
                 .replace(/^_|_$/g, "")
-            const label = (EVALUATOR_CATEGORY_LABEL_MAP as any)[slugified]
-            if (label) return {label, color: (match as any)?.color}
+            return (EVALUATOR_CATEGORY_LABEL_MAP as any)[slugified]
+        }
+
+        // 1) Try label from config.tags using category map
+        for (const raw of normalizedTags) {
+            const label = resolveLabelFromTag(raw)
+            if (label) {
+                return {label, color: (match as any)?.color}
+            }
         }
 
         // 2) Infer label by scanning evaluator_key/name tokens for known category slugs
@@ -86,6 +99,35 @@ export const useEvaluatorTypeFromConfigs = ({
                 return {
                     label: (EVALUATOR_CATEGORY_LABEL_MAP as any)[found],
                     color: (match as any)?.color,
+                }
+            }
+        }
+
+        const evaluatorKeyCandidates = collectEvaluatorCandidates(
+            (match as any)?.evaluator_key,
+            (match as any)?.name,
+        )
+
+        if (evaluatorKeyCandidates.length && baseEvaluators.length) {
+            const baseMatch = baseEvaluators.find((base) => {
+                const baseCandidates = collectEvaluatorCandidates(
+                    base.key,
+                    base.name,
+                    (base as any)?.slug,
+                )
+                if (!baseCandidates.length) return false
+                return baseCandidates.some((candidate) =>
+                    evaluatorKeyCandidates.includes(candidate),
+                )
+            })
+
+            if (baseMatch) {
+                const baseTags = Array.isArray(baseMatch.tags) ? baseMatch.tags : []
+                for (const rawTag of baseTags) {
+                    const label = resolveLabelFromTag(rawTag)
+                    if (label) {
+                        return {label, color: (match as any)?.color}
+                    }
                 }
             }
         }
@@ -121,5 +163,5 @@ export const useEvaluatorTypeFromConfigs = ({
 
         // 3) No category determinable from config; return color only
         return {label: undefined, color: (match as any)?.color}
-    }, [evaluator, configs])
+    }, [evaluator, configs, baseEvaluators])
 }

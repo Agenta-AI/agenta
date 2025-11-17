@@ -10,8 +10,8 @@ import {
 import {getOperator} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
 import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
 import type {Filter, FilterConditions, FilterValue} from "@/oss/lib/Types"
+import type {QueryFilteringPayload} from "@/oss/services/onlineEvaluations/api"
 
-import type {QueryFilteringPayload} from "../../../../../services/onlineEvaluations/api"
 import {fromFilteringPayload} from "../assets/helpers"
 
 import ReadOnlyBox from "./ReadOnlyBox"
@@ -23,6 +23,7 @@ interface FiltersPreviewProps {
     filters?: Filter[]
     className?: string
     compact?: boolean
+    compactMaxRows?: number
 }
 
 interface NormalizedFilter {
@@ -108,7 +109,13 @@ const buildNormalizedFilters = (
     })
 }
 
-const FiltersPreview = ({filtering, filters, className, compact}: FiltersPreviewProps) => {
+export const FiltersPreview = ({
+    filtering,
+    filters,
+    className,
+    compact,
+    compactMaxRows,
+}: FiltersPreviewProps) => {
     const columns = useMemo(() => getFilterColumns(), [])
     const fieldMap = useMemo(() => fieldConfigByOptionKey(columns), [columns])
     const normalizedFilters = useMemo(() => {
@@ -127,15 +134,24 @@ const FiltersPreview = ({filtering, filters, className, compact}: FiltersPreview
     }
 
     if (compact) {
+        const limit =
+            compactMaxRows && compactMaxRows > 0 ? compactMaxRows : normalizedFilters.length
+        const displayFilters = normalizedFilters.slice(0, limit)
+        const remaining = normalizedFilters.length - displayFilters.length
         return (
             <div className={clsx("flex flex-col gap-1 text-xs text-[#475467]", className)}>
-                {normalizedFilters.map((item) => (
+                {displayFilters.map((item) => (
                     <div key={item.id} className="leading-snug">
                         <span className="font-medium text-[#1D2939]">{item.fieldLabel}</span>{" "}
                         <span className="text-[#98A2B3]">{item.operatorLabel}</span>{" "}
                         <span className="font-medium text-[#1D2939]">{item.valueLabel}</span>
                     </div>
                 ))}
+                {remaining > 0 ? (
+                    <div className="text-[11px] uppercase tracking-wide text-[#98A2B3] font-medium">
+                        +{remaining} more filter{remaining === 1 ? "" : "s"}
+                    </div>
+                ) : null}
             </div>
         )
     }

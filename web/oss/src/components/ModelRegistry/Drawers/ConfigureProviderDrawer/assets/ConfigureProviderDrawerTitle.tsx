@@ -10,7 +10,7 @@ const ConfigureProviderDrawerTitle = () => {
             <Button
                 type="link"
                 icon={<LinkSimple size={14} className="mt-1" />}
-                href="https://agenta.ai/docs/prompt-engineering/playground/adding-custom-providers"
+                href="https://docs.agenta.ai/prompt-engineering/playground/adding-custom-providers"
                 target="_blank"
                 rel="noreferrer"
             >

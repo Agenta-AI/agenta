@@ -5,8 +5,9 @@ import {JSSTheme} from "@/oss/lib/Types"
 export const useStyles = createUseStyles((theme: JSSTheme) => {
     return {
         collapseContainer: {
+            backgroundColor: "transparent",
             "& .ant-collapse-header": {
-                backgroundColor: `#FAFAFB !important`,
+                backgroundColor: "transparent !important",
                 borderBottom: `1px solid ${theme.colorSplit} !important`,
             },
             "& .ant-collapse-item": {
@@ -14,6 +15,7 @@ export const useStyles = createUseStyles((theme: JSSTheme) => {
                 flexDirection: "column",
             },
             "& .ant-collapse-content": {
+                backgroundColor: "transparent !important",
                 borderBottom: `0.1px solid ${theme.colorSplit} !important`,
                 borderRadius: "0px !important",
             },

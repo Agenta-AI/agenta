@@ -8,7 +8,7 @@ import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
 import {PromptsSourceProvider} from "@/oss/components/Playground/context/PromptsSource"
-import {EnrichedEvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+import {EnrichedEvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 import type {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {fetchOpenApiSchemaJson} from "@/oss/lib/shared/variant/transformer"
 import {
