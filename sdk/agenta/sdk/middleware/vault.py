@@ -36,6 +36,7 @@ _PROVIDER_KINDS = [
     "alephalpha",
     "groq",
     "mistral",
+    "mistralai",
     "anthropic",
     "perplexityai",
     "togetherai",
