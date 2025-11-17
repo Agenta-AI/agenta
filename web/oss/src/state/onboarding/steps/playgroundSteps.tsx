@@ -251,6 +251,7 @@ const buildPostRunSteps = (mode: "completion" | "chat") => {
             pointerPadding: 12,
             pointerRadius: 12,
             onboardingSection: "playgroundPostRun" as const,
+            onEnter: () => closeTraceDrawer(),
         },
         ...TRACE_STEPS_FOR_PLAYGROUND,
         {
@@ -271,59 +272,60 @@ const buildPostRunSteps = (mode: "completion" | "chat") => {
             onboardingSection: "playgroundPostRun" as const,
             onEnter: () => closeTraceDrawer(),
         },
-        // {
-        //     icon: "🚀",
-        //     title: "Deploy your variant",
-        //     content: (
-        //         <span>
-        //             Ship this iteration to an environment when you&apos;re confident with the
-        //             current run.
-        //         </span>
-        //     ),
-        //     selector: "#tour-playground-deploy-button",
-        //     side: "bottom",
-        //     showControls: true,
-        //     showSkip: true,
-        //     pointerPadding: 12,
-        //     pointerRadius: 12,
-        //     onboardingSection: "playgroundPostRun" as const,
-        // },
-        // {
-        //     icon: "🌐",
-        //     title: "Choose an environment",
-        //     content: (
-        //         <span>
-        //             Pick the target environment for this deployment. Each row represents one of your
-        //             configured stages.
-        //         </span>
-        //     ),
-        //     selector: "#tour-playground-deploy-modal-table",
-        //     side: "top",
-        //     showControls: true,
-        //     showSkip: true,
-        //     pointerPadding: 12,
-        //     pointerRadius: 12,
-        //     onboardingSection: "playgroundPostRun" as const,
-        //     onEnter: () => openDeployModalForCurrentVariant(),
-        // },
-        // {
-        //     icon: "✅",
-        //     title: "Confirm deployment",
-        //     content: (
-        //         <span>
-        //             Deploy the selected variant to the chosen environment. You can always redeploy
-        //             after more changes.
-        //         </span>
-        //     ),
-        //     selector: "#tour-playground-deploy-modal-confirm",
-        //     side: "bottom",
-        //     showControls: true,
-        //     showSkip: true,
-        //     pointerPadding: 12,
-        //     pointerRadius: 12,
-        //     onboardingSection: "playgroundPostRun" as const,
-        //     onCleanup: () => closeDeployModal(),
-        // },
+        {
+            icon: "🚀",
+            title: "Deploy your variant",
+            content: (
+                <span>
+                    Ship this iteration to an environment when you&apos;re confident with the
+                    current run.
+                </span>
+            ),
+            selector: "#tour-playground-deploy-button",
+            side: "bottom",
+            showControls: true,
+            showSkip: true,
+            pointerPadding: 12,
+            pointerRadius: 12,
+            onboardingSection: "playgroundPostRun" as const,
+            onEnter: () => closeDeployModal(),
+        },
+        {
+            icon: "🌐",
+            title: "Choose an environment",
+            content: (
+                <span>
+                    Pick the target environment for this deployment. Each row represents one of your
+                    configured stages.
+                </span>
+            ),
+            selector: "#tour-playground-deploy-modal-table",
+            side: "top",
+            showControls: true,
+            showSkip: true,
+            pointerPadding: 12,
+            pointerRadius: 12,
+            onboardingSection: "playgroundPostRun" as const,
+            onEnter: () => openDeployModalForCurrentVariant(),
+        },
+        {
+            icon: "✅",
+            title: "Confirm deployment",
+            content: (
+                <span>
+                    Deploy the selected variant to the chosen environment. You can always redeploy
+                    after more changes.
+                </span>
+            ),
+            selector: "#tour-playground-deploy-modal-confirm",
+            side: "bottom",
+            showControls: true,
+            showSkip: true,
+            pointerPadding: 12,
+            pointerRadius: 12,
+            onboardingSection: "playgroundPostRun" as const,
+            onCleanup: () => closeDeployModal(),
+        },
     ]
 }
 

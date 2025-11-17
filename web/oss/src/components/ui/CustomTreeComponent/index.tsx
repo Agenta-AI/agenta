@@ -49,16 +49,32 @@ interface TreeProps {
      * Function to handle when a node is selected.
      */
     onSelect: (key: string) => void
+
+    /**
+     * Enable tour mode.
+     */
+    enableTour?: boolean
 }
 
-const TreeNodeComponent: React.FC<{
+interface TreeNodeComponentProps {
     node: TraceSpanNode
     isLast: boolean
     settings: {latency: boolean; cost: boolean; tokens: boolean}
     selectedKey: string | null
     onSelect: (key: string) => void
     isRoot?: boolean
-}> = ({node, isLast, settings, selectedKey, onSelect, isRoot = false}) => {
+    enableTour?: boolean
+}
+
+const TreeNodeComponent: React.FC<TreeNodeComponentProps> = ({
+    node, 
+    isLast, 
+    settings, 
+    selectedKey, 
+    onSelect, 
+    isRoot = false,
+    enableTour = false
+}) => {
     const classes = useStyles()
     const [expanded, setExpanded] = useState(true)
     const hasChildren = node.children && node.children.length > 0
@@ -69,7 +85,10 @@ const TreeNodeComponent: React.FC<{
     const shouldShowAsLast = isLast && (!hasChildren || (hasChildren && !expanded))
 
     return (
-        <div className={isRoot ? "pl-2" : "relative pl-5"} id="tour-trace-tree-panel">
+        <div 
+            className={isRoot ? "pl-2" : "relative pl-5"} 
+            {...(enableTour && { id: "tour-trace-tree-panel" })}
+        >
             <div
                 className={
                     !isRoot ? `${classes.treeLine} ${shouldShowAsLast ? "last" : ""}` : undefined
@@ -117,6 +136,7 @@ const TreeNodeComponent: React.FC<{
                             selectedKey={selectedKey}
                             onSelect={onSelect}
                             isRoot={false}
+                            enableTour={enableTour}
                         />
                     ))}
                 </div>
@@ -125,7 +145,13 @@ const TreeNodeComponent: React.FC<{
     )
 }
 
-const CustomTree: React.FC<TreeProps> = ({data, settings, selectedKey, onSelect}) => {
+const CustomTree: React.FC<TreeProps> = ({
+    data, 
+    settings, 
+    selectedKey, 
+    onSelect,
+    enableTour = false
+}) => {
     return (
         <div className={"h-full overflow-y-auto p-2"}>
             <TreeNodeComponent
@@ -135,6 +161,7 @@ const CustomTree: React.FC<TreeProps> = ({data, settings, selectedKey, onSelect}
                 selectedKey={selectedKey}
                 onSelect={onSelect}
                 isRoot={true}
+                enableTour={enableTour}
             />
         </div>
     )
