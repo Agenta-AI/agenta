@@ -171,6 +171,7 @@ export const newOnboardingStateAtom = atom<Tour[]>((get) => {
             userContext: onboardingProfile,
             currentStep,
             location: userLocation,
+            userOnboardingStatus: userOnboardingJourneyStatus,
         })
     }
 
@@ -206,6 +207,7 @@ export const newOnboardingStateAtom = atom<Tour[]>((get) => {
                     userContext: onboardingProfile,
                     currentStep,
                     location: userLocation,
+                    userOnboardingStatus: userOnboardingJourneyStatus,
                 })
             }
         }
@@ -225,6 +227,7 @@ export const newOnboardingStateAtom = atom<Tour[]>((get) => {
             userContext: onboardingProfile,
             currentStep,
             location: userLocation,
+            userOnboardingStatus: userOnboardingJourneyStatus,
         })
     }
 
