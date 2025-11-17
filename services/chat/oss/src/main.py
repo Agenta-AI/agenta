@@ -5,7 +5,6 @@ import oss.src.service  # This will register the routes with the FastAPI applica
 app = agenta.app
 
 if __name__ == "__main__":
-    # For development only - production should use Gunicorn
     from uvicorn import run
 
     run(
