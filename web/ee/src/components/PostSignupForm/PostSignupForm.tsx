@@ -17,6 +17,35 @@ import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postL
 import {useStyles} from "./assets/styles"
 import {FormDataType} from "./assets/types"
 
+const calculateICP = (
+    companySize?: string,
+    userRole?: string,
+    userExperience?: string,
+): boolean => {
+    if (!companySize || !userRole || !userExperience) {
+        return false
+    }
+
+    const isTargetCompanySize = ["11-50", "51-200", "201+"].includes(companySize)
+    const isNotHobbyist = userRole !== "Hobbyist"
+    const isNotJustExploring = userExperience !== "Just exploring"
+
+    return isTargetCompanySize && isNotHobbyist && isNotJustExploring
+}
+
+const convertInterestsToBinaryProperties = (interests?: string[]): Record<string, boolean> => {
+    // Fail-safe: if interests is undefined or not an array, default to empty array
+    const safeInterests = Array.isArray(interests) ? interests : []
+
+    return {
+        interest_evaluation: safeInterests.includes("Evaluating LLM Applications"),
+        interest_no_code: safeInterests.includes("No-code LLM application building"),
+        interest_prompt_management: safeInterests.includes("Prompt management and versioning"),
+        interest_prompt_engineering: safeInterests.includes("Prompt engineering"),
+        interest_observability: safeInterests.includes("Observability, tracing and monitoring"),
+    }
+}
+
 const PostSignupForm = () => {
     const [form] = Form.useForm()
     const router = useRouter()
@@ -128,10 +157,32 @@ const PostSignupForm = () => {
                     {},
                 )
 
+                const isICP = calculateICP(
+                    stepOneFormData?.companySize,
+                    stepOneFormData?.userRole,
+                    stepOneFormData?.userExperience,
+                )
+
+                const interestProperties = convertInterestsToBinaryProperties(values?.userInterests)
+
+                const personProperties: Record<string, any> = {}
+                if (stepOneFormData?.companySize) {
+                    personProperties.company_size_v1 = stepOneFormData.companySize
+                }
+                if (stepOneFormData?.userRole) {
+                    personProperties.user_role_v1 = stepOneFormData.userRole
+                }
+                if (stepOneFormData?.userExperience) {
+                    personProperties.user_experience_v1 = stepOneFormData.userExperience
+                }
+                Object.assign(personProperties, interestProperties)
+                personProperties.is_icp_v1 = isICP
+
                 await posthog?.capture?.("survey sent", {
                     $survey_id: survey?.id,
                     $survey_name: survey?.name,
                     ...responses,
+                    $set: personProperties,
                 })
 
                 form.resetFields()
