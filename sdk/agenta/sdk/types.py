@@ -340,12 +340,6 @@ class FileInput(BaseModel):
         alias="file_id",
         validation_alias=AliasChoices("file_id", "fileId"),
     )
-    name: Optional[str] = None
-    mime_type: Optional[str] = Field(
-        default=None,
-        alias="mime_type",
-        validation_alias=AliasChoices("mime_type", "mimeType"),
-    )
 
     model_config = {"populate_by_name": True}
 
