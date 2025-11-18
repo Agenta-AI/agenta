@@ -3,16 +3,15 @@ import {Fragment, memo, useCallback, useMemo, useState, type ReactNode} from "re
 import {Popover} from "antd"
 import {atom, useAtomValue} from "jotai"
 
+import {
+    previewRunMetricStatsSelectorFamily,
+    type RunLevelMetricSelection,
+} from "@/oss/components/evaluations/atoms/runMetrics"
 import ResponsiveFrequencyChart from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/ResponsiveFrequencyChart"
 import ResponsiveMetricChart from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/ResponsiveMetricChart"
 import {buildChartData} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
 import type {BasicStats} from "@/oss/lib/metricUtils"
-
-import {
-    previewRunMetricStatsSelectorFamily,
-    type RunLevelMetricSelection,
-} from "../atoms/runMetrics"
 
 const formatNumber = (value: unknown): string => {
     if (typeof value === "number") {

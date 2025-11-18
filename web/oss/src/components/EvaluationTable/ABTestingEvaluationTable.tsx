@@ -10,7 +10,7 @@ import {useRouter} from "next/router"
 
 import {useQueryParamState} from "@/oss/state/appState"
 import {EvaluationFlow} from "@/oss/lib/enums"
-import {exportABTestingEvaluationData} from "@/oss/lib/helpers/evaluate"
+import {exportABTestingEvaluationData} from "@/oss/lib/evaluations/legacy"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {testsetRowToChatMessages} from "@/oss/lib/helpers/testset"
 import {

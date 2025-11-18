@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import {Typography} from "antd"
 import {useAtomValueWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
 
-import {humanizeMetricPath} from "@/oss/components/EvalRunDetails2/components/views/OverviewView/utils/metrics"
+import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 

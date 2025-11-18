@@ -8,7 +8,7 @@ import GenericDrawer from "@/oss/components/GenericDrawer"
 
 import ReadOnlyBox from "../../pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
 import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../atoms/runDerived"
-import {previewRunMetricStatsSelectorFamily} from "../atoms/runMetrics"
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import type {
     ColumnValueDescriptor,
     EvaluationTableColumn,
@@ -33,7 +33,7 @@ import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricForm
 
 import FocusDrawerHeader from "./FocusDrawerHeader"
 import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
-import MetricDetailsPreviewPopover from "./MetricDetailsPopover"
+import MetricDetailsPreviewPopover from "@/oss/components/evaluations/components/MetricDetailsPreviewPopover"
 import {VariantReferenceChip, TestsetChipList} from "./reference"
 
 const SECTION_CARD_CLASS = "rounded-xl border border-[#EAECF0] bg-white"

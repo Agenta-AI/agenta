@@ -44,7 +44,6 @@ import type {
 } from "../../types/exportMetadata"
 import {resolveRowAppId} from "../../utils/runHelpers"
 import ColumnVisibilityPopoverContent from "../columnVisibility/ColumnVisibilityPopoverContent"
-import RunsTableRow from "../common/RunsTableRow"
 import EvaluationRunsCreateButton from "../EvaluationRunsCreateButton"
 import EvaluationRunsDeleteButton from "../EvaluationRunsDeleteButton"
 import EvaluationRunsHeaderFilters from "../filters/EvaluationRunsHeaderFilters"
@@ -286,11 +285,6 @@ const EvaluationRunsTableActive = ({
             bordered: true,
             virtual: autoHeight,
             tableLayout: "fixed" as const,
-            components: {
-                body: {
-                    row: RunsTableRow,
-                },
-            },
             onRow: buildRowHandlers,
         }),
         [autoHeight, buildRowHandlers],

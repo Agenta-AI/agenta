@@ -7,7 +7,7 @@ import {
     traceDrawerTraceIdAtom,
     traceDrawerQueryAtom,
 } from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import {observabilityTransformer, getNodeById} from "@/oss/lib/helpers/observability_helpers"
+import {observabilityTransformer, getNodeById} from "@/oss/lib/traces/observability_helpers"
 import useAnnotations from "@/oss/lib/hooks/useAnnotations"
 import {attachAnnotationsToTraces} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AgentaTreeDTO, TracesWithAnnotations} from "@/oss/services/observability/types"

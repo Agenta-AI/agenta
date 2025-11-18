@@ -3,15 +3,16 @@ import {useMemo} from "react"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
+import {evaluationEvaluatorsByRunQueryAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/evaluators"
+import {evaluationRunIndexAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/run"
 import {
     previewRunMetricStatsLoadableFamily,
     previewRunMetricStatsSelectorFamily,
     runTemporalMetricKeysAtomFamily,
     runTemporalMetricSeriesAtomFamily,
     TemporalMetricPoint,
-} from "@/oss/components/EvalRunDetails2/atoms/runMetrics"
-import {evaluationEvaluatorsByRunQueryAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/evaluators"
-import {evaluationRunIndexAtomFamily} from "@/oss/components/EvalRunDetails2/atoms/table/run"
+} from "@/oss/components/evaluations/atoms/runMetrics"
+import {humanizeEvaluatorName, humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../../../../atoms/runDerived"
@@ -21,7 +22,7 @@ import {
     buildEvaluatorFallbackMetricsByStep,
     buildEvaluatorMetricEntries,
 } from "../utils/evaluatorMetrics"
-import {humanizeEvaluatorName, humanizeMetricPath, resolveMetricValue} from "../utils/metrics"
+import {resolveMetricValue} from "../utils/metrics"
 
 const emptyEvaluatorsAtom = atom({data: [], isPending: false, isFetching: false} as const)
 const emptyLoadableAtom = atom({state: "loading"} as const)

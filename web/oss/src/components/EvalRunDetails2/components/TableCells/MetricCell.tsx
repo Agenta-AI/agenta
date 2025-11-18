@@ -7,7 +7,7 @@ import type {EvaluationTableColumn} from "../../atoms/table"
 import {COLUMN_WIDTHS} from "../../constants/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../../utils/metricFormatter"
-import MetricDetailsPopover from "../MetricDetailsPopover"
+import MetricDetailsPreviewPopover from "@/oss/components/evaluations/components/MetricDetailsPreviewPopover"
 
 const CONTAINER_CLASS = "min-h-[100px] flex flex-col justify-center px-2"
 
@@ -138,7 +138,7 @@ const PreviewEvaluationMetricCell = ({
 
     return (
         <div ref={ref} className={CONTAINER_CLASS} data-cell-type="metric" style={{width: "100%"}}>
-            <MetricDetailsPopover
+            <MetricDetailsPreviewPopover
                 runId={runId}
                 metricKey={column.metricKey ?? column.valueKey ?? column.path}
                 metricPath={column.path}
@@ -149,7 +149,7 @@ const PreviewEvaluationMetricCell = ({
                 stepType={column.stepType}
             >
                 {content}
-            </MetricDetailsPopover>
+            </MetricDetailsPreviewPopover>
         </div>
     )
 }

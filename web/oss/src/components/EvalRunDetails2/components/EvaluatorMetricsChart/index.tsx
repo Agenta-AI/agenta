@@ -7,7 +7,7 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
-import {previewRunMetricStatsSelectorFamily} from "../../atoms/runMetrics"
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evaluators"
 import {buildBooleanHistogram, isBooleanMetricStats} from "../../utils/metricDistributions"
 

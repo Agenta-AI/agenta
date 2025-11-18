@@ -16,7 +16,7 @@ import {
     runTestsetIdsAtomFamily,
     runUpdatedAtAtomFamily,
 } from "../../../../atoms/runDerived"
-import {previewRunMetricStatsSelectorFamily} from "../../../../atoms/runMetrics"
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import {evaluationRunIndexAtomFamily} from "../../../../atoms/table/run"
 import type {
     QueryConditionPayload,

@@ -28,8 +28,8 @@ import {createUseStyles} from "react-jss"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
-import {mapTestcaseAndEvalValues, transformTraceKeysInSettings} from "@/oss/lib/helpers/evaluate"
-import {buildNodeTree, observabilityTransformer} from "@/oss/lib/helpers/observability_helpers"
+import {mapTestcaseAndEvalValues, transformTraceKeysInSettings} from "@/oss/lib/evaluations/legacy"
+import {buildNodeTree, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {
     apiKeyObject,

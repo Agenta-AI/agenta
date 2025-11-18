@@ -15,7 +15,7 @@ import HumanEvaluationModal from "@/oss/components/HumanEvaluationModal/HumanEva
 import useURL from "@/oss/hooks/useURL"
 import {EvaluationType} from "@/oss/lib/enums"
 import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
-import {getVotesPercentage} from "@/oss/lib/helpers/evaluate"
+import {getVotesPercentage} from "@/oss/lib/evaluations/legacy"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"

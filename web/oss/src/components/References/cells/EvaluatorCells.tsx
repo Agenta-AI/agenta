@@ -2,7 +2,7 @@ import {useMemo} from "react"
 
 import {Typography} from "antd"
 
-import {humanizeEvaluatorName} from "@/oss/components/EvalRunDetails2/components/views/OverviewView/utils/metrics"
+import {humanizeEvaluatorName} from "@/oss/lib/evaluations/utils/metrics"
 
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {

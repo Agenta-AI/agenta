@@ -10,7 +10,7 @@ import {
 import {
     humanizeEvaluatorName,
     humanizeMetricPath,
-} from "@/oss/components/EvalRunDetails2/components/views/OverviewView/utils/metrics"
+} from "@/oss/lib/evaluations/utils/metrics"
 import {
     ColumnVisibilityMenuTrigger,
     createTableColumns,

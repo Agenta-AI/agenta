@@ -52,19 +52,11 @@ const EvaluationRunsTableStoreProvider = ({
         MIRRORED_GLOBAL_ATOMS.forEach((atom) => {
             store.set(atom, parentStore.get(atom))
         })
-        // store.set(queryClientAtom, queryClient)
         store.set(evaluationRunsTablePageSizeAtom, pageSize)
         store.set(evaluationRunsTableOverridesAtom, resolvedOverrides)
         store.set(evaluationRunsTableFetchEnabledAtom, true)
         return store
     }, [pageSize, parentStore, queryClient, resolvedOverrides])
-
-    if (process.env.NODE_ENV !== "production") {
-        console.log("[EvaluationRunsTableStoreProvider] mounted", {
-            pageSize,
-            overrides: resolvedOverrides,
-        })
-    }
 
     useEffect(() => {
         const cleanups = MIRRORED_GLOBAL_ATOMS.map((atom) => {
@@ -78,8 +70,6 @@ const EvaluationRunsTableStoreProvider = ({
         })
         return () => cleanups.forEach((unsub) => unsub())
     }, [parentStore, scopedStore])
-
-    // console.log("scopedStore")
 
     return <Provider store={scopedStore}>{children}</Provider>
 }

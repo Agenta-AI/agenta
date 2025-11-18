@@ -2,7 +2,7 @@ import type {ReactNode} from "react"
 
 import {Typography} from "antd"
 
-import MetricDetailsPreviewPopover from "@/oss/components/EvalRunDetails2/components/MetricDetailsPopover"
+import MetricDetailsPreviewPopover from "@/oss/components/evaluations/components/MetricDetailsPreviewPopover"
 
 const CLASS_NAME = "metric-cell-content text-xs whitespace-pre-wrap"
 

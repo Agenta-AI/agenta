@@ -8,7 +8,7 @@
  */
 
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-import {uuidToTraceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers" // relative to this file
+import {uuidToTraceId} from "@/oss/lib/traces/helpers" // relative to this file
 import type {
     IStepResponse,
     StepResponse,

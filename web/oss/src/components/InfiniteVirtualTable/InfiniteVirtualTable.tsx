@@ -815,6 +815,7 @@ function InfiniteVirtualTable<RecordType extends object>(
     const activeStore = managedStoreRef.current
     const content = <InfiniteVirtualTableInner {...rest} />
 
+    console.log("InfiniteVirtualTable", props)
     if (!activeStore) {
         return content
     }

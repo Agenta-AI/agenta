@@ -13,7 +13,7 @@ import {USEABLE_METRIC_TYPES} from "@/oss/components/pages/observability/drawer/
 import {getDefaultValue} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import LabelValuePill from "@/oss/components/ui/LabelValuePill"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
-import {calculateAvgScore} from "@/oss/lib/helpers/evaluate"
+import {calculateAvgScore} from "@/oss/lib/evaluations/legacy"
 import {
     RunIndex,
     ColumnDef,

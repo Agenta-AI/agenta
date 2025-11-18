@@ -3,7 +3,7 @@ import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {uuidToTraceId} from "@/oss/lib/helpers/traceUtils"
+import {uuidToTraceId} from "@/oss/lib/traces/traceUtils"
 import type {
     TraceData,
     TraceNode,

@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {humanizeMetricPath} from "@/oss/components/EvalRunDetails2/components/views/OverviewView/utils/metrics"
+import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
 
 import {EVALUATION_KIND_LABELS} from "../../constants"

@@ -22,7 +22,7 @@ import {useRouter} from "next/router"
 import SaveTestsetModal from "@/oss/components/SaveTestsetModal/SaveTestsetModal"
 import SecondaryButton from "@/oss/components/SecondaryButton/SecondaryButton"
 import {EvaluationFlow} from "@/oss/lib/enums"
-import {exportSingleModelEvaluationData} from "@/oss/lib/helpers/evaluate"
+import {exportSingleModelEvaluationData} from "@/oss/lib/evaluations/legacy"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {testsetRowToChatMessages} from "@/oss/lib/helpers/testset"
 import {

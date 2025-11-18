@@ -9,7 +9,7 @@ import router from "next/router"
 
 import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import useURL from "@/oss/hooks/useURL"
-import {getEvaluatorTags} from "@/oss/lib/helpers/evaluate"
+import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"

@@ -20,6 +20,7 @@ export const usePreviewRunDetails = (
     runId: string | null | undefined,
     options?: UsePreviewRunDetailsOptions,
 ) => {
+    console.log("usePreviewRunDetails")
     const enabled = options?.enabled ?? true
     const queryAtom = useMemo(() => {
         if (!enabled || !runId) return idleRunQueryAtom

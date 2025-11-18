@@ -6,7 +6,7 @@ import {loadableScenarioStepFamily} from "@/oss/lib/hooks/useEvaluationRunData/a
 import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 import type {PreviewTestCase} from "@/oss/lib/Types"
 
-import {readInvocationResponse} from "../../../lib/helpers/traceUtils"
+import {readInvocationResponse} from "../../../lib/traces/traceUtils"
 import type {EvaluationTableColumn} from "./table"
 import {previewEvalTypeAtom} from "../state/evalType"
 import {formatMetricDisplay} from "../utils/metricFormatter"

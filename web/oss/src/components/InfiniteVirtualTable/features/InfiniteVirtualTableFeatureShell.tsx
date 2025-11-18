@@ -7,8 +7,8 @@ import clsx from "clsx"
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
 import TableShell from "../components/TableShell"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
-import InfiniteVirtualTable from "../InfiniteVirtualTable"
 import useTableExport, {type TableExportOptions} from "../hooks/useTableExport"
+import InfiniteVirtualTable from "../InfiniteVirtualTable"
 import type {
     ColumnVisibilityMenuRenderer,
     ColumnVisibilityState,

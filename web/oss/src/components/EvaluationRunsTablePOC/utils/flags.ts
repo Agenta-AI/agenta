@@ -1,6 +1,6 @@
-import {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
-
 import type {FlagKey} from "../constants"
+
+import {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
 export const areFlagMapsEqual = (a?: RunFlagsFilter, b?: RunFlagsFilter) => {
     const aKeys = Object.keys(a ?? {})

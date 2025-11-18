@@ -1,6 +1,6 @@
 import {useStore} from "jotai"
 
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/EvalRunDetails2/atoms/runMetrics"
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import {formatMetricExportLabel} from "@/oss/components/EvaluationRunsTablePOC/hooks/useEvaluationRunsColumns"
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {RunMetricDescriptor} from "@/oss/components/EvaluationRunsTablePOC/types/runMetrics"

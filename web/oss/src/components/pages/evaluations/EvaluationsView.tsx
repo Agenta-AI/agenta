@@ -52,6 +52,15 @@ const APP_TAB_COLOR_MAP: Record<AppTabKey, string> = {
     human_ab_testing: "#fef3f7",
 }
 
+const APP_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
+    {key: "all", label: "All Evaluations"},
+    {key: "auto", label: "Automatic Evaluations"},
+    {key: "human", label: "Human Evaluations"},
+    {key: "online", label: "Online Evaluations"},
+    {key: "custom", label: "SDK Evaluations"},
+    {key: "human_ab_testing", label: "Human AB Testing"},
+]
+
 const POC_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
     {key: "all", label: "All Evaluations"},
     {key: "auto", label: "Automatic Evaluations"},

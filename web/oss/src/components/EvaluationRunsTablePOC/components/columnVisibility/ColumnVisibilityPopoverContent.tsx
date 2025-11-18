@@ -4,7 +4,7 @@ import {Typography} from "antd"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {humanizeMetricPath} from "@/oss/components/EvalRunDetails2/components/views/OverviewView/utils/metrics"
+import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import {
     type ColumnVisibilityState,
     type ColumnTreeNode,
