@@ -27,9 +27,9 @@ supported_llm_models = {
         "deepinfra/mistralai/Mistral-7B-Instruct-v0.1",
     ],
     "gemini": [
+        "gemini/gemini-3-pro-preview",
         "gemini/gemini-2.5-pro",
         "gemini/gemini-2.5-pro-preview-05-06",
-        "gemini/gemini-3-pro-preview",
         "gemini/gemini-2.5-flash",
         "gemini/gemini-2.5-flash-preview-09-2025",
         "gemini/gemini-2.5-flash-preview-05-20",
