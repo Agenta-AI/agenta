@@ -16,9 +16,9 @@
       <div align="center" >
         <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
           <picture >
-        <source media="(prefers-color-scheme: dark)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/9a4fde42-c96c-4ec2-b8d1-c8c0e3851a00/large"  >
-        <source media="(prefers-color-scheme: light)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/98140352-14c0-4db1-bafb-a1e8d271d500/large"  >
-        <img alt="Shows the logo of agenta" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/98140352-14c0-4db1-bafb-a1e8d271d500/large" >
+        <source media="(prefers-color-scheme: dark)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
+        <source media="(prefers-color-scheme: light)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
+        <img alt="Shows the logo of agenta" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large" >
           </picture>
         </a>
     </div>
@@ -110,10 +110,10 @@ Get visibility into your LLM applications in production.
 
 ## 📸 Screenshots
 
-<img alt="Playground" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/e7d16967-d564-4148-3615-03bfe2a29d00/large" />
-<img alt="Prompt Management" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/b4210a13-b41e-4dfd-d383-4286fb011e00/large" />
-<img alt="Evaluation" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/4b1c62b9-ff6e-4bd1-4c8d-de59b8485e00/large" />
-<img  alt="Observability" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/5c764759-e525-499e-544a-1077c45e9600/large" />
+<img alt="Playground" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/a4f67ac4-1acc-40c6-7a1a-5616eee7bb00/large" />
+<img alt="Prompt Management" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/65f697d0-3221-4e3c-7232-f350b1976a00/large" />
+<img alt="Evaluation" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/19b5b77e-6945-4419-15b9-cfea197e1300/large" />
+<img  alt="Observability" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/efc8a24c-2a2a-427c-f285-7d8b41200700/large" />
 
 ## 🚀 Getting Started 
 
