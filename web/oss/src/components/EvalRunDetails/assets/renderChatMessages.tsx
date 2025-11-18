@@ -42,6 +42,9 @@ export function renderChatMessages({
             const images = Array.isArray(msg.content)
                 ? msg.content.filter((content) => content.type === "image_url")
                 : []
+            const files = Array.isArray(msg.content)
+                ? msg.content.filter((content) => content.type === "file")
+                : []
             const showDivider = i < messages.length - 1
 
             return (
@@ -65,6 +68,27 @@ export function renderChatMessages({
                             ))}
                         </div>
                     ) : null}
+                    {files.length ? (
+                        <div className="flex flex-col gap-1">
+                            {files.map((fileContent: any, index: number) => (
+                                <div key={`msg-file-${index}`} className="mt-1 text-xs">
+                                    <a
+                                        href={fileContent.file?.file_id}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-[#1677ff]"
+                                    >
+                                        {fileContent.file?.name || `Document ${index + 1}`}
+                                    </a>
+                                    {fileContent.file?.mime_type && (
+                                        <span className="text-[#758391] ml-1">
+                                            ({fileContent.file?.mime_type})
+                                        </span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
                     {showDivider ? (
                         <div className="h-px w-full bg-slate-200/90 dark:bg-slate-700/60 rounded-full" />
                     ) : null}
@@ -79,6 +103,9 @@ export function renderChatMessages({
             : msg.content
         const images = Array.isArray(msg.content)
             ? msg.content.filter((content) => content.type === "image_url")
+            : []
+        const files = Array.isArray(msg.content)
+            ? msg.content.filter((content) => content.type === "file")
             : []
         const showDivider = i < messages.length - 1
 
@@ -114,6 +141,23 @@ export function renderChatMessages({
                                         alt="Preview"
                                         size={48}
                                     />
+                                ))}
+                                {files.map((fileContent: any, index: number) => (
+                                    <div key={`msg-file-${index}`} className="mt-1 text-xs">
+                                        <a
+                                            href={fileContent.file?.file_id}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[#1677ff]"
+                                        >
+                                            {fileContent.file?.name || `Document ${index + 1}`}
+                                        </a>
+                                        {fileContent.file?.mime_type && (
+                                            <span className="text-[#758391] ml-1">
+                                                ({fileContent.file?.mime_type})
+                                            </span>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                         }
@@ -162,6 +206,23 @@ export function renderChatMessages({
                                         alt="Preview"
                                         size={48}
                                     />
+                                ))}
+                                {files.map((fileContent: any, index: number) => (
+                                    <div key={`msg-file-${index}`} className="mt-1 text-xs">
+                                        <a
+                                            href={fileContent.file?.file_id}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[#1677ff]"
+                                        >
+                                            {fileContent.file?.name || `Document ${index + 1}`}
+                                        </a>
+                                        {fileContent.file?.mime_type && (
+                                            <span className="text-[#758391] ml-1">
+                                                ({fileContent.file?.mime_type})
+                                            </span>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                         }

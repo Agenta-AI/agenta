@@ -152,6 +152,37 @@ export const createMessageFromSchema = (
 
                                         generatedItem.__metadata = (imageBase as any).__metadata
                                         generatedItem.__id = (imageBase as any).__id
+                                    } else if (item.type === "file") {
+                                        const fileOptionMetadata = itemMetadata.options?.find(
+                                            (opt) => "file" in opt.properties,
+                                        )
+
+                                        const fileBase =
+                                            createObjectFromMetadata(fileOptionMetadata)
+                                        const fileProp = (fileBase as any).file || {
+                                            file_id: {},
+                                            name: {},
+                                            mime_type: {},
+                                        }
+
+                                        generatedItem.file = {
+                                            ...fileProp,
+                                            file_id: {
+                                                ...fileProp?.file_id,
+                                                value: item.file?.file_id || "",
+                                            },
+                                            name: {
+                                                ...fileProp?.name,
+                                                value: item.file?.name || "",
+                                            },
+                                            mime_type: {
+                                                ...fileProp?.mime_type,
+                                                value: item.file?.mime_type || "",
+                                            },
+                                        }
+
+                                        generatedItem.__metadata = (fileBase as any).__metadata
+                                        generatedItem.__id = (fileBase as any).__id
                                     }
 
                                     return generatedItem

@@ -9,6 +9,7 @@ import {
     CaretDown,
     CaretUp,
     Image as PhImage,
+    FileArchive,
     MarkdownLogoIcon,
     TextAa,
 } from "@phosphor-icons/react"
@@ -29,6 +30,7 @@ export interface TurnMessageHeaderOptionsProps {
     isMessageDeletable?: boolean
     allowFileUpload?: boolean
     uploadCount?: number
+    documentCount?: number
     hideMarkdownToggle?: boolean
     hideAddToTestset?: boolean
     viewOnly?: boolean
@@ -39,6 +41,7 @@ export interface TurnMessageHeaderOptionsProps {
         onMinimize?: () => void
         onClickTestsetDrawer?: () => void
         onAddUploadSlot?: () => void
+        onAddDocumentSlot?: () => void
     }
     children?: React.ReactNode
 }
@@ -68,6 +71,7 @@ const TurnMessageHeaderOptions = ({
     isMessageDeletable,
     allowFileUpload = false,
     uploadCount,
+    documentCount,
     hideMarkdownToggle,
     viewOnly,
     resultHashes,
@@ -79,7 +83,14 @@ const TurnMessageHeaderOptions = ({
     const [editor] = useLexicalComposerContext()
     const [markdownView] = useAtom(markdownViewAtom(id))
 
-    const {onRerun, onDelete, onMinimize, onClickTestsetDrawer, onAddUploadSlot} = actions || {}
+    const {
+        onRerun,
+        onDelete,
+        onMinimize,
+        onClickTestsetDrawer,
+        onAddUploadSlot,
+        onAddDocumentSlot,
+    } = actions || {}
 
     const [isCopied, setIsCopied] = useState(false)
 
@@ -126,6 +137,14 @@ const TurnMessageHeaderOptions = ({
                 onClick={onAddUploadSlot}
                 tooltipProps={{title: "Upload Image"}}
                 disabled={!allowFileUpload || (uploadCount !== undefined && uploadCount >= 5)}
+            />
+
+            <EnhancedButton
+                icon={<FileArchive size={14} />}
+                type="text"
+                onClick={onAddDocumentSlot}
+                tooltipProps={{title: "Attach Document"}}
+                disabled={!allowFileUpload || (documentCount !== undefined && documentCount >= 5)}
             />
 
             <EnhancedButton

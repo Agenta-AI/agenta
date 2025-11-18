@@ -11,6 +11,10 @@ import type {AgentaFetcher, FetcherOptions} from "@/lib/api/types"
 export type ChatContentPart =
     | {type: "text"; text: string}
     | {type: "image_url"; image_url: {url: string}}
+    | {
+          type: "file"
+          file: {file_id: string; name?: string; mime_type?: string}
+      }
 
 export interface ChatMessage {
     role: string

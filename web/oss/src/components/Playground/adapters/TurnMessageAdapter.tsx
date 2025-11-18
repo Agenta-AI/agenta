@@ -7,6 +7,7 @@ import {v4 as uuidv4} from "uuid"
 
 import TurnMessageHeaderOptions from "@/oss/components/Playground/adapters/TurnMessageHeaderOptions"
 import MessageEditor from "@/oss/components/Playground/Components/ChatCommon/MessageEditor"
+import MessageDocumentList from "@/oss/components/Playground/Components/Shared/MessageDocumentList"
 import MessageImageList from "@/oss/components/Playground/Components/Shared/MessageImageList"
 import {useMessageContentHandlers} from "@/oss/components/Playground/hooks/useMessageContentHandlers"
 import {useMessageContentProps} from "@/oss/components/Playground/hooks/useMessageContentProps"
@@ -72,7 +73,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
         return t?.userMessage || null
     }, [turn, variantId, kind, toolMessage])
 
-    const {baseImageProperties, baseRoleProperty, computedText} = useMessageContentProps(msg as any)
+    const {baseImageProperties, baseFileProperties, baseRoleProperty, computedText} =
+        useMessageContentProps(msg as any)
 
     const {editorText, isJsonContent} = useMemo(() => {
         const fallback = typeof computedText === "string" ? computedText : ""
@@ -204,6 +206,23 @@ const TurnMessageAdapter: React.FC<Props> = ({
         })
     }, [addUploadSlot, setTurn, getTarget, rowId, isToolKind])
 
+    const onAddDocumentSlot = useCallback(() => {
+        if (isToolKind) return
+        setTurn((draft: any) => {
+            if (!draft) return
+            const {target, assign} = getTarget(draft)
+            if (!target) return
+            const result = addUploadSlot({
+                contentProperty: target.content as any,
+                max: 5,
+                attachmentType: "file",
+            })
+            if (!result) return
+            const content = target.content || {__id: `content-${rowId}-${kind}`, value: []}
+            assign({...target, content: {...content, value: result}})
+        })
+    }, [addUploadSlot, setTurn, getTarget, rowId, isToolKind])
+
     const onRemoveUploadItem = useCallback(
         (propertyId: string) => {
             if (isToolKind) return
@@ -220,7 +239,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
     )
 
     const onChangeUploadItem = useCallback(
-        (propertyId: string, url: string) => {
+        (propertyId: string, value: string) => {
             if (isToolKind) return
             setTurn((draft: any) => {
                 if (!draft) return
@@ -236,8 +255,8 @@ const TurnMessageAdapter: React.FC<Props> = ({
                 const urlProp = findPropertyInObject(targetPart, propertyId) as any
                 if (!urlProp) return
                 if (urlProp?.content && typeof urlProp.content === "object")
-                    urlProp.content.value = url
-                else urlProp.value = url
+                    urlProp.content.value = value
+                else urlProp.value = value
                 assign({...target, content})
             })
         },
@@ -282,7 +301,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
 
     const footerContent = useMemo(
         () =>
-            baseImageProperties.length > 0 || footer ? (
+            baseImageProperties.length > 0 || baseFileProperties.length > 0 || footer ? (
                 <div
                     className={clsx([
                         "flex items-center mt-2 w-full",
@@ -297,10 +316,25 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             onChange={onChangeUploadItem}
                         />
                     )}
+                    {Array.isArray(baseFileProperties) && baseFileProperties.length > 0 && (
+                        <MessageDocumentList
+                            items={baseFileProperties as any[]}
+                            disabled={effectiveDisabled}
+                            onRemove={onRemoveUploadItem}
+                            onChange={onChangeUploadItem}
+                        />
+                    )}
                     {footer}
                 </div>
             ) : null,
-        [baseImageProperties, effectiveDisabled, onRemoveUploadItem, footer],
+        [
+            baseImageProperties,
+            baseFileProperties,
+            effectiveDisabled,
+            onRemoveUploadItem,
+            onChangeUploadItem,
+            footer,
+        ],
     )
 
     const effectivePlaceholder = useMemo(() => {
@@ -364,9 +398,13 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             uploadCount={
                                 Array.isArray(baseImageProperties) ? baseImageProperties.length : 0
                             }
+                            documentCount={
+                                Array.isArray(baseFileProperties) ? baseFileProperties.length : 0
+                            }
                             actions={{
                                 onAddUploadSlot: isToolKind ? undefined : onAddUploadSlot,
-                                onRerun: isToolKind ? undefined : (propsHandleRerun ?? handleRerun),
+                                onAddDocumentSlot: isToolKind ? undefined : onAddDocumentSlot,
+                                onRerun: isToolKind ? undefined : propsHandleRerun ?? handleRerun,
                                 onMinimize: () => setMinimized((c) => !c),
                                 onDelete: isToolKind ? undefined : deleteMessage,
                             }}
@@ -422,9 +460,13 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         uploadCount={
                             Array.isArray(baseImageProperties) ? baseImageProperties.length : 0
                         }
+                        documentCount={
+                            Array.isArray(baseFileProperties) ? baseFileProperties.length : 0
+                        }
                         actions={{
                             onAddUploadSlot: isToolKind ? undefined : onAddUploadSlot,
-                            onRerun: isToolKind ? undefined : (propsHandleRerun ?? handleRerun),
+                            onAddDocumentSlot: isToolKind ? undefined : onAddDocumentSlot,
+                            onRerun: isToolKind ? undefined : propsHandleRerun ?? handleRerun,
                             onMinimize: () => setMinimized((c) => !c),
                             onDelete: isToolKind ? undefined : deleteMessage,
                         }}
