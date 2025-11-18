@@ -10,140 +10,6 @@ import Image from "@theme/IdealImage";
 
 <section class="changelog">
 
-
-### [Jinja2 Template Support in the Playground](/changelog/jinja2-template-support)
-
-_17 November 2025_
-
-**v0.62.3**
-
-You can now use Jinja2 templates in your prompts. Jinja2 is available in both the Playground and in prompt management.
-
-Learn more in our [blog post](https://agenta.ai/blog/launch-week-2-day-5-jinja2-prompt-templates) or check the [documentation](/prompt-engineering/playground/using-playground#switching-template-formats).
-
----
-
-### [Agenta Core is Now Open Source](/changelog/open-sourcing-agenta)
-
-_13 November 2025_
-
-We're open sourcing the core of Agenta under the MIT license. All functional features are now available to the community. This includes the evaluation system, prompt playground and management, observability, and all core workflows.
-
-Development moves back to the public repository. We're building in public again. Only enterprise collaboration features like RBAC, SSO, and audit logs remain under a separate license.
-
-Get started with the [self-hosting guide](/self-host/quick-start). View the code and contribute on [GitHub](https://github.com/Agenta-AI/agenta). Read why we made this decision at [agenta.ai/blog/commercial-open-source-is-hard-our-journey](https://agenta.ai/blog/commercial-open-source-is-hard-our-journey).
-
----
-
-### [Evaluation SDK](/changelog/evaluation-sdk)
-
-_12 November 2025_
-
-**v0.62.0**
-
-<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
-  <iframe
-    width="100%"
-    height="500"
-    src="https://www.youtube.com/embed/1sZASEjvoOA"
-    title="Evaluation SDK - Demonstration"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  ></iframe>
-</div>
-
-You can now run programmatic evaluations of complex AI agents and workflows directly from code. The Evaluation SDK gives you full control over test data and evaluation logic. It works with agents built using any framework.
-
-The SDK lets you create test sets in code or fetch them from Agenta. You can use built-in evaluators like LLM-as-a-Judge, semantic similarity, or regex matching. You can also write custom Python evaluators. The SDK evaluates end-to-end workflows or specific spans in execution traces. Evaluations run on your own infrastructure; results display in the Agenta dashboard.
-
-Check out the [Evaluation SDK documentation](/evaluation/evaluation-from-sdk/quick-start) to get started.
-
----
-
-### [Online Evaluation](/changelog/online-evaluation)
-
-_11 November 2025_
-
-**v0.62.0**
-
-<div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
-  <iframe
-    width="100%"
-    height="500"
-    src="https://www.youtube.com/embed/rP3CiRmu3io"
-    title="Online Evaluation - Demonstration"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  ></iframe>
-</div>
-
-You can now automatically evaluate every request to your LLM application in production. Online Evaluation helps you catch hallucinations and off-brand responses as they happen. You no longer need to discover problems through user complaints.
-
-You can configure evaluators like LLM-as-a-Judge with custom prompts. Set sampling rates to control costs. Create evaluations with filters for specific spans in your traces. All evaluated requests appear in one dashboard. You can filter traces by evaluation scores to understand issues. You can also add problematic cases to test sets for continuous improvement.
-
-Setting up online evaluation takes just a couple of minutes. It provides immediate visibility into production quality.
-
----
-
-### [Customize LLM-as-a-Judge Output Schemas](/changelog/customize-llm-as-a-judge-output-schemas)
-
-_10 November 2025_
-
-**v0.62.0**
-
-<div style={{display: 'flex', justifyContent: 'center', gap: '24px', margin: '20px 0'}}>
-  <Image
-    img={require('/static/images/changelog/changelog-llm-as-a-judge-response-1.png')}
-    alt="Custom output schemas in LLM-as-a-Judge - Example 1"
-    style={{width: '48%', minWidth: 0}}
-  />
-  <Image
-    img={require('/static/images/changelog/changelog-llm-as-a-judge-response-2.png')}
-    alt="Custom output schemas in LLM-as-a-Judge - Example 2"
-    style={{width: '48%', minWidth: 0}}
-  />
-</div>
-
-The LLM-as-a-Judge evaluator now supports custom output schemas. Create multiple feedback outputs per evaluator with any structure you need.
-
-You can configure output types (binary, multiclass), include reasoning to improve prediction quality, or provide a raw JSON schema with any structure you define. Use these custom schemas in your evaluations to capture exactly the feedback you need.
-
-Learn more in the [LLM-as-a-Judge documentation](/evaluation/configure-evaluators/llm-as-a-judge).
-
----
-
-### [Documentation Overhaul](/changelog/documentation-architecture-overhaul)
-
-_3 November 2025_
-
-**v0.59.10**
-
-<Image img={require('/static/images/changelog/agenta_askai.png')} alt="Ask AI feature in documentation" style={{display: 'block', margin: '20px auto', textAlign: 'center'}} />
-
-We've completely rewritten and restructured our documentation with a new architecture. This is one of the largest updates we've made, involving a near-complete rewrite of existing content.
-
-Key improvements include:
-- **[Diataxis Framework](https://diataxis.fr/)**: Organized content into Tutorials, How-to Guides, Reference, and Explanation sections for better discoverability
-- **[Expanded Observability Docs](/observability/overview)**: Added missing documentation for tracing, annotations, and observability features
-- **[JavaScript/TypeScript Support](/observability/quick-start-opentelemetry)**: Added code examples and documentation for JavaScript developers alongside Python
-- **Ask AI Feature**: Ask questions directly to the documentation for instant answers
-
----
-
-### [Vertex AI Provider Support](/changelog/vertex-ai-provider-support)
-
-_24 October 2025_
-
-**v0.59.6**
-
-We've added support for Google Cloud's Vertex AI platform. You can now use Gemini models and other Vertex AI partner models in the playground, configure them in the Model Hub, and access them through the Gateway using InVoke endpoints.
-
-Check out the documentation for [configuring Vertex AI models](/prompt-engineering/playground/custom-providers#configuring-vertex-ai).
-
----
-
 ### [Filtering Traces by Annotation](/changelog/filtering-traces-by-annotation)
 
 _14 October 2025_
@@ -220,7 +86,7 @@ We also made many improvements and fixed bugs:
 
 **Improvements:**
 
-- [LLM-as-a-judge](/evaluation/configure-evaluators/llm-as-a-judge) now uses double curly braces `{{}}` instead of single curly braces `{` and `}`. This matches how normal prompts work. Old LLM-as-a-judge prompts with single curly braces still work. We updated the LLM-as-a-judge playground to make editing prompts easier.
+- [LLM-as-a-judge](/evaluation/evaluators/llm-as-a-judge) now uses double curly braces `{{}}` instead of single curly braces `{` and `}`. This matches how normal prompts work. Old LLM-as-a-judge prompts with single curly braces still work. We updated the LLM-as-a-judge playground to make editing prompts easier.
 
 **Self-hosting:**
 
@@ -245,7 +111,7 @@ We rebuilt the human evaluation workflow from scratch. Now you can set multiple 
 
 This lets you evaluate the same output on different metrics like **relevance** or **completeness**. You can also create binary, numerical scores, or even use strings for **comments** or **expected answer**. 
 
-Watch the video below and read the [post](/changelog/multiple-metrics-in-human-evaluation) for more details. Or check out the [docs](/evaluation/human-evaluation/quick-start) to learn how to use the new human evaluation workflow.
+Watch the video below and read the [post](/changelog/multiple-metrics-in-human-evaluation) for more details. Or check out the [docs](/evaluation/human_evaluation) to learn how to use the new human evaluation workflow.
 
 <div style={{display: 'flex', justifyContent: 'center', marginTop: "20px", marginBottom: "20px", flexDirection: 'column', alignItems: 'center'}}>
   <iframe
@@ -374,7 +240,7 @@ This is useful to:
 - Run custom evaluation workflows
 - Measure application performance in real-time
 
-Check out the how to [annotate traces from API](/observability/trace-with-python-sdk/annotate-traces) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
+Check out the how to [annotate traces from API](/evaluation/annotate-api) for more details. Or try our new tutorial (available as [jupyter notebook](https://github.com/Agenta-AI/agenta/blob/main/examples/jupyter/capture_user_feedback.ipynb)) [here](/tutorials/cookbooks/capture-user-feedback).
 
 <Image
   style={{
@@ -571,7 +437,7 @@ Agenta is now fully OpenTelemetry-compliant. This means you can seamlessly integ
 
 We've enhanced distributed tracing capabilities to better debug complex distributed agent systems. All HTTP interactions between agents—whether running within Agenta's SDK or externally—are automatically traced, making troubleshooting and monitoring easier.
 
-Detailed instructions and examples are available in our [distributed tracing documentation](/observability/trace-with-opentelemetry/distributed-tracing).
+Detailed instructions and examples are available in our [distributed tracing documentation](/observability/opentelemetry).
 
 **Improved Custom Workflows**:
 
@@ -704,6 +570,8 @@ We've redesigned our platform's onboarding to make getting started simpler and m
 - Enhanced frontend performance
 - Fixed scroll behavior in trace view
 
+You can check out the tutorial for the RAG demo project [here](/tutorials/cookbooks/RAG-QA-docs).
+
 ---
 
 ### [Add Spans to Test Sets](/changelog/add-spans-to-test-sets)
@@ -750,6 +618,7 @@ We’ve strengthened authentication for deployed applications. As you know, Agen
 We’ve added new cookbooks and updated existing documentation:
 
 - New [cookbook for observability with LangChain](/tutorials/cookbooks/observability_langchain)
+- New [cookbook for custom workflows](/tutorials/cookbooks/AI-powered-code-reviews) where we build an AI powered code reviewer
 - Updated the [custom workflows documentation](/custom-workflows/overview) and added [reference](/reference/sdk/custom-workflow)
 - Updated the [reference for the observability SDK](/reference/sdk/observability) and [for the prompt management SDK](/reference/sdk/configuration-management)
 
@@ -795,11 +664,11 @@ We’ll publish a full blog post soon, but here’s a quick look at what the new
 
 **Next: Prompt Management**
 
-We’ve completely rewritten the [prompt management SDK](/prompt-engineering/managing-prompts-programatically/setup), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
+We’ve completely rewritten the [prompt management SDK](/prompt-engineering/overview), giving you full CRUD capabilities for prompts and configurations. This includes creating, updating, reading history, deploying new versions, and deleting old ones. You can find a first tutorial for this [here](/tutorials/sdk/manage-prompts-with-SDK).
 
 **And finally: LLM-as-a-Judge Overhaul**
 
-We've made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/configure-evaluators/llm-as-a-judge). It now supports prompts with multiple messages and has access to all variables in a test case. You can also switch models (currently supporting OpenAI and Anthropic). These changes make the evaluator much more flexible, and we're seeing better results with it.
+We’ve made significant upgrades to the [LLM-as-a-Judge evaluator](/evaluation/evaluators/llm-as-a-judge). It now supports prompts with multiple messages and has access to all variables in a test case. You can also switch models (currently supporting OpenAI and Anthropic). These changes make the evaluator much more flexible, and we’re seeing better results with it.
 
 <Image
   style={{
@@ -941,7 +810,7 @@ We're excited to announce two major features this week:
 
 1. We've integrated [RAGAS evaluators](https://docs.ragas.io/) into agenta. Two new evaluators have been added: **RAG Faithfulness** (measuring how consistent the LLM output is with the context) and **Context Relevancy** (assessing how relevant the retrieved context is to the question). Both evaluators use intermediate outputs within the trace to calculate the final score.
 
-   [Check out the tutorial](/evaluation/configure-evaluators/rag-evaluators) to learn how to use RAG evaluators.
+   [Check out the tutorial](/evaluation/evaluators/rag-evaluators) to learn how to use RAG evaluators.
 
 {" "}
 
@@ -1017,6 +886,8 @@ We have worked extensively on improving the **reliability of evaluations**. Spec
 - We fixed issues in the calculation of scores in human evaluations.
 - We fixed small UI issues with large output in human evaluations.
 - We have added a new export button in the evaluation view to export the results as a CSV file.
+
+Additionally, we have added a new [Cookbook for run evaluation using the SDK](/tutorials/sdk/evaluate-with-SDK).
 
 In **observability**:
 
@@ -1116,7 +987,7 @@ config = agenta.get_config(base_id="xxxxx", environment="production", cache_time
 
 ```
 
-You can find additional documentation [here](/prompt-engineering/integrating-prompts/integrating-with-agenta).
+You can find additional documentation [here](/prompt-engineering/prompt-management/how-to-integrate-with-agenta).
 
 **Improvements**
 

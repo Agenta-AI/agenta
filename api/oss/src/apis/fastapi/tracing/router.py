@@ -1,4 +1,4 @@
-from typing import Optional, List, Tuple, Dict, Union
+from typing import Optional, List, Tuple, Dict
 from uuid import UUID
 
 from fastapi import APIRouter, Request, Depends, status, HTTPException
@@ -158,7 +158,7 @@ class TracingRouter:
         traces: Optional[OTelTraceTree] = None,
         strict: Optional[bool] = False,
     ) -> OTelLinks:
-        _spans: Dict[str, Union[OTelSpan, OTelFlatSpans]] = dict()
+        _spans: Dict[str, OTelSpan | OTelFlatSpans] = dict()
 
         if spans:
             _spans = {

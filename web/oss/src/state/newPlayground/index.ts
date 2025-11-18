@@ -28,7 +28,7 @@ export type {
     GenerationData,
     PlaygroundState,
     UpdateConfigParams,
-    AddTestcaseParams,
+    AddTestCaseParams,
     RunTestParams,
     DeleteMessageParams,
     DerivedRequestBody,

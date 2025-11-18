@@ -27,7 +27,7 @@ from oss.src.models.db_models import (
     VariantBaseDB,
     DeploymentDB,
     AppEnvironmentDB,
-    TestsetDB,
+    TestSetDB,
 )
 
 
@@ -45,7 +45,7 @@ MODELS = [
     EvaluatorConfigDB,
     HumanEvaluationDB,
     HumanEvaluationScenarioDB,
-    TestsetDB,
+    TestSetDB,
 ]
 
 
@@ -101,7 +101,7 @@ def add_completion_testset_to_project(session: Session, project_id: str):
                 "name": f"completion_testset",
                 "csvdata": csvdata,
             }
-            testset_db = TestsetDB(
+            testset_db = TestSetDB(
                 **testset,
                 project_id=uuid.UUID(project_id),
             )
@@ -131,13 +131,13 @@ def add_default_evaluators_to_project(session: Session, project_id: str):
             }
 
             for setting_name, default_value in settings_values.items():
-                assert default_value != "", (
-                    f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
-                )
+                assert (
+                    default_value != ""
+                ), f"Default value for ground truth key '{setting_name}' in Evaluator is empty"
 
-            assert hasattr(evaluator, "name") and hasattr(evaluator, "key"), (
-                f"'name' and 'key' does not exist in the evaluator: {evaluator}"
-            )
+            assert hasattr(evaluator, "name") and hasattr(
+                evaluator, "key"
+            ), f"'name' and 'key' does not exist in the evaluator: {evaluator}"
 
             evaluator_config = EvaluatorConfigDB(
                 project_id=uuid.UUID(project_id),

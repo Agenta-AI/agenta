@@ -14,7 +14,6 @@ class LegacyEvaluator(BaseModel):
     name: str
     key: str
     direct_use: bool
-    settings_presets: Optional[list[dict]] = None
     settings_template: dict
     description: Optional[str] = None
     oss: Optional[bool] = False
@@ -279,8 +278,7 @@ class LLMRunRateLimit(BaseModel):
 
 class LMProvidersEnum(str, Enum):
     openai = "OPENAI_API_KEY"
-    mistral = "MISTRAL_API_KEY"
-    mistralai = "MISTRALAI_API_KEY"
+    mistral = "MISTRALAI_API_KEY"
     cohere = "COHERE_API_KEY"
     anthropic = "ANTHROPIC_API_KEY"
     anyscale = "ANYSCALE_API_KEY"

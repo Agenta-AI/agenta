@@ -2,12 +2,11 @@
 <p align="center">
   <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
       <picture >
-        <source width="275" media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/97e31bfc-b1fc-4d19-b443-5aedf6029017"  >
-        <source width="275" media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262"  >
-        <img alt="Shows the logo of agenta" src="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262" >
+        <source width="275" media="(prefers-color-scheme: dark)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/cdddf5ad-2352-4920-b1d9-ae7f8d9d7735"  >
+        <source width="275" media="(prefers-color-scheme: light)" srcset="https://github.com/Agenta-AI/agenta/assets/4510758/ab75cbac-b807-496f-aab3-57463a33f726"  >
+        <img alt="Shows the logo of agenta" src="https://github.com/Agenta-AI/agenta/assets/4510758/68e055d4-d7b8-4943-992f-761558c64253" >
       </picture>
   </a>
-
 <div align="center">
   <strong> <h1> The Open-source LLMOps Platform </h1></strong>
   Build reliable LLM applications faster with integrated prompt management, evaluation, and observability.
@@ -16,9 +15,9 @@
       <div align="center" >
         <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
           <picture >
-        <source media="(prefers-color-scheme: dark)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
-        <source media="(prefers-color-scheme: light)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
-        <img alt="Shows the logo of agenta" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large" >
+        <source media="(prefers-color-scheme: dark)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/9a4fde42-c96c-4ec2-b8d1-c8c0e3851a00/large"  >
+        <source media="(prefers-color-scheme: light)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/98140352-14c0-4db1-bafb-a1e8d271d500/large"  >
+        <img alt="Shows the logo of agenta" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/98140352-14c0-4db1-bafb-a1e8d271d500/large" >
           </picture>
         </a>
     </div>
@@ -27,7 +26,7 @@
 ---
 
 <h3 align="center">
-  <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Documentation</b></a> &bull;
+  <a href="https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Documentation</b></a> &bull;
   <a href="https://agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Website</b></a> &bull;
   <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme"><b>Agenta Cloud</b></a>
 </h3>
@@ -36,7 +35,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license." />
-  <a href="https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme">
+  <a href="https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
     <img src="https://img.shields.io/badge/Doc-online-green" alt="Doc">
   </a>
   <a href="https://github.com/Agenta-AI/agenta/blob/main/CONTRIBUTING.md">
@@ -84,20 +83,20 @@ Agenta is a platform for building production-grade LLM applications. It helps **
 Collaborate with Subject Matter Experts (SMEs) on prompt engineering and make sure nothing breaks in production.
 
 - **Interactive Playground**: Compare prompts side by side against your test cases
-- **Multi-Model Support**: Experiment with 50+ LLM models or [bring-your-own models](https://agenta.ai/docs/prompt-engineering/playground/custom-providers?utm_source=github&utm_medium=referral&utm_campaign=readme)
+- **Multi-Model Support**: Experiment with 50+ LLM models or [bring-your-own models](https://docs.agenta.ai/prompt-engineering/playground/adding-custom-providers?utm_source=github&utm_medium=referral&utm_campaign=readme)
 - **Version Control**: Version prompts and configurations with branching and environments
-- **Complex Configurations**: Enable SMEs to collaborate on [complex configuration schemas](https://agenta.ai/docs/custom-workflows/overview?utm_source=github&utm_medium=referral&utm_campaign=readme) beyond simple prompts
+- **Complex Configurations**: Enable SMEs to collaborate on [complex configuration schemas](https://docs.agenta.ai/custom-workflows/overview?utm_source=github&utm_medium=referral&utm_campaign=readme) beyond simple prompts
 
-[Explore prompt management →](https://agenta.ai/docs/prompt-engineering/concepts?utm_source=github&utm_medium=referral&utm_campaign=readme)
+[Explore prompt management →](https://docs.agenta.ai/prompt-engineering/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
 ### 📊 Evaluation & Testing
 Evaluate your LLM applications systematically with both human and automated feedback.
-- **Flexible Testsets**: Create testcases from production data, playground experiments, or upload CSVs
+- **Flexible Test Sets**: Create test cases from production data, playground experiments, or upload CSVs
 - **Pre-built and Custom Evaluators**: Use LLM-as-judge, one of our 20+ pre-built evaluators, or you custom evaluators
 - **UI and API Access**: Run evaluations via UI (for SMEs) or programmatically (for engineers)
 - **Human Feedback Integration**: Collect and incorporate expert annotations
 
-[Explore evaluation frameworks →](https://agenta.ai/docs/evaluation/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
+[Explore evaluation frameworks →](https://docs.agenta.ai/evaluation/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
 ### 📡 Observability & Monitoring
 Get visibility into your LLM applications in production.
@@ -106,14 +105,14 @@ Get visibility into your LLM applications in production.
 - **Open Standards**: OpenTelemetry native tracing compatible with OpenLLMetry, and OpenInference
 - **Integrations**: Comes with pre-built integrations for most models and frameworks
 
-[Learn about observability →](https://agenta.ai/docs/observability/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
+[Learn about observability →](https://docs.agenta.ai/observability/overview?utm_source=github&utm_medium=referral&utm_campaign=readme)
 
 ## 📸 Screenshots
 
-<img alt="Playground" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/a4f67ac4-1acc-40c6-7a1a-5616eee7bb00/large" />
-<img alt="Prompt Management" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/65f697d0-3221-4e3c-7232-f350b1976a00/large" />
-<img alt="Evaluation" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/19b5b77e-6945-4419-15b9-cfea197e1300/large" />
-<img  alt="Observability" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/efc8a24c-2a2a-427c-f285-7d8b41200700/large" />
+<img alt="Playground" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/e7d16967-d564-4148-3615-03bfe2a29d00/large" />
+<img alt="Prompt Management" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/b4210a13-b41e-4dfd-d383-4286fb011e00/large" />
+<img alt="Evaluation" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/4b1c62b9-ff6e-4bd1-4c8d-de59b8485e00/large" />
+<img  alt="Observability" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/5c764759-e525-499e-544a-1077c45e9600/large" />
 
 ## 🚀 Getting Started 
 
@@ -146,7 +145,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file ho
 
 3. Access Agenta at `http://localhost`.
 
-For deploying on a remote host, or using different ports refers to our [self-hosting](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://agenta.ai/docs/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
+For deploying on a remote host, or using different ports refers to our [self-hosting](https://docs.agenta.ai/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme) and [remote deployment documentation](https://docs.agenta.ai/self-host/guides/deploy-remotely?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
 ## 💬 Community
 
@@ -154,8 +153,8 @@ Find help, explore resources, or get involved:
 
 ### 🧰 Support
 
-- **📚 [Documentation](https://agenta.ai/docs/?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Full guides and API reference  
-- **📋 [Changelog](https://agenta.ai/docs/changelog/main?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Track recent updates  
+- **📚 [Documentation](https://docs.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Full guides and API reference  
+- **📋 [Changelog](https://docs.agenta.ai/changelog/main?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Track recent updates  
 - **💬 [Slack Community](https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw)** – Ask questions and get support  
 
 ### 🤝 Contribute
@@ -164,7 +163,7 @@ We welcome contributions of all kinds — from filing issues and sharing ideas t
 
 - **🐛 [Report bugs](https://github.com/Agenta-AI/agenta/issues)** – Help us by reporting problems you encounter  
 - **💡 [Share ideas and feedback](https://github.com/Agenta-AI/agenta/discussions)** – Suggest features or vote on ideas
-- **🔧 [Contribute to the codebase](https://agenta.ai/docs/misc/contributing/getting-started?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Read the guide and open a pull request
+- **🔧 [Contribute to the codebase](https://docs.agenta.ai/misc/contributing/getting-started?utm_source=github&utm_medium=referral&utm_campaign=readme)** – Read the guide and open a pull request
 
 ## ⭐ Star Agenta
 
@@ -182,7 +181,7 @@ We welcome contributions of all kinds — from filing issues and sharing ideas t
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-50-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-49-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):

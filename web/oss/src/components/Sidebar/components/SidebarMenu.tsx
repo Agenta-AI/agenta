@@ -31,7 +31,7 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                             "[&_.ant-menu-submenu-arrow]:hidden [&_.ant-menu-title-content]:hidden":
                                 collapsed,
                         }),
-                        disabled: item.isCloudFeature || item.disabled,
+                        disabled: item.isCloudFeature,
                         onTitleClick: item.onClick,
                         title: item.title,
                     }
@@ -68,7 +68,6 @@ const SidebarMenu: React.FC<SidebarMenuProps> = ({
                     const menuItem = {
                         icon: item.icon,
                         key: item.key,
-                        disabled: item.disabled,
                         label: collapsed ? (
                             <Tooltip title={item.tooltip} placement="right" mouseEnterDelay={0.8}>
                                 <div className="flex items-center justify-center w-full">

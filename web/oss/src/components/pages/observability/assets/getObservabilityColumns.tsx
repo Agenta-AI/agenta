@@ -117,9 +117,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Duration",
             key: "duration",
             dataIndex: ["time", "span"],
-            width: 90,
+            width: 80,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 80},
             }),
             render: (_, record) => {
                 const duration = getLatency(record)
@@ -130,9 +130,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Cost",
             key: "cost",
             dataIndex: ["attributes", "ag", "metrics", "costs", "cumulative", "total"],
-            width: 90,
+            width: 80,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 80},
             }),
             render: (_, record) => {
                 const cost = getCost(record)
@@ -143,9 +143,9 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             title: "Usage",
             key: "usage",
             dataIndex: ["attributes", "ag", "metrics", "tokens", "cumulative", "total"],
-            width: 90,
+            width: 80,
             onHeaderCell: () => ({
-                style: {minWidth: 90},
+                style: {minWidth: 80},
             }),
             render: (_, record) => {
                 const tokens = getTokens(record)

@@ -342,9 +342,7 @@ class GitDAO(GitDAOInterface):
 
             if artifact_query.description:
                 stmt = stmt.filter(
-                    self.ArtifactDBE.description.ilike(
-                        f"%{artifact_query.description}%"
-                    ),  # type: ignore
+                    self.ArtifactDBE.description.ilike(f"%{artifact_query.description}%"),  # type: ignore
                 )
 
             if include_archived is not True:
@@ -908,7 +906,7 @@ class GitDAO(GitDAOInterface):
                 self.RevisionDBE.project_id == project_id,  # type: ignore
             )
 
-            if revision_ref and (revision_ref.id or revision_ref.slug):
+            if revision_ref and not revision_ref.version:
                 if revision_ref.id:
                     stmt = stmt.filter(self.RevisionDBE.id == revision_ref.id)  # type: ignore
                 elif revision_ref.slug:
@@ -1175,9 +1173,7 @@ class GitDAO(GitDAOInterface):
 
             if revision_query.description:
                 stmt = stmt.filter(
-                    self.RevisionDBE.description.ilike(
-                        f"%{revision_query.description}%"
-                    )  # type: ignore
+                    self.RevisionDBE.description.ilike(f"%{revision_query.description}%")  # type: ignore
                 )
 
             if include_archived is not True:

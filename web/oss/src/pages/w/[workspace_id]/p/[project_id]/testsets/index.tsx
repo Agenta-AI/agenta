@@ -12,9 +12,8 @@ import {createUseStyles} from "react-jss"
 import NoResultsFound from "@/oss/components/NoResultsFound/NoResultsFound"
 import useURL from "@/oss/hooks/useURL"
 import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
-import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
-import {JSSTheme, Testset, testset, TestsetCreationMode} from "@/oss/lib/Types"
+import {JSSTheme, TestSet, testset, TestsetCreationMode} from "@/oss/lib/Types"
 import {useAppsData} from "@/oss/state/app"
 import {useTestsetsData} from "@/oss/state/testset"
 
@@ -75,15 +74,15 @@ const Testset = () => {
     const [selectedTestsetToDelete, setSelectedTestsetToDelete] = useState<testset[]>([])
     const [isDeleteTestsetModalOpen, setIsDeleteTestsetModalOpen] = useState(false)
 
-    useBreadcrumbsEffect({breadcrumbs: {testsets: {label: "testsets"}}}, [])
+    useBreadcrumbsEffect({breadcrumbs: {testsets: {label: "test sets"}}}, [])
 
     const filteredTestset = useMemo(() => {
         let allTestsets = testsets.sort(
-            (a: Testset, b: Testset) =>
+            (a: TestSet, b: TestSet) =>
                 dayjs(b.updated_at).valueOf() - dayjs(a.updated_at).valueOf(),
         )
         if (searchTerm) {
-            allTestsets = testsets.filter((item: Testset) =>
+            allTestsets = testsets.filter((item: TestSet) =>
                 item.name.toLowerCase().includes(searchTerm.toLowerCase()),
             )
         }
@@ -155,15 +154,6 @@ const Testset = () => {
                                         setIsCreateTestsetModalOpen(true)
                                     },
                                 },
-                                {
-                                    key: "copy-id",
-                                    label: "Copy ID",
-                                    icon: <Copy size={16} />,
-                                    onClick: (e) => {
-                                        e.domEvent.stopPropagation()
-                                        copyToClipboard(record._id)
-                                    },
-                                },
                                 {type: "divider"},
                                 {
                                     key: "rename",
@@ -207,14 +197,14 @@ const Testset = () => {
         <>
             <section className="w-full flex flex-col gap-6 mb-2">
                 <div className={classes.headerText}>
-                    <Typography.Title level={4}>Testsets</Typography.Title>
+                    <Typography.Title level={4}>Test sets</Typography.Title>
 
                     <Button
                         type="primary"
                         icon={<PlusOutlined className="mt-[1px]" />}
                         onClick={() => setIsCreateTestsetModalOpen(true)}
                     >
-                        Create new testset
+                        Create new test set
                     </Button>
                 </div>
                 <div className="flex items-center justify-between">

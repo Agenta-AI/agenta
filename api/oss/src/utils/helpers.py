@@ -80,17 +80,16 @@ def parse_url(url: str) -> str:
         str: The parsed or rewritten URL suitable for the current environment and Docker network mode.
     """
 
-    url = url.rstrip("/")
-
     if "localhost" not in url and "0.0.0.0" not in url:
         return url
 
+    internal_url = os.getenv("AGENTA_API_INTERNAL_URL")
+    if internal_url:
+        return internal_url
+
     docker_network_mode = env.DOCKER_NETWORK_MODE
 
-    if (
-        not docker_network_mode
-        or (docker_network_mode and docker_network_mode.lower()) == "bridge"
-    ):
+    if not docker_network_mode or docker_network_mode == "bridge":
         return url.replace(
             "localhost",
             "host.docker.internal",
@@ -160,7 +159,7 @@ def warn_deprecated_env_vars():
         click.echo(
             click.style(
                 "\n\nPlease refer to the docs for migration details:\n"
-                "  → https://agenta.ai/docs/misc/environment-variables\n\n"
+                "  → https://docs.agenta.ai/misc/environment-variables\n\n"
                 "Some of these values have been migrated automatically, but you must manually remove the old ones.",
                 fg="yellow",
             )

@@ -15,7 +15,6 @@ import {
     FOCUS_COMMAND,
     $setSelection,
     LexicalNode,
-    SELECT_ALL_COMMAND,
 } from "lexical"
 
 import {safeJson5Parse} from "@/oss/lib/helpers/utils"
@@ -66,20 +65,14 @@ function getTokenValidation(
 ): {shouldHaveError: boolean; expectedMessage: string | null} {
     // JSON syntax validation for unquoted property names
     if (language === "json" && tokenType === "plain") {
-        const trimmed = text.trim()
-        if (!trimmed) {
-            return {shouldHaveError: false, expectedMessage: null}
-        }
-
-        // Numbers, booleans and null are allowed as values
-        const n = Number(trimmed)
-        const isNumeric = !Number.isNaN(n)
-        const isBooleanOrNull = trimmed === "true" || trimmed === "false" || trimmed === "null"
-
-        // Looks like an identifier (what a property name would look like)
-        const identifierRegex = /^[A-Za-z_$][A-Za-z0-9_$]*$/
-
-        if (identifierRegex.test(trimmed) && !isNumeric && !isBooleanOrNull) {
+        // Check if this looks like a property name (not a value)
+        if (
+            text !== "" &&
+            !Number(text) &&
+            text !== "true" &&
+            text !== "false" &&
+            text !== "null"
+        ) {
             return {
                 shouldHaveError: true,
                 expectedMessage: "Property names must be wrapped in double quotes",
@@ -90,6 +83,26 @@ function getTokenValidation(
 }
 
 /**
+ * Applies validation errors to code line nodes during initial content creation.
+ * Uses the unified ValidationManager for consistent validation.
+ *
+ * @param codeLineNodes The array of code line nodes to apply validation to.
+ * @param text The original text content.
+ * @param validationSchema The schema to validate against.
+ * @param editor The Lexical editor instance.
+ */
+function applyValidationToNodes(
+    codeLineNodes: CodeLineNode[],
+    text: string,
+    validationSchema: any,
+    editor?: any,
+): void {
+    // Note: Validation is now handled automatically by the GlobalErrorIndicatorPlugin
+    // which listens to content changes and applies validation styling per editor instance.
+    // No need to manually trigger validation during initial content creation.
+}
+
+/**
  * Creates an array of highlighted code line nodes from a given text and language.
  *
  * @param text The input text to highlight.
@@ -97,7 +110,12 @@ function getTokenValidation(
  * @param validationSchema Optional schema for validation during node creation.
  * @returns An array of highlighted code line nodes.
  */
-export function createHighlightedNodes(text: string, language: "json" | "yaml"): CodeLineNode[] {
+export function createHighlightedNodes(
+    text: string,
+    language: "json" | "yaml",
+    validationSchema?: any,
+    editor?: any,
+): CodeLineNode[] {
     // For JSON, avoid splitting on \n inside string values
     if (language === "json") {
         try {
@@ -108,7 +126,7 @@ export function createHighlightedNodes(text: string, language: "json" | "yaml"):
                 !text.includes("\n  ")
             let pretty = text
             if (isCompactJson) {
-                const obj = JSON5.parse(text)
+                const obj = JSON.parse(text)
                 pretty = JSON.stringify(obj, null, 2)
             }
             // Split pretty-printed JSON into lines
@@ -138,7 +156,10 @@ export function createHighlightedNodes(text: string, language: "json" | "yaml"):
                 })
                 codeLineNodes.push(codeLine)
             })
-
+            // Run validation if schema is provided
+            if (validationSchema && editor.isEditable()) {
+                applyValidationToNodes(codeLineNodes, text, validationSchema, editor)
+            }
             return codeLineNodes
         } catch (e) {
             // If invalid JSON, fallback to generic line splitting below
@@ -171,6 +192,11 @@ export function createHighlightedNodes(text: string, language: "json" | "yaml"):
         })
         codeLineNodes.push(codeLine)
     })
+
+    // Run validation if schema is provided
+    if (validationSchema && editor.isEditable()) {
+        applyValidationToNodes(codeLineNodes, text, validationSchema, editor)
+    }
 
     return codeLineNodes
 }
@@ -327,7 +353,9 @@ function InsertInitialCodeBlockPlugin({
                             })
                             const highlightedNodes = createHighlightedNodes(
                                 value,
-                                payload.language as "json" | "yaml",
+                                payload.language,
+                                validationSchema,
+                                editor,
                             )
                             highlightedNodes.forEach((node) => {
                                 existingCodeBlock.append(node)
@@ -436,7 +464,12 @@ function InsertInitialCodeBlockPlugin({
                     }
 
                     existingCodeBlock.clear()
-                    const newNodes = createHighlightedNodes(newText, newLanguage)
+                    const newNodes = createHighlightedNodes(
+                        newText,
+                        newLanguage,
+                        validationSchema,
+                        editor,
+                    )
                     newNodes.forEach((n) => existingCodeBlock.append(n))
                     existingCodeBlock.setLanguage(newLanguage)
 
@@ -462,70 +495,6 @@ function InsertInitialCodeBlockPlugin({
                 () => {
                     store.set(editorStateAtom, {focused: true})
                     return false
-                },
-                COMMAND_PRIORITY_LOW,
-            ),
-            editor.registerCommand(
-                SELECT_ALL_COMMAND,
-                () => {
-                    const rootElement = editor.getRootElement()
-                    if (!rootElement) {
-                        return false
-                    }
-
-                    const activeElement =
-                        typeof document !== "undefined" ? document.activeElement : null
-
-                    const selectAllInEditor = () => {
-                        editor.update(() => {
-                            const root = $getRoot()
-                            const codeBlock = root.getChildren().find($isCodeBlockNode)
-
-                            if (codeBlock) {
-                                // Select the content of the code block, not the entire root,
-                                // so deleting does not remove the block itself.
-                                codeBlock.select()
-                            } else {
-                                // Fallback: select the entire root if no code block exists
-                                root.select()
-                            }
-                        })
-
-                        if (typeof window === "undefined" || typeof document === "undefined") {
-                            return
-                        }
-
-                        const ensureNativeSelection = () => {
-                            const domSelection = window.getSelection()
-                            if (!domSelection || domSelection.toString().length > 0) {
-                                return
-                            }
-
-                            domSelection.removeAllRanges()
-                            const range = document.createRange()
-                            range.selectNodeContents(rootElement)
-                            domSelection.addRange(range)
-                        }
-
-                        if (typeof requestAnimationFrame === "function") {
-                            requestAnimationFrame(ensureNativeSelection)
-                        } else {
-                            setTimeout(ensureNativeSelection, 0)
-                        }
-                    }
-
-                    if (
-                        !activeElement ||
-                        (activeElement !== rootElement && !rootElement.contains(activeElement))
-                    ) {
-                        rootElement.focus({preventScroll: true})
-                        setTimeout(selectAllInEditor, 0)
-                        return true
-                    }
-
-                    selectAllInEditor()
-
-                    return true
                 },
                 COMMAND_PRIORITY_LOW,
             ),

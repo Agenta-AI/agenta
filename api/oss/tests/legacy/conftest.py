@@ -46,8 +46,7 @@ AGENTA_HOST = os.getenv("AGENTA_HOST", "http://localhost")
 API_BASE_URL = f"{AGENTA_HOST}/api/"
 API_KEYS_MAPPING = {
     "OPENAI_API_KEY": "openai",
-    "MISTRAL_API_KEY": "mistral",
-    "MISTRALAI_API_KEY": "mistralai",
+    "MISTRAL_API_KEY": "mistralai",
     "COHERE_API_KEY": "cohere",
     "ANTHROPIC_API_KEY": "anthropic",
     "ANYSCALE_API_KEY": "anyscale",
@@ -926,20 +925,7 @@ def get_all_supported_models():
             "gpt-4o-mini",
             "gpt-4-1106-preview",
         ],
-        "Gemini": [
-            "gemini/gemini-2.5-flash-preview-05-20",
-            "gemini/gemini-2.5-flash-preview-04-17",
-            "gemini/gemini-2.0-flash-001",
-            "gemini/gemini-2.5-pro-preview-05-06",
-            "gemini/gemini-2.0-flash-lite-preview-02-05",
-            "gemini/gemini-2.5-pro",
-            "gemini/gemini-2.5-flash",
-            "gemini/gemini-2.5-flash-preview-09-2025",
-            "gemini/gemini-2.5-flash-lite",
-            "gemini/gemini-2.5-flash-lite-preview-09-2025",
-            "gemini/gemini-2.0-flash",
-            "gemini/gemini-2.0-flash-lite",
-        ],
+        "Gemini": ["gemini/gemini-1.5-pro-latest", "gemini/gemini-1.5-flash"],
         "Cohere": [
             "cohere/command-light",
             "cohere/command-r-plus",

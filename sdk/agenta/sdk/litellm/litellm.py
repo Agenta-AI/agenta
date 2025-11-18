@@ -193,9 +193,6 @@ def litellm_handler():
 
             span.end()
 
-            # Clean up span from dictionary to prevent memory leak
-            del self.span[litellm_call_id]
-
         def log_failure_event(
             self,
             kwargs,
@@ -223,9 +220,6 @@ def litellm_handler():
             span.set_status(status="ERROR")
 
             span.end()
-
-            # Clean up span from dictionary to prevent memory leak
-            del self.span[litellm_call_id]
 
         async def async_log_stream_event(
             self,
@@ -327,9 +321,6 @@ def litellm_handler():
 
             span.end()
 
-            # Clean up span from dictionary to prevent memory leak
-            del self.span[litellm_call_id]
-
         async def async_log_failure_event(
             self,
             kwargs,
@@ -357,8 +348,5 @@ def litellm_handler():
             span.set_status(status="ERROR")
 
             span.end()
-
-            # Clean up span from dictionary to prevent memory leak
-            del self.span[litellm_call_id]
 
     return LitellmHandler()

@@ -67,7 +67,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             singleLine = false,
             codeOnly = false,
             language,
-            templateFormat,
             customRender,
             showToolbar = true,
             enableTokens = false,
@@ -81,7 +80,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
             disabled = false,
             tokens = [],
             additionalCodePlugins = [],
-            showLineNumbers = true,
             ...rest
         }: EditorProps,
         ref,
@@ -312,7 +310,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                     className={clsx("editor-inner border rounded-lg min-h-[inherit]", {
                         "single-line": singleLine,
                         "code-editor": codeOnly,
-                        "no-line-numbers": codeOnly && !showLineNumbers,
                     })}
                     style={
                         dimensions && dimensions.width
@@ -333,7 +330,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             enableTokens={enableTokens}
                             debug={debug}
                             language={language}
-                            templateFormat={templateFormat}
                             placeholder={placeholder}
                             handleUpdate={handleUpdate}
                             initialValue={initialValue}
@@ -450,7 +446,6 @@ const Editor = ({
     singleLine = false,
     codeOnly = false,
     language,
-    templateFormat,
     customRender,
     showToolbar = true,
     enableTokens = false,
@@ -464,7 +459,6 @@ const Editor = ({
     noProvider = false,
     tokens = [],
     additionalCodePlugins = [],
-    showLineNumbers = true,
     ...rest
 }: EditorProps) => {
     const {setContainerElm, dimensions: dimension} = useEditorResize({
@@ -488,7 +482,6 @@ const Editor = ({
                     singleLine={singleLine}
                     codeOnly={codeOnly}
                     language={language}
-                    templateFormat={templateFormat}
                     showToolbar={showToolbar}
                     enableTokens={enableTokens}
                     debug={debug}
@@ -497,7 +490,6 @@ const Editor = ({
                     validationSchema={validationSchema}
                     tokens={tokens}
                     additionalCodePlugins={additionalCodePlugins}
-                    showLineNumbers={showLineNumbers}
                 />
             ) : (
                 <EditorProvider
@@ -547,7 +539,6 @@ const Editor = ({
                         singleLine={singleLine}
                         codeOnly={codeOnly}
                         language={language}
-                        templateFormat={templateFormat}
                         showToolbar={showToolbar}
                         enableTokens={enableTokens}
                         debug={debug}
@@ -556,7 +547,6 @@ const Editor = ({
                         disabled={disabled}
                         tokens={tokens}
                         additionalCodePlugins={additionalCodePlugins}
-                        showLineNumbers={showLineNumbers}
                     />
                 </EditorProvider>
             )}

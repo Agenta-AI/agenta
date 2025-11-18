@@ -2,12 +2,10 @@ from typing import Optional, Protocol, Any
 from os import environ
 from contextlib import contextmanager
 
-import litellm
-
 from agenta.sdk.utils.logging import get_module_logger
 
 from agenta.sdk.litellm.mocks import MOCKS
-from agenta.sdk.contexts.routing import RoutingContext
+from agenta.sdk.context.serving import serving_context
 
 AGENTA_LITELLM_MOCK = environ.get("AGENTA_LITELLM_MOCK") or None
 
@@ -67,14 +65,18 @@ def user_aws_credentials_from(ps: dict):
 
 
 class LitellmProtocol(Protocol):
-    async def acompletion(self, *args: Any, **kwargs: Any) -> Any: ...
+    async def acompletion(self, *args: Any, **kwargs: Any) -> Any:
+        ...
+
+
+litellm: Optional[LitellmProtocol] = None  # pylint: disable=invalid-name
 
 
 async def acompletion(*args, **kwargs):
-    mock = AGENTA_LITELLM_MOCK or RoutingContext.get().mock
+    mock = AGENTA_LITELLM_MOCK or serving_context.get().mock
 
     if mock:
-        # log.debug("Mocking litellm: %s.", mock)
+        log.debug("Mocking litellm: %s.", mock)
 
         if mock not in MOCKS:
             mock = "hello"

@@ -44,20 +44,6 @@ export const historyByRevisionAtomFamily = atomFamily((revisionId: string) =>
                     messages.push({role, content})
                 }
             }
-
-            const toolResponses = t?.toolResponsesByRevision?.[revisionId]
-            if (Array.isArray(toolResponses)) {
-                for (const toolNode of toolResponses) {
-                    try {
-                        const toolVal = extractValueByMetadata(toolNode, allMeta) as any
-                        messages.push(toolVal as any)
-                    } catch {
-                        const content = toolNode?.content?.value ?? toolNode?.content ?? ""
-                        const role = toolNode?.role?.value ?? toolNode?.role ?? "tool"
-                        messages.push({role, content})
-                    }
-                }
-            }
         }
         return messages
     }),

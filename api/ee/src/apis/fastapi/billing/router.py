@@ -35,7 +35,7 @@ log = get_module_logger(__name__)
 
 stripe.api_key = environ.get("STRIPE_API_KEY")
 
-MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
+MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xff:02x}" for ele in range(40, -1, -8))
 STRIPE_WEBHOOK_SECRET = environ.get("STRIPE_WEBHOOK_SECRET")
 STRIPE_TARGET = environ.get("STRIPE_TARGET") or MAC_ADDRESS
 AGENTA_PRICING = loads(environ.get("AGENTA_PRICING") or "{}")
@@ -807,66 +807,15 @@ class SubscriptionsRouter:
     async def report_usage(
         self,
     ):
-        log.info("[report] [endpoint] Trigger")
-
         try:
-            report_ongoing = await get_cache(
-                namespace="meters:report",
-                key={},
-            )
+            await self.subscription_service.meters_service.report()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="unexpected error") from e
 
-            if report_ongoing:
-                log.info("[report] [endpoint] Skipped (ongoing)")
-                return JSONResponse(
-                    status_code=status.HTTP_200_OK,
-                    content={"status": "skipped"},
-                )
-
-            # await set_cache(
-            #     namespace="meters:report",
-            #     key={},
-            #     value=True,
-            #     ttl=60 * 60,  # 1 hour
-            # )
-            log.info("[report] [endpoint] Lock acquired")
-
-            try:
-                log.info("[report] [endpoint] Reporting usage started")
-                await self.subscription_service.meters_service.report()
-                log.info("[report] [endpoint] Reporting usage completed")
-
-                return JSONResponse(
-                    status_code=status.HTTP_200_OK,
-                    content={"status": "success"},
-                )
-
-            except Exception:
-                log.error(
-                    "[report] [endpoint] Report failed:",
-                    exc_info=True,
-                )
-                return JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    content={"status": "error", "message": "Report failed"},
-                )
-
-            finally:
-                await invalidate_cache(
-                    namespace="meters:report",
-                    key={},
-                )
-                log.info("[report] [endpoint] Lock released")
-
-        except Exception:
-            # Catch-all for any errors, including cache errors
-            log.error(
-                "[report] [endpoint] Fatal error:",
-                exc_info=True,
-            )
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"status": "error", "message": "Fatal error"},
-            )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content={"status": "success"},
+        )
 
     # ROUTES
 
@@ -875,13 +824,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_portal(
             organization_id=request.state.organization_id,
@@ -903,13 +851,12 @@ class SubscriptionsRouter:
         plan: Plan = Query(...),
         success_url: str = Query(...),  # find a way to make this optional or moot
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.create_checkout(
             organization_id=request.state.organization_id,
@@ -935,13 +882,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_plans(
             organization_id=request.state.organization_id,
@@ -953,13 +899,12 @@ class SubscriptionsRouter:
         request: Request,
         plan: Plan = Query(...),
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.switch_plans(
             organization_id=request.state.organization_id,
@@ -982,13 +927,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_subscription(
             organization_id=request.state.organization_id,
@@ -999,13 +943,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.EDIT_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.EDIT_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.cancel_subscription(
             organization_id=request.state.organization_id,
@@ -1025,13 +968,12 @@ class SubscriptionsRouter:
         self,
         request: Request,
     ):
-        if is_ee():
-            if not await check_action_access(
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=Permission.VIEW_BILLING,
-            ):
-                return FORBIDDEN_RESPONSE
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_BILLING,
+        ):
+            return FORBIDDEN_RESPONSE
 
         return await self.fetch_usage(
             organization_id=request.state.organization_id,

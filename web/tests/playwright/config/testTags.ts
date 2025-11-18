@@ -74,7 +74,7 @@ export const TestLensType = {
     SECURITY: "security",
 } as const
 
-export const TestcaseType = {
+export const TestCaseType = {
     TYPICAL: "typical",
     EDGE: "edge",
 } as const

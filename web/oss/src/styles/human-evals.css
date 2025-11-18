@@ -46,18 +46,4 @@ body {
             backdrop-filter: blur(18px);
         }
     }
-
-    .agenta-scenario-table {
-        .ant-table-tbody > tr {
-            cursor: pointer;
-        }
-        .ant-table-row {
-            &.ant-table-row-hover,
-            &:hover {
-                > td {
-                    background-color: #9ab7ff !important;
-                }
-            }
-        }
-    }
 }

@@ -9,7 +9,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.client.client import AgentaApi, AsyncAgentaApi
 
 from agenta.sdk.tracing import Tracing
-from agenta.sdk.contexts.routing import RoutingContext
+from agenta.sdk.context.serving import serving_context
 
 
 log = get_module_logger(__name__)
@@ -27,7 +27,6 @@ class AgentaSingleton:
 
     def __init__(self):
         self.host = None
-        self.api_url = None
         self.api_key = None
 
         self.scope_type = None
@@ -42,7 +41,6 @@ class AgentaSingleton:
         self,
         *,
         host: Optional[str] = None,
-        api_url: Optional[str] = None,
         api_key: Optional[str] = None,
         config_fname: Optional[str] = None,
         redact: Optional[Callable[..., Any]] = None,
@@ -70,7 +68,7 @@ class AgentaSingleton:
 
         """
 
-        log.info("Agenta -  SDK ver: %s", version("agenta"))
+        log.info("Agenta - SDK version: %s", version("agenta"))
 
         config = {}
         if config_fname:
@@ -79,59 +77,36 @@ class AgentaSingleton:
         _host = (
             host
             or getenv("AGENTA_HOST")
+            or config.get("backend_host")
             or config.get("host")
-            or "https://cloud.agenta.ai"
+            or getenv("AGENTA_API_URL", "https://cloud.agenta.ai")
         )
-
-        _api_url = (
-            api_url
-            or getenv("AGENTA_API_INTERNAL_URL")
-            or getenv("AGENTA_API_URL")
-            or config.get("api_url")
-            or None  # NO FALLBACK
-        )
-
-        if _api_url:
-            _api_url = parse_url(url=_api_url)
-            _host = _api_url.rsplit("/api", 1)[0]
-        elif _host:
-            _host = parse_url(url=_host)
-            _api_url = _host + "/api"
 
         try:
-            assert _api_url and isinstance(_api_url, str), (
-                "API URL is required. Please provide a valid API URL or set AGENTA_API_URL environment variable."
-            )
-            self.host = _host
-            self.api_url = _api_url
+            assert _host and isinstance(
+                _host, str
+            ), "Host is required. Please provide a valid host or set AGENTA_HOST environment variable."
+            self.host = parse_url(url=_host)
         except AssertionError as e:
             log.error(str(e))
             raise
         except Exception as e:
-            log.error(f"Failed to parse API URL '{_api_url}': {e}")
+            log.error(f"Failed to parse host URL '{_host}': {e}")
             raise
 
-        self.api_key = (
-            api_key
-            or getenv("AGENTA_API_KEY")
-            or config.get("api_key")
-            or None  # NO FALLBACK
-        )
+        log.info("Agenta - Host: %s", self.host)
 
-        log.info("Agenta -  API URL: %s", self.api_url)
+        self.api_key = api_key or getenv("AGENTA_API_KEY") or config.get("api_key")
 
         self.scope_type = (
             scope_type
             or getenv("AGENTA_SCOPE_TYPE")
             or config.get("scope_type")
-            or None  # NO FALLBACK
+            or None
         )
 
         self.scope_id = (
-            scope_id
-            or getenv("AGENTA_SCOPE_ID")
-            or config.get("scope_id")
-            or None  # NO FALLBACK
+            scope_id or getenv("AGENTA_SCOPE_ID") or config.get("scope_id") or None
         )
 
         self.tracing = Tracing(
@@ -145,12 +120,12 @@ class AgentaSingleton:
         )
 
         self.api = AgentaApi(
-            base_url=self.api_url,
+            base_url=self.host + "/api",
             api_key=self.api_key if self.api_key else "",
         )
 
         self.async_api = AsyncAgentaApi(
-            base_url=self.api_url,
+            base_url=self.host + "/api",
             api_key=self.api_key if self.api_key else "",
         )
 
@@ -174,7 +149,7 @@ class Config:
         return self.default_parameters
 
     def __getattr__(self, key):
-        context = RoutingContext.get()
+        context = serving_context.get()
 
         parameters = context.parameters
 
@@ -197,7 +172,6 @@ class Config:
 
 def init(
     host: Optional[str] = None,
-    api_url: Optional[str] = None,
     api_key: Optional[str] = None,
     config_fname: Optional[str] = None,
     redact: Optional[Callable[..., Any]] = None,
@@ -226,7 +200,6 @@ def init(
 
     singleton.init(
         host=host,
-        api_url=api_url,
         api_key=api_key,
         config_fname=config_fname,
         redact=redact,

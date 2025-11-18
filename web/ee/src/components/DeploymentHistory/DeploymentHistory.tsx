@@ -15,7 +15,7 @@ import {
     fetchAllDeploymentRevisions,
 } from "@/oss/services/deploymentVersioning/api"
 
-import {DeploymentRevisionConfig, DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
+import {DeploymentRevisionConfig, DeploymentRevisions} from "../../lib/types_ee"
 
 dayjs.extend(relativeTime)
 dayjs.extend(duration)

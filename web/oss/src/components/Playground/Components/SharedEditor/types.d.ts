@@ -1,9 +1,6 @@
 import type {EditorProps} from "@/oss/components/Editor/types"
-import type {InputProps, TextAreaProps} from "antd/es/input"
 
 import type {BaseContainerProps} from "../types"
-
-type SharedAntdInputProps = (InputProps & {textarea?: false}) | (TextAreaProps & {textarea: true})
 
 export interface SharedEditorProps extends BaseContainerProps {
     header?: React.ReactNode
@@ -18,7 +15,6 @@ export interface SharedEditorProps extends BaseContainerProps {
     disabled?: boolean
     editorProps?: EditorProps
     useAntdInput?: boolean
-    antdInputProps?: SharedAntdInputProps
     error?: boolean
 
     noProvider?: boolean

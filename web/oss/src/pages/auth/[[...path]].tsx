@@ -123,7 +123,7 @@ const Auth = () => {
                 )}
             >
                 <Image
-                    src="/assets/Agenta-logo-full-light.png"
+                    src="/assets/light-complete-transparent-CROPPED.png"
                     alt="agenta-ai"
                     width={114}
                     height={40}

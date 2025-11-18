@@ -1,18 +1,9 @@
 agenta
-
-# Server
 uvicorn
-gunicorn
-
-# Traces, Metrics, Logs
-structlog
-newrelic
-
-# LiteLLM
 boto3
-google-auth>=2.23,<3
-google-cloud-aiplatform>=1.38
+litellm==1.76.0
+structlog
+huggingface-hub<0.31.0
 
-# Miscellaneous / Temporary
+# temporary
 decorator
-restrictedpython

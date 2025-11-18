@@ -123,11 +123,11 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     onClick={() => setCurrent(0)}
                 />
 
-                <Text className={classes.headerText}>Upload a testset</Text>
+                <Text className={classes.headerText}>Upload a test set</Text>
             </div>
 
             <div className="flex flex-col gap-6">
-                <Text>Upload your testset as CSV or JSON</Text>
+                <Text>Upload your test set as CSV or JSON</Text>
 
                 <div className="grid gap-2">
                     <Text className={classes.label}>Select type</Text>
@@ -138,7 +138,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                 </div>
 
                 <div className="grid gap-1">
-                    <Text className={classes.label}>Testset Name</Text>
+                    <Text className={classes.label}>Test Set Name</Text>
                     <Input
                         placeholder="Enter a name"
                         value={testsetName}
@@ -221,7 +221,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         {uploadType === "CSV" ? (
                                             <>
                                                 <Text>
-                                                    The testset should be in CSV format with the
+                                                    The test set should be in CSV format with the
                                                     following requirements:
                                                 </Text>
                                                 <div className="flex flex-col">
@@ -240,7 +240,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         ) : (
                                             <>
                                                 <Text>
-                                                    The testset should be in JSON format with the
+                                                    The test set should be in JSON format with the
                                                     following requirements:
                                                 </Text>
 
@@ -278,7 +278,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                                         )}
 
                                         <Typography.Link
-                                            href="https://agenta.ai/docs/evaluation/create-testsets#creating-a-testset-from-a-csv-or-json"
+                                            href="https://docs.agenta.ai/evaluation/create-test-sets#creating-a-test-set-from-a-csv-or-json"
                                             target="_blank"
                                         >
                                             <Button>Read the docs</Button>
@@ -301,7 +301,7 @@ const UploadTestset: React.FC<Props> = ({setCurrent, onCancel}) => {
                     type="primary"
                     onClick={() => form.submit()}
                 >
-                    Create testset
+                    Create test set
                 </Button>
             </div>
         </section>

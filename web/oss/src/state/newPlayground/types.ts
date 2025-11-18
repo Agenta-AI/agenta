@@ -80,7 +80,7 @@ export interface UpdateConfigParams {
     value: any
 }
 
-export interface AddTestcaseParams {
+export interface AddTestCaseParams {
     mode: "completion" | "chat"
     variables?: Record<string, string>
 }

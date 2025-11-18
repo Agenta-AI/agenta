@@ -1,10 +1,10 @@
-from typing import Optional, List, Tuple, Union
+from typing import Optional, List, Tuple
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.git.interfaces import GitDAOInterface
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import Reference, Windowing, Status
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
@@ -40,28 +40,24 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
     #
-    WorkflowServiceInterface,
     WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
+    WorkflowServiceResponse,
+    WorkflowServiceInterface,
     #
     WorkflowRevisionData,
-    WorkflowServiceRequestData,
-    WorkflowServiceResponseData,
+    WorkflowServiceData,
 )
 
-from oss.src.services.auth_helper import sign_secret_token
-from oss.src.services.db_manager import get_project_by_id
+from oss.src.core.workflows.status import (
+    SuccessStatus,
+    HandlerNotFoundStatus,
+)
+from oss.src.core.workflows.errors import (
+    ErrorStatus,
+)
 
-from agenta.sdk.decorators.running import (
-    invoke_workflow as _invoke_workflow,
-    inspect_workflow as _inspect_workflow,
-)
-from agenta.sdk.models.workflows import (
-    WorkflowServiceRequest,
-    WorkflowServiceBatchResponse,
-    WorkflowServiceStreamResponse,
-)
+from oss.src.core.services.registry import REGISTRY
+from oss.src.core.services.utils import parse_service_uri
 
 log = get_module_logger(__name__)
 
@@ -90,7 +86,7 @@ class WorkflowsService:
         workflow_id: Optional[UUID] = None,
     ) -> Optional[Workflow]:
         artifact_create = ArtifactCreate(
-            **workflow_create.model_dump(mode="json", exclude_none=True),
+            **workflow_create.model_dump(mode="json"),
         )
 
         artifact = await self.workflows_dao.create_artifact(
@@ -138,7 +134,7 @@ class WorkflowsService:
         workflow_edit: WorkflowEdit,
     ) -> Optional[Workflow]:
         artifact_edit = ArtifactEdit(
-            **workflow_edit.model_dump(mode="json", exclude_none=True),
+            **workflow_edit.model_dump(mode="json"),
         )
 
         artifact = await self.workflows_dao.edit_artifact(
@@ -252,7 +248,7 @@ class WorkflowsService:
         workflow_variant_create: WorkflowVariantCreate,
     ) -> Optional[WorkflowVariant]:
         _variant_create = VariantCreate(
-            **workflow_variant_create.model_dump(mode="json", exclude_none=True),
+            **workflow_variant_create.model_dump(mode="json"),
         )
 
         variant = await self.workflows_dao.create_variant(
@@ -304,7 +300,7 @@ class WorkflowsService:
         workflow_variant_edit: WorkflowVariantEdit,
     ) -> Optional[WorkflowVariant]:
         _variant_edit = VariantEdit(
-            **workflow_variant_edit.model_dump(mode="json", exclude_none=True),
+            **workflow_variant_edit.model_dump(mode="json"),
         )
 
         variant = await self.workflows_dao.edit_variant(
@@ -454,7 +450,7 @@ class WorkflowsService:
         workflow_revision_create: WorkflowRevisionCreate,
     ) -> Optional[WorkflowRevision]:
         _revision_create = RevisionCreate(
-            **workflow_revision_create.model_dump(mode="json", exclude_none=True),
+            **workflow_revision_create.model_dump(mode="json"),
         )
 
         revision = await self.workflows_dao.create_revision(
@@ -486,32 +482,20 @@ class WorkflowsService:
             return None
 
         if workflow_ref and not workflow_variant_ref and not workflow_revision_ref:
-            workflow = await self.fetch_workflow(
+            workflow_variant = await self.query_workflow_variants(
                 project_id=project_id,
                 #
-                workflow_ref=workflow_ref,
-            )
-
-            if not workflow:
-                return None
-
-            workflow_ref = Reference(
-                id=workflow.id,
-                slug=workflow.slug,
-            )
-
-            workflow_variant = await self.fetch_workflow_variant(
-                project_id=project_id,
+                workflow_refs=[workflow_ref],
                 #
-                workflow_ref=workflow_ref,
+                windowing=Windowing(limit=1, order="descending"),
             )
 
             if not workflow_variant:
                 return None
 
             workflow_variant_ref = Reference(
-                id=workflow_variant.id,
-                slug=workflow_variant.slug,
+                id=workflow_variant[0].id,
+                slug=workflow_variant[0].slug,
             )
 
         revision = await self.workflows_dao.fetch_revision(
@@ -539,7 +523,7 @@ class WorkflowsService:
         workflow_revision_edit: WorkflowRevisionEdit,
     ) -> Optional[WorkflowRevision]:
         _workflow_revision_edit = RevisionEdit(
-            **workflow_revision_edit.model_dump(mode="json", exclude_none=True),
+            **workflow_revision_edit.model_dump(mode="json"),
         )
 
         revision = await self.workflows_dao.edit_revision(
@@ -613,7 +597,7 @@ class WorkflowsService:
         workflow_revision_commit: WorkflowRevisionCommit,
     ) -> Optional[WorkflowRevision]:
         _revision_commit = RevisionCommit(
-            **workflow_revision_commit.model_dump(mode="json", exclude_none=True),
+            **workflow_revision_commit.model_dump(mode="json"),
         )
 
         if not _revision_commit.artifact_id:
@@ -730,43 +714,92 @@ class WorkflowsService:
         user_id: UUID,
         #
         request: WorkflowServiceRequest,
-        #
-        **kwargs,
-    ) -> Union[
-        WorkflowServiceBatchResponse,
-        WorkflowServiceStreamResponse,
-    ]:
-        project = await get_project_by_id(
-            project_id=str(project_id),
-        )
+        revision: WorkflowRevision,
+    ) -> WorkflowServiceResponse:
+        try:
+            (
+                service_provider,
+                service_kind,
+                service_key,
+                service_version,
+            ) = await parse_service_uri(
+                uri=revision.data.uri,
+            )
 
-        secret_token = await sign_secret_token(
-            user_id=str(user_id),
-            project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
-            organization_id=str(project.organization_id),
-        )
+            handler = (
+                REGISTRY.get(service_provider, {})
+                .get(service_kind, {})
+                .get(service_key, {})
+                .get(service_version, None)
+            )
 
-        credentials = f"Secret {secret_token}"
+            if not handler:
+                log.warn(
+                    "Could not find a suitable handler for service URI: %s",
+                    revision.data.uri,
+                )
+                return WorkflowServiceResponse(
+                    status=HandlerNotFoundStatus(
+                        uri=revision.data.uri,
+                    ),
+                )
 
-        return await _invoke_workflow(
-            request=request,
-            #
-            credentials=credentials,
-            #
-            **kwargs,
-        )
+            outputs = await handler(
+                revision=revision,
+                request=request,
+                #
+                parameters=revision.data.parameters,
+                inputs=request.data.inputs,
+                #
+                trace_parameters=request.data.trace_parameters,
+                trace_inputs=request.data.trace_inputs,
+                trace_outputs=request.data.trace_outputs,
+                #
+                trace=request.data.trace,
+                tree=request.data.tree,
+                #
+                secrets=request.secrets,
+            )
+
+            response = WorkflowServiceResponse(
+                status=SuccessStatus(),
+                data=WorkflowServiceData(
+                    outputs=outputs,
+                ),
+            )
+
+            return response
+
+        except ErrorStatus as error:
+            log.warn(error)
+            return WorkflowServiceResponse(
+                status=Status(
+                    code=error.code,
+                    type=error.type,
+                    message=error.message,
+                    stacktrace=error.stacktrace,
+                ),
+            )
+
+        except Exception as ex:
+            log.warn(
+                "Failed to invoke workflow with error: %s",
+                str(ex),
+            )
+            return WorkflowServiceResponse(
+                status=Status(
+                    code=500,
+                    message=str(ex),
+                ),
+            )
 
     async def inspect_workflow(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
-        #
-        request: WorkflowServiceRequest,
-    ) -> WorkflowServiceRequest:
-        return await _inspect_workflow(
-            request=request,
-        )
+        interface: WorkflowServiceInterface,
+    ) -> WorkflowServiceInterface:
+        pass
 
     # --------------------------------------------------------------------------

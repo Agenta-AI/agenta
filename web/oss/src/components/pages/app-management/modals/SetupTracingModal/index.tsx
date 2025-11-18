@@ -115,7 +115,7 @@ const SetupTracingModalContent = ({
                 <Text>Set up tracing</Text>
                 <Button
                     target="_blank"
-                    href="https://agenta.ai/docs/observability/observability-sdk"
+                    href="https://docs.agenta.ai/observability/observability-sdk"
                 >
                     <Play />
                     Tutorial
@@ -125,7 +125,7 @@ const SetupTracingModalContent = ({
                 <Space direction="vertical">
                     <Title>Tracing</Title>
                     <Text>
-                        Debug effectively, bootstrap testsets, monitor and compare app versions
+                        Debug effectively, bootstrap test sets, monitor and compare app versions
                     </Text>
                 </Space>
                 <Tabs defaultActiveKey="openai" items={items} className={classes.tabs} />

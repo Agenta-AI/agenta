@@ -1,8 +1,6 @@
 import yaml from "js-yaml"
 import JSON5 from "json5"
 
-import type {CodeLanguage} from "../types"
-
 // Enhanced validation functions for irregular and chaotic input detection
 
 /**
@@ -249,7 +247,7 @@ export interface ErrorInfo {
 export function validateAll(
     textContent: string,
     schema?: any,
-    language: CodeLanguage = "json",
+    language: "json" | "yaml" = "json",
     _editedLineContent?: string,
     cleanedToOriginalLineMap?: Map<number, number>,
 ): {
@@ -264,16 +262,6 @@ export function validateAll(
 
     // Handle empty input
     if (!textContent || textContent.trim() === "") {
-        return {
-            allErrors: [],
-            errorsByLine: new Map(),
-            structuralErrors: [],
-            bracketErrors: [],
-            schemaErrors: [],
-        }
-    }
-
-    if (language === "code") {
         return {
             allErrors: [],
             errorsByLine: new Map(),
@@ -548,11 +536,11 @@ function validateLineWithParser(
     }
 
     // Try different JSON wrapping strategies to validate the line
-    const testcases = []
+    const testCases = []
 
     if (context === "array") {
         // For array elements, test as array items first
-        testcases.push(
+        testCases.push(
             {test: `[${trimmedLine}]`, description: "wrapped as array"},
             {
                 test: `[${trimmedLine.replace(/,\s*$/, "")}]`,
@@ -562,7 +550,7 @@ function validateLineWithParser(
         )
     } else {
         // For object context, test as object properties
-        testcases.push(
+        testCases.push(
             // Test as-is (for complete JSON fragments)
             {test: trimmedLine, description: "as-is"},
             // Test as object property
@@ -576,10 +564,10 @@ function validateLineWithParser(
 
     let lastError = ""
 
-    for (const testcase of testcases) {
+    for (const testCase of testCases) {
         try {
             // Use native JSON.parse for strict JSON validation
-            JSON.parse(testcase.test)
+            JSON.parse(testCase.test)
 
             // If we get here, the JSON is valid
             // But we need to check for JSON5-specific issues that JSON.parse allows
@@ -600,7 +588,7 @@ function validateLineWithParser(
         }
     }
 
-    // If all testcases failed, analyze the error for better messaging
+    // If all test cases failed, analyze the error for better messaging
     const enhancedError = enhanceErrorMessage(trimmedLine, lastError, context)
 
     return {valid: false, error: enhancedError}
@@ -1031,13 +1019,9 @@ function validateSchema(
     textContent: string,
     schema: any,
     lines: string[],
-    language: CodeLanguage = "json",
+    language: "json" | "yaml" = "json",
 ): ErrorInfo[] {
     const errors: ErrorInfo[] = []
-
-    if (language === "code") {
-        return errors
-    }
 
     try {
         // For schema validation, we'll use a simple approach:
@@ -1156,7 +1140,7 @@ function validateSchema(
 function findPropertyLine(
     lines: string[],
     propertyName: string,
-    language: CodeLanguage = "json",
+    language: "json" | "yaml" = "json",
 ): number {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
@@ -1165,7 +1149,7 @@ function findPropertyLine(
             if (line.includes(`"${propertyName}"`)) {
                 return i + 1
             }
-        } else if (language === "yaml") {
+        } else {
             // YAML can use both quoted and unquoted property names
             if (line.includes(`"${propertyName}"`) || line.includes(`${propertyName}:`)) {
                 return i + 1

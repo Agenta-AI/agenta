@@ -40,7 +40,9 @@ class DefaultAgentaAdapter(BaseAdapter):
 
         # Exceptions - Rebuilt from attributes.events to match previous output structure
         exception_events = attributes.get_events_by_name("exception")
-        if exception_events:  # Process the first one if multiple exist, or adapt if all should be processed
+        if (
+            exception_events
+        ):  # Process the first one if multiple exist, or adapt if all should be processed
             event_data = exception_events[0]
             # Ensure timestamp is decoded and formatted as previously (likely to string by decode_value if it's datetime)
             decoded_ts = decode_value(event_data.timestamp)
@@ -66,14 +68,3 @@ class DefaultAgentaAdapter(BaseAdapter):
                         if "attributes" not in features.exception:
                             features.exception["attributes"] = {}
                         features.exception["attributes"][attr_key] = decoded_attr_val
-
-        try:
-            features.links = attributes.links
-        except Exception as e:
-            log.error(
-                "Failed to set links on features. Links from attributes: %s. Error: %s",
-                attributes.links,
-                str(e),
-                exc_info=True,
-            )
-            pass

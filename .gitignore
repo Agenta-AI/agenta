@@ -48,4 +48,3 @@ web/ee/public/__env.js
 web/oss/public/__env.js
 
 web/oss/tests/datalayer/results
-.*

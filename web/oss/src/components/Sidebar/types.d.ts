@@ -15,7 +15,6 @@ export interface SidebarConfig {
     cloudFeatureTooltip?: string
     divider?: boolean
     header?: boolean
-    disabled?: boolean
 }
 
 export interface SidebarMenuProps {

@@ -7,11 +7,11 @@ Thanks for your interest in contributing to Agenta! We appreciate your effort an
 
 ## Getting Started
 
-1. **Local Installation:** First, set up the project on your local machine. Follow the steps in our [Local Installation Guide](https://agenta.ai/docs/self-host/quick-start). 
+1. **Local Installation:** First, set up the project on your local machine. Follow the steps in our [Local Installation Guide](https://docs.agenta.ai/self-host/quick-start). 
 
-2. **Understand the Project:** Familiarize yourself with our architecture and concepts by reading our [Core Concepts Guide](https://agenta.ai/docs/concepts/concepts) and [System Architecture Guide](https://agenta.ai/docs/self-host/infrastructure/architecture).
+2. **Understand the Project:** Familiarize yourself with our architecture and concepts by reading our [Conceptual Guide](https://docs.agenta.ai/guides/how_does_agenta_work) and [Architecture Guide](https://docs.agenta.ai/guides/how_does_agenta_work#agenta-architecture).
 
-3. **Begin Development:** Once you’ve installed the project and understand its architecture, you’re ready to contribute. See the [Development Mode Tutorial](https://agenta.ai/docs/misc/contributing/development-mode) for instructions on running the code in development mode.
+3. **Begin Development:** Once you’ve installed the project and understand its architecture, you’re ready to contribute. See the [Development Mode Tutorial](https://docs.agenta.ai/misc/contributing/development-mode) for instructions on running the code in development mode.
 
 ## Code Formatting and Linting
 

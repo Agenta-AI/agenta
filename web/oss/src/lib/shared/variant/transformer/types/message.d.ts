@@ -14,7 +14,16 @@ export interface MessageContentImage {
     image_url: ImageURL
 }
 
-export type MessageContentPart = MessageContentText | MessageContentImage
+export interface MessageContentFile {
+    type: "file"
+    file: {
+        file_id: string
+        name?: string
+        mime_type?: string
+    }
+}
+
+export type MessageContentPart = MessageContentText | MessageContentImage | MessageContentFile
 
 export interface Message {
     role: string

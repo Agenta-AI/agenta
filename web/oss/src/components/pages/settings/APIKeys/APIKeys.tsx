@@ -118,7 +118,7 @@ const APIKeys: React.FC = () => {
                         <code className="text-[#FF1493]">Authorization</code> header in the
                         requests. You can find examples of how to consume our APIs on the endpoints
                         page of an app or visit our{" "}
-                        <a href="https://agenta.ai/docs/backend_api/">docs</a>.
+                        <a href="https://docs.agenta.ai/backend_api/">docs</a>.
                     </span>
                 }
                 type="info"

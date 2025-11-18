@@ -13,7 +13,6 @@ class Meters(str, Enum):
     # COUNTERS
     TRACES = Counter.TRACES.value
     EVALUATIONS = Counter.EVALUATIONS.value
-    CREDITS = Counter.CREDITS.value
     # GAUGES
     USERS = Gauge.USERS.value
     APPLICATIONS = Gauge.APPLICATIONS.value

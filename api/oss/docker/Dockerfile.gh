@@ -18,10 +18,9 @@ RUN pip install --upgrade pip \
 #
 COPY ./oss /app/oss/
 COPY ./entrypoint.py ./pyproject.toml /app/
-#
 
 RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi 
+    && poetry install --no-interaction --no-ansi
 #
 
 #
@@ -34,12 +33,12 @@ RUN poetry config virtualenvs.create false \
 #
 #
 
-COPY ./oss/src/crons/queries.sh /queries.sh
-COPY ./oss/src/crons/queries.txt /etc/cron.d/queries-cron
-RUN sed -i -e '$a\' /etc/cron.d/queries-cron
-RUN cat -A /etc/cron.d/queries-cron
+#
+#
+#
+#
 
-RUN chmod +x /queries.sh \
-    && chmod 0644 /etc/cron.d/queries-cron
+#
+#
 
 EXPOSE 8000

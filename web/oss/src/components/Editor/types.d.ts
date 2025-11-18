@@ -26,14 +26,11 @@ export interface EditorProps extends React.HTMLProps<HTMLDivElement> {
     singleLine?: boolean
     autoFocus?: boolean
     codeOnly?: boolean
-    language?: "json" | "yaml" | "code"
+    language?: "json" | "yaml"
     showToolbar?: boolean
     enableTokens?: boolean
     tokens?: string[]
-    /** Template format for prompt variable/tag highlighting */
-    templateFormat?: "curly" | "fstring" | "jinja2"
     noProvider?: boolean
-    showLineNumbers?: boolean
     /** Custom render function to override node rendering in Form view */
     customRender?: CustomRenderFn
     enableResize?: boolean
@@ -59,13 +56,12 @@ export interface EditorPluginsProps {
     autoFocus?: boolean
     enableTokens: boolean
     debug: boolean
-    language?: "json" | "yaml" | "code"
+    language?: "json" | "yaml"
     placeholder?: string
     /** Initial text value for the editor */
     initialValue: string
     validationSchema?: unknown
     tokens?: string[]
-    templateFormat?: "curly" | "fstring" | "jinja2"
     handleUpdate: (editorState: EditorState, editor: LexicalEditor) => void
     /** Additional plugins to include in code editor */
     additionalCodePlugins?: React.ReactNode[]

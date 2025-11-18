@@ -201,7 +201,8 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve?workflow_revision_id={revision_id}",
+            f"/preview/workflows/revisions/retrieve"
+            f"?workflow_revision_id={revision_id}",
         )
 
         assert response.status_code == 200
@@ -288,7 +289,8 @@ class TestWorkflowVariantsQueries:
 
         response = authed_api(
             "GET",
-            f"/preview/workflows/revisions/retrieve?workflow_variant_id={variant_id}",
+            f"/preview/workflows/revisions/retrieve"
+            f"?workflow_variant_id={variant_id}",
         )
 
         assert response.status_code == 200

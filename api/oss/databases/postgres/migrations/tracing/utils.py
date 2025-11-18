@@ -65,9 +65,7 @@ async def get_current_migration_head_from_db(engine: AsyncEngine):
 
     async with engine.connect() as connection:
         try:
-            result = await connection.execute(
-                text("SELECT version_num FROM alembic_version")
-            )  # type: ignore
+            result = await connection.execute(text("SELECT version_num FROM alembic_version"))  # type: ignore
         except (asyncpg.exceptions.UndefinedTableError, ProgrammingError):
             # Note: If the alembic_version table does not exist, it will result in raising an UndefinedTableError exception.
             # We need to suppress the error and return a list with the alembic_version table name to inform the user that there is a pending migration \
@@ -77,9 +75,9 @@ async def get_current_migration_head_from_db(engine: AsyncEngine):
             return "alembic_version"
 
         migration_heads = [row[0] for row in result.fetchall()]
-        assert len(migration_heads) == 1, (
-            "There can only be one migration head stored in the database."
-        )
+        assert (
+            len(migration_heads) == 1
+        ), "There can only be one migration head stored in the database."
         return migration_heads[0]
 
 
@@ -153,7 +151,7 @@ async def check_for_new_migrations():
     if len(pending_migration_head) >= 1 and isinstance(pending_migration_head[0], str):
         click.echo(
             click.style(
-                f"\nWe have detected that there are pending database migrations {pending_migration_head} that need to be applied to keep the application up to date. To ensure the application functions correctly with the latest updates, please follow the guide here => https://agenta.ai/docs/self-host/migration/applying-schema-migration\n",
+                f"\nWe have detected that there are pending database migrations {pending_migration_head} that need to be applied to keep the application up to date. To ensure the application functions correctly with the latest updates, please follow the guide here => https://docs.agenta.ai/self-host/migration/applying-schema-migration\n",
                 fg="yellow",
             ),
             color=True,

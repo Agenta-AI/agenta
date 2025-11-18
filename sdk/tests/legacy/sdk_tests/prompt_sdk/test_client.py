@@ -30,18 +30,18 @@ def test_get_config_with_caching(agenta_client):
     ) as mock_get_config:
         # Retrieve configuration to store in cache
         response = agenta_client.get_config("base123", "production")
-        assert response == {"parameters": "something"}, (
-            "First response should match the mock data."
-        )
+        assert response == {
+            "parameters": "something"
+        }, "First response should match the mock data."
 
         # Modify the return value of the mock
         mock_get_config.return_value = {"parameters": "something else"}
 
         # Attempt to retrieve configuration again, expecting cached data
         response = agenta_client.get_config("base123", "production")
-        assert response == {"parameters": "something"}, (
-            "Second response should return cached data, not new mock data."
-        )
+        assert response == {
+            "parameters": "something"
+        }, "Second response should return cached data, not new mock data."
 
 
 def test_get_config_without_caching(agenta_client):
@@ -59,15 +59,15 @@ def test_get_config_without_caching(agenta_client):
     ) as mock_get_config:
         # Retrieve configuration with caching disabled
         response = agenta_client.get_config("base123", "production", cache_timeout=0)
-        assert response == {"parameters": "something"}, (
-            "First response should match the mock data."
-        )
+        assert response == {
+            "parameters": "something"
+        }, "First response should match the mock data."
 
         # Modify the return value of the mock
         mock_get_config.return_value = {"parameters": "something else"}
 
         # Retrieve new configuration with caching disabled
         response = agenta_client.get_config("base123", "production", cache_timeout=0)
-        assert response == {"parameters": "something else"}, (
-            "Second response should match the new mock data."
-        )
+        assert response == {
+            "parameters": "something else"
+        }, "Second response should match the new mock data."

@@ -34,7 +34,7 @@ else:
 
 from oss.src.models.db_models import (
     UserDB,
-    TestsetDB,
+    TestSetDB,
     AppVariantDB,
     VariantBaseDB,
     AppEnvironmentDB,
@@ -47,7 +47,7 @@ models: List[Base] = [
     AppDB,
     UserDB,
     ProjectDB,
-    TestsetDB,
+    TestSetDB,
     AppVariantDB,
     DeploymentDB,
     EvaluationDB,
@@ -62,14 +62,4 @@ models: List[Base] = [
 ]
 
 if is_ee():
-    models.extend(
-        [
-            OrganizationDB,
-            WorkspaceDB,
-            APIKeyDB,
-            InvitationDB,
-            OrganizationMemberDB,
-            ProjectMemberDB,
-            WorkspaceMemberDB,
-        ]
-    )  # type: ignore
+    models.extend([OrganizationDB, WorkspaceDB, APIKeyDB, InvitationDB, OrganizationMemberDB, ProjectMemberDB, WorkspaceMemberDB])  # type: ignore

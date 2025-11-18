@@ -28,8 +28,6 @@ Type = Literal["input", "invocation", "annotation"]
 Origin = Literal["custom", "human", "auto"]
 Target = Union[List[UUID], Dict[UUID, Origin]]
 
-CURRENT_VERSION = "2025-07-14"
-
 
 class EvaluationStatus(str, Enum):
     PENDING = "pending"
@@ -132,7 +130,7 @@ class EvaluationRun(Version, Identifier, Lifecycle, Header, Metadata):
 
 
 class EvaluationRunCreate(Header, Metadata):
-    version: str = CURRENT_VERSION
+    version: str = "2025.07.14"
 
     flags: Optional[EvaluationRunFlags] = None  # type: ignore
 
@@ -141,9 +139,7 @@ class EvaluationRunCreate(Header, Metadata):
     data: Optional[EvaluationRunData] = None
 
 
-class EvaluationRunEdit(Identifier, Header, Metadata):
-    version: str = CURRENT_VERSION
-
+class EvaluationRunEdit(Version, Identifier, Header, Metadata):
     flags: Optional[EvaluationRunFlags] = None  # type: ignore
 
     status: Optional[EvaluationStatus] = None
@@ -174,7 +170,7 @@ class EvaluationScenario(Version, Identifier, Lifecycle, Metadata):
 
 
 class EvaluationScenarioCreate(Metadata):
-    version: str = CURRENT_VERSION
+    version: str = "2025.07.14"
 
     status: Optional[EvaluationStatus] = None
 
@@ -183,9 +179,7 @@ class EvaluationScenarioCreate(Metadata):
     run_id: UUID
 
 
-class EvaluationScenarioEdit(Identifier, Metadata):
-    version: str = CURRENT_VERSION
-
+class EvaluationScenarioEdit(Version, Identifier, Metadata):
     status: Optional[EvaluationStatus] = None
 
 
@@ -225,7 +219,7 @@ class EvaluationResult(Version, Identifier, Lifecycle, Metadata):
 
 
 class EvaluationResultCreate(Metadata):
-    version: str = CURRENT_VERSION
+    version: str = "2025.07.14"
 
     hash_id: Optional[UUID] = None
     trace_id: Optional[str] = None
@@ -242,9 +236,7 @@ class EvaluationResultCreate(Metadata):
     run_id: UUID
 
 
-class EvaluationResultEdit(Identifier, Metadata):
-    version: str = CURRENT_VERSION
-
+class EvaluationResultEdit(Version, Identifier, Metadata):
     hash_id: Optional[UUID] = None
     trace_id: Optional[str] = None
     testcase_id: Optional[UUID] = None
@@ -293,7 +285,7 @@ class EvaluationMetrics(Version, Identifier, Lifecycle, Metadata):
 
 
 class EvaluationMetricsCreate(Metadata):
-    version: str = CURRENT_VERSION
+    version: str = "2025.07.14"
 
     status: Optional[EvaluationStatus] = None
 
@@ -305,9 +297,7 @@ class EvaluationMetricsCreate(Metadata):
     run_id: UUID
 
 
-class EvaluationMetricsEdit(Identifier, Metadata):
-    version: str = CURRENT_VERSION
-
+class EvaluationMetricsEdit(Version, Identifier, Metadata):
     status: Optional[EvaluationStatus] = None
 
     data: Optional[Data] = None
@@ -363,7 +353,7 @@ class EvaluationQueue(Version, Identifier, Lifecycle, Header, Metadata):
 
 
 class EvaluationQueueCreate(Header, Metadata):
-    version: str = CURRENT_VERSION
+    version: str = "2025.07.14"
 
     flags: Optional[EvaluationQueueFlags] = None  # type: ignore
 
@@ -374,9 +364,7 @@ class EvaluationQueueCreate(Header, Metadata):
     run_id: UUID
 
 
-class EvaluationQueueEdit(Identifier, Header, Metadata):
-    version: str = CURRENT_VERSION
-
+class EvaluationQueueEdit(Version, Identifier, Header, Metadata):
     flags: Optional[EvaluationQueueFlags] = None  # type: ignore
 
     status: Optional[EvaluationStatus] = None
@@ -422,18 +410,14 @@ class SimpleEvaluation(Version, Identifier, Lifecycle, Header, Metadata):
 
 
 class SimpleEvaluationCreate(Header, Metadata):
-    version: str = CURRENT_VERSION
+    version: str = "2025.07.14"
 
     flags: Optional[SimpleEvaluationFlags] = None  # type: ignore
 
     data: Optional[SimpleEvaluationData] = None
 
-    jit: Optional[Dict[str, bool]] = None
 
-
-class SimpleEvaluationEdit(Identifier, Header, Metadata):
-    version: str = CURRENT_VERSION
-
+class SimpleEvaluationEdit(Version, Identifier, Header, Metadata):
     flags: Optional[SimpleEvaluationFlags] = None  # type: ignore
 
     data: Optional[SimpleEvaluationData] = None

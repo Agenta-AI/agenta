@@ -44,7 +44,7 @@ await test("run evaluation", async ({runAutoEvaluation}) => {
 
 ## How It Works
 
-1. **Testsetup**: The fixtures extend the base test fixture with evaluation-specific functionality.
+1. **Test Setup**: The fixtures extend the base test fixture with evaluation-specific functionality.
 2. **UI Automation**: They handle all the necessary UI interactions, including:
     - Navigating to the evaluation section
     - Selecting testsets

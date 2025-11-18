@@ -4,12 +4,11 @@ import {useAtomValue} from "jotai"
 import {SWRConfiguration} from "swr"
 
 import {evaluatorsQueryAtomFamily} from "@/oss/state/evaluators"
-
 import {Evaluator} from "../../Types"
 
 import {EvaluatorPreviewDto, UseEvaluatorsOptions} from "./types"
 
-export interface UseEvaluatorsReturn<Preview extends boolean> {
+export type UseEvaluatorsReturn<Preview extends boolean> = {
     data: (Preview extends true ? EvaluatorPreviewDto[] : Evaluator[]) | undefined
     error: unknown
     isLoading: boolean
@@ -26,6 +25,7 @@ const useEvaluators = <Preview extends boolean = false>({
     onSuccess,
     onError,
     projectId,
+    ..._rest
 }: UseEvaluatorsOptions & {
     preview?: Preview
     queries?: {is_human: boolean}
@@ -35,7 +35,7 @@ const useEvaluators = <Preview extends boolean = false>({
         config: SWRConfiguration | undefined,
     ) => void
     onError?: (error: unknown) => void
-} = {}): UseEvaluatorsReturn<Preview> => {
+}): UseEvaluatorsReturn<Preview> => {
     const queriesKey = useMemo(() => JSON.stringify(queries ?? null), [queries])
 
     const atomParams = useMemo(

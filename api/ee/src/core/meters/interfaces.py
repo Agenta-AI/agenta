@@ -11,7 +11,6 @@ class MetersDAOInterface:
 
     async def dump(
         self,
-        limit: Optional[int] = None,
     ) -> list[MeterDTO]:
         """
         Dump all meters where 'synced' != 'value'.

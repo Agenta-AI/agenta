@@ -37,7 +37,7 @@ services:
         volumes:
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
-            - ../../../sdk:/sdk
+            # - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -84,7 +84,7 @@ services:
         volumes:
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
-            - ../../../sdk:/sdk
+            # - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -103,30 +103,6 @@ services:
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1
 
-    cron:
-        image: agenta-oss-dev-api:latest
-
-        volumes:
-            #
-            - ../../../api/oss/src/crons/queries.sh:/queries.sh
-
-        env_file:
-            - ${ENV_FILE:-./.env.oss.dev}
-        
-        depends_on:
-            - postgres
-            - api
-
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        
-        restart: always
-        
-        networks:
-            - agenta-network
-
-        command: cron -f
-
     alembic:
         build: 
             context: ../../../api
@@ -135,7 +111,7 @@ services:
         volumes:
             - ../../../api/entrypoint.py:/app/entrypoint.py
             - ../../../api/oss:/app/oss
-            - ../../../sdk:/sdk
+            # - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -149,7 +125,7 @@ services:
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
 
     completion:
-        build:
+        build: 
             context: ../../../services/completion
             dockerfile: oss/docker/Dockerfile.dev
 
@@ -172,24 +148,13 @@ services:
             - "traefik.http.routers.completion.middlewares=completion-strip"
             - "traefik.http.services.completion.loadbalancer.server.port=80"
             - "traefik.http.routers.completion.service=completion"
-
-        command:
-            [
-                "uvicorn",
-                "oss.src.main:app",
-                "--host",
-                "0.0.0.0",
-                "--port",
-                "80",
-                "--reload",
-                "--root-path",
-                "/services/completion",
-            ]
-
+        
+        command: ["python", "oss/src/main.py"]
+        
         restart: always
-
+    
     chat:
-        build:
+        build: 
             context: ../../../services/chat
             dockerfile: oss/docker/Dockerfile.dev
 
@@ -213,19 +178,8 @@ services:
             - "traefik.http.services.chat.loadbalancer.server.port=80"
             - "traefik.http.routers.chat.service=chat"
 
-        command:
-            [
-                "uvicorn",
-                "oss.src.main:app",
-                "--host",
-                "0.0.0.0",
-                "--port",
-                "80",
-                "--reload",
-                "--root-path",
-                "/services/chat",
-            ]
-
+        command: ["python", "oss/src/main.py"]
+    
         restart: always
 
     postgres:

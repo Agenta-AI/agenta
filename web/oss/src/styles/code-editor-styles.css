@@ -77,29 +77,6 @@
         text-shadow: none !important;
     }
 
-        &.no-line-numbers {
-        .editor-code {
-            counter-reset: none;
-        }
-
-        .editor-code-line {
-            padding-left: 16px !important;
-            text-indent: 0;
-
-            &.diff-context,
-            &.diff-removed,
-            &.diff-added {
-                padding-left: 16px !important;
-            }
-
-            &::before,
-            &::after {
-                display: none !important;
-                content: none !important;
-            }
-        }
-    }
-
     .editor-code-line {
         overflow-wrap: break-word;
         text-wrap-mode: wrap;
@@ -196,15 +173,12 @@
     .editor-code.language-json .editor-code-line[data-old-line-number],
     .editor-code.language-json .editor-code-line[data-new-line-number],
     .editor-code.language-yaml .editor-code-line[data-old-line-number],
-    .editor-code.language-yaml .editor-code-line[data-new-line-number],
-    .editor-code.language-code .editor-code-line[data-old-line-number],
-    .editor-code.language-code .editor-code-line[data-new-line-number] {
+    .editor-code.language-yaml .editor-code-line[data-new-line-number] {
         padding-left: 64px;
     }
 
     .editor-code.language-json .editor-code-line[data-old-line-number]::before,
-    .editor-code.language-yaml .editor-code-line[data-old-line-number]::before,
-    .editor-code.language-code .editor-code-line[data-old-line-number]::before {
+    .editor-code.language-yaml .editor-code-line[data-old-line-number]::before {
         content: attr(data-old-line-number) !important;
         padding-right: 4px;
         box-sizing: border-box;
@@ -225,8 +199,7 @@
     }
 
     .editor-code.language-json .editor-code-line[data-new-line-number]::after,
-    .editor-code.language-yaml .editor-code-line[data-new-line-number]::after,
-    .editor-code.language-code .editor-code-line[data-new-line-number]::after {
+    .editor-code.language-yaml .editor-code-line[data-new-line-number]::after {
         content: attr(data-new-line-number) !important;
         padding-right: 0px;
         padding-left: 4px;

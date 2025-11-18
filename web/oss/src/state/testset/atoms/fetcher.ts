@@ -5,7 +5,6 @@ import {testset} from "@/oss/lib/Types"
 import {fetchTestsets, fetchPreviewTestsets} from "@/oss/services/testsets/api"
 import {PreviewTestsetsQueryPayload} from "@/oss/services/testsets/api/types"
 
-import {userAtom} from "../../profile"
 import {projectIdAtom} from "../../project"
 
 // Local options type for enabling/disabling queries
@@ -18,19 +17,17 @@ interface TestsetsQueryOptions {
  */
 export const testsetsQueryAtom = atomWithQuery<testset[]>((get) => {
     const projectId = get(projectIdAtom)
-    const user = get(userAtom)
 
     return {
         queryKey: ["testsets", projectId],
         queryFn: () => {
             return fetchTestsets()
         },
-        staleTime: 5 * 60 * 1000,
-        gcTime: 30 * 60 * 1000,
+        staleTime: 1000 * 60,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
         refetchOnMount: false,
-        enabled: !!user?.id && !!projectId,
+        enabled: !!projectId,
     }
 })
 
@@ -44,7 +41,6 @@ export const previewTestsetsQueryAtomFamily = atomFamily(
     }: {payload?: PreviewTestsetsQueryPayload; enabled?: boolean} = {}) =>
         atomWithQuery<testset[]>((get) => {
             const projectId = get(projectIdAtom)
-            const user = get(userAtom)
 
             const payloadKey = JSON.stringify(payload || {})
 
@@ -55,35 +51,25 @@ export const previewTestsetsQueryAtomFamily = atomFamily(
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: false,
                 refetchOnMount: false,
-                enabled: !!user?.id && enabled && !!projectId,
+                enabled: enabled && !!projectId,
             }
         }),
-    (a, b) => {
-        const aEnabled = a?.enabled ?? true
-        const bEnabled = b?.enabled ?? true
-        const aKey = JSON.stringify(a?.payload ?? {})
-        const bKey = JSON.stringify(b?.payload ?? {})
-        return aEnabled === bEnabled && aKey === bKey
-    },
 )
 
-export const testsetsQueryAtomFamily = atomFamily(
-    ({enabled = true}: TestsetsQueryOptions = {}) =>
-        atomWithQuery<testset[]>((get) => {
-            const projectId = get(projectIdAtom)
-            const user = get(userAtom)
+export const testsetsQueryAtomFamily = atomFamily(({enabled = true}: TestsetsQueryOptions = {}) =>
+    atomWithQuery<testset[]>((get) => {
+        const projectId = get(projectIdAtom)
 
-            return {
-                queryKey: ["testsets", projectId],
-                queryFn: fetchTestsets,
-                staleTime: 1000 * 60,
-                refetchOnWindowFocus: false,
-                refetchOnReconnect: false,
-                refetchOnMount: false,
-                enabled: !!user?.id && enabled && !!projectId,
-            }
-        }),
-    (a, b) => (a?.enabled ?? true) === (b?.enabled ?? true),
+        return {
+            queryKey: ["testsets", projectId],
+            queryFn: fetchTestsets,
+            staleTime: 1000 * 60,
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+            refetchOnMount: false,
+            enabled: enabled && !!projectId,
+        }
+    }),
 )
 
 /**

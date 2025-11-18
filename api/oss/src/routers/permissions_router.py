@@ -1,5 +1,5 @@
-from typing import Optional, Union
 from uuid import UUID
+from typing import Optional
 
 from fastapi.responses import JSONResponse
 from fastapi import Request, Query, HTTPException
@@ -12,7 +12,6 @@ from oss.src.utils.common import is_ee, is_oss, APIRouter
 if is_ee():
     from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
-    from ee.src.utils.entitlements import check_entitlements, Counter
 
 
 router = APIRouter()
@@ -70,7 +69,6 @@ async def verify_permissions(
             log.warn("Missing required parameters: action, resource_type")
             raise Deny()
 
-        # allow = None
         allow = await get_cache(
             project_id=request.state.project_id,
             user_id=request.state.user_id,
@@ -85,7 +83,6 @@ async def verify_permissions(
             raise Deny()
 
         # CHECK PERMISSION 1/3: SCOPE
-        # log.debug("Checking scope access...")
         allow_scope = await check_scope_access(
             # organization_id=request.state.organization_id,
             workspace_id=request.state.workspace_id,
@@ -105,16 +102,32 @@ async def verify_permissions(
             )
             raise Deny()
 
-        # CHECK PERMISSION 1/2: ACTION
-        # log.debug("Checking action access...")
-        allow_action = await check_action_access(
-            project_id=request.state.project_id,
-            user_uid=request.state.user_id,
-            permission=Permission(action),
+        if is_ee():
+            # CHECK PERMISSION 1/2: ACTION
+            allow_action = await check_action_access(
+                project_id=request.state.project_id,
+                user_uid=request.state.user_id,
+                permission=Permission(action),
+            )
+
+            if not allow_action:
+                log.warn("Action access denied")
+                await set_cache(
+                    project_id=request.state.project_id,
+                    user_id=request.state.user_id,
+                    namespace="verify_permissions",
+                    key=cache_key,
+                    value="deny",
+                )
+                raise Deny()
+
+        # CHECK PERMISSION 3/3: RESOURCE
+        allow_resource = await check_resource_access(
+            resource_type=resource_type,
         )
 
-        if not allow_action:
-            log.warn("Action access denied")
+        if not allow_resource:
+            log.warn("Resource access denied")
             await set_cache(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
@@ -124,59 +137,14 @@ async def verify_permissions(
             )
             raise Deny()
 
-        # CHECK PERMISSION 3/3: RESOURCE
-        # log.debug("Checking resource access...")
-        allow_resource = await check_resource_access(
-            organization_id=request.state.organization_id,
-            resource_type=resource_type,
-        )
-
-        if isinstance(allow_resource, bool):
-            if allow_resource is False:
-                log.warn("Resource access denied")
-                await set_cache(
-                    project_id=request.state.project_id,
-                    user_id=request.state.user_id,
-                    namespace="verify_permissions",
-                    key=cache_key,
-                    value="deny",
-                )
-                raise Deny()
-
-            if allow_resource is True:
-                await set_cache(
-                    project_id=request.state.project_id,
-                    user_id=request.state.user_id,
-                    namespace="verify_permissions",
-                    key=cache_key,
-                    value="allow",
-                )
-                return Allow(request.state.credentials)
-
-        elif isinstance(allow_resource, int):
-            if allow_resource <= 0:
-                log.warn("Resource access denied")
-                await set_cache(
-                    project_id=request.state.project_id,
-                    user_id=request.state.user_id,
-                    namespace="verify_permissions",
-                    key=cache_key,
-                    value="deny",
-                )
-                raise Deny()
-            else:
-                return Allow(request.state.credentials)
-
-        # else:
-        log.warn("Resource access denied")
         await set_cache(
             project_id=request.state.project_id,
             user_id=request.state.user_id,
             namespace="verify_permissions",
             key=cache_key,
-            value="deny",
+            value="allow",
         )
-        raise Deny()
+        return Allow(request.state.credentials)
 
     except Exception as exc:  # pylint: disable=bare-except
         log.warn(exc)
@@ -212,27 +180,11 @@ async def check_scope_access(
 
 
 async def check_resource_access(
-    organization_id: UUID,
     resource_type: Optional[str] = None,
-) -> Union[bool, int]:
+) -> bool:
     allow_resource = False
 
     if resource_type == "service":
         allow_resource = True
-
-    if resource_type == "local_secrets":
-        check, meter, _ = await check_entitlements(
-            organization_id=organization_id,
-            key=Counter.CREDITS,
-            delta=1,
-        )
-
-        if not check:
-            return False
-
-        if not meter or not meter.value:
-            return False
-
-        return meter.value
 
     return allow_resource

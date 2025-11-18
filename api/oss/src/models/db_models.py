@@ -89,6 +89,7 @@ class WorkspaceDB(Base):
     )
 
 
+# KEEP in oss/
 class UserDB(Base):
     __tablename__ = "users"
 
@@ -110,6 +111,7 @@ class UserDB(Base):
     )
 
 
+# KEEP in oss/
 class ProjectDB(Base):
     __tablename__ = "projects"
 
@@ -150,9 +152,10 @@ class ProjectDB(Base):
     evaluator_config = relationship(
         "EvaluatorConfigDB", cascade=CASCADE_ALL_DELETE, backref="project"
     )
-    testset = relationship("TestsetDB", cascade=CASCADE_ALL_DELETE, backref="project")
+    testset = relationship("TestSetDB", cascade=CASCADE_ALL_DELETE, backref="project")
 
 
+# KEEP in oss/
 class AppDB(Base):
     __tablename__ = "app_db"
 
@@ -187,6 +190,7 @@ class AppDB(Base):
     )
 
 
+# KEEP in oss/
 class DeploymentDB(Base):
     __tablename__ = "deployments"
 
@@ -213,6 +217,7 @@ class DeploymentDB(Base):
     app = relationship("AppDB", back_populates="deployment")
 
 
+# KEEP in oss/
 class VariantBaseDB(Base):
     __tablename__ = "bases"
 
@@ -243,6 +248,7 @@ class VariantBaseDB(Base):
     project = relationship("oss.src.models.db_models.ProjectDB")
 
 
+# KEEP in oss/
 class AppVariantDB(Base):
     __tablename__ = "app_variants"
 
@@ -287,6 +293,7 @@ class AppVariantDB(Base):
     )
 
 
+# KEEP in oss/
 class AppVariantRevisionsDB(Base):
     __tablename__ = "app_variant_revisions"
 
@@ -329,6 +336,7 @@ class AppVariantRevisionsDB(Base):
         return {"config_name": self.config_name, "parameters": self.config_parameters}
 
 
+# KEEP in oss/
 class AppEnvironmentDB(Base):
     __tablename__ = "environments"
 
@@ -366,6 +374,7 @@ class AppEnvironmentDB(Base):
     deployed_app_variant_revision = relationship("AppVariantRevisionsDB")
 
 
+# KEEP in oss/
 class AppEnvironmentRevisionDB(Base):
     __tablename__ = "environments_revisions"
 
@@ -399,7 +408,8 @@ class AppEnvironmentRevisionDB(Base):
     modified_by = relationship("UserDB")
 
 
-class TestsetDB(Base):
+# KEEP in oss/
+class TestSetDB(Base):
     __tablename__ = "testsets"
 
     id = Column(
@@ -422,6 +432,7 @@ class TestsetDB(Base):
     )
 
 
+# KEEP in oss/
 class EvaluatorConfigDB(Base):
     __tablename__ = "auto_evaluator_configs"
 
@@ -447,6 +458,7 @@ class EvaluatorConfigDB(Base):
     )
 
 
+# KEEP in oss/ or KILL
 class IDsMappingDB(Base):
     __tablename__ = "ids_mapping"
 
@@ -518,268 +530,4 @@ class APIKeyDB(Base):
     user = relationship("UserDB", backref="api_key_owner")
     project = relationship(
         "oss.src.models.db_models.ProjectDB", backref="api_key_project"
-    )
-
-
-class HumanEvaluationVariantDB(Base):
-    __tablename__ = "human_evaluation_variants"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    human_evaluation_id = Column(
-        UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
-    )
-    variant_id = Column(
-        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
-    )
-    variant_revision_id = Column(
-        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
-    )
-
-    variant = relationship("AppVariantDB", backref="evaluation_variant")
-    variant_revision = relationship(
-        "AppVariantRevisionsDB", backref="evaluation_variant_revision"
-    )
-
-
-class HumanEvaluationDB(Base):
-    __tablename__ = "human_evaluations"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
-    status = Column(String)
-    evaluation_type = Column(String)
-    testset_id = Column(UUID(as_uuid=True), ForeignKey("testsets.id"))
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-    testset = relationship("TestsetDB")
-    evaluation_variant = relationship(
-        "HumanEvaluationVariantDB",
-        cascade=CASCADE_ALL_DELETE,
-        backref="human_evaluation",
-    )
-    evaluation_scenario = relationship(
-        "HumanEvaluationScenarioDB",
-        cascade=CASCADE_ALL_DELETE,
-        backref="evaluation_scenario",
-    )
-
-
-class HumanEvaluationScenarioDB(Base):
-    __tablename__ = "human_evaluations_scenarios"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
-    evaluation_id = Column(
-        UUID(as_uuid=True), ForeignKey("human_evaluations.id", ondelete="CASCADE")
-    )
-    inputs = Column(
-        mutable_json_type(dbtype=JSONB, nested=True)
-    )  # List of HumanEvaluationScenarioInput
-    outputs = Column(
-        mutable_json_type(dbtype=JSONB, nested=True)
-    )  # List of HumanEvaluationScenarioOutput
-    vote = Column(String)
-    score = Column(String)
-    correct_answer = Column(String)
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    is_pinned = Column(Boolean)
-    note = Column(String)
-
-
-class EvaluationAggregatedResultDB(Base):
-    __tablename__ = "auto_evaluation_aggregated_results"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    evaluation_id = Column(
-        UUID(as_uuid=True), ForeignKey("auto_evaluations.id", ondelete="CASCADE")
-    )
-    evaluator_config_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("auto_evaluator_configs.id", ondelete="SET NULL"),
-    )
-    result = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
-
-    evaluator_config = relationship("EvaluatorConfigDB", backref="evaluator_config")
-
-
-class EvaluationScenarioResultDB(Base):
-    __tablename__ = "auto_evaluation_scenario_results"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    evaluation_scenario_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("auto_evaluation_scenarios.id", ondelete="CASCADE"),
-    )
-    evaluator_config_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("auto_evaluator_configs.id", ondelete="SET NULL"),
-    )
-    result = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
-
-
-class EvaluationDB(Base):
-    __tablename__ = "auto_evaluations"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    app_id = Column(UUID(as_uuid=True), ForeignKey("app_db.id", ondelete="CASCADE"))
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
-    status = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
-    testset_id = Column(
-        UUID(as_uuid=True), ForeignKey("testsets.id", ondelete="SET NULL")
-    )
-    variant_id = Column(
-        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
-    )
-    variant_revision_id = Column(
-        UUID(as_uuid=True), ForeignKey("app_variant_revisions.id", ondelete="SET NULL")
-    )
-    average_cost = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
-    total_cost = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
-    average_latency = Column(mutable_json_type(dbtype=JSONB, nested=True))  # Result
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-    project = relationship("oss.src.models.db_models.ProjectDB")
-    testset = relationship("TestsetDB")
-    variant = relationship("AppVariantDB")
-    variant_revision = relationship("AppVariantRevisionsDB")
-    aggregated_results = relationship(
-        "EvaluationAggregatedResultDB",
-        cascade=CASCADE_ALL_DELETE,
-        backref="evaluation",
-    )
-    evaluation_scenarios = relationship(
-        "EvaluationScenarioDB", cascade=CASCADE_ALL_DELETE, backref="evaluation"
-    )
-    evaluator_configs = relationship(
-        "EvaluationEvaluatorConfigDB",
-        cascade=CASCADE_ALL_DELETE,
-        backref="evaluation",
-    )
-
-
-class EvaluationEvaluatorConfigDB(Base):
-    __tablename__ = "auto_evaluation_evaluator_configs"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    evaluation_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("auto_evaluations.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    evaluator_config_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("auto_evaluator_configs.id", ondelete="SET NULL"),
-        primary_key=True,
-    )
-
-
-class EvaluationScenarioDB(Base):
-    __tablename__ = "auto_evaluation_scenarios"
-
-    id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid7,
-        unique=True,
-        nullable=False,
-    )
-    project_id = Column(
-        UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE")
-    )
-    evaluation_id = Column(
-        UUID(as_uuid=True), ForeignKey("auto_evaluations.id", ondelete="CASCADE")
-    )
-    variant_id = Column(
-        UUID(as_uuid=True), ForeignKey("app_variants.id", ondelete="SET NULL")
-    )
-    inputs = Column(
-        mutable_json_type(dbtype=JSONB, nested=True)
-    )  # List of EvaluationScenarioInput
-    outputs = Column(
-        mutable_json_type(dbtype=JSONB, nested=True)
-    )  # List of EvaluationScenarioOutput
-    correct_answers = Column(
-        mutable_json_type(dbtype=JSONB, nested=True)
-    )  # List of CorrectAnswer
-    is_pinned = Column(Boolean)
-    note = Column(String)
-    latency = Column(Integer)
-    cost = Column(Integer)
-    created_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-    updated_at = Column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-    project = relationship("oss.src.models.db_models.ProjectDB")
-    variant = relationship("AppVariantDB")
-    results = relationship(
-        "EvaluationScenarioResultDB",
-        cascade=CASCADE_ALL_DELETE,
-        backref="evaluation_scenario",
     )

@@ -37,6 +37,56 @@ export function useMessageContentProps(message?: MessageLike | null) {
         return nodes
     }, [message?.content?.value])
 
+    const baseFileProperties = useMemo(() => {
+        const val = message?.content?.value
+        if (!Array.isArray(val)) return [] as any[]
+        const normalizeFileProp = (fileNode: any | undefined, keyCandidates: string[]) => {
+            for (const key of keyCandidates) {
+                if (fileNode && typeof fileNode === "object" && key in fileNode) {
+                    return fileNode[key]
+                }
+            }
+            return undefined
+        }
+
+        const nodes = val
+            .map((v: any) => {
+                if (!!v && typeof v === "object") {
+                    const nodeWithFile = "file" in v ? (v.file as any) : undefined
+                    if (!nodeWithFile) return undefined
+
+                    const fileIdProp = normalizeFileProp(nodeWithFile, [
+                        "file_id",
+                        "fileId",
+                        "id",
+                        "url",
+                    ])
+                    const nameProp = normalizeFileProp(nodeWithFile, [
+                        "name",
+                        "filename",
+                        "file_name",
+                    ])
+                    const mimeProp = normalizeFileProp(nodeWithFile, [
+                        "mime_type",
+                        "mimeType",
+                        "content_type",
+                        "type",
+                    ])
+
+                    if (!fileIdProp) return undefined
+
+                    return {
+                        fileId: fileIdProp,
+                        name: nameProp,
+                        mimeType: mimeProp,
+                    }
+                }
+                return undefined
+            })
+            .filter((node: any) => node != null)
+        return nodes
+    }, [message?.content?.value])
+
     const baseContentProperty = message?.content || null
     const baseRoleProperty = message?.role || null
 
@@ -56,6 +106,7 @@ export function useMessageContentProps(message?: MessageLike | null) {
         baseProperty,
         isTool,
         baseImageProperties,
+        baseFileProperties,
         baseContentProperty,
         baseRoleProperty,
         computedText,

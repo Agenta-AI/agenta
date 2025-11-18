@@ -28,12 +28,13 @@ from agenta.sdk.middleware.otel import OTelMiddleware
 from agenta.sdk.middleware.auth import AuthHTTPMiddleware
 from agenta.sdk.middleware.cors import CORSMiddleware
 
-from agenta.sdk.contexts.routing import (
-    routing_context_manager,
+from agenta.sdk.context.serving import (
+    serving_context_manager,
     RoutingContext,
 )
-from agenta.sdk.contexts.tracing import (
+from agenta.sdk.context.tracing import (
     tracing_context_manager,
+    tracing_context,
     TracingContext,
 )
 from agenta.sdk.router import router
@@ -337,7 +338,7 @@ class entrypoint:
         inline = state.inline
         mock = state.mock
 
-        with routing_context_manager(
+        with serving_context_manager(
             context=RoutingContext(
                 parameters=parameters,
                 secrets=secrets,
@@ -393,15 +394,15 @@ class entrypoint:
 
         try:
             if isinstance(result, StarletteResponse):
-                result.headers.setdefault("x-ag-version", "3.0")
+                result.headers.setdefault("X-ag-version", "3.0")
                 if content_type:
-                    result.headers.setdefault("x-ag-content-type", content_type)
+                    result.headers.setdefault("X-ag-content-type", content_type)
                 if tree_id:
-                    result.headers.setdefault("x-ag-tree-id", tree_id)
+                    result.headers.setdefault("X-ag-tree-id", tree_id)
                 if trace_id:
-                    result.headers.setdefault("x-ag-trace-id", trace_id)
+                    result.headers.setdefault("X-ag-trace-id", trace_id)
                 if span_id:
-                    result.headers.setdefault("x-ag-span-id", span_id)
+                    result.headers.setdefault("X-ag-span-id", span_id)
 
                 return result
         except:
@@ -529,7 +530,7 @@ class entrypoint:
     async def fetch_inline_trace_id(
         self,
     ):
-        context = TracingContext.get()
+        context = tracing_context.get()
 
         link = context.link
 
@@ -548,7 +549,7 @@ class entrypoint:
         TIMESTEP = 0.1
         NOFSTEPS = TIMEOUT / TIMESTEP
 
-        context = TracingContext.get()
+        context = tracing_context.get()
 
         link = context.link
 
@@ -656,9 +657,9 @@ class entrypoint:
     def add_func_params_to_parser(self, updated_params: list) -> None:
         """Add function parameters to function signature."""
         for name, param in signature(self.func).parameters.items():
-            assert len(param.default.__class__.__bases__) == 1, (
-                f"Inherited standard type of {param.default.__class__} needs to be one."
-            )
+            assert (
+                len(param.default.__class__.__bases__) == 1
+            ), f"Inherited standard type of {param.default.__class__} needs to be one."
             updated_params.append(
                 Parameter(
                     name,
@@ -718,9 +719,9 @@ class entrypoint:
                                     -1
                                 ]  # Extract schema name
                                 if schema_name in schema_name_map:
-                                    content["schema"]["$ref"] = (
-                                        f"#/components/schemas/{schema_name_map[schema_name]}"
-                                    )
+                                    content["schema"][
+                                        "$ref"
+                                    ] = f"#/components/schemas/{schema_name_map[schema_name]}"
 
                     if "responses" in method:
                         for status_code, response in method["responses"].items():
@@ -734,9 +735,9 @@ class entrypoint:
                                             -1
                                         ]  # Extract schema name
                                         if schema_name in schema_name_map:
-                                            content["schema"]["$ref"] = (
-                                                f"#/components/schemas/{schema_name_map[schema_name]}"
-                                            )
+                                            content["schema"][
+                                                "$ref"
+                                            ] = f"#/components/schemas/{schema_name_map[schema_name]}"
 
             # ✅ Update OpenAPI schema with fixed schemas
             openapi_schema["components"]["schemas"] = updated_schemas

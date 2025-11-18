@@ -2,7 +2,7 @@ import {BreadcrumbAtom} from "@/oss/lib/atoms/breadcrumb/types"
 import {isUuid} from "@/oss/lib/helpers/utils"
 import {ListAppsItem} from "@/oss/lib/Types"
 
-const IGNORE_PATHS = new Set(["testsets", "evaluations", "settings", "configure"])
+const IGNORE_PATHS = new Set(["testsets", "evaluations", "settings"])
 
 export interface BreadcrumbContext {
     uriPath: string

@@ -6,7 +6,6 @@ import {
     appendBreadcrumbAtom,
     clearBreadcrumbsAtom,
     prependBreadcrumbAtom,
-    removeBreadcrumbsAtom,
     setBreadcrumbsAtom,
     type BreadcrumbAtom,
 } from "@/oss/lib/atoms/breadcrumb"
@@ -16,14 +15,12 @@ export const useBreadcrumbs = () => {
     const appendBreadcrumb = useSetAtom(appendBreadcrumbAtom)
     const prependBreadcrumb = useSetAtom(prependBreadcrumbAtom)
     const clearBreadcrumbs = useSetAtom(clearBreadcrumbsAtom)
-    const removeBreadcrumbs = useSetAtom(removeBreadcrumbsAtom)
 
     return {
         setBreadcrumbs,
         appendBreadcrumb,
         prependBreadcrumb,
         clearBreadcrumbs,
-        removeBreadcrumbs,
     }
 }
 
@@ -46,37 +43,24 @@ export const useBreadcrumbsEffect = (
     }: {breadcrumbs: BreadcrumbAtom; type?: "prepend" | "append" | "new"; condition?: boolean},
     deps: React.DependencyList = [],
 ) => {
-    const {
-        setBreadcrumbs,
-        clearBreadcrumbs,
-        appendBreadcrumb,
-        prependBreadcrumb,
-        removeBreadcrumbs,
-    } = useBreadcrumbs()
+    const {setBreadcrumbs, clearBreadcrumbs, appendBreadcrumb, prependBreadcrumb} = useBreadcrumbs()
 
     useEffect(() => {
-        if (!condition) return
-
-        const keys = Object.keys(breadcrumbs)
-        if (!keys.length) return
-
-        if (type === "prepend") {
-            prependBreadcrumb(breadcrumbs)
-            return () => {
-                removeBreadcrumbs(keys)
+        if (condition) {
+            if (type === "prepend") {
+                prependBreadcrumb(breadcrumbs)
+            } else if (type === "append") {
+                appendBreadcrumb(breadcrumbs)
+            } else {
+                setBreadcrumbs(breadcrumbs)
             }
         }
 
-        if (type === "append") {
-            appendBreadcrumb(breadcrumbs)
-            return () => {
-                removeBreadcrumbs(keys)
-            }
-        }
-
-        setBreadcrumbs(breadcrumbs)
+        // Cleanup: reset to URL-based breadcrumbs when component unmounts
         return () => {
-            clearBreadcrumbs()
+            if (type === "new") {
+                clearBreadcrumbs()
+            }
         }
     }, deps)
 }
