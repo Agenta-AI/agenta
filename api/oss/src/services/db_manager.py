@@ -1005,7 +1005,9 @@ async def check_if_user_exists_and_create_organization(user_email: str):
 
 
 async def check_if_user_invitation_exists(email: str, organization_id: str):
-    """Check if a user invitation with the given email and organization_id exists."""
+    """Check if a user invitation with the given email and organization_id exists.
+    Email comparison is case-insensitive to handle SuperTokens email normalization.
+    """
 
     project_db = await get_project_by_organization_id(organization_id=organization_id)
     if not project_db:
@@ -1013,9 +1015,9 @@ async def check_if_user_invitation_exists(email: str, organization_id: str):
 
     async with engine.core_session() as session:
         result = await session.execute(
-            select(InvitationDB).filter_by(
-                email=email,
-                project_id=project_db.id,
+            select(InvitationDB).where(
+                func.lower(InvitationDB.email) == func.lower(email),
+                InvitationDB.project_id == project_db.id,
             )
         )
         user_invitation = result.scalars().first()
@@ -1154,6 +1156,7 @@ async def delete_accounts() -> None:
 
 async def create_accounts(payload: dict) -> UserDB:
     """Create a new account in the database.
+    Email is normalized to lowercase to match SuperTokens behavior.
 
     Args:
         payload (dict): The payload to create the user
@@ -1165,8 +1168,12 @@ async def create_accounts(payload: dict) -> UserDB:
     # pop required fields for organization & workspace creation
     organization_id = payload.pop("organization_id")
 
+    # Normalize email to lowercase to match SuperTokens behavior
+    normalized_email = payload["email"].lower()
+    payload["email"] = normalized_email
+
     # create user
-    user_info = {**payload, "username": payload["email"].split("@")[0]}
+    user_info = {**payload, "username": normalized_email.split("@")[0]}
     user_db = await user_service.create_new_user(payload=user_info)
 
     # only update organization to have user_db as its "owner" if it does not yet have one
@@ -1184,7 +1191,7 @@ async def create_accounts(payload: dict) -> UserDB:
 
     # update user invitation in the case the user was invited
     invitation = await get_project_invitation_by_email(
-        project_id=str(project_db.id), email=payload["email"]
+        project_id=str(project_db.id), email=normalized_email
     )
     if invitation is not None:
         await update_invitation(
@@ -1393,6 +1400,7 @@ async def get_workspaces() -> List[WorkspaceDB]:
 
 async def remove_user_from_workspace(project_id: str, email: str):
     """Remove a user from a workspace.
+    Email comparison is case-insensitive to handle SuperTokens email normalization.
 
     Args:
         project_id (str): The ID of the project
@@ -1484,6 +1492,7 @@ async def get_user_with_id(user_id: str) -> UserDB:
 async def get_user_with_email(email: str):
     """
     Retrieves a user from the database based on their email address.
+    Email comparison is case-insensitive to handle SuperTokens email normalization.
 
     Args:
         email (str): The email address of the user to retrieve.
@@ -1503,7 +1512,9 @@ async def get_user_with_email(email: str):
         raise Exception("Please provide a valid email address")
 
     async with engine.core_session() as session:
-        result = await session.execute(select(UserDB).filter_by(email=email))
+        result = await session.execute(
+            select(UserDB).where(func.lower(UserDB.email) == func.lower(email))
+        )
         user = result.scalars().first()
         return user
 
@@ -1648,6 +1659,7 @@ async def get_default_project_id_from_workspace(
 
 async def get_project_invitation_by_email(project_id: str, email: str) -> InvitationDB:
     """Get project invitation by project ID and email.
+    Email comparison is case-insensitive to handle SuperTokens email normalization.
 
     Args:
         project_id (str): The ID of the project.
@@ -1659,8 +1671,9 @@ async def get_project_invitation_by_email(project_id: str, email: str) -> Invita
 
     async with engine.core_session() as session:
         result = await session.execute(
-            select(InvitationDB).filter_by(
-                project_id=uuid.UUID(project_id), email=email
+            select(InvitationDB).where(
+                InvitationDB.project_id == uuid.UUID(project_id),
+                func.lower(InvitationDB.email) == func.lower(email)
             )
         )
         invitation = result.scalars().first()
@@ -1796,6 +1809,7 @@ async def get_project_invitation_by_token_and_email(
     project_id: str, token: str, email: str
 ) -> InvitationDB:
     """Get project invitation by project ID, token and email.
+    Email comparison is case-insensitive to handle SuperTokens email normalization.
 
     Args:
         project_id (str): The ID of the project.
@@ -1808,8 +1822,10 @@ async def get_project_invitation_by_token_and_email(
 
     async with engine.core_session() as session:
         result = await session.execute(
-            select(InvitationDB).filter_by(
-                project_id=uuid.UUID(project_id), token=token, email=email
+            select(InvitationDB).where(
+                InvitationDB.project_id == uuid.UUID(project_id),
+                InvitationDB.token == token,
+                func.lower(InvitationDB.email) == func.lower(email)
             )
         )
         invitation = result.scalars().first()
