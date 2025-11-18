@@ -1,0 +1,4 @@
+# Disallow all crawlers from indexing the Agenta Cloud application
+# This is a SaaS application interface, not a public content site
+User-agent: *
+Disallow: /

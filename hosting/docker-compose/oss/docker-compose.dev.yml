@@ -149,7 +149,7 @@ services:
         command: sh -c "python -m oss.databases.postgres.migrations.runner"
 
     completion:
-        build: 
+        build:
             context: ../../../services/completion
             dockerfile: oss/docker/Dockerfile.dev
 
@@ -172,13 +172,24 @@ services:
             - "traefik.http.routers.completion.middlewares=completion-strip"
             - "traefik.http.services.completion.loadbalancer.server.port=80"
             - "traefik.http.routers.completion.service=completion"
-        
-        command: ["python", "oss/src/main.py"]
-        
+
+        command:
+            [
+                "uvicorn",
+                "oss.src.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "80",
+                "--reload",
+                "--root-path",
+                "/services/completion",
+            ]
+
         restart: always
-    
+
     chat:
-        build: 
+        build:
             context: ../../../services/chat
             dockerfile: oss/docker/Dockerfile.dev
 
@@ -202,8 +213,19 @@ services:
             - "traefik.http.services.chat.loadbalancer.server.port=80"
             - "traefik.http.routers.chat.service=chat"
 
-        command: ["python", "oss/src/main.py"]
-    
+        command:
+            [
+                "uvicorn",
+                "oss.src.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "80",
+                "--reload",
+                "--root-path",
+                "/services/chat",
+            ]
+
         restart: always
 
     postgres:
