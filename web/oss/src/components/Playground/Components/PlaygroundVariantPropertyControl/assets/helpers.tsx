@@ -5,7 +5,6 @@ import {getMetadataLazy} from "@/oss/lib/hooks/useStatelessVariants/state"
 import {EnhancedConfigValue} from "@/oss/lib/shared/variant/genericTransformer/types"
 
 import {findPropertyInObject} from "../../../hooks/usePlayground/assets/helpers"
-
 import PlaygroundTool from "../../PlaygroundTool"
 import {ArrayItemValue, RenderFunctions} from "../types"
 
