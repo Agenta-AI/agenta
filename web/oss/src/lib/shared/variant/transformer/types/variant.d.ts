@@ -11,6 +11,7 @@ interface LLMConfig {
     temperature?: number
     presencePenalty?: number
     frequencyPenalty?: number
+    reasoningEffort?: "none" | "low" | "medium" | "high" | null
     responseFormat?: string
     tools?: any[]
     toolChoice?: "none" | "auto" | null
