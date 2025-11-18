@@ -96,12 +96,12 @@ const SelectControl = ({
                     placeholder={mode === "multiple" ? "Select multiple" : "Select one"}
                     {...rest}
                 />
-                {value?.length && allowClear ? (
+                {value && allowClear ? (
                     <Button
                         icon={<X size={14} />}
                         type="text"
                         size="small"
-                        onClick={() => onChange?.("")}
+                        onClick={() => onChange?.(null)}
                         disabled={disabled || disableClear}
                     />
                 ) : null}

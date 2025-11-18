@@ -233,7 +233,7 @@ export const renderMap: RenderFunctions = {
                     withTooltip={withTooltip}
                     disabled={disabled}
                     mode={mode}
-                    allowClear={allowClear}
+                    allowClear={allowClear ?? (metadata as any).nullable ?? false}
                     disableClear={disableClear}
                 />
             )
