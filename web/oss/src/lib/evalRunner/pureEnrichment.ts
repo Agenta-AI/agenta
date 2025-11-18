@@ -4,7 +4,7 @@
  * passed from the main thread via the worker context.
  */
 
-import {uuidToTraceId, uuidToSpanId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import {uuidToTraceId, uuidToSpanId} from "@/oss/lib/traces/helpers"
 import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import type {RunIndex} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"

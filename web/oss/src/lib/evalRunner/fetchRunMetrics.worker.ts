@@ -41,7 +41,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
         } = payload
         const url = `${apiUrl}/preview/evaluations/metrics/query?project_id=${projectId}`
         const body: Record<string, any> = {
-            metrics: {run_ids: [runId]},
+            metrics: {run_ids: [runId], scenario_null: true},
             windowing: {},
         }
         const resp = await fetch(url, {
@@ -55,6 +55,32 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
         if (!resp.ok) throw new Error(`fetch ${resp.status}`)
         const json = (await resp.json()) as {metrics?: any[]}
         const camel = Array.isArray(json.metrics) ? json.metrics.map((m) => m) : []
+
+        try {
+            const scenarioBody = {
+                ...body,
+                metrics: {...body.metrics, scenario_null: false},
+            }
+            const scenarioResp = await fetch(url, {
+                method: "POST",
+                headers: {
+                    Authorization: jwt ? `Bearer ${jwt}` : "",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(scenarioBody),
+            })
+            if (scenarioResp.ok) {
+                const scenarioJson = (await scenarioResp.json()) as {metrics?: any[]}
+                const scenarioMetrics = Array.isArray(scenarioJson.metrics)
+                    ? scenarioJson.metrics.filter(
+                          (metric) => Boolean(metric?.scenario_id || metric?.scenarioId),
+                      )
+                    : []
+                camel.push(...scenarioMetrics)
+            }
+        } catch (scenarioError) {
+            console.warn("[fetchRunMetrics.worker] Failed to fetch scenario metrics", scenarioError)
+        }
 
         // Utility to extract slug and category from stepKey
         const classifyKey = (

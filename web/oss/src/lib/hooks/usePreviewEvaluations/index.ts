@@ -25,16 +25,18 @@ import {usePreviewTestsetsData, useTestsetsData} from "@/oss/state/testset"
 import {buildRunIndex} from "../useEvaluationRunData/assets/helpers/buildRunIndex"
 import {getEvaluationRunScenariosKey} from "../useEvaluationRunScenarios"
 
+import {primePreviewRunCache} from "./assets/previewRunBatcher"
+import {fetchPreviewRunsShared} from "./assets/previewRunsRequest"
 import useEnrichEvaluationRun from "./assets/utils"
 import {collectProjectVariantReferences} from "./projectVariantConfigs"
 
 const EMPTY_RUNS: any[] = []
-interface PreviewEvaluationRunsData {
+export interface PreviewEvaluationRunsData {
     runs: SnakeToCamelCaseKeys<EvaluationRun>[]
     count: number
 }
 
-interface RunFlagsFilter {
+export interface RunFlagsFilter {
     is_live?: boolean
     is_active?: boolean
     is_closed?: boolean
@@ -74,36 +76,26 @@ const previewEvaluationRunsQueryAtomFamily = atomFamily((serializedParams: strin
                     return {runs: [], count: 0}
                 }
 
-                const payload: Record<string, any> = {
-                    run: {},
-                }
-                payload.run.references = references ?? []
-                if (searchQuery) {
-                    payload.run.search = searchQuery
-                }
-                if (flags && Object.keys(flags).length) {
-                    payload.run.flags = flags
-                }
-
-                const queryParams: Record<string, string> = {project_id: projectId}
-                if (appId) {
-                    queryParams.app_id = appId
-                }
-
-                const response = await axios.post(`/preview/evaluations/runs/query`, payload, {
-                    params: queryParams,
+                const response = await fetchPreviewRunsShared({
+                    projectId,
+                    appId,
+                    searchQuery,
+                    references,
+                    flags,
                 })
 
+                primePreviewRunCache(projectId, response.runs)
+
                 return {
-                    runs: (response.data?.runs || []).map((run: EvaluationRun) =>
-                        snakeToCamelCaseKeys<EvaluationRun>(run),
-                    ),
-                    count: response.data?.count || 0,
+                    runs: response.runs as SnakeToCamelCaseKeys<EvaluationRun>[],
+                    count: response.count,
                 }
             },
         }
     }),
 )
+
+export {previewEvaluationRunsQueryAtomFamily}
 
 interface PreviewEvaluationsQueryState {
     data?: PreviewEvaluationRunsData
@@ -189,20 +181,15 @@ const usePreviewEvaluations = ({
         return filters
     }, [appId])
 
-    const effectiveEvalType = useMemo(() => {
-        if (propsTypes.includes(EvaluationType.online)) return "online" as const
-        if (types.includes(EvaluationType.automatic)) return "auto" as const
-        if (types.includes(EvaluationType.custom_code_run)) return "custom" as const
-        return "human" as const
-    }, [propsTypes, types])
-
-    const enrichRun = useEnrichEvaluationRun({
-        evalType: effectiveEvalType,
-    })
+    // const effectiveEvalType = useMemo(() => {
+    //     if (propsTypes.includes(EvaluationType.online)) return "online" as const
+    //     if (types.includes(EvaluationType.automatic)) return "auto" as const
+    //     return "human" as const
+    // }, [propsTypes, types])
 
     const typesKey = useMemo(() => types.slice().sort().join("|"), [types])
     const queryEnabled = !skip && Boolean(projectId)
-    const isEnrichmentPending = queryEnabled && !enrichRun
+    const isEnrichmentPending = queryEnabled
 
     const serializedQueryParams = useMemo(
         () =>
@@ -269,73 +256,71 @@ const usePreviewEvaluations = ({
         }
         const references = collectProjectVariantReferences(rawRuns, projectId)
         setProjectVariantReferences(references)
-        prefetchProjectVariantConfigs(references)
+        // prefetchProjectVariantConfigs(references)
     }, [appId, projectId, rawRuns, setProjectVariantReferences])
     /**
      * Hook to fetch testsets data.
      */
-    const {testsets} = useTestsetsData()
-    const {testsets: previewTestsets} = usePreviewTestsetsData()
+    // const {testsets} = useTestsetsData()
+    // const {testsets: previewTestsets} = usePreviewTestsetsData()
 
     /**
      * Helper to create scenarios for a given run and testset.
      * Each CSV row becomes its own scenario.
      */
-    const createScenarios = useCallback(
-        async (
-            runId: string,
-            testset: Testset & {data: {testcaseIds?: string[]; testcases?: {id: string}[]}},
-        ): Promise<string[]> => {
-            if (!testset?.id) {
-                throw new Error(`Testset with id ${testset.id} not found.`)
-            }
+    // const createScenarios = useCallback(
+    //     async (
+    //         runId: string,
+    //         testset: Testset & {data: {testcaseIds?: string[]; testcases?: {id: string}[]}},
+    //     ): Promise<string[]> => {
+    //         if (!testset?.id) {
+    //             throw new Error(`Testset with id ${testset.id} not found.`)
+    //         }
 
-            // 1. Build payload: each row becomes a scenario
-            const payload = {
-                scenarios: (
-                    testset.data.testcaseIds ??
-                    testset.data.testcases?.map((tc) => tc.id) ??
-                    []
-                ).map((_id, index) => ({
-                    run_id: runId,
-                    // meta: {index},
-                })),
-            }
+    //         // 1. Build payload: each row becomes a scenario
+    //         const payload = {
+    //             scenarios: (
+    //                 testset.data.testcaseIds ??
+    //                 testset.data.testcases?.map((tc) => tc.id) ??
+    //                 []
+    //             ).map((_id, index) => ({
+    //                 run_id: runId,
+    //                 // meta: {index},
+    //             })),
+    //         }
 
-            // 2. Invoke the scenario endpoint
-            const response = await axios.post(SCENARIOS_ENDPOINT, payload)
+    //         // 2. Invoke the scenario endpoint
+    //         const response = await axios.post(SCENARIOS_ENDPOINT, payload)
 
-            // Extract and return new scenario IDs
-            return response.data.scenarios.map((s: any) => s.id)
-        },
-        [testsets, debug],
-    )
+    //         // Extract and return new scenario IDs
+    //         return response.data.scenarios.map((s: any) => s.id)
+    //     },
+    //     [testsets, debug],
+    // )
 
     /**
      * Helper to compute enriched and sorted runs (lazy) when accessed.
      */
     const computeRuns = useCallback((): EnrichedEvaluationRun[] => {
-        if (!rawRuns.length || !enrichRun) return []
+        if (!rawRuns.length) return []
         const isOnline = propsTypes.includes(EvaluationType.online)
         const enriched: EnrichedEvaluationRun[] = rawRuns
             .map((_run) => {
                 const runClone = structuredClone(_run)
                 const runIndex = buildRunIndex(runClone)
-                const result = enrichRun(runClone, previewTestsets?.testsets || [], runIndex)
-                if (result) {
-                    result.runIndex = runIndex
-                }
-                if (result && isOnline) {
-                    const flags = (result as any).flags || {}
+                runClone.runIndex = runIndex
+                // const result = enrichRun(runClone, previewTestsets?.testsets || [], runIndex)
+                if (runClone && isOnline) {
+                    const flags = (runClone as any).flags || {}
 
                     if (flags?.isActive === false) {
-                        ;(result as any).status = EvaluationStatus.CANCELLED
-                        if (result.data) {
-                            ;(result.data as any).status = EvaluationStatus.CANCELLED
+                        ;(runClone as any).status = EvaluationStatus.CANCELLED
+                        if (runClone.data) {
+                            ;(runClone.data as any).status = EvaluationStatus.CANCELLED
                         }
                     }
                 }
-                return result
+                return runClone
             })
             .filter((run): run is EnrichedEvaluationRun => Boolean(run))
 
@@ -345,7 +330,7 @@ const usePreviewEvaluations = ({
             const tB = new Date(b.createdAtTimestamp || 0).getTime()
             return tB - tA
         })
-    }, [rawRuns, previewTestsets, enrichRun, debug, propsTypes])
+    }, [rawRuns, debug, propsTypes])
 
     const createNewRun = useCallback(
         async (paramInputs: CreateEvaluationRunInput) => {
@@ -379,119 +364,132 @@ const usePreviewEvaluations = ({
                 )
             }
 
-            // 2. Creates the the payload schema
-            const params = createEvaluationRunConfig(paramInputs)
+            // 2. Create payload: invocation origin=auto, annotation origin=human (handled by helper)
+            const params = createEvaluationRunConfig({
+                ...(paramInputs as any),
+                meta: {
+                    ...((paramInputs as any)?.meta || {}),
+                    evaluation_kind: "human",
+                },
+            })
 
-            // 3. Invokes run endpoint
-            const response = await axios.post("/preview/evaluations/runs/", params)
+            // 3. Invoke preview run endpoint (include project for backend routing)
+            const response = await axios.post(
+                `/preview/evaluations/runs/?project_id=${projectId}`,
+                params,
+            )
+
+            // 4. Refresh preview runs list and return created run
+            await evaluationRunsState.mutate()
+            return {run: response.data}
 
             // Extract the newly created runId
-            const runId = response.data.runs?.[0]?.id
-            if (!runId) {
-                throw new Error("createNewRun: runId not returned in response.")
-            }
-            // Now create scenarios for each row in the specified testset
-            if (!paramInputs.testset) {
-                throw new Error("Testset is required to create scenarios")
-            }
+            // const runId = response.data.runs?.[0]?.id
+            // if (!runId) {
+            //     throw new Error("createNewRun: runId not returned in response.")
+            // }
+            // // Now create scenarios for each row in the specified testset
+            // if (!paramInputs.testset) {
+            //     throw new Error("Testset is required to create scenarios")
+            // }
             // 4. Creates the scenarios
-            const scenarioIds = await createScenarios(runId, paramInputs.testset)
+            // const scenarioIds = await createScenarios(runId, paramInputs.testset)
 
             // Fire off input, invocation, and annotation steps together in one request (non-blocking)
-            try {
-                // const repeatId = uuidv4()
-                // const retryId = uuidv4()
-                // 5. First generate step keys & IDs per scenario
-                const revision = paramInputs.revisions?.[0]
-                const evaluators = paramInputs.evaluators || []
-                const inputKey = slugify(
-                    paramInputs.testset.name ?? paramInputs.testset.slug ?? "testset",
-                    paramInputs.testset.id,
-                )
-                const invocationKey = revision
-                    ? slugify(
-                          (revision as any).name ??
-                              (revision as any).variantName ??
-                              (revision as any)._parentVariant?.variantName ??
-                              "invocation",
-                          revision.id,
-                      )
-                    : "invocation"
+            // try {
+            //     // const repeatId = uuidv4()
+            //     // const retryId = uuidv4()
+            //     // 5. First generate step keys & IDs per scenario
+            //     const revision = paramInputs.revisions?.[0]
+            //     const evaluators = paramInputs.evaluators || []
+            //     const inputKey = slugify(
+            //         paramInputs.testset.name ?? paramInputs.testset.slug ?? "testset",
+            //         paramInputs.testset.id,
+            //     )
+            //     const invocationKey = revision
+            //         ? slugify(
+            //               (revision as any).name ??
+            //                   (revision as any).variantName ??
+            //                   (revision as any)._parentVariant?.variantName ??
+            //                   "invocation",
+            //               revision.id,
+            //           )
+            //         : "invocation"
 
-                const scenarioStepsData = scenarioIds.map((scenarioId, index) => {
-                    const hashId = uuidv4()
-                    return {
-                        testcaseId:
-                            paramInputs.testset?.data?.testcaseIds?.[index] ??
-                            paramInputs.testset?.data?.testcases?.[index]?.id,
-                        scenarioId,
-                        hashId,
-                    }
-                })
+            //     const scenarioStepsData = scenarioIds.map((scenarioId, index) => {
+            //         const hashId = uuidv4()
+            //         return {
+            //             testcaseId:
+            //                 paramInputs.testset?.data?.testcaseIds?.[index] ??
+            //                 paramInputs.testset?.data?.testcases?.[index]?.id,
+            //             scenarioId,
+            //             hashId,
+            //         }
+            //     })
 
-                // 6. Build a single steps array combining input, invocation, and evaluator steps
-                const allSteps = scenarioStepsData.flatMap(
-                    ({scenarioId, testcaseId, repeatId, retryIdInput, hashId}) => {
-                        const base = {
-                            testcase_id: testcaseId,
-                            scenario_id: scenarioId,
-                            run_id: runId,
-                        }
-                        const stepsArray: any[] = [
-                            {
-                                ...base,
-                                status: EvaluationStatus.SUCCESS,
-                                step_key: inputKey,
-                            },
-                            {
-                                ...base,
-                                step_key: invocationKey,
-                            },
-                        ]
+            //     // 6. Build a single steps array combining input, invocation, and evaluator steps
+            //     const allSteps = scenarioStepsData.flatMap(
+            //         ({scenarioId, testcaseId, repeatId, retryIdInput, hashId}) => {
+            //             const base = {
+            //                 testcase_id: testcaseId,
+            //                 scenario_id: scenarioId,
+            //                 run_id: runId,
+            //             }
+            //             const stepsArray: any[] = [
+            //                 {
+            //                     ...base,
+            //                     status: EvaluationStatus.SUCCESS,
+            //                     step_key: inputKey,
+            //                 },
+            //                 {
+            //                     ...base,
+            //                     step_key: invocationKey,
+            //                 },
+            //             ]
 
-                        evaluators.forEach((ev) => {
-                            stepsArray.push({
-                                ...base,
-                                step_key: `${invocationKey}.${ev.slug}`,
-                            })
-                        })
-                        return stepsArray
-                    },
-                )
-                // 7. Invoke the /results endpoint
-                await axios
-                    .post(`/preview/evaluations/results/?project_id=${projectId}`, {
-                        results: allSteps,
-                    })
-                    .then((res) => {
-                        // Revalidate scenarios data
-                        globalMutate(getEvaluationRunScenariosKey(runId))
-                    })
-                    .catch((err) => {
-                        console.error(
-                            "[usePreviewEvaluations] createNewRun: failed to create steps",
-                            err,
-                        )
-                    })
-            } catch (err) {
-                console.error("[usePreviewEvaluations] createNewRun: error scheduling steps", err)
-            }
+            //             evaluators.forEach((ev) => {
+            //                 stepsArray.push({
+            //                     ...base,
+            //                     step_key: `${invocationKey}.${ev.slug}`,
+            //                 })
+            //             })
+            //             return stepsArray
+            //         },
+            //     )
+            //     // 7. Invoke the /results endpoint
+            //     await axios
+            //         .post(`/preview/evaluations/results/?project_id=${projectId}`, {
+            //             results: allSteps,
+            //         })
+            //         .then((res) => {
+            //             // Revalidate scenarios data
+            //             globalMutate(getEvaluationRunScenariosKey(runId))
+            //         })
+            //         .catch((err) => {
+            //             console.error(
+            //                 "[usePreviewEvaluations] createNewRun: failed to create steps",
+            //                 err,
+            //             )
+            //         })
+            // } catch (err) {
+            //     console.error("[usePreviewEvaluations] createNewRun: error scheduling steps", err)
+            // }
             // 8. Refresh SWR data for runs
-            await evaluationRunsState.mutate()
-            // Return both run response and scenario IDs
-            return {
-                run: response.data,
-                scenarios: scenarioIds,
-            }
+            // await evaluationRunsState.mutate()
+            // // Return both run response and scenario IDs
+            // return {
+            //     run: response.data,
+            //     scenarios: scenarioIds,
+            // }
         },
-        [debug, createScenarios, globalMutate, evaluationRunsState, projectId, appId],
+        [debug, globalMutate, evaluationRunsState, projectId, appId],
     )
 
     return {
         swrData: evaluationRunsState,
         createNewRun,
         get runs() {
-            return enrichRun ? computeRuns() : []
+            return computeRuns() || []
         },
     }
 }

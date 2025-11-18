@@ -59,6 +59,7 @@ export interface testset {
     name: string
     created_at: string
     updated_at: string
+    columns?: string[]
 }
 
 export interface Testset {
@@ -67,6 +68,7 @@ export interface Testset {
     created_at: string
     updated_at: string
     csvdata: KeyValuePair[]
+    columns?: string[]
 }
 
 export interface PreviewTestcase {
@@ -442,6 +444,7 @@ export enum SecretDTOProvider {
     DEEPINFRA = "deepinfra",
     ALEPHALPHA = "alephalpha",
     GROQ = "groq",
+    MISTRAL = "mistral",
     MISTRALAI = "mistralai",
     ANTHROPIC = "anthropic",
     PERPLEXITYAI = "perplexityai",
@@ -457,6 +460,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
     deepinfra: "DeepInfra",
     alephalpha: "Aleph Alpha",
     groq: "Groq",
+    mistral: "Mistral AI",
     mistralai: "Mistral AI",
     anthropic: "Anthropic",
     perplexityai: "Perplexity AI",

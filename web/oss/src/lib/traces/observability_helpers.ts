@@ -1,13 +1,12 @@
-import {isDraft, isDraftable} from "immer"
-
 import {
     _AgentaRootsResponse,
     AgentaNodeDTO,
     AgentaTreeDTO,
 } from "@/oss/services/observability/types"
-
-import {uuidToSpanId, uuidToTraceId} from "../hooks/useAnnotations/assets/helpers"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
+
+import {uuidToSpanId, uuidToTraceId} from "../traces/helpers"
+
 import {sortSpansByStartTime} from "./tracing"
 
 const normalizeContentFields = (obj: any): void => {

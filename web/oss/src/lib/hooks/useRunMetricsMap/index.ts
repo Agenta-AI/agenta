@@ -16,6 +16,7 @@ const fetchRunMetricsMap = async (
     const body: Record<string, any> = {
         metrics: {
             ...(Array.isArray(runIds) && runIds.length ? {run_ids: runIds} : {}),
+            scenario_null: true,
         },
         windowing: {},
     }

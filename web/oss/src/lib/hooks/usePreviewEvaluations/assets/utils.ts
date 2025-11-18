@@ -13,7 +13,7 @@ import {
     EnrichedEvaluationRun,
     EvaluationRun,
     IEvaluationRunDataStep,
-} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import {EnhancedObjectConfig} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {AgentaConfigPrompt, EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
