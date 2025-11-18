@@ -245,8 +245,12 @@ async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]
     assert app_variant_id is not None, "app_variant_id cannot be None"
     async with engine.core_session() as session:
         query = select(AppVariantDB).options(
-            joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
-            joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
+            joinedload(AppVariantDB.app.of_type(AppDB)).load_only(
+                AppDB.id, AppDB.app_name
+            ),  # type: ignore
+            joinedload(AppVariantDB.base.of_type(VariantBaseDB))
+            .joinedload(VariantBaseDB.deployment.of_type(DeploymentDB))
+            .load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
         )
 
         result = await session.execute(
@@ -586,9 +590,9 @@ async def create_new_app_variant(
         AppVariantDB: The created variant.
     """
 
-    assert (
-        config.parameters == {}
-    ), "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
+    assert config.parameters == {}, (
+        "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
+    )
 
     async with engine.core_session() as session:
         variant = AppVariantDB(
@@ -2077,7 +2081,9 @@ async def add_variant_from_base_and_config(
     app_variant_for_base = await list_variants_for_base(base_db)
 
     already_exists = any(
-        av for av in app_variant_for_base if av.config_name == new_config_name  # type: ignore
+        av
+        for av in app_variant_for_base
+        if av.config_name == new_config_name  # type: ignore
     )
     if already_exists:
         raise ValueError("App variant with the same name already exists")
@@ -2162,8 +2168,12 @@ async def list_app_variants(app_id: str):
         result = await session.execute(
             select(AppVariantDB)
             .options(
-                joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
-                joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.uri),  # type: ignore
+                joinedload(AppVariantDB.app.of_type(AppDB)).load_only(
+                    AppDB.id, AppDB.app_name
+                ),  # type: ignore
+                joinedload(AppVariantDB.base.of_type(VariantBaseDB))
+                .joinedload(VariantBaseDB.deployment.of_type(DeploymentDB))
+                .load_only(DeploymentDB.uri),  # type: ignore
             )
             .where(AppVariantDB.hidden.is_not(True))
             .filter_by(app_id=uuid.UUID(app_uuid))
@@ -2461,7 +2471,9 @@ async def fetch_app_environment_revision_by_app_variant_revision_id(
         )
         if is_ee():
             query = query.options(
-                joinedload(AppEnvironmentRevisionDB.deployed_app_variant.of_type(AppVariantDB)),  # type: ignore
+                joinedload(
+                    AppEnvironmentRevisionDB.deployed_app_variant.of_type(AppVariantDB)
+                ),  # type: ignore
             )
         result = await session.execute(query)
         app_environment = result.scalars().one_or_none()
@@ -2484,7 +2496,9 @@ async def fetch_app_variant_revision_by_id(
         result = await session.execute(
             select(AppVariantRevisionsDB)
             .options(
-                joinedload(AppVariantRevisionsDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
+                joinedload(AppVariantRevisionsDB.base.of_type(VariantBaseDB))
+                .joinedload(VariantBaseDB.deployment.of_type(DeploymentDB))
+                .load_only(DeploymentDB.id, DeploymentDB.uri),  # type: ignore
             )
             .filter_by(id=uuid.UUID(variant_revision_id))
         )
@@ -2511,9 +2525,7 @@ async def fetch_environment_revisions_for_environment(environment: AppEnvironmen
             query = query.options(
                 joinedload(
                     AppEnvironmentRevisionDB.modified_by.of_type(UserDB)
-                ).load_only(
-                    UserDB.username
-                )  # type: ignore
+                ).load_only(UserDB.username)  # type: ignore
             )
         else:
             query = query.options(
@@ -2703,9 +2715,9 @@ async def create_environment_revision(
     )
 
     if kwargs:
-        assert (
-            "deployed_app_variant_revision" in kwargs
-        ), "Deployed app variant revision is required"
+        assert "deployed_app_variant_revision" in kwargs, (
+            "Deployed app variant revision is required"
+        )
         assert (
             isinstance(
                 kwargs.get("deployed_app_variant_revision"), AppVariantRevisionsDB
@@ -2720,9 +2732,9 @@ async def create_environment_revision(
             )
 
         deployment = kwargs.get("deployment")
-        assert (
-            isinstance(deployment, DeploymentDB) == True
-        ), "Type of deployment in kwargs is not correct"
+        assert isinstance(deployment, DeploymentDB) == True, (
+            "Type of deployment in kwargs is not correct"
+        )
         if deployment is not None:
             environment_revision.deployment_id = deployment.id  # type: ignore
 
@@ -2790,9 +2802,7 @@ async def fetch_app_variant_revision(
             )
         else:
             query = base_query.options(
-                joinedload(AppVariantRevisionsDB.modified_by).load_only(
-                    UserDB.username
-                )  # type: ignore
+                joinedload(AppVariantRevisionsDB.modified_by).load_only(UserDB.username)  # type: ignore
             )
         result = await session.execute(query)
         app_variant_revision = result.scalars().first()
@@ -2985,8 +2995,12 @@ async def get_app_variant_instance_by_id(
         result = await session.execute(
             select(AppVariantDB)
             .options(
-                joinedload(AppVariantDB.app.of_type(AppDB)).load_only(AppDB.id, AppDB.app_name),  # type: ignore
-                joinedload(AppVariantDB.base.of_type(VariantBaseDB)).joinedload(VariantBaseDB.deployment.of_type(DeploymentDB)).load_only(DeploymentDB.uri),  # type: ignore
+                joinedload(AppVariantDB.app.of_type(AppDB)).load_only(
+                    AppDB.id, AppDB.app_name
+                ),  # type: ignore
+                joinedload(AppVariantDB.base.of_type(VariantBaseDB))
+                .joinedload(VariantBaseDB.deployment.of_type(DeploymentDB))
+                .load_only(DeploymentDB.uri),  # type: ignore
             )
             .filter_by(id=uuid.UUID(variant_id), project_id=uuid.UUID(project_id)),
         )
@@ -3474,9 +3488,9 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
         # Use the object_id directly if it is not a valid MongoDB ObjectId
         object_uuid_as_str = object_id
 
-    assert (
-        object_uuid_as_str is not None
-    ), f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
+    assert object_uuid_as_str is not None, (
+        f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
+    )
     return object_uuid_as_str
 
 
@@ -3600,13 +3614,19 @@ async def fetch_evaluation_by_id(
             id=uuid.UUID(evaluation_id),
         )
         query = base_query.options(
-            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
+            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(
+                TestsetDB.id, TestsetDB.name
+            ),  # type: ignore
         )
 
         result = await session.execute(
             query.options(
-                joinedload(EvaluationDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
-                joinedload(EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)).load_only(AppVariantRevisionsDB.revision),  # type: ignore
+                joinedload(EvaluationDB.variant.of_type(AppVariantDB)).load_only(
+                    AppVariantDB.id, AppVariantDB.variant_name
+                ),  # type: ignore
+                joinedload(
+                    EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)
+                ).load_only(AppVariantRevisionsDB.revision),  # type: ignore
                 joinedload(
                     EvaluationDB.aggregated_results.of_type(
                         EvaluationAggregatedResultDB
@@ -3633,7 +3653,9 @@ async def list_human_evaluations(app_id: str, project_id: str):
             .filter(HumanEvaluationDB.testset_id.isnot(None))
         )
         query = base_query.options(
-            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
+            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(
+                TestsetDB.id, TestsetDB.name
+            ),  # type: ignore
         )
 
         result = await session.execute(query)
@@ -3696,8 +3718,12 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
             human_evaluation_id=uuid.UUID(human_evaluation_id)
         )
         query = base_query.options(
-            joinedload(HumanEvaluationVariantDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
-            joinedload(HumanEvaluationVariantDB.variant_revision.of_type(AppVariantRevisionsDB)).load_only(AppVariantRevisionsDB.id, AppVariantRevisionsDB.revision),  # type: ignore
+            joinedload(
+                HumanEvaluationVariantDB.variant.of_type(AppVariantDB)
+            ).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
+            joinedload(
+                HumanEvaluationVariantDB.variant_revision.of_type(AppVariantRevisionsDB)
+            ).load_only(AppVariantRevisionsDB.id, AppVariantRevisionsDB.revision),  # type: ignore
         )
 
         result = await session.execute(query)
@@ -3726,7 +3752,9 @@ async def create_human_evaluation_variants(
     variants_revisions_dict = {}
     for variant_id, variant in variants_dict.items():
         variant_revision = await fetch_app_variant_revision_by_variant(
-            app_variant_id=str(variant.id), project_id=str(variant.project_id), revision=variant.revision  # type: ignore
+            app_variant_id=str(variant.id),
+            project_id=str(variant.project_id),
+            revision=variant.revision,  # type: ignore
         )
         if variant_revision:
             variants_revisions_dict[variant_id] = variant_revision
@@ -3765,7 +3793,9 @@ async def fetch_human_evaluation_by_id(
     async with engine.core_session() as session:
         base_query = select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         query = base_query.options(
-            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
+            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(
+                TestsetDB.id, TestsetDB.name
+            ),  # type: ignore
         )
         result = await session.execute(query)
         evaluation = result.scalars().first()
@@ -4041,13 +4071,19 @@ async def list_evaluations(app_id: str, project_id: str):
             app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
         )
         query = base_query.options(
-            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
+            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(
+                TestsetDB.id, TestsetDB.name
+            ),  # type: ignore
         )
 
         result = await session.execute(
             query.options(
-                joinedload(EvaluationDB.variant.of_type(AppVariantDB)).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
-                joinedload(EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)).load_only(AppVariantRevisionsDB.revision),  # type: ignore
+                joinedload(EvaluationDB.variant.of_type(AppVariantDB)).load_only(
+                    AppVariantDB.id, AppVariantDB.variant_name
+                ),  # type: ignore
+                joinedload(
+                    EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)
+                ).load_only(AppVariantRevisionsDB.revision),  # type: ignore
                 joinedload(
                     EvaluationDB.aggregated_results.of_type(
                         EvaluationAggregatedResultDB

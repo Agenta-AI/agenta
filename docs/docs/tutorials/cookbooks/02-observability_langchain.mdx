@@ -18,7 +18,7 @@ This guide shows you how to set up tracing for a RAG application in Langchain us
 Tracing allows us to debug effectively complex LLM applications. It allows us to view exact prompts sent and contexts retrieved.
 
 
-<GoogleColabButton notebookPath="examples/jupyter/observability_langchain.ipynb">
+<GoogleColabButton notebookPath="examples/jupyter/observability/observability_langchain.ipynb">
   Open in Google Colaboratory
 </GoogleColabButton>
 
@@ -104,7 +104,7 @@ prompt_template = ChatPromptTemplate([
 llm = ChatOpenAI(model="gpt-4o-mini")
 
 loader = WebBaseLoader(
-    web_paths=("https://docs.agenta.ai/prompt-engineering/managing-prompts-programatically/create-and-commit",),
+    web_paths=("https://agenta.ai/docs/prompt-engineering/managing-prompts-programatically/create-and-commit",),
     bs_kwargs=dict(
         parse_only=bs4.SoupStrainer('article')  # Only parse the core
     ),

@@ -817,9 +817,7 @@ async def remove_user_from_workspace(
     project_ids = [project.id for project in projects]
 
     async with engine.core_session() as session:
-        if (
-            not user
-        ):  # User is an invited user who has not yet created an account and therefore does not have a user object
+        if not user:  # User is an invited user who has not yet created an account and therefore does not have a user object
             pass
         else:
             # Ensure that a user can not remove the owner of the workspace

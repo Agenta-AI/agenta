@@ -169,6 +169,7 @@ async def run_evaluation():
     # Run evaluation
     print("Running evaluation...")
     eval_result = await aevaluate(
+        name="My First Eval",
         testsets=[my_testset.id],
         applications=[capital_quiz_app],
         evaluators=[

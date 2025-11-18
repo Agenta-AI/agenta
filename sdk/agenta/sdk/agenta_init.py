@@ -85,28 +85,30 @@ class AgentaSingleton:
 
         _api_url = (
             api_url
+            or getenv("AGENTA_API_INTERNAL_URL")
             or getenv("AGENTA_API_URL")
             or config.get("api_url")
             or None  # NO FALLBACK
         )
 
         if _api_url:
+            _api_url = parse_url(url=_api_url)
             _host = _api_url.rsplit("/api", 1)[0]
-
-        if _host and not _api_url:
+        elif _host:
+            _host = parse_url(url=_host)
             _api_url = _host + "/api"
 
         try:
-            assert _host and isinstance(
-                _host, str
-            ), "Host is required. Please provide a valid host or set AGENTA_HOST environment variable."
-            self.host = parse_url(url=_host)
-            self.api_url = self.host + "/api"
+            assert _api_url and isinstance(_api_url, str), (
+                "API URL is required. Please provide a valid API URL or set AGENTA_API_URL environment variable."
+            )
+            self.host = _host
+            self.api_url = _api_url
         except AssertionError as e:
             log.error(str(e))
             raise
         except Exception as e:
-            log.error(f"Failed to parse host URL '{_host}': {e}")
+            log.error(f"Failed to parse API URL '{_api_url}': {e}")
             raise
 
         self.api_key = (
