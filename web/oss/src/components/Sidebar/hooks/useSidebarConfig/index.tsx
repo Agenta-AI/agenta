@@ -143,7 +143,7 @@ export const useSidebarConfig = () => {
             icon: <PaperPlane size={16} />,
             isBottom: true,
             tooltip: "Invite Teammate",
-            isHidden: !doesSessionExist || !selectedOrg,
+            isHidden: !doesSessionExist || !selectedOrganization,
         },
         {
             key: "support-chat-link",
