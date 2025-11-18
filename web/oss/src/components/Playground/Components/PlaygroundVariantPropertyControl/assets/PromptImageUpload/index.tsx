@@ -14,7 +14,7 @@ import {PromptImageUploadProps} from "./types"
 
 const {Dragger} = Upload
 
-const MAX_SIZE = 750 * 1024
+const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"]
 
 const PromptImageUpload = ({
@@ -90,7 +90,7 @@ const PromptImageUpload = ({
         }
 
         if (file.size > MAX_SIZE) {
-            setError("Image size must be less than 750KB.")
+            setError("Image size must be less than 5MB.")
             return
         }
 
