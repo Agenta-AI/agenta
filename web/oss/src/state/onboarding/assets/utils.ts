@@ -19,7 +19,12 @@ import {waitForValidURL, getURLValues} from "@/oss/state/url"
 import {demoOnlineEvaluationAtom, type DemoOnlineEvaluationContext} from "../atoms/helperAtom"
 
 const DEMO_EVALUATION_NAME = "demo-evaluation"
-const LLM_JUDGE_KEYS = new Set(["llm-as-a-judge", "llm_as_a_judge", "auto_ai_critique", "ai_critique"])
+const LLM_JUDGE_KEYS = new Set([
+    "llm-as-a-judge",
+    "llm_as_a_judge",
+    "auto_ai_critique",
+    "ai_critique",
+])
 
 const ensureEvaluatorConfigs = async (): Promise<EvaluatorConfig[]> => {
     const store = getDefaultStore()

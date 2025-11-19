@@ -10,12 +10,12 @@ const WelcomeModalContent = ({variant = "default"}: WelcomeModalContentProps) =>
     if (variant === "sme") {
         return (
             <div className="flex flex-col gap-2 mb-6 mt-5">
-                <Typography.Paragraph  className="font-bold">
+                <Typography.Paragraph className="font-bold">
                     Personalized onboarding
                 </Typography.Paragraph>
                 <Typography.Paragraph className="!mb-0 text-[#475467]">
-                    We&apos;ll spin up a live online evaluation, walk through app creation, run a few
-                    prompt experiments in the playground, and then jump straight into the
+                    We&apos;ll spin up a live online evaluation, walk through app creation, run a
+                    few prompt experiments in the playground, and then jump straight into the
                     evaluation we created so you can see how live scoring works. It only takes a
                     couple of minutes.
                 </Typography.Paragraph>

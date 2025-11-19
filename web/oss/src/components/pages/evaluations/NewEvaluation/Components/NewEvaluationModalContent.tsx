@@ -170,16 +170,16 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 ),
                 children: appSelectionComplete ? (
                     <div id="tour-new-eval-content-variant">
-                    <SelectVariantSection
-                        handlePanelChange={handlePanelChange}
-                        selectedVariantRevisionIds={selectedVariantRevisionIds}
-                        setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
-                        evaluationType={evaluationType}
-                        variants={variants}
-                        isVariantLoading={variantsLoading}
-                        className="pt-2"
-                        selectedTestsetId={selectedTestsetId}
-                    />
+                        <SelectVariantSection
+                            handlePanelChange={handlePanelChange}
+                            selectedVariantRevisionIds={selectedVariantRevisionIds}
+                            setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
+                            evaluationType={evaluationType}
+                            variants={variants}
+                            isVariantLoading={variantsLoading}
+                            className="pt-2"
+                            selectedTestsetId={selectedTestsetId}
+                        />
                     </div>
                 ) : (
                     requireAppMessage
@@ -207,14 +207,14 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 ),
                 children: appSelectionComplete ? (
                     <div id="tour-new-eval-content-testset">
-                    <SelectTestsetSection
-                        handlePanelChange={handlePanelChange}
-                        selectedTestsetId={selectedTestsetId}
-                        setSelectedTestsetId={setSelectedTestsetId}
-                        testsets={testsets}
-                        selectedVariantRevisionIds={selectedVariantRevisionIds}
-                        className="pt-2"
-                    />
+                        <SelectTestsetSection
+                            handlePanelChange={handlePanelChange}
+                            selectedTestsetId={selectedTestsetId}
+                            setSelectedTestsetId={setSelectedTestsetId}
+                            testsets={testsets}
+                            selectedVariantRevisionIds={selectedVariantRevisionIds}
+                            className="pt-2"
+                        />
                     </div>
                 ) : (
                     requireAppMessage
@@ -248,16 +248,16 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                 ),
                 children: appSelectionComplete ? (
                     <div id="tour-new-eval-content-evaluators">
-                    <SelectEvaluatorSection
-                        handlePanelChange={handlePanelChange}
-                        selectedEvalConfigs={selectedEvalConfigs}
-                        setSelectedEvalConfigs={setSelectedEvalConfigs}
-                        preview={preview}
-                        evaluators={evaluators as any}
-                        evaluatorConfigs={evaluatorConfigs}
-                        selectedAppId={selectedAppId}
-                        className="pt-2"
-                    />
+                        <SelectEvaluatorSection
+                            handlePanelChange={handlePanelChange}
+                            selectedEvalConfigs={selectedEvalConfigs}
+                            setSelectedEvalConfigs={setSelectedEvalConfigs}
+                            preview={preview}
+                            evaluators={evaluators as any}
+                            evaluatorConfigs={evaluatorConfigs}
+                            selectedAppId={selectedAppId}
+                            className="pt-2"
+                        />
                     </div>
                 ) : (
                     requireAppMessage
@@ -282,10 +282,10 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                           ),
                           children: appSelectionComplete ? (
                               <div id="tour-new-eval-content-advanced">
-                              <AdvancedSettings
-                                  advanceSettings={advanceSettings}
-                                  setAdvanceSettings={setAdvanceSettings}
-                              />
+                                  <AdvancedSettings
+                                      advanceSettings={advanceSettings}
+                                      setAdvanceSettings={setAdvanceSettings}
+                                  />
                               </div>
                           ) : (
                               requireAppMessage

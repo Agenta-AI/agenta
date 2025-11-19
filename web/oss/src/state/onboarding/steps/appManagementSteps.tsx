@@ -219,7 +219,7 @@ const ONLINE_EVAL_RUN_SECTION_STEPS = withOnboardingSection(
 const SME_TOUR_CACHE = new Map<string, TourDefinition>()
 
 const resolveSmeJourneyTour = (ctx: OnboardingStepsContext): TourDefinition => {
-    if(ctx.userOnboardingStatus.fullJourney !== "idle"){
+    if (ctx.userOnboardingStatus.fullJourney !== "idle") {
         return resolveGlobalAppTour()
     }
     const store = getDefaultStore()
