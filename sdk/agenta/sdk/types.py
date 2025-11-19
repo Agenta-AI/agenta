@@ -336,10 +336,18 @@ class ContentPartImage(BaseModel):
 
 
 class FileInput(BaseModel):
-    file_id: str = Field(
+    file_id: Optional[str] = Field(
+        default=None,
         alias="file_id",
         validation_alias=AliasChoices("file_id", "fileId"),
     )
+    file_data: Optional[str] = Field(
+        default=None,
+        alias="file_data",
+        validation_alias=AliasChoices("file_data", "fileData"),
+    )
+    filename: Optional[str] = None
+    format: Optional[str] = None
 
     model_config = {"populate_by_name": True}
 

@@ -153,6 +153,10 @@ export const createMessageFromSchema = (
                                         generatedItem.__metadata = (imageBase as any).__metadata
                                         generatedItem.__id = (imageBase as any).__id
                                     } else if (item.type === "file") {
+                                        console.log(
+                                            "[messageHelpers][createMessageFromSchema] file part input",
+                                            item,
+                                        )
                                         const fileOptionMetadata = itemMetadata.options?.find(
                                             (opt) => "file" in opt.properties,
                                         )
@@ -161,8 +165,11 @@ export const createMessageFromSchema = (
                                             createObjectFromMetadata(fileOptionMetadata)
                                         const fileProp = (fileBase as any).file || {
                                             file_id: {},
+                                            file_data: {},
                                             name: {},
+                                            filename: {},
                                             mime_type: {},
+                                            format: {},
                                         }
 
                                         generatedItem.file = {
@@ -171,13 +178,25 @@ export const createMessageFromSchema = (
                                                 ...fileProp?.file_id,
                                                 value: item.file?.file_id || "",
                                             },
+                                            file_data: {
+                                                ...fileProp?.file_data,
+                                                value: item.file?.file_data || "",
+                                            },
                                             name: {
                                                 ...fileProp?.name,
                                                 value: item.file?.name || "",
                                             },
+                                            filename: {
+                                                ...fileProp?.filename,
+                                                value: item.file?.filename || item.file?.name || "",
+                                            },
                                             mime_type: {
                                                 ...fileProp?.mime_type,
                                                 value: item.file?.mime_type || "",
+                                            },
+                                            format: {
+                                                ...fileProp?.format,
+                                                value: item.file?.format || item.file?.mime_type || "",
                                             },
                                         }
 

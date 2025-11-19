@@ -61,6 +61,11 @@ export function useMessageContentProps(message?: MessageLike | null) {
                         "id",
                         "url",
                     ])
+                    const fileDataProp = normalizeFileProp(nodeWithFile, [
+                        "file_data",
+                        "fileData",
+                        "data",
+                    ])
                     const nameProp = normalizeFileProp(nodeWithFile, [
                         "name",
                         "filename",
@@ -71,19 +76,27 @@ export function useMessageContentProps(message?: MessageLike | null) {
                         "mimeType",
                         "content_type",
                         "type",
+                        "format",
                     ])
+                    const formatProp = normalizeFileProp(nodeWithFile, ["format", "type"])
 
-                    if (!fileIdProp) return undefined
+                    // Need either file_id or file_data - prefer file_id if both exist
+                    if (!fileIdProp && !fileDataProp) return undefined
 
                     return {
                         fileId: fileIdProp,
+                        fileData: fileDataProp,
                         name: nameProp,
                         mimeType: mimeProp,
+                        format: formatProp,
                     }
                 }
                 return undefined
             })
             .filter((node: any) => node != null)
+        if (nodes.length) {
+            console.log("[Docs][useMessageContentProps] file nodes", nodes)
+        }
         return nodes
     }, [message?.content?.value])
 

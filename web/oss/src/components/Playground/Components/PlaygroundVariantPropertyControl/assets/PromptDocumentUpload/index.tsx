@@ -14,13 +14,102 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
     const [error, setError] = useState("")
 
     const currentValue = (): string =>
-        rest.mode === "value" ? rest.value.file_id || "" : rest.fileIdValue || ""
+        rest.mode === "value"
+            ? rest.value.file_data || rest.value.file_id || ""
+            : rest.fileDataValue || rest.fileIdValue || ""
 
-    const setValue = (fileId: string) => {
+    const setValue = (value: string, filename?: string) => {
+        const preview =
+            typeof value === "string" && value.length > 80
+                ? `${value.slice(0, 60)}...(${value.length})`
+                : value
+
+        // eslint-disable-next-line no-console
+        console.log("[Docs][PromptDocumentUpload] setValue", {
+            mode: rest.mode,
+            preview,
+            fileIdPropertyId: (rest as any).fileIdPropertyId,
+            fileDataPropertyId: (rest as any).fileDataPropertyId,
+            filenamePropertyId: (rest as any).filenamePropertyId,
+            formatPropertyId: (rest as any).formatPropertyId,
+            filename,
+        })
+
         if (rest.mode === "value") {
-            rest.onValueChange({file_id: fileId})
+            // Route to correct field based on content type
+            if (value.startsWith("data:")) {
+                // Base64 data URL → use file_data
+                rest.onValueChange({
+                    file_data: value,
+                    filename: filename || rest.value.filename || "uploaded_file.pdf",
+                    format: "pdf",
+                })
+            } else {
+                // Regular URL or file ID → use file_id
+                rest.onValueChange({
+                    file_id: value,
+                    // Also set filename/format for URLs to satisfy validation
+                    filename: filename || "document",
+                    format: "pdf",
+                })
+            }
         } else {
-            rest.onChange(rest.fileIdPropertyId, fileId)
+            const isDataUrl = value.startsWith("data:")
+            const targetPropertyId = isDataUrl
+                ? rest.fileDataPropertyId || rest.fileIdPropertyId
+                : rest.fileIdPropertyId || rest.fileDataPropertyId
+
+            // eslint-disable-next-line no-console
+            console.log("[Docs][PromptDocumentUpload] property route", {
+                valuePreview: preview,
+                isDataUrl,
+                targetPropertyId,
+                clearedPropertyId:
+                    isDataUrl && rest.fileIdPropertyId && rest.fileIdPropertyId !== targetPropertyId
+                        ? rest.fileIdPropertyId
+                        : !isDataUrl &&
+                              rest.fileDataPropertyId &&
+                              rest.fileDataPropertyId !== targetPropertyId
+                          ? rest.fileDataPropertyId
+                          : undefined,
+            })
+
+            if (targetPropertyId) rest.onChange(targetPropertyId, value)
+
+            // Clear the opposite property to avoid stale values
+            if (isDataUrl && rest.fileIdPropertyId && rest.fileIdPropertyId !== targetPropertyId) {
+                rest.onChange(rest.fileIdPropertyId, "")
+            } else if (
+                !isDataUrl &&
+                rest.fileDataPropertyId &&
+                rest.fileDataPropertyId !== targetPropertyId
+            ) {
+                rest.onChange(rest.fileDataPropertyId, "")
+            }
+
+            // ALWAYS set the filename if provided and we have a property ID for it
+            // This is required by validation regardless of whether it's a URL or base64
+            if (rest.filenamePropertyId) {
+                const name = filename || (isDataUrl ? "uploaded_file.pdf" : "document")
+                // eslint-disable-next-line no-console
+                console.log("[Docs][PromptDocumentUpload] setting filename", {
+                    filenamePropertyId: rest.filenamePropertyId,
+                    name,
+                })
+                rest.onChange(rest.filenamePropertyId, name)
+            }
+
+            // ALWAYS set the format if provided and we have a property ID for it
+            // This is required by validation regardless of whether it's a URL or base64
+            if (rest.formatPropertyId) {
+                const format = "pdf"
+                // eslint-disable-next-line no-console
+                console.log("[Docs][PromptDocumentUpload] setting format", {
+                    formatPropertyId: rest.formatPropertyId,
+                    format,
+                })
+                rest.onChange(rest.formatPropertyId, format)
+            }
         }
     }
 
@@ -29,8 +118,7 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
             setError("File too large. Please upload a PDF smaller than 8 MB.")
             return Upload.LIST_IGNORE
         }
-        const isPdf =
-            file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf")
+        const isPdf = file.type === "application/pdf" || file.name?.toLowerCase().endsWith(".pdf")
         if (!isPdf) {
             setError("Unsupported format. Please upload a PDF file.")
             return Upload.LIST_IGNORE
@@ -44,7 +132,7 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
                 return
             }
             setError("")
-            setValue(result)
+            setValue(result, file.name)
         }
         reader.onerror = () => setError("Failed to read file.")
         reader.readAsDataURL(file)
@@ -84,8 +172,8 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
                     <div className="flex flex-col gap-1">
                         <Typography.Text strong>Document source</Typography.Text>
                         <Typography.Text type="secondary">
-                            Paste a public URL, a base64 data URI, or a provider-specific file id (for
-                            example file-xyz123).
+                            Paste a public URL, a base64 data URI, or a provider-specific file id
+                            (for example file-xyz123).
                         </Typography.Text>
                         <Input.TextArea
                             disabled={disabled}
@@ -119,4 +207,3 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
 }
 
 export default PromptDocumentUpload
-

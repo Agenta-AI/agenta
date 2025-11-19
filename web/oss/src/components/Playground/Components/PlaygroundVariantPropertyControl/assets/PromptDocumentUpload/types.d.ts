@@ -1,5 +1,8 @@
 export interface DocumentAttachmentValue {
-    file_id: string
+    file_id?: string
+    file_data?: string
+    filename?: string
+    format?: string
 }
 
 interface CommonPromptDocumentUploadProps {
@@ -9,8 +12,14 @@ interface CommonPromptDocumentUploadProps {
 
 export interface PromptDocumentUploadPropertyProps extends CommonPromptDocumentUploadProps {
     mode?: "property"
-    fileIdPropertyId: string
-    fileIdValue: string
+    fileIdPropertyId?: string
+    fileDataPropertyId?: string
+    filenamePropertyId?: string
+    formatPropertyId?: string
+    fileIdValue?: string
+    fileDataValue?: string
+    filenameValue?: string
+    formatValue?: string
     onChange: (propertyId: string, value: string) => void
 }
 
@@ -23,4 +32,3 @@ export interface PromptDocumentUploadValueProps extends CommonPromptDocumentUplo
 export type PromptDocumentUploadProps =
     | PromptDocumentUploadPropertyProps
     | PromptDocumentUploadValueProps
-

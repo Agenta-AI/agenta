@@ -17,7 +17,10 @@ export interface MessageContentImage {
 export interface MessageContentFile {
     type: "file"
     file: {
-        file_id: string
+        file_id?: string
+        file_data?: string
+        filename?: string
+        format?: string
         name?: string
         mime_type?: string
     }

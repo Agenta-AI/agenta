@@ -164,7 +164,7 @@ const ChatInputs: React.FC<Props> = ({
         updateMessages(newMessages)
     }
 
-    const setDocumentPartValue = (msgIdx: number, docIdx: number, fileId: string) => {
+    const setDocumentPartValue = (msgIdx: number, docIdx: number, value: string) => {
         const newMessages = [...messages]
         const msg = newMessages[msgIdx]
 
@@ -173,12 +173,25 @@ const ChatInputs: React.FC<Props> = ({
         let fileIdx = 0
         msg.content = msg.content.map((part) => {
             if (part.type === "file") {
-                const currentFile = part.file || {file_id: ""}
                 if (fileIdx === docIdx) {
                     fileIdx++
-                    const normalizedFile = {
-                        file_id: (fileId || "").trim(),
-                    }
+                    const trimmedValue = (value || "").trim()
+                    const normalizedFile = trimmedValue.startsWith("data:")
+                        ? {
+                              file_id: trimmedValue,
+                              file_data: trimmedValue,
+                          }
+                        : {file_id: trimmedValue}
+
+                    console.log("[Docs][ChatInputs] setDocumentPartValue", {
+                        msgIdx,
+                        docIdx,
+                        isDataUrl: trimmedValue.startsWith("data:"),
+                        preview:
+                            trimmedValue.length > 80
+                                ? `${trimmedValue.slice(0, 60)}...(${trimmedValue.length})`
+                                : trimmedValue,
+                    })
 
                     return {
                         ...part,
@@ -428,9 +441,16 @@ const ChatInputs: React.FC<Props> = ({
                                     key={`doc-${docIdx}`}
                                     mode="value"
                                     disabled={disableEditContent || readonly}
-                                    value={{file_id: doc.file?.file_id || ""}}
+                                    value={{
+                                        file_id: doc.file?.file_id,
+                                        file_data: doc.file?.file_data,
+                                    }}
                                     onValueChange={(next) =>
-                                        setDocumentPartValue(ix, docIdx, next.file_id)
+                                        setDocumentPartValue(
+                                            ix,
+                                            docIdx,
+                                            next.file_id || next.file_data || "",
+                                        )
                                     }
                                     onRemove={() => handleRemoveDocument(ix, docIdx)}
                                 />

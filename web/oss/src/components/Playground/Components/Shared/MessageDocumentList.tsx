@@ -11,6 +11,9 @@ interface DocumentPropertyNode {
 interface MessageDocumentListProps {
     items: {
         fileId?: DocumentPropertyNode | null
+        fileData?: DocumentPropertyNode | null
+        name?: DocumentPropertyNode | null
+        format?: DocumentPropertyNode | null
     }[]
     disabled?: boolean
     onRemove: (propertyId: string) => void
@@ -42,16 +45,35 @@ const MessageDocumentList: React.FC<MessageDocumentListProps> = ({
         <div className="flex flex-col my-2 items-center gap-2 w-full">
             {items.map((item, index) => {
                 const fileIdProp = item.fileId
-                if (!fileIdProp || !fileIdProp.__id) return null
+                const fileDataProp = item.fileData
+                const filenameProp = item.name
+                const formatProp = item.format
+                // eslint-disable-next-line no-console
+                console.log("[Docs][MessageDocumentList] render item", {
+                    index,
+                    fileIdProp,
+                    fileDataProp,
+                    filenameProp,
+                    formatProp,
+                })
+                const hasAnyProp =
+                    (fileIdProp && fileIdProp.__id) || (fileDataProp && fileDataProp.__id)
+                if (!hasAnyProp) return null
 
                 return (
                     <PromptDocumentUpload
-                        key={fileIdProp.__id || index}
-                        disabled={disabled}
+                        key={fileDataProp?.__id || fileIdProp?.__id || index}
                         mode="property"
-                        fileIdPropertyId={fileIdProp.__id}
+                        disabled={disabled}
+                        fileIdPropertyId={fileIdProp?.__id}
+                        fileDataPropertyId={fileDataProp?.__id}
+                        filenamePropertyId={filenameProp?.__id}
+                        formatPropertyId={formatProp?.__id}
                         fileIdValue={extractValue(fileIdProp)}
-                        onRemove={() => onRemove(fileIdProp.__id!)}
+                        fileDataValue={extractValue(fileDataProp)}
+                        filenameValue={extractValue(filenameProp)}
+                        formatValue={extractValue(formatProp)}
+                        onRemove={() => onRemove(fileIdProp?.__id || fileDataProp?.__id || "")}
                         onChange={onChange}
                     />
                 )
@@ -61,4 +83,3 @@ const MessageDocumentList: React.FC<MessageDocumentListProps> = ({
 }
 
 export default MessageDocumentList
-

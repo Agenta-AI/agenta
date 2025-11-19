@@ -74,6 +74,23 @@ const cloneNodeDeep = (value: any) => {
     }
 }
 
+const scrubLargeFields = (value: any): any => {
+    if (Array.isArray(value)) {
+        return value.map((item) => scrubLargeFields(item))
+    }
+    if (value && typeof value === "object") {
+        const next: Record<string, unknown> = {}
+        for (const [key, val] of Object.entries(value)) {
+            next[key] = scrubLargeFields(val)
+        }
+        return next
+    }
+    if (typeof value === "string" && value.startsWith("data:") && value.length > 120) {
+        return `${value.slice(0, 60)}...(${value.length})`
+    }
+    return value
+}
+
 function resolveEffectiveRevisionId(
     get: any,
     requestedVariantId: string | undefined,
@@ -360,37 +377,69 @@ export const triggerWebWorkerTestAtom = atom(
             const historyTurns = turnHistoryIds.map((id) => get(chatTurnsByIdAtom)[id])
 
             chatHistory = historyTurns
-                .map((t) => {
+                .map((t, historyIdx) => {
                     const x = []
                     if (t.userMessage) {
-                        x.push(extractValueByMetadata(t.userMessage, allMetadata))
+                        const extractedUser = extractValueByMetadata(t.userMessage, allMetadata)
+                        // eslint-disable-next-line no-console
+                        console.log("[Docs][webWorkerIntegration] extracted userMessage", {
+                            rowId,
+                            historyIdx,
+                            type: "user",
+                            value: scrubLargeFields(extractedUser),
+                        })
+                        x.push(extractedUser)
                     }
                     if (t.assistantMessageByRevision?.[effectiveId]) {
-                        x.push(
-                            extractValueByMetadata(
-                                t.assistantMessageByRevision[effectiveId],
-                                allMetadata,
-                            ),
+                        const extractedAssistant = extractValueByMetadata(
+                            t.assistantMessageByRevision[effectiveId],
+                            allMetadata,
                         )
+                        // eslint-disable-next-line no-console
+                        console.log("[Docs][webWorkerIntegration] extracted assistantMessage", {
+                            rowId,
+                            historyIdx,
+                            type: "assistant",
+                            value: scrubLargeFields(extractedAssistant),
+                        })
+                        x.push(extractedAssistant)
                         const toolMessages = t.toolResponsesByRevision?.[effectiveId]
                         if (Array.isArray(toolMessages) && toolMessages.length > 0) {
                             for (const toolMsg of toolMessages) {
                                 try {
                                     const y = get(messageSchemaMetadataAtom) as any
-                                    x.push(
-                                        extractValueByMetadata(toolMsg, {
-                                            [toolMsg.__metadata]: y,
-                                        }),
-                                    )
+                                    const extractedTool = extractValueByMetadata(toolMsg, {
+                                        [toolMsg.__metadata]: y,
+                                    })
+                                    // eslint-disable-next-line no-console
+                                    console.log("[Docs][webWorkerIntegration] extracted toolMessage", {
+                                        rowId,
+                                        historyIdx,
+                                        type: "tool",
+                                        value: scrubLargeFields(extractedTool),
+                                    })
+                                    x.push(extractedTool)
                                 } catch (err) {
-                                    x.push({
+                                    const fallbackTool = {
                                         role: "tool",
                                         content:
                                             toolMsg?.content?.value ??
                                             toolMsg?.content ??
                                             toolMsg?.response ??
                                             "",
-                                    })
+                                    }
+                                    // eslint-disable-next-line no-console
+                                    console.log(
+                                        "[Docs][webWorkerIntegration] extracted toolMessage (fallback)",
+                                        {
+                                            rowId,
+                                            historyIdx,
+                                            type: "tool",
+                                            value: scrubLargeFields(fallbackTool),
+                                            error: (err as Error)?.message,
+                                        },
+                                    )
+                                    x.push(fallbackTool)
                                 }
                             }
                         }
