@@ -20,8 +20,9 @@ import type {ColumnsType} from "antd/es/table"
 
 import useURL from "@/oss/hooks/useURL"
 import {ProjectsResponse} from "@/oss/services/project/types"
-import {createProject, patchProject} from "@/oss/services/project"
+import {createProject, deleteProject, patchProject} from "@/oss/services/project"
 import {useProjectData} from "@/oss/state/project"
+import {TrashIcon} from "@phosphor-icons/react"
 
 const {Paragraph, Text} = Typography
 
@@ -47,6 +48,7 @@ const ProjectsSettings = () => {
         if (!workspaceId) return projects
         return projects.filter((project) => project.workspace_id === workspaceId)
     }, [projects, workspaceId])
+    const canDeleteProjects = scopedProjects.length > 1
 
     const invalidateProjects = useCallback(async () => {
         await queryClient.invalidateQueries({queryKey: ["projects"]})
@@ -61,7 +63,8 @@ const ProjectsSettings = () => {
             setCreateModalOpen(false)
         },
         onError: (error: any) => {
-            const detail = error?.response?.data?.detail || error?.message || "Unable to create project"
+            const detail =
+                error?.response?.data?.detail || error?.message || "Unable to create project"
             message.error(detail)
         },
     })
@@ -77,7 +80,8 @@ const ProjectsSettings = () => {
             setActiveProject(null)
         },
         onError: (error: any) => {
-            const detail = error?.response?.data?.detail || error?.message || "Unable to rename project"
+            const detail =
+                error?.response?.data?.detail || error?.message || "Unable to rename project"
             message.error(detail)
         },
     })
@@ -89,7 +93,21 @@ const ProjectsSettings = () => {
             void invalidateProjects()
         },
         onError: (error: any) => {
-            const detail = error?.response?.data?.detail || error?.message || "Unable to set default"
+            const detail =
+                error?.response?.data?.detail || error?.message || "Unable to set default"
+            message.error(detail)
+        },
+    })
+
+    const deleteMutation = useMutation({
+        mutationFn: (projectId: string) => deleteProject(projectId),
+        onSuccess: () => {
+            message.success("Project deleted")
+            void invalidateProjects()
+        },
+        onError: (error: any) => {
+            const detail =
+                error?.response?.data?.detail || error?.message || "Unable to delete project"
             message.error(detail)
         },
     })
@@ -123,6 +141,27 @@ const ProjectsSettings = () => {
         [defaultMutation],
     )
 
+    const handleDelete = useCallback(
+        (project: ProjectsResponse) => {
+            if (!canDeleteProjects) return
+            Modal.confirm({
+                title: "Delete project",
+                content: (
+                    <div className="space-y-1">
+                        <p>
+                            Are you sure you want to delete <strong>{project.project_name}</strong>?
+                        </p>
+                        <p className="text-xs text-neutral-500">This action cannot be undone.</p>
+                    </div>
+                ),
+                okText: "Delete",
+                okType: "danger",
+                onOk: () => deleteMutation.mutate(project.project_id),
+            })
+        },
+        [canDeleteProjects, deleteMutation],
+    )
+
     const openRenameModal = useCallback(
         (project: ProjectsResponse) => {
             setActiveProject(project)
@@ -142,7 +181,9 @@ const ProjectsSettings = () => {
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2">
                             <Text strong>{record.project_name}</Text>
-                            {record.is_default_project && <Tag color="blue">Default</Tag>}
+                            {record.is_default_project && (
+                                <Tag className="bg-[#0517290F] m-0">Default</Tag>
+                            )}
                         </div>
                         <Text type="secondary" className="text-xs">
                             {record.project_id}
@@ -177,23 +218,59 @@ const ProjectsSettings = () => {
                                 size="small"
                                 disabled={record.is_default_project}
                                 onClick={() => handleMakeDefault(record)}
-                                loading={defaultMutation.isPending && defaultMutation.variables === record.project_id}
+                                loading={
+                                    defaultMutation.isPending &&
+                                    defaultMutation.variables === record.project_id
+                                }
                             >
                                 Set default
+                            </Button>
+                        </Tooltip>
+                        <Tooltip
+                            title={
+                                canDeleteProjects
+                                    ? record.is_default_project
+                                        ? "Default project cannot be deleted"
+                                        : undefined
+                                    : "At least one project must remain in this workspace"
+                            }
+                        >
+                            <Button
+                                type="link"
+                                size="small"
+                                danger
+                                disabled={!canDeleteProjects || record.is_default_project}
+                                onClick={() => handleDelete(record)}
+                                loading={
+                                    deleteMutation.isPending &&
+                                    deleteMutation.variables === record.project_id
+                                }
+                            >
+                                <TrashIcon />
                             </Button>
                         </Tooltip>
                     </Space>
                 ),
             },
         ],
-        [defaultMutation.isPending, defaultMutation.variables, handleMakeDefault, openRenameModal],
+        [
+            canDeleteProjects,
+            defaultMutation.isPending,
+            defaultMutation.variables,
+            deleteMutation.isPending,
+            deleteMutation.variables,
+            handleDelete,
+            handleMakeDefault,
+            openRenameModal,
+        ],
     )
 
     const tableLoading =
         isLoading ||
         createMutation.isPending ||
         renameMutation.isPending ||
-        defaultMutation.isPending
+        defaultMutation.isPending ||
+        deleteMutation.isPending
 
     return (
         <section className="flex flex-col gap-6">
