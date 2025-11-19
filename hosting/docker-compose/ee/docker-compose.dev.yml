@@ -76,7 +76,7 @@ services:
         command:
             [
                 "uvicorn",
-                "entrypoint:app",
+                "routers:app",
                 "--host",
                 "0.0.0.0",
                 "--port",
@@ -103,23 +103,22 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
-        
+
         depends_on:
             - postgres
-            - rabbitmq
             - redis
 
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        
+
         restart: always
-        
+
         networks:
             - agenta-network
 
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- 
-            celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1 --loglevel=DEBUG
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            python workers.py
 
     cron:
         image: agenta-ee-dev-api:latest
@@ -249,7 +248,7 @@ services:
             ]
 
     postgres:
-        image: postgres:16.2
+        image: postgres:16
         
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
@@ -272,70 +271,35 @@ services:
             timeout: 5s
             retries: 5
 
-    rabbitmq:
-        image: rabbitmq:3-management
-        
-        ports:
-            - "${RABBITMQ_PORT:-5672}:5672"
-            - "${RABBITMQ_UI_PORT:-15672}:15672"
-            
-        volumes:
-            - rabbitmq-data:/var/lib/rabbitmq
-            
-        env_file:
-            - ${ENV_FILE:-./.env.ee.dev}
-        
-        restart: always
-        
-        networks:
-            - agenta-network
-
     redis:
-        image: redis:latest
-
-        restart: always
-        
-        networks:
-            - agenta-network
-            
-        volumes:
-            - redis-data:/data
-
-    cache:
-        image: redis:latest
+        image: redis:8
 
         command: >
             redis-server
-            --port 6378
-            --appendonly no
-            --appendfsync no
-            --save ""
-            --maxmemory 128mb
+            --appendonly yes
+            --maxmemory 512mb
             --maxmemory-policy allkeys-lru
 
         ports:
-            - "6378:6378"
+            - "6379:6379"
 
-        volumes:
-            - cache-data:/data
-
-        restart: always
-        
         networks:
             - agenta-network
 
-        labels:
-            - "traefik.enable=false"
+        volumes:
+            - redis-data:/data
+
+        restart: always
 
         healthcheck:
-            test: ["CMD", "redis-cli", "-p", "6378", "ping"]
+            test: ["CMD", "redis-cli", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
             start_period: 5s
 
     traefik:
-        image: traefik:v2.11
+        image: traefik:2
         
         command: 
             - --api.dashboard=true
@@ -418,7 +382,5 @@ networks:
 
 volumes:
     postgres-data:
-    rabbitmq-data:
     redis-data:
-    cache-data:
     nextjs_cache:

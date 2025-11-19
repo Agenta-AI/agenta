@@ -1,6 +1,5 @@
 from contextlib import asynccontextmanager
 
-from celery import Celery, signals
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from supertokens_python import get_all_cors_headers as get_all_supertokens_cors_headers
@@ -111,6 +110,7 @@ from oss.src.routers import (
 )
 
 from oss.src.utils.env import env
+from workers import evaluations_worker
 
 import agenta as ag
 
@@ -124,11 +124,6 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
-
-
-@signals.setup_logging.connect
-def on_celery_setup_logging(**kwargs):
-    pass  # effectively no-op, preventing celery from reconfiguring logging
 
 
 @asynccontextmanager
@@ -149,10 +144,6 @@ async def lifespan(*args, **kwargs):
 
     yield
 
-
-celery_app = Celery("agenta_app")
-
-celery_app.config_from_object("oss.src.celery_config")
 
 app = FastAPI(
     lifespan=lifespan,
@@ -275,6 +266,7 @@ evaluations_service = EvaluationsService(
     queries_service=queries_service,
     testsets_service=testsets_service,
     evaluators_service=evaluators_service,
+    evaluations_worker=evaluations_worker,
 )
 
 simple_evaluations_service = SimpleEvaluationsService(
@@ -284,6 +276,7 @@ simple_evaluations_service = SimpleEvaluationsService(
     evaluations_service=evaluations_service,
     simple_testsets_service=simple_testsets_service,
     simple_evaluators_service=simple_evaluators_service,
+    evaluations_worker=evaluations_worker,
 )
 
 # ROUTERS ----------------------------------------------------------------------
@@ -584,9 +577,9 @@ app.include_router(
 # ------------------------------------------------------------------------------
 
 
-import oss.src.tasks.evaluations.live
-import oss.src.tasks.evaluations.legacy
-import oss.src.tasks.evaluations.batch
+import oss.src.core.evaluations.tasks.live
+import oss.src.core.evaluations.tasks.legacy
+import oss.src.core.evaluations.tasks.batch
 
 
 if ee and is_ee():

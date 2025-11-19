@@ -1,6 +1,6 @@
 import os
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
 _TRUTHY = {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
@@ -33,17 +33,6 @@ class EnvironSettings(BaseModel):
     POSTGRES_URI_SUPERTOKENS: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or ""
     ALEMBIC_CFG_PATH_CORE: str = os.getenv("ALEMBIC_CFG_PATH_CORE") or ""
     ALEMBIC_CFG_PATH_TRACING: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or ""
-
-    # TASK QUEUE / BROKER (REQUIRED)
-    REDIS_URL: str = os.getenv("REDIS_URL") or ""
-    RABBITMQ_DEFAULT_USER: str = os.getenv("RABBITMQ_DEFAULT_USER") or "guest"
-    RABBITMQ_DEFAULT_PASS: str = os.getenv("RABBITMQ_DEFAULT_PASS") or "guest"
-    CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL") or ""
-    CELERY_RESULT_BACKEND: str = os.getenv("CELERY_RESULT_BACKEND") or ""
-
-    # CACHE (REQUIRED)
-    REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "cache"
-    REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6378")
 
     # Mail
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY") or ""
@@ -121,6 +110,21 @@ class EnvironSettings(BaseModel):
     AGENTA_OTLP_MAX_BATCH_BYTES: int = int(
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
+
+    # REDIS (REQUIRED)
+    REDIS_URL: str | None = os.getenv("REDIS_URL")
+    REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "cache"
+    REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6378")
+
+    @model_validator(mode="after")
+    def build_redis_url(self):
+        """Ensure REDIS_URL exists, fallback to computed or default."""
+        if not self.REDIS_URL:
+            self.REDIS_URL = (
+                f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
+            )
+
+        return self
 
 
 env = EnvironSettings()

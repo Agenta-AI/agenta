@@ -50,7 +50,7 @@ services:
             - SCRIPT_NAME=/api
 
         command: >
-            newrelic-admin run-program gunicorn entrypoint:app
+            newrelic-admin run-program gunicorn routers:app
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
@@ -88,18 +88,12 @@ services:
             [
                 "newrelic-admin",
                 "run-program",
-                "celery",
-                "-A",
-                "entrypoint.celery_app",
-                "worker",
-                "--concurrency=1",
-                "--max-tasks-per-child=1",
-                "--prefetch-multiplier=1"
+                "python",
+                "workers.py"
             ]
 
         depends_on:
             - postgres
-            - rabbitmq
             - redis
         restart: always
 
@@ -226,7 +220,7 @@ services:
         restart: always
 
     postgres:
-        image: postgres:16.2
+        image: postgres:16
 
         volumes:
             - postgres-data:/var/lib/postgresql/data/
@@ -248,26 +242,8 @@ services:
             timeout: 5s
             retries: 5
 
-    rabbitmq:
-        image: rabbitmq:3-management
-
-        volumes:
-            - rabbitmq-data:/var/lib/rabbitmq
-
-        networks:
-            - agenta-oss-gh-network
-
-        env_file:
-            - ${ENV_FILE:-./.env.oss.gh}
-
-        ports:
-            - "${RABBITMQ_PORT:-5672}:5672"
-            - "${RABBITMQ_UI_PORT:-15672}:15672"
-
-        restart: always
-
     redis:
-        image: redis:latest
+        image: redis:8
 
         volumes:
             - redis-data:/data
@@ -278,7 +254,7 @@ services:
         restart: always
 
     cache:
-        image: redis:latest
+        image: redis:8
 
         command: >
             redis-server --port 6378 --appendonly no --appendfsync no --save "" --maxmemory 128mb --maxmemory-policy allkeys-lru
@@ -305,7 +281,7 @@ services:
             start_period: 5s
 
     traefik:
-        image: traefik:v2.11
+        image: traefik:2
         profiles:
             - with-traefik
         volumes:
@@ -377,6 +353,5 @@ networks:
 
 volumes:
     postgres-data:
-    rabbitmq-data:
     redis-data:
     cache-data:

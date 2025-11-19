@@ -35,13 +35,13 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoint.py:/app/entrypoint.py
+            - ../../../api/routers.py:/app/routers.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
-        
+
         labels:
             - "traefik.http.routers.api.rule=PathPrefix(`/api/`)"
             - "traefik.http.routers.api.entrypoints=web"
@@ -59,7 +59,7 @@ services:
         command:
             [
                 "uvicorn",
-                "entrypoint:app",
+                "routers:app",
                 "--host",
                 "0.0.0.0",
                 "--port",
@@ -77,12 +77,12 @@ services:
         restart: always
 
     worker:
-        build: 
+        build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoint.py:/app/entrypoint.py
+            - ../../../api/workers.py:/app/workers.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -91,7 +91,6 @@ services:
 
         depends_on:
             - postgres
-            - rabbitmq
             - redis
 
         extra_hosts:
@@ -101,7 +100,8 @@ services:
         restart: always
 
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            python workers.py
 
     cron:
         image: agenta-oss-dev-api:latest
@@ -133,7 +133,7 @@ services:
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/entrypoint.py:/app/entrypoint.py
+            - ../../../api/routers.py:/app/routers.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -229,7 +229,7 @@ services:
         restart: always
 
     postgres:
-        image: postgres:16.2
+        image: postgres:16
         
         restart: always
         ports:
@@ -247,63 +247,35 @@ services:
             timeout: 5s
             retries: 5
 
-    rabbitmq:
-        image: rabbitmq:3-management
-        
-        ports:
-            - "${RABBITMQ_PORT:-5672}:5672"
-            - "${RABBITMQ_UI_PORT:-15672}:15672"
-        volumes:
-            - rabbitmq-data:/var/lib/rabbitmq
-        env_file:
-            - ${ENV_FILE:-./.env.oss.dev}
-        networks:
-            - agenta-network
-        restart: always
-
     redis:
-        image: redis:latest
-        networks:
-            - agenta-network
-        volumes:
-            - redis-data:/data
-        restart: always
-
-    cache:
-        image: redis:latest
+        image: redis:8
 
         command: >
             redis-server
-            --port 6378
-            --appendonly no
-            --appendfsync no
-            --save ""
-            --maxmemory 128mb
+            --appendonly yes
+            --maxmemory 512mb
             --maxmemory-policy allkeys-lru
 
         ports:
-            - "6378:6378"
-
-        volumes:
-            - cache-data:/data
+            - "6379:6379"
 
         networks:
             - agenta-network
 
-        labels:
-            - "traefik.enable=false"
+        volumes:
+            - redis-data:/data
 
         restart: always
 
         healthcheck:
-            test: ["CMD", "redis-cli", "-p", "6378", "ping"]
+            test: ["CMD", "redis-cli", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
             start_period: 5s
 
     traefik:
-        image: traefik:v2.11
+        image: traefik:2
         
         command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${TRAEFIK_PORT:-80}
         ports:
@@ -345,7 +317,5 @@ networks:
 
 volumes:
     postgres-data:
-    rabbitmq-data:
     redis-data:
-    cache-data:
     nextjs_cache:

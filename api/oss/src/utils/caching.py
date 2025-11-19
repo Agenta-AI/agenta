@@ -11,7 +11,6 @@ from oss.src.utils.env import env
 
 log = get_module_logger(__name__)
 
-AGENTA_CACHE_DB = 1
 AGENTA_CACHE_TTL = 5 * 60  # 5 minutes
 
 AGENTA_CACHE_BACKOFF_BASE = 50  # Base backoff delay in milliseconds
@@ -26,10 +25,9 @@ AGENTA_CACHE_DELETE_BATCH_SIZE = 1000
 CACHE_DEBUG = False
 CACHE_DEBUG_VALUE = False
 
-r = Redis(
-    host=env.REDIS_CACHE_HOST,
-    port=env.REDIS_CACHE_PORT,
-    db=AGENTA_CACHE_DB,
+# Use prefix-based separation instead of logical databases
+r = Redis.from_url(
+    url=env.REDIS_URL,
     decode_responses=True,
     socket_timeout=0.5,  # read/write timeout
 )
@@ -70,7 +68,7 @@ def _pack(
     else:
         raise TypeError("Cache key must be str or dict")
 
-    return f"p:{project_id}:u:{user_id}:{namespace}:{key}"
+    return f"cache:p:{project_id}:u:{user_id}:{namespace}:{key}"
 
 
 async def _scan(pattern: str) -> list[str]:

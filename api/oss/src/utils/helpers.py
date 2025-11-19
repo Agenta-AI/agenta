@@ -186,8 +186,6 @@ def validate_required_env_vars():
         "ALEMBIC_CFG_PATH_CORE",
         "ALEMBIC_CFG_PATH_TRACING",
         "REDIS_URL",
-        "CELERY_BROKER_URL",
-        "CELERY_RESULT_BACKEND",
     ]
 
     for var in REQUIRED_ENV_VARS:

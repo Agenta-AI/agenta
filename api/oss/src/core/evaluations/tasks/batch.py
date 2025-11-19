@@ -4,8 +4,6 @@ import asyncio
 import traceback
 from json import dumps
 
-from celery import shared_task, states, Task
-
 from fastapi import Request
 
 from oss.src.utils.helpers import parse_url, get_slug_from_name_and_id
@@ -197,6 +195,7 @@ evaluations_service = EvaluationsService(
     queries_service=queries_service,
     testsets_service=testsets_service,
     evaluators_service=evaluators_service,
+    #
 )
 
 # APIS -------------------------------------------------------------------------
@@ -226,11 +225,6 @@ annotations_router = AnnotationsRouter(
 # ------------------------------------------------------------------------------
 
 
-@shared_task(
-    name="src.tasks.evaluations.batch.evaluate_testsets",
-    queue="src.tasks.evaluations.batch.evaluate_testsets",
-    bind=True,
-)
 def evaluate_testsets(
     self,
     *,
@@ -242,13 +236,8 @@ def evaluate_testsets(
     pass
 
 
-@shared_task(
-    name="src.tasks.evaluations.batch.evaluate_queries",
-    queue="src.tasks.evaluations.batch.evaluate_queries",
-    bind=True,
-)
 def evaluate_queries(
-    self: Task,
+    self,
     *,
     project_id: UUID,
     user_id: UUID,
