@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState} from "react"
+import {Fragment, useMemo, useRef, useState} from "react"
 
 import {Plus} from "@phosphor-icons/react"
 import {Select, Input, Button, Divider, InputRef} from "antd"
@@ -194,24 +194,26 @@ const SelectLLMProvider = ({
                             ))}
                         </OptGroup>
                     ) : (
-                        group.options?.map((option: string) => {
-                            const Icon = LLMIcons[option]
-                            return (
-                                <Option
-                                    key={option}
-                                    value={option}
-                                    className={clsx([
-                                        "[&_.ant-select-item-option-content]:flex",
-                                        "[&_.ant-select-item-option-content]:items-center",
-                                        "[&_.ant-select-item-option-content]:justify-normal",
-                                        "[&_.ant-select-item-option-content]:gap-1",
-                                    ])}
-                                >
-                                    {Icon && <Icon className="w-4 h-4" />}
-                                    <span>{option}</span>
-                                </Option>
-                            )
-                        })
+                        <Fragment key={idx}>
+                            {group.options?.map((option: string) => {
+                                const Icon = LLMIcons[option]
+                                return (
+                                    <Option
+                                        key={option}
+                                        value={option}
+                                        className={clsx([
+                                            "[&_.ant-select-item-option-content]:flex",
+                                            "[&_.ant-select-item-option-content]:items-center",
+                                            "[&_.ant-select-item-option-content]:justify-normal",
+                                            "[&_.ant-select-item-option-content]:gap-1",
+                                        ])}
+                                    >
+                                        {Icon && <Icon className="w-4 h-4" />}
+                                        <span>{option}</span>
+                                    </Option>
+                                )
+                            })}
+                        </Fragment>
                     )
                 })}
             </Select>
