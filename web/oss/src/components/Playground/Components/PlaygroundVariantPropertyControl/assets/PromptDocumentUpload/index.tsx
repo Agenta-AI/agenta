@@ -19,21 +19,6 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
             : rest.fileDataValue || rest.fileIdValue || ""
 
     const setValue = (value: string, filename?: string) => {
-        const preview =
-            typeof value === "string" && value.length > 80
-                ? `${value.slice(0, 60)}...(${value.length})`
-                : value
-
-        // eslint-disable-next-line no-console
-        console.log("[Docs][PromptDocumentUpload] setValue", {
-            mode: rest.mode,
-            preview,
-            fileIdPropertyId: (rest as any).fileIdPropertyId,
-            fileDataPropertyId: (rest as any).fileDataPropertyId,
-            filenamePropertyId: (rest as any).filenamePropertyId,
-            formatPropertyId: (rest as any).formatPropertyId,
-            filename,
-        })
 
         if (rest.mode === "value") {
             // Route to correct field based on content type
@@ -59,21 +44,6 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
                 ? rest.fileDataPropertyId || rest.fileIdPropertyId
                 : rest.fileIdPropertyId || rest.fileDataPropertyId
 
-            // eslint-disable-next-line no-console
-            console.log("[Docs][PromptDocumentUpload] property route", {
-                valuePreview: preview,
-                isDataUrl,
-                targetPropertyId,
-                clearedPropertyId:
-                    isDataUrl && rest.fileIdPropertyId && rest.fileIdPropertyId !== targetPropertyId
-                        ? rest.fileIdPropertyId
-                        : !isDataUrl &&
-                              rest.fileDataPropertyId &&
-                              rest.fileDataPropertyId !== targetPropertyId
-                          ? rest.fileDataPropertyId
-                          : undefined,
-            })
-
             if (targetPropertyId) rest.onChange(targetPropertyId, value)
 
             // Clear the opposite property to avoid stale values
@@ -91,11 +61,6 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
             // This is required by validation regardless of whether it's a URL or base64
             if (rest.filenamePropertyId) {
                 const name = filename || (isDataUrl ? "uploaded_file.pdf" : "document")
-                // eslint-disable-next-line no-console
-                console.log("[Docs][PromptDocumentUpload] setting filename", {
-                    filenamePropertyId: rest.filenamePropertyId,
-                    name,
-                })
                 rest.onChange(rest.filenamePropertyId, name)
             }
 
@@ -103,11 +68,6 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
             // This is required by validation regardless of whether it's a URL or base64
             if (rest.formatPropertyId) {
                 const format = "pdf"
-                // eslint-disable-next-line no-console
-                console.log("[Docs][PromptDocumentUpload] setting format", {
-                    formatPropertyId: rest.formatPropertyId,
-                    format,
-                })
                 rest.onChange(rest.formatPropertyId, format)
             }
         }

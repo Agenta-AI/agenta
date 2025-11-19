@@ -42,11 +42,6 @@ export function testsetRowToChatMessages(rowData: KeyValuePair, includeCorrectAn
     if (!chatColumn) return [defaultNewMessage]
 
     let chat = safeParse(rowData[chatColumn], [])
-    console.log("[testsetRowToChatMessages] parsed chat", {
-        chatColumn,
-        length: Array.isArray(chat) ? chat.length : undefined,
-        sample: Array.isArray(chat) ? chat?.[0] : chat,
-    })
 
     if (includeCorrectAnswer) {
         chat = chat.concat([{content: rowData.correct_answer || "", role: ChatRole.Assistant}])

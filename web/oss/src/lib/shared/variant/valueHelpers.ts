@@ -38,12 +38,6 @@ export const checkValidity = (obj: Record<string, any>, metadata: ConfigMetadata
                 (snakeCasePropName === "file_data" && Boolean(obj["file_id"]))
 
             if (!hasAlternative) {
-                console.warn("[Docs][checkValidity] missing required property", {
-                    propName,
-                    snakeCasePropName,
-                    objKeys: Object.keys(obj),
-                    hasAlternative,
-                })
                 return false
             }
         }
@@ -171,37 +165,6 @@ export function extractValueByMetadata(
                                 acc[toSnakeCase(key)] = cloned
                             } else {
                                 const extracted = extractValueByMetadata(val, allMetadata, debug)
-
-                                // Debug logging for file extraction
-                                if (
-                                    key === "file" ||
-                                    (val &&
-                                        val.__metadata &&
-                                        allMetadata[val.__metadata]?.title === "FileInput")
-                                ) {
-                                    console.log(
-                                        "[Docs][extractValueByMetadata] processing property",
-                                        {
-                                            key,
-                                            extracted: (() => {
-                                                try {
-                                                    return JSON.parse(
-                                                        JSON.stringify(extracted, (k, v) =>
-                                                            typeof v === "string" &&
-                                                            v.startsWith("data:") &&
-                                                            v.length > 50
-                                                                ? v.slice(0, 40) + "..."
-                                                                : v,
-                                                        ),
-                                                    )
-                                                } catch {
-                                                    return extracted
-                                                }
-                                            })(),
-                                            shouldInclude: shouldIncludeValue(extracted),
-                                        },
-                                    )
-                                }
 
                                 if (shouldIncludeValue(extracted)) {
                                     acc[toSnakeCase(key)] = extracted

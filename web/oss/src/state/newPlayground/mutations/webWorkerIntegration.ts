@@ -380,66 +380,34 @@ export const triggerWebWorkerTestAtom = atom(
                 .map((t, historyIdx) => {
                     const x = []
                     if (t.userMessage) {
-                        const extractedUser = extractValueByMetadata(t.userMessage, allMetadata)
-                        // eslint-disable-next-line no-console
-                        console.log("[Docs][webWorkerIntegration] extracted userMessage", {
-                            rowId,
-                            historyIdx,
-                            type: "user",
-                            value: scrubLargeFields(extractedUser),
-                        })
-                        x.push(extractedUser)
+                        x.push(extractValueByMetadata(t.userMessage, allMetadata))
                     }
                     if (t.assistantMessageByRevision?.[effectiveId]) {
-                        const extractedAssistant = extractValueByMetadata(
-                            t.assistantMessageByRevision[effectiveId],
-                            allMetadata,
+                        x.push(
+                            extractValueByMetadata(
+                                t.assistantMessageByRevision[effectiveId],
+                                allMetadata,
+                            ),
                         )
-                        // eslint-disable-next-line no-console
-                        console.log("[Docs][webWorkerIntegration] extracted assistantMessage", {
-                            rowId,
-                            historyIdx,
-                            type: "assistant",
-                            value: scrubLargeFields(extractedAssistant),
-                        })
-                        x.push(extractedAssistant)
                         const toolMessages = t.toolResponsesByRevision?.[effectiveId]
                         if (Array.isArray(toolMessages) && toolMessages.length > 0) {
                             for (const toolMsg of toolMessages) {
                                 try {
                                     const y = get(messageSchemaMetadataAtom) as any
-                                    const extractedTool = extractValueByMetadata(toolMsg, {
-                                        [toolMsg.__metadata]: y,
-                                    })
-                                    // eslint-disable-next-line no-console
-                                    console.log("[Docs][webWorkerIntegration] extracted toolMessage", {
-                                        rowId,
-                                        historyIdx,
-                                        type: "tool",
-                                        value: scrubLargeFields(extractedTool),
-                                    })
-                                    x.push(extractedTool)
+                                    x.push(
+                                        extractValueByMetadata(toolMsg, {
+                                            [toolMsg.__metadata]: y,
+                                        }),
+                                    )
                                 } catch (err) {
-                                    const fallbackTool = {
+                                    x.push({
                                         role: "tool",
                                         content:
                                             toolMsg?.content?.value ??
                                             toolMsg?.content ??
                                             toolMsg?.response ??
                                             "",
-                                    }
-                                    // eslint-disable-next-line no-console
-                                    console.log(
-                                        "[Docs][webWorkerIntegration] extracted toolMessage (fallback)",
-                                        {
-                                            rowId,
-                                            historyIdx,
-                                            type: "tool",
-                                            value: scrubLargeFields(fallbackTool),
-                                            error: (err as Error)?.message,
-                                        },
-                                    )
-                                    x.push(fallbackTool)
+                                    })
                                 }
                             }
                         }

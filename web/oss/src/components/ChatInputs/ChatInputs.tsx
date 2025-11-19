@@ -183,16 +183,6 @@ const ChatInputs: React.FC<Props> = ({
                           }
                         : {file_id: trimmedValue}
 
-                    console.log("[Docs][ChatInputs] setDocumentPartValue", {
-                        msgIdx,
-                        docIdx,
-                        isDataUrl: trimmedValue.startsWith("data:"),
-                        preview:
-                            trimmedValue.length > 80
-                                ? `${trimmedValue.slice(0, 60)}...(${trimmedValue.length})`
-                                : trimmedValue,
-                    })
-
                     return {
                         ...part,
                         file: normalizedFile,

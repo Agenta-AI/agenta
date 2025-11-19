@@ -48,14 +48,6 @@ const MessageDocumentList: React.FC<MessageDocumentListProps> = ({
                 const fileDataProp = item.fileData
                 const filenameProp = item.name
                 const formatProp = item.format
-                // eslint-disable-next-line no-console
-                console.log("[Docs][MessageDocumentList] render item", {
-                    index,
-                    fileIdProp,
-                    fileDataProp,
-                    filenameProp,
-                    formatProp,
-                })
                 const hasAnyProp =
                     (fileIdProp && fileIdProp.__id) || (fileDataProp && fileDataProp.__id)
                 if (!hasAnyProp) return null

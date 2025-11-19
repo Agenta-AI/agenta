@@ -94,9 +94,6 @@ export function useMessageContentProps(message?: MessageLike | null) {
                 return undefined
             })
             .filter((node: any) => node != null)
-        if (nodes.length) {
-            console.log("[Docs][useMessageContentProps] file nodes", nodes)
-        }
         return nodes
     }, [message?.content?.value])
 

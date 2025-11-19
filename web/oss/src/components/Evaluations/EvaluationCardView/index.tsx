@@ -164,10 +164,6 @@ const EvaluationCardView: React.FC<EvaluationCardViewProps> = ({
 
     const onChatChange = (chat: ChatMessage[]) => {
         const stringified = JSON.stringify(chat)
-        console.log("[Evaluations][onChatChange]", {
-            messageCount: chat?.length,
-            preview: stringified?.slice?.(0, 200),
-        })
         testsetRow[evaluation.testset.testsetChatColumn] = stringified
 
         depouncedUpdateEvaluationScenario({

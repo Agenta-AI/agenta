@@ -10,32 +10,6 @@ import {parseValidationError} from "../../../assets/utilities/errors"
 // Track in-flight requests so we can cancel them by runId
 const abortControllers = new Map<string, AbortController>()
 
-const scrubLargeFields = (value: any): any => {
-    if (Array.isArray(value)) return value.map((item) => scrubLargeFields(item))
-    if (value && typeof value === "object") {
-        const next: Record<string, unknown> = {}
-        for (const [key, val] of Object.entries(value)) {
-            if (typeof val === "string" && val.startsWith("data:")) {
-                next[key] = `${val.slice(0, 60)}...(${val.length})`
-            } else {
-                next[key] = scrubLargeFields(val)
-            }
-        }
-        return next
-    }
-    return value
-}
-
-const logRequestPreview = (body: any) => {
-    try {
-        const clone = scrubLargeFields(JSON.parse(JSON.stringify(body)))
-        // eslint-disable-next-line no-console
-        console.log("[Docs][PlaygroundWorker] request body preview", clone)
-    } catch (error) {
-        // eslint-disable-next-line no-console
-        console.log("[Docs][PlaygroundWorker] failed to log request body", error)
-    }
-}
 
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
@@ -88,33 +62,6 @@ async function runVariantInputRow(payload: {
         isCustom,
         appType,
     } = payload
-    const previewPayload = {
-        stage: "before-transform",
-        messageRow: messageRow ? scrubLargeFields(messageRow) : undefined,
-        chatHistory: chatHistory ? scrubLargeFields(chatHistory) : undefined,
-    }
-    logRequestPreview(previewPayload)
-    if (Array.isArray(chatHistory)) {
-        chatHistory.forEach((entry, idx) => {
-            // eslint-disable-next-line no-console
-            console.log("[Docs][PlaygroundWorker] chatHistory entry", {
-                idx,
-                entry: scrubLargeFields(entry),
-            })
-        })
-    }
-    if (messageRow?.history?.value) {
-        const rawHistory = messageRow.history.value
-        if (Array.isArray(rawHistory)) {
-            rawHistory.forEach((entry: any, idx: number) => {
-                // eslint-disable-next-line no-console
-                console.log("[Docs][PlaygroundWorker] raw history entry", {
-                    idx,
-                    entry: scrubLargeFields(entry),
-                })
-            })
-        }
-    }
 
     const requestBody = transformToRequestBody({
         variant,
@@ -132,7 +79,6 @@ async function runVariantInputRow(payload: {
         isCustom,
         appType,
     })
-    logRequestPreview(requestBody)
     let result
     try {
         // Create an AbortController for this run to support cancellation
