@@ -79,6 +79,8 @@ const WelcomeModal = ({open, ...props}: WelcomeModalProps) => {
         posthog?.capture("onboarding_welcome_action", {
             action: "start",
         })
+        updateOnboardingStatus({section: "apps", status: "started"})
+
         if (!isSme) {
             setFullJourneyState({active: false, state: null, journeyId: null})
             setTriggerOnboarding({state: "apps"})
@@ -104,6 +106,7 @@ const WelcomeModal = ({open, ...props}: WelcomeModalProps) => {
         }
     }, [
         isSme,
+        updateOnboardingStatus,
         setDemoEvaluationContext,
         setLastVisitedEvaluation,
         setTriggerOnboarding,
