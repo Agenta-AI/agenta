@@ -65,7 +65,7 @@ Use the SSL-enabled Docker Compose file (`docker-compose.gh.ssl.yml`) which incl
 ### Traefik Service Configuration:
 ```yaml
 traefik:
-  image: traefik:v2.10
+  image: traefik:v2.11
   volumes:
     - ./ssl/traefik.yml:/traefik.yml
     - /var/run/docker.sock:/var/run/docker.sock
