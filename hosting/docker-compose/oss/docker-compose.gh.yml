@@ -305,7 +305,7 @@ services:
             start_period: 5s
 
     traefik:
-        image: traefik:v2.10
+        image: traefik:v2.11
         profiles:
             - with-traefik
         volumes:
