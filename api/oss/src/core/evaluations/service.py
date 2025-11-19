@@ -45,6 +45,7 @@ from oss.src.core.evaluations.types import (
     EvaluationQueueEdit,
     EvaluationQueueQuery,
 )
+from oss.src.core.evaluations.utils import determine_evaluation_kind
 from oss.src.core.evaluations.types import (
     Target,
     Origin,
@@ -415,14 +416,166 @@ class EvaluationsService:
         run: Optional[EvaluationRunQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[EvaluationRun]:
-        return await self.evaluations_dao.query_runs(
+    ) -> Tuple[List[EvaluationRun], Optional[Windowing]]:
+        required_kinds: Optional[set[str]] = None
+        if run is not None:
+            kinds: set[str] = set()
+            if getattr(run, "evaluation_kind", None):
+                kinds.add(str(run.evaluation_kind).lower())
+            if getattr(run, "evaluation_kinds", None):
+                kinds.update(str(kind).lower() for kind in run.evaluation_kinds or [])
+            required_kinds = kinds if kinds else None
+
+        limit = windowing.limit if windowing else None
+        limit_is_positive = bool(limit and limit > 0)
+
+        if required_kinds and windowing and limit_is_positive:
+            return await self._query_runs_with_kind_windowing(
+                project_id=project_id,
+                run=run,
+                windowing=windowing,
+                required_kinds=required_kinds,
+            )
+
+        runs = await self.evaluations_dao.query_runs(
             project_id=project_id,
             #
             run=run,
             #
             windowing=windowing,
         )
+
+        filtered_runs: List[EvaluationRun] = []
+        for dto in runs:
+            if self._include_run(dto=dto, required_kinds=required_kinds):
+                filtered_runs.append(dto)
+
+        next_window = self._derive_next_window(windowing=windowing, rows=runs)
+
+        return filtered_runs, next_window
+
+    def _include_run(
+        self,
+        *,
+        dto: EvaluationRun,
+        required_kinds: Optional[set[str]],
+    ) -> bool:
+        kind = determine_evaluation_kind(dto)
+        if required_kinds and kind not in required_kinds:
+            return False
+
+        try:
+            if isinstance(dto.meta, dict):
+                meta = dto.meta
+            elif dto.meta is None:
+                meta = {}
+            elif hasattr(dto.meta, "model_dump"):
+                meta = dto.meta.model_dump()  # type: ignore[attr-defined]
+            elif hasattr(dto.meta, "dict"):
+                meta = dto.meta.dict()  # type: ignore[attr-defined]
+            else:
+                meta = dict(dto.meta)  # type: ignore[arg-type]
+        except Exception:  # pragma: no cover - defensive fallback
+            meta = {}
+
+        if isinstance(meta, dict) and meta.get("evaluation_kind") != kind:
+            meta = {**meta, "evaluation_kind": kind}
+            try:
+                dto.meta = meta  # type: ignore[assignment]
+            except Exception:  # pragma: no cover - best effort
+                pass
+
+        return True
+
+    def _derive_next_window(
+        self,
+        *,
+        windowing: Optional[Windowing],
+        rows: List[EvaluationRun],
+    ) -> Optional[Windowing]:
+        if not windowing or not windowing.limit or not rows:
+            return None
+        if len(rows) < windowing.limit:
+            return None
+        last_cursor = getattr(rows[-1], "id", None)
+        if not last_cursor:
+            return None
+        return self._clone_windowing(template=windowing, next_value=last_cursor)
+
+    def _clone_windowing(
+        self,
+        *,
+        template: Windowing,
+        next_value: Optional[UUID],
+    ) -> Windowing:
+        return Windowing(
+            newest=template.newest,
+            oldest=template.oldest,
+            next=next_value,
+            limit=template.limit,
+            order=template.order,
+            interval=template.interval,
+            rate=template.rate,
+        )
+
+    async def _query_runs_with_kind_windowing(
+        self,
+        *,
+        project_id: UUID,
+        run: Optional[EvaluationRunQuery],
+        windowing: Windowing,
+        required_kinds: set[str],
+    ) -> Tuple[List[EvaluationRun], Optional[Windowing]]:
+        collected: List[EvaluationRun] = []
+        current_window = self._clone_windowing(template=windowing, next_value=windowing.next)
+        last_cursor: Optional[UUID] = windowing.next
+        has_more = False
+        limit_value = windowing.limit or 0
+
+        while True:
+            batch = await self.evaluations_dao.query_runs(
+                project_id=project_id,
+                run=run,
+                windowing=current_window,
+            )
+
+            if not batch:
+                last_cursor = None
+                has_more = False
+                break
+
+            for dto in batch:
+                if self._include_run(dto=dto, required_kinds=required_kinds):
+                    collected.append(dto)
+                    if limit_value and len(collected) >= limit_value:
+                        break
+
+            last_cursor = getattr(batch[-1], "id", None)
+
+            fetch_limit = current_window.limit or len(batch)
+            limit_reached = bool(fetch_limit and len(batch) >= fetch_limit)
+
+            if not limit_value or len(collected) >= limit_value:
+                has_more = bool(limit_reached and last_cursor)
+                break
+
+            if not limit_reached or not last_cursor:
+                has_more = False
+                break
+
+            current_window = self._clone_windowing(
+                template=current_window,
+                next_value=last_cursor,
+            )
+
+        trimmed = collected if not limit_value else collected[:limit_value]
+        next_window = (
+            self._clone_windowing(template=windowing, next_value=last_cursor)
+            if has_more and last_cursor
+            else None
+        )
+
+        return trimmed, next_window
 
     # - EVALUATION SCENARIO ----------------------------------------------------
 
@@ -777,7 +930,16 @@ class EvaluationsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationMetrics]:
-        return await self.evaluations_dao.query_metrics(
+        if (
+            metric
+            and getattr(metric, "scenario_null", None)
+            and getattr(metric, "timestamp_null", None) is None
+            and getattr(metric, "timestamp", None) is None
+            and not getattr(metric, "timestamps", None)
+        ):
+            metric.timestamp_null = True
+
+        metrics = await self.evaluations_dao.query_metrics(
             project_id=project_id,
             #
             metric=metric,
@@ -785,74 +947,207 @@ class EvaluationsService:
             windowing=windowing,
         )
 
-    async def refresh_metrics(
+        if metric:
+            scenario_null = getattr(metric, "scenario_null", None)
+
+            run_filters = set()
+            if getattr(metric, "run_id", None):
+                run_filters.add(metric.run_id)
+            if getattr(metric, "run_ids", None):
+                run_filters.update(metric.run_ids)
+
+            scenario_filters = set()
+            include_null_scenarios = bool(scenario_null)
+            if scenario_null:
+                metrics = [m for m in metrics if getattr(m, "scenario_id", None) is None]
+
+            if not scenario_null:
+                fields_set = getattr(metric, "__fields_set__", None)
+                if fields_set is None:
+                    fields_set = getattr(metric, "model_fields_set", set())
+
+                if fields_set and "scenario_id" in fields_set:
+                    if metric.scenario_id is None:
+                        include_null_scenarios = True
+                    else:
+                        scenario_filters.add(metric.scenario_id)
+
+                scenario_ids = getattr(metric, "scenario_ids", None)
+                if scenario_ids is not None:
+                    for sid in scenario_ids:
+                        if sid is None:
+                            include_null_scenarios = True
+                        else:
+                            scenario_filters.add(sid)
+
+            if run_filters:
+                metrics = [m for m in metrics if m.run_id in run_filters]
+
+            if scenario_filters or include_null_scenarios:
+                metrics = [
+                    m
+                    for m in metrics
+                    if (
+                        (scenario_filters and m.scenario_id in scenario_filters)
+                        or (include_null_scenarios and getattr(m, "scenario_id", None) is None)
+                    )
+                ]
+
+            log.info(
+                "[EvaluationsService] query_metrics filters applied",
+                run_filters=[str(r) for r in run_filters],
+                scenario_filters=[
+                    "null" if s is None else str(s) for s in scenario_filters
+                ],
+                scenario_null=scenario_null,
+                include_null_scenarios=include_null_scenarios,
+                returned=len(metrics),
+            )
+
+        return metrics
+
+    @staticmethod
+    def _normalize_metric_path(raw_path: Optional[str]) -> Optional[str]:
+        if not raw_path or not isinstance(raw_path, str):
+            return None
+        path = raw_path.lstrip(".")
+        prefixes = (
+            "attributes.ag.data.outputs.",
+            "ag.data.outputs.",
+            "data.outputs.",
+            "outputs.",
+        )
+        for prefix in prefixes:
+            if path.startswith(prefix):
+                path = path[len(prefix) :]
+                break
+        return path or None
+
+    @staticmethod
+    def _to_dict(value: Any) -> Dict[str, Any]:
+        if value is None:
+            return {}
+        if hasattr(value, "model_dump"):
+            return value.model_dump()
+        if isinstance(value, dict):
+            return value
+        return {}
+
+    async def _build_step_metric_specs(
         self,
         *,
         project_id: UUID,
-        user_id: UUID,
-        #
-        run_id: UUID,
-        scenario_id: Optional[UUID] = None,
-        timestamp: Optional[datetime] = None,
-        interval: Optional[int] = None,
-    ) -> List[EvaluationMetrics]:
-        metrics_data: Dict[str, Any] = dict()
+        run: EvaluationRun,
+    ) -> Dict[str, List[Dict[str, str]]]:
+        steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {}
 
-        run = await self.fetch_run(
-            project_id=project_id,
-            #
-            run_id=run_id,
-        )
+        run_data = getattr(run, "data", None)
+        if not run_data or not getattr(run_data, "steps", None):
+            return steps_metrics_keys
 
-        if not run or not run.data or not run.data.steps:
-            log.warning("[WARN] run or run.data or run.data.steps not found")
-            return []
+        mappings_by_step: Dict[str, List[str]] = {}
+        for mapping in run_data.mappings or []:
+            if not mapping:
+                continue
+            step = getattr(mapping, "step", None) or {}
+            column = getattr(mapping, "column", None) or {}
+            step_key = getattr(step, "key", None) if not isinstance(step, dict) else step.get("key")
+            raw_path = getattr(step, "path", None) if not isinstance(step, dict) else step.get("path")
+            kind_value = getattr(column, "kind", None) if not isinstance(column, dict) else column.get("kind")
+            kind = (kind_value or "").lower()
+            if not step_key or not raw_path or kind not in {"annotation", "evaluator"}:
+                continue
+            normalized = self._normalize_metric_path(raw_path)
+            if normalized:
+                mappings_by_step.setdefault(step_key, []).append(normalized)
 
-        steps_metrics_keys: Dict[str, List[Dict[str, str]]] = dict()
+        for step in run_data.steps:
+            step_key = getattr(step, "key", None)
+            if not step_key:
+                continue
 
-        for step in run.data.steps:
-            steps_metrics_keys[step.key] = DEFAULT_METRICS
+            steps_metrics_keys[step_key] = [dict(metric) for metric in DEFAULT_METRICS]
 
-            if step.type == "annotation":
-                evaluator_revision_ref = step.references.get("evaluator_revision")
+            if getattr(step, "type", None) != "annotation":
+                continue
 
-                if not evaluator_revision_ref:
-                    log.warning("[WARN] Evaluator revision reference not found")
-                    continue
+            references = getattr(step, "references", {}) or {}
+            evaluator_revision_ref = references.get("evaluator_revision")
 
-                evaluator_revision = (
-                    await self.evaluators_service.fetch_evaluator_revision(
-                        project_id=project_id,
-                        evaluator_revision_ref=evaluator_revision_ref,
+            if not evaluator_revision_ref:
+                log.warning("[WARN] Evaluator revision reference not found")
+                continue
+
+            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
+                project_id=project_id,
+                evaluator_revision_ref=evaluator_revision_ref,
+            )
+
+            if not evaluator_revision:
+                log.warning("[WARN] Evaluator revision not found")
+                continue
+
+            metrics_keys: List[Dict[str, str]] = []
+            evaluator_data = self._to_dict(getattr(evaluator_revision, "data", None))
+
+            if evaluator_data:
+                schemas = self._to_dict(evaluator_data.get("schemas")).get("outputs")
+                if schemas:
+                    metrics_keys.extend(
+                        get_metrics_keys_from_schema(schema=schemas),
                     )
+
+                service_format = self._to_dict(evaluator_data.get("service")).get("format")
+                if service_format:
+                    metrics_keys.extend(
+                        get_metrics_keys_from_schema(schema=service_format),
+                    )
+
+            if not metrics_keys and step_key in mappings_by_step:
+                for mapped_path in mappings_by_step[step_key]:
+                    metrics_keys.append({"path": mapped_path, "type": "string"})
+
+            sanitized_metrics = []
+            for metric_key in metrics_keys:
+                normalized = self._normalize_metric_path(
+                    metric_key.get("path") if isinstance(metric_key, dict) else getattr(metric_key, "path", None)
+                )
+                if not normalized:
+                    continue
+                metric_type = (
+                    metric_key.get("type")
+                    if isinstance(metric_key, dict)
+                    else getattr(metric_key, "type", None)
+                ) or "string"
+                sanitized_metrics.append(
+                    {
+                        "path": f"attributes.ag.data.outputs.{normalized}",
+                        "type": metric_type,
+                    }
                 )
 
-                if not evaluator_revision:
-                    log.warning("[WARN] Evaluator revision not found")
-                    continue
+            if sanitized_metrics:
+                steps_metrics_keys[step_key] += sanitized_metrics
 
-                if evaluator_revision.data and evaluator_revision.data.schemas:
-                    metrics_keys = get_metrics_keys_from_schema(
-                        schema=(evaluator_revision.data.schemas.get("outputs")),
-                    )
+        return steps_metrics_keys
 
-                    steps_metrics_keys[step.key] += [
-                        {
-                            "path": "ag.data.outputs." + metric_key.get("path", ""),
-                            "type": metric_key.get("type", ""),
-                        }
-                        for metric_key in metrics_keys
-                    ]
+    async def _collect_metrics_snapshot(
+        self,
+        *,
+        project_id: UUID,
+        run_id: UUID,
+        scenario_id: Optional[UUID],
+        timestamp: Optional[datetime],
+        interval: Optional[int],
+        step_metric_specs: Dict[str, List[Dict[str, str]]],
+    ) -> Dict[str, Any]:
+        metrics_data: Dict[str, Any] = {}
+        steps_trace_ids: Dict[str, List[str]] = {}
 
-        if not steps_metrics_keys:
-            log.warning("[WARN] No steps metrics keys found")
-            return []
+        if not step_metric_specs:
+            return metrics_data
 
-        step_keys = list(steps_metrics_keys.keys())
-
-        steps_trace_ids: Dict[str, List[str]] = dict()
-
-        for step_key in step_keys:
+        for step_key in step_metric_specs.keys():
             results = await self.query_results(
                 project_id=project_id,
                 result=EvaluationResultQuery(
@@ -865,18 +1160,13 @@ class EvaluationsService:
             )
 
             if not results:
-                # log.warning("[WARN] No results found")
                 continue
 
             trace_ids = [result.trace_id for result in results if result.trace_id]
-
             if trace_ids:
                 steps_trace_ids[step_key] = trace_ids
 
-        for step_key in steps_metrics_keys.keys() & steps_trace_ids.keys():
-            step_metrics_keys = steps_metrics_keys[step_key]
-            step_trace_ids = steps_trace_ids[step_key]
-
+        for step_key, step_trace_ids in steps_trace_ids.items():
             try:
                 query = TracingQuery(
                     filtering=Filtering(
@@ -895,7 +1185,7 @@ class EvaluationsService:
                         type=MetricType(metric.get("type")),
                         path=metric.get("path") or "*",
                     )
-                    for metric in step_metrics_keys
+                    for metric in step_metric_specs.get(step_key, [])
                 ] + [
                     MetricSpec(
                         type=MetricType.JSON,
@@ -905,7 +1195,6 @@ class EvaluationsService:
 
                 buckets = await self.tracing_service.analytics(
                     project_id=project_id,
-                    #
                     query=query,
                     specs=specs,
                 )
@@ -922,34 +1211,150 @@ class EvaluationsService:
                     log.warning("[WARN] Bucket:", bucket)
                     continue
 
-                metrics_data |= {step_key: bucket.metrics}
+                metrics_data[step_key] = bucket.metrics
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 log.error(e, exc_info=True)
 
-        if not metrics_data:
-            # log.warning("[WARN] No metrics data: no metrics will be stored")
+        return metrics_data
+
+    async def _upsert_metric_record(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run_id: UUID,
+        scenario_id: Optional[UUID],
+        timestamp: Optional[datetime],
+        interval: Optional[int],
+        data: Dict[str, Any],
+    ) -> List[EvaluationMetrics]:
+        if not data:
             return []
 
-        metrics_create = [
+        filter_kwargs: Dict[str, Any] = {"run_id": run_id}
+        if scenario_id is None:
+            filter_kwargs["scenario_null"] = True
+        else:
+            filter_kwargs["scenario_id"] = scenario_id
+
+        if timestamp is None:
+            filter_kwargs["timestamp_null"] = True
+        else:
+            filter_kwargs["timestamp"] = timestamp
+
+        existing = await self.query_metrics(
+            project_id=project_id,
+            metric=EvaluationMetricsQuery(**filter_kwargs),
+        )
+
+        if existing:
+            edits = [
+                EvaluationMetricsEdit(
+                    id=existing[0].id,
+                    data=data,
+                    status=EvaluationStatus.SUCCESS,
+                )
+            ]
+            return await self.edit_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                metrics=edits,
+            )
+
+        creates = [
             EvaluationMetricsCreate(
                 run_id=run_id,
                 scenario_id=scenario_id,
                 timestamp=timestamp,
                 interval=interval,
-                #
                 status=EvaluationStatus.SUCCESS,
-                #
-                data=metrics_data,
+                data=data,
             )
         ]
-
-        metrics = await self.create_metrics(
+        return await self.create_metrics(
             project_id=project_id,
             user_id=user_id,
-            #
-            metrics=metrics_create,
+            metrics=creates,
         )
+
+    async def refresh_metrics(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run_id: UUID,
+        scenario_id: Optional[UUID] = None,
+        timestamp: Optional[datetime] = None,
+        interval: Optional[int] = None,
+    ) -> List[EvaluationMetrics]:
+        run = await self.fetch_run(
+            project_id=project_id,
+            #
+            run_id=run_id,
+        )
+
+        if not run or not run.data or not run.data.steps:
+            log.warning("[WARN] run or run.data or run.data.steps not found")
+            return []
+
+        step_metric_specs = await self._build_step_metric_specs(
+            project_id=project_id,
+            run=run,
+        )
+
+        if not step_metric_specs:
+            log.warning("[WARN] No steps metrics keys found")
+            return []
+
+        metrics_data = await self._collect_metrics_snapshot(
+            project_id=project_id,
+            run_id=run_id,
+            scenario_id=scenario_id,
+            timestamp=timestamp,
+            interval=interval,
+            step_metric_specs=step_metric_specs,
+        )
+
+        if not metrics_data:
+            return []
+
+        metrics: List[EvaluationMetrics] = []
+        metrics.extend(
+            await self._upsert_metric_record(
+                project_id=project_id,
+                user_id=user_id,
+                run_id=run_id,
+                scenario_id=scenario_id,
+                timestamp=timestamp,
+                interval=interval,
+                data=metrics_data,
+            )
+        )
+
+        if timestamp is not None:
+            aggregate_data = await self._collect_metrics_snapshot(
+                project_id=project_id,
+                run_id=run_id,
+                scenario_id=scenario_id,
+                timestamp=None,
+                interval=None,
+                step_metric_specs=step_metric_specs,
+            )
+
+            if aggregate_data:
+                metrics.extend(
+                    await self._upsert_metric_record(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run_id=run_id,
+                        scenario_id=scenario_id,
+                        timestamp=None,
+                        interval=None,
+                        data=aggregate_data,
+                    )
+                )
 
         return metrics
 
@@ -1478,7 +1883,7 @@ class SimpleEvaluationsService:
             meta=query.meta if query else None,
         )
 
-        runs = await self.evaluations_service.query_runs(
+        runs, _ = await self.evaluations_service.query_runs(
             project_id=project_id,
             #
             run=run_query,
@@ -2273,20 +2678,32 @@ class SimpleEvaluationsService:
                 for step_key in application_invocation_steps_keys
             )
 
-            evaluator_annotation_mappings: List[EvaluationRunDataMapping] = list(  # type: ignore
-                EvaluationRunDataMapping(
-                    column=EvaluationRunDataMappingColumn(
-                        kind="annotation",
-                        name=metric_key.get("path", ""),
-                    ),
-                    step=EvaluationRunDataMappingStep(
-                        key=step_key,
-                        path=f"attributes.ag.data.outputs{('.' + metric_key.get('path', '')) if metric_key.get('path') else ''}",
-                    ),
-                )
-                for step_key in evaluator_annotation_steps_keys
-                for metric_key in evaluator_metrics_keys[step_key]
-            )
+            evaluator_annotation_mappings: List[EvaluationRunDataMapping] = []
+            for step_key in evaluator_annotation_steps_keys:
+                for metric_key in evaluator_metrics_keys[step_key]:
+                    metric_path_value = (
+                        metric_key.get("path")
+                        if isinstance(metric_key, dict)
+                        else getattr(metric_key, "path", "")
+                    ) or ""
+                    column_name = metric_path_value
+                    mapping_path = (
+                        f"attributes.ag.data.outputs.{metric_path_value}"
+                        if metric_path_value
+                        else "attributes.ag.data.outputs"
+                    )
+                    evaluator_annotation_mappings.append(
+                        EvaluationRunDataMapping(
+                            column=EvaluationRunDataMappingColumn(
+                                kind="annotation",
+                                name=column_name,
+                            ),
+                            step=EvaluationRunDataMappingStep(
+                                key=step_key,
+                                path=mapping_path,
+                            ),
+                        )
+                    )
 
             mappings: List[EvaluationRunDataMapping] = (
                 query_input_mappings

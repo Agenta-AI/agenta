@@ -59,6 +59,26 @@ from oss.src.core.testsets.service import (
     SimpleTestsetsService,
 )
 
+
+def _infer_columns_from_revision_data(revision_data: Any) -> List[str]:
+    """Return a list of column names inferred from a testset revision."""
+    testcases = getattr(revision_data, "testcases", None)
+    if not isinstance(testcases, list) or not testcases:
+        return []
+
+    first_case = testcases[0]
+    data_section = None
+    if hasattr(first_case, "data"):
+        data_section = getattr(first_case, "data")
+    elif isinstance(first_case, dict):
+        maybe_data = first_case.get("data")
+        data_section = maybe_data if isinstance(maybe_data, dict) else first_case
+
+    if isinstance(data_section, dict) and data_section:
+        return [str(key) for key in data_section.keys()]
+
+    return []
+
 from oss.src.apis.fastapi.testsets.models import (
     TestsetCreateRequest,
     TestsetEditRequest,
@@ -498,21 +518,64 @@ class TestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        testsets = await self.testsets_service.query_testsets(
-            project_id=UUID(request.state.project_id),
-            #
-            testset_query=testset_query_request.testset,
-            #
-            testset_refs=testset_query_request.testset_refs,
-            #
-            include_archived=testset_query_request.include_archived,
-            #
-            windowing=testset_query_request.windowing,
-        )
+        requested_refs = testset_query_request.testset_refs or []
+        has_only_ref_ids = requested_refs and all(ref.id for ref in requested_refs)
+
+        if has_only_ref_ids:
+            testsets = []
+            for ref in requested_refs:
+                testset = await self.testsets_service.fetch_testset(
+                    project_id=UUID(request.state.project_id),
+                    #
+                    testset_ref=Reference(id=ref.id),
+                )
+                if testset:
+                    testsets.append(testset)
+        else:
+            testsets = await self.testsets_service.query_testsets(
+                project_id=UUID(request.state.project_id),
+                #
+                testset_query=testset_query_request.testset,
+                #
+                testset_refs=testset_query_request.testset_refs,
+                #
+                include_archived=testset_query_request.include_archived,
+                #
+                windowing=testset_query_request.windowing,
+            )
+
+        enriched_testsets: List[Testset] = []
+
+        for testset in testsets:
+            columns: List[str] = []
+
+            testset_variant = await self.testsets_service.fetch_testset_variant(
+                project_id=UUID(request.state.project_id),
+                #
+                testset_ref=Reference(id=testset.id),
+            )
+
+            if testset_variant:
+                testset_revision = await self.testsets_service.fetch_testset_revision(
+                    project_id=UUID(request.state.project_id),
+                    #
+                    testset_variant_ref=Reference(id=testset_variant.id),
+                )
+
+                if testset_revision and testset_revision.data is not None:
+                    columns = _infer_columns_from_revision_data(testset_revision.data)
+
+            if columns:
+                meta = dict(testset.meta or {})
+                meta["columns"] = columns
+                enriched_testset = testset.model_copy(update={"meta": meta})
+                enriched_testsets.append(enriched_testset)
+            else:
+                enriched_testsets.append(testset)
 
         testsets_response = TestsetsResponse(
-            count=len(testsets),
-            testsets=testsets,
+            count=len(enriched_testsets),
+            testsets=enriched_testsets,
         )
 
         return testsets_response
@@ -1203,6 +1266,7 @@ class SimpleTestsetsRouter:
             meta=testset.meta,
             #
             data=testset_revision.data,
+            columns=_infer_columns_from_revision_data(testset_revision.data),
         )
 
         simple_testset_response = SimpleTestsetResponse(
@@ -1290,6 +1354,7 @@ class SimpleTestsetsRouter:
             # flags =
             tags=testset.tags,
             meta=testset.meta,
+            columns=_infer_columns_from_csvdata(getattr(testset, "csvdata", [])),
         )
 
         simple_testset_response = SimpleTestsetResponse(
@@ -1341,6 +1406,7 @@ class SimpleTestsetsRouter:
             # flags =
             tags=testset.tags,
             meta=testset.meta,
+            columns=_infer_columns_from_csvdata(getattr(testset, "csvdata", [])),
         )
 
         simple_testset_response = SimpleTestsetResponse(
@@ -1380,17 +1446,30 @@ class SimpleTestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        testsets = await self.simple_testsets_service.testsets_service.query_testsets(
-            project_id=UUID(request.state.project_id),
-            #
-            testset_query=simple_testset_query_request.testset,
-            #
-            testset_refs=simple_testset_query_request.testset_refs,
-            #
-            include_archived=simple_testset_query_request.include_archived,
-            #
-            windowing=simple_testset_query_request.windowing,
-        )
+        requested_refs = simple_testset_query_request.testset_refs or []
+        has_only_ref_ids = requested_refs and all(ref.id for ref in requested_refs)
+
+        if has_only_ref_ids:
+            testsets = []
+            for ref in requested_refs:
+                testset = await self.simple_testsets_service.testsets_service.fetch_testset(
+                    project_id=UUID(request.state.project_id),
+                    testset_ref=Reference(id=ref.id),
+                )
+                if testset:
+                    testsets.append(testset)
+        else:
+            testsets = await self.simple_testsets_service.testsets_service.query_testsets(
+                project_id=UUID(request.state.project_id),
+                #
+                testset_query=simple_testset_query_request.testset,
+                #
+                testset_refs=simple_testset_query_request.testset_refs,
+                #
+                include_archived=simple_testset_query_request.include_archived,
+                #
+                windowing=simple_testset_query_request.windowing,
+            )
 
         simple_testsets: List[SimpleTestset] = []
 
@@ -1432,6 +1511,7 @@ class SimpleTestsetsRouter:
                 meta=testset.meta,
                 #
                 data=testset_revision.data,
+                columns=_infer_columns_from_revision_data(testset_revision.data),
             )
 
             simple_testsets.append(simple_testset)

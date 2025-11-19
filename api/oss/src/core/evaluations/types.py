@@ -159,6 +159,9 @@ class EvaluationRunQuery(Header, Metadata):
 
     references: Optional[List[References]] = None
 
+    evaluation_kind: Optional[str] = None
+    evaluation_kinds: Optional[List[str]] = None
+
     ids: Optional[List[UUID]] = None
 
 
@@ -322,6 +325,7 @@ class EvaluationMetricsQuery(Metadata):
 
     timestamp: Optional[datetime] = None
     timestamps: Optional[List[datetime]] = None
+    timestamp_null: Optional[bool] = None
 
     scenario_id: Optional[UUID] = None
     scenario_ids: Optional[List[UUID]] = None
@@ -330,6 +334,8 @@ class EvaluationMetricsQuery(Metadata):
     run_ids: Optional[List[UUID]] = None
 
     ids: Optional[List[UUID]] = None
+
+    scenario_null: Optional[bool] = None
 
 
 class EvaluationMetricsRefresh(BaseModel):

@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, root_validator
 from fastapi import HTTPException
 
 from oss.src.core.shared.dtos import (
@@ -107,6 +107,7 @@ class EvaluationRunResponse(BaseModel):
 class EvaluationRunsResponse(BaseModel):
     count: int = 0
     runs: List[EvaluationRun] = []
+    windowing: Optional[Windowing] = None
 
 
 class EvaluationRunIdResponse(BaseModel):
@@ -224,6 +225,12 @@ class EvaluationMetricsQueryRequest(BaseModel):
     metrics: Optional[EvaluationMetricsQuery] = None
     #
     windowing: Optional[Windowing] = None
+
+    @root_validator(pre=True)
+    def _accept_metric_alias(cls, values):
+        if "metrics" not in values and "metric" in values:
+            values["metrics"] = values["metric"]
+        return values
 
 
 class EvaluationMetricsIdsRequest(BaseModel):

@@ -175,7 +175,7 @@ class EvaluationsDAOInterface(ABC):
         run: Optional[EvaluationRunQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> List[EvaluationRun]:
+    ) -> Tuple[List[EvaluationRun], Optional[Windowing]]:
         raise NotImplementedError
 
     @abstractmethod

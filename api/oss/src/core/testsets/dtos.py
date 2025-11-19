@@ -186,18 +186,21 @@ class SimpleTestset(Identifier, Slug, Lifecycle, Header, Metadata):
     flags: Optional[TestsetFlags] = None  # type: ignore
 
     data: Optional[TestsetRevisionData] = None
+    columns: Optional[List[str]] = None
 
 
 class SimpleTestsetCreate(Slug, Header, Metadata):
     flags: Optional[TestsetFlags] = None  # type: ignore
 
     data: Optional[TestsetRevisionData] = None
+    columns: Optional[List[str]] = None
 
 
 class SimpleTestsetEdit(Identifier, Header, Metadata):
     flags: Optional[TestsetFlags] = None  # type: ignore
 
     data: Optional[TestsetRevisionData] = None
+    columns: Optional[List[str]] = None
 
 
 class SimpleTestsetQuery(Metadata):

@@ -65,6 +65,19 @@ from oss.src.apis.fastapi.testsets.utils import (
 log = get_module_logger(__name__)
 
 
+def _infer_columns_from_testcases(testcases: Optional[List[Testcase]]) -> List[str]:
+    if not isinstance(testcases, list) or len(testcases) == 0:
+        return []
+
+    first_case = testcases[0]
+    data_section = first_case.data if hasattr(first_case, "data") else None
+
+    if isinstance(data_section, dict) and data_section:
+        return [str(key) for key in data_section.keys()]
+
+    return []
+
+
 class TestsetsService:
     def __init__(
         self,
@@ -961,6 +974,11 @@ class SimpleTestsetsService:
         if testset_revision is None:
             return None
 
+        revision_data = testset_revision.data
+        inferred_columns = _infer_columns_from_testcases(
+            getattr(revision_data, "testcases", None)
+        )
+
         simple_testset = SimpleTestset(
             id=testset.id,
             slug=testset.slug,
@@ -979,7 +997,8 @@ class SimpleTestsetsService:
             tags=testset.tags,
             meta=testset.meta,
             #
-            data=testset_revision.data,
+            data=revision_data,
+            columns=inferred_columns,
         )
 
         return simple_testset
@@ -1187,6 +1206,9 @@ class SimpleTestsetsService:
             meta=testset.meta,
             #
             data=testset_revision.data,
+            columns=_infer_columns_from_testcases(
+                getattr(testset_revision.data, "testcases", None)
+            ),
         )
 
         return simple_testset
