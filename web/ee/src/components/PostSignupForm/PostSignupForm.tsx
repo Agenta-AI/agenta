@@ -17,6 +17,45 @@ import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postL
 import {useStyles} from "./assets/styles"
 import {FormDataType} from "./assets/types"
 
+// Fisher-Yates shuffle algorithm
+const shuffleArray = <T,>(array: T[]): T[] => {
+    const shuffled = [...array]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+    return shuffled
+}
+
+const calculateICP = (
+    companySize?: string,
+    userRole?: string,
+    userExperience?: string,
+): boolean => {
+    if (!companySize || !userRole || !userExperience) {
+        return false
+    }
+
+    const isTargetCompanySize = ["11-50", "51-200", "201+"].includes(companySize)
+    const isNotHobbyist = userRole !== "Hobbyist"
+    const isNotJustExploring = userExperience !== "Just exploring"
+
+    return isTargetCompanySize && isNotHobbyist && isNotJustExploring
+}
+
+const convertInterestsToBinaryProperties = (interests?: string[]): Record<string, boolean> => {
+    // Fail-safe: if interests is undefined or not an array, default to empty array
+    const safeInterests = Array.isArray(interests) ? interests : []
+
+    return {
+        interest_evaluation: safeInterests.includes("Evaluating LLM Applications"),
+        interest_no_code: safeInterests.includes("No-code LLM application building"),
+        interest_prompt_management: safeInterests.includes("Prompt management and versioning"),
+        interest_prompt_engineering: safeInterests.includes("Prompt engineering"),
+        interest_observability: safeInterests.includes("Observability, tracing and monitoring"),
+    }
+}
+
 const PostSignupForm = () => {
     const [form] = Form.useForm()
     const router = useRouter()
@@ -25,6 +64,7 @@ const PostSignupForm = () => {
     const classes = useStyles()
     const {organizations} = useOrganizationData()
     const selectedHearAboutUsOption = Form.useWatch("hearAboutUs", form)
+    const selectedUserInterests = Form.useWatch("userInterests", form)
     const formData = Form.useWatch([], form)
     const [stepOneFormData, setStepOneFormData] = useState<any>({} as any)
     const [currentStep, setCurrentStep] = useState(0)
@@ -95,6 +135,13 @@ const PostSignupForm = () => {
             const hearAboutUs =
                 values.hearAboutUs == "Other" ? values.hearAboutUsInputOption : values.hearAboutUs
 
+            // Handle "Other" option for userInterests (checkbox group - array)
+            const userInterests = Array.isArray(values.userInterests)
+                ? values.userInterests.map((interest: string) =>
+                      interest === "Other" ? values.userInterestsInputOption : interest,
+                  )
+                : values.userInterests
+
             try {
                 const responses = survey?.questions?.reduce(
                     (acc: Record<string, unknown>, question, index) => {
@@ -110,7 +157,7 @@ const PostSignupForm = () => {
                                 acc[key] = stepOneFormData.userExperience
                                 break
                             case 3:
-                                acc[key] = values.userInterests
+                                acc[key] = userInterests
                                 break
                             case 4:
                                 acc[key] = [hearAboutUs]
@@ -128,10 +175,32 @@ const PostSignupForm = () => {
                     {},
                 )
 
+                const isICP = calculateICP(
+                    stepOneFormData?.companySize,
+                    stepOneFormData?.userRole,
+                    stepOneFormData?.userExperience,
+                )
+
+                const interestProperties = convertInterestsToBinaryProperties(values?.userInterests)
+
+                const personProperties: Record<string, any> = {}
+                if (stepOneFormData?.companySize) {
+                    personProperties.company_size_v1 = stepOneFormData.companySize
+                }
+                if (stepOneFormData?.userRole) {
+                    personProperties.user_role_v1 = stepOneFormData.userRole
+                }
+                if (stepOneFormData?.userExperience) {
+                    personProperties.user_experience_v1 = stepOneFormData.userExperience
+                }
+                Object.assign(personProperties, interestProperties)
+                personProperties.is_icp_v1 = isICP
+
                 await posthog?.capture?.("survey sent", {
                     $survey_id: survey?.id,
                     $survey_name: survey?.name,
                     ...responses,
+                    $set: personProperties,
                 })
 
                 form.resetFields()
@@ -153,6 +222,37 @@ const PostSignupForm = () => {
             navigateToPostSignupDestination,
         ],
     )
+
+    // Memoize shuffled choices for each question to avoid re-shuffling on every render
+    const questionChoices = useMemo(() => {
+        if (!survey?.questions) return {}
+        const choicesMap: Record<number, string[]> = {}
+        survey.questions.forEach((question, index) => {
+            const q = question as MultipleSurveyQuestion & {shuffleOptions?: boolean}
+            if (!q.choices) {
+                choicesMap[index] = []
+                return
+            }
+            const choices = Array.isArray(q.choices) ? q.choices : []
+
+            // Separate "Other" from other choices to always place it last
+            const otherIndex = choices.indexOf("Other")
+            const hasOther = otherIndex !== -1
+
+            let choicesToShuffle = choices
+            if (hasOther) {
+                // Remove "Other" temporarily
+                choicesToShuffle = choices.filter((choice) => choice !== "Other")
+            }
+
+            // Shuffle if shuffleOptions is enabled
+            const shuffled = q.shuffleOptions ? shuffleArray(choicesToShuffle) : choicesToShuffle
+
+            // Add "Other" back at the end if it existed
+            choicesMap[index] = hasOther ? [...shuffled, "Other"] : shuffled
+        })
+        return choicesMap
+    }, [survey?.questions])
 
     const steps = useMemo(() => {
         return [
@@ -182,9 +282,7 @@ const PostSignupForm = () => {
                                         optionType="button"
                                         className="*:w-full text-center flex justify-between *:whitespace-nowrap"
                                     >
-                                        {(
-                                            survey?.questions[0] as MultipleSurveyQuestion
-                                        )?.choices?.map((choice: string) => (
+                                        {(questionChoices[0] || []).map((choice: string) => (
                                             <Radio key={choice} value={choice}>
                                                 {choice}
                                             </Radio>
@@ -199,9 +297,7 @@ const PostSignupForm = () => {
                                 >
                                     <Radio.Group>
                                         <Space direction="vertical">
-                                            {(
-                                                survey?.questions[2] as MultipleSurveyQuestion
-                                            )?.choices?.map((choice: string) => (
+                                            {(questionChoices[2] || []).map((choice: string) => (
                                                 <Radio key={choice} value={choice}>
                                                     {choice}
                                                 </Radio>
@@ -217,9 +313,7 @@ const PostSignupForm = () => {
                                 >
                                     <Radio.Group>
                                         <Space direction="vertical">
-                                            {(
-                                                survey?.questions[1] as MultipleSurveyQuestion
-                                            )?.choices.map((choice: string) => (
+                                            {(questionChoices[1] || []).map((choice: string) => (
                                                 <Radio key={choice} value={choice}>
                                                     {choice}
                                                 </Radio>
@@ -270,9 +364,7 @@ const PostSignupForm = () => {
                                 >
                                     <Checkbox.Group>
                                         <Space direction="vertical">
-                                            {(
-                                                survey?.questions[3] as MultipleSurveyQuestion
-                                            )?.choices?.map((role: string) => (
+                                            {(questionChoices[3] || []).map((role: string) => (
                                                 <Checkbox key={role} value={role}>
                                                     {role}
                                                 </Checkbox>
@@ -281,6 +373,12 @@ const PostSignupForm = () => {
                                     </Checkbox.Group>
                                 </Form.Item>
 
+                                {selectedUserInterests?.includes("Other") && (
+                                    <Form.Item name="userInterestsInputOption" className="-mt-3">
+                                        <Input placeholder="Type here" />
+                                    </Form.Item>
+                                )}
+
                                 <Form.Item
                                     className={classes.formItem}
                                     name="hearAboutUs"
@@ -288,9 +386,7 @@ const PostSignupForm = () => {
                                 >
                                     <Radio.Group>
                                         <Space direction="vertical">
-                                            {(
-                                                survey?.questions[4] as MultipleSurveyQuestion
-                                            )?.choices?.map((choice: string) => (
+                                            {(questionChoices[4] || []).map((choice: string) => (
                                                 <Radio key={choice} value={choice}>
                                                     {choice}
                                                 </Radio>
@@ -314,7 +410,12 @@ const PostSignupForm = () => {
                             className="w-full"
                             iconPosition="end"
                             icon={<ArrowRight className="mt-[3px]" />}
-                            disabled={!formData?.userInterests?.length || !formData?.hearAboutUs}
+                            disabled={
+                                !formData?.userInterests?.length ||
+                                !formData?.hearAboutUs ||
+                                (selectedUserInterests?.includes("Other") &&
+                                    !formData?.userInterestsInputOption)
+                            }
                         >
                             Continue
                         </Button>
@@ -331,10 +432,13 @@ const PostSignupForm = () => {
         formData?.hearAboutUs,
         formData?.userExperience,
         formData?.userInterests?.length,
+        formData?.userInterestsInputOption,
         formData?.userRole,
         handleStepOneFormData,
         handleSubmitFormData,
+        questionChoices,
         selectedHearAboutUsOption,
+        selectedUserInterests,
         survey?.questions,
     ])
 
