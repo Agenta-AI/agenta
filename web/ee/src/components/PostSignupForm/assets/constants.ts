@@ -27,6 +27,7 @@ const USER_INTERESTS = {
         "Collaborating with domain experts on prompt engineering",
         "Human feedback and annotation",
         "Observability, tracing and monitoring",
+        "Other",
     ],
 }
 

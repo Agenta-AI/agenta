@@ -158,7 +158,7 @@ const PostSignupForm = () => {
                             ? "sme"
                             : stepOneFormData.userRole,
                     userExperience: stepOneFormData.userExperience,
-                    userInterest: values.userInterests,
+                    userInterest: userInterests,
                 })
 
                 if (!isPosthogSurveyAvailable) return
@@ -321,14 +321,13 @@ const PostSignupForm = () => {
                                 >
                                     <Radio.Group>
                                         <Space direction="vertical">
-                                            {(
-                                                questionChoices[2] ||
-                                                USER_EXPERIENCES
-                                            )?.choices?.map((choice: string) => (
-                                                <Radio key={choice} value={choice}>
-                                                    {choice}
-                                                </Radio>
-                                            ))}
+                                            {(questionChoices[2] || USER_EXPERIENCES)?.choices?.map(
+                                                (choice: string) => (
+                                                    <Radio key={choice} value={choice}>
+                                                        {choice}
+                                                    </Radio>
+                                                ),
+                                            )}
                                         </Space>
                                     </Radio.Group>
                                 </Form.Item>
@@ -412,29 +411,36 @@ const PostSignupForm = () => {
                                     </Form.Item>
                                 )}
 
-{isPosthogSurveyAvailable && (
-                            <>    <Form.Item
-                                    className={classes.formItem}
-                                    name="hearAboutUs"
-                                    label={survey?.questions[4].question}
-                                >
-                                    <Radio.Group>
-                                        <Space direction="vertical">
-                                            {(questionChoices[4] || []).map((choice: string) => (
-                                                <Radio key={choice} value={choice}>
-                                                    {choice}
-                                                </Radio>
-                                            ))}
-                                        </Space>
-                                    </Radio.Group>
-                                </Form.Item>
-
-                                {selectedHearAboutUsOption == "Other" && (
-                                    <Form.Item name="hearAboutUsInputOption" className="-mt-3">
-                                        <Input placeholder="Type here" />
-                                    </Form.Item>
-                                )}</>
-)}
+                                {isPosthogSurveyAvailable && (
+                                    <>
+                                        {" "}
+                                        <Form.Item
+                                            className={classes.formItem}
+                                            name="hearAboutUs"
+                                            label={survey?.questions[4].question}
+                                        >
+                                            <Radio.Group>
+                                                <Space direction="vertical">
+                                                    {(questionChoices[4] || []).map(
+                                                        (choice: string) => (
+                                                            <Radio key={choice} value={choice}>
+                                                                {choice}
+                                                            </Radio>
+                                                        ),
+                                                    )}
+                                                </Space>
+                                            </Radio.Group>
+                                        </Form.Item>
+                                        {selectedHearAboutUsOption == "Other" && (
+                                            <Form.Item
+                                                name="hearAboutUsInputOption"
+                                                className="-mt-3"
+                                            >
+                                                <Input placeholder="Type here" />
+                                            </Form.Item>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -447,10 +453,10 @@ const PostSignupForm = () => {
                             icon={<ArrowRight className="mt-[3px]" />}
                             disabled={
                                 !formData?.userInterests?.length ||
-                                !formData?.hearAboutUs ||
+                                (!formData?.hearAboutUs && isPosthogSurveyAvailable) ||
                                 (selectedUserInterests?.includes("Other") &&
                                     !formData?.userInterestsInputOption) ||
-                                    (isPosthogSurveyAvailable)
+                                isPosthogSurveyAvailable
                             }
                         >
                             Continue
