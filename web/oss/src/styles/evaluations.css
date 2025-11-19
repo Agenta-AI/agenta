@@ -1,0 +1,6 @@
+.evaluations-tabs .ant-tabs-ink-bar {
+    background-color: var(--tab-indicator-color, #dbeafe) !important;
+}
+.evaluations-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+    color: #0f172a;
+}

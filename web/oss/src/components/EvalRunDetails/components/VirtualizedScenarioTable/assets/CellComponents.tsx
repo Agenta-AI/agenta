@@ -9,8 +9,8 @@ import dynamic from "next/dynamic"
 import TooltipButton from "@/oss/components/Playground/assets/EnhancedButton"
 import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {useOptionalRunId, useRunId} from "@/oss/contexts/RunIdContext"
-import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
 import {resolvePath} from "@/oss/lib/evalRunner/pureEnrichment"
+import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
 import {useAppNavigation, useAppState} from "@/oss/state/appState"
 
 import {
@@ -860,8 +860,15 @@ export const InvocationResultCell = memo(
                             showStatus={false}
                             result={{
                                 response: {
+                                    trace,
                                     tree: {
-                                        nodes: [trace],
+                                        nodes: (trace?.tree?.nodes && trace.tree.nodes.length
+                                            ? trace.tree.nodes
+                                            : trace?.nodes && trace.nodes.length
+                                              ? trace.nodes
+                                              : trace
+                                                ? [trace]
+                                                : []) as any[],
                                     },
                                 },
                             }}

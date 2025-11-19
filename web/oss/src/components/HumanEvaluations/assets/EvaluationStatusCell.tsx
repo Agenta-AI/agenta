@@ -14,7 +14,7 @@ import {resourceStatusQueryFamily} from "@/oss/lib/hooks/usePreviewRunningEvalua
 import {tempEvaluationAtom} from "@/oss/lib/hooks/usePreviewRunningEvaluations/states/runningEvalAtom"
 import {EvaluationStatus} from "@/oss/lib/Types"
 
-import {statusMapper} from "../../pages/evaluations/cellRenderers/cellRenderers"
+import {statusMapper} from "@agenta/oss/src/components/pages/evaluations/cellRenderers/cellRenderers"
 
 import {extractEvaluationStatus} from "./utils"
 
@@ -43,6 +43,7 @@ const EvaluationStatusCell = ({
         tooltip?: string
     }
 }) => {
+    console.log("EvaluationStatusCell")
     const swrData = useEvaluationRunScenarios(runId, undefined, {
         syncAtom: false,
         revalidateOnMount: true,

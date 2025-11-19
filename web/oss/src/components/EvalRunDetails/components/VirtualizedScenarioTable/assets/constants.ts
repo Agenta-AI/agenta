@@ -1,3 +1,5 @@
+import type {MetricColumnDefinition} from "../../../atoms/table/types"
+
 // Centralized column widths for easy reuse
 export const COLUMN_WIDTHS = {
     input: 400,
@@ -15,34 +17,54 @@ export const TABLE_LAYOUT = {
 
 export const SKELETON_ROW_COUNT = 5
 
-export const GeneralHumanEvalMetricColumns = [
+export const GeneralHumanEvalMetricColumns: MetricColumnDefinition[] = [
     {
-        name: "totalCost",
+        name: "Cost (Total)",
         kind: "metric",
-        path: "totalCost",
+        path: "attributes.ag.metrics.costs.cumulative.total",
         stepKey: "metric",
         metricType: "number",
+        displayLabel: "Total Cost",
     },
     {
-        name: "Total Duration",
+        name: "Total duration",
         kind: "metric",
         path: "duration.total",
         stepKey: "metric",
         metricType: "number",
+        displayLabel: "Total Duration",
     },
     {
-        name: "totalTokens",
+        name: "Total tokens",
         kind: "metric",
         path: "totalTokens",
         stepKey: "metric",
         metricType: "number",
+        displayLabel: "Total Tokens",
     },
     {
-        name: "errors",
+        name: "Prompt tokens",
+        kind: "metric",
+        path: "promptTokens",
+        stepKey: "metric",
+        metricType: "number",
+        displayLabel: "Prompt Tokens",
+    },
+    {
+        name: "Completion tokens",
+        kind: "metric",
+        path: "completionTokens",
+        stepKey: "metric",
+        metricType: "number",
+        displayLabel: "Completion Tokens",
+    },
+    {
+        name: "Errors",
         kind: "metric",
         path: "errors",
         stepKey: "metric",
         metricType: "number",
+        displayLabel: "Errors",
     },
 ]
 

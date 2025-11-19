@@ -14,7 +14,7 @@ import {
     setProjectVariantReferencesAtom,
 } from "@/oss/state/projectVariantConfig"
 
-import {collectProjectVariantReferences} from "../../../../../lib/hooks/usePreviewEvaluations/projectVariantConfigs"
+import {collectProjectVariantReferences} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/projectVariantConfigs"
 import {urlStateAtom} from "../../../state/urlState"
 
 import PromptConfigCard from "./assets/PromptConfigCard"

@@ -21,7 +21,7 @@ import {
 import {_EvaluationScenario, Evaluation} from "@/oss/lib/Types"
 import {abortAll} from "@/oss/lib/utils/abortControllers"
 
-import EvaluationScenarios from "../pages/evaluations/evaluationScenarios/EvaluationScenarios"
+import EvaluationScenarios from "@agenta/oss/src/components/pages/evaluations/evaluationScenarios/EvaluationScenarios"
 
 import AutoEvalRunDetails from "./AutoEvalRun"
 import {ComparisonDataFetcher} from "./components/ComparisonDataFetcher"

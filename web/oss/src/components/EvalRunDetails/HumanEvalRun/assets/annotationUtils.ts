@@ -1,6 +1,6 @@
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {uuidToSpanId, uuidToTraceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
+import {uuidToSpanId, uuidToTraceId} from "@/oss/lib/traces/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {
     evaluationEvaluatorsFamily,

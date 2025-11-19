@@ -17,7 +17,7 @@ import {
     buildAppScopedUrl,
     buildEvaluationNavigationUrl,
     extractEvaluationAppId,
-} from "../pages/evaluations/utils"
+} from "@agenta/oss/src/components/pages/evaluations/utils"
 
 import SingleModelEvaluationHeader from "./assets/SingleModelEvaluationHeader"
 import {useStyles} from "./assets/styles"
@@ -41,6 +41,7 @@ const SingleModelEvaluation = ({viewType, scope = "app"}: SingleModelEvaluationP
     const [isDeleteEvalModalOpen, setIsDeleteEvalModalOpen] = useState(false)
     const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
 
+    console.log("SingleModelEvaluation")
     const {mergedEvaluations, isLoadingPreview, isLoadingLegacy} = useEvaluations({
         withPreview: true,
         types: [EvaluationType.single_model_test],

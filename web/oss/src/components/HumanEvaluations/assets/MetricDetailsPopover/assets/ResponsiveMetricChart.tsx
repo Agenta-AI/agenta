@@ -197,9 +197,9 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
 
                                     {/* Grid lines */}
                                     <g>
-                                        {(isVertical ? xTicks : yTicks).map((tick) => (
+                                        {(isVertical ? xTicks : yTicks).map((tick, idx) => (
                                             <line
-                                                key={tick}
+                                                key={`grid-${idx}`}
                                                 x1={margin.left}
                                                 y1={
                                                     margin.top +

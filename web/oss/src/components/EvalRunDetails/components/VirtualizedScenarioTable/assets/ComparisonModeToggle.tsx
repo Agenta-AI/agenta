@@ -5,7 +5,7 @@ import {Button, Modal, Select, Space, Tag, Tooltip} from "antd"
 import {useAtom} from "jotai"
 
 import {useRunId} from "@/oss/contexts/RunIdContext"
-import usePreviewEvaluations from "@/oss/lib/hooks/usePreviewEvaluations"
+import usePreviewEvaluations from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
 import {urlStateAtom} from "../../../state/urlState"
 
@@ -25,6 +25,7 @@ const ComparisonModeToggle = () => {
     const isComparisonMode = Boolean(urlState.compare && urlState.compare.length > 0)
     const compareRunIds = urlState.compare || []
 
+    console.log("ComparisonModeToggle")
     // Fetch all evaluation runs for comparison
     const {runs: allRuns, swrData} = usePreviewEvaluations()
 

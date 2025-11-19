@@ -36,7 +36,7 @@ const ScenarioTable = ({runId: propRunId}: {runId?: string}) => {
     // Data sources - use prop runId if provided, otherwise fall back to context
     const contextRunId = useRunId()
     const runId = propRunId || contextRunId
-    const {antColumns, rows, isLoadingSteps} = useTableDataSource()
+    const {antColumns, rows, isLoadingSteps, totalColumnWidth} = useTableDataSource()
     const hasRows = rows.length > 0
     const store = evalAtomStore()
     const evaluationState = useAtomValue(evaluationRunStateFamily(runId!), {store}) as any
@@ -171,6 +171,11 @@ const ScenarioTable = ({runId: propRunId}: {runId?: string}) => {
         return Number.isFinite(computed) && computed > 0 ? computed : undefined
     }, [scrollY])
 
+    const tableScrollX = useMemo(() => {
+        if (!totalColumnWidth) return undefined
+        return totalColumnWidth
+    }, [totalColumnWidth])
+
     const handleRowFocus = useCallback(
         (record: TableRow, event: React.MouseEvent) => {
             if (evalType !== "auto" && evalType !== "online" && evalType !== "custom") return
@@ -225,7 +230,7 @@ const ScenarioTable = ({runId: propRunId}: {runId?: string}) => {
                     uniqueKey="scenario-table"
                     columns={antColumns as any}
                     dataSource={rows}
-                    scroll={{x: "max-content", y: scrollY - 45}}
+                    scroll={{x: tableScrollX ?? "max-content", y: tableScrollY}}
                     size="small"
                     virtualized
                     rowKey={(record: any) => record.key || record.scenarioId}

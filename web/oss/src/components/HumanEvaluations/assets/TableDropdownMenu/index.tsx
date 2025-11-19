@@ -11,7 +11,7 @@ import {
     buildAppScopedUrl,
     buildEvaluationNavigationUrl,
     extractPrimaryInvocation,
-} from "../../../pages/evaluations/utils"
+} from "@agenta/oss/src/components/pages/evaluations/utils"
 
 import {TableDropdownMenuProps} from "./types"
 

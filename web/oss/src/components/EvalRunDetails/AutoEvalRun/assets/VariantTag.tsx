@@ -10,7 +10,7 @@ import {useRouter} from "next/router"
 import useURL from "@/oss/hooks/useURL"
 import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import {runIndexFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import type {EnrichedEvaluationRun} from "@/oss/lib/hooks/usePreviewEvaluations/types"
+import type {EnrichedEvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 import {
     appDetailQueryAtomFamily,
     currentAppContextAtom,

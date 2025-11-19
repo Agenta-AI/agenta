@@ -108,7 +108,6 @@ const firstScenarioLoadableFamily = atomFamily(
 
 const useTableDataSource = () => {
     const runId = useRunId()
-
     // states
     const [editColumns, setEditColumns] = useAtom(editColumnsFamily(runId))
 
@@ -404,13 +403,14 @@ const useTableDataSource = () => {
     const totalColumnWidth = useMemo(() => {
         const calc = (cols: any[]): number =>
             cols.reduce((sum, col) => {
+                if (!col) return sum
                 if (col?.children && col?.children.length) {
-                    return sum + calc(col?.children)
+                    return sum + calc(col.children)
                 }
                 return sum + (col?.width ?? col?.minWidth ?? 100)
             }, 0)
-        return calc(antColumns)
-    }, [antColumns])
+        return calc(visibleColumns)
+    }, [visibleColumns])
 
     return {
         rawColumns: antColumns,
