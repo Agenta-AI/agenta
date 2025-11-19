@@ -9,7 +9,10 @@ import {User} from "@/oss/lib/Types"
 import {fetchAllProjects} from "@/oss/services/project"
 import {ProjectsResponse} from "@/oss/services/project/types"
 import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
-import {selectedOrganizationAtom, selectedOrganizationIdAtom} from "@/oss/state/organization/selectors/organization"
+import {
+    selectedOrganizationAtom,
+    selectedOrganizationIdAtom,
+} from "@/oss/state/organization/selectors/organization"
 import {profileQueryAtom} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
 import {logAtom} from "@/oss/state/utils/logAtom"
