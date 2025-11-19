@@ -119,7 +119,10 @@ function detectIsChatVariant(get: any, rowId: string): boolean {
     return false
 }
 
-type ResolvedVariableKeys = {ordered: string[]; set: Set<string>}
+interface ResolvedVariableKeys {
+    ordered: string[]
+    set: Set<string>
+}
 
 function computeVariableValues(
     get: any,
