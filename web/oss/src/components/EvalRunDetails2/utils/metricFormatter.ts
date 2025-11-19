@@ -1,10 +1,9 @@
 import {formatMetricValue as formatMetricValueWithKey} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
-
 import {
     formatEvaluatorMetricValue,
     isBasicStats,
     METRIC_PLACEHOLDER,
-} from "../../../../../ee/src/lib/runMetrics/formatters"
+} from "@/oss/lib/runMetrics/formatters"
 
 const EMPTY_PLACEHOLDER = METRIC_PLACEHOLDER
 
