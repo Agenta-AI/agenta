@@ -303,7 +303,7 @@ services:
             start_period: 5s
 
     traefik:
-        image: traefik:v2.10
+        image: traefik:v2.11
         
         command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${TRAEFIK_PORT:-80}
         ports:
