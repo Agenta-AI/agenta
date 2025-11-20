@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.routers import workspace_router, organization_router
+from ee.src.routers import workspace_router, organization_router, analytics_router
 
 from ee.src.dbs.postgres.meters.dao import MetersDAO
 from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
@@ -64,6 +64,12 @@ def extend_main(app: FastAPI):
     app.include_router(
         workspace_router.router,
         prefix="/workspaces",
+    )
+
+    app.include_router(
+        analytics_router.router,
+        prefix="/analytics",
+        tags=["Analytics"],
     )
 
     # --------------------------------------------------------------------------

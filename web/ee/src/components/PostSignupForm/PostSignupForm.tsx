@@ -13,6 +13,7 @@ import {useSurvey} from "@/oss/lib/helpers/analytics/hooks/useSurvey"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
+import {syncUserPropertiesToLoops} from "@/ee/services/analytics/api"
 
 import {useStyles} from "./assets/styles"
 import {FormDataType} from "./assets/types"
@@ -202,6 +203,10 @@ const PostSignupForm = () => {
                     ...responses,
                     $set: personProperties,
                 })
+
+                // Sync user properties to Loops for email campaigns
+                // Note: This runs in the background and won't block user navigation
+                await syncUserPropertiesToLoops(personProperties)
 
                 form.resetFields()
             } catch (error) {
