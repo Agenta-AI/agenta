@@ -3,7 +3,6 @@ import {ScenarioStatusMap} from "../useEvaluationRunData/types"
 export interface UseInvocationResultArgs {
     scenarioId: string
     stepKey: string
-    runId?: string // Optional: for multi-run support
     editorType?: "simple" | "shared"
     viewType?: "single" | "table"
 }

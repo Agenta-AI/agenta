@@ -1,17 +1,18 @@
 import {memo} from "react"
 
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 
-import {runViewTypeAtom} from "../../../state/urlState"
 import EvalRunScenarioCard from "../EvalRunScenarioCard"
 import ScenarioAnnotationPanel from "../ScenarioAnnotationPanel"
 
 import {EvalRunScenarioProps} from "./types"
 
-const EvalRunScenario = ({scenarioId, runId, className}: EvalRunScenarioProps) => {
-    const viewType = useAtomValue(runViewTypeAtom)
-
+const EvalRunScenario = ({
+    scenarioId,
+    runId,
+    viewType = "list",
+    className,
+}: EvalRunScenarioProps) => {
     return (
         <div
             className={clsx([
@@ -31,9 +32,7 @@ const EvalRunScenario = ({scenarioId, runId, className}: EvalRunScenarioProps) =
                     },
                 ])}
             >
-                {viewType !== "focus" ? (
-                    <EvalRunScenarioCard scenarioId={scenarioId} runId={runId} />
-                ) : null}
+                {viewType !== "focus" ? <EvalRunScenarioCard scenarioId={scenarioId} /> : null}
                 <ScenarioAnnotationPanel
                     runId={runId}
                     scenarioId={scenarioId}

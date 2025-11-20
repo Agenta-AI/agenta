@@ -8,11 +8,8 @@ import {OnChangePlugin} from "@lexical/react/LexicalOnChangePlugin"
 import {RichTextPlugin} from "@lexical/react/LexicalRichTextPlugin"
 import {Skeleton} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 
-import {markdownViewAtom} from "../state/assets/atoms"
 import type {EditorPluginsProps} from "../types"
-
 import MarkdownPlugin from "./markdown/markdownPlugin"
 
 const CodeFoldingPlugin = lazy(() =>
@@ -72,11 +69,8 @@ const EditorPlugins = ({
     initialValue,
     validationSchema,
     tokens,
-    templateFormat,
     additionalCodePlugins = [],
 }: EditorPluginsProps) => {
-    const markdown = useAtomValue(markdownViewAtom(id))
-
     return (
         <Suspense
             fallback={
@@ -90,18 +84,13 @@ const EditorPlugins = ({
             <RichTextPlugin
                 contentEditable={
                     <ContentEditable
-                        className={clsx(
-                            `editor-input relative outline-none min-h-[inherit] ${
-                                singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""
-                            } ${codeOnly ? "code-only" : ""}`,
-                            {
-                                "markdown-view": markdown,
-                            },
-                        )}
+                        className={`editor-input relative outline-none min-h-[inherit] ${
+                            singleLine ? "single-line whitespace-nowrap overflow-x-auto" : ""
+                        } ${codeOnly ? "code-only" : ""}`}
                     />
                 }
                 placeholder={
-                    <div className="editor-placeholder absolute pointer-events-none text-[#BDC7D1]">
+                    <div className="editor-placeholder absolute top-[4px] left-[1px] pointer-events-none text-[#BDC7D1]">
                         {placeholder}
                     </div>
                 }
@@ -113,7 +102,7 @@ const EditorPlugins = ({
             {showToolbar && !singleLine && !codeOnly && <ToolbarPlugin />}
             {enableTokens && (
                 <>
-                    <TokenPlugin templateFormat={templateFormat} />
+                    <TokenPlugin />
                     <AutoCloseTokenBracesPlugin />
                     <TokenTypeaheadPlugin tokens={tokens || []} />
                 </>
@@ -134,7 +123,7 @@ const EditorPlugins = ({
                 </>
             )}
             {debug && <DebugPlugin />}
-            {singleLine || codeOnly ? null : <MarkdownPlugin id={id} />}
+            {singleLine || codeOnly ? null : <MarkdownPlugin />}
         </Suspense>
     )
 }

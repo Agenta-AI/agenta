@@ -4,10 +4,6 @@ export const initialState: EvaluationRunState = {
     rawRun: undefined,
     isPreview: undefined,
     enrichedRun: undefined,
-    isComparison: false,
-    isBase: false,
-    compareIndex: undefined,
-    colorIndex: undefined,
     scenarios: undefined,
     statusMeta: {} as IStatusMeta,
     steps: undefined,
@@ -21,7 +17,6 @@ export const defaultLoadingState: EvaluationLoadingState = {
     isLoadingScenarios: false,
     isLoadingSteps: false,
     isLoadingMetrics: false,
-    isRefreshingMetrics: false,
     activeStep: null,
     scenarioStepProgress: {completed: 0, total: 0, percent: 0},
 }

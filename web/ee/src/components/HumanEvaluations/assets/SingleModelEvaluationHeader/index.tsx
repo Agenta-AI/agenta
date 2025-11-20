@@ -4,11 +4,11 @@ import {Export, Plus, Trash} from "@phosphor-icons/react"
 import {Button, message, Space, Typography} from "antd"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
-import Link from "next/link"
 import {useSWRConfig} from "swr"
 
 import {statusMapper} from "@/oss/components/pages/evaluations/cellRenderers/cellRenderers"
-import useURL from "@/oss/hooks/useURL"
+import {getAppValues} from "@/oss/contexts/app.context"
+import {useAppId} from "@/oss/hooks/useAppId"
 import {EvaluationType} from "@/oss/lib/enums"
 import {calculateAvgScore} from "@/oss/lib/helpers/evaluate"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
@@ -16,10 +16,8 @@ import {getEvaluationRunScenariosKey} from "@/oss/lib/hooks/useEvaluationRunScen
 import useEvaluations from "@/oss/lib/hooks/useEvaluations"
 import {summarizeMetric} from "@/oss/lib/metricUtils"
 import {EvaluationStatus} from "@/oss/lib/Types"
-import {getAppValues} from "@/oss/state/app"
 
 import {SingleModelEvaluationHeaderProps} from "../../types"
-import {EvaluationRow} from "../../types"
 import {useStyles} from "../styles"
 import {extractEvaluationStatus, getMetricSummaryValue} from "../utils"
 
@@ -41,18 +39,13 @@ const SingleModelEvaluationHeader = ({
     setIsDeleteEvalModalOpen,
     selectedEvalRecord,
     setSelectedEvalRecord,
-    scope,
-    projectURL,
-    activeAppId,
-    extractAppId,
 }: SingleModelEvaluationHeaderProps) => {
     const classes = useStyles()
-    const {appURL} = useURL()
+    const appId = useAppId()
     const {cache} = useSWRConfig()
     const {refetch, handleDeleteEvaluations: deleteEvaluations} = useEvaluations({
         withPreview: true,
         types: [EvaluationType.single_model_test],
-        appId: activeAppId,
     })
 
     const [isEvalModalOpen, setIsEvalModalOpen] = useState(false)
@@ -133,22 +126,17 @@ const SingleModelEvaluationHeader = ({
         try {
             if (exportEvals.length) {
                 const {currentApp} = getAppValues()
-                const filenameBase =
-                    currentApp?.app_name ||
-                    (scope === "project" ? "all_applications" : "evaluations")
-                const filename = `${filenameBase.replace(/\s+/g, "_")}_human_annotation.csv`
+                const filename = `${currentApp?.app_name}_human_annotation.csv`
 
                 const rows = exportEvals.map((item) => {
                     const id = "id" in item ? item.id : item.key
                     const metrics = runMetricsMap?.[id]
-                    const applicationName = (item as any)?.variants?.[0]?.appName || "-"
-                    const applicationId = extractAppId(item as EvaluationRow) || "-"
 
                     // Note: all the 'in' conditions here are for legacy eval
                     const row: Record<string, any> = {
                         Name: "name" in item ? item.name : item.key,
                         Variant: `${item.variants?.[0]?.variantName} v${"revisions" in item ? item.revisions?.[0] : item.variants?.[0]?.revision}`,
-                        Testset:
+                        "Test set":
                             "testset" in item
                                 ? item.testset.name
                                 : (item.testsets?.[0]?.name ?? ""),
@@ -162,11 +150,6 @@ const SingleModelEvaluationHeader = ({
                             ? {"Created by": (item as any).createdBy?.user?.username}
                             : {}),
                         "Created on": item.createdAt,
-                    }
-
-                    if (scope === "project") {
-                        row.Application = applicationName
-                        row["Application ID"] = applicationId
                     }
 
                     // Track metric keys consumed by evaluator loop so we don't duplicate
@@ -211,7 +194,7 @@ const SingleModelEvaluationHeader = ({
         } catch (error) {
             message.error("Failed to export results. Please try again later")
         }
-    }, [mergedEvaluations, selectedRowKeys, runMetricsMap, scope, extractAppId])
+    }, [mergedEvaluations, selectedRowKeys, runMetricsMap])
 
     return (
         <>
@@ -220,29 +203,16 @@ const SingleModelEvaluationHeader = ({
                     <Space>
                         <Typography.Text className="font-medium">Human Annotation</Typography.Text>
 
-                        {(() => {
-                            const href =
-                                scope === "app"
-                                    ? appURL
-                                        ? `${appURL}/evaluations?selectedEvaluation=human_annotation`
-                                        : undefined
-                                    : `${projectURL}/evaluations?selectedEvaluation=human_annotation`
-
-                            if (!href) return null
-
-                            return (
-                                <Button>
-                                    <Link href={href}>View all</Link>
-                                </Button>
-                            )
-                        })()}
+                        <Button
+                            href={`/apps/${appId}/evaluations?selectedEvaluation=single_model_evaluation`}
+                        >
+                            View all
+                        </Button>
                     </Space>
 
-                    {(scope === "app" && activeAppId) || scope === "project" ? (
-                        <Button icon={<Plus />} onClick={() => setIsEvalModalOpen(true)}>
-                            Create new
-                        </Button>
-                    ) : null}
+                    <Button icon={<Plus />} onClick={() => setIsEvalModalOpen(true)}>
+                        Create new
+                    </Button>
                 </section>
             ) : (
                 <section
@@ -255,16 +225,14 @@ const SingleModelEvaluationHeader = ({
                         },
                     ])}
                 >
-                    {(scope === "app" && activeAppId) || scope === "project" ? (
-                        <Button
-                            type="primary"
-                            icon={<Plus size={14} />}
-                            className={classes.button}
-                            onClick={() => setIsEvalModalOpen(true)}
-                        >
-                            Start new evaluation
-                        </Button>
-                    ) : null}
+                    <Button
+                        type="primary"
+                        icon={<Plus size={14} />}
+                        className={classes.button}
+                        onClick={() => setIsEvalModalOpen(true)}
+                    >
+                        Start new evaluation
+                    </Button>
 
                     <Space>
                         <Button
@@ -290,20 +258,18 @@ const SingleModelEvaluationHeader = ({
                 </section>
             )}
 
-            {((scope === "app" && activeAppId) || scope === "project") && (
-                <NewEvaluationModal
-                    open={isEvalModalOpen}
-                    onCancel={() => {
-                        setIsEvalModalOpen(false)
-                    }}
-                    onSuccess={() => {
-                        setIsEvalModalOpen(false)
-                        refetch()
-                    }}
-                    preview={true}
-                    evaluationType={"human"}
-                />
-            )}
+            <NewEvaluationModal
+                open={isEvalModalOpen}
+                onCancel={() => {
+                    setIsEvalModalOpen(false)
+                }}
+                onSuccess={() => {
+                    setIsEvalModalOpen(false)
+                    refetch()
+                }}
+                preview={true}
+                evaluationType={"human"}
+            />
 
             <DeleteEvaluationModal
                 confirmLoading={isDeletingEvaluations}

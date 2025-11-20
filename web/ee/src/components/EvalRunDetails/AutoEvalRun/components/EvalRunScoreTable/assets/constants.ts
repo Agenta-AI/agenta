@@ -1,4 +1,4 @@
-import {ColumnType} from "antd/es/table"
+import { ColumnType } from "antd/es/table";
 
 export const FIXED_COLUMNS: ColumnType<any>[] = [
     {
@@ -15,3 +15,4 @@ export const FIXED_COLUMNS: ColumnType<any>[] = [
         minWidth: 120,
     },
 ]
+    

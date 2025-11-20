@@ -1,61 +1,35 @@
 import {memo, useTransition} from "react"
 
 import {Radio} from "antd"
-import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {evalTypeAtom} from "../../state/evalType"
-import {runViewTypeAtom} from "../../state/urlState"
+import {runViewTypeAtom, urlStateAtom} from "../../state/urlState"
 
-import {
-    ENABLE_CARD_VIEW,
-    VIEW_HUMAN_OPTIONS,
-    VIEW_AUTO_OPTIONS,
-    VIEW_ONLINE_OPTIONS,
-} from "./assets/constants"
+import {ENABLE_CARD_VIEW, VIEW_HUMAN_OPTIONS, VIEW_AUTO_OPTIONS} from "./assets/constants"
 
 const EvalRunScenariosViewSelector = () => {
-    const evalType = useAtomValue(evalTypeAtom)
-    // Read from the same global store that writes are going to
+    const setUrlState = useSetAtom(urlStateAtom)
+    const [, startTransition] = useTransition()
     const viewType = useAtomValue(runViewTypeAtom)
-    const [_isPending, startTransition] = useTransition()
-
-    const router = useRouter()
+    const evalType = useAtomValue(evalTypeAtom)
 
     // Sync local atom from urlStateAtom changes
     return (
         <div className="flex items-center gap-2 shrink-0">
             <Radio.Group
                 onChange={(e) => {
-                    const v = e.target.value as
-                        | "focus"
-                        | "list"
-                        | "table"
-                        | "overview"
-                        | "testcases"
-                        | "prompt"
-                        | "results"
-                        | "configuration"
+                    const v = e.target.value as "focus" | "list" | "table"
                     startTransition(() => {
-                        // Update router query so UrlSync can mirror it into atoms
-                        const nextQuery: Record<string, any> = {...router.query, view: v}
-                        if (v !== "focus") {
-                            delete nextQuery.scenarioId
-                        }
-                        router.replace({pathname: router.pathname, query: nextQuery}, undefined, {
-                            shallow: true,
+                        setUrlState((draft) => {
+                            draft.view = v
                         })
                     })
                 }}
-                defaultValue={evalType === "online" ? "results" : "focus"}
+                defaultValue={"focus"}
                 value={ENABLE_CARD_VIEW ? viewType : viewType === "list" ? "focus" : viewType}
             >
-                {(evalType === "human"
-                    ? VIEW_HUMAN_OPTIONS
-                    : evalType === "online"
-                      ? VIEW_ONLINE_OPTIONS
-                      : VIEW_AUTO_OPTIONS
-                ).map((option) => (
+                {(evalType === "human" ? VIEW_HUMAN_OPTIONS : VIEW_AUTO_OPTIONS).map((option) => (
                     <Radio.Button
                         key={option.value}
                         value={option.value}

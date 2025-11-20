@@ -1,55 +1,48 @@
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 import {uuidToSpanId, uuidToTraceId} from "@/oss/lib/hooks/useAnnotations/assets/helpers"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {
-    evaluationEvaluatorsFamily,
-    evaluationRunStateFamily,
     evalAtomStore,
+    evaluationEvaluatorsAtom,
+    evaluationRunStateAtom,
+    revalidateScenario,
     scenarioStepFamily,
-    revalidateScenarioForRun,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import {triggerMetricsFetch} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
 import {IAnnotationStep, IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {EvaluationStatus} from "@/oss/lib/Types"
 import {getJWT} from "@/oss/services/api"
 import {updateScenarioStatusRemote} from "@/oss/services/evaluations/workerUtils"
 import {createScenarioMetrics} from "@/oss/services/runMetrics/api"
-import {getProjectValues} from "@/oss/state/project"
 
 import {setOptimisticStepData} from "./optimisticUtils"
 import {collectStepsAndMetrics} from "./stepsMetricsUtils"
+
 /**
  * Retrieve the scenario object (if present) for the given id.
- * Updated for multi-run support with runId parameter.
  */
-export const getScenario = (scenarioId: string, runId: string) => {
-    // Use run-scoped atoms for multi-run support
+export const getScenario = (scenarioId: string) => {
     return (
         evalAtomStore()
-            .get(evaluationRunStateFamily(runId))
-            ?.scenarios?.find((s: any) => s.id === scenarioId) || null
+            .get(evaluationRunStateAtom)
+            ?.scenarios?.find((s) => s.id === scenarioId) || null
     )
 }
 
 /**
  * Retrieve the evaluators associated with the current evaluation run.
- * Updated for multi-run support with runId parameter.
  */
-export const getEvaluators = (runId: string) => {
-    return evalAtomStore().get(evaluationEvaluatorsFamily(runId))
+export const getEvaluators = () => {
+    return evalAtomStore().get(evaluationEvaluatorsAtom)
 }
 
 /**
  * Lazily load step data for a scenario via the jotai family.
- * Updated for multi-run support with runId parameter.
  */
-export const getStepData = async (scenarioId: string, runId?: string) => {
-    if (runId) {
-        // Use run-scoped atoms for multi-run support
-        return await evalAtomStore().get(scenarioStepFamily({scenarioId, runId}))
-    }
+export const getStepData = async (scenarioId: string) => {
+    return await evalAtomStore().get(scenarioStepFamily(scenarioId))
 }
 
 /**
@@ -86,45 +79,14 @@ export const pushStepsAndMetrics = async ({
     projectId,
     runId,
 }: PushStepsAndMetricsParams) => {
-    // Normalize payloads to results schema
-    const normalizePatch = (items: any[]) =>
-        items.map((it) => {
-            const out: Record<string, any> = {
-                id: it.id,
-                status: it.status,
-                trace_id: it.trace_id ?? it.traceId,
-                span_id: it.span_id ?? it.spanId,
-                references: it.references,
-            }
-            const stepKey = it.step_key ?? it.stepKey
-            if (stepKey) out.step_key = stepKey
-            return out
-        })
-
-    const normalizeCreate = (items: any[]) =>
-        items.map((it) => {
-            const out: Record<string, any> = {
-                status: it.status,
-                step_key: it.step_key ?? it.stepKey ?? it.key,
-                trace_id: it.trace_id ?? it.traceId,
-                span_id: it.span_id ?? it.spanId,
-                scenario_id: it.scenario_id ?? it.scenarioId,
-                run_id: it.run_id ?? it.runId,
-                references: it.references,
-            }
-            const testcaseId = it.testcase_id ?? it.testcaseId
-            if (testcaseId) out.testcase_id = testcaseId
-            return out
-        })
-
     if (patchStepsFull.length) {
-        await axios.patch(`/preview/evaluations/results/?project_id=${projectId}`, {
-            results: normalizePatch(patchStepsFull),
+        await axios.patch(`/preview/evaluations/steps/?project_id=${projectId}`, {
+            steps: patchStepsFull,
         })
     }
     if (stepsToCreate.length) {
-        await axios.post(`/preview/evaluations/results/?project_id=${projectId}`, {
-            results: normalizeCreate(stepsToCreate),
+        await axios.post(`/preview/evaluations/steps/?project_id=${projectId}`, {
+            steps: stepsToCreate,
         })
     }
     if (metricEntries.length) {
@@ -182,19 +144,14 @@ export const startOptimisticAnnotation = async (
     apiUrl: string,
     jwt: string,
     projectId: string,
-    runId?: string,
 ) => {
-    setOptimisticStepData(
-        scenarioId,
-        [
-            {
-                ...structuredClone(step),
-                status: "annotating",
-            },
-        ],
-        runId,
-    )
-    updateScenarioStatusRemote(apiUrl, jwt, scenarioId, EvaluationStatus.RUNNING, projectId, runId)
+    setOptimisticStepData(scenarioId, [
+        {
+            ...structuredClone(step),
+            status: "annotating",
+        },
+    ])
+    updateScenarioStatusRemote(apiUrl, jwt, scenarioId, EvaluationStatus.RUNNING, projectId)
 }
 
 /**
@@ -203,19 +160,17 @@ export const startOptimisticAnnotation = async (
 export const buildAnnotationContext = async ({
     scenarioId,
     stepKey,
-    runId,
 }: {
     scenarioId: string
     stepKey: string
-    runId: string
 }) => {
-    const evaluators = getEvaluators(runId)
-    const testsets = evalAtomStore().get(evaluationRunStateFamily(runId))?.enrichedRun?.testsets
-    const stepData = await getStepData(scenarioId, runId)
+    const evaluators = getEvaluators()
+    const testsets = evalAtomStore().get(evaluationRunStateAtom)?.enrichedRun?.testsets
+    const stepData = await getStepData(scenarioId)
     const jwt = await getJWT()
-    const {projectId} = getProjectValues()
+    const projectId = getCurrentProject()?.projectId
 
-    const invocationStep = stepData?.invocationSteps?.find((s: any) => s.stepKey === stepKey)
+    const invocationStep = stepData?.invocationSteps?.find((s: any) => s.key === stepKey)
     if (!invocationStep) return null
 
     const traceTree = (invocationStep as any)?.trace
@@ -253,7 +208,6 @@ export const processAnnotationError = async (
     apiUrl: string,
     jwt: string,
     projectId: string,
-    runId: string,
     setErrorMessages: (msgs: string[]) => void,
 ) => {
     setErrorMessages([(err as Error).message])
@@ -265,7 +219,7 @@ export const processAnnotationError = async (
         })),
     )
     // await updateScenarioStatus(scenario, finalStatus)
-    updateScenarioStatusRemote(apiUrl, jwt, scenarioId, EvaluationStatus.ERROR, projectId, runId)
+    updateScenarioStatusRemote(apiUrl, jwt, scenarioId, EvaluationStatus.ERROR, projectId)
 }
 
 export const finalizeAnnotationSuccess = async ({
@@ -320,16 +274,8 @@ export const finalizeAnnotationSuccess = async ({
         runId,
     })
 
-    await updateScenarioStatusRemote(
-        apiUrl,
-        jwt,
-        scenarioId,
-        EvaluationStatus.SUCCESS,
-        projectId,
-        runId,
-    )
+    await updateScenarioStatusRemote(apiUrl, jwt, scenarioId, EvaluationStatus.SUCCESS, projectId)
     await triggerScenarioRevalidation(
-        runId,
         scenarioId,
         annotationSteps.map((st) => ({
             ...structuredClone(st),
@@ -337,24 +283,15 @@ export const finalizeAnnotationSuccess = async ({
         })),
     )
 
-    // Trigger metrics refresh when scenario completes (success or failure)
-    if (runId) {
-        triggerMetricsFetch(runId)
-    }
-
-    // Note: Metrics will be automatically refreshed by store-level subscription
-    console.log(`[finalizeAnnotationSuccess] Annotation finalized for runId: ${runId}`)
-
     setErrorMessages([])
 }
 
 export const triggerScenarioRevalidation = async (
-    runId: string,
     scenarioId: string,
     updatedSteps?: IStepResponse[],
 ) => {
     try {
-        await revalidateScenarioForRun(runId, scenarioId, evalAtomStore(), updatedSteps)
+        await revalidateScenario(scenarioId, updatedSteps)
     } catch (err) {
         console.error("Failed to revalidate scenario", err)
     }
@@ -377,7 +314,7 @@ export const findAnnotationStepsFromPayload = (
             const invocationKey = linkKeys[0] // e.g. "default-2cd951533447"
             const expectedStepKey = `${invocationKey}.${evaluatorSlug}`
 
-            return step.stepKey === expectedStepKey
+            return step.key === expectedStepKey
         }),
     )
 }

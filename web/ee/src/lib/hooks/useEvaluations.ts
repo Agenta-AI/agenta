@@ -1,6 +1,13 @@
-import {useMemo, useCallback} from "react"
+import {useCallback} from "react"
 
-// import {useAppId} from "@/oss/hooks/useAppId"
+import useSWR from "swr"
+
+import {getCurrentProject} from "@/oss/contexts/project.context"
+import {useAppId} from "@/oss/hooks/useAppId"
+import {fetchAllEvaluations} from "@/oss/services/evaluations/api"
+import {fetchAllLoadEvaluations, fetchEvaluationResults} from "@/oss/services/human-evaluations/api"
+import {deleteEvaluations as deleteHumanEvaluations} from "@/oss/services/human-evaluations/api"
+import {deleteEvaluations as deleteAutoEvaluations} from "@/oss/services/evaluations/api"
 
 import axios from "@agenta/oss/src/lib/api/assets/axiosConfig"
 import {EvaluationType} from "@agenta/oss/src/lib/enums"
@@ -9,22 +16,12 @@ import {
     fromEvaluationResponseToEvaluation,
     singleModelTestEvaluationTransformer,
 } from "@agenta/oss/src/lib/transformers"
-import {Evaluation, EvaluationResponseType, ListAppsItem} from "@agenta/oss/src/lib/Types"
-import {useAtomValue} from "jotai"
-import useSWR from "swr"
-
-import {useAppId} from "@/oss/hooks/useAppId"
-import {deleteEvaluations as deleteAutoEvaluations} from "@/oss/services/evaluations/api"
-import {fetchAllEvaluations} from "@/oss/services/evaluations/api"
-import {deleteEvaluations as deleteHumanEvaluations} from "@/oss/services/human-evaluations/api"
-import {fetchAllLoadEvaluations, fetchEvaluationResults} from "@/oss/services/human-evaluations/api"
-import {useAppsData} from "@/oss/state/app"
-import {getProjectValues, projectIdAtom} from "@/oss/state/project"
+import {Evaluation, EvaluationResponseType} from "@agenta/oss/src/lib/Types"
 
 import usePreviewEvaluations from "./usePreviewEvaluations"
 
 const deleteRuns = async (ids: string[]) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
     await axios.delete(`/preview/evaluations/runs/?project_id=${projectId}`, {
         data: {
             run_ids: ids,
@@ -54,24 +51,12 @@ const useEvaluations = ({
     withPreview,
     types,
     evalType,
-    appId: appIdOverride,
 }: {
     withPreview?: boolean
     types: EvaluationType[]
-    evalType?: "human" | "auto" | "custom"
-    appId?: string | null
+    evalType?: "human" | "auto"
 }) => {
-    const routeAppId = useAppId()
-    const appId = (appIdOverride ?? routeAppId) || undefined
-    const {apps: availableApps = []} = useAppsData()
-    const projectId = useAtomValue(projectIdAtom)
-
-    const appIdsForScope = useMemo(() => {
-        if (appId) return [appId]
-        return (availableApps as ListAppsItem[])
-            .map((application) => application.app_id)
-            .filter((id): id is string => typeof id === "string" && id.length > 0)
-    }, [appId, availableApps])
+    const appId = useAppId()
 
     /**
      * Fetches legacy evaluations for the given appId and transforms them into the required format.
@@ -79,14 +64,12 @@ const useEvaluations = ({
      * Returns an object containing human and auto evaluations.
      */
     const legacyFetcher = useCallback(async () => {
-        if (!projectId || appIdsForScope.length === 0) {
-            return {
-                humanEvals: [],
-                autoEvals: [],
-            }
-        }
-
-        const needsAutoEvaluations = types.some((type) =>
+        // Fetch all legacy evaluations from the backend
+        const _evals: EvaluationResponseType[] = await fetchAllLoadEvaluations(appId)
+        // Transform API responses to Evaluation objects
+        const evals: Evaluation[] = _evals.map(fromEvaluationResponseToEvaluation)
+        // Fetch auto evaluations if any of the selected types require them
+        const autoEvals = types.filter((type) =>
             [
                 EvaluationType.human_a_b_testing,
                 EvaluationType.single_model_test,
@@ -94,131 +77,66 @@ const useEvaluations = ({
                 EvaluationType.auto_exact_match,
                 EvaluationType.automatic,
             ].includes(type),
+        ).length
+            ? (await fetchAllEvaluations(appId)).sort(
+                  (a, b) =>
+                      new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+              )
+            : []
+        // Fetch evaluation results for each evaluation
+        const results = await Promise.all(
+            evals.map((evaluation) => fetchEvaluationResults(evaluation.id)),
         )
-
-        const responses = await Promise.all(
-            appIdsForScope.map(async (targetAppId) => {
-                const rawEvaluations: EvaluationResponseType[] = await fetchAllLoadEvaluations(
-                    targetAppId,
-                    projectId,
-                )
-
-                const preparedEvaluations = rawEvaluations
-                    .map((evaluationResponse) => ({
-                        evaluation: {
-                            ...fromEvaluationResponseToEvaluation(evaluationResponse),
-                            appId: targetAppId,
-                        },
-                        raw: evaluationResponse,
-                    }))
-                    .filter(({evaluation}) => types.includes(evaluation.evaluationType))
-
-                const results = await Promise.all(
-                    preparedEvaluations.map(({evaluation}) =>
-                        fetchEvaluationResults(evaluation.id),
-                    ),
-                )
-
-                const humanEvaluations = results
-                    .map((result, index) => {
-                        const {evaluation, raw} = preparedEvaluations[index]
-                        if (!result) return undefined
-
-                        if (evaluation.evaluationType === EvaluationType.single_model_test) {
-                            const transformed = singleModelTestEvaluationTransformer({
-                                item: evaluation,
-                                result,
-                            })
-                            return {
-                                ...transformed,
-                                appId: targetAppId,
-                                appName: evaluation.appName,
-                            }
-                        }
-
-                        if (evaluation.evaluationType === EvaluationType.human_a_b_testing) {
-                            if (Object.keys(result.votes_data || {}).length > 0) {
-                                const transformed = abTestingEvaluationTransformer({
-                                    item: raw,
-                                    results: result.votes_data,
-                                })
-                                return {
-                                    ...transformed,
-                                    appId: targetAppId,
-                                    appName: evaluation.appName,
-                                }
-                            }
-                        }
-
-                        return undefined
-                    })
-                    .filter((item): item is Record<string, any> => Boolean(item))
-                    .filter(
-                        (item: any) =>
-                            item.resultsData !== undefined ||
-                            !(Object.keys(item.scoresData || {}).length === 0) ||
-                            item.avgScore !== undefined,
-                    )
-
-                const autoEvaluations = needsAutoEvaluations
-                    ? (await fetchAllEvaluations(targetAppId))
-                          .sort(
-                              (a, b) =>
-                                  new Date(b.created_at || 0).getTime() -
-                                  new Date(a.created_at || 0).getTime(),
-                          )
-                          .map((evaluation) => ({
-                              ...evaluation,
-                              appId: targetAppId,
-                          }))
-                    : []
-
-                return {
-                    humanEvals: humanEvaluations,
-                    autoEvals: autoEvaluations,
+        // Transform and filter evaluation results based on their type
+        const newEvals = results
+            .map((result, ix) => {
+                const item = evals[ix]
+                if (!types.includes(item.evaluationType)) return undefined
+                if ([EvaluationType.single_model_test].includes(item.evaluationType)) {
+                    return singleModelTestEvaluationTransformer({item, result})
+                } else if ([EvaluationType.human_a_b_testing].includes(item.evaluationType)) {
+                    if (Object.keys(result.votes_data || {}).length > 0) {
+                        const item = _evals[ix]
+                        return abTestingEvaluationTransformer({item, results: result.votes_data})
+                    }
                 }
-            }),
-        )
+            })
+            .filter(Boolean)
 
-        const humanEvals = responses
-            .flatMap((response) => response.humanEvals)
+        // Filter out undefined and incomplete evaluations, then sort by creation date (descending)
+        const newEvalResults = newEvals
+            .filter((evaluation) => evaluation !== undefined)
+            .filter(
+                (item: any) =>
+                    item.resultsData !== undefined ||
+                    !(Object.keys(item.scoresData || {}).length === 0) ||
+                    item.avgScore !== undefined,
+            )
             .sort(
                 (a, b) =>
                     new Date(b?.createdAt ?? 0).getTime() - new Date(a?.createdAt ?? 0).getTime(),
             )
-        const autoEvals = responses.flatMap((response) => response.autoEvals)
 
         return {
-            humanEvals,
+            humanEvals: newEvalResults,
             autoEvals,
         }
-    }, [appIdsForScope, projectId, types])
+    }, [appId, types])
 
     /**
      * SWR hook for fetching and caching legacy evaluations using the legacyFetcher.
      */
     const legacyEvaluations = useSWR(
-        !projectId || appIdsForScope.length === 0
-            ? null
-            : ["legacy-evaluations", projectId, ...appIdsForScope],
+        appId ? `/api/evaluations/?app_id=${appId}` : null,
         legacyFetcher,
     )
 
     /**
      * Hook for fetching preview evaluations if withPreview is enabled.
      */
-    const previewFlags = useMemo(() => {
-        if (evalType === "custom") {
-            return {is_live: false}
-        }
-        return undefined
-    }, [evalType])
-
     const previewEvaluations = usePreviewEvaluations({
         skip: !withPreview,
         types,
-        appId,
-        flags: previewFlags,
     })
 
     // Extract runs from preview evaluations
@@ -230,19 +148,15 @@ const useEvaluations = ({
      */
     const computeMergedEvaluations = useCallback(
         (evalType?: "human" | "auto") => {
-            const legacyData = legacyEvaluations.data || {autoEvals: [], humanEvals: []}
-            const legacyAuto = legacyData.autoEvals || []
-            const legacyHuman = legacyData.humanEvals || []
+            const legacyAuto = legacyEvaluations.data?.autoEvals || []
+            const legacyHuman = legacyEvaluations.data?.humanEvals || []
             let filteredLegacy = []
             if (types.includes(EvaluationType.single_model_test)) {
                 filteredLegacy = legacyHuman
             } else {
                 filteredLegacy = legacyAuto
             }
-
-            if (!runs || !Array.isArray(runs)) {
-                return filteredLegacy
-            }
+            if (!legacyEvaluations.data || !runs) return []
 
             // Filtering out evaluations based on eval type
             let filteredRuns = []
@@ -260,24 +174,11 @@ const useEvaluations = ({
                     filteredRuns = [...filteredRuns, ...autoEvalLagecyRuns]
                 }
             } else if (evalType === "auto") {
-                filteredRuns = runs
-                    .filter((run) =>
-                        run?.data?.steps.every(
-                            (step) =>
-                                step.type !== "annotation" ||
-                                step.origin === "auto" ||
-                                step.origin === undefined,
-                        ),
-                    )
-                    .filter((run) => {
-                        const isLive = run?.flags?.isLive === true || run?.flags?.is_live === true
-                        const source =
-                            typeof run?.meta?.source === "string"
-                                ? run.meta.source.toLowerCase()
-                                : undefined
-                        const isOnlineSource = source === "online_evaluation_drawer"
-                        return !isLive && !isOnlineSource
-                    })
+                filteredRuns = runs.filter((run) =>
+                    run?.data?.steps.every(
+                        (step) => step.type !== "annotation" || step.origin === "auto",
+                    ),
+                )
                 if (filteredLegacy.length > 0) {
                     const autoEvalLagecyRuns = filteredLegacy.filter(
                         (run) => "aggregated_results" in run,
@@ -285,26 +186,6 @@ const useEvaluations = ({
 
                     filteredRuns = [...filteredRuns, ...autoEvalLagecyRuns]
                 }
-            } else if (evalType === "custom") {
-                filteredRuns = runs.filter((run) => {
-                    const steps = Array.isArray(run?.data?.steps) ? run.data.steps : []
-                    const hasCustomStep = steps.some(
-                        (step: any) =>
-                            step?.origin === "custom" ||
-                            step?.type === "custom" ||
-                            step?.metadata?.origin === "custom",
-                    )
-                    if (!hasCustomStep) return false
-
-                    const source =
-                        typeof run?.meta?.source === "string"
-                            ? run.meta.source.toLowerCase()
-                            : undefined
-                    const isOnlineSource = source === "online_evaluation_drawer"
-                    const isLive = run?.flags?.isLive === true || run?.flags?.is_live === true
-
-                    return hasCustomStep && !isOnlineSource && !isLive
-                })
             } else {
                 filteredRuns = [...filteredLegacy, ...runs]
             }
@@ -335,9 +216,7 @@ const useEvaluations = ({
             const listOfLegacyEvals =
                 evalType === "auto"
                     ? legacyEvaluations.data?.autoEvals || []
-                    : evalType === "human"
-                      ? legacyEvaluations.data?.humanEvals || []
-                      : []
+                    : legacyEvaluations.data?.humanEvals || []
 
             // Determine which IDs are legacy evaluations
             const legacyEvals = listOfLegacyEvals
@@ -366,18 +245,26 @@ const useEvaluations = ({
         [legacyEvaluations, refetchAll],
     )
 
-    const mergedEvaluations = useMemo(
-        () => computeMergedEvaluations(evalType),
-        [computeMergedEvaluations, evalType],
-    )
-
     return {
+        // SWR object for legacy evaluations
         legacyEvaluations,
+        // Preview evaluations object
         previewEvaluations,
-        mergedEvaluations,
-        isLoadingLegacy: legacyEvaluations.isLoading,
-        isLoadingPreview: previewEvaluations?.swrData?.isLoading ?? false,
+        // Merged evaluations getter, combines both sources
+        get mergedEvaluations() {
+            return computeMergedEvaluations(evalType)
+        },
+        // Loading state for legacy evaluations
+        get isLoadingLegacy() {
+            return legacyEvaluations.isLoading
+        },
+        // Loading state for preview evaluations
+        get isLoadingPreview() {
+            return previewEvaluations.swrData.isLoading
+        },
+        // Refetch function for all evaluation data
         refetch: refetchAll,
+        // Handler to delete evaluations
         handleDeleteEvaluations,
     }
 }

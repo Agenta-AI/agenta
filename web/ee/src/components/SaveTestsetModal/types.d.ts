@@ -1,5 +1,4 @@
 import {ModalProps} from "antd"
-
 import {Evaluation, EvaluationFlow, EvaluationScenario} from "@/oss/lib/Types"
 
 export interface EvaluationRow extends EvaluationScenario, Record<string, string> {

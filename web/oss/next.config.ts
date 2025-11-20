@@ -9,7 +9,6 @@ const COMMON_CONFIG: NextConfig = {
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx", "js", "jsx"],
     productionBrowserSourceMaps: true,
-    outputFileTracingRoot: path.resolve(__dirname, ".."),
     images: {
         remotePatterns: [{hostname: "fps.cdnpk.net"}],
     },
@@ -22,28 +21,13 @@ const COMMON_CONFIG: NextConfig = {
     async redirects() {
         return [
             {
-                source: "/apps",
-                destination: "/w",
+                source: "/",
+                destination: "/apps",
                 permanent: true,
             },
             {
                 source: "/apps/:app_id",
-                destination: "/w",
-                permanent: true,
-            },
-            {
-                source: "/apps/:app_id/:path*",
-                destination: "/w",
-                permanent: true,
-            },
-            {
-                source: "/",
-                destination: "/w",
-                permanent: true,
-            },
-            {
-                source: "/:workspace_id/apps/:app_id",
-                destination: "/:workspace_id/apps/:app_id/overview/",
+                destination: "/apps/:app_id/overview/",
                 permanent: true,
             },
         ]

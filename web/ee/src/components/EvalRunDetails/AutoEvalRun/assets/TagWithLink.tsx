@@ -20,7 +20,7 @@ const TagWithLink = ({name, href, className, showIcon = true, ...props}: TagWith
             onClick={() => router.push(href)}
             {...props}
         >
-            <span>{name}</span>
+            {name}{" "}
             {showIcon && (
                 <ArrowSquareOut
                     size={14}

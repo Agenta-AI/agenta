@@ -1,67 +1,69 @@
-import {memo, useCallback, useMemo} from "react"
-
-import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
-
-import {
-    closeFocusDrawerAtom,
-    focusScenarioAtom,
-    isFocusDrawerOpenAtom,
-    resetFocusDrawerAtom,
-} from "@/oss/components/EvalRunDetails/state/focusScenarioAtom"
 import GenericDrawer from "@/oss/components/GenericDrawer"
-import {RunIdProvider} from "@/oss/contexts/RunIdContext"
-import {clearFocusDrawerQueryParams} from "@/oss/state/url/focusDrawer"
+import {useAtom} from "jotai"
+import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
+import {memo, useCallback, useEffect} from "react"
+import {focusScenarioAtom} from "@/oss/components/EvalRunDetails/state/focusScenarioAtom"
 
 const FocusDrawerHeader = dynamic(() => import("./assets/FocusDrawerHeader"), {ssr: false})
 const FocusDrawerContent = dynamic(() => import("./assets/FocusDrawerContent"), {ssr: false})
 const FocusDrawerSidePanel = dynamic(() => import("./assets/FocusDrawerSidePanel"), {ssr: false})
 
 const EvalRunFocusDrawer = () => {
-    const isOpen = useAtomValue(isFocusDrawerOpenAtom)
-    const focus = useAtomValue(focusScenarioAtom)
-    const closeDrawer = useSetAtom(closeFocusDrawerAtom)
-    const resetDrawer = useSetAtom(resetFocusDrawerAtom)
+    const router = useRouter()
+    const [focusScenarioId, setFocusScenarioId] = useAtom(focusScenarioAtom)
 
-    const focusRunId = focus?.focusRunId ?? null
+    // Keep URL <-> atom in sync
+    useEffect(() => {
+        if (!router.isReady) return
+        if (!focusScenarioId) return
 
-    const handleClose = useCallback(() => {
-        closeDrawer(null)
-    }, [closeDrawer])
+        // URL lacks focus but atom has it -> write to URL
+        if ((!router.query.focus && focusScenarioId) || router.query.focus !== focusScenarioId) {
+            router.replace(
+                {
+                    pathname: router.pathname,
+                    query: {...router.query, focus: focusScenarioId},
+                },
+                undefined,
+                {shallow: true},
+            )
+            return
+        }
+    }, [focusScenarioId, router])
 
-    const handleAfterOpenChange = useCallback(
-        (nextOpen: boolean) => {
-            if (!nextOpen) {
-                resetDrawer(null)
-                clearFocusDrawerQueryParams()
-            }
-        },
-        [resetDrawer],
-    )
+    // Keep URL <-> atom in sync
+    useEffect(() => {
+        if (!router.isReady) return
+        if (!router.query.focus) return
 
-    const shouldRenderContent = useMemo(
-        () => Boolean(focusRunId && focus?.focusScenarioId),
-        [focusRunId, focus?.focusScenarioId],
-    )
+        // URL has focus but atom doesn't -> write to atom
+        if (router.query.focus && !focusScenarioId) {
+            setFocusScenarioId(router.query.focus as string)
+        }
+    }, [router])
 
-    if (!focusRunId) {
-        return null
-    }
+    const onClose = useCallback(() => {
+        const {focus, ...rest} = router.query
+        if (focus) {
+            router.replace({pathname: router.pathname, query: {...rest}}, undefined, {
+                shallow: true,
+            })
+        }
+        setFocusScenarioId(null)
+    }, [router, setFocusScenarioId])
 
     return (
-        <RunIdProvider runId={focusRunId}>
-            <GenericDrawer
-                open={isOpen}
-                onClose={handleClose}
-                afterOpenChange={handleAfterOpenChange}
-                expandable
-                headerExtra={shouldRenderContent ? <FocusDrawerHeader /> : null}
-                mainContent={shouldRenderContent ? <FocusDrawerContent /> : null}
-                sideContent={shouldRenderContent ? <FocusDrawerSidePanel /> : null}
-                className="[&_.ant-drawer-body]:p-0"
-                sideContentDefaultSize={200}
-            />
-        </RunIdProvider>
+        <GenericDrawer
+            open={!!focusScenarioId}
+            onClose={onClose}
+            expandable
+            headerExtra={<FocusDrawerHeader />}
+            mainContent={<FocusDrawerContent />}
+            sideContent={<FocusDrawerSidePanel />}
+            className="[&_.ant-drawer-body]:p-0"
+            sideContentDefaultSize={200}
+        />
     )
 }
 

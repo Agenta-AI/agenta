@@ -1,6 +1,6 @@
 import {SWRResponse, SWRConfiguration} from "swr"
 
-import type {PreviewTestset, SnakeToCamelCaseKeys} from "../../Types"
+import type {PreviewTestSet, SnakeToCamelCaseKeys} from "../../Types"
 import {AnnotationDto} from "../useAnnotations/types"
 import {RunIndex} from "../useEvaluationRunData/assets/helpers/buildRunIndex"
 
@@ -33,24 +33,17 @@ export interface StepResponse {
 }
 export interface StepResponseStep {
     id: string
-    //
     run_id: string
     scenario_id: string
-    step_key: string
-    repeat_idx?: number
-    timestamp?: string
-    interval?: number
-    //
+    key: string
     status: string
-    //
-    // hash_id?: string
     trace_id?: string
+    repeat_id?: string
+    retry_id?: string
     testcase_id?: string
-    error?: Record<string, any>
-    //
-    created_at?: string
     created_by_id?: string
-    //
+    created_at?: string
+    timestamp?: string
     is_legacy?: boolean
     inputs?: Record<string, any>
     ground_truth?: Record<string, any>
@@ -136,7 +129,7 @@ export interface IInvocationStep extends IStepResponse {
 export interface IInputStep extends IStepResponse {
     inputs?: Record<string, any>
     groundTruth?: Record<string, any>
-    testcase?: PreviewTestset["data"]["testcases"][number]
+    testcase?: PreviewTestSet["data"]["testcases"][number]
 }
 export interface IAnnotationStep extends IStepResponse {
     annotation?: AnnotationDto

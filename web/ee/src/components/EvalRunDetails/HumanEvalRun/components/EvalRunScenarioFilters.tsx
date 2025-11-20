@@ -3,25 +3,21 @@ import {memo, useCallback} from "react"
 import {Segmented} from "antd"
 import {useSetAtom, useAtomValue} from "jotai"
 
-import {useRunId} from "@/oss/contexts/RunIdContext"
 import {
-    totalCountFamily,
     evalScenarioFilterAtom,
-    pendingCountFamily,
-    unannotatedCountFamily,
-    failedCountFamily,
+    pendingCountAtom,
+    unannotatedCountAtom,
+    failedCountAtom,
+    totalCountAtom,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 const EvalRunScenarioFilters = () => {
-    const runId = useRunId()
-
-    // Read from the same global store that writes are going to
     const setFilterAtom = useSetAtom(evalScenarioFilterAtom)
     const filter = useAtomValue(evalScenarioFilterAtom)
-    const totalCount = useAtomValue(totalCountFamily(runId))
-    const pendingCount = useAtomValue(pendingCountFamily(runId))
-    const unannotatedCount = useAtomValue(unannotatedCountFamily(runId))
-    const failedCount = useAtomValue(failedCountFamily(runId))
+    const totalCount = useAtomValue(totalCountAtom)
+    const pendingCount = useAtomValue(pendingCountAtom)
+    const unannotatedCount = useAtomValue(unannotatedCountAtom)
+    const failedCount = useAtomValue(failedCountAtom)
 
     const handleChange = useCallback((val: string) => {
         setFilterAtom(val as any)

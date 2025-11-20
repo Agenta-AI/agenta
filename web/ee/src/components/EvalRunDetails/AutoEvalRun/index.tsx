@@ -2,23 +2,15 @@ import clsx from "clsx"
 import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
-import dynamic from "next/dynamic"
 
 import {runViewTypeAtom} from "../state/urlState"
 
 import AutoEvalRunSkeleton from "./assets/AutoEvalRunSkeleton"
 import {AutoEvalRunDetailsProps} from "./assets/types"
 import EvalRunHeader from "./components/EvalRunHeader"
-
-const EvalRunOverviewViewer = dynamic(() => import("../components/EvalRunOverviewViewer"), {
-    ssr: false,
-})
-const EvalRunPromptConfigViewer = dynamic(() => import("./components/EvalRunPromptConfigViewer"), {
-    ssr: false,
-})
-const EvalRunTestcaseViewer = dynamic(() => import("./components/EvalRunTestcaseViewer"), {
-    ssr: false,
-})
+import EvalRunOverviewViewer from "./components/EvalRunOverviewViewer"
+import EvalRunPromptConfigViewer from "./components/EvalRunPromptConfigViewer"
+import EvalRunTestCaseViewer from "./components/EvalRunTestCaseViewer"
 
 const viewTypeAtom = selectAtom(runViewTypeAtom, (v) => v, deepEqual)
 const AutoEvalRunDetails = ({name, description, id, isLoading}: AutoEvalRunDetailsProps) => {
@@ -31,16 +23,16 @@ const AutoEvalRunDetails = ({name, description, id, isLoading}: AutoEvalRunDetai
     return (
         <section
             className={clsx([
-                "flex flex-col w-full !h-[calc(100vh-84px)] gap-2 overflow-auto",
-                {"!overflow-hidden": viewType === "testcases"},
+                "flex flex-col w-full h-[calc(100vh-84px)] gap-2 overflow-auto pb-2",
+                {"!overflow-hidden": viewType === "test-cases"},
             ])}
         >
             <EvalRunHeader name={name} id={id} />
 
             {viewType === "overview" ? (
-                <EvalRunOverviewViewer type="auto" />
-            ) : viewType === "testcases" ? (
-                <EvalRunTestcaseViewer />
+                <EvalRunOverviewViewer />
+            ) : viewType === "test-cases" ? (
+                <EvalRunTestCaseViewer />
             ) : viewType === "prompt" ? (
                 <EvalRunPromptConfigViewer />
             ) : null}

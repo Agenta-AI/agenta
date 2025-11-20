@@ -1,12 +1,20 @@
 import {memo, useMemo} from "react"
 
-import {useCachedScenarioSteps} from "@/oss/components/EvalRunDetails/hooks/useCachedScenarioSteps"
+import deepEqual from "fast-deep-equal"
+import {useAtomValue} from "jotai"
+import {atomFamily, selectAtom} from "jotai/utils"
+
 import LabelValuePill from "@/oss/components/ui/LabelValuePill"
-import {useOptionalRunId} from "@/oss/contexts/RunIdContext"
+import {loadableScenarioStepFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/scenarios"
 
 import {CellWrapper} from "../CellComponents"
 
 import {CollapsedAnnotationValueCellProps} from "./types"
+
+// function deepGet(obj: any, path: string): any {
+//     if (!obj || typeof obj !== "object") return undefined
+//     return path.split(".").reduce((acc: any, key: string) => (acc ? acc[key] : undefined), obj)
+// }
 
 function buildCollapsedValues(data: any, keys: string[]) {
     const annotations: any[] = []
@@ -49,32 +57,30 @@ function buildCollapsedValues(data: any, keys: string[]) {
     return out
 }
 
-const CollapsedAnnotationValueCell = memo<CollapsedAnnotationValueCellProps>(
-    ({scenarioId, runId, childrenDefs}) => {
-        const contextRunId = useOptionalRunId()
-        const effectiveRunId = runId ?? contextRunId ?? null
+export const collapsedAnnotationValuesFamily = atomFamily(
+    ({scenarioId, keys}: {scenarioId: string; keys: string[]}) =>
+        selectAtom(
+            loadableScenarioStepFamily(scenarioId),
+            (loadableData) =>
+                buildCollapsedValues(
+                    loadableData.state === "hasData" ? loadableData.data : undefined,
+                    keys,
+                ),
+            deepEqual,
+        ),
+)
 
+const CollapsedAnnotationValueCell = memo<CollapsedAnnotationValueCellProps>(
+    ({scenarioId, childrenDefs}) => {
         const keyPaths = useMemo(
             () => childrenDefs.map((c) => c.path || c.dataIndex || c.key) as string[],
             [childrenDefs],
         )
+        const familyParam = useMemo(() => ({scenarioId, keys: keyPaths}), [scenarioId, keyPaths])
 
-        if (!scenarioId || !effectiveRunId) {
-            return (
-                <CellWrapper>
-                    <span className="text-gray-500">–</span>
-                </CellWrapper>
-            )
-        }
+        const out = useAtomValue(collapsedAnnotationValuesFamily(familyParam))
 
-        const {data: scenarioSteps} = useCachedScenarioSteps(effectiveRunId, scenarioId)
-
-        const collapsedValues = useMemo(() => {
-            if (!scenarioSteps) return {}
-            return buildCollapsedValues(scenarioSteps, keyPaths)
-        }, [scenarioSteps, keyPaths])
-
-        if (!Object.keys(collapsedValues).length) {
+        if (!Object.keys(out).length) {
             return (
                 <CellWrapper>
                     <span className="text-gray-500">–</span>
@@ -85,7 +91,7 @@ const CollapsedAnnotationValueCell = memo<CollapsedAnnotationValueCellProps>(
         return (
             <CellWrapper>
                 <div className="flex flex-col items-start gap-1 max-w-[450px] overflow-x-auto [&::-webkit-scrollbar]:!w-0">
-                    {Object.entries(collapsedValues).map(([name, val]) => (
+                    {Object.entries(out).map(([name, val]) => (
                         <LabelValuePill
                             key={name}
                             label={name.split(".").pop() || name}

@@ -1,7 +1,6 @@
 import {memo} from "react"
-
-import {Skeleton} from "antd"
 import clsx from "clsx"
+import {Skeleton} from "antd"
 
 const EvalRunPromptConfigViewerSkeleton = ({className}: {className?: string}) => {
     return (

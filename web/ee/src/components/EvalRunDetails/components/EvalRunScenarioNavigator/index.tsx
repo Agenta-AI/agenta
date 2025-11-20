@@ -8,22 +8,15 @@ import {useAtomValue} from "jotai"
 import {loadable} from "jotai/utils"
 import {useRouter} from "next/router"
 
-import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
-import {useRunId} from "@/oss/contexts/RunIdContext"
 import useFocusInput from "@/oss/hooks/useFocusInput"
 import {useEvalScenarioQueue} from "@/oss/lib/hooks/useEvalScenarioQueue"
 import {
     evalAtomStore,
-    // evaluationScenariosDisplayAtom,
-    getCurrentRunId,
+    evaluationScenariosDisplayAtom,
     scenarioStatusAtomFamily,
     scenarioStatusFamily,
-} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import {
-    scenariosFamily,
-    displayedScenarioIdsFamily,
     scenarioStepFamily,
-} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedScenarios"
+} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import {statusColorMap} from "../../HumanEvalRun/assets/helpers"
 import EvalRunScenarioStatusTag from "../EvalRunScenarioStatusTag"
@@ -35,7 +28,6 @@ const EvalRunScenarioNavigator = ({
     querySelectorName = "scenarioId",
     selectProps,
     showStatus = true,
-    runId: propRunId,
 }: {
     activeId: string
     className?: string
@@ -43,31 +35,10 @@ const EvalRunScenarioNavigator = ({
     querySelectorName?: string
     selectProps?: SelectProps
     showStatus?: boolean
-    runId?: string
 }) => {
     const router = useRouter()
-    const runId = useRunId()
-    const evalType = useAtomValue(evalTypeAtom)
-    const isOnlineEval = evalType === "online"
-    const labelPrefix = isOnlineEval ? "Scenario" : "Testcase"
-
-    // Get effective runId - use provided runId or fallback to current run context
-    const effectiveRunId = useMemo(() => {
-        if (propRunId) return propRunId
-        if (runId) return runId
-        try {
-            return getCurrentRunId()
-        } catch (error) {
-            return ""
-        }
-    }, [runId, propRunId])
-
     // Get full scenario objects so we can access stable scenarioIndex
-    // Read from the same global store that writes are going to
-    const allScenarios = useAtomValue(scenariosFamily(effectiveRunId)) ?? []
-
-    // Get filtered scenario IDs from the displayedScenarioIdsFamily atom
-    const filteredScenarioIds = useAtomValue(displayedScenarioIdsFamily(effectiveRunId)) ?? []
+    const scenarios = useAtomValue(evaluationScenariosDisplayAtom) ?? []
 
     // states for select dropdown
     const [searchTerm, setSearchTerm] = useState("")
@@ -91,31 +62,12 @@ const EvalRunScenarioNavigator = ({
         [router, querySelectorName],
     )
 
-    // Create a map for quick lookup of scenario objects by ID
-    const scenarioMap = useMemo(() => {
-        const map = new Map()
-        allScenarios.forEach((scenario) => {
-            map.set(scenario.id || scenario._id, scenario)
-        })
-        return map
-    }, [allScenarios])
-
-    // Get filtered scenarios with search term applied
     const _scenarios = useMemo(() => {
-        const list = filteredScenarioIds
-            .map((id) => scenarioMap.get(id))
-            .filter((scenario) => scenario) // Remove any undefined scenarios
-            .filter((scenario) =>
-                scenario.scenarioIndex
-                    ? scenario.scenarioIndex.toString().includes(searchTerm)
-                    : true,
-            )
-
-        return list
-    }, [searchTerm, filteredScenarioIds, scenarioMap])
-
-    const scenarioIds = _scenarios.map((s) => s.id || s._id)
-
+        return scenarios.filter((scenario) =>
+            scenario.scenarioIndex ? scenario.scenarioIndex.toString().includes(searchTerm) : true,
+        )
+    }, [searchTerm, scenarios])
+    const scenarioIds = _scenarios.map((s) => s.id)
     const handlePrevNext = useCallback(
         (direction: -1 | 1) => {
             if (!activeId) return
@@ -133,10 +85,7 @@ const EvalRunScenarioNavigator = ({
     // Keyboard shortcuts: Left/Right for navigation, Meta+Enter/Ctrl+Enter for Run
     const {enqueueScenario} = useEvalScenarioQueue({concurrency: 5})
     const status = useAtomValue(
-        useMemo(
-            () => scenarioStatusAtomFamily({scenarioId: activeId, runId: effectiveRunId}),
-            [activeId, effectiveRunId],
-        ),
+        useMemo(() => scenarioStatusAtomFamily(activeId), [activeId]),
     ) as any
     const rawStatus = status?.status
     const isRunning = ["running", "EVALUATION_STARTED"].includes(rawStatus as string)
@@ -159,9 +108,7 @@ const EvalRunScenarioNavigator = ({
                 e.preventDefault()
             } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                 // Access invocationParameters inline from atom store
-                const stepLoadable = evalAtomStore().get(
-                    loadable(scenarioStepFamily({runId: effectiveRunId, scenarioId: activeId})),
-                )
+                const stepLoadable = evalAtomStore().get(loadable(scenarioStepFamily(activeId)))
                 const hasInvocationParams =
                     stepLoadable.state === "hasData" &&
                     stepLoadable.data?.invocationSteps?.some((st: any) => st.invocationParameters)
@@ -212,7 +159,11 @@ const EvalRunScenarioNavigator = ({
                     style={{minWidth: 250}}
                     onChange={(value) => handleSelect(value as string)}
                     optionLabelProp="label"
-                    classNames={{popup: {root: "!p-0"}}}
+                    classNames={{
+                        popup: {
+                            root: "!p-0",
+                        },
+                    }}
                     popupRender={(menu: ReactNode) => (
                         <div className="flex flex-col gap-1">
                             <div className="flex items-center justify-between border-0 border-b border-solid border-[#f0f0f0] pr-1">
@@ -249,7 +200,7 @@ const EvalRunScenarioNavigator = ({
 
                         // non-hook read; never suspends
                         const loadableStatus = evalAtomStore().get(
-                            loadable(scenarioStatusFamily({scenarioId: id, runId: effectiveRunId})),
+                            loadable(scenarioStatusFamily(id)),
                         )
                         const scenStatus =
                             loadableStatus.state === "hasData"
@@ -260,15 +211,9 @@ const EvalRunScenarioNavigator = ({
                         const labelIndex = scenarioIndex ?? scenarioIds.indexOf(id) + 1
 
                         return (
-                            <Select.Option
-                                key={id}
-                                value={id}
-                                label={`${labelPrefix}: ${labelIndex}`}
-                            >
+                            <Select.Option key={id} value={id} label={`Test case: ${labelIndex}`}>
                                 <div className="flex items-center justify-between w-full">
-                                    <span>
-                                        {labelPrefix} {labelIndex}
-                                    </span>
+                                    <span>Scenario {labelIndex}</span>
                                     <span className={clsx(colorClass)}>{scenStatus.status}</span>
                                 </div>
                             </Select.Option>
@@ -281,7 +226,6 @@ const EvalRunScenarioNavigator = ({
                         scenarioId={activeId}
                         className="absolute right-8 top-1"
                         showAsTag={false}
-                        runId={effectiveRunId}
                     />
                 ) : null}
             </div>

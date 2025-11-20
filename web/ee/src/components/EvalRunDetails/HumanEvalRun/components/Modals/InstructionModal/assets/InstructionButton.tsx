@@ -1,11 +1,11 @@
-import {cloneElement, isValidElement, useState} from "react"
+import {cloneElement, isValidElement, memo, useState} from "react"
 
 import {Question} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
 
-const InstructionModal = dynamic(() => import("../index"), {ssr: false})
+const InstructionModal = dynamic(() => import(".."), {ssr: false})
 
 const InstructionButton = ({
     icon = true,

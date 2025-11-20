@@ -118,47 +118,22 @@ export const createScenarioMetrics = async (
         meta?: Record<string, unknown>
     }[] = []
 
-    const queryUrl = `${apiUrl}${METRICS_ENDPOINT}query?project_id=${projectId}`
-    const existingByScenario: Record<string, any> = {}
-
-    try {
-        const payload = {
-            metrics: {
-                run_ids: [runId],
-                scenario_ids: entries.map((entry) => entry.scenarioId),
-            },
-            windowing: {},
-        }
-
-        const queryResponse = await fetchJSON(queryUrl, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${jwt}`,
-            },
-            body: JSON.stringify(payload),
-        })
-
-        const existingMetrics = Array.isArray(queryResponse?.metrics) ? queryResponse.metrics : []
-
-        existingMetrics.forEach((metric: any) => {
-            const scenarioId = metric?.scenario_id || metric?.scenarioId
-            if (scenarioId) {
-                existingByScenario[scenarioId] = metric
-            }
-        })
-    } catch (error) {
-        console.warn("[createScenarioMetrics] Failed to query existing metrics", error)
-    }
-
     for (const entry of entries) {
-        const existing = existingByScenario[entry.scenarioId]
-        if (existing) {
-            const mergedData = {
-                ...(existing.data || {}),
-                ...entry.data,
-            }
-            if (existing.id) {
+        try {
+            const params = new URLSearchParams({
+                project_id: projectId,
+                run_ids: runId,
+                scenario_ids: entry.scenarioId,
+            })
+            const res = await fetchJSON(`${apiUrl}${METRICS_ENDPOINT}?${params.toString()}`, {
+                headers: {Authorization: `Bearer ${jwt}`},
+            })
+            const existing = Array.isArray(res.metrics) ? res.metrics[0] : undefined
+            if (existing) {
+                const mergedData = {
+                    ...(existing.data || {}),
+                    ...entry.data,
+                }
                 toUpdate.push({
                     id: existing.id,
                     data: mergedData,
@@ -168,6 +143,8 @@ export const createScenarioMetrics = async (
                 })
                 continue
             }
+        } catch {
+            // ignore fetch errors and fallback to creation
         }
         toCreate.push({run_id: runId, scenario_id: entry.scenarioId, data: entry.data})
     }
@@ -474,18 +451,15 @@ function processLabels(values: ((string | number | boolean | null)[] | null)[]):
 
 // TODO: Clean this up Ashraf
 // Implemented this to handle boolean metric for auto eval
-interface BoolCount {
-    count: number
-    value: boolean
-}
-interface ItemShape {
+type BoolCount = {count: number; value: boolean}
+type ItemShape = {
     rank?: BoolCount[]
     frequency?: BoolCount[]
     count?: number // not required for aggregation
     unique?: boolean[] // not required for aggregation
 }
 
-interface Summary {
+type Summary = {
     rank: BoolCount[]
     count: number
     unique: boolean[]
@@ -590,23 +564,13 @@ export const computeRunMetrics = (metrics: {data: Record<string, any>}[]): Recor
 
     // Process non-special keys
     Object.entries(valueBuckets).forEach(([k, values]) => {
+
         const allNumbers = values.every((v) => typeof v === "number" && !isNaN(v))
         const allBooleans = values.every((v) => typeof v === "boolean" || v === null)
         const proccesdBooleans = values.every(
             (v) => v?.unique?.length && typeof v?.unique?.[0] === "boolean",
         )
         const allArrays = values.every((v) => Array.isArray(v))
-        const allStatsObjects = values.every(
-            (v) =>
-                v &&
-                typeof v === "object" &&
-                !Array.isArray(v) &&
-                ("mean" in (v as any) ||
-                    "sum" in (v as any) ||
-                    "count" in (v as any) ||
-                    "frequency" in (v as any) ||
-                    "rank" in (v as any)),
-        )
 
         if (allNumbers) {
             result[k] = computeStats(values as number[])
@@ -616,49 +580,9 @@ export const computeRunMetrics = (metrics: {data: Record<string, any>}[]): Recor
             result[k] = aggregateBooleanSummaryByVote(values)
         } else if (allArrays) {
             result[k] = processLabels(values as any[][]) // treat as labels metric
-        } else if (allStatsObjects) {
-            const merged = values.reduce((acc: any, current: any) => {
-                if (!acc) return current
-                const next: any = {...acc}
-                if (typeof current.mean === "number") next.mean = current.mean
-                if (typeof current.sum === "number") next.sum = current.sum
-                if (typeof current.count === "number") {
-                    next.count = (next.count ?? 0) + (current.count ?? 0)
-                }
-                if (Array.isArray(current.frequency)) next.frequency = current.frequency
-                if (Array.isArray(current.rank)) next.rank = current.rank
-                if (Array.isArray(current.unique)) next.unique = current.unique
-                if (Array.isArray(current.distribution)) next.distribution = current.distribution
-                if (current.percentiles) next.percentiles = current.percentiles
-                if (current.iqrs) next.iqrs = current.iqrs
-                if (typeof current.binSize === "number") next.binSize = current.binSize
-                return next
-            }, null)
-            const finalStats = merged ?? values[0]
-            if (finalStats && Array.isArray(finalStats.frequency)) {
-                finalStats.frequency = finalStats.frequency.map((entry: any) => ({
-                    value: entry?.value,
-                    count: entry?.count ?? entry?.frequency ?? 0,
-                }))
-                finalStats.frequency.sort(
-                    (a: any, b: any) => b.count - a.count || (a.value === true ? -1 : 1),
-                )
-                finalStats.rank = finalStats.frequency
-                if (!Array.isArray(finalStats.unique) || !finalStats.unique.length) {
-                    finalStats.unique = finalStats.frequency.map((entry: any) => entry.value)
-                }
-            }
-            result[k] = finalStats
-        } else if (
-            values.every(
-                (v) =>
-                    v === null ||
-                    typeof v === "string" ||
-                    typeof v === "number" ||
-                    typeof v === "boolean",
-            )
-        ) {
-            result[k] = processClass(values as any[])
+        } else {
+            // Default to class metric for strings / mixed primitives
+            // result[k] = processClass(values as any[])
         }
     })
 

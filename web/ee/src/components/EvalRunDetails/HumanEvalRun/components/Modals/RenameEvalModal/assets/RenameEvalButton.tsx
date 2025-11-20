@@ -13,7 +13,6 @@ const RenameEvalButton = ({
     id,
     name,
     description,
-    runId,
     icon = true,
     children,
     label,
@@ -49,7 +48,6 @@ const RenameEvalButton = ({
                 id={id}
                 name={name}
                 description={description}
-                runId={runId}
                 open={isModalOpen}
                 onCancel={() => setIsModalOpen(false)}
             />

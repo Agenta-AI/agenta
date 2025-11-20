@@ -48,7 +48,7 @@ from oss.src.models.db_models import (
     AppVariantDB,
     UserDB,
     AppDB,
-    TestsetDB,
+    TestSetDB,
     InvitationDB,
     EvaluatorConfigDB,
     AppVariantRevisionsDB,
@@ -105,9 +105,7 @@ async def get_organizations_by_list_ids(organization_ids: List) -> List[Organiza
     """
 
     async with engine.core_session() as session:
-        organization_uuids = [
-            uuid.UUID(organization_id) for organization_id in organization_ids
-        ]
+        organization_uuids = [uuid.UUID(org_id) for org_id in organization_ids]
         query = select(OrganizationDB).where(OrganizationDB.id.in_(organization_uuids))
         result = await session.execute(query)
         organizations = result.scalars().all()
@@ -227,7 +225,7 @@ async def create_default_project(
     """
 
     project_db = await create_project(
-        "Default Project",
+        "Default",
         workspace_id=workspace_id,
         organization_id=organization_id,
         session=session,
@@ -836,7 +834,7 @@ async def create_organization(
             name=payload.name,
             type=payload.type if payload.type else "",
             description=(
-                "Default Workspace"
+                "My Default Workspace"
                 if payload.type == "default"
                 else payload.description
                 if payload.description
@@ -1065,13 +1063,13 @@ async def get_project_invitations(project_id: str, **kwargs):
     """
 
     async with engine.core_session() as session:
-        stmt = select(InvitationDB).filter(
+        query = select(InvitationDB).filter(
             InvitationDB.project_id == uuid.UUID(project_id)
         )
         if kwargs.get("has_pending", False):
-            stmt = stmt.filter(InvitationDB.used == kwargs["invitation_used"])
+            query = query.filter(InvitationDB.used == kwargs["invitation_used"])
 
-        result = await session.execute(stmt)
+        result = await session.execute(query)
         invitations = result.scalars().all()
         return invitations
 
@@ -1418,7 +1416,7 @@ async def fetch_evaluation_by_id(
             id=uuid.UUID(evaluation_id),
         )
         query = base_query.options(
-            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
+            joinedload(EvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
         )
 
         result = await session.execute(
@@ -1451,7 +1449,7 @@ async def list_human_evaluations(app_id: str, project_id: str):
             .filter(HumanEvaluationDB.testset_id.isnot(None))
         )
         query = base_query.options(
-            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
+            joinedload(HumanEvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
         )
 
         result = await session.execute(query)
@@ -1583,7 +1581,7 @@ async def fetch_human_evaluation_by_id(
     async with engine.core_session() as session:
         base_query = select(HumanEvaluationDB).filter_by(id=uuid.UUID(evaluation_id))
         query = base_query.options(
-            joinedload(HumanEvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
+            joinedload(HumanEvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
         )
         result = await session.execute(query)
         evaluation = result.scalars().first()
@@ -1811,7 +1809,7 @@ async def fetch_human_evaluation_scenario_by_evaluation_id(
 async def create_new_evaluation(
     app: AppDB,
     project_id: str,
-    testset: TestsetDB,
+    testset: TestSetDB,
     status: Result,
     variant: str,
     variant_revision: str,
@@ -1859,7 +1857,7 @@ async def list_evaluations(app_id: str, project_id: str):
             app_id=uuid.UUID(app_id), project_id=uuid.UUID(project_id)
         )
         query = base_query.options(
-            joinedload(EvaluationDB.testset.of_type(TestsetDB)).load_only(TestsetDB.id, TestsetDB.name),  # type: ignore
+            joinedload(EvaluationDB.testset.of_type(TestSetDB)).load_only(TestSetDB.id, TestSetDB.name),  # type: ignore
         )
 
         result = await session.execute(

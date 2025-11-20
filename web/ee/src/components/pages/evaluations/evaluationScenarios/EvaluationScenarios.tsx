@@ -3,7 +3,7 @@ import {type FC, useEffect, useMemo, useState} from "react"
 import {type ColDef, type ICellRendererParams} from "@ag-grid-community/core"
 import {CheckOutlined, DeleteOutlined, DownloadOutlined} from "@ant-design/icons"
 import {DropdownProps, Space, Spin, Tag, Tooltip, Typography} from "antd"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 import uniqBy from "lodash/uniqBy"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
@@ -13,8 +13,8 @@ import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import CompareOutputDiff from "@/oss/components/CompareOutputDiff/CompareOutputDiff"
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import VariantDetailsWithStatus from "@/oss/components/VariantDetailsWithStatus"
+import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
-import useURL from "@/oss/hooks/useURL"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import AgGridReact, {type AgGridReactType} from "@/oss/lib/helpers/agGrid"
 import {formatDate} from "@/oss/lib/helpers/dateTimeHelper"
@@ -23,16 +23,17 @@ import {escapeNewlines} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
 import {getStringOrJson} from "@/oss/lib/helpers/utils"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {CorrectAnswer, EvaluatorConfig, JSSTheme, _EvaluationScenario} from "@/oss/lib/Types"
 import {deleteEvaluations} from "@/oss/services/evaluations/api"
 import {fetchAllEvaluators} from "@/oss/services/evaluators"
-import {currentAppAtom} from "@/oss/state/app"
 
 import {LongTextCellRenderer, ResultRenderer} from "../cellRenderers/cellRenderers"
 import EvaluationErrorModal from "../EvaluationErrorProps/EvaluationErrorModal"
 import EvaluationErrorText from "../EvaluationErrorProps/EvaluationErrorText"
 import FilterColumns, {generateFilterItems} from "../FilterColumns/FilterColumns"
+
+import "@ag-grid-community/styles/ag-grid.css"
+import "@ag-grid-community/styles/ag-theme-alpine.css"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
     infoRow: {
@@ -59,7 +60,7 @@ interface Props {
 const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
     const router = useRouter()
     const appId = useAppId()
-    const currentApp = useAtomValue(currentAppAtom)
+    const {currentApp} = useAppsData()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
     const evaluationId = router.query.evaluation_id as string
@@ -72,26 +73,6 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
     const [isFilterColsDropdownOpen, setIsFilterColsDropdownOpen] = useState(false)
     const [isDiffDropdownOpen, setIsDiffDropdownOpen] = useState(false)
     const [hiddenCols, setHiddenCols] = useState<string[]>([])
-    const {baseAppURL, projectURL} = useURL()
-
-    // breadcrumbs
-    useBreadcrumbsEffect(
-        {
-            breadcrumbs: {
-                appPage: {
-                    label: "auto evaluation",
-                    href: `${baseAppURL}/${appId}/evaluations?selectedEvaluation=auto_evaluation`,
-                },
-                "eval-detail": {
-                    label: evaluationId,
-                    value: evaluationId,
-                },
-            },
-            type: "append",
-            condition: !!evaluationId,
-        },
-        [evaluationId, baseAppURL],
-    )
 
     const handleOpenChangeFilterCols: DropdownProps["onOpenChange"] = (nextOpen, info) => {
         if (info.source === "trigger" || nextOpen) {
@@ -363,7 +344,7 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
             message: "Are you sure you want to delete this evaluation?",
             onOk: () =>
                 deleteEvaluations([evaluationId])
-                    .then(() => router.push(`${baseAppURL}/${appId}/evaluations`))
+                    .then(() => router.push(`/apps/${appId}/evaluations`))
                     .catch(console.error),
         })
     }
@@ -378,15 +359,14 @@ const EvaluationScenarios: FC<Props> = ({scenarios: _scenarios}) => {
                     </Typography.Text>
                     <Space>
                         <Typography.Text strong>Testset:</Typography.Text>
-                        // TODO: REPLACE WITH NEXT/LINK
-                        <Typography.Link href={`${projectURL}/testsets/${evalaution?.testset.id}`}>
+                        <Typography.Link href={`/testsets/${evalaution?.testset.id}`}>
                             {evalaution?.testset.name || ""}
                         </Typography.Link>
                     </Space>
                     <Space>
                         <Typography.Text strong>Variant:</Typography.Text>
                         <Typography.Link
-                            href={`${baseAppURL}/${appId}/playground?variant=${evalaution?.variants?.[0]?.variantName}`}
+                            href={`/apps/${appId}/playground?variant=${evalaution?.variants?.[0]?.variantName}`}
                         >
                             <VariantDetailsWithStatus
                                 variantName={evalaution?.variants?.[0]?.variantName ?? ""}

@@ -1,12 +1,12 @@
 import {useCallback, useEffect, useState} from "react"
+import dynamic from "next/dynamic"
 
 import {message} from "antd"
-import dynamic from "next/dynamic"
+
+import {createNewTestset} from "@/oss/services/testsets/api"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
-import {createNewTestset} from "@/oss/services/testsets/api"
-
 import {SaveDataModalProps} from "./assets/types"
 
 const SaveDataModalContent = dynamic(() => import("./assets/SaveDataModalContent"), {ssr: false})
@@ -93,7 +93,7 @@ const SaveDataModal = ({rows, exportDataset = false, name, ...props}: SaveDataMo
 
     return (
         <EnhancedModal
-            title={exportDataset ? "Export Results" : "Add new testset"}
+            title={exportDataset ? "Export Results" : "Add new test set"}
             okText={exportDataset ? "Export" : "Create"}
             onOk={exportDataset ? onExportResults : onSaveTestset}
             confirmLoading={submitLoading}

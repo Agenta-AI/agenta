@@ -1,27 +1,24 @@
 import {useMemo} from "react"
 
-import {getCurrentRunId} from "./assets/atoms/migrationHelper"
-import {hasScenarioStepData, useScenarioStepSnapshot} from "./useScenarioStepSnapshot"
+import {useAtomValue} from "jotai"
+import {loadable} from "jotai/utils"
 
-const useEvalRunScenarioData = (scenarioId: string, runId?: string) => {
-    // Memoize runId calculation to prevent infinite loops
-    const effectiveRunId = useMemo(() => {
-        if (runId) return runId
-        try {
-            return getCurrentRunId()
-        } catch (error) {
-            console.warn("[useEvalRunScenarioData] No run ID available:", error)
-            return null
-        }
-    }, [runId])
+import {UseEvaluationRunScenarioStepsFetcherResult} from "../useEvaluationRunScenarioSteps/types"
 
-    const snapshot = useScenarioStepSnapshot(scenarioId, effectiveRunId)
+import {scenarioStepFamily} from "./assets/atoms"
+
+const useEvalRunScenarioData = (scenarioId: string) => {
+    const stepLoadable = useAtomValue(loadable(scenarioStepFamily(scenarioId)))
 
     return useMemo(() => {
-        const data = snapshot.data
-        if (hasScenarioStepData(data)) return data
-        return undefined
-    }, [snapshot])
+        let data: UseEvaluationRunScenarioStepsFetcherResult | undefined =
+            stepLoadable.state === "hasData" ? stepLoadable.data : undefined
+
+        if (stepLoadable.state === "hasData" && stepLoadable.data?.traces?.length) {
+            data = stepLoadable.data
+        }
+        return data
+    }, [stepLoadable])
 }
 
 export default useEvalRunScenarioData

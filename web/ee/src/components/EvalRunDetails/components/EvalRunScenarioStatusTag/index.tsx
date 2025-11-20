@@ -19,19 +19,15 @@ import {STATUS_COLOR, STATUS_COLOR_TEXT} from "./assets"
  * @param scenarioId The ID of the scenario to display the status for.
  * @returns A Tag component displaying the status of the scenario.
  */
-interface EvalRunScenarioStatusTagProps {
-    scenarioId: string
-    runId: string
-    className?: string
-    showAsTag?: boolean
-}
-
 const EvalRunScenarioStatusTag = ({
     scenarioId,
-    runId,
     className,
     showAsTag = true,
-}: EvalRunScenarioStatusTagProps) => {
+}: {
+    scenarioId: string
+    className?: string
+    showAsTag?: boolean
+}) => {
     /**
      * Loadable atom wrapping scenarioStatusFamily, which provides the most
      * up-to-date status for the given scenarioId. This can be either a status
@@ -41,7 +37,7 @@ const EvalRunScenarioStatusTag = ({
      * @type {import("jotai/utils").Loadable<ScenarioStatusMap | null>}
      */
     const statusLoadable = useAtomValue(
-        useMemo(() => loadable(scenarioStatusFamily({scenarioId, runId})), [scenarioId, runId]),
+        useMemo(() => loadable(scenarioStatusFamily(scenarioId)), [scenarioId]),
     )
     const scenarioStatus = statusLoadable.state === "hasData" ? statusLoadable.data : undefined
     const status = (scenarioStatus?.status as string) || "pending"

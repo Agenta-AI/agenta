@@ -21,9 +21,7 @@ const TruncatedTooltipTag = ({
                     {children}
                 </pre>
             }
-            classNames={{
-                root: `w-fit text-wrap`,
-            }}
+            overlayClassName={`w-fit text-wrap`}
             className={`overflow-hidden text-ellipsis whitespace-nowrap max-w-[100%]`}
             placement="bottomLeft"
             {...props}

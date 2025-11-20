@@ -1,5 +1,4 @@
 import {type FC, memo, useCallback, useState} from "react"
-
 import clsx from "clsx"
 
 import {ChartAxis} from "./ChartAxis"
@@ -70,12 +69,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                 0,
             )
             const leftMargin = Math.max(40, Math.min(120, longestCountLabel * 7 + 16))
-            dynamicMargin = {
-                ...defaultMargin,
-                left: leftMargin,
-                bottom: bottomMargin,
-                ...dynamicPropsMargin,
-            }
+            dynamicMargin = {...defaultMargin, left: leftMargin, bottom: bottomMargin, ...dynamicPropsMargin}
         } else {
             const longestLabelLength = yLabels.reduce(
                 (max: number, label) => Math.max(max, String(label).length),

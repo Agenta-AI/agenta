@@ -4,10 +4,10 @@
  * by a generated requestId.
  */
 
-import type {WorkerEvalContext} from "./workerFetch"
-
 import {serializeRunIndex} from "@/agenta-oss-common/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
 import {UseEvaluationRunScenarioStepsFetcherResult} from "@/agenta-oss-common/lib/hooks/useEvaluationRunScenarioSteps/types"
+
+import type {WorkerEvalContext} from "./workerFetch"
 
 type RawEntry = [string, UseEvaluationRunScenarioStepsFetcherResult]
 
@@ -43,14 +43,17 @@ const pendings = new Map<string, Pending>()
 
 function ensureWorker() {
     if (worker) return
+    // Bundler-friendly URL construction
 
     // @ts-ignore
     worker = new Worker(new URL("./fetchSteps.worker.ts", import.meta.url), {type: "module"})
     worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
         const msg = event.data as WorkerMessage
+        // console.log("[bulkWorker] received", msg)
         const pending = pendings.get(msg.requestId)
         if (!pending) return
 
+        // console.log("worker done")
         switch (msg.type) {
             case "chunk": {
                 queueMicrotask(() => {
@@ -67,10 +70,12 @@ function ensureWorker() {
                             console.error("[bulkWorker] onChunk error", err)
                         }
                     }
+                    // console.log(`[bulkWorker] buffer size now ${pending.buffer.size}`)
                 })
                 break
             }
             case "done": {
+                // console.log(`[bulkWorker] done for ${msg.requestId}, total ${pending.buffer.size}`)
                 clearTimeout(pending.timer)
                 pendings.delete(msg.requestId)
                 pending.resolve(pending.buffer)
@@ -89,19 +94,17 @@ function ensureWorker() {
     }
 }
 
-const DEFAULT_WORKER_TIMEOUT_MS = 300_000 // 5 minutes
+const DEFAULT_WORKER_TIMEOUT_MS = 120_000
 
-export async function fetchStepsViaWorker({
-    scenarioIds,
-    context,
-    timeoutMs = DEFAULT_WORKER_TIMEOUT_MS,
-    onChunk,
-}: {
-    scenarioIds: string[]
-    context: WorkerEvalContext
-    timeoutMs?: number
-    onChunk?: (chunk: Map<string, UseEvaluationRunScenarioStepsFetcherResult>) => void
-}): Promise<Map<string, UseEvaluationRunScenarioStepsFetcherResult>> {
+export async function fetchStepsViaWorker(
+    scenarioIds: string[],
+    context: WorkerEvalContext,
+    opts: {
+        timeoutMs?: number
+        onChunk?: (chunk: Map<string, UseEvaluationRunScenarioStepsFetcherResult>) => void
+    } = {},
+): Promise<Map<string, UseEvaluationRunScenarioStepsFetcherResult>> {
+    const {timeoutMs = DEFAULT_WORKER_TIMEOUT_MS, onChunk} = opts
     if (typeof Worker === "undefined") {
         throw new Error("Web Workers not supported in this environment")
     }
@@ -134,9 +137,6 @@ export async function fetchStepsViaWorker({
                 mappings: context.mappings,
                 testsets: context.testsets,
                 variants: context.variants,
-                uriObject: context.uriObject,
-                parametersByRevisionId: context.parametersByRevisionId,
-                appType: context.appType,
             },
         })
     })

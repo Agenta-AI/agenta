@@ -39,16 +39,17 @@ def create_default_project_for_workspaces(session: Connection):
         TOTAL_MIGRATED = 0
 
         # Count total rows in workspaces table
-        stmt = select(func.count()).select_from(WorkspaceDB)
-        result = session.execute(stmt).scalar()
+        query = select(func.count()).select_from(WorkspaceDB)
+        result = session.execute(query).scalar()
         TOTAL_WORKSPACES = result if result is not None else 0
         print(f"Total rows in workspaces table is {TOTAL_WORKSPACES}")
 
         while True:
             # Retrieve a batch of workspaces without a project
-            workspaces = session.execute(
+            query = session.execute(
                 select(WorkspaceDB).offset(offset).limit(BATCH_SIZE)
-            ).fetchall()
+            )
+            workspaces = query.fetchall()
             actual_batch_size = len(workspaces)
             if not workspaces:
                 break
@@ -104,16 +105,17 @@ def create_default_project_memberships(session: Connection):
         SKIPPED_RECORDS = 0
 
         # Count total rows in workspaces_members table
-        stmt = select(func.count()).select_from(WorkspaceMemberDB)
-        result = session.execute(stmt).scalar()
+        query = select(func.count()).select_from(WorkspaceMemberDB)
+        result = session.execute(query).scalar()
         TOTAL_WORKSPACES_MEMBERS = result if result is not None else 0
         print(f"Total rows in workspaces_members table is {TOTAL_WORKSPACES_MEMBERS}")
 
         while True:
             # Retrieve a batch of workspace members
-            workspace_members = session.execute(
+            query = session.execute(
                 select(WorkspaceMemberDB).offset(offset).limit(BATCH_SIZE)
-            ).fetchall()
+            )
+            workspace_members = query.fetchall()
             actual_batch_size = len(workspace_members)
             if not workspace_members:
                 break
@@ -187,23 +189,24 @@ def remove_default_projects_from_workspaces(session: Connection):
         TOTAL_MIGRATED = 0
 
         # Count total rows in projects table
-        stmt = (
+        query = (
             select(func.count())
             .select_from(ProjectDB)
             .where(ProjectDB.is_default == True)
         )
-        result = session.execute(stmt).scalar()
+        result = session.execute(query).scalar()
         TOTAL_PROJECTS = result if result is not None else 0
         print(f"Total rows in projects table is {TOTAL_PROJECTS}")
 
         while True:
             # Retrieve a batch of workspaces with a default project
-            projects_to_delete = session.execute(
+            query = session.execute(
                 select(ProjectDB)
                 .where(ProjectDB.is_default == True)
                 .offset(offset)
                 .limit(BATCH_SIZE)  # type: ignore
-            ).fetchall()
+            )
+            projects_to_delete = query.fetchall()
             actual_batch_size = len(projects_to_delete)
             if not projects_to_delete:
                 break

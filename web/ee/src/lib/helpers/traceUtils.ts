@@ -45,7 +45,6 @@ export function resolvePath(obj: any, path: string): any {
 // Manual mapping for legacy/compatibility keys to canonical keys
 const INVOCATION_OUTPUT_KEY_MAP: Record<string, string> = {
     "attributes.ag.data.outputs": "data.outputs",
-    "attributes.ag.data": "data",
     // Add more mappings here if needed
 }
 
@@ -55,91 +54,45 @@ export function readInvocationResponse({
     path,
     optimisticResult,
     forceTrace,
-    scenarioId,
-    evalType,
 }: {
     scenarioData: any
     stepKey: string
     path?: string
     optimisticResult?: any
     forceTrace?: TraceTree
-    scenarioId?: string
-    evalType?: "auto" | "online" | "human"
 }): {trace?: any; value?: any; rawValue?: any; testsetId?: string; testcaseId?: string} {
     if (!scenarioData) return {}
 
-    const invocationSteps: any[] = Array.isArray(scenarioData.invocationSteps)
-        ? scenarioData.invocationSteps
-        : []
-    const stepByKey = stepKey ? invocationSteps.find((s: any) => s?.stepKey === stepKey) : undefined
-    const stepByScenario =
-        !stepByKey && scenarioId
-            ? invocationSteps.find((s: any) => s?.scenarioId === scenarioId)
-            : undefined
-    const invocationStep = stepByKey ?? stepByScenario ?? invocationSteps[0]
-    const effectiveStepKey = invocationStep?.stepKey ?? stepKey
-
     // --- PATH RESOLUTION LOGIC ---
-    const candidatePaths: string[] = []
-    const registerPath = (targetPath?: string) => {
-        if (!targetPath || typeof targetPath !== "string") return
-        const trimmed = targetPath.trim()
-        if (!trimmed) return
-        candidatePaths.push(trimmed)
-        const canonical = INVOCATION_OUTPUT_KEY_MAP[trimmed]
-        if (canonical) {
-            candidatePaths.push(canonical)
-        }
-        if (trimmed === "attributes.ag.data.outputs") {
-            candidatePaths.push("attributes.ag.data.outputs.outputs")
-            candidatePaths.push("data.outputs")
-            candidatePaths.push("outputs")
-        } else if (trimmed.startsWith("attributes.ag.data.outputs.")) {
-            const suffix = trimmed.slice("attributes.ag.data.outputs.".length)
-            if (suffix) {
-                candidatePaths.push(`data.outputs.${suffix}`)
-                candidatePaths.push(`outputs.${suffix}`)
-            }
-        } else if (trimmed.startsWith("data.outputs.")) {
-            const suffix = trimmed.slice("data.outputs.".length)
-            if (suffix) {
-                candidatePaths.push(`outputs.${suffix}`)
-            }
-        }
-    }
-
+    let resolvedPath: string | undefined = undefined
     if (path) {
-        registerPath(path)
-    }
-
-    if (scenarioData.mappings && Array.isArray(scenarioData.mappings) && effectiveStepKey) {
-        const mapEntry = scenarioData.mappings.find((m: any) => m.step?.key === effectiveStepKey)
-        if (mapEntry?.step?.path) {
-            registerPath(mapEntry.step.path)
+        resolvedPath = path
+    } else if (scenarioData.mappings && Array.isArray(scenarioData.mappings)) {
+        const mapEntry = scenarioData.mappings.find((m: any) => m.step?.key === stepKey)
+        if (mapEntry && mapEntry.step?.path) {
+            resolvedPath = mapEntry.step.path
         }
     }
-
-    if (!candidatePaths.length) {
-        registerPath("attributes.ag.data.outputs")
+    // After resolving, apply legacy/custom mapping if needed
+    if (resolvedPath && INVOCATION_OUTPUT_KEY_MAP[resolvedPath]) {
+        resolvedPath = INVOCATION_OUTPUT_KEY_MAP[resolvedPath]
     }
-
-    const resolvedCandidates = Array.from(
-        new Set(candidatePaths.filter((p): p is string => typeof p === "string" && p.length)),
-    )
     // --- END PATH RESOLUTION LOGIC ---
+
+    if (!scenarioData) return {}
+
+    // find invocation step
+    const invocationStep = scenarioData.invocationSteps?.find((s: any) => s.key === stepKey)
+    if (!invocationStep) return {}
 
     // --- MAPPING LOGIC FOR TESTSET/TESTCASE INFERENCE ---
     let testsetId: string | undefined = undefined
     let testcaseId: string | undefined = undefined
-    if (scenarioData.mappings && Array.isArray(scenarioData.mappings) && effectiveStepKey) {
-        const mapping = scenarioData.mappings.find(
-            (m: any) =>
-                m.invocationStep?.stepKey === effectiveStepKey ||
-                m.step?.stepKey === effectiveStepKey,
-        )
-        if (mapping && mapping.inputStep?.stepKey) {
+    if (scenarioData.mappings && Array.isArray(scenarioData.mappings)) {
+        const mapping = scenarioData.mappings.find((m: any) => m.invocationStep?.key === stepKey)
+        if (mapping && mapping.inputStep?.key) {
             const inputStep = scenarioData.inputSteps?.find(
-                (s: any) => s.stepKey === mapping.inputStep.stepKey,
+                (s: any) => s.key === mapping.inputStep.key,
             )
             if (inputStep) {
                 testsetId = inputStep.testsetId
@@ -150,47 +103,12 @@ export function readInvocationResponse({
     // -----------------------------------------------------
 
     // Access trace directly attached to the invocation step (set during enrichment)
-    const invocationTrace = forceTrace || invocationStep?.trace
-    const candidateNodes: any[] = []
-    if (invocationTrace) {
-        if (Array.isArray(invocationTrace?.nodes)) {
-            candidateNodes.push(...invocationTrace.nodes)
-        }
-        if (Array.isArray(invocationTrace?.tree?.nodes)) {
-            candidateNodes.push(...invocationTrace.tree.nodes)
-        }
-        if (invocationTrace?.tree) {
-            candidateNodes.push(invocationTrace.tree)
-        }
-        candidateNodes.push(invocationTrace)
-    }
-    const primaryNode = candidateNodes[0]
-    const trace =
-        Array.isArray(candidateNodes) && candidateNodes.length ? candidateNodes[0] : undefined
+    const trace = (forceTrace || invocationStep.trace?.nodes?.[0]) ?? undefined
 
     // First priority: optimistic result override (e.g., UI enqueue)
     let rawValue = optimisticResult
-
-    if (rawValue === undefined && resolvedCandidates.length) {
-        const sources = [
-            ...candidateNodes,
-            invocationStep?.data,
-            invocationStep?.result,
-            invocationStep,
-        ].filter(Boolean)
-
-        for (const candidate of resolvedCandidates) {
-            for (const source of sources) {
-                const resolved = resolvePath(source, candidate)
-                if (resolved !== undefined) {
-                    rawValue = resolved
-                    break
-                }
-            }
-            if (rawValue !== undefined) {
-                break
-            }
-        }
+    if (rawValue === undefined && resolvedPath) {
+        rawValue = resolvePath(trace, resolvedPath)
     }
 
     // Convert raw value to displayable string where possible

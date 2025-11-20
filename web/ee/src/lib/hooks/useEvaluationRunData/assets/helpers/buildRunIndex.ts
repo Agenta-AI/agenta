@@ -9,8 +9,6 @@ export interface ColumnDef {
     name: string
     /** "input" | "invocation" | "annotation" */
     kind: StepKind
-    /** Optional marker for where the column originated (auto/custom/human/etc.) */
-    origin?: string
     /** Optional evaluator metric primitive type ("number", "boolean", etc.) */
     metricType?: string
     /** Dot-path used to resolve the value inside the owning step payload / testcase */
@@ -25,7 +23,6 @@ export interface ColumnDef {
 export interface StepMeta {
     key: string
     kind: StepKind
-    origin?: string
     /** List of upstream step keys declared in `inputs` */
     upstream: string[]
     /** Raw references blob – may contain application, evaluator, etc. */
@@ -56,47 +53,22 @@ export function buildRunIndex(rawRun: any): RunIndex {
     const evaluatorSlugToId = new Map<string, string>()
 
     // 1️⃣  Index steps -------------------------------------------------------
-    const shouldLog =
-        process.env.NODE_ENV !== "production" &&
-        typeof window !== "undefined" &&
-        (rawRun?.evaluation_type === "online" ||
-            rawRun?.data?.evaluation_type === "online" ||
-            rawRun?.meta?.evaluation_type === "online")
-
     for (const s of rawRun?.data?.steps ?? []) {
         let kind: StepKind = "annotation"
-        const refs = s.references ?? {}
-        const hasInvocationReference =
-            Boolean(refs.applicationRevision) ||
-            Boolean(refs.application) ||
-            Boolean(refs.query) ||
-            Boolean(refs.query_revision) ||
-            Boolean(refs.queryRevision) ||
-            Boolean(refs.query_variant) ||
-            Boolean(refs.queryVariant)
-        if (refs.testset) {
+        if (s.references?.testset) {
             kind = "input"
-        } else if (refs.evaluator) {
-            kind = "annotation"
-            if (refs.evaluator.slug) {
-                evaluatorSlugToId.set(refs.evaluator.slug, refs.evaluator.id)
-            }
-        } else if (hasInvocationReference) {
+        } else if (s.references?.application) {
             kind = "invocation"
-        }
-
-        if (shouldLog) {
-            console.debug("[EvalRun][buildRunIndex] Step classified", {
-                key: s.key,
-                refs: Object.keys(refs || {}),
-                kind,
-            })
+        } else if (s.references?.evaluator) {
+            kind = "annotation"
+            if (s.references.evaluator.slug) {
+                evaluatorSlugToId.set(s.references.evaluator.slug, s.references.evaluator.id)
+            }
         }
 
         steps[s.key] = {
             key: s.key,
             kind,
-            origin: typeof s.origin === "string" ? s.origin : undefined,
             upstream: (s.inputs ?? []).map((i: any) => i.key),
             refs: s.references ?? {},
         }
@@ -104,33 +76,15 @@ export function buildRunIndex(rawRun: any): RunIndex {
 
     // 2️⃣  Group column defs by step ---------------------------------------
     for (const m of rawRun?.data?.mappings ?? []) {
-        const stepKind = steps[m.step.key]?.kind
-        const rawKind = typeof m.column.kind === "string" ? m.column.kind.toLowerCase() : ""
         const colKind: StepKind =
-            stepKind ||
-            (rawKind === "testset" || rawKind.includes("testset") || rawKind.includes("input")
+            m.column.kind === "testset"
                 ? "input"
-                : rawKind === "invocation" ||
-                    rawKind.includes("invocation") ||
-                    rawKind.includes("application") ||
-                    rawKind.includes("query")
+                : m.column.kind === "invocation"
                   ? "invocation"
-                  : "annotation")
-
-        if (shouldLog) {
-            console.debug("[EvalRun][buildRunIndex] Column mapping", {
-                column: m.column?.name,
-                rawKind: m.column?.kind,
-                resolvedKind: colKind,
-                stepKey: m.step?.key,
-            })
-        }
-
-        const metaForStep = steps[m.step.key]
+                  : "annotation"
         const col: ColumnDef = {
             name: m.column.name,
             kind: colKind,
-            origin: metaForStep?.origin,
             path: m.step.path,
             stepKey: m.step.key,
         }

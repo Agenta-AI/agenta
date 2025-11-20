@@ -5,8 +5,8 @@ import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
 
 import CopyButton from "@/oss/components/CopyButton/CopyButton"
+import {useOrgData} from "@/oss/contexts/org.context"
 import {EvaluationType} from "@/oss/lib/enums"
-import {useOrgData} from "@/oss/state/org"
 
 const useStyles = createUseStyles({
     row: {

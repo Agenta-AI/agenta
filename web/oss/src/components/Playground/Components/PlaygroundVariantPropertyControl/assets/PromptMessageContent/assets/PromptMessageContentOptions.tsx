@@ -1,6 +1,5 @@
 import {useCallback, memo, useState} from "react"
 
-import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
     MinusCircle,
     Copy,
@@ -8,29 +7,40 @@ import {
     ArrowClockwise,
     CaretDown,
     CaretUp,
-    Image as PhImage,
+    Image,
     MarkdownLogoIcon,
     TextAa,
 } from "@phosphor-icons/react"
 import clsx from "clsx"
-import {useAtom, useAtomValue} from "jotai"
 
-import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
-import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
-import {getTextContent} from "@/oss/components/Playground/adapters/TurnMessageHeaderOptions"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
-import {findPropertyInObject} from "@/oss/components/Playground/hooks/usePlayground/assets/helpers"
-import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
 
 import TestsetDrawerButton from "../../../../Drawers/TestsetDrawer"
 
 import type {PromptMessageContentOptionsProps} from "./types"
+import {markdownViewAtom} from "@/oss/components/Editor/state/assets/atoms"
+import {useAtom} from "jotai"
+import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
+import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
+
+export const getTextContent = (content: any) => {
+    if (typeof content === "string") return content
+    if (Array.isArray(content)) {
+        const value = content.filter(
+            (part: any) => part.type.value === "text" || part.type === "text",
+        )
+        return value.length > 0
+            ? typeof value[0].text === "string"
+                ? value[0].text
+                : value[0].text.value
+            : ""
+    }
+    return ""
+}
 
 const PromptMessageContentOptions = ({
-    id,
     messageId,
-    variantId,
     className,
     propertyId,
     isMessageDeletable,
@@ -45,20 +55,20 @@ const PromptMessageContentOptions = ({
     hideMarkdownToggle,
 }: PromptMessageContentOptionsProps) => {
     const [editor] = useLexicalComposerContext()
-    const [markdownView] = useAtom(markdownViewAtom(id))
+    const [markdownView] = useAtom(markdownViewAtom)
 
-    const prompts = usePromptsSource(variantId) || []
-    const message = findPropertyInObject(prompts, propertyId)
-
-    const isChat = useAtomValue(appChatModeAtom) ?? false
-
+    const {propertyGetter, isChat} = usePlayground({
+        stateSelector: (state) => ({
+            isChat: state.variants.some((v) => v.isChat),
+        }),
+    })
     const {deleteMessage, rerunMessage, minimize, onClickTestsetDrawer, handleAddUploadSlot} =
         actions || {}
 
     const [isCopied, setIsCopied] = useState(false)
 
     const onCopyText = useCallback(() => {
-        const text = getTextContent(message?.value)
+        const text = getTextContent(propertyGetter?.(propertyId)?.value || "")
 
         if (text) {
             setIsCopied(true)
@@ -67,7 +77,7 @@ const PromptMessageContentOptions = ({
                 setIsCopied(false)
             }, 1000)
         }
-    }, [message])
+    }, [propertyId, propertyGetter])
 
     return (
         <div className={clsx("flex items-center gap-1", className)}>
@@ -75,17 +85,14 @@ const PromptMessageContentOptions = ({
                 <EnhancedButton
                     icon={<ArrowClockwise size={14} />}
                     type="text"
-                    onClick={() => {
-                        rerunMessage?.(messageId)
-                    }}
-                    disabled={!resultHashes || resultHashes.length === 0}
+                    onClick={() => rerunMessage?.(messageId)}
                     tooltipProps={{title: "Re-run"}}
                 />
             ) : null}
 
             {resultHashes && resultHashes?.length > 0 ? (
                 <TestsetDrawerButton
-                    tooltipProps={{title: "Add to testset"}}
+                    tooltipProps={{title: "Add to test set"}}
                     type="text"
                     resultHashes={resultHashes}
                     onClickTestsetDrawer={onClickTestsetDrawer}
@@ -95,7 +102,7 @@ const PromptMessageContentOptions = ({
 
             {isChat && allowFileUpload ? (
                 <EnhancedButton
-                    icon={<PhImage size={14} />}
+                    icon={<Image size={14} />}
                     type="text"
                     onClick={() => handleAddUploadSlot?.()}
                     tooltipProps={{title: "Upload Image"}}
@@ -125,21 +132,18 @@ const PromptMessageContentOptions = ({
                 <EnhancedButton
                     icon={<MinusCircle size={14} />}
                     type="text"
-                    onClick={() => {
-                        console.log("delete message", messageId)
-                        deleteMessage?.(messageId)
-                    }}
-                    disabled={!isMessageDeletable}
+                    onClick={() => deleteMessage?.(messageId)}
+                    disabled={isMessageDeletable}
                     tooltipProps={{title: "Remove"}}
                 />
             )}
 
             <EnhancedButton
-                icon={!minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
+                icon={minimized ? <CaretDown size={14} /> : <CaretUp size={14} />}
                 type="text"
                 onClick={() => minimize?.(messageId)}
                 disabled={disabled}
-                tooltipProps={{title: minimized ? "Minimize" : "Maximize"}}
+                tooltipProps={{title: minimized ? "Maximize" : "Minimize"}}
             />
 
             {children}

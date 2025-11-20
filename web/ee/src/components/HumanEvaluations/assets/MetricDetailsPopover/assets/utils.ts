@@ -102,17 +102,12 @@ export const buildChartData = (extra: Record<string, any>): ChartDatum[] => {
 export const METRIC_FORMATTERS: Record<string, MetricFormatter> = {
     // currency-like costs
     cost: {prefix: "$", decimals: 6},
-    costs: {prefix: "$", decimals: 6},
     price: {prefix: "$", decimals: 4},
     totalCost: {prefix: "$", decimals: 4},
-    "attributes.ag.metrics.costs.cumulative.total": {prefix: "$", decimals: 4},
     // latency
     latency: {decimals: 2, suffix: "s", multiplier: 0.001},
     duration: {decimals: 2, suffix: "s", multiplier: 0.001},
     "duration.total": {decimals: 2, suffix: "s", multiplier: 0.001},
-    "attributes.ag.metrics.duration.cumulative": {decimals: 2, suffix: "s", multiplier: 0.001},
-    "attributes.ag.metrics.tokens.cumulative.total": {decimals: 0},
-    "attributes.ag.metrics.errors.cumulative": {decimals: 0},
 
     // percentages
     accuracy: {suffix: "%", decimals: 2},
@@ -146,50 +141,25 @@ export const format3Sig = (num: number | string): string => {
  * Format a metric value using the mapping above.
  * Falls back to the raw value when the metric has no formatter or value is non-numeric.
  */
-export function formatMetricValue(metricKey: string, value: unknown): string {
-    if (value == null) {
-        return ""
-    }
-
-    if (Array.isArray(value)) {
-        return value.map((v) => formatMetricValue(metricKey, v)).join(", ")
-    }
-
-    if (typeof value === "boolean") {
-        return value ? "true" : "false"
-    }
-
-    if (typeof value === "object") {
-        try {
-            return JSON.stringify(value, null, 2)
-        } catch (error) {
-            return String(value)
-        }
-    }
-
-    if (typeof value !== "string" && typeof value !== "number") {
-        return String(value)
-    }
-
+export function formatMetricValue(metricKey: string, value: number | string): string {
     const fmt = METRIC_FORMATTERS[metricKey] || {
         decimals: 2,
     }
 
-    if (fmt?.format) {
+    if (Array.isArray(value)) {
+        return value.map((v) => {
+            return formatMetricValue(metricKey, v)
+        })
+    }
+    if (!fmt) return String(value)
+
+    if (fmt.format) {
         return fmt.format(value)
     }
 
-    if (typeof value !== "number") {
-        const numericValue = Number(value)
-        if (Number.isNaN(numericValue)) {
-            return String(value)
-        }
-        const adjusted = fmt.multiplier ? numericValue * fmt.multiplier : numericValue
-        const rounded = Number.isFinite(adjusted) ? format3Sig(adjusted) : format3Sig(value)
-        return `${fmt.prefix ?? ""}${rounded}${fmt.suffix ?? ""}`
-    }
-
-    const adjusted = fmt.multiplier ? value * fmt.multiplier : value
-    const rounded = Number.isFinite(adjusted) ? format3Sig(adjusted) : format3Sig(value)
+    let num = typeof value === "number" ? value : Number(value)
+    num = fmt.multiplier ? num * fmt.multiplier : num
+    const rounded =
+        Number.isFinite(num) && fmt.decimals !== undefined ? format3Sig(num) : format3Sig(value)
     return `${fmt.prefix ?? ""}${rounded}${fmt.suffix ?? ""}`
 }

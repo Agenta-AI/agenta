@@ -1,6 +1,5 @@
-import {Dispatch, SetStateAction, ReactNode} from "react"
-
 import {ModalProps, ButtonProps} from "antd"
+import {Dispatch, SetStateAction, ReactNode} from "react"
 
 export interface InstructionModalProps extends ModalProps {}
 
@@ -8,7 +7,6 @@ export interface RenameEvalModalProps extends ModalProps {
     id: string
     name: string
     description?: string
-    runId?: string
 }
 
 export interface RenameEvalModalContentProps {
@@ -24,8 +22,8 @@ export interface RenameEvalButtonProps extends ButtonProps {
     id: string
     name: string
     description?: string
-    runId?: string
     icon?: boolean
     children?: ReactNode
     label?: string
 }
+    

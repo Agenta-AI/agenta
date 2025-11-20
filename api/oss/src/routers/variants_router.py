@@ -64,7 +64,7 @@ async def add_variant_from_base_and_config(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(base_db.project_id),
-            permission=Permission.EDIT_APPLICATIONS,
+            permission=Permission.CREATE_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -129,7 +129,7 @@ async def remove_variant(
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(variant.project_id),
-                permission=Permission.EDIT_APPLICATIONS_VARIANT,
+                permission=Permission.DELETE_APPLICATION_VARIANT,
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -156,11 +156,7 @@ async def remove_variant(
         raise HTTPException(status_code=500, detail=detail)
 
 
-@router.put(
-    "/{variant_id}/parameters/",
-    operation_id="update_variant_parameters",
-    response_model=AppVariantRevision,
-)
+@router.put("/{variant_id}/parameters/", operation_id="update_variant_parameters")
 async def update_variant_parameters(
     request: Request,
     variant_id: str,
@@ -214,18 +210,6 @@ async def update_variant_parameters(
         await invalidate_cache(
             project_id=request.state.project_id,
         )
-
-        variant = await get_variant(
-            variant_id=variant_id,
-            request=request,
-        )
-
-        return await get_variant_revision(
-            variant_id=variant_id,
-            revision_number=variant.revision,  # type: ignore
-            request=request,
-        )
-
     except ValueError as e:
         detail = f"Error while trying to update the app variant: {str(e)}"
         raise HTTPException(status_code=500, detail=detail)
@@ -256,7 +240,7 @@ async def update_variant_url(request: Request, payload: UpdateVariantURLPayload)
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(db_app_variant.project_id),
-                permission=Permission.EDIT_APPLICATIONS,
+                permission=Permission.CREATE_APPLICATION,
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -314,7 +298,7 @@ async def get_variant(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app_variant.project_id),
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -355,7 +339,7 @@ async def get_variant_revisions(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -402,7 +386,7 @@ async def get_variant_revision(
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(app_variant.project_id),
-            permission=Permission.VIEW_APPLICATIONS,
+            permission=Permission.VIEW_APPLICATION,
         )
         if not has_permission:
             error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
@@ -449,7 +433,7 @@ async def remove_variant_revision(
             has_permission = await check_action_access(
                 user_uid=request.state.user_id,
                 project_id=str(variant.project_id),
-                permission=Permission.EDIT_APPLICATIONS_VARIANT,
+                permission=Permission.DELETE_APPLICATION_VARIANT,
             )
             if not has_permission:
                 error_msg = f"You do not have permission to perform this action. Please contact your organization admin."

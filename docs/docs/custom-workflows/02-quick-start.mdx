@@ -75,7 +75,7 @@ def generate(blog_post: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("agenta:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("agenta.sdk.decorators.routing:app", host="0.0.0.0", port=8000, reload=True)
 ```
 
 Let's explore each section:
@@ -130,10 +130,10 @@ Use [Uvicorn](https://www.uvicorn.org/) to serve your application:
 ```python
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("agenta:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("agenta.sdk.decorators.routing:app", host="0.0.0.0", port=8000, reload=True)
 ```
 
-`agenta:app` defines your FastAPI server handling all requests from Agenta.
+`agenta.sdk.decorators.routing:app` defines your FastAPI server handling all requests from Agenta.
 
 :::warning
 The application server (`http://localhost:8000`) must be accessible from the internet when running evaluations. Consider using [ngrok](https://ngrok.com/) for tunneling during tests.

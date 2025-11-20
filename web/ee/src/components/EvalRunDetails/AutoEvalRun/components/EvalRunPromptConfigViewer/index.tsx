@@ -1,123 +1,35 @@
-import {memo, useEffect, useMemo, useRef} from "react"
+import {memo, useEffect, useMemo} from "react"
 
 import clsx from "clsx"
-import deepEqual from "fast-deep-equal"
-import {atom, useAtomValue, useSetAtom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {useAtomValue} from "jotai"
 
-import {useRunId} from "@/oss/contexts/RunIdContext"
-import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import {projectIdAtom} from "@/oss/state/project/selectors/project"
-import {
-    clearProjectVariantReferencesAtom,
-    prefetchProjectVariantConfigs,
-    setProjectVariantReferencesAtom,
-} from "@/oss/state/projectVariantConfig"
-
-import {collectProjectVariantReferences} from "../../../../../lib/hooks/usePreviewEvaluations/projectVariantConfigs"
-import {urlStateAtom} from "../../../state/urlState"
+import usePlayground from "@/oss/components/Playground/hooks/usePlayground"
+import {evaluationRunStateAtom} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import PromptConfigCard from "./assets/PromptConfigCard"
 
-// Helper atom to read multiple run states given a list of runIds
-const evaluationsRunFamily = atomFamily(
-    (runIds: string[]) =>
-        atom((get) => {
-            return runIds.map((runId) => get(evaluationRunStateFamily(runId)))
-        }),
-    deepEqual,
-)
-
 const EvalRunPromptConfigViewer = () => {
-    const runId = useRunId()
-    const urlState = useAtomValue(urlStateAtom)
-    const compareRunIds = urlState?.compare
+    const evaluation = useAtomValue(evaluationRunStateAtom)
+    const enrichedRun = evaluation?.enrichedRun
 
-    // Read base run and all comparison run states
-    const runIds = useMemo(() => {
-        if (!compareRunIds?.length) return [runId!]
-        return [runId!, ...compareRunIds]
-    }, [runId, compareRunIds])
+    const revisions = useMemo(() => {
+        const variants = enrichedRun?.variants
+        return variants?.map((v) => v._revisionId)
+    }, [enrichedRun])
 
-    const runs = useAtomValue(evaluationsRunFamily(runIds))
-    const renderableRuns = useMemo(
-        () => runs?.filter((run) => Boolean(run?.enrichedRun)) ?? [],
-        [runs],
-    )
-    const projectId = useAtomValue(projectIdAtom)
-    const setProjectVariantReferences = useSetAtom(setProjectVariantReferencesAtom)
-    const clearProjectVariantReferences = useSetAtom(clearProjectVariantReferencesAtom)
-
-    const projectVariantReferences = useMemo(() => {
-        if (!projectId || !renderableRuns.length) return []
-        const enrichedRuns = renderableRuns
-            .map((run) => run.enrichedRun)
-            .filter((run): run is NonNullable<typeof run> => Boolean(run))
-        return collectProjectVariantReferences(enrichedRuns, projectId)
-    }, [projectId, renderableRuns])
-    const referencesSetRef = useRef(false)
+    const {isLoading, setDisplayedVariants} = usePlayground()
 
     useEffect(() => {
-        if (!projectId || projectVariantReferences.length === 0) {
-            return
-        }
-        setProjectVariantReferences(projectVariantReferences)
-        prefetchProjectVariantConfigs(projectVariantReferences)
-        referencesSetRef.current = true
-    }, [
-        projectId,
-        projectVariantReferences,
-        setProjectVariantReferences,
-        prefetchProjectVariantConfigs,
-    ])
+        if (isLoading || !revisions?.length) return
 
-    useEffect(
-        () => () => {
-            if (referencesSetRef.current) {
-                clearProjectVariantReferences()
-                referencesSetRef.current = false
-            }
-        },
-        [clearProjectVariantReferences],
-    )
+        setDisplayedVariants?.(revisions)
+    }, [isLoading, revisions])
 
     return (
-        <div className={clsx(["w-full flex px-6", {"overflow-x-auto": compareRunIds?.length > 0}])}>
-            {renderableRuns.map((run, idx) => {
-                const enriched = run.enrichedRun!
-                const variants = Array.isArray(enriched?.variants) ? enriched.variants : []
-
-                const primaryVariant =
-                    variants.find((variant) => {
-                        const revisionId =
-                            (variant as any)?._revisionId ??
-                            (variant as any)?.id ??
-                            variant?.variantId
-                        return Boolean(revisionId)
-                    }) ?? variants[0]
-
-                const variantRevisionId =
-                    (primaryVariant as any)?._revisionId ??
-                    (primaryVariant as any)?.id ??
-                    primaryVariant?.variantId ??
-                    ""
-
-                const reactKey = variantRevisionId || `${enriched.id || "run"}-${idx}`
-
-                return (
-                    <PromptConfigCard
-                        key={reactKey}
-                        variantId={variantRevisionId}
-                        evaluation={enriched}
-                        isComparison={compareRunIds?.length > 0}
-                        colorIndex={run.colorIndex || (run.isBase ? 1 : undefined) || 1}
-                        isFirstPrompt={idx === 0}
-                        isMiddlePrompt={idx > 0 && idx < renderableRuns.length - 1}
-                        isLastPrompt={idx === renderableRuns.length - 1}
-                        totalRuns={renderableRuns.length}
-                    />
-                )
-            })}
+        <div className={clsx(["flex px-6"])}>
+            {revisions?.map((v) => (
+                <PromptConfigCard key={v} variantId={v} evaluation={enrichedRun!} />
+            ))}
         </div>
     )
 }

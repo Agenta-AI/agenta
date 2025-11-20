@@ -148,7 +148,7 @@ class TestEvaluationMetricsBasics:
         response = authed_api(
             "DELETE",
             "/preview/evaluations/metrics/",
-            json={"metrics_ids": [metrics[0]["id"]]},
+            json={"metric_ids": [metrics[0]["id"]]},
         )
         # ----------------------------------------------------------------------
 
@@ -156,14 +156,14 @@ class TestEvaluationMetricsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["metrics_ids"][0] == metrics[0]["id"]
+        assert response["metric_ids"][0] == metrics[0]["id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
             "/preview/evaluations/metrics/",
-            json={"metrics_ids": [metrics[0]["id"]]},
+            json={"metric_ids": [metrics[0]["id"]]},
         )
         # ----------------------------------------------------------------------
 
@@ -339,7 +339,7 @@ class TestEvaluationMetricsBasics:
         response = authed_api(
             "DELETE",
             "/preview/evaluations/metrics/",
-            json={"metrics_ids": [metric["id"]]},
+            json={"metric_ids": [metric["id"]]},
         )
         # ----------------------------------------------------------------------
 
@@ -347,14 +347,14 @@ class TestEvaluationMetricsBasics:
         assert response.status_code == 200
         response = response.json()
         assert response["count"] == 1
-        assert response["metrics_ids"][0] == metric["id"]
+        assert response["metric_ids"][0] == metric["id"]
         # ----------------------------------------------------------------------
 
         # ACT ------------------------------------------------------------------
         response = authed_api(
             "DELETE",
             "/preview/evaluations/metrics/",
-            json={"metrics_ids": [metric["id"]]},
+            json={"metric_ids": [metric["id"]]},
         )
         # ----------------------------------------------------------------------
 

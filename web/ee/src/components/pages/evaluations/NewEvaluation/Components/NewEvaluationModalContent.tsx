@@ -1,4 +1,4 @@
-import {type FC, memo, useCallback, useMemo} from "react"
+import {type FC, memo, useMemo} from "react"
 
 import {CloseCircleOutlined} from "@ant-design/icons"
 import {Input, Typography, Tabs, Tag} from "antd"
@@ -6,13 +6,10 @@ import clsx from "clsx"
 import dynamic from "next/dynamic"
 
 import useFocusInput from "@/oss/hooks/useFocusInput"
-import useURL from "@/oss/hooks/useURL"
 
 import {useStyles} from "../assets/styles"
 import TabLabel from "../assets/TabLabel"
 import {NewEvaluationModalContentProps} from "../types"
-
-import SelectAppSection from "./SelectAppSection"
 
 const SelectEvaluatorSection = dynamic(
     () => import("./SelectEvaluatorSection/SelectEvaluatorSection"),
@@ -31,10 +28,6 @@ const AdvancedSettings = dynamic(() => import("./AdvancedSettings"), {
     ssr: false,
 })
 
-const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
-    ssr: false,
-})
-
 const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     onSuccess,
     handlePanelChange,
@@ -49,32 +42,20 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     setEvaluationName,
     preview,
     evaluationType,
-    testsets,
+    testSets,
     variants,
-    variantsLoading,
     evaluators,
     evaluatorConfigs,
     advanceSettings,
     setAdvanceSettings,
-    appOptions,
-    selectedAppId,
-    onSelectApp,
-    appSelectionDisabled,
     ...props
 }) => {
     const classes = useStyles()
     const {inputRef} = useFocusInput({isOpen: props.isOpen || false})
-    const {redirectUrl} = useURL()
-    const appSelectionComplete = Boolean(selectedAppId)
-    const hasAppOptions = appOptions.length > 0
-
-    const handleCreateApp = useCallback(() => {
-        redirectUrl()
-    }, [redirectUrl])
 
     const selectedTestset = useMemo(
-        () => testsets.find((ts) => ts._id === selectedTestsetId) || null,
-        [testsets, selectedTestsetId],
+        () => testSets.find((ts) => ts._id === selectedTestsetId) || null,
+        [testSets, selectedTestsetId],
     )
 
     const selectedVariants = useMemo(
@@ -88,92 +69,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     }, [preview, evaluators, evaluatorConfigs, selectedEvalConfigs])
 
     const items = useMemo(() => {
-        const requireAppMessage = (
-            <Typography.Text type="secondary">
-                Select an application first to load this section.
-            </Typography.Text>
-        )
-
         return [
-            {
-                key: "appPanel",
-                label: (
-                    <TabLabel tabTitle="Application" completed={appSelectionComplete}>
-                        {appSelectionComplete && (
-                            <Tag
-                                closeIcon={<CloseCircleOutlined />}
-                                onClose={() => {
-                                    if (!appSelectionDisabled) onSelectApp("")
-                                }}
-                            >
-                                {appOptions.find((opt) => opt.value === selectedAppId)?.label ??
-                                    selectedAppId}
-                            </Tag>
-                        )}
-                    </TabLabel>
-                ),
-                children: (
-                    <div className="flex flex-col gap-2">
-                        {hasAppOptions ? (
-                            <>
-                                <SelectAppSection
-                                    apps={appOptions}
-                                    selectedAppId={selectedAppId}
-                                    onSelectApp={onSelectApp}
-                                    disabled={appSelectionDisabled}
-                                />
-                                {!appSelectionComplete && !appSelectionDisabled ? (
-                                    <Typography.Text type="secondary">
-                                        Please select an application to continue configuring the
-                                        evaluation.
-                                    </Typography.Text>
-                                ) : null}
-                            </>
-                        ) : (
-                            <NoResultsFound
-                                title="No applications found"
-                                description="You need at least one application to configure an evaluation. Head to App Management to create one."
-                                primaryActionLabel="Create an app"
-                                onPrimaryAction={handleCreateApp}
-                            />
-                        )}
-                    </div>
-                ),
-            },
-            {
-                key: "variantPanel",
-                label: (
-                    <TabLabel tabTitle="Variant" completed={selectedVariants.length > 0}>
-                        {selectedVariants.map((v) => (
-                            <Tag
-                                key={v.id}
-                                closeIcon={<CloseCircleOutlined />}
-                                onClose={() => {
-                                    setSelectedVariantRevisionIds(
-                                        selectedVariantRevisionIds.filter((id) => id !== v.id),
-                                    )
-                                }}
-                            >
-                                {`${v.variantName} - v${v.revision}`}
-                            </Tag>
-                        ))}
-                    </TabLabel>
-                ),
-                children: appSelectionComplete ? (
-                    <SelectVariantSection
-                        handlePanelChange={handlePanelChange}
-                        selectedVariantRevisionIds={selectedVariantRevisionIds}
-                        setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
-                        evaluationType={evaluationType}
-                        variants={variants}
-                        isVariantLoading={variantsLoading}
-                        className="pt-2"
-                        selectedTestsetId={selectedTestsetId}
-                    />
-                ) : (
-                    requireAppMessage
-                ),
-            },
             {
                 key: "testsetPanel",
                 label: (
@@ -190,23 +86,50 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         ) : null}
                     </TabLabel>
                 ),
-                children: appSelectionComplete ? (
+                children: (
                     <SelectTestsetSection
                         handlePanelChange={handlePanelChange}
                         selectedTestsetId={selectedTestsetId}
                         setSelectedTestsetId={setSelectedTestsetId}
-                        testsets={testsets}
-                        selectedVariantRevisionIds={selectedVariantRevisionIds}
+                        testSets={testSets}
                         className="pt-2"
                     />
-                ) : (
-                    requireAppMessage
+                ),
+            },
+            {
+                key: "variantPanel",
+                label: (
+                    <TabLabel tabTitle={"Variant"} completed={selectedVariants.length > 0}>
+                        {selectedVariants.map((v) => (
+                            <Tag
+                                key={v.id}
+                                closeIcon={<CloseCircleOutlined />}
+                                onClose={() => {
+                                    setSelectedVariantRevisionIds(
+                                        selectedVariantRevisionIds.filter((id) => id !== v.id),
+                                    )
+                                }}
+                            >
+                                {`${v.variantName} - v${v.revision}`}
+                            </Tag>
+                        ))}
+                    </TabLabel>
+                ),
+                children: (
+                    <SelectVariantSection
+                        handlePanelChange={handlePanelChange}
+                        selectedVariantRevisionIds={selectedVariantRevisionIds}
+                        setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
+                        evaluationType={evaluationType}
+                        variants={variants}
+                        className="pt-2"
+                    />
                 ),
             },
             {
                 key: "evaluatorPanel",
                 label: (
-                    <TabLabel tabTitle="Evaluators" completed={selectedEvalConfig.length > 0}>
+                    <TabLabel tabTitle="Evaluator" completed={selectedEvalConfig.length > 0}>
                         {selectedEvalConfig.map((cfg: any) => {
                             return (
                                 <Tag
@@ -225,7 +148,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         })}
                     </TabLabel>
                 ),
-                children: appSelectionComplete ? (
+                children: (
                     <SelectEvaluatorSection
                         handlePanelChange={handlePanelChange}
                         selectedEvalConfigs={selectedEvalConfigs}
@@ -233,11 +156,8 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                         preview={preview}
                         evaluators={evaluators as any}
                         evaluatorConfigs={evaluatorConfigs}
-                        selectedAppId={selectedAppId}
                         className="pt-2"
                     />
-                ) : (
-                    requireAppMessage
                 ),
             },
             ...(evaluationType === "auto"
@@ -253,13 +173,11 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                                   ))}
                               </TabLabel>
                           ),
-                          children: appSelectionComplete ? (
+                          children: (
                               <AdvancedSettings
                                   advanceSettings={advanceSettings}
                                   setAdvanceSettings={setAdvanceSettings}
                               />
-                          ) : (
-                              requireAppMessage
                           ),
                       },
                   ]
@@ -275,18 +193,11 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
         selectedEvalConfigs,
         preview,
         evaluationType,
-        testsets,
+        testSets,
         variants,
         evaluators,
         evaluatorConfigs,
         advanceSettings,
-        appSelectionComplete,
-        appOptions,
-        selectedAppId,
-        onSelectApp,
-        appSelectionDisabled,
-        hasAppOptions,
-        handleCreateApp,
     ])
 
     return (
@@ -304,7 +215,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             </div>
 
             <Tabs
-                activeKey={activePanel || "appPanel"}
+                activeKey={activePanel || "testsetPanel"}
                 onChange={handlePanelChange as any}
                 items={items}
                 tabPosition="left"

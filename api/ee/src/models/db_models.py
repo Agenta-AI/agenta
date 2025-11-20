@@ -304,7 +304,7 @@ class HumanEvaluationDB(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    testset = relationship("TestsetDB")
+    testset = relationship("TestSetDB")
     evaluation_variant = relationship(
         "HumanEvaluationVariantDB",
         cascade=CASCADE_ALL_DELETE,
@@ -430,7 +430,7 @@ class EvaluationDB(Base):
     )
 
     project = relationship("ee.src.models.db_models.ProjectDB")
-    testset = relationship("TestsetDB")
+    testset = relationship("TestSetDB")
     variant = relationship("AppVariantDB")
     variant_revision = relationship("AppVariantRevisionsDB")
     aggregated_results = relationship(

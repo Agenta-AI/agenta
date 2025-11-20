@@ -1,12 +1,11 @@
 import {ReactNode} from "react"
-
-import clsx from "clsx"
 import dynamic from "next/dynamic"
 
 import ImagePreview from "@/oss/components/Common/ImagePreview"
-import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
-import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
+import clsx from "clsx"
+import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 
 const Tooltip = dynamic(() => import("antd").then((mod) => mod.Tooltip), {ssr: false})
 
@@ -34,45 +33,6 @@ export function renderChatMessages({
         return [<span key={`${keyPrefix}-invalid`}>{String(rawJson)}</span>]
     }
 
-    if (view === "table") {
-        return messages.map((msg, i) => {
-            const textContent = Array.isArray(msg.content)
-                ? msg.content.find((content) => content.type === "text")?.text
-                : msg.content
-            const images = Array.isArray(msg.content)
-                ? msg.content.filter((content) => content.type === "image_url")
-                : []
-            const showDivider = i < messages.length - 1
-
-            return (
-                <section
-                    key={`${keyPrefix}-${i}`}
-                    className="w-full flex flex-col gap-2 text-xs text-gray-700"
-                >
-                    <span className="capitalize text-[11px] text-gray-500">{msg.role}</span>
-                    {textContent ? (
-                        <pre className="whitespace-pre-wrap break-words">{textContent}</pre>
-                    ) : null}
-                    {images.length ? (
-                        <div className="flex flex-wrap gap-2">
-                            {images.map((imageContent: any, index: number) => (
-                                <ImagePreview
-                                    key={`msg-image-${index}`}
-                                    src={imageContent.image_url.url}
-                                    alt="Preview"
-                                    size={48}
-                                />
-                            ))}
-                        </div>
-                    ) : null}
-                    {showDivider ? (
-                        <div className="h-px w-full bg-slate-200/90 dark:bg-slate-700/60 rounded-full" />
-                    ) : null}
-                </section>
-            )
-        })
-    }
-
     return messages.map((msg, i) => {
         const textContent = Array.isArray(msg.content)
             ? msg.content.find((content) => content.type === "text")?.text
@@ -80,8 +40,6 @@ export function renderChatMessages({
         const images = Array.isArray(msg.content)
             ? msg.content.filter((content) => content.type === "image_url")
             : []
-        const showDivider = i < messages.length - 1
-
         return (
             <section
                 key={`${keyPrefix}-${i}`}
@@ -167,10 +125,6 @@ export function renderChatMessages({
                         }
                     />
                 )}
-
-                {showDivider ? (
-                    <div className="h-px w-full bg-slate-200/90 dark:bg-slate-700/60 rounded-full" />
-                ) : null}
             </section>
         )
     })

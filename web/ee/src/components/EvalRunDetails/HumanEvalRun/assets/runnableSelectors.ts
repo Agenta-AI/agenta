@@ -3,7 +3,7 @@ import {atom} from "jotai"
 import {selectAtom, loadable, atomFamily} from "jotai/utils"
 
 import {
-    scenariosFamily,
+    scenariosAtom,
     scenarioStatusAtomFamily,
     scenarioStepFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
@@ -23,11 +23,11 @@ const shallowArrayEqual = <T>(a: T[], b: T[]) =>
 // 3. At least one invocationStep still contains `invocationParameters` (i.e. not yet executed)
 // Per-scenario memoised check – avoids re-running heavy logic for all 1000 scenarios
 export const scenarioIsRunnableFamily = atomFamily(
-    (params: {scenarioId: string; runId: string}) =>
+    (scenarioId: string) =>
         atom((get) => {
-            const {status} = get(scenarioStatusAtomFamily(params))
+            const {status} = get(scenarioStatusAtomFamily(scenarioId))
             if (["running", "done", "success", "revalidating"].includes(status)) return false
-            const loadableStep = get(loadable(scenarioStepFamily(params)))
+            const loadableStep = get(loadable(scenarioStepFamily(scenarioId)))
             if (loadableStep.state !== "hasData") return false
             const invSteps: any[] = loadableStep.data?.invocationSteps ?? []
             return invSteps.some((st) => !!st.invocationParameters)
@@ -35,30 +35,23 @@ export const scenarioIsRunnableFamily = atomFamily(
     deepEqual,
 )
 
-export const runnableScenarioIdsFamily = atomFamily((runId: string) => {
-    return atom((get) => {
-        const scenarios = get(scenariosFamily(runId))
-        return scenarios
-            .filter((scenario: any) =>
-                get(scenarioIsRunnableFamily({scenarioId: scenario.id, runId})),
-            )
-            .map((s: any) => s.id)
-    })
-}, deepEqual)
+export const runnableScenarioIdsAtom = atom((get) => {
+    const scenarios = get(scenariosAtom)
+    return scenarios.filter(({id}) => get(scenarioIsRunnableFamily(id))).map((s) => s.id)
+})
 
 /* memoised view that won’t re-emit if the array is the same */
-export const runnableScenarioIdsMemoFamily = atomFamily((runId: string) => {
-    return selectAtom(runnableScenarioIdsFamily(runId), (ids) => ids, shallowArrayEqual)
-}, deepEqual)
+export const runnableScenarioIdsMemoAtom = selectAtom(
+    runnableScenarioIdsAtom,
+    (ids) => ids,
+    shallowArrayEqual,
+)
 
 // Boolean flag: true if at least one scenario is runnable. Uses early exit to avoid building arrays
-export const hasRunnableScenarioFamily = atomFamily((runId: string) => {
-    return atom((get) => {
-        const scenarios = get(scenariosFamily(runId))
-        for (const scenario of scenarios) {
-            if (get(scenarioIsRunnableFamily({scenarioId: (scenario as any).id, runId})))
-                return true
-        }
-        return false
-    })
-}, deepEqual)
+export const hasRunnableScenarioAtom = atom((get) => {
+    const scenarios = get(scenariosAtom)
+    for (const {id} of scenarios) {
+        if (get(scenarioIsRunnableFamily(id))) return true
+    }
+    return false
+})

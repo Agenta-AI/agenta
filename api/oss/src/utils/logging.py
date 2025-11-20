@@ -4,8 +4,17 @@ import sys
 import logging
 from typing import Any, Optional
 
+# from datetime import datetime
+# from logging.handlers import RotatingFileHandler
+
 import structlog
 from structlog.typing import EventDict, WrappedLogger, Processor
+
+# from opentelemetry.trace import get_current_span
+# from opentelemetry._logs import set_logger_provider
+# from opentelemetry.sdk._logs import LoggingHandler, LoggerProvider
+# from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+# from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
 from oss.src.utils.env import env
 
@@ -32,6 +41,15 @@ structlog.stdlib.BoundLogger.trace = bound_logger_trace
 # ENV VARS
 AGENTA_LOG_CONSOLE_ENABLED = env.AGENTA_LOG_CONSOLE_ENABLED
 AGENTA_LOG_CONSOLE_LEVEL = env.AGENTA_LOG_CONSOLE_LEVEL
+
+# AGENTA_LOG_OTLP_ENABLED = env.AGENTA_LOG_OTLP_ENABLED
+# AGENTA_LOG_OTLP_LEVEL = env.AGENTA_LOG_OTLP_LEVEL
+
+# AGENTA_LOG_FILE_ENABLED = env.AGENTA_LOG_FILE_ENABLED
+# AGENTA_LOG_FILE_LEVEL = env.AGENTA_LOG_FILE_LEVEL
+# AGENTA_LOG_FILE_BASE = env.AGENTA_LOG_FILE_PATH
+# LOG_FILE_DATE = datetime.utcnow().strftime("%Y-%m-%d")
+# AGENTA_LOG_FILE_PATH = f"{AGENTA_LOG_FILE_BASE}-{LOG_FILE_DATE}.log"
 
 # COLORS
 LEVEL_COLORS = {
@@ -72,6 +90,15 @@ def process_positional_args(_, __, event_dict: EventDict) -> EventDict:
     return event_dict
 
 
+# def add_trace_context(_, __, event_dict: EventDict) -> EventDict:
+#     span = get_current_span()
+#     if span and span.get_span_context().is_valid:
+#         ctx = span.get_span_context()
+#         event_dict["TraceId"] = format(ctx.trace_id, "032x")
+#         event_dict["SpanId"] = format(ctx.span_id, "016x")
+#     return event_dict
+
+
 def add_logger_info(
     logger: WrappedLogger, method_name: str, event_dict: EventDict
 ) -> EventDict:
@@ -88,7 +115,6 @@ def add_logger_info(
     event_dict["SeverityNumber"] = SEVERITY_NUMBERS.get(level, 9)
     event_dict["LoggerName"] = logger.name
     event_dict["MethodName"] = method_name
-    event_dict["pid"] = os.getpid()
     return event_dict
 
 
@@ -103,7 +129,6 @@ def colored_console_renderer() -> Processor:
     }
 
     def render(_, __, event_dict: EventDict) -> str:
-        pid = event_dict.pop("pid", None)
         ts = event_dict.pop("Timestamp", "")[:23] + "Z"
         level = event_dict.pop("level", "INFO")
         msg = event_dict.pop("event", "")
@@ -120,69 +145,102 @@ def colored_console_renderer() -> Processor:
     return render
 
 
+# def plain_renderer() -> Processor:
+#     hidden = {
+#         "SeverityText",
+#         "SeverityNumber",
+#         "MethodName",
+#         "logger_factory",
+#         "LoggerName",
+#         "level",
+#     }
+
+#     def render(_, __, event_dict: EventDict) -> str:
+#         ts = event_dict.pop("Timestamp", "")[:23] + "Z"
+#         level = event_dict.get("level", "")
+#         msg = event_dict.pop("event", "")
+#         padded = f"[{level:<5}]"
+#         logger = f"[{event_dict.pop('logger', '')}]"
+#         extras = " ".join(f"{k}={v}" for k, v in event_dict.items() if k not in hidden)
+#         return f"{ts} {padded} {msg} {logger} {extras}"
+
+#     return render
+
+
+# def json_renderer() -> Processor:
+#     return structlog.processors.JSONRenderer()
+
+
 SHARED_PROCESSORS: list[Processor] = [
     structlog.processors.TimeStamper(fmt="iso", utc=True, key="Timestamp"),
     process_positional_args,
+    # add_trace_context,
     add_logger_info,
     structlog.processors.format_exc_info,
     structlog.processors.dict_tracebacks,
 ]
 
 
-# Guard against double initialization
-_LOGGING_CONFIGURED = False
-
-# ensure no duplicate sinks via root
-_root = logging.getLogger()
-_root.handlers.clear()
-_root.propagate = False
-
-# CONFIGURE HANDLERS AND STRUCTLOG LOGGERS
-loggers = []
-
-if AGENTA_LOG_CONSOLE_ENABLED and not _LOGGING_CONFIGURED:
-    _LOGGING_CONFIGURED = True
-
-    # Create a single handler for console output
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(getattr(logging, AGENTA_LOG_CONSOLE_LEVEL, TRACE_LEVEL))
-    console_handler.setFormatter(logging.Formatter("%(message)s"))
-
-    # Configure the structlog console logger
-    console_logger = logging.getLogger("agenta_console")
-    console_logger.handlers.clear()
-    console_logger.addHandler(console_handler)
-    console_logger.setLevel(TRACE_LEVEL)
-    console_logger.propagate = False
-
-    loggers.append(
-        structlog.wrap_logger(
-            console_logger,
-            processors=SHARED_PROCESSORS + [colored_console_renderer()],
-            wrapper_class=structlog.stdlib.BoundLogger,
-            logger_factory=structlog.stdlib.LoggerFactory(),
-            cache_logger_on_first_use=False,  # Don't cache to avoid stale state
-        )
+def create_struct_logger(
+    processors: list[Processor], name: str
+) -> structlog.stdlib.BoundLogger:
+    logger = logging.getLogger(name)
+    logger.setLevel(TRACE_LEVEL)
+    return structlog.wrap_logger(
+        logger,
+        processors=SHARED_PROCESSORS + processors,
+        wrapper_class=structlog.stdlib.BoundLogger,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
     )
 
-    # Configure uvicorn/gunicorn loggers with separate handlers
-    for name in ("uvicorn.access", "uvicorn.error", "gunicorn.error"):
-        uh = logging.StreamHandler(sys.stdout)
-        uh.setLevel(getattr(logging, AGENTA_LOG_CONSOLE_LEVEL, TRACE_LEVEL))
-        uh.setFormatter(logging.Formatter("%(message)s"))
-        server_logger = logging.getLogger(name)
-        server_logger.handlers.clear()
-        server_logger.setLevel(logging.INFO)
-        server_logger.addHandler(uh)
-        server_logger.propagate = False
 
-    # Intercept agenta SDK loggers to prevent duplicate output
-    for sdk_name in ("agenta", "agenta.sdk"):
-        sdk_logger = logging.getLogger(sdk_name)
-        sdk_logger.handlers.clear()
-        sdk_logger.addHandler(console_handler)  # Use our handler
-        sdk_logger.setLevel(logging.INFO)
-        sdk_logger.propagate = False
+# CONFIGURE HANDLERS AND STRUCTLOG LOGGERS
+handlers = []
+loggers = []
+
+if AGENTA_LOG_CONSOLE_ENABLED:
+    h = logging.StreamHandler(sys.stdout)
+    h.setLevel(getattr(logging, AGENTA_LOG_CONSOLE_LEVEL, TRACE_LEVEL))
+    h.setFormatter(logging.Formatter("%(message)s"))
+
+    # Console logger (your app logs)
+    logger = logging.getLogger("console")
+    logger.handlers.clear()
+    logger.addHandler(h)
+    logger.propagate = False
+    loggers.append(create_struct_logger([colored_console_renderer()], "console"))
+
+    # Gunicorn/Uvicorn loggers
+    for name in ("uvicorn.access", "uvicorn.error", "gunicorn.error"):
+        gunicorn_logger = logging.getLogger(name)
+        gunicorn_logger.handlers.clear()  # ✅ fix here
+        gunicorn_logger.setLevel(logging.INFO)
+        gunicorn_logger.addHandler(h)
+        gunicorn_logger.propagate = False
+
+# if AGENTA_LOG_FILE_ENABLED:
+#     h = RotatingFileHandler(AGENTA_LOG_FILE_PATH, maxBytes=10 * 1024 * 1024, backupCount=5)
+#     h.setLevel(getattr(logging, AGENTA_LOG_FILE_LEVEL, logging.WARNING))
+#     h.setFormatter(logging.Formatter("%(message)s"))
+#     logger = logging.getLogger("file")
+#     logger.addHandler(h)
+#     logger.propagate = False  # 👈 PREVENT propagation to root (avoids Celery duplicate)
+#     loggers.append(create_struct_logger([plain_renderer()], "file"))
+
+# if AGENTA_LOG_OTLP_ENABLED:
+#     provider = LoggerProvider()
+#     exporter = OTLPLogExporter()
+#     provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+#     set_logger_provider(provider)
+#     h = LoggingHandler(
+#         level=getattr(logging, AGENTA_LOG_OTLP_LEVEL, logging.INFO), logger_provider=provider
+#     )
+#     h.setFormatter(logging.Formatter("%(message)s"))
+#     logger = logging.getLogger("otel")
+#     logger.addHandler(h)
+#     logger.propagate = False  # 👈 PREVENT propagation to root (avo
+#     loggers.append(create_struct_logger([json_renderer()], "otel"))
 
 
 class MultiLogger:
@@ -221,8 +279,11 @@ class MultiLogger:
         return MultiLogger(*(l.bind(**kwargs) for l in self._loggers))
 
 
+multi_logger = MultiLogger(*loggers)
+
+
 def get_logger(name: Optional[str] = None) -> MultiLogger:
-    return MultiLogger(*loggers).bind(logger=name)
+    return multi_logger.bind(logger=name)
 
 
 def get_module_logger(path: str) -> MultiLogger:

@@ -1,10 +1,10 @@
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
+
 import {
     generateAnnotationPayloadData,
     generateNewAnnotationPayloadData,
 } from "@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
-
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {createAnnotation, updateAnnotation} from "@/oss/services/annotations/api"
 
 import {
     getScenario,
@@ -34,8 +34,7 @@ export const handleAnnotate = async ({
     projectId: string
     stepKey: string
 }) => {
-    console.log("handleAnnotate")
-    const ctx = await buildAnnotationContext({scenarioId, stepKey, runId})
+    const ctx = await buildAnnotationContext({scenarioId, stepKey})
     if (!ctx) return
     const {evaluators, stepData, traceSpanIds, testsetId, testcaseId, traceTree, jwt, apiUrl} = ctx
 
@@ -84,7 +83,7 @@ export const handleAnnotate = async ({
     try {
         // optimistic update for each matched step
         annotationSteps.forEach((st) => {
-            startOptimisticAnnotation(scenarioId, st, apiUrl, jwt, projectId, runId)
+            startOptimisticAnnotation(scenarioId, st, apiUrl, jwt, projectId)
         })
 
         const annotationResults = await Promise.allSettled(
@@ -104,7 +103,7 @@ export const handleAnnotate = async ({
             scenarioId,
             runId,
             projectId,
-            scenario: getScenario(scenarioId, runId),
+            scenario: getScenario(scenarioId),
             setErrorMessages,
             annotationSteps,
             jwt,
@@ -117,9 +116,8 @@ export const handleAnnotate = async ({
             err,
             annotationSteps,
             apiUrl,
-            jwt || "",
+            jwt,
             projectId,
-            runId,
             setErrorMessages,
         )
     }
@@ -142,14 +140,11 @@ export const handleUpdateAnnotate = async ({
     projectId: string
     stepKey: string
 }) => {
-    console.log("handleUpdateAnnotate")
-    const ctx = await buildAnnotationContext({scenarioId, stepKey, runId})
+    const ctx = await buildAnnotationContext({scenarioId, stepKey})
     if (!ctx) return
     const {evaluators, stepData, jwt, apiUrl} = ctx
 
-    const allAnnotations = stepData?.annotationSteps
-        ?.map((s) => s.annotation)
-        .filter(Boolean) as AnnotationDto[]
+    const allAnnotations = stepData?.annotationSteps?.map((s) => s.annotation).filter(Boolean) as AnnotationDto[]
 
     // Only use the new canonical payload generator
     const params = {
@@ -166,7 +161,7 @@ export const handleUpdateAnnotate = async ({
     if (abortIfMissingMetrics(requiredMetrics, formatErrorMessages)) return
     if (!payload.length) return
 
-    const scenario = getScenario(scenarioId, runId)
+    const scenario = getScenario(scenarioId)
     const annotationSteps = findAnnotationStepsFromPayload(
         stepData?.annotationSteps,
         payload
@@ -189,7 +184,7 @@ export const handleUpdateAnnotate = async ({
     try {
         // 1. enabling annotating state
         annotationSteps.forEach((st) => {
-            startOptimisticAnnotation(scenarioId, st, apiUrl, jwt, projectId, runId)
+            startOptimisticAnnotation(scenarioId, st, apiUrl, jwt, projectId)
         })
 
         // 2. updating annotations
@@ -232,9 +227,8 @@ export const handleUpdateAnnotate = async ({
             err,
             annotationSteps,
             apiUrl,
-            jwt || "",
+            jwt,
             projectId,
-            runId,
             setErrorMessages,
         )
     }

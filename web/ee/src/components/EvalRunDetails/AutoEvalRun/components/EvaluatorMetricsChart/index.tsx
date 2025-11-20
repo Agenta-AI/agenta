@@ -1,16 +1,8 @@
-import {useCallback, useMemo, useState, type ReactNode} from "react"
-
-import {Card, Radio, Typography} from "antd"
+import {Card, Typography} from "antd"
+import {useMemo} from "react"
 import clsx from "clsx"
-
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
-
-import {EVAL_BG_COLOR} from "../../assets/utils"
-import BarChartPlaceholder from "../shared/BarChartPlaceholder"
-import PlaceholderOverlay, {PlaceholderEvaluationType} from "../shared/PlaceholderOverlay"
-
 import BarChart from "./assets/BarChart"
-import HistogramChart from "./assets/HistogramChart"
+import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 
 /* ---------------- helpers ---------------- */
 
@@ -22,7 +14,7 @@ const format3Sig = (n: number) => {
     return String(Number(s))
 }
 
-interface BooleanMetric {
+type BooleanMetric = {
     rank: {value: boolean; count: number}[]
     count: number
     unique: boolean[]
@@ -44,7 +36,7 @@ export function toBooleanHistogramRows(
     ] as const
 }
 
-interface EvaluatorMetric {
+type EvaluatorMetric = {
     count: number
     sum: number
     mean: number
@@ -71,7 +63,7 @@ export function toXYRowsFromDistributionNoBin(
         .map((d) => ({
             x: format3Sig(opts?.digits != null ? Number(d.value.toFixed(opts.digits)) : d.value),
             y: d.count,
-            color: opts?.color ?? "rgba(145, 202, 255, 0.7)",
+            color: opts?.color ?? "#91CAFF",
         }))
 
     return rows
@@ -81,41 +73,22 @@ export function toXYRowsFromDistributionNoBin(
 export function toSingleMeanRow(metric: EvaluatorMetric, opts?: {color?: string; digits?: number}) {
     const y = typeof metric.mean === "number" ? metric.mean : 0
     const x = format3Sig(opts?.digits != null ? Number(y.toFixed(opts.digits)) : y)
-    return [{x, y, color: opts?.color ?? "rgba(145, 202, 255, 0.7)"}] as const
+    return [{x, y, color: opts?.color ?? "#91CAFF"}] as const
 }
-
-const items = ["average", "histogram", "total"]
 
 /* ---------------- page component ---------------- */
 
 const EvaluatorMetricsChart = ({
     className,
     name,
-    metricKey,
     metric,
     evaluator,
-    isCompare,
-    averageRows,
-    summaryRows,
-    evaluationType = "auto",
-    hasMetricData = false,
-    placeholderTitle,
-    placeholderDescription,
 }: {
     className?: string
     name: string
-    metricKey?: string
     metric: Record<string, any>
     evaluator?: EvaluatorDto
-    isCompare?: boolean
-    averageRows?: readonly {x: string; y: number; color?: string}[]
-    summaryRows?: readonly {x: string; y: number; color?: string}[]
-    evaluationType?: PlaceholderEvaluationType
-    hasMetricData?: boolean
-    placeholderTitle?: ReactNode
-    placeholderDescription?: ReactNode
 }) => {
-    const [selectedItem, setSelectedItem] = useState(items[0])
     const isBooleanMetric = !!metric?.unique?.length
     const hasDistribution = Array.isArray(metric?.distribution) && metric.distribution.length > 0
     const isNumeric = typeof metric?.mean === "number" || hasDistribution
@@ -132,27 +105,6 @@ const EvaluatorMetricsChart = ({
         return ""
     }, [metric, isBooleanMetric])
 
-    // Summary for compare mode: one value per evaluation with +/- delta vs base
-    const compareSummaries = useMemo(() => {
-        // Use only evaluations that actually have this evaluator's metric (averageRows already filtered)
-        if (!isCompare || !averageRows?.length)
-            return [] as {value: string; delta?: string; color: string}[]
-
-        const base = averageRows?.[0]?.y ?? 0
-        const isPct = isBooleanMetric
-        return averageRows.map((r, i) => {
-            const color = (r as any)?.color || (EVAL_BG_COLOR as any)[i + 1] || "#3B82F6"
-            const valNum = Number(r.y || 0)
-            const value = isPct ? `${valNum.toFixed(2)}%` : format3Sig(valNum)
-            if (i === 0) return {value, delta: "-", color}
-            // percent difference vs base (avoid divide by zero)
-            const deltaPct = base ? ((valNum - base) / Math.abs(base)) * 100 : 0
-            const sign = deltaPct > 0 ? "+" : ""
-            const delta = `${sign}${deltaPct.toFixed(0)}%`
-            return {value, delta, color}
-        })
-    }, [isCompare, averageRows, isBooleanMetric])
-
     // Shape data:
     // - Boolean: two bars true/false
     // - Numeric: distribution → (x = formatted start value, y = count)
@@ -162,58 +114,22 @@ const EvaluatorMetricsChart = ({
             return toBooleanHistogramRows(metric as BooleanMetric, {
                 trueLabel: "true",
                 falseLabel: "false",
-                trueColor: "rgba(145, 202, 255, 0.7)",
-                falseColor: "rgba(145, 202, 255, 0.7)",
+                trueColor: "#91CAFF",
+                falseColor: "#91CAFF",
             })
         }
         if (hasDistribution) {
             return toXYRowsFromDistributionNoBin(metric as EvaluatorMetric, {
-                color: "rgba(145, 202, 255, 0.7)",
+                color: "#91CAFF",
                 digits: 3,
             })
         }
         if (isNumeric) {
-            return toSingleMeanRow(metric as EvaluatorMetric, {
-                color: "rgba(145, 202, 255, 0.7)",
-                digits: 3,
-            })
+            return toSingleMeanRow(metric as EvaluatorMetric, {color: "#91CAFF", digits: 3})
         }
         return []
     }, [metric, isBooleanMetric, hasDistribution, isNumeric])
 
-    const showHistogram = !isCompare || selectedItem === "histogram"
-
-    const formatYAxisTick = useCallback(
-        (value: number) => {
-            if (typeof value !== "number" || Number.isNaN(value)) return ""
-
-            const formatToThreeDecimals = (num: number) => {
-                if (num === 0) return "0"
-                const abs = Math.abs(num)
-                if (abs < 0.001) return num.toExponential(2)
-                return Number(num.toFixed(3)).toString()
-            }
-
-            if (isBooleanMetric) {
-                return `${formatToThreeDecimals(value)}%`
-            }
-
-            return formatToThreeDecimals(value)
-        },
-        [isBooleanMetric],
-    )
-
-    const hasSummaryRows = summaryRows?.some((row) => Number.isFinite(row.y)) ?? false
-    const showPlaceholder = chartData.length === 0 && !hasSummaryRows && !hasMetricData
-    const evaluatorLabel = evaluator?.name || evaluator?.slug || "this evaluator"
-    const defaultPlaceholderTitle =
-        evaluationType === "online" ? "Waiting for your traces" : "Waiting for evaluation runs"
-    const defaultPlaceholderDescription =
-        evaluationType === "online"
-            ? `Generate traces with ${evaluatorLabel} to start collecting results.`
-            : `Annotate your scenarios with ${evaluatorLabel} to start seeing distribution data.`
-    const overlayTitle = placeholderTitle ?? defaultPlaceholderTitle
-    const overlayDescription = placeholderDescription ?? defaultPlaceholderDescription
 
     return (
         <Card
@@ -221,7 +137,7 @@ const EvaluatorMetricsChart = ({
                 <div className="flex justify-between items-center w-full h-[64px] p-0">
                     <div className="flex flex-col gap-1">
                         <Typography.Text className="font-medium text-sm capitalize">
-                            {evaluatorLabel}
+                            {evaluator?.name}
                         </Typography.Text>
                         <Typography.Text className="capitalize font-normal" type="secondary">
                             {name}
@@ -232,103 +148,30 @@ const EvaluatorMetricsChart = ({
             className={clsx("rounded !p-0 overflow-hidden", className)}
             classNames={{title: "!py-0 !px-4", header: "!p-0", body: "!p-0"}}
         >
-            {showPlaceholder ? (
-                <div className="relative min-h-[260px] overflow-hidden rounded bg-[#F8FAFC]">
-                    <BarChartPlaceholder className="opacity-60" />
-                    <PlaceholderOverlay
-                        evaluationType={evaluationType}
-                        title={overlayTitle}
-                        description={overlayDescription}
-                        className="px-8"
-                    />
+            <div className="flex flex-col justify-center items-center">
+                <div className="border-0 border-b border-solid border-[#EAEFF5] w-full flex items-center justify-center h-[65px]">
+                    <Typography.Text className="text-lg font-medium text-[#4096FF]">
+                        {chartSummeryValue}
+                    </Typography.Text>
                 </div>
-            ) : (
-                <div className="flex flex-col justify-center items-center">
-                    {isCompare ? (
-                        <div className="border-0 border-b border-solid border-[#EAEFF5] w-full flex items-center justify-evenly h-[80px] px-4">
-                            {compareSummaries.map((s, idx) => (
-                                <div
-                                    key={idx}
-                                    className="flex flex-col items-center justify-center"
-                                >
-                                    <Typography.Text
-                                        style={{color: s.color}}
-                                        className="text-xl font-medium"
-                                    >
-                                        {s.value}
-                                    </Typography.Text>
-                                    <Typography.Text
-                                        className={
-                                            idx === 0
-                                                ? "text-[#758391]"
-                                                : s.delta?.startsWith("+")
-                                                  ? "text-green-600"
-                                                  : s.delta?.startsWith("-")
-                                                    ? "text-red-500"
-                                                    : "text-[#758391]"
-                                        }
-                                    >
-                                        {s.delta}
-                                    </Typography.Text>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="border-0 border-b border-solid border-[#EAEFF5] w-full flex items-center justify-center h-[65px]">
-                            <Typography.Text className="text-xl font-medium text-[#4096FF]">
-                                {chartSummeryValue}
-                            </Typography.Text>
-                        </div>
-                    )}
 
-                    <div className="w-full h-full flex flex-col p-4">
-                        <div className="w-full flex items-center h-full gap-2 px-4">
-                            <Typography.Text
-                                className="font-normal -rotate-90 w-[20px] text-nowrap"
-                                type="secondary"
-                            >
-                                {showHistogram ? "Frequency" : "Avg score"}
-                            </Typography.Text>
-                            <div className="flex-1 h-[400px]">
-                                {showHistogram ? (
-                                    <HistogramChart
-                                        data={chartData as any}
-                                        xKey="x"
-                                        yKey="y"
-                                        colorKey="color"
-                                        tooltipLabel={name}
-                                        yDomain={[0, 1]}
-                                        barGap={0}
-                                        barCategoryGap={chartData.length < 4 ? "30%" : "10%"}
-                                        barProps={{radius: [8, 8, 0, 0]}}
-                                    />
-                                ) : (
-                                    <BarChart
-                                        data={(averageRows as any) || []}
-                                        xKey="x"
-                                        yKey="y"
-                                        colorKey="color"
-                                        tooltipLabel={name}
-                                        yDomain={[0, "dataMax"]}
-                                        tooltipFormatter={(value) => formatYAxisTick(value)}
-                                        yAxisProps={{tickFormatter: formatYAxisTick}}
-                                        barCategoryGap={
-                                            (averageRows?.length ?? 0) < 4 ? "30%" : "10%"
-                                        }
-                                        barProps={{radius: [8, 8, 0, 0]}}
-                                    />
-                                )}
-                            </div>
-                        </div>
-                        <Typography.Text
-                            className="capitalize font-normal text-center mx-auto"
-                            type="secondary"
-                        >
-                            {name}
-                        </Typography.Text>
+                <div className="w-full flex items-center h-full gap-2 pr-6 pt-6">
+                    <div className="flex-1 h-[400px]">
+                        <BarChart
+                            data={chartData as any}
+                            xKey="x"
+                            yKey="y"
+                            colorKey="color"
+                            tooltipLabel={name}
+                            yDomain={[0, 1]}
+                            barSize={!isBooleanMetric ? 0 : 80}
+                            barGap={!isBooleanMetric ? 0 : 16}
+                            barCategoryGap={!isBooleanMetric ? 0 : 24}
+                            barProps={{radius: [8, 8, 0, 0]}}
+                        />
                     </div>
                 </div>
-            )}
+            </div>
         </Card>
     )
 }

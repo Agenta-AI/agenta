@@ -38,6 +38,20 @@ export const GeneralHumanEvalMetricColumns = [
         metricType: "number",
     },
     {
+        name: "promptTokens",
+        kind: "metric",
+        path: "promptTokens",
+        stepKey: "metric",
+        metricType: "number",
+    },
+    {
+        name: "completionTokens",
+        kind: "metric",
+        path: "completionTokens",
+        stepKey: "metric",
+        metricType: "number",
+    },
+    {
         name: "errors",
         kind: "metric",
         path: "errors",
@@ -48,31 +62,31 @@ export const GeneralHumanEvalMetricColumns = [
 
 export const GeneralAutoEvalMetricColumns = [
     {
-        name: "Cost (Total)",
+        name: "Total cost",
         kind: "metric",
-        path: "attributes.ag.metrics.costs.cumulative.total",
+        path: "totalCost",
         stepKey: "metric",
         metricType: "number",
     },
     {
-        name: "Duration (Total)",
+        name: "Total Duration",
         kind: "metric",
-        path: "attributes.ag.metrics.duration.cumulative",
+        path: "duration",
         stepKey: "metric",
         metricType: "number",
     },
     {
-        name: "Tokens (Total)",
+        name: "Total tokens",
         kind: "metric",
-        path: "attributes.ag.metrics.tokens.cumulative.total",
+        path: "tokens",
         stepKey: "metric",
         metricType: "number",
     },
     {
-        name: "Errors",
+        name: "errors",
         kind: "metric",
-        path: "attributes.ag.metrics.errors.cumulative",
+        path: "errors",
         stepKey: "metric",
-        metricType: "number",
+        metricType: "boolean",
     },
 ]

@@ -1,8 +1,7 @@
 import {memo} from "react"
-
-import {Timer, Coins, PlusCircle} from "@phosphor-icons/react"
 import {Space, Tooltip} from "antd"
 
+import {Timer, Coins, PlusCircle} from "@phosphor-icons/react"
 import {formatCurrency, formatLatency, formatTokenUsage} from "@/oss/lib/helpers/formatters"
 
 const TraceMetrics = ({latency, cost, tokens}: {latency: number; cost: number; tokens: number}) => {

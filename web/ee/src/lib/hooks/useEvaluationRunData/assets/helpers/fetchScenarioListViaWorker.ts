@@ -21,7 +21,6 @@ interface Params {
     jwt: string
     projectId: string
     runId: string
-    order?: "ascending" | "descending"
 }
 
 export async function fetchScenarioListViaWorker(
@@ -30,6 +29,7 @@ export async function fetchScenarioListViaWorker(
 ): Promise<IScenario[]> {
     const worker = getWorker()
     const requestId = uuid()
+    // console.log("[fetchScenarioListViaWorker]", params)
     return new Promise<IScenario[]>((resolve, reject) => {
         const handle = (e: MessageEvent<any>) => {
             const {requestId: rid, ok, data, error} = e.data

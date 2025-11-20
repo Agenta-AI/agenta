@@ -1,4 +1,4 @@
-import {EvaluationStatus, PreviewTestset, WorkspaceMember} from "@/oss/lib/Types"
+import {EvaluationStatus, PreviewTestSet, WorkspaceMember} from "@/oss/lib/Types"
 
 import {Evaluation} from "../../Types"
 import type {Metric} from "../useEvaluationRunMetrics/types"
@@ -61,14 +61,6 @@ export interface EvaluationRunState {
     rawRun?: EvaluationRun | Evaluation
     isPreview?: boolean
     enrichedRun?: EnrichedEvaluationRun
-    /** Whether this evaluation is being used for comparison */
-    isComparison?: boolean
-    /** Whether this is the base evaluation being compared against */
-    isBase?: boolean
-    /** Position in comparison view (1 for base, 2+ for comparisons) */
-    compareIndex?: number
-    /** Stable color index used for UI styling independent of baseline swaps */
-    colorIndex?: number
     scenarios?: IScenario[]
     /** Summary of scenario statuses and timings */
     statusMeta: IStatusMeta
@@ -109,7 +101,6 @@ export interface EvaluationLoadingState {
     isLoadingScenarios: boolean
     isLoadingSteps: boolean
     isLoadingMetrics: boolean
-    isRefreshingMetrics: boolean
     activeStep: LoadingStep
     scenarioStepProgress: ScenarioStepProgress
 }
@@ -129,7 +120,7 @@ export interface EvalRunDataContextType {
     mappings: any
     members: WorkspaceMember[]
     evaluators: EvaluatorDto[]
-    testsets: PreviewTestset[]
+    testsets: PreviewTestSet[]
     variants: any[]
     /**
      * Given an array of scenario IDs, fetches step data for each, and then

@@ -1,27 +1,19 @@
-import {BasicStats, SchemaMetricType} from "@/oss/lib/metricUtils"
-
-import {TableColumn} from "../types"
-
 export interface MetricCellProps {
     scenarioId: string
     metricKey: string
     fullKey?: string
     value: any
-    distInfo?: Record<string, BasicStats> | Promise<Record<string, BasicStats>>
-    metricType?: SchemaMetricType
-    isComparisonMode?: boolean
+    distInfo?: any
+    metricType?: string
 }
 
 export interface MetricValueCellProps {
     scenarioId: string
     metricKey: string
-    fallbackKey?: string
     fullKey?: string
-    distInfo?: Record<string, BasicStats> | Promise<Record<string, BasicStats>>
-    metricType?: SchemaMetricType
+    distInfo?: any
+    metricType?: string
     evalType?: "auto" | "human"
-    runId?: string
-    stepKey?: string
 }
 
 export interface AnnotationValueCellProps {
@@ -29,15 +21,13 @@ export interface AnnotationValueCellProps {
     fieldPath: string // e.g. "data.outputs.isGood"
     metricKey: string
     fullKey?: string
-    distInfo?: Record<string, BasicStats> | Promise<Record<string, BasicStats>>
-    metricType?: SchemaMetricType
+    distInfo?: any
+    metricType?: string
     stepKey?: string
     name?: string
-    runId?: string
 }
 
 export interface CollapsedAnnotationValueCellProps {
     scenarioId: string
-    childrenDefs: TableColumn[]
-    runId?: string
+    childrenDefs: any[]
 }

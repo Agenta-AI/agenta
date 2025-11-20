@@ -1,4 +1,7 @@
+import {v4 as uuidv4} from "uuid"
+
 import {EvaluationStatus} from "@/oss/lib/Types"
+import {BaseResponse} from "@/oss/lib/Types"
 
 /**
  * Update scenario status from a WebWorker / non-axios context.
@@ -9,32 +12,19 @@ export async function updateScenarioStatusRemote(
     scenarioId: string,
     status: EvaluationStatus,
     projectId: string,
-    runId?: string,
 ): Promise<void> {
     try {
-        // 1. Query results to validate scenario context (scenarios GET is deprecated)
+        // 1. fetch full scenario (backend requires full object on PATCH)
         const res = await fetch(
-            `${apiUrl}/preview/evaluations/results/query?project_id=${projectId}`,
+            `${apiUrl}/preview/evaluations/scenarios/${scenarioId}?project_id=${projectId}`,
             {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${jwt}`,
-                },
-                body: JSON.stringify({
-                    result: {
-                        scenario_ids: [scenarioId],
-                        ...(runId ? {run_ids: [runId]} : {}),
-                    },
-                    windowing: {},
-                }),
+                headers: {Authorization: `Bearer ${jwt}`},
             },
         )
         let scenarioFull: any | null = null
         if (res.ok) {
-            // We no longer rely on the scenario payload; server requires id for PATCH
-            // Keep minimal object; if server returns extra data in future, parse here
-            scenarioFull = {id: scenarioId}
+            const json = (await res.json()) as BaseResponse
+            if (json?.scenario) scenarioFull = json.scenario
         }
         if (!scenarioFull) scenarioFull = {id: scenarioId}
         scenarioFull.status = status
@@ -79,32 +69,20 @@ export async function upsertScenarioStep(params: {
         references = {},
     } = params
     try {
-        const res = await fetch(
-            `${apiUrl}/preview/evaluations/results/query?project_id=${projectId}`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${jwt}`,
-                },
-                body: JSON.stringify({
-                    result: {
-                        run_ids: [runId],
-                        scenario_ids: [scenarioId],
-                        step_keys: [key],
-                    },
-                    windowing: {},
-                }),
-            },
-        )
+        const query = new URLSearchParams({
+            project_id: projectId,
+            run_ids: runId,
+            scenario_ids: scenarioId,
+            key: key,
+        })
+        const res = await fetch(`${apiUrl}/preview/evaluations/steps/?${query.toString()}`, {
+            headers: {Authorization: `Bearer ${jwt}`},
+        })
         if (res.ok) {
             const data = await res.json()
-            const list = Array.isArray(data.results)
-                ? data.results
-                : Array.isArray(data.steps)
-                  ? data.steps
-                  : []
-            const existing = list.find((s: any) => s.step_key === key || s.stepKey === key)
+            const existing = Array.isArray(data.steps)
+                ? data.steps.find((s: any) => s.key === key)
+                : undefined
             if (existing) {
                 const updated = {
                     ...existing,
@@ -113,15 +91,17 @@ export async function upsertScenarioStep(params: {
                     span_id: spanId,
                     references: {...((existing as any)?.references || {}), ...references},
                 }
-                await fetch(`${apiUrl}/preview/evaluations/results/?project_id=${projectId}`, {
-                    method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${jwt}`,
+                await fetch(
+                    `${apiUrl}/preview/evaluations/steps/${existing.id}?project_id=${projectId}`,
+                    {
+                        method: "PATCH",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${jwt}`,
+                        },
+                        body: JSON.stringify({step: updated}),
                     },
-                    // API expects bulk-style body: { results: [ { id, ...fields } ] }
-                    body: JSON.stringify({results: [updated]}),
-                })
+                )
                 return
             }
         }
@@ -130,10 +110,10 @@ export async function upsertScenarioStep(params: {
     }
 
     const body = {
-        results: [
+        steps: [
             {
                 status,
-                step_key: key,
+                key,
                 trace_id: traceId,
                 span_id: spanId,
                 scenario_id: scenarioId,
@@ -143,7 +123,7 @@ export async function upsertScenarioStep(params: {
         ],
     }
     try {
-        await fetch(`${apiUrl}/preview/evaluations/results/?project_id=${projectId}`, {
+        await fetch(`${apiUrl}/preview/evaluations/steps/?project_id=${projectId}`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

@@ -1,148 +1,53 @@
-import {memo} from "react"
+import {memo, useMemo} from "react"
+import ResponsiveMetricChart from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/ResponsiveMetricChart"
+import {buildChartData} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
+import ResponsiveFrequencyChart from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/ResponsiveFrequencyChart"
 
-import {
-    BarChart as RechartsBarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    ResponsiveContainer,
-    Tooltip,
-    CartesianGrid,
-    Cell,
-} from "recharts"
+const HistogramChart = ({metric}: {metric: Record<string, any>}) => {
+    const chartData = useMemo(() => buildChartData(metric), [metric])
 
-type ChartDatum = Record<string, string | number | boolean | undefined>
+    const isCategoricalChart =
+        Array.isArray(metric.distribution) ||
+        Array.isArray(metric.rank) ||
+        Array.isArray(metric.frequency)
+    const hasEdge =
+        chartData.length > 0 && Object.prototype.hasOwnProperty.call(chartData[0], "edge")
 
-interface HistogramChartProps {
-    data: readonly ChartDatum[]
-    xKey: string
-    yKey: string
-    /** optional key in data row that carries the color (e.g. 'color') */
-    colorKey?: string
-
-    /** Axis / chart tuning */
-    yDomain?: [number | "auto" | "dataMin", number | "auto" | "dataMax"]
-    xAxisProps?: Partial<React.ComponentProps<typeof XAxis>>
-    yAxisProps?: Partial<React.ComponentProps<typeof YAxis>>
-    cartesianGridProps?: Partial<React.ComponentProps<typeof CartesianGrid>>
-    chartProps?: Partial<React.ComponentProps<typeof RechartsBarChart>>
-    containerProps?: Partial<React.ComponentProps<typeof ResponsiveContainer>>
-
-    /** Bar sizing & spacing */
-    barSize?: number // if omitted, width is auto-calculated from gaps
-    barGap?: number | string // e.g. 16 or '30%'
-    barCategoryGap?: number | string // e.g. 24 or '30%'
-
-    /** Tooltip label for Y value. Pass falsy to hide Tooltip. */
-    tooltipLabel?: string
-
-    /** Per-bar <Cell/> overrides */
-    getCellProps?: (row: ChartDatum, index: number) => Partial<React.ComponentProps<typeof Cell>>
-
-    /** Direct pass-through to <Bar/> */
-    barProps?: Partial<React.ComponentProps<typeof Bar>>
-
-    className?: string
-}
-
-const HistogramChart = ({
-    data,
-    xKey,
-    yKey,
-    colorKey,
-    yDomain = ["auto", "auto"],
-    xAxisProps,
-    yAxisProps,
-    cartesianGridProps,
-    chartProps,
-    containerProps,
-    // Use percentage-based gaps by default for consistent spacing across datasets
-    barSize,
-    barGap = "10%",
-    barCategoryGap = "30%",
-    tooltipLabel = "Value",
-    getCellProps,
-    barProps,
-    className,
-}: HistogramChartProps) => {
-    const chartBarSize = !barSize ? undefined : barSize
-    const yAxisWidth = typeof yAxisProps?.width === "number" ? yAxisProps.width : 48
+    const frequencyData = useMemo(() => {
+        // Only build for categorical/frequency charts without edge
+        if (isCategoricalChart && !hasEdge) {
+            // buildChartData returns [{ name, value }] but ResponsiveFrequencyChart expects [{ label, count }]
+            return buildChartData(metric).map((d) => ({
+                label: d.name,
+                count: d.value,
+            }))
+        }
+        return []
+    }, [metric, isCategoricalChart, hasEdge])
 
     return (
-        <ResponsiveContainer
-            width="100%"
-            height="100%"
-            className="recharts-chart-container"
-            {...containerProps}
-        >
-            <RechartsBarChart
-                data={data as any}
-                barSize={chartBarSize}
-                barGap={barGap}
-                barCategoryGap={barCategoryGap}
-                {...chartProps}
-            >
-                <XAxis
-                    dataKey={xKey}
-                    tickLine={false}
-                    tick={{fill: "#666"}}
-                    height={20}
-                    {...xAxisProps}
-                />
-                <YAxis
-                    domain={yDomain as any}
-                    tickLine={{stroke: "#05172933"}}
-                    tick={{fill: "#666"}}
-                    tickMargin={8}
-                    width={yAxisWidth}
-                    {...yAxisProps}
-                />
-                <CartesianGrid
-                    strokeDasharray="3 2"
-                    horizontal
-                    vertical={false}
-                    stroke="#05172933"
-                    {...cartesianGridProps}
-                />
-
-                {tooltipLabel ? (
-                    <Tooltip
-                        formatter={(v: any) => [v as number, tooltipLabel]}
-                        cursor={false}
-                        contentStyle={{
-                            backgroundColor: "white",
-                            border: "1px solid #d9d9d9",
-                            borderRadius: "4px",
-                            padding: "4px 8px",
-                        }}
+        <div className="w-full h-full min-h-0 flex flex-col relative overflow-hidden">
+            <div className="flex-1 items-end min-h-0 relative *:h-full">
+                {metric?.mean ? (
+                    <ResponsiveMetricChart
+                        chartData={chartData}
+                        extraDimensions={metric}
+                        direction="vertical"
+                        dynamicMargin={{bottom: 40}}
+                        disableGradient={true}
+                        barColor={"#4096FF"}
+                    />
+                ) : metric?.unique ? (
+                    <ResponsiveFrequencyChart
+                        data={frequencyData}
+                        direction="vertical"
+                        barColor={"#4096FF"}
+                        disableGradient={true}
+                        dynamicMargin={{bottom: 40}}
                     />
                 ) : null}
-
-                <Bar
-                    dataKey={yKey}
-                    name={tooltipLabel ?? "Value"}
-                    fill="#3B82F6"
-                    radius={[4, 4, 0, 0]}
-                    barSize={chartBarSize}
-                    maxBarSize={100}
-                    {...barProps}
-                >
-                    {data.map((row, i) => {
-                        const fill =
-                            colorKey && typeof row[colorKey] === "string"
-                                ? (row[colorKey] as string)
-                                : undefined
-                        return (
-                            <Cell
-                                key={`cell-${i}`}
-                                fill={fill}
-                                {...(getCellProps?.(row, i) ?? {})}
-                            />
-                        )
-                    })}
-                </Bar>
-            </RechartsBarChart>
-        </ResponsiveContainer>
+            </div>
+        </div>
     )
 }
 

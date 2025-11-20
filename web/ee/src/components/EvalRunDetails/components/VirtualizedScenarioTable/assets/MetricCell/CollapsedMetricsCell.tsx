@@ -2,7 +2,8 @@ import {memo} from "react"
 
 import {useAtomValue} from "jotai"
 
-import {scenarioMetricsMapFamily} from "../../../../../../lib/hooks/useEvaluationRunData/assets/atoms/runScopedMetrics"
+import {scenarioMetricMapFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runMetricsCache"
+
 import {CellWrapper} from "../CellComponents"
 
 export interface CollapsedMetricsCellProps {
@@ -11,7 +12,7 @@ export interface CollapsedMetricsCellProps {
 }
 
 const CollapsedMetricsCell = memo<CollapsedMetricsCellProps>(({scenarioId, evaluatorSlug}) => {
-    const rowMetrics = useAtomValue(scenarioMetricsMapFamily(scenarioId)) || {}
+    const rowMetrics = useAtomValue(scenarioMetricMapFamily(scenarioId)) || {}
 
     const filtered: Record<string, any> = {}
     Object.entries(rowMetrics).forEach(([k, v]) => {

@@ -3,12 +3,12 @@ import {memo} from "react"
 import {Progress} from "antd"
 import {useAtomValue} from "jotai"
 
-import {scenarioStepProgressFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {scenarioStepProgressAtom} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import {conicColors} from "./assets/constants"
 
-const ScenarioLoadingIndicator = ({runId}: {runId: string}) => {
-    const scenarioStepProgress = useAtomValue(scenarioStepProgressFamily(runId))
+const ScenarioLoadingIndicator = () => {
+    const scenarioStepProgress = useAtomValue(scenarioStepProgressAtom)
 
     return scenarioStepProgress.loadingStep === "scenario-steps" ? (
         <Progress

@@ -67,7 +67,7 @@ async def fetch_completion_template(fetch_templates):
 
 
 def get_random_name():
-    return f"completion_{uuid.uuid4().hex[:8]}"
+    return f"completion_app_{uuid.uuid4().hex[:8]}"
 
 
 @pytest_asyncio.fixture(scope="session")

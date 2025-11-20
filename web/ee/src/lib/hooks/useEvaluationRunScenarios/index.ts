@@ -6,18 +6,19 @@ import useSWR, {SWRConfiguration} from "swr"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 
-import {evalAtomStore, loadingStateAtom} from "../useEvaluationRunData/assets/atoms"
-import {evaluationRunStateFamily} from "../useEvaluationRunData/assets/atoms/runScopedAtoms"
+import {
+    evalAtomStore,
+    evaluationRunStateAtom,
+    loadingStateAtom,
+} from "../useEvaluationRunData/assets/atoms"
 
 import {IScenario, ScenarioResponse, UseEvaluationRunScenariosOptions} from "./types"
 
-// Fetcher factory that posts a query to the new endpoint and syncs atoms of current store
+// Fetcher factory that returns raw snake_case scenario responses and syncs atoms of current store
 const makeFetcher = (
-    endpoint: string,
+    url: string,
     syncAtom: boolean,
     setLoading: ReturnType<typeof useSetAtom>,
-    runId?: string | null,
-    params?: UseEvaluationRunScenariosOptions,
 ): (() => Promise<{
     scenarios: IScenario[]
     count: number
@@ -31,19 +32,7 @@ const makeFetcher = (
                 draft.activeStep = "scenarios"
             })
         }
-
-        // Build request body for /preview/evaluations/scenarios/query
-        const body: Record<string, any> = {
-            scenario: {
-                ...(runId ? {run_ids: [runId]} : {}),
-            },
-            windowing: {
-                ...(params?.limit !== undefined ? {limit: params.limit} : {}),
-                ...(params?.next ? {next: params.next} : {}),
-            },
-        }
-
-        return axios.post(endpoint, body).then((res) => {
+        return axios.get(url).then((res) => {
             const raw = res.data
             const scenarios = Array.isArray(raw.scenarios)
                 ? (raw.scenarios.map((scenario: ScenarioResponse, index: number) => ({
@@ -57,12 +46,9 @@ const makeFetcher = (
                     draft.isLoadingScenarios = false
                     draft.activeStep = null
                 })
-                // Only sync to run-scoped atom if runId is available
-                if (runId) {
-                    evalAtomStore().set(evaluationRunStateFamily(runId), (draft) => {
-                        draft.scenarios = scenarios
-                    })
-                }
+                evalAtomStore().set(evaluationRunStateAtom, (draft) => {
+                    draft.scenarios = scenarios
+                })
             }
             return {
                 scenarios,
@@ -83,11 +69,17 @@ export const getEvaluationRunScenariosKey = (
     runId?: string | null | undefined,
     params?: UseEvaluationRunScenariosOptions,
 ) => {
-    if (!runId) return null
-    const parts: string[] = ["scenarios-query", `run:${runId}`]
-    if (params?.limit !== undefined) parts.push(`limit:${params.limit}`)
-    if (params?.next) parts.push(`next:${params.next}`)
-    return parts.join("|")
+    const queryParams = new URLSearchParams()
+    if (runId) {
+        queryParams.append("run_ids", `{${runId}}`)
+        if (params?.limit !== undefined) {
+            queryParams.append("limit", params.limit.toString())
+        }
+        if (params?.next) {
+            queryParams.append("next", params.next)
+        }
+    }
+    return runId ? `/preview/evaluations/scenarios/?${queryParams.toString()}` : null
 }
 /**
  * @deprecated
@@ -107,14 +99,15 @@ const useEvaluationRunScenarios = (
     {syncAtom = true, ...options}: UseEvaluationRunScenariosHookOptions = {},
 ) => {
     const setLoading = useSetAtom(loadingStateAtom)
-
+    
     // Build query string only if runId is provided
     const swrKey = getEvaluationRunScenariosKey(runId, params)
 
-    const fetcher = useCallback(
-        makeFetcher("/preview/evaluations/scenarios/query", syncAtom, setLoading, runId, params),
-        [syncAtom, setLoading, runId, params?.limit, params?.next],
-    )
+    const fetcher = useCallback(makeFetcher(swrKey!, syncAtom, setLoading), [
+        swrKey,
+        syncAtom,
+        setLoading,
+    ])
 
     const swrData = useSWR<{
         scenarios: IScenario[]

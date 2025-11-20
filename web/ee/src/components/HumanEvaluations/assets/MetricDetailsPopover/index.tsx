@@ -2,12 +2,13 @@ import {memo, useCallback, useMemo, useState, type FC} from "react"
 
 import {Popover, Tag, Space} from "antd"
 import clsx from "clsx"
+import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
+import {selectAtom} from "jotai/utils"
 
-import {Expandable} from "@/oss/components/Tables/ExpandableCell"
-import {runMetricsStatsCacheFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
-import {extractPrimitive, inferMetricType} from "@/oss/lib/metricUtils"
+import {Expandable} from "@/oss/components/EvalRunDetails/components/VirtualizedScenarioTable/assets/CellComponents"
+import {runMetricsStatsCacheAtom} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runMetricsCache"
+import {extractPrimitive, inferMetricType, SchemaMetricType} from "@/oss/lib/metricUtils"
 
 import ResponsiveFrequencyChart from "./assets/ResponsiveFrequencyChart"
 import ResponsiveMetricChart from "./assets/ResponsiveMetricChart"
@@ -267,9 +268,17 @@ export const MetricDetailsPopoverWrapper = memo(
             [evaluatorSlug, evaluatorMetricKey],
         )
 
-        // Use run-scoped stats cache instead of global cache
-        const runStatsCache = useAtomValue(runMetricsStatsCacheFamily(runId))
-        const stats = statsOverride ?? runStatsCache?.[metricKey]
+        const statsAtom = useMemo(
+            () =>
+                selectAtom(
+                    runMetricsStatsCacheAtom,
+                    (map) => map.get(runId)?.[metricKey],
+                    deepEqual,
+                ),
+            [metricKey, runId],
+        )
+        const statsFromAtom = useAtomValue(statsAtom) as Record<string, any> | undefined
+        const stats = statsOverride ?? statsFromAtom
 
         const rawPrimitive = useMemo(() => extractPrimitive(stats), [stats])
 
@@ -287,9 +296,6 @@ export const MetricDetailsPopoverWrapper = memo(
 
         const summary = useMemo(() => {
             if (!stats) return "N/A"
-            if (resolvedMetricType === "string" || resolvedMetricType === "object") {
-                return "N/A"
-            }
             // Numeric metrics → mean
             if (typeof (stats as any).mean === "number") {
                 return format3Sig(Number((stats as any).mean))
@@ -326,7 +332,7 @@ export const MetricDetailsPopoverWrapper = memo(
                                 </div>
                             </div>
                             <div className="self-stretch flex items-center justify-center">
-                                {(((trueEntry?.count ?? 0) / total) * 100).toFixed(2)}%
+                               {(((trueEntry?.count ?? 0) / total) * 100).toFixed(2)}%
                             </div>
                         </div>
                     )

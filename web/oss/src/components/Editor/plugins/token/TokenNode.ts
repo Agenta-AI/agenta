@@ -21,23 +21,11 @@ export class TokenNode extends TextNode {
     createDOM(): HTMLElement {
         const dom = document.createElement("span")
         dom.classList.add("token-node")
-        const text = this.__text
-        dom.textContent = text
-        // Base styles
+        dom.textContent = this.__text
+        dom.style.backgroundColor = "#e2e8f0"
+        dom.style.color = "#1677FF"
         dom.style.padding = "0 4px"
         dom.style.borderRadius = "4px"
-        dom.style.backgroundColor = "#e2e8f0"
-        // Color by token type
-        if (text.startsWith("{#")) {
-            // Jinja comment -> grey
-            dom.style.color = "#6b7280" // gray-500
-        } else if (text.startsWith("{%")) {
-            // Jinja block -> distinct color (purple)
-            dom.style.color = "#a855f7" // purple-500
-        } else {
-            // Default variable token {{ }}
-            dom.style.color = "#1677FF"
-        }
         return dom
     }
 
@@ -69,10 +57,7 @@ export class TokenNode extends TextNode {
 
     // Convert to regular text node if no longer valid token
     isValid(): boolean {
-        // Accept curly tokens and Jinja2 block/comment/variable tokens
-        return /^(\{\{[\s\S]*?\}\}|\{%-?[\s\S]*?-?%\}|\{%[\s\S]*?%\}|\{#[\s\S]*?#\})$/.test(
-            this.__text,
-        )
+        return /^\{\{[^{}]*\}\}$/.test(this.__text)
     }
 
     remove(): void {

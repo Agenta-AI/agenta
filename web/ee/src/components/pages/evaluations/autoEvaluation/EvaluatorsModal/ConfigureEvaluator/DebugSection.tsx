@@ -1,6 +1,7 @@
 // @ts-nocheck
-import {Dispatch, SetStateAction, useEffect, useMemo, useRef, useState} from "react"
+import {Dispatch, SetStateAction, useMemo, useRef, useState} from "react"
 
+import {getAllMetadata} from "@agenta/oss/src/lib/hooks/useStatelessVariants/state"
 import {
     CheckCircleOutlined,
     CloseCircleOutlined,
@@ -21,7 +22,6 @@ import {
     Tooltip,
     Typography,
 } from "antd"
-import {atom, useAtomValue} from "jotai"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
@@ -35,15 +35,10 @@ import {
     apiKeyObject,
     extractChatMessages,
     getStringOrJson,
+    removeKeys,
     safeParse,
-    safeJson5Parse,
 } from "@/oss/lib/helpers/utils"
 import {getAllVariantParameters} from "@/oss/lib/helpers/variantHelper"
-import useAppVariantRevisions from "@/oss/lib/hooks/useAppVariantRevisions"
-import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
-import {extractInputKeysFromSchema} from "@/oss/lib/shared/variant/inputHelpers"
-import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
-import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {
@@ -66,24 +61,15 @@ import {
     createEvaluatorRunExecution,
 } from "@/oss/services/evaluations/api_ee"
 import {AgentaNodeDTO} from "@/oss/services/observability/types"
-import {useAppsData} from "@/oss/state/app/hooks"
-import {customPropertiesByRevisionAtomFamily} from "@/oss/state/newPlayground/core/customProperties"
-import {
-    stablePromptVariablesAtomFamily,
-    transformedPromptsAtomFamily,
-} from "@/oss/state/newPlayground/core/prompts"
-import {variantFlagsAtomFamily} from "@/oss/state/newPlayground/core/variantFlags"
-import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
-import {buildVariantFromRevision} from "./variantUtils"
-
 interface DebugSectionProps {
     selectedTestcase: {
         testcase: Record<string, any> | null
     }
     selectedVariant: EnhancedVariant
+    // NonNullable<ReturnType<typeof useStatelessVariants>["variants"]>[number]
     testsets: testset[] | null
     traceTree: {
         trace: Record<string, any> | string | null
@@ -108,17 +94,6 @@ interface DebugSectionProps {
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    "@global": {
-        /* Make selection modal fit viewport/container with scrollable body */
-        ".ant-modal .ant-modal-content": {
-            maxHeight: "80vh",
-            display: "flex",
-            flexDirection: "column",
-        },
-        ".ant-modal .ant-modal-body": {
-            overflow: "auto",
-        },
-    },
     title: {
         fontSize: theme.fontSizeLG,
         fontWeight: theme.fontWeightMedium,
@@ -133,31 +108,17 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         border: `1px solid ${theme.colorBorder}`,
         borderRadius: theme.borderRadius,
         overflow: "hidden",
-        minHeight: "180px",
     },
     variantTab: {
         flex: 1,
-        minWidth: 0,
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        "& .ant-tabs-content-holder": {
-            flex: 1,
-            minHeight: 0,
-        },
         "& .ant-tabs-content": {
             height: "100%",
-            overflow: "hidden",
             "& .ant-tabs-tabpane": {
                 height: "100%",
-                overflow: "hidden",
             },
         },
     },
 }))
-
-const LAST_APP_KEY = "agenta:lastAppId"
-const LAST_VARIANT_KEY = "agenta:lastVariantId"
 
 const DebugSection = ({
     selectedTestcase,
@@ -177,9 +138,6 @@ const DebugSection = ({
     const appId = useAppId()
     const classes = useStyles()
     const {appTheme} = useAppTheme()
-    const uriObject = useAtomValue(appUriInfoAtom)
-    const appSchema = useAtomValue(appSchemaAtom)
-    const {apps: availableApps = []} = useAppsData()
     const [baseResponseData, setBaseResponseData] = useState<BaseResponse | null>(null)
     const [outputResult, setOutputResult] = useState("")
     const [isLoadingResult, setIsLoadingResult] = useState(false)
@@ -198,153 +156,16 @@ const DebugSection = ({
     })
     const {secrets} = useVaultSecret()
 
-    const defaultAppId = useMemo(() => {
-        if (_selectedVariant?.appId) return _selectedVariant.appId
-        if (appId) return appId
-        const firstApp = availableApps?.[0]
-        return firstApp?.app_id ?? ""
-    }, [_selectedVariant?.appId, appId, availableApps])
-
-    const {revisionMap: defaultRevisionMap} = useAppVariantRevisions(defaultAppId || null)
-
     const selectedVariant = useMemo(() => {
-        const revs = _selectedVariant?.revisions || []
-        const variant = revs?.sort((a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
+        const revs = _selectedVariant.revisions
+        // find the most recent revision by looking at the updatedAtTimestamp
+        const variant = revs.sort((a, b) => b.updatedAtTimestamp - a.updatedAtTimestamp)[0]
         return variant
     }, [_selectedVariant])
-
-    const fallbackVariant = useMemo(() => {
-        if (_selectedVariant || !defaultAppId) return null
-        const revisionLists = Object.values(defaultRevisionMap || {})
-        if (!revisionLists.length) return null
-        const revisions = revisionLists[0]
-        if (!revisions || revisions.length === 0) return null
-        const baseVariant = buildVariantFromRevision(revisions[0], defaultAppId)
-        baseVariant.revisions = [...revisions]
-        return baseVariant
-    }, [_selectedVariant, defaultAppId, defaultRevisionMap])
-
-    const derivedVariants = useMemo(() => {
-        if (variants && variants.length > 0) return variants
-        if (fallbackVariant) return [fallbackVariant]
-        return []
-    }, [variants, fallbackVariant])
-
-    // Resolve current application object for display
-    const selectedApp = useMemo(() => {
-        const id = _selectedVariant?.appId || defaultAppId
-        return availableApps.find((a: any) => a.app_id === id)
-    }, [_selectedVariant?.appId, defaultAppId, availableApps])
-
-    // Initialize from localStorage (remember last app/variant) with fallbacks
-    useEffect(() => {
-        // if parent already set a specific variant, respect it
-        if (_selectedVariant) return
-
-        const storedAppId =
-            typeof window !== "undefined" ? localStorage.getItem(LAST_APP_KEY) : null
-        const storedVariantId =
-            typeof window !== "undefined" ? localStorage.getItem(LAST_VARIANT_KEY) : null
-
-        let nextVariant: Variant | null = null
-
-        // 1) Try to find an existing variant matching stored ids among provided or fallback variants
-        const searchPool: Variant[] = [...(variants || []), ...(derivedVariants || [])].filter(
-            Boolean,
-        ) as Variant[]
-
-        if (storedVariantId) {
-            nextVariant = searchPool.find((v) => (v as any)?.variantId === storedVariantId) || null
-        }
-
-        // 2) If not found by variant, but we have an app id, try first variant under that app
-        if (!nextVariant && storedAppId) {
-            nextVariant = searchPool.find((v) => (v as any)?.appId === storedAppId) || null
-        }
-
-        // 3) Finally fall back to first available variant in our computed list
-        if (!nextVariant && searchPool.length > 0) {
-            nextVariant = searchPool[0]
-        }
-
-        if (nextVariant) {
-            setSelectedVariant(nextVariant)
-        }
-    }, [_selectedVariant, variants, derivedVariants, setSelectedVariant])
-
-    // Persist whenever the working selectedVariant changes
-    useEffect(() => {
-        const v = _selectedVariant as any
-        if (!v) return
-        try {
-            if (v.appId) localStorage.setItem(LAST_APP_KEY, v.appId)
-            if (v.variantId) localStorage.setItem(LAST_VARIANT_KEY, v.variantId)
-        } catch {
-            // ignore storage errors (private mode, etc.)
-        }
-    }, [_selectedVariant])
-
-    useEffect(() => {
-        if (_selectedVariant) return
-        if (derivedVariants.length > 0) {
-            setSelectedVariant(derivedVariants[0])
-            return
-        }
-    }, [_selectedVariant, derivedVariants, setSelectedVariant])
-
-    // Variant flags (custom/chat) from global atoms for the selected revision
-    const flags = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? variantFlagsAtomFamily({revisionId: selectedVariant?.id})
-                    : (atom(null) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as any
-
-    // Stable variables derived from saved prompts (spec + saved parameters; no live edits)
-    const stableVarNames = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? (stablePromptVariablesAtomFamily(selectedVariant?.id) as any)
-                    : (atom([]) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as string[]
-
-    // Stable parameters (prompts + custom properties derived from saved revision + schema)
-    const stableTransformedParams = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? (transformedPromptsAtomFamily({
-                          revisionId: selectedVariant?.id,
-                          useStableParams: true,
-                      }) as any)
-                    : (atom(null) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as any
-
-    // Stable custom properties derived from spec + saved parameters (by revision)
-    const customProps = useAtomValue(
-        useMemo(
-            () =>
-                (selectedVariant?.id
-                    ? (customPropertiesByRevisionAtomFamily(selectedVariant?.id) as any)
-                    : (atom({}) as any)) as any,
-            [selectedVariant?.id],
-        ),
-    ) as any
 
     const activeTestset = useMemo(() => {
         return testsets?.find((item) => item._id === selectedTestset)
     }, [selectedTestset, testsets])
-
-    const isPlainObject = (value: unknown): value is Record<string, any> =>
-        Boolean(value) && typeof value === "object" && !Array.isArray(value)
 
     const fetchEvalMapper = async () => {
         if (!baseResponseData || !selectedTestcase.testcase) return
@@ -354,37 +175,10 @@ const DebugSection = ({
             setIsLoadingResult(true)
 
             const settingsValues = form.getFieldValue("settings_values") || {}
-            let normalizedSettings = {...settingsValues}
-
-            if (typeof normalizedSettings.json_schema === "string") {
-                try {
-                    const parsed = JSON.parse(normalizedSettings.json_schema)
-                    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-                        throw new Error()
-                    }
-                    normalizedSettings.json_schema = parsed
-                } catch {
-                    message.error("JSON schema must be a valid JSON object")
-                    setEvalOutputStatus({success: false, error: true})
-                    setIsLoadingResult(false)
-                    return
-                }
-            } else if (
-                normalizedSettings.json_schema &&
-                (typeof normalizedSettings.json_schema !== "object" ||
-                    Array.isArray(normalizedSettings.json_schema))
-            ) {
-                message.error("JSON schema must be a valid JSON object")
-                setEvalOutputStatus({success: false, error: true})
-                setIsLoadingResult(false)
-                return
-            }
-
             const {testcaseObj, evalMapObj} = mapTestcaseAndEvalValues(
-                normalizedSettings,
+                settingsValues,
                 selectedTestcase.testcase,
             )
-
             let outputs = {}
 
             if (Object.keys(evalMapObj).length && selectedEvaluator.key.startsWith("rag_")) {
@@ -406,53 +200,37 @@ const DebugSection = ({
                         ? correctAnswerKey.split(".")[1]
                         : correctAnswerKey
 
-                const normalizeCompact = (val: any) => {
-                    try {
-                        if (val === undefined || val === null) return ""
-                        const str = typeof val === "string" ? val : JSON.stringify(val)
-                        const parsed = safeJson5Parse(str)
-                        if (parsed && typeof parsed === "object") {
-                            return JSON.stringify(parsed)
-                        }
-                        return str
-                    } catch {
-                        return typeof val === "string" ? val : JSON.stringify(val)
-                    }
-                }
-
-                const rawGT = selectedTestcase?.["testcase"]?.[groundTruthKey]
-                const ground_truth = normalizeCompact(rawGT)
-                const prediction = normalizeCompact(variantResult)
-
                 outputs = {
-                    ...outputs,
-                    ...selectedTestcase.testcase,
-                    ground_truth,
-                    [groundTruthKey]: ground_truth,
-                    prediction,
+                    ...selectedTestcase["testcase"],
+                    ground_truth: selectedTestcase["testcase"][groundTruthKey],
+                    prediction: variantResult,
                     ...(selectedEvaluator.key === "auto_custom_code_run" ? {app_config: {}} : {}),
                 }
             }
 
             const runResponse = await createEvaluatorRunExecution(selectedEvaluator.key, {
                 inputs: outputs,
-                settings: transformTraceKeysInSettings(normalizedSettings),
+                settings: transformTraceKeysInSettings(settingsValues),
                 ...(selectedEvaluator.requires_llm_api_keys || settingsValues?.requires_llm_api_keys
                     ? {credentials: apiKeyObject(secrets)}
                     : {}),
             })
             setEvalOutputStatus({success: true, error: false})
 
-            setOutputResult(getStringOrJson(runResponse.outputs))
+            setOutputResult(
+                getStringOrJson(
+                    runResponse.outputs.success !== undefined
+                        ? runResponse.outputs.success
+                        : runResponse.outputs.score !== undefined
+                          ? runResponse.outputs.score
+                          : runResponse.outputs,
+                ),
+            )
         } catch (error: any) {
             console.error(error)
             setEvalOutputStatus({success: false, error: true})
-            if (error.response?.data?.detail) {
-                const errorDetail =
-                    typeof error.response.data.detail === "string"
-                        ? error.response.data.detail
-                        : formatJson(error.response.data.detail)
-                setOutputResult(getStringOrJson(errorDetail))
+            if (error.response.data.detail) {
+                setOutputResult(getStringOrJson(formatJson(error.response.data.detail)))
             } else {
                 setOutputResult("Error occured")
             }
@@ -462,10 +240,6 @@ const DebugSection = ({
     }
 
     const handleRunVariant = async () => {
-        if (availableApps.length === 0 && derivedVariants.length === 0) {
-            message.info("Create an app first to run a variant.")
-            return
-        }
         if (!selectedTestcase.testcase || !selectedVariant) return
         const controller = new AbortController()
         abortControllersRef.current = controller
@@ -482,124 +256,46 @@ const DebugSection = ({
                 messages: ChatMessage[]
             }
 
-            if (selectedVariant?.parameters) {
-                const routePath = uriObject?.routePath || ""
-                const spec = appSchema as any
-                const req = spec ? (getRequestSchema as any)(spec, {routePath}) : undefined
-                const hasInputsProp = Boolean(req?.properties?.inputs)
-                const hasMessagesProp = Boolean(req?.properties?.messages)
-                const isCustomBySchema = Boolean(spec) && !hasInputsProp && !hasMessagesProp
-                const isCustom = Boolean(flags?.isCustom) || isCustomBySchema
-
-                let effectiveKeys: string[] = []
-                if (isCustom) {
-                    effectiveKeys = spec ? extractInputKeysFromSchema(spec, routePath) : []
-                } else {
-                    const fromParams = (() => {
-                        try {
-                            const p = (selectedVariant as any)?.parameters
-                            const ag = p?.ag_config ?? p ?? {}
-                            const s = new Set<string>()
-                            Object.values(ag || {}).forEach((cfg: any) => {
-                                const arr = cfg?.input_keys
-                                if (Array.isArray(arr))
-                                    arr.forEach((k) => typeof k === "string" && k && s.add(k))
-                            })
-                            return Array.from(s)
-                        } catch {
-                            return [] as string[]
-                        }
-                    })()
-                    effectiveKeys = Array.from(
-                        new Set([...(fromParams || []), ...(stableVarNames || [])]),
-                    ).filter((k) => k && k !== "chat")
-                }
-
-                params.inputs = (effectiveKeys || []).map((name) => ({name, input: false}))
-
-                const baseParameters = isPlainObject(stableTransformedParams)
-                    ? {...stableTransformedParams}
-                    : transformToRequestBody({
-                          variant: selectedVariant,
-                          allMetadata: getAllMetadata(),
-                          prompts:
-                              spec && selectedVariant
-                                  ? derivePromptsFromSpec(
-                                        selectedVariant as any,
-                                        spec as any,
-                                        routePath,
-                                    ) || []
-                                  : [],
-                          isChat: hasMessagesProp,
-                          isCustom,
-                          customProperties: isCustom ? customProps : undefined,
-                      })
-
-                const variantParameters = isPlainObject(selectedVariant?.parameters)
-                    ? (selectedVariant?.parameters as Record<string, any>)
-                    : undefined
-
-                if (isPlainObject(baseParameters)) {
-                    const hasAgConfig =
-                        isPlainObject(baseParameters.ag_config) &&
-                        Object.keys(baseParameters.ag_config).length > 0
-
-                    if (!hasAgConfig && variantParameters) {
-                        const variantAgConfig = isPlainObject(variantParameters.ag_config)
-                            ? variantParameters.ag_config
-                            : Object.keys(variantParameters).length > 0
-                              ? variantParameters
-                              : undefined
-
-                        if (variantAgConfig) {
-                            ;(baseParameters as any).ag_config = variantAgConfig
-                        }
-                    }
-
-                    params.parameters = baseParameters
-                } else if (!baseParameters && variantParameters) {
-                    params.parameters = {...variantParameters}
-                } else {
-                    params.parameters = baseParameters
-                }
-                params.isChatVariant = hasMessagesProp
-                params.messages = hasMessagesProp
+            if (selectedVariant.parameters) {
+                params.inputs = selectedVariant.inputParams
+                params.parameters = transformToRequestBody({
+                    variant: selectedVariant,
+                    allMetadata: getAllMetadata(),
+                })
+                params.isChatVariant = selectedVariant.isChatVariant
+                params.messages = params.isChatVariant
                     ? extractChatMessages(selectedTestcase.testcase)
                     : []
-                params.isCustom = isCustom
+                params.isCustom = selectedVariant.isCustom
             } else {
-                const {parameters, inputs} = await getAllVariantParameters(appId, selectedVariant)
+                const {parameters, inputs, isChatVariant} = await getAllVariantParameters(
+                    appId,
+                    selectedVariant,
+                )
                 params.parameters = parameters
                 params.inputs = inputs
-                const hasMessagesInput = (params.inputs || []).some((p) => p.name === "messages")
-                params.isChatVariant = hasMessagesInput
-                params.messages = hasMessagesInput
-                    ? extractChatMessages(selectedTestcase.testcase)
+                params.isChatVariant = isChatVariant
+                params.messages = params.isChatVariant
+                    ? JSON.parse(selectedTestcase.testcase.chat) || [{}]
                     : []
-                params.isCustom = selectedVariant?.isCustom
+                params.isCustom = selectedVariant.isCustom
             }
 
-            const testcaseDict = selectedTestcase.testcase
-            const allowed = new Set((params.inputs || []).map((p) => p.name))
-            const filtered = Object.fromEntries(
-                Object.entries(testcaseDict || {}).filter(
-                    ([k]) => allowed.has(k) && k !== "messages",
-                ),
-            )
-
             const result = await callVariant(
-                filtered,
+                params.isChatVariant
+                    ? removeKeys(selectedTestcase.testcase, ["chat"])
+                    : selectedTestcase.testcase,
                 params.inputs || [],
                 params.parameters || [],
                 appId,
-                selectedVariant?.baseId,
+                selectedVariant.baseId,
                 params.messages,
                 controller.signal,
                 true,
-                selectedVariant?.parameters && !!selectedVariant?._parentVariant,
+                selectedVariant.parameters && !!selectedVariant._parentVariant,
                 params.isCustom,
-                uriObject,
-                selectedVariant?.variantId,
+                selectedVariant?.uriObject,
+                selectedVariant.variantId,
             )
 
             if (typeof result === "string") {
@@ -615,7 +311,7 @@ const DebugSection = ({
                 const {trace, tree, data} = result
                 setVariantResult(getStringOrJson(data))
 
-                if (trace?.spans) {
+                if (trace && trace?.spans) {
                     setTraceTree({
                         trace: transformTraceTreeToJson(
                             fromBaseResponseToTraceSpanType(trace.spans, trace.trace_id)[0],
@@ -624,16 +320,17 @@ const DebugSection = ({
                 }
 
                 if (tree) {
-                    const tTree = tree.nodes
+                    const traceTree = tree.nodes
                         .flatMap((node: AgentaNodeDTO) => buildNodeTree(node))
                         .flatMap((item: any) => observabilityTransformer(item))
                         .map((item) => {
                             const {key, children, ...trace} = item
+
                             return trace
                         })[0]
 
                     setTraceTree({
-                        trace: buildNodeTreeV3(tTree),
+                        trace: buildNodeTreeV3(traceTree),
                     })
                 }
                 setVariantStatus({success: true, error: false})
@@ -644,7 +341,7 @@ const DebugSection = ({
             if (!controller.signal.aborted) {
                 console.error("error: ", error)
                 message.error(error.message)
-                if (error.response?.data?.detail) {
+                if (error.response.data.detail) {
                     setVariantResult(getStringOrJson(error.response.data.detail))
                 } else {
                     setVariantResult("Error occured")
@@ -690,303 +387,275 @@ const DebugSection = ({
         }
     }
 
-    // Helper to print "App / Variant" nicely
-    const appName = selectedApp?.name || selectedApp?.app_name || "app"
-    const variantName = selectedVariant?.variantName || "variant"
-
     return (
-        <section className="flex flex-col gap-4 h-full pb-10 w-[50%]">
-            <div className="flex flex-col gap-4 min-w-0">
-                <Space direction="vertical" size={0}>
-                    <Typography.Text className={classes.title}>Test evaluator</Typography.Text>
-                    <Typography.Text type="secondary">
-                        Test your evaluator by generating a test data
-                    </Typography.Text>
-                </Space>
+        <>
+            {debugEvaluator && (
+                <>
+                    <Divider type="vertical" className="h-full" />
 
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Testcase
+                    <div className="flex-1 flex flex-col gap-4">
+                        <Space direction="vertical" size={0}>
+                            <Typography.Text className={classes.title}>
+                                Test evaluator
                             </Typography.Text>
+                            <Typography.Text type="secondary">
+                                Test your evaluator by generating a test data
+                            </Typography.Text>
+                        </Space>
 
-                            {activeTestset && selectedTestcase.testcase && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">
-                                        loaded from {activeTestset.name}
+                        <div className="flex-[0.3] flex flex-col h-full gap-1">
+                            <div className="flex items-center justify-between">
+                                <Space size={5}>
+                                    <Typography.Text className={classes.formTitleText}>
+                                        Testcase
                                     </Typography.Text>
-                                </>
-                            )}
-                        </Space>
 
-                        <Tooltip
-                            title={testsets?.length === 0 ? "No testset" : ""}
-                            placement="bottom"
-                        >
-                            <Button
-                                size="small"
-                                className="flex items-center gap-2"
-                                onClick={() => setOpenTestcaseModal(true)}
-                                disabled={testsets?.length === 0}
-                            >
-                                <Database />
-                                Load testcase
-                            </Button>
-                        </Tooltip>
-                    </div>
+                                    {activeTestset && selectedTestcase.testcase && (
+                                        <>
+                                            <CheckCircleOutlined style={{color: "green"}} />
+                                            <Typography.Text type="secondary">
+                                                loaded from {activeTestset.name}
+                                            </Typography.Text>
+                                        </>
+                                    )}
+                                </Space>
 
-                    <div className="flex-1 w-full overflow-hidden">
-                        <Editor
-                            className={classes.editor}
-                            width="100%"
-                            height="100%"
-                            language="json"
-                            theme={`vs-${appTheme}`}
-                            value={getStringOrJson(
-                                selectedTestcase.testcase ? formatJson(selectedTestcase) : "",
-                            )}
-                            onChange={(value) => {
-                                try {
-                                    if (value) {
-                                        const parsedValue = JSON.parse(value)
-                                        setSelectedTestcase(parsedValue)
-                                    }
-                                } catch (error) {
-                                    console.error("Failed to parse testcase JSON", error)
-                                }
-                            }}
-                            options={{
-                                wordWrap: "on",
-                                minimap: {enabled: false},
-                                lineNumbers: "off",
-                                scrollBeyondLastLine: false,
-                            }}
-                        />
-                    </div>
-                </div>
-
-                <div className="flex flex-col">
-                    <div className="flex items-center justify-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Application
-                            </Typography.Text>
-                            {variantStatus.success && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">Success</Typography.Text>
-                                </>
-                            )}
-                            {variantStatus.error && (
-                                <ExclamationCircleOutlined style={{color: "red"}} />
-                            )}
-                        </Space>
-
-                        {isRunningVariant ? (
-                            <Button
-                                size="small"
-                                className="w-[120px]"
-                                danger
-                                onClick={() => {
-                                    if (abortControllersRef.current) {
-                                        abortControllersRef.current.abort()
-                                    }
-                                }}
-                            >
-                                <CloseCircleOutlined />
-                                Cancel
-                            </Button>
-                        ) : (
-                            <Dropdown.Button
-                                className="w-fit"
-                                disabled={!selectedTestcase.testcase}
-                                size="small"
-                                onClick={handleRunVariant}
-                                loading={isRunningVariant}
-                                icon={<MoreOutlined />}
-                                menu={{
-                                    items: [
-                                        {
-                                            key: "change_variant",
-                                            icon: <Lightning />,
-                                            // Updated copy
-                                            label: "Change application",
-                                            onClick: () => setOpenVariantModal(true),
-                                        },
-                                    ],
-                                }}
-                            >
-                                <div
-                                    className="flex items-center gap-2"
-                                    key={
-                                        selectedVariant?.variantId ||
-                                        selectedVariant?.variantName ||
-                                        "default"
-                                    }
+                                <Tooltip
+                                    title={testsets?.length === 0 ? "No testset" : ""}
+                                    placement="bottom"
                                 >
-                                    <Play />
-                                    {/* Show "App / Variant" */}
-                                    Run application ({appName}/{variantName})
-                                </div>
-                            </Dropdown.Button>
-                        )}
-                    </div>
+                                    <Button
+                                        size="small"
+                                        className="flex items-center gap-2"
+                                        onClick={() => setOpenTestcaseModal(true)}
+                                        disabled={testsets?.length === 0}
+                                    >
+                                        <Database />
+                                        Load testcase
+                                    </Button>
+                                </Tooltip>
+                            </div>
 
-                    <Tabs
-                        defaultActiveKey="output"
-                        className={classes.variantTab}
-                        items={[
-                            {
-                                key: "output",
-                                label: "Output",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <Editor
-                                            className={classes.editor}
-                                            width="100%"
-                                            height="100%"
-                                            language="markdown"
-                                            theme={`vs-${appTheme}`}
-                                            value={variantResult}
-                                            options={{
-                                                wordWrap: "on",
-                                                minimap: {enabled: false},
-                                                lineNumbers: "off",
-                                                lineDecorationsWidth: 0,
-                                                scrollBeyondLastLine: false,
-                                            }}
-                                            onChange={(value) => {
-                                                if (value) {
-                                                    setVariantResult(value)
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                ),
-                            },
-                            {
-                                key: "trace",
-                                label: "Trace",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <Editor
-                                            className={classes.editor}
-                                            width="100%"
-                                            height="100%"
-                                            language="json"
-                                            theme={`vs-${appTheme}`}
-                                            value={
-                                                traceTree.trace ? getStringOrJson(traceTree) : ""
+                            <Editor
+                                className={classes.editor}
+                                width="100%"
+                                language="json"
+                                theme={`vs-${appTheme}`}
+                                value={getStringOrJson(
+                                    selectedTestcase.testcase ? formatJson(selectedTestcase) : "",
+                                )}
+                                onChange={(value) => {
+                                    try {
+                                        if (value) {
+                                            const parsedValue = JSON.parse(value)
+                                            setSelectedTestcase(parsedValue)
+                                        }
+                                    } catch (error) {
+                                        console.error("Failed to parse test case JSON", error)
+                                    }
+                                }}
+                                options={{
+                                    wordWrap: "on",
+                                    minimap: {enabled: false},
+                                    lineNumbers: "off",
+                                }}
+                            />
+                        </div>
+
+                        <div className="flex-[0.45] flex flex-col h-full">
+                            <div className="flex items-center justify-between">
+                                <Space size={5}>
+                                    <Typography.Text className={classes.formTitleText}>
+                                        Application
+                                    </Typography.Text>
+                                    {variantStatus.success && (
+                                        <>
+                                            <CheckCircleOutlined style={{color: "green"}} />
+                                            <Typography.Text type="secondary">
+                                                Success
+                                            </Typography.Text>
+                                        </>
+                                    )}
+                                    {variantStatus.error && (
+                                        <ExclamationCircleOutlined style={{color: "red"}} />
+                                    )}
+                                </Space>
+
+                                {isRunningVariant ? (
+                                    <Button
+                                        size="small"
+                                        className="w-[120px]"
+                                        danger
+                                        onClick={() => {
+                                            if (abortControllersRef.current) {
+                                                abortControllersRef.current.abort()
                                             }
-                                            options={{
-                                                wordWrap: "on",
-                                                minimap: {enabled: false},
-                                                lineNumbers: "off",
-                                                scrollBeyondLastLine: false,
-                                            }}
-                                            onChange={(value) => {
-                                                try {
+                                        }}
+                                    >
+                                        <CloseCircleOutlined />
+                                        Cancel
+                                    </Button>
+                                ) : (
+                                    <Dropdown.Button
+                                        className="w-fit"
+                                        disabled={!selectedTestcase.testcase}
+                                        size="small"
+                                        onClick={handleRunVariant}
+                                        loading={isRunningVariant}
+                                        icon={<MoreOutlined />}
+                                        menu={{
+                                            items: [
+                                                {
+                                                    key: "change_variant",
+                                                    icon: <Lightning />,
+                                                    label: "Change Variant",
+                                                    onClick: () => setOpenVariantModal(true),
+                                                },
+                                            ],
+                                        }}
+                                    >
+                                        <div
+                                            className="flex items-center gap-2"
+                                            key={
+                                                selectedVariant?.variantId ||
+                                                selectedVariant?.variantName ||
+                                                "default"
+                                            }
+                                        >
+                                            <Play />
+                                            {/* Adding key above ensures React re-renders this label when variant changes */}
+                                            Run {selectedVariant?.variantName || "variant"}
+                                        </div>
+                                    </Dropdown.Button>
+                                )}
+                            </div>
+
+                            <Tabs
+                                defaultActiveKey="output"
+                                className={classes.variantTab}
+                                items={[
+                                    {
+                                        key: "output",
+                                        label: "Output",
+                                        children: (
+                                            <Editor
+                                                className={classes.editor}
+                                                width="100%"
+                                                language="markdown"
+                                                theme={`vs-${appTheme}`}
+                                                value={variantResult}
+                                                options={{
+                                                    wordWrap: "on",
+                                                    minimap: {enabled: false},
+                                                    lineNumbers: "off",
+                                                    lineDecorationsWidth: 0,
+                                                }}
+                                                onChange={(value) => {
                                                     if (value) {
-                                                        const parsedValue = JSON.parse(value)
-                                                        setTraceTree(parsedValue)
+                                                        setVariantResult(value)
                                                     }
-                                                } catch (error) {
-                                                    console.error(
-                                                        "Failed to parse trace tree JSON",
-                                                        error,
-                                                    )
+                                                }}
+                                            />
+                                        ),
+                                    },
+                                    {
+                                        key: "trace",
+                                        label: "Trace",
+                                        children: (
+                                            <Editor
+                                                className={classes.editor}
+                                                width="100%"
+                                                language="json"
+                                                theme={`vs-${appTheme}`}
+                                                value={
+                                                    traceTree.trace
+                                                        ? getStringOrJson(traceTree)
+                                                        : ""
                                                 }
-                                            }}
-                                        />
-                                    </div>
-                                ),
-                            },
-                        ]}
-                    />
-                </div>
+                                                options={{
+                                                    wordWrap: "on",
+                                                    minimap: {enabled: false},
+                                                    lineNumbers: "off",
+                                                }}
+                                                onChange={(value) => {
+                                                    try {
+                                                        if (value) {
+                                                            const parsedValue = JSON.parse(value)
+                                                            setTraceTree(parsedValue)
+                                                        }
+                                                    } catch (error) {
+                                                        console.error(
+                                                            "Failed to parse trace tree JSON",
+                                                            error,
+                                                        )
+                                                    }
+                                                }}
+                                            />
+                                        ),
+                                    },
+                                ]}
+                            />
+                        </div>
 
-                <div className="flex flex-col gap-1">
-                    <Flex justify="space-between">
-                        <Space size={5}>
-                            <Typography.Text className={classes.formTitleText}>
-                                Evaluator
-                            </Typography.Text>
-                            {evalOutputStatus.success && (
-                                <>
-                                    <CheckCircleOutlined style={{color: "green"}} />
-                                    <Typography.Text type="secondary">Successful</Typography.Text>
-                                </>
-                            )}
-                            {evalOutputStatus.error && (
-                                <ExclamationCircleOutlined style={{color: "red"}} />
-                            )}
-                        </Space>
-                        <Tooltip
-                            title={baseResponseData ? "" : "BaseResponse feature"}
-                            placement="bottom"
-                        >
-                            <Button
-                                className="flex items-center gap-2"
-                                size="small"
-                                onClick={fetchEvalMapper}
-                                disabled={!baseResponseData}
-                                loading={isLoadingResult}
-                            >
-                                <Play /> Run evaluator
-                            </Button>
-                        </Tooltip>
-                    </Flex>
+                        <div className="flex flex-col gap-1 flex-[0.25] h-full">
+                            <Flex justify="space-between">
+                                <Space size={5}>
+                                    <Typography.Text className={classes.formTitleText}>
+                                        Evaluator Output
+                                    </Typography.Text>
+                                    {evalOutputStatus.success && (
+                                        <>
+                                            <CheckCircleOutlined style={{color: "green"}} />
+                                            <Typography.Text type="secondary">
+                                                Successful
+                                            </Typography.Text>
+                                        </>
+                                    )}
+                                    {evalOutputStatus.error && (
+                                        <ExclamationCircleOutlined style={{color: "red"}} />
+                                    )}
+                                </Space>
+                                <Tooltip
+                                    title={baseResponseData ? "" : "BaseResponse feature"}
+                                    placement="bottom"
+                                >
+                                    <Button
+                                        className="flex items-center gap-2"
+                                        size="small"
+                                        onClick={fetchEvalMapper}
+                                        disabled={!baseResponseData}
+                                        loading={isLoadingResult}
+                                    >
+                                        <Play /> Run evaluator
+                                    </Button>
+                                </Tooltip>
+                            </Flex>
 
-                    <Tabs
-                        defaultActiveKey="output"
-                        className={classes.variantTab}
-                        items={[
-                            {
-                                key: "output",
-                                label: "Output",
-                                children: (
-                                    <div className="w-full h-full overflow-hidden">
-                                        <Editor
-                                            className={classes.editor}
-                                            width="100%"
-                                            height="100%"
-                                            language="yaml"
-                                            theme={`vs-${appTheme}`}
-                                            options={{
-                                                wordWrap: "on",
-                                                minimap: {enabled: false},
-                                                readOnly: true,
-                                                lineNumbers: "off",
-                                                lineDecorationsWidth: 0,
-                                                scrollBeyondLastLine: false,
-                                            }}
-                                            value={formatOutput(outputResult)}
-                                        />
-                                    </div>
-                                ),
-                            },
-                        ]}
-                    />
-                </div>
-            </div>
+                            <Editor
+                                className={classes.editor}
+                                width="100%"
+                                language="yaml"
+                                theme={`vs-${appTheme}`}
+                                options={{
+                                    wordWrap: "on",
+                                    minimap: {enabled: false},
+                                    readOnly: true,
+                                    lineNumbers: "off",
+                                    lineDecorationsWidth: 0,
+                                }}
+                                value={formatOutput(outputResult)}
+                            />
+                        </div>
+                    </div>
+                </>
+            )}
 
             <EvaluatorVariantModal
-                variants={derivedVariants}
+                variants={variants}
                 open={openVariantModal}
                 onCancel={() => setOpenVariantModal(false)}
-                setSelectedVariant={(v) => {
-                    setSelectedVariant(v)
-                    // eager persist on selection from modal
-                    try {
-                        if ((v as any)?.appId) localStorage.setItem(LAST_APP_KEY, (v as any).appId)
-                        if ((v as any)?.variantId)
-                            localStorage.setItem(LAST_VARIANT_KEY, (v as any).variantId)
-                    } catch {}
-                }}
+                setSelectedVariant={setSelectedVariant}
                 selectedVariant={selectedVariant}
-                selectedTestsetId={selectedTestset}
             />
 
             {testsets?.length && (
@@ -999,7 +668,7 @@ const DebugSection = ({
                     setSelectedTestset={setSelectedTestset}
                 />
             )}
-        </section>
+        </>
     )
 }
 

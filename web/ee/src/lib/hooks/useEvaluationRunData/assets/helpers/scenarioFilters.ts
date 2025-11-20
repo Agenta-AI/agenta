@@ -3,8 +3,8 @@ import {loadable} from "jotai/utils"
 
 import {IScenario} from "@/oss/lib/hooks/useEvaluationRunScenarios/types"
 
-import {scenarioStatusFamily} from "../atoms/progress"
-import {scenarioStepFamily} from "../atoms/runScopedScenarios"
+import {scenarioStatusFamily} from "../atoms"
+import {scenarioStepFamily} from "../atoms/scenarios"
 
 export type ScenarioFilter = "all" | "pending" | "failed" | "unannotated"
 
@@ -18,37 +18,35 @@ export const scenarioMatchesFilter = (
     get: Getter,
     scenario: IScenario,
     filter: ScenarioFilter,
-    runId: string,
 ): boolean => {
     if (filter === "all") return true
 
-    const scenarioId = (scenario as any).id || (scenario as any)._id
-
     if (filter === "pending") {
-        const statusLoad = get(loadable(scenarioStatusFamily({runId, scenarioId})))
+        const statusLoad = get(loadable(scenarioStatusFamily(scenario.id)))
         if (statusLoad.state !== "hasData") return true // treat unknown as pending while loading
         const st = statusLoad.data.status
         return ["pending", "running", "initialized", "started"].includes(st)
     }
 
     if (filter === "failed") {
-        const statusLoad = get(loadable(scenarioStatusFamily({runId, scenarioId})))
+        const statusLoad = get(loadable(scenarioStatusFamily(scenario.id)))
         if (statusLoad.state !== "hasData") return false
         const st = statusLoad.data.status
         return st === "failure" || st === "error"
     }
 
     if (filter === "unannotated") {
-        const stepLoad = get(loadable(scenarioStepFamily({runId, scenarioId})))
+        const stepLoad = get(loadable(scenarioStepFamily(scenario.id)))
         if (stepLoad.state !== "hasData") return true // include while loading
         const data = stepLoad.data
         const hasAnn =
             Array.isArray(data?.annotationSteps) &&
             data.annotationSteps.length > 0 &&
-            data.annotationSteps.every((s: any) => !!s?.annotation)
+            data.annotationSteps.every((s) => !!s?.annotation)
         const allInvSucceeded =
             Array.isArray(data?.invocationSteps) &&
             data.invocationSteps.every((s) => s.status === "success")
+        console.log("data.invocationSteps", data?.annotationSteps, data?.invocationSteps)
         return allInvSucceeded && !hasAnn
     }
 
@@ -59,8 +57,7 @@ export const filterScenarios = (
     get: Getter,
     scenarios: IScenario[],
     filter: ScenarioFilter,
-    runId: string,
 ): IScenario[] => {
     if (!filter || filter === "all") return scenarios
-    return scenarios.filter((s) => scenarioMatchesFilter(get, s, filter, runId))
+    return scenarios.filter((s) => scenarioMatchesFilter(get, s, filter))
 }

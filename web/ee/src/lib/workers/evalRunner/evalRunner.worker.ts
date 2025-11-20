@@ -62,18 +62,15 @@ async function handleRequest(message: RunEvalMessage) {
     } = message
     try {
         await updateScenarioStatus(apiUrl, jwt, scenarioId, EvaluationStatus.RUNNING, projectId)
-        const response = await fetch(
-            `${endpoint}?application_id=${appId}&project_id=${projectId}`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "ngrok-skip-browser-warning": "1",
-                    Authorization: `Bearer ${jwt}`,
-                },
-                body: JSON.stringify(requestBody),
+        const response = await fetch(`${endpoint}?application_id=${appId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "ngrok-skip-browser-warning": "1",
+                Authorization: `Bearer ${jwt}`,
             },
-        )
+            body: JSON.stringify(requestBody),
+        })
 
         const _result = (await response.json()) as BaseResponse
         const result = snakeToCamelCaseKeys<BaseResponse>(_result)
@@ -153,6 +150,7 @@ async function handleRequest(message: RunEvalMessage) {
             const stepKey = invocationKey ?? "invocation"
             const nestedData = {[stepKey]: statsMap}
 
+            console.log("statsMap", statsMap, message)
             try {
                 await createScenarioMetrics(
                     apiUrl,
@@ -177,8 +175,8 @@ async function handleRequest(message: RunEvalMessage) {
                     status: EvaluationStatus.SUCCESS,
                     projectId,
                     key: invocationKey ?? "invocation",
-                    traceId: (_result as any)?.trace_id ?? null,
-                    spanId: (_result as any)?.span_id ?? null,
+                    traceId: (result as any)?.traceId ?? null,
+                    spanId: (result as any)?.spanId ?? null,
                     references: {application: {id: appId}},
                 })
                 message.result.trace = result?.tree

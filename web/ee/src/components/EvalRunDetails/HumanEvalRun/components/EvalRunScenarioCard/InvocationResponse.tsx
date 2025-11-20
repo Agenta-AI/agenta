@@ -1,7 +1,6 @@
 import {memo} from "react"
 
 import {Typography} from "antd"
-import JSON5 from "json5"
 
 import GenerationResultUtils from "@/oss/components/Playground/Components/PlaygroundGenerations/assets/GenerationResultUtils"
 import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
@@ -12,9 +11,8 @@ import RunEvalScenarioButton from "../RunEvalScenarioButton"
 
 import {InvocationResponseProps} from "./types"
 
-const InvocationResponse = ({scenarioId, stepKey, runId}: InvocationResponseProps) => {
-    const {status, trace, value, messageNodes} = useInvocationResult({scenarioId, stepKey, runId})
-    const editorKey = trace?.trace_id ?? trace?.id ?? `${scenarioId}-${stepKey}-${runId}`
+const InvocationResponse = ({scenarioId, stepKey}: InvocationResponseProps) => {
+    const {status, trace, value, messageNodes} = useInvocationResult({scenarioId, stepKey})
 
     return (
         <section className="w-full flex flex-col gap-2">
@@ -22,14 +20,13 @@ const InvocationResponse = ({scenarioId, stepKey, runId}: InvocationResponseProp
                 <Typography.Title level={4} className="!font-medium !m-0">
                     Model Response
                 </Typography.Title>
-                <RunEvalScenarioButton stepKey={stepKey} scenarioId={scenarioId} runId={runId} />
+                <RunEvalScenarioButton stepKey={stepKey} scenarioId={scenarioId} />
             </div>
 
             {messageNodes ? (
                 messageNodes
             ) : typeof value === "object" && value && "role" in value && "content" in value ? (
                 <SharedEditor
-                    key={editorKey}
                     state="readOnly"
                     header={
                         <div className="w-full flex items-center justify-between">
@@ -52,67 +49,10 @@ const InvocationResponse = ({scenarioId, stepKey, runId}: InvocationResponseProp
                     disabled
                     error={!!trace?.exception}
                 />
-            ) : typeof value === "string" ? (
-                (() => {
-                    try {
-                        const parsed = JSON5.parse(value)
-                        if (parsed && typeof parsed === "object") {
-                            const pretty = JSON.stringify(parsed, null, 2)
-                            return (
-                                <SharedEditor
-                                    key={`${editorKey}-json`}
-                                    handleChange={() => {}}
-                                    initialValue={pretty}
-                                    editorType="border"
-                                    placeholder="Click the 'Run' icon to get variant output"
-                                    disabled
-                                    editorClassName="!text-xs"
-                                    editorProps={{enableResize: true, codeOnly: true}}
-                                    error={!!trace?.exception}
-                                />
-                            )
-                        }
-
-                        return (
-                            <SharedEditor
-                                key={`${editorKey}-string`}
-                                handleChange={() => {}}
-                                initialValue={value}
-                                editorType="border"
-                                placeholder="Click the 'Run' icon to get variant output"
-                                disabled
-                                editorClassName="!text-xs"
-                                editorProps={{enableResize: true}}
-                                error={!!trace?.exception}
-                            />
-                        )
-                    } catch {
-                        return (
-                            <SharedEditor
-                                key={`${editorKey}-error`}
-                                handleChange={() => {}}
-                                initialValue={value}
-                                editorType="border"
-                                placeholder="Click the 'Run' icon to get variant output"
-                                disabled
-                                editorClassName="!text-xs"
-                                editorProps={{enableResize: true}}
-                                error={!!trace?.exception}
-                            />
-                        )
-                    }
-                })()
             ) : typeof value === "object" ? (
                 <SharedEditor
-                    key={`${editorKey}-object`}
                     handleChange={() => {}}
-                    initialValue={(() => {
-                        try {
-                            return JSON.stringify(value, null, 2)
-                        } catch {
-                            return String(value)
-                        }
-                    })()}
+                    initialValue={value}
                     editorType="border"
                     placeholder="Click the 'Run' icon to get variant output"
                     disabled
@@ -122,7 +62,6 @@ const InvocationResponse = ({scenarioId, stepKey, runId}: InvocationResponseProp
                 />
             ) : (
                 <SharedEditor
-                    key={`${editorKey}-unknown`}
                     handleChange={() => {}}
                     initialValue={status?.error ? String(status.error) : (value ?? status?.result)}
                     editorType="border"

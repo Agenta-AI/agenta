@@ -1,74 +1,52 @@
-import {createStore, getDefaultStore} from "jotai"
+import {createStore} from "jotai"
 
-import {attachRunMetricsPrefetchForRun} from "./runScopedMetrics"
-import {
-    attachBulkPrefetchForRun,
-    attachNeighbourPrefetchForRun,
-    attachScenarioListPrefetchForRun,
-} from "./runScopedScenarios"
+// Global cache for Jotai stores keyed by runId, persists across HMR (survives HMR)
+export const globalKey = "__agenta_jotaiStoreCache__"
+export const jotaiStoreCache: Map<string, ReturnType<typeof createStore>> = (globalThis as any)[
+    globalKey
+] || new Map()
+;(globalThis as any)[globalKey] = jotaiStoreCache
 
-/**
- * Single global Jotai store for all evaluation runs.
- * Uses run-scoped atom families instead of multiple stores.
- * This is the proper Jotai pattern for multi-entity state management.
- */
-const globalStoreKey = "__agenta_globalEvalStore__"
+// Currently active Jotai store key (per evaluation run)
+const globalActiveStoreKey = "__agenta_jotaiActiveStoreKey__"
+let activeStoreKey: string | null = (globalThis as any)[globalActiveStoreKey] || null
 
-// Create or retrieve the single global store
-function createGlobalStore() {
-    const store = getDefaultStore()
-
-    return store
-}
-
-// Global singleton store that persists across HMR
-const globalStore: ReturnType<typeof getDefaultStore> =
-    (globalThis as any)[globalStoreKey] || createGlobalStore()
-;(globalThis as any)[globalStoreKey] = globalStore
-
-// Track which runs have been initialized to avoid duplicate subscriptions
-const initializedRuns = new Set<string>()
+import {attachRunMetricsPrefetch} from "./runMetricsCache"
+import {attachScenarioListPrefetch} from "./scenarioList"
+import {attachNeighbourPrefetch, attachBulkPrefetch} from "./scenarios"
 
 /**
- * Returns the single global Jotai store.
- * All evaluation runs use the same store with run-scoped atom families.
+ * Returns the active Jotai store for the evaluation run. Falls back to a
+ * default store so callers never get undefined.
  */
 export function evalAtomStore(): ReturnType<typeof createStore> {
-    return getDefaultStore()
+    if (activeStoreKey && jotaiStoreCache.has(activeStoreKey)) {
+        return jotaiStoreCache.get(activeStoreKey)!
+    }
+    // Fallback – create a default singleton store (mainly for SSR / initial load)
+    if (!jotaiStoreCache.has("default")) {
+        jotaiStoreCache.set("default", createStore())
+    }
+    return jotaiStoreCache.get("default")!
 }
 
-/**
- * Initialize a run in the global store.
- * This ensures that run-scoped atoms are properly set up for the given runId.
- * Sets up run-specific subscriptions for prefetching.
- */
-export function initializeRun(runId: string): void {
-    if (!runId) {
-        console.warn("[initializeRun] No runId provided")
-        return
+export function setActiveStoreKey(runId: string) {
+    activeStoreKey = runId
+    ;(globalThis as any)[globalActiveStoreKey] = runId
+
+    // Ensure store exists and attach bulk prefetch logic once
+    if (!jotaiStoreCache.has(runId)) {
+        const store = createStore()
+        jotaiStoreCache.set(runId, store)
+        attachBulkPrefetch(store)
+        attachNeighbourPrefetch(store)
+        attachScenarioListPrefetch(store)
+        attachRunMetricsPrefetch(store)
     }
 
-    // Avoid duplicate initialization
-    if (initializedRuns.has(runId)) {
-        return
-    }
+    return jotaiStoreCache.get(runId)!
+}
 
-    // Mark as initialized
-    initializedRuns.add(runId)
-
-    // Set up run-specific subscriptions for prefetching
-    // These will work with run-scoped atom families
-    try {
-        // Attach scenario list prefetch to fetch scenarios when enriched run is available
-        attachScenarioListPrefetchForRun(runId, globalStore)
-        attachBulkPrefetchForRun(runId, globalStore)
-        attachNeighbourPrefetchForRun(runId, globalStore)
-
-        // Attach metrics prefetch to auto-fetch metrics when evaluators are available
-        attachRunMetricsPrefetchForRun(runId, globalStore)
-    } catch (error) {
-        console.error(`[initializeRun] Error setting up subscriptions for ${runId}:`, error)
-        // Remove from initialized set if setup failed
-        initializedRuns.delete(runId)
-    }
+export function getActiveStoreKey() {
+    return activeStoreKey
 }

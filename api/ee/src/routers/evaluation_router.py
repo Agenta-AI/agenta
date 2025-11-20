@@ -10,10 +10,7 @@ from oss.src.utils.caching import get_cache, set_cache
 from ee.src.services import converters
 from ee.src.services import evaluation_service
 
-from ee.src.tasks.evaluations.legacy import (
-    setup_evaluation,
-    annotate,
-)
+from ee.src.tasks.evaluations import evaluate, annotate
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.evaluation_model import (
     Evaluation,
@@ -37,7 +34,22 @@ if is_ee():
 from oss.src.routers.testset_router import _validate_testset_limits
 
 
-from oss.src.apis.fastapi.evaluations.models import EvaluationRunsResponse
+from oss.src.apis.fastapi.evaluations.models import (
+    EvaluationRunCreate,
+    EvaluationRunsCreateRequest,
+    EvaluationRunResponse,
+    EvaluationRunsResponse,
+)
+
+from oss.src.apis.fastapi.evaluations.router import EvaluationsRouter
+from oss.src.core.evaluations.service import EvaluationsService
+from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
+
+evaluations_router = EvaluationsRouter(
+    evaluations_service=EvaluationsService(
+        evaluations_dao=EvaluationsDAO(),
+    ),
+)
 
 
 router = APIRouter()
@@ -90,6 +102,97 @@ async def fetch_evaluation_ids(
     return list(map(lambda x: str(x.id), evaluations))
 
 
+@router.post(
+    "/",
+    response_model=List[Evaluation],
+    operation_id="create_legacy_evaluation",
+)
+async def create_evaluation(
+    payload: NewEvaluation,
+    request: Request,
+):
+    """Creates a new comparison table document
+    Raises:
+        HTTPException: _description_
+    Returns:
+        _description_
+    """
+
+    try:
+        app = await db_manager.fetch_app_by_id(app_id=payload.app_id)
+        if app is None:
+            raise HTTPException(status_code=404, detail="App not found")
+
+        if is_ee():
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=str(app.project_id),
+                permission=Permission.CREATE_EVALUATION,
+            )
+            if not has_permission:
+                error_msg = f"You do not have permission to perform this action. Please contact your organization admin."
+                log.error(error_msg)
+                return JSONResponse(
+                    {"detail": error_msg},
+                    status_code=403,
+                )
+
+            check, _, _ = await check_entitlements(
+                organization_id=request.state.organization_id,
+                key=Counter.EVALUATIONS,
+                delta=1,
+            )
+
+            if not check:
+                return NOT_ENTITLED_RESPONSE(Tracker.COUNTERS)
+
+        testset = await db_manager.fetch_testset_by_id(
+            testset_id=payload.testset_id,
+        )
+
+        if testset is None:
+            raise HTTPException(status_code=404, detail="Testset not found")
+
+        _validate_testset_limits(testset.csvdata)
+
+        evaluations = []
+
+        for revision_id in payload.revisions_ids:
+            evaluation = await evaluation_service.create_new_evaluation(
+                app_id=payload.app_id,
+                project_id=str(app.project_id),
+                revision_id=revision_id,
+                testset_id=payload.testset_id,
+            )
+
+            evaluate.delay(
+                app_id=payload.app_id,
+                user_id=str(request.state.user_id),
+                project_id=str(request.state.project_id),
+                revision_id=revision_id,
+                evaluators_config_ids=payload.evaluators_configs,
+                testset_id=payload.testset_id,
+                evaluation_id=evaluation.id,
+                rate_limit_config=payload.rate_limit.model_dump(),
+            )
+            evaluations.append(evaluation)
+
+        # Update last_modified_by app information
+        await app_manager.update_last_modified_by(
+            user_uid=request.state.user_id,
+            object_id=payload.app_id,
+            object_type="app",
+            project_id=str(app.project_id),
+        )
+
+        return evaluations
+    except KeyError:
+        raise HTTPException(
+            status_code=400,
+            detail="columns in the test set should match the names of the inputs in the variant",
+        )
+
+
 @router.get(
     "/{evaluation_id}/status/",
     operation_id="fetch_evaluation_status",
@@ -108,19 +211,19 @@ async def fetch_evaluation_status(
         (str): the evaluation status
     """
 
-    cache_key = {
-        "evaluation_id": evaluation_id,
-    }
+    # cache_key = {
+    #     "evaluation_id": evaluation_id,
+    # }
 
-    evaluation_status = await get_cache(
-        project_id=request.state.project_id,
-        namespace="fetch_evaluation_status",
-        key=cache_key,
-        retry=False,
-    )
+    # evaluation_status = await get_cache(
+    #     project_id=request.state.project_id,
+    #     namespace="fetch_evaluation_status",
+    #     key=cache_key,
+    #     retry=False,
+    # )
 
-    if evaluation_status is not None:
-        return {"status": evaluation_status}
+    # if evaluation_status is not None:
+    #     return {"status": evaluation_status}
 
     if is_ee():
         has_permission = await check_action_access(
@@ -141,13 +244,13 @@ async def fetch_evaluation_status(
         evaluation_id=evaluation_id,
     )
 
-    await set_cache(
-        project_id=request.state.project_id,
-        namespace="fetch_evaluation_status",
-        key=cache_key,
-        value=evaluation_status,
-        ttl=15,  # 15 seconds
-    )
+    # await set_cache(
+    #     project_id=request.state.project_id,
+    #     namespace="fetch_evaluation_status",
+    #     key=cache_key,
+    #     value=evaluation_status,
+    #     ttl=15,  # 15 seconds
+    # )
 
     return {"status": evaluation_status}
 
@@ -465,55 +568,44 @@ async def start_evaluation(
             )
         # ----------------------------------------------------------------------
 
-        # Evaluation Run Execution ---------------------------------------------
-        runs = []
+        # Evaluation Run Initialization ----------------------------------------
+        runs_response = await evaluations_router.create_runs(
+            request=request,
+            runs_create_request=EvaluationRunsCreateRequest(
+                runs=[
+                    EvaluationRunCreate(status="pending", name=payload.name)
+                    for _ in range(nof_runs)
+                ]
+            ),
+        )
 
-        for i in range(nof_runs):
-            run = await setup_evaluation(
-                project_id=request.state.project_id,
-                user_id=request.state.user_id,
-                #
-                name=payload.name,
-                #
-                testset_id=payload.testset_id,
-                #
-                revision_id=payload.revisions_ids[i],
-                #
-                autoeval_ids=payload.evaluators_configs,
+        if runs_response.count == 0:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to create evaluation runs. Please try again later.",
             )
+        # ----------------------------------------------------------------------
 
-            if not run:
-                continue
-
-            runs.append(run)
-
+        # Evaluation Run Execution ---------------------------------------------
+        for i in range(nof_runs):
             annotate.delay(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
                 #
-                run_id=run.id,
+                run_id=runs_response.runs[i].id,
                 #
                 testset_id=payload.testset_id,
-                #
                 revision_id=payload.revisions_ids[i],
-                #
                 autoeval_ids=payload.evaluators_configs,
                 #
                 run_config=payload.rate_limit.model_dump(mode="json"),
             )
         # ----------------------------------------------------------------------
 
-        runs_response = EvaluationRunsResponse(
-            count=len(runs),
-            runs=runs,
-        )
-
         return runs_response
 
     except KeyError as e:
-        log.error(e, exc_info=True)
-
         raise HTTPException(
             status_code=400,
-            detail="Columns in the testset should match the names of the inputs in the variant",
+            detail="Columns in the test set should match the names of the inputs in the variant",
         ) from e

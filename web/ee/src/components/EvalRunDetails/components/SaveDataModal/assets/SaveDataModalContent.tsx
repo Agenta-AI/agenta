@@ -2,10 +2,9 @@ import {useMemo} from "react"
 
 import {Input, Select, Typography} from "antd"
 
-import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
-import useFocusInput from "@/oss/hooks/useFocusInput"
-
 import {SaveDataModalContentProps} from "./types"
+import useFocusInput from "@/oss/hooks/useFocusInput"
+import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 
 const SaveDataModalContent = ({
     rows,
@@ -39,7 +38,7 @@ const SaveDataModalContent = ({
         <section className="flex flex-col gap-4 my-5">
             <div className="flex flex-col gap-1">
                 <Typography.Text type="secondary">
-                    {exportDataset ? "File name" : "Testset name"}
+                    {exportDataset ? "File name" : "Test set name"}
                 </Typography.Text>
                 <Input
                     ref={inputRef}

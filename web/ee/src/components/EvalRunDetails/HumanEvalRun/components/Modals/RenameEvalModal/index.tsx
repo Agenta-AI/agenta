@@ -4,29 +4,18 @@ import {message} from "antd"
 import {useSWRConfig} from "swr"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
-import {useRunId} from "@/oss/contexts/RunIdContext"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {
     evalAtomStore,
-    evaluationRunStateFamily,
+    evaluationRunStateAtom,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import {RenameEvalModalProps} from "../types"
 
 import RenameEvalModalContent from "./assets/RenameEvalModalContent"
 
-const RenameEvalModal = ({
-    id,
-    name,
-    description,
-    runId,
-    onCancel,
-    afterClose,
-    ...modalProps
-}: RenameEvalModalProps) => {
+const RenameEvalModal = ({id, name, description, ...props}: RenameEvalModalProps) => {
     const {mutate} = useSWRConfig()
-    const contextRunId = useRunId() // Get runId from context
-    const effectiveRunId = runId || contextRunId // Use prop runId if available, otherwise context
     const [editName, setEditName] = useState(name)
     const [editDescription, setEditDescription] = useState(description || "")
     const [loading, setLoading] = useState(false)
@@ -36,18 +25,18 @@ const RenameEvalModal = ({
         setEditName(name)
         setEditDescription(description || "")
         setError(null)
-        afterClose?.()
-    }, [name, description, afterClose])
+        props.afterClose?.()
+    }, [name, description])
 
     const handleSave = useCallback(async () => {
         setLoading(true)
         setError(null)
-
-        // Use run-scoped atom with effectiveRunId (from prop or context)
-        const state = evalAtomStore().get(evaluationRunStateFamily(effectiveRunId))
-
+        const state = evalAtomStore().get(evaluationRunStateAtom)
+        if (process.env.NODE_ENV !== "production") {
+            console.debug("state.rawRun", state.rawRun)
+        }
         try {
-            const response = await axios.patch(`/preview/evaluations/runs/${id}`, {
+            await axios.patch(`/preview/evaluations/runs/${id}`, {
                 run: {
                     ...state.rawRun,
                     id,
@@ -55,14 +44,6 @@ const RenameEvalModal = ({
                     description: editDescription,
                 },
             })
-
-            const updatedCount = response?.data?.count
-            if (typeof updatedCount === "number" && updatedCount <= 0) {
-                message.error("Failed to update evaluation run.")
-                onCancel?.({} as any)
-                return
-            }
-
             await mutate(
                 (key: string) => key.includes("/preview/evaluations/runs/") || key.includes(id),
                 undefined,
@@ -70,19 +51,16 @@ const RenameEvalModal = ({
             )
 
             message.success("Evaluation run updated")
-            onCancel?.({} as any)
+            props.onCancel?.({} as any)
         } catch (err: any) {
             setError(err?.message || "Failed to update run")
         } finally {
             setLoading(false)
         }
-    }, [id, editName, editDescription, mutate, effectiveRunId, name, onCancel])
+    }, [id, editName, editDescription, mutate])
 
     const isDisabled = useMemo(() => {
-        return (
-            editName?.trim?.() === name?.trim?.() &&
-            editDescription?.trim?.() === description?.trim?.()
-        )
+        return editName.trim() === name.trim() && editDescription.trim() === description?.trim()
     }, [editName, editDescription, name, description])
 
     return (
@@ -92,9 +70,8 @@ const RenameEvalModal = ({
             confirmLoading={loading}
             okText="Save"
             afterClose={onAfterClose}
-            onCancel={onCancel}
             okButtonProps={{disabled: isDisabled}}
-            {...modalProps}
+            {...props}
         >
             <RenameEvalModalContent
                 loading={loading}

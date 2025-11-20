@@ -3,19 +3,18 @@ import {memo, useEffect, useMemo, useState} from "react"
 
 import {ModalProps} from "antd"
 import clsx from "clsx"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 import {useLocalStorage} from "usehooks-ts"
 
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {useAppsData} from "@/oss/contexts/app.context"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {evaluatorConfigsAtom, evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
 import {groupVariantsByParent} from "@/oss/lib/helpers/variantHelper"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
-import useStatelessVariants from "@/oss/lib/hooks/useStatelessVariants"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {Evaluator, EvaluatorConfig, Variant} from "@/oss/lib/Types"
-import {currentAppAtom} from "@/oss/state/app"
-import {useTestsetsData} from "@/oss/state/testset"
+import {useTestsets} from "@/oss/services/testsets/api"
 
 import ConfigureEvaluator from "./ConfigureEvaluator"
 import Evaluators from "./Evaluators"
@@ -25,30 +24,27 @@ interface EvaluatorsModalProps extends ModalProps {
     current: number
     setCurrent: React.Dispatch<React.SetStateAction<number>>
     openedFromNewEvaluation?: boolean
-    appId?: string | null
 }
 
 const EvaluatorsModal = ({
     current,
     setCurrent,
     openedFromNewEvaluation = false,
-    appId: appIdOverride,
-    ...modalProps
+    ...props
 }: EvaluatorsModalProps) => {
-    const routeAppId = useAppId()
-    const appId = appIdOverride ?? routeAppId
+    const appId = useAppId()
     const [debugEvaluator, setDebugEvaluator] = useLocalStorage("isDebugSelectionOpen", false)
     const [evaluators] = useAtom(evaluatorsAtom)
     const [evaluatorConfigs] = useAtom(evaluatorConfigsAtom)
     const [selectedEvaluator, setSelectedEvaluator] = useState<Evaluator | null>(null)
     const {refetchEvaluatorConfigs, isLoadingEvaluatorConfigs: fetchingEvalConfigs} =
-        useFetchEvaluatorsData({appId: appId ?? ""})
+        useFetchEvaluatorsData()
     const [selectedTestcase, setSelectedTestcase] = useState<{
         testcase: Record<string, any> | null
     }>({
         testcase: null,
     })
-    const currentApp = useAtomValue(currentAppAtom)
+    const {currentApp} = useAppsData()
     const [selectedVariant, setSelectedVariant] = useState<Variant | null>(null)
     const [editMode, setEditMode] = useState(false)
     const [cloneConfig, setCloneConfig] = useState(false)
@@ -58,7 +54,7 @@ const EvaluatorsModal = ({
         "list",
     )
     const [selectedTestset, setSelectedTestset] = useState("")
-    const {testsets} = useTestsetsData()
+    const {data: testsets} = useTestsets()
 
     useEffect(() => {
         if (testsets?.length) {
@@ -66,9 +62,9 @@ const EvaluatorsModal = ({
         }
     }, [testsets])
 
-    const {variants: data} = useStatelessVariants()
+    const {data} = useVariants(currentApp)({appId})
 
-    const variants = useMemo(() => groupVariantsByParent(data, true), [data])
+    const variants = useMemo(() => groupVariantsByParent(data?.variants, true), [data?.variants])
 
     useEffect(() => {
         if (variants?.length) {
@@ -82,7 +78,7 @@ const EvaluatorsModal = ({
                 content: (
                     <Evaluators
                         evaluatorConfigs={evaluatorConfigs}
-                        handleOnCancel={() => modalProps.onCancel?.({} as any)}
+                        handleOnCancel={() => props.onCancel?.({} as any)}
                         setCurrent={setCurrent}
                         setSelectedEvaluator={setSelectedEvaluator}
                         fetchingEvalConfigs={fetchingEvalConfigs}
@@ -100,7 +96,7 @@ const EvaluatorsModal = ({
                     <NewEvaluator
                         evaluators={evaluators}
                         setCurrent={setCurrent}
-                        handleOnCancel={() => modalProps.onCancel?.({} as any)}
+                        handleOnCancel={() => props.onCancel?.({} as any)}
                         setSelectedEvaluator={setSelectedEvaluator}
                         setEvaluatorsDisplay={setEvaluatorsDisplay}
                         evaluatorsDisplay={evaluatorsDisplay}
@@ -113,7 +109,7 @@ const EvaluatorsModal = ({
         fetchingEvalConfigs,
         evaluatorsDisplay,
         evaluators,
-        modalProps.onCancel,
+        props.onCancel,
         setCurrent,
         setSelectedEvaluator,
         debugEvaluator,
@@ -134,7 +130,7 @@ const EvaluatorsModal = ({
                     selectedEvaluator={selectedEvaluator}
                     setCurrent={setCurrent}
                     handleOnCancel={() => {
-                        modalProps.onCancel?.({} as any)
+                        props.onCancel?.({} as any)
                         setEditMode(false)
                         setCloneConfig(false)
                         setEditEvalEditValues(null)
@@ -145,7 +141,7 @@ const EvaluatorsModal = ({
                         refetchEvaluatorConfigs()
                         setEditMode(false)
                         if (openedFromNewEvaluation) {
-                            modalProps.onCancel?.({} as any)
+                            props.onCancel?.({} as any)
                         } else {
                             setCurrent(0)
                         }
@@ -164,7 +160,6 @@ const EvaluatorsModal = ({
                     debugEvaluator={debugEvaluator}
                     selectedTestset={selectedTestset}
                     setSelectedTestset={setSelectedTestset}
-                    appId={appId}
                 />
             ),
         })
@@ -175,20 +170,20 @@ const EvaluatorsModal = ({
             footer={null}
             closeIcon={null}
             title={null}
-            height="85vh"
-            width="90vw"
-            className="[&_>_div]:!h-full [&_.ant-modal-content]:!h-full !overflow-y-hidden min-w-[600px] max-w-[95vw] min-h-[600px]"
+            height={800}
+            width="min-content"
+            className="[&_>_div]:!h-full [&_.ant-modal-content]:!h-full !overflow-y-hidden min-w-[600px] max-w-[1800px]"
             classNames={{body: "!h-full !overflow-auto"}}
             maskClosable={false}
-            {...modalProps}
+            {...props}
         >
             <div
                 className={clsx([
-                    "transition-all duration-300 ease-in-out !h-full w-full max-w-full overflow-hidden",
+                    "transition-all duration-300 ease-in-out !h-full",
                     "[&_>_div]:!h-full",
                     {
-                        "max-w-[600px]": current === 2 && !debugEvaluator,
-                        "max-w-[95vw]": current !== 2 || debugEvaluator,
+                        "w-[600px]": current === 2 && !debugEvaluator,
+                        "w-[90vw]": current !== 2 || debugEvaluator,
                     },
                 ])}
             >

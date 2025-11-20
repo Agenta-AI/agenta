@@ -1,7 +1,6 @@
-import {memo, useMemo} from "react"
-
 import {Typography} from "antd"
 import clsx from "clsx"
+import {memo, useMemo} from "react"
 import {
     PolarAngleAxis,
     PolarGrid,
@@ -11,52 +10,22 @@ import {
     ResponsiveContainer,
     Tooltip,
 } from "recharts"
-
-import {format3Sig} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
-import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
-
-import {EVAL_COLOR} from "../../assets/utils"
-
-import {EvaluatorMetricsSpiderChartProps, MetricData, SeriesMeta} from "./types"
+import {EvaluatorMetricsSpiderChartProps, MetricData} from "./types"
 
 const EvaluatorMetricsSpiderChart = ({
     className,
     metrics = [],
     maxScore = 100,
-    series = [{key: "value", color: EVAL_COLOR[1], name: "Eval 1"}],
 }: EvaluatorMetricsSpiderChartProps) => {
-    // Build chart data with per-axis normalization to 0-100 so
-    // each axis can have its own maxScore while sharing a single radius scale.
+    // Build chart data + pad with dummy points to keep radar shape stable
     const chartData: MetricData[] = useMemo(() => {
-        return metrics.map((m) => {
-            const axisMax =
-                typeof m.maxScore === "number" && isFinite(m.maxScore) && m.maxScore > 0
-                    ? m.maxScore
-                    : maxScore
-
-            const baseRaw = typeof m.value === "number" && isFinite(m.value) ? m.value : 0
-            const baseNorm = Math.max(0, Math.min(100, (baseRaw / axisMax) * 100))
-
-            const obj: MetricData = {
-                subject: m.name,
-                value: baseNorm,
-                rawValue: baseRaw,
-                maxScore: axisMax,
-                type: m.type,
-            }
-
-            // Add normalized values for additional series using same axis max
-            series.forEach((s) => {
-                const key = s.key
-                if (key === "value") return // already set
-                const raw = typeof m[key] === "number" && isFinite(m[key]) ? m[key] : 0
-                const norm = Math.max(0, Math.min(100, (raw / axisMax) * 100))
-                ;(obj as any)[key] = norm
-            })
-
-            return obj
-        })
-    }, [metrics, maxScore, series])
+        const base = metrics.map((m) => ({
+            subject: m.name,
+            value: m.value,
+            fullMark: maxScore,
+        }))
+        return base
+    }, [metrics, maxScore])
 
     if (metrics.length === 0) {
         return (
@@ -145,75 +114,21 @@ const EvaluatorMetricsSpiderChart = ({
                             )
                         }}
                     />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} axisLine={false} tick={false} />
-                    <Tooltip
-                        labelStyle={{color: "#0F172A"}}
-                        formatter={(val: any, name: any, payload: any) => {
-                            try {
-                                const d = payload?.payload as MetricData | undefined
-                                if (!d) return [val, "Score"]
-                                // val is normalized percentage for the active series
-                                const pct = typeof val === "number" ? val : Number(val)
-                                // Reconstruct raw from normalized and axis max (for numeric)
-                                const rawFromPct = (pctNum: number) =>
-                                    (pctNum / 100) * (d?.maxScore ?? 0)
-
-                                const color =
-                                    typeof payload?.color === "string" ? payload.color : "#0F172A"
-                                const styledName = (
-                                    <span style={{color, fontWeight: 600}}>{String(name)}</span>
-                                )
-
-                                if (d.type === "binary") {
-                                    const valueLabel = `${pct.toFixed(2)}% / 100%`
-                                    return [
-                                        <span style={{color, fontWeight: 600}}>{valueLabel}</span>,
-                                        styledName,
-                                    ]
-                                }
-
-                                // Numeric: format latency/costs specially when subject hints it
-                                const raw = rawFromPct(pct)
-                                const valueColor = {color, fontWeight: 600}
-                                if (String(d?.subject).toLowerCase().includes("duration")) {
-                                    return [
-                                        <span style={valueColor}>
-                                            {`${formatLatency(raw)} / ${formatLatency(d?.maxScore)}`}
-                                        </span>,
-                                        styledName,
-                                    ]
-                                }
-                                if (String(d?.subject).toLowerCase().includes("cost")) {
-                                    return [
-                                        <span style={valueColor}>
-                                            {`${formatCurrency(raw)} / ${formatCurrency(d?.maxScore)}`}
-                                        </span>,
-                                        styledName,
-                                    ]
-                                }
-                                return [
-                                    <span style={valueColor}>{`${format3Sig(raw)} / ${format3Sig(
-                                        d?.maxScore,
-                                    )}`}</span>,
-                                    styledName,
-                                ]
-                            } catch (error) {
-                                return [String(val), String(name)]
-                            }
-                        }}
+                    <PolarRadiusAxis
+                        angle={30}
+                        domain={[0, maxScore]}
+                        axisLine={false}
+                        tick={false}
                     />
-                    {series.map((s: SeriesMeta, i: number) => (
-                        <Radar
-                            key={s.key}
-                            name={s.name ?? `Eval ${i + 1}`}
-                            dataKey={s.key}
-                            stroke={s.color}
-                            fill={s.color}
-                            fillOpacity={0.2}
-                            dot={{fill: s.color, r: 4}}
-                            isAnimationActive={false}
-                        />
-                    ))}
+                    <Tooltip />
+                    <Radar
+                        name="Score"
+                        dataKey="value"
+                        stroke="#3B82F6"
+                        fill="#3B82F6"
+                        fillOpacity={0.2}
+                        dot={{fill: "#3B82F6", r: 4}}
+                    />
                 </RadarChart>
             </ResponsiveContainer>
         </div>

@@ -1,7 +1,6 @@
 import {ModalProps} from "antd"
-
-import {TooltipButtonProps} from "@/oss/components/Playground/assets/EnhancedButton"
 import {EvaluationFlow, EvaluationScenario} from "@/oss/lib/Types"
+import {TooltipButtonProps} from "@/oss/components/Playground/assets/EnhancedButton"
 
 export interface EvaluationRow extends EvaluationScenario, Record<string, string> {
     evaluationFlow: EvaluationFlow

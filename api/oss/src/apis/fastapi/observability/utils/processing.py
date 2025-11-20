@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 from collections import OrderedDict
 from json import loads, JSONDecodeError
 from copy import copy
@@ -77,12 +77,12 @@ span_processor = SpanProcessor(
 def _parse_windowing(
     oldest: Optional[str] = None,
     newest: Optional[str] = None,
-    interval: Optional[int] = None,
+    window: Optional[int] = None,
 ) -> Optional[WindowingDTO]:
     _windowing = None
 
     if oldest or newest:
-        _windowing = WindowingDTO(oldest=oldest, newest=newest, interval=interval)
+        _windowing = WindowingDTO(oldest=oldest, newest=newest, window=window)
 
     return _windowing
 
@@ -153,7 +153,7 @@ def _parse_pagination(
     return _pagination
 
 
-def parse_query_from_params_request(
+def parse_query_request(
     # GROUPING
     # - Option 2: Flat query parameters
     focus: Optional[str] = Query(None),
@@ -187,14 +187,14 @@ def parse_analytics_dto(
     # - Option 2: Flat query parameters
     oldest: Optional[str] = Query(None),
     newest: Optional[str] = Query(None),
-    interval: Optional[int] = Query(None),
+    window: Optional[int] = Query(None),
     # FILTERING
     # - Option 1: Single query parameter as JSON
     filtering: Optional[str] = Query(None),
 ) -> AnalyticsDTO:
     return AnalyticsDTO(
         grouping=_parse_grouping(focus=focus),
-        windowing=_parse_windowing(oldest=oldest, newest=newest, interval=interval),
+        windowing=_parse_windowing(oldest=oldest, newest=newest, window=window),
         filtering=_parse_filtering(filtering=filtering),
     )
 
@@ -204,8 +204,7 @@ def parse_analytics_dto(
 
 def parse_from_otel_span_dto(
     otel_span_dto: OTelSpanDTO,
-    flag_create_spans_from_nodes: Optional[bool] = False,
-) -> SpanDTO:
+) -> Tuple[Optional[SpanDTO], Optional[OTelFlatSpan]]:
     """
     Process an OpenTelemetry span into a SpanDTO using the new architecture.
 
@@ -215,7 +214,6 @@ def parse_from_otel_span_dto(
     """
     processed_results = span_processor.process(
         otel_span_dto,
-        flag_create_spans_from_nodes,
     )
     span_dto = processed_results.get("node_builder")
     otel_flat_span = processed_results.get("otel_flat_span_builder")
@@ -225,20 +223,16 @@ def parse_from_otel_span_dto(
             f"NodeBuilder did not produce a valid SpanDTO for trace_id {otel_span_dto.context.trace_id}, "
             f"span_id {otel_span_dto.context.span_id}. Processor results: {processed_results}"
         )
+        span_dto = None
 
-    if flag_create_spans_from_nodes:
-        if not isinstance(otel_flat_span, OTelFlatSpan):
-            log.error(
-                f"OTelFlatSpanBuilder did not produce a valid OTelFlatSpan for trace_id {otel_span_dto.context.trace_id}, "
-                f"span_id {otel_span_dto.context.span_id}. Processor results: {processed_results}"
-            )
+    if not isinstance(otel_flat_span, OTelFlatSpan):
+        log.error(
+            f"OTelFlatSpanBuilder did not produce a valid OTelFlatSpan for trace_id {otel_span_dto.context.trace_id}, "
+            f"span_id {otel_span_dto.context.span_id}. Processor results: {processed_results}"
+        )
+        otel_flat_span = None
 
-    parsed_spans = {
-        "nodes": span_dto,
-        "spans": otel_flat_span,
-    }
-
-    return parsed_spans
+    return (span_dto, otel_flat_span)
 
 
 def _parse_to_attributes(
@@ -466,9 +460,9 @@ def parse_to_agenta_span_dto(
 
 
 def _parse_time_range(
-    interval_text: str,
+    window_text: str,
 ) -> Tuple[datetime, datetime, int]:
-    quantity, unit = interval_text.split("_")
+    quantity, unit = window_text.split("_")
     quantity = int(quantity)
 
     today = datetime.now()
@@ -476,13 +470,13 @@ def _parse_time_range(
 
     if unit == "hours":
         oldest = newest - timedelta(hours=quantity)
-        interval = 60  # 1 hour
-        return newest, oldest, interval
+        window = 60  # 1 hour
+        return newest, oldest, window
 
     elif unit == "days":
         oldest = newest - timedelta(days=quantity)
-        interval = 1440  # 1 day
-        return newest, oldest, interval
+        window = 1440  # 1 day
+        return newest, oldest, window
 
     else:
         raise ValueError(f"Unknown time unit: {unit}")
@@ -539,8 +533,8 @@ def parse_legacy_analytics_dto(
     windowing = None
 
     if timeRange:
-        newest, oldest, interval = _parse_time_range(timeRange)
-        windowing = WindowingDTO(newest=newest, oldest=oldest, interval=interval)
+        newest, oldest, window = _parse_time_range(timeRange)
+        windowing = WindowingDTO(newest=newest, oldest=oldest, window=window)
 
     grouping = GroupingDTO(focus="tree")
 

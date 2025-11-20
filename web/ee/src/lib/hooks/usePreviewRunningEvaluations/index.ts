@@ -1,17 +1,17 @@
-import {atomFamily} from "jotai/utils"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {getCurrentProject} from "@/oss/contexts/project.context"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {EvaluationStatus} from "@/oss/lib/Types"
-import {getProjectValues} from "@/oss/state/project"
-
 import {EnrichedEvaluationRun} from "../usePreviewEvaluations/types"
+
+import {atomFamily} from "jotai/utils"
+import {atomWithQuery} from "jotai-tanstack-query"
+import {EvaluationStatus} from "@/oss/lib/Types"
 
 const REFETCH_INTERVAL = 10000
 
 export const resourceStatusQueryFamily = atomFamily((id) =>
     atomWithQuery<EnrichedEvaluationRun>((get) => {
-        const projectId = getProjectValues().projectId
+        const projectId = getCurrentProject().projectId
 
         return {
             queryKey: ["resourceStatus", id, projectId],

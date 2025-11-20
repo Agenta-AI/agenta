@@ -2,6 +2,7 @@ import {useMemo} from "react"
 
 import useSWR from "swr"
 
+import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {
     METRICS_ENDPOINT,
     createScenarioMetrics,
@@ -67,7 +68,11 @@ const useEvaluationRunMetrics = (
             ? `${METRICS_ENDPOINT}?${queryParams.toString()}`
             : null
     }, [queryParams])
+    // const hasRunIds = Array.isArray(runIds) ? runIds.length > 0 : !!runIds
+    // SWR key is null if no runIds specified
+    // const swrKey = hasRunIds ? `${METRICS_ENDPOINT}?${queryParams.toString()}` : null
 
+    // console.log("SWR KEY", swrKey)
     // SWR response typed to raw MetricResponse[]
     const swrData = useSWR<{
         metrics: MetricResponse[]
@@ -78,7 +83,7 @@ const useEvaluationRunMetrics = (
     // Convert raw MetricResponse[] to camelCase Metric[]
     const rawMetrics = swrData.data?.metrics
     const camelMetrics: Metric[] | undefined = rawMetrics
-        ? rawMetrics.map((item) => item)
+        ? rawMetrics.map((item) => snakeToCamelCaseKeys(item) as Metric)
         : undefined
 
     const totalCount = swrData.data?.count

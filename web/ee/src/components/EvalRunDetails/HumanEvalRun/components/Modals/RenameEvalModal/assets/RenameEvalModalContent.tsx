@@ -1,5 +1,4 @@
 import {Input, Typography} from "antd"
-
 import {RenameEvalModalContentProps} from "../../types"
 
 const RenameEvalModalContent = ({

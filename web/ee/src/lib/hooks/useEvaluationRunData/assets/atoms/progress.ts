@@ -1,23 +1,21 @@
 import deepEqual from "fast-deep-equal"
 import {Atom, atom} from "jotai"
-import {atomFamily, loadable, selectAtom} from "jotai/utils"
 import {eagerAtom} from "jotai-eager"
 import {atomWithImmer} from "jotai-immer"
-
-import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
+import {atomFamily, loadable, selectAtom} from "jotai/utils"
 
 import {EvaluationLoadingState} from "../../types"
 import {defaultLoadingState} from "../constants"
 
 // import {bulkStepsCacheAtom} from "./bulkFetch"
-
-import {evaluationRunStateFamily} from "./runScopedAtoms"
+import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
+import {evaluationRunStateAtom} from "./evaluationRunStateAtom"
 import {
-    displayedScenarioIdsFamily,
-    scenarioIdsFamily,
+    displayedScenarioIds,
+    scenarioIdsAtom,
     scenarioStepFamily,
     scenarioStepLocalFamily,
-} from "./runScopedScenarios"
+} from "./scenarios"
 import {ScenarioCounts, StatusCounters} from "./types"
 
 // ---------------- Shared counter helper ----------------
@@ -59,126 +57,68 @@ const tallyStatus = (counters: StatusCounters, status: string): void => {
     }
 }
 
-export const progressFamily = atomFamily(
-    (runId: string) =>
-        eagerAtom((get) => {
-            const scenarios = get(evaluationRunStateFamily(runId)).scenarios || []
-            const counters = emptyCounters()
+export const progressAtom = eagerAtom((get) => {
+    const scenarios = get(evaluationRunStateAtom).scenarios || []
+    const counters = emptyCounters()
 
-            scenarios.forEach((s) => {
-                const statusLoadable = get(
-                    loadable(scenarioStatusFamily({scenarioId: s.id, runId})),
-                )
-                const status =
-                    statusLoadable.state === "hasData" ? statusLoadable.data.status : "pending"
-                tallyStatus(counters, status)
-            })
+    scenarios.forEach((s) => {
+        const statusLoadable = get(loadable(scenarioStatusFamily(s.id)))
+        const status = statusLoadable.state === "hasData" ? statusLoadable.data.status : "pending"
+        tallyStatus(counters, status)
+    })
 
-            const percentComplete =
-                counters.completed + counters.failed + counters.cancelled + counters.unannotated > 0
-                    ? Math.round((counters.completed / scenarios.length) * 100)
-                    : 0
+    const percentComplete =
+        counters.completed + counters.failed + counters.cancelled + counters.unannotated > 0
+            ? Math.round((counters.completed / scenarios.length) * 100)
+            : 0
 
-            return {
-                total: scenarios.length,
-                pending: counters.pending,
-                inProgress: counters.running,
-                completed: counters.completed,
-                error: counters.failed,
-                cancelled: counters.cancelled,
-                percentComplete,
-            }
-        }),
-    deepEqual,
-)
+    return {
+        total: scenarios.length,
+        pending: counters.pending,
+        inProgress: counters.running,
+        completed: counters.completed,
+        error: counters.failed,
+        cancelled: counters.cancelled,
+        percentComplete,
+    }
+})
 
 export const loadingStateAtom = atomWithImmer<EvaluationLoadingState>(defaultLoadingState)
 
-// Run-scoped atom family to compute scenario step progress for displayedScenarioIds
-export const scenarioStepProgressFamily = atomFamily(
-    (runId: string) =>
-        atom((get) => {
-            const loadingStates = get(loadingStateAtom)
-            // If we're still fetching the evaluation or scenarios list, reflect that first
-            if (
-                loadingStates.activeStep &&
-                ["eval-run", "scenarios"].includes(loadingStates.activeStep)
-            ) {
-                return {
-                    completed: 0,
-                    total: 0,
-                    percent: 0,
-                    loadingStep: loadingStates.activeStep,
-                }
-            }
-            const loadableIds = get(loadable(displayedScenarioIdsFamily(runId)))
+// Derived atom to compute scenario step progress for displayedScenarioIds
+export const scenarioStepProgressAtom = atom((get) => {
+    const loadingStates = get(loadingStateAtom)
+    // If we're still fetching the evaluation or scenarios list, reflect that first
+    if (loadingStates.activeStep && ["eval-run", "scenarios"].includes(loadingStates.activeStep)) {
+        return {completed: 0, total: 0, percent: 0, loadingStep: loadingStates.activeStep}
+    }
+    const loadableIds = get(loadable(displayedScenarioIds))
 
-            if (loadableIds.state !== "hasData") {
-                return {completed: 0, total: 0, percent: 0, loadingStep: null}
-            }
-            const scenarioIds: string[] = Array.isArray(loadableIds.data) ? loadableIds.data : []
-            const total = scenarioIds.length
+    if (loadableIds.state !== "hasData") {
+        return {completed: 0, total: 0, percent: 0, loadingStep: null}
+    }
+    const scenarioIds: string[] = Array.isArray(loadableIds.data) ? loadableIds.data : []
+    const total = scenarioIds.length
 
-            let completed = 0
-            scenarioIds.forEach((scenarioId: string) => {
-                if (get(scenarioStepLocalFamily({runId, scenarioId}))) completed++
-            })
-            const percent = total > 0 ? Math.round((completed / total) * 100) : 0
-            return {
-                completed,
-                total,
-                percent,
-                allStepsFetched: completed === total && total > 0,
-                loadingStep: completed < total ? "scenario-steps" : null,
-            }
-        }),
-    deepEqual,
-)
+    // const bulkMap = get(bulkStepsCacheAtom)
+    let completed = 0
+    scenarioIds.forEach((scenarioId: string) => {
+        if (get(scenarioStepLocalFamily(scenarioId))) completed++
+    })
+    const percent = total > 0 ? Math.round((completed / total) * 100) : 0
+    return {
+        completed,
+        total,
+        percent,
+        allStepsFetched: completed === total && total > 0,
+        loadingStep: completed < total ? "scenario-steps" : null,
+    }
+})
 
-export const scenarioStatusFamily = atomFamily((params: {scenarioId: string; runId: string}) => {
+export const scenarioStatusFamily = atomFamily((scenarioId: string) => {
     return atom(async (get) => {
-        const data = await get(scenarioStepFamily(params))
+        const data = await get(scenarioStepFamily(scenarioId))
         const evalType = get(evalTypeAtom)
-
-        const normalizeStatus = (status: unknown) => {
-            if (typeof status === "string") return status.toLowerCase()
-            if (status === null || status === undefined) return ""
-            return String(status).toLowerCase()
-        }
-
-        const hasStatus = (steps: any[] | undefined, matcher: (status: string) => boolean) => {
-            if (!Array.isArray(steps)) return false
-            return steps.some((step) => matcher(normalizeStatus(step?.status)))
-        }
-
-        const everyStatus = (steps: any[] | undefined, matcher: (status: string) => boolean) => {
-            if (!Array.isArray(steps) || steps.length === 0) return false
-            return steps.every((step) => matcher(normalizeStatus(step?.status)))
-        }
-
-        const isSuccessStatus = (status: string) =>
-            status === "success" ||
-            status === "succeeded" ||
-            status === "successful" ||
-            status === "completed" ||
-            status === "complete" ||
-            status === "done" ||
-            status === "finished"
-
-        const isFailureStatus = (status: string) =>
-            status === "failure" || status === "failed" || status === "error"
-
-        const isRunningStatus = (status: string) =>
-            status === "running" ||
-            status === "in_progress" ||
-            status === "in progress" ||
-            status === "processing" ||
-            status === "queued" ||
-            status === "started" ||
-            status === "starting"
-
-        const isAnnotatingStatus = (status: string) => status === "annotating"
-        const isRevalidatingStatus = (status: string) => status === "revalidating"
 
         const invocationSteps: any[] = Array.isArray(data?.invocationSteps)
             ? data.invocationSteps
@@ -188,21 +128,23 @@ export const scenarioStatusFamily = atomFamily((params: {scenarioId: string; run
             : []
 
         const isRunning =
-            hasStatus(data?.invocationSteps, isRunningStatus) ||
-            hasStatus(data?.annotationSteps, isRunningStatus) ||
-            hasStatus(data?.inputSteps, isRunningStatus)
+            data?.invocationSteps.some((s) => s.status === "running") ||
+            data?.annotationSteps.some((s) => s.status === "running") ||
+            data?.inputSteps.some((s) => s.status === "running")
 
-        const isAnnotating = hasStatus(data?.annotationSteps, isAnnotatingStatus)
-        const isRevalidating = hasStatus(data?.annotationSteps, isRevalidatingStatus)
+        const isAnnotating = data?.annotationSteps.some((s) => s.status === "annotating")
+        const isRevalidating = data?.annotationSteps.some((s) => s.status === "revalidating")
 
         // Determine scenario status based on step outcomes
         let computedStatus = "pending"
-        const allInvSucceeded = everyStatus(invocationSteps, isSuccessStatus)
-        const allAnnSucceeded = everyStatus(annotationSteps, isSuccessStatus)
+        const allInvSucceeded =
+            invocationSteps.length > 0 && invocationSteps.every((s) => s.status === "success")
+        const allAnnSucceeded =
+            annotationSteps.length > 0 && annotationSteps.every((s) => s.status === "success")
         const anyFailed =
-            hasStatus(data?.invocationSteps, isFailureStatus) ||
-            hasStatus(data?.annotationSteps, isFailureStatus) ||
-            hasStatus(data?.inputSteps, isFailureStatus)
+            data?.invocationSteps.some((s) => s.status === "failure") ||
+            data?.annotationSteps.some((s) => s.status === "failure") ||
+            data?.inputSteps.some((s) => s.status === "failure")
 
         if (isRunning) {
             computedStatus = "running"
@@ -213,15 +155,25 @@ export const scenarioStatusFamily = atomFamily((params: {scenarioId: string; run
         } else if (allAnnSucceeded) {
             computedStatus = "success"
         } else if (allInvSucceeded) {
-            // Auto and online evals treat successful invocations as completion
-            const isAutoLikeEval =
-                evalType === "auto" || evalType === "online" || evalType === "custom"
-            computedStatus = isAutoLikeEval ? "success" : "incomplete"
+            // In auto eval we don't have any annotation steps for now
+            computedStatus = evalType === "auto" ? "success" : "incomplete"
         } else if (anyFailed) {
             computedStatus = "failure"
         } else {
             computedStatus = "pending"
         }
+
+        // Preserve legacy result extraction (first invocation step value)
+        // let result: any = undefined
+        // if (invocationSteps.length) {
+        //     try {
+        //         const {value} = readInvocationResponse({
+        //             scenarioData: data,
+        //             stepKey: invocationSteps[0].key,
+        //         })
+        //         result = value
+        //     } catch {}
+        // }
 
         return {
             status: computedStatus,
@@ -231,9 +183,9 @@ export const scenarioStatusFamily = atomFamily((params: {scenarioId: string; run
     })
 }, deepEqual)
 
-export const scenarioStatusAtomFamily = atomFamily((params: {scenarioId: string; runId: string}) =>
+export const scenarioStatusAtomFamily = atomFamily((id: string) =>
     atom((get) => {
-        const loadableStatus = get(loadable(scenarioStatusFamily(params)))
+        const loadableStatus = get(loadable(scenarioStatusFamily(id)))
         return loadableStatus.state === "hasData" ? loadableStatus.data : {status: "pending"}
     }),
 )
@@ -241,14 +193,14 @@ export const scenarioStatusAtomFamily = atomFamily((params: {scenarioId: string;
 // Aggregate all scenario steps into a single object keyed by scenarioId (loadable)
 // Convenience wrapper so components can safely read status without suspending
 export const loadableScenarioStatusFamily = atomFamily(
-    (params: {scenarioId: string; runId: string}) => loadable(scenarioStatusFamily(params)),
+    (scenarioId: string) => loadable(scenarioStatusFamily(scenarioId)),
     deepEqual,
 )
 
 // Lightweight UI flags derived from scenario status
-export const scenarioUiFlagsFamily = atomFamily((params: {scenarioId: string; runId: string}) => {
+export const scenarioUiFlagsFamily = atomFamily((scenarioId: string) => {
     return atom((get) => {
-        const statusLoadable = get(loadable(scenarioStatusFamily(params)))
+        const statusLoadable = get(loadable(scenarioStatusFamily(scenarioId)))
         if (statusLoadable.state !== "hasData") {
             return {isAnnotating: false, isRevalidating: false}
         }
@@ -260,44 +212,64 @@ export const scenarioUiFlagsFamily = atomFamily((params: {scenarioId: string; ru
     })
 }, deepEqual)
 
-export const scenarioCountsFamily = atomFamily((runId: string) => {
-    return atom<ScenarioCounts>((get) => {
-        const ids = get(scenarioIdsFamily(runId))
-        const c = emptyCounters()
-        for (const id of ids) {
-            const st = get(scenarioStatusAtomFamily({scenarioId: id, runId})) as any
-            tallyStatus(c, st?.status ?? "pending")
-        }
-        return {
-            total: ids.length,
-            pending: c.pending,
-            unannotated: c.unannotated,
-            failed: c.failed,
-        }
-    })
-}, deepEqual)
+// Compute status map from scenario steps (handle loading/error states)
+// Build a lightweight status map derived only from per-scenario status atoms.
+// Avoid touching bulky `scenarioStepsAtom`, which contains full trace data and
+// causes large JSON clones. This dramatically reduces work when components read
+// counts or individual statuses.
+// Internal cache to preserve reference when no status actually changes
+// let _cachedStatusMap: ScenarioStatusMap | undefined
+// export const statusMapAtom = atom((get) => {
+//     const ids = get(scenarioIdsAtom)
+//     const map: ScenarioStatusMap = {}
 
-// Run-scoped count atoms
-export const pendingCountFamily = atomFamily((runId: string) => {
-    return selectAtom<ScenarioCounts, number>(
-        scenarioCountsFamily(runId),
-        (c) => c.pending,
-        deepEqual,
-    )
-}, deepEqual)
+//     let changed = false
+//     for (const scenarioId of ids) {
+//         const status = {status: "pending"}
+//         // get(scenarioStatusAtomFamily(scenarioId)) as any
+//         const latest = status ?? {status: "pending"}
+//         if (!changed && _cachedStatusMap && deepEqual(_cachedStatusMap[scenarioId], latest)) {
+//             // no change for this id
+//         } else {
+//             changed = true
+//         }
+//         map[scenarioId] = latest
+//     }
+//     if (!changed && _cachedStatusMap) return _cachedStatusMap
+//     _cachedStatusMap = map
+//     return map
+// })
 
-export const unannotatedCountFamily = atomFamily((runId: string) => {
-    return selectAtom<ScenarioCounts, number>(
-        scenarioCountsFamily(runId),
-        (c) => c.unannotated,
-        deepEqual,
-    )
-}, deepEqual)
+export const scenarioCountsAtom = atom<ScenarioCounts>((get) => {
+    const ids = get(scenarioIdsAtom)
+    const c = emptyCounters()
+    for (const id of ids) {
+        const st = get(scenarioStatusAtomFamily(id)) as any
+        tallyStatus(c, st?.status ?? "pending")
+    }
+    return {
+        total: ids.length,
+        pending: c.pending,
+        unannotated: c.unannotated,
+        failed: c.failed,
+    }
+})
 
-export const failedCountFamily = atomFamily((runId: string) => {
-    return selectAtom<ScenarioCounts, number>(
-        scenarioCountsFamily(runId),
-        (c) => c.failed,
-        deepEqual,
-    )
-}, deepEqual)
+const scenarioCountsAtomTyped = scenarioCountsAtom as unknown as Atom<ScenarioCounts>
+
+// Lightweight total scenario count (no status reads)
+export const pendingCountAtom = selectAtom<ScenarioCounts, number>(
+    scenarioCountsAtomTyped,
+    (c) => c.pending,
+    deepEqual,
+)
+export const unannotatedCountAtom = selectAtom<ScenarioCounts, number>(
+    scenarioCountsAtomTyped,
+    (c) => c.unannotated,
+    deepEqual,
+)
+export const failedCountAtom = selectAtom<ScenarioCounts, number>(
+    scenarioCountsAtomTyped,
+    (c) => c.failed,
+    deepEqual,
+)

@@ -5,7 +5,6 @@ import clsx from "clsx"
 const PlaygroundVariantPropertyControlWrapper = ({
     className,
     children,
-    viewOnly,
     ...props
 }: HTMLProps<HTMLDivElement>) => {
     return (

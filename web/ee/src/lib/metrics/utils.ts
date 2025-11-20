@@ -1,5 +1,3 @@
-import {canonicalizeMetricKey, getMetricDisplayName} from "../metricUtils"
-
 // Shared helpers for metric key humanisation and sorting
 // ------------------------------------------------------
 // This centralises the logic used in various tables (virtualised scenario table,
@@ -22,24 +20,6 @@ const TOKEN_ORDER = ["promptTokens", "completionTokens", "totalTokens"] as const
  *   2. human-friendly title string used for column headers
  */
 export const getMetricConfig = (key: string): MetricConfig => {
-    const canonical = canonicalizeMetricKey(key)
-    if (canonical === "attributes.ag.metrics.costs.cumulative.total") {
-        return {primary: "sum", label: getMetricDisplayName(canonical)}
-    }
-    if (canonical === "attributes.ag.metrics.duration.cumulative") {
-        return {primary: "mean", label: getMetricDisplayName(canonical)}
-    }
-    if (canonical === "attributes.ag.metrics.tokens.cumulative.total") {
-        return {primary: "sum", label: getMetricDisplayName(canonical)}
-    }
-    if (canonical === "attributes.ag.metrics.errors.cumulative") {
-        return {primary: "count", label: getMetricDisplayName(canonical)}
-    }
-
-    if (canonical !== key) {
-        return getMetricConfig(canonical)
-    }
-
     // Common most-used names first for performance/readability
     if (key === "latency") {
         return {primary: "mean", label: "Latency (mean)"}
@@ -67,7 +47,7 @@ export const getMetricConfig = (key: string): MetricConfig => {
     }
 
     // Fallback – treat as numeric mean
-    const capitalised = getMetricDisplayName(key)
+    const capitalised = key.charAt(0).toUpperCase() + key.slice(1)
     const primary = key === "errors" ? "count" : "mean"
     return {primary, label: `${capitalised} (${primary})`}
 }
@@ -81,13 +61,11 @@ export const getMetricConfig = (key: string): MetricConfig => {
  *   3. others alphabetical
  */
 export const metricPriority = (key: string): [number, number] => {
-    const canonical = canonicalizeMetricKey(key)
-    const target = canonical ?? key
-    const lc = target.toLowerCase()
+    const lc = key.toLowerCase()
     if (lc.includes("cost")) return [0, 0]
     if (lc.includes("duration")) return [1, 0]
-    const tokenIdx = TOKEN_ORDER.indexOf(target as (typeof TOKEN_ORDER)[number])
+    const tokenIdx = TOKEN_ORDER.indexOf(key as (typeof TOKEN_ORDER)[number])
     if (tokenIdx !== -1) return [2, tokenIdx]
-    if (target.endsWith("Tokens") || lc.includes("token")) return [2, 99]
+    if (key.endsWith("Tokens") || lc.includes("token")) return [2, 99]
     return [3, 0]
 }

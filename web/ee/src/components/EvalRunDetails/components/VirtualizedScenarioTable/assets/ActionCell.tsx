@@ -1,16 +1,13 @@
 import {memo, useCallback} from "react"
 
 import {Button, Spin} from "antd"
-import {getDefaultStore} from "jotai"
+import {useAtomValue} from "jotai"
+import {loadable} from "jotai/utils"
 
-import {useRunId} from "@/oss/contexts/RunIdContext"
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
+import {evalAtomStore} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {scenarioStepFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/scenarios"
 
-// Use EE run-scoped versions for multi-run support
-import {
-    hasScenarioStepData,
-    useScenarioStepSnapshot,
-} from "../../../../../lib/hooks/useEvaluationRunData/useScenarioStepSnapshot"
 import RunEvalScenarioButton from "../../../HumanEvalRun/components/RunEvalScenarioButton"
 
 import {CellWrapper} from "./CellComponents"
@@ -19,22 +16,18 @@ import {CellWrapper} from "./CellComponents"
  * Shared action-cell renderer for the Scenario tables (OSS & EE).
  * Shows either a "Run" button (if scenario hasn't been executed) or an "Annotate" action.
  */
-const ActionCell = ({scenarioId, runId: propRunId}: {scenarioId: string; runId?: string}) => {
-    const store = getDefaultStore()
-    const contextRunId = useRunId()
-    const effectiveRunId = propRunId || contextRunId
-
-    const {data: stepData} = useScenarioStepSnapshot(scenarioId, effectiveRunId)
+const ActionCell = ({scenarioId}: {scenarioId: string}) => {
+    const stepLoadable = useAtomValue(loadable(scenarioStepFamily(scenarioId)))
 
     const openAnnotateDrawer = useCallback(() => {
+        const store = evalAtomStore()
         store.set(virtualScenarioTableAnnotateDrawerAtom, {
             open: true,
             scenarioId,
-            runId: effectiveRunId, // Include runId for multi-run support
-        })
-    }, [scenarioId, effectiveRunId, store])
+        } as any)
+    }, [scenarioId])
 
-    if (!effectiveRunId || !hasScenarioStepData(stepData)) {
+    if (stepLoadable.state !== "hasData") {
         return (
             <CellWrapper className="justify-center">
                 <Spin size="small" />
@@ -42,23 +35,20 @@ const ActionCell = ({scenarioId, runId: propRunId}: {scenarioId: string; runId?:
         )
     }
 
-    const invocationArr: any[] = stepData?.invocationSteps || []
+    const data = stepLoadable.data
+
+    const invocationArr: any[] = data?.invocationSteps || []
 
     const allSuccess =
         invocationArr.length > 0 && invocationArr.every((s) => s.status === "success")
 
     // first step that still has parameters to run
-    const firstStepKey = invocationArr.find((s: any) => s.invocationParameters)?.stepKey
+    const firstStepKey = invocationArr.find((s: any) => s.invocationParameters)?.key
 
     if (!allSuccess) {
         return (
             <CellWrapper className="justify-center">
-                <RunEvalScenarioButton
-                    scenarioId={scenarioId}
-                    stepKey={firstStepKey}
-                    label="Run"
-                    runId={effectiveRunId}
-                />
+                <RunEvalScenarioButton scenarioId={scenarioId} stepKey={firstStepKey} label="Run" />
             </CellWrapper>
         )
     }

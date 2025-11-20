@@ -5,67 +5,1141 @@ description: "Query Testsets"
 sidebar_label: "Query Testsets"
 hide_title: true
 hide_table_of_contents: true
-api: eJztWdtuGzcQ/RVhnlpgZcmKL8k+Vbkhai52bSUFKggGtTuSmHIvIbl2VGH/vRhy7ytvFMUBkqJ+sCXuzOHwcDg8s96CZisF7gymqLRCrWDuQBSjZJpH4cQHFz4lKDc3On/ugMRPCSr9NPI34G7Bi0KNoaaPLI4F94zr4KOKQhpT3hoDRp9iScCao6JvGaBxCzcXS3BnTZOlMMHdb7BmygTmMYUNQ72JEVxYRJFAFkLqFENhIgSkcwc014IGXjHVmxYoqWNhJfO+FdNCpKmTm0WLj+hpKM0y1l+ahbbxUgcC1KweBfN9TgwzcVkjoxWn0pKHqyosDzWuUNZnChb1keryds8FHpdeIpj85WUixO8qCvuTME70r9BcKWFwjcF+TkxKtumkte4KLWa7fN8Sk+TRSqofidF30Ruu9Jc4vW+NTe+vY2hqsxBCFuCe629HQL6pAz4qT/KYlnoo1PMKxB6H6A+qU7sPUVZrbiQuGxubJWezsNyiVN8Q+YfMPXVAiWR1KMw1+aYOcL8LwYFlJAOmwYUk4X4n4sTvZPIKlygx9LCSN18+lBn/vStil8INPZH4eMOkt+a3uDv4fYroxAL1xjlQ6sAdD/3ojtbdcS+EeIdK70mazzT2NTdp25HXFjJ1IBL+Q4NfWEg6evh5X+gvbvY7wkodEDzgu0F3Vq8GyhvjTeuWPsru2DBMAhITTHkY+naMCkH2Zd7JgYE36aNR3jJxcMSTHCB1QDK9u5S1q3QL54p8u47Ln0Uu7qg6exasKyumICUHUlZc0onRMkEzoOIozMTNaDikP7XKCteJ56FSy0T0rjJjcA7VZF6UWKcG22Xoz4wF7eqSJUKDOyzLq4G4p6D+L+V+Gil3kegDtFzL6yvEnPX9j6u5Llr3kHOHcPQj6zkHPIlMo3/DHvYufWZhe2NDVhL732OS9xY2m8RHgd9hkucWNpskp2uxuXk4PZiT9XTTm/hVvh50lpytYpacsAedJaermOWnkt7Z9dES3i0LVb19Z/voDFUIg9SojJPRqK0jPjDBfaMSei+kjOThIsJHzbjo0AIi8mpPv6Ywz+/n501kAyQKA7WqyJhit8rLQym2qnQ595saMnpTerqL6lKxzcy67NSZXbUjLOi17N6/jOeWvq59fTWdXrYA7d7WN9UozF4lcQLU64he6sWRIsSY6TW4MIgl3nK8G+RKbmBe+oEDCiX1wmZ3EinAhbXWsXIHA09EiX/EVhhqdsT4gMXc5LtCL5Fcb4zL+HLyGjevkJnWYTavGlxT/tiMqJsVm8Fi/hopCnuBwTjR60jyf+w2U6dA8VgvWjxl5lX5cvLFZxbEAhsvGwsl2lCcpLjrejHT4JlsK7VGcaOW2VKnvcjfxouHWeXFQulry1T5nUoOPFqyx6fLs5P+6fnxef/k9GzUXzxaev2R9+Ts0fLsjC3ZmaG73WzbhdT65LwfhtFwdNIfnvdHT6bHp+7psTt6fDQ8P/4Lyra2y8Z2p/sFV/Sdw6J1rPWFZZs3zNu0YWrav2VktixL9rHJsN74cgJOhb7h0fHRsMV8zZjqF/PMpucJZB6D00jlIomphQ1M8QKNLPitfECR0ZkJWFjBa52vhkrK8ljjZz2IBeOmNpm5t9nRm0F29KDSRjn2nTvVjzWdU3cG2+2CKXwvRZrSsH3uzuYO3DLJ2YKomlFxXOdnbQt/48Z0bKaK900JI3OR2LPVqOhUba3H2PMw1p2280opuby4noIDi+zfAUHkk49ktCT67QJll+HEnDsztgXBwlVCRdgFi0k//wLGTFuQ
+api: eJy1V0tv20YQ/ivCnFqAtlyjJ54q2wnipq1VW+lFEIwRdyRtsuQy+3DDEvzvxexSEilZsmI4OljG7sw3s988VYPDpYV0ChOyzpKzMEtAl2TQSV3cCkjhqydTPbr1fQKGvnqy7kqLCtIaMl04Khz/i2WpZBZUh5+tLvjMZivKMdwW1d0C0mkNrioJUtDzz5S5FlEaEuxITg4FOmRHnHSKBSe4tPfRKjTJRr/wSkHTkfuz1R1shJumYXhb6sKSZS8uLy74S5DNjCzZVUjhwWcZWbvwanDfCkNy+stKw5Q5GS1k2kel1k1ZOFqSga2f10GiSWDDalqDdJTbfbQCc3qWPeuMLJZH+fiLdZuk/9jXQd10IJoEMkPoSDyiOwaYwEKbnGVAoKMzJ4M/h61cR9jBKLDjS/EjjHyKsK0RQYp+gJGbCNsaWdM1rx6lONGO91KcRNZVNbgVXb7e1MqarY2VNWFvamVN18aKVX752lx9YN0mgbdzL/rE1Zph20f2YNEYrI6iTDb6TbLtcz0sFEJyjaEa97rACTSs20zPg3zeP5lrrQiLcPS8LcikybxC89N7r9TvVhdnd96V3v3MDazXuBmk7VqnaL1M0I5u4HzP4kvNH5o9tX4ILHWRo1d7EjzoBC3QKwfpdPYcZndqxZ4/24fZjJM4in69vNyfPv+gkiLMlsE7Y7R5/egR5FCqI9NE6ax3+z15NTtM2h86OhgS2y47w29TbNswWYtL2kbgsGggYzDh25f453dF061cJxRbeiO7h59xE+k7lkAfJpPxHmCMbT+of/PaNOhkU05upXmhKrVlxBLdClIYloaeJP07XO8Cw7BwQQKWzBMZG6LjjYIUVs6VNh0OM6W9OMclFQ7PUQ6xlLBrfxRuB9csGurEUuaNdFXAG41vP1L1gVCQCfndEXjg5Irp0hfbtrpSfiR2MS4nMPJupY38L+ZAApIdWEUtZobT9n67Nb77hnmpQug7XZAFZbHQwU7LdvuIK8y+UCEgASYkvu/i/Jfzi0OvbhUGo/FtW0yYue021YpBssPrhlFIgPJQSeAI89+2F+wlBzDHooO3F+ydjavlzdE3NywVylAowXbd5sEU2jyAzlaYxOWbk3nFSZNOoa7naOmTUU3Dx/E+nc4SeEIjcc60TblSV+vY1vCFqrB0hpZyFuqJxZWPsdxpL1z6UWOUZVS6o7KzTl6P7x4mkMC8/V2Qa8E6BvlJ/DcF4N8WrB2SK5zVoLBYeu4IKURM/vwPtqVO2g==
 sidebar_class_name: "post api-method"
-info_path: reference/api/agenta-api
+info_path: reference/api/agenta-backend
 custom_edit_url: null
 ---
 
+import ApiTabs from "@theme/ApiTabs";
+import DiscriminatorTabs from "@theme/DiscriminatorTabs";
 import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
-import ParamsDetails from "@theme/ParamsDetails";
-import RequestSchema from "@theme/RequestSchema";
-import StatusCodes from "@theme/StatusCodes";
+import SecuritySchemes from "@theme/ApiExplorer/SecuritySchemes";
+import MimeTabs from "@theme/MimeTabs";
+import ParamsItem from "@theme/ParamsItem";
+import ResponseSamples from "@theme/ResponseSamples";
+import SchemaItem from "@theme/SchemaItem";
+import SchemaTabs from "@theme/SchemaTabs";
+import Markdown from "@theme/Markdown";
+import Heading from "@theme/Heading";
 import OperationTabs from "@theme/OperationTabs";
 import TabItem from "@theme/TabItem";
-import Heading from "@theme/Heading";
 
-<Heading
-  as={"h1"}
-  className={"openapi__heading"}
-  children={"Query Testsets"}
->
-</Heading>
+<Heading as={"h1"} className={"openapi__heading"} children={"Query Testsets"}></Heading>
 
-<MethodEndpoint
-  method={"post"}
-  path={"/preview/testsets/query"}
-  context={"endpoint"}
->
-  
-</MethodEndpoint>
-
-
+<MethodEndpoint method={"post"} path={"/preview/testsets/query"}></MethodEndpoint>
 
 Query Testsets
 
-<Heading
-  id={"request"}
-  as={"h2"}
-  className={"openapi-tabs__heading"}
-  children={"Request"}
->
-</Heading>
+<Heading id={"request"} as={"h2"} className={"openapi-tabs__heading"} children={"Request"}></Heading>
 
-<ParamsDetails
-  parameters={undefined}
->
-  
-</ParamsDetails>
-
-<RequestSchema
-  title={"Body"}
-  body={{"content":{"application/json":{"schema":{"properties":{"testset":{"anyOf":[{"properties":{"flags":{"anyOf":[{"properties":{"has_testcases":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Has Testcases"},"has_traces":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Has Traces"}},"type":"object","title":"TestsetFlags"},{"type":"null"}]},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Input)","type":"object"},{"items":"circular(FullJson-Input)","type":"array"},{"type":"null"}],"title":"FullJson-Input"},"type":"object"},{"type":"null"}],"title":"Meta"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(NoListJson-Input)","type":"object"},{"type":"null"}],"title":"NoListJson-Input"},"type":"object"},{"type":"null"}],"title":"Tags"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"}},"type":"object","title":"TestsetQuery"},{"type":"null"}]},"testset_refs":{"anyOf":[{"items":{"properties":{"version":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Version"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Reference"},"type":"array"},{"type":"null"}],"title":"Testset Refs"},"include_archived":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Include Archived"},"windowing":{"anyOf":[{"properties":{"newest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Newest"},"oldest":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Oldest"},"next":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Next"},"limit":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Limit"},"order":{"anyOf":[{"type":"string","enum":["ascending","descending"]},{"type":"null"}],"title":"Order"},"interval":{"anyOf":[{"type":"integer"},{"type":"null"}],"title":"Interval"},"rate":{"anyOf":[{"type":"number"},{"type":"null"}],"title":"Rate"}},"type":"object","title":"Windowing"},{"type":"null"}]}},"type":"object","title":"TestsetQueryRequest"}}},"required":true}}
->
-  
-</RequestSchema>
-
-<StatusCodes
-  id={undefined}
-  label={undefined}
-  responses={{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"properties":{"count":{"type":"integer","title":"Count","default":0},"testsets":{"items":{"properties":{"flags":{"anyOf":[{"properties":{"has_testcases":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Has Testcases"},"has_traces":{"anyOf":[{"type":"boolean"},{"type":"null"}],"title":"Has Traces"}},"type":"object","title":"TestsetFlags"},{"type":"null"}]},"meta":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(FullJson-Output)","type":"object"},{"items":"circular(FullJson-Output)","type":"array"},{"type":"null"}],"title":"FullJson-Output"},"type":"object"},{"type":"null"}],"title":"Meta"},"tags":{"anyOf":[{"additionalProperties":{"anyOf":[{"type":"string"},{"type":"integer"},{"type":"number"},{"type":"boolean"},{"additionalProperties":"circular(NoListJson-Output)","type":"object"},{"type":"null"}],"title":"NoListJson-Output"},"type":"object"},{"type":"null"}],"title":"Tags"},"name":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Name"},"description":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Description"},"created_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Created At"},"updated_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Updated At"},"deleted_at":{"anyOf":[{"type":"string","format":"date-time"},{"type":"null"}],"title":"Deleted At"},"created_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Created By Id"},"updated_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Updated By Id"},"deleted_by_id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Deleted By Id"},"slug":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Slug"},"id":{"anyOf":[{"type":"string","format":"uuid"},{"type":"null"}],"title":"Id"}},"type":"object","title":"Testset"},"type":"array","title":"Testsets","default":[]}},"type":"object","title":"TestsetsResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"properties":{"detail":{"items":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"}}}}}}
->
-  
-</StatusCodes>
-
-
-      
+<MimeTabs className={"openapi-tabs__mime"}>
+  <TabItem label={"application/json"} value={"application/json-schema"}>
+    <details style={{}} className={"openapi-markdown__details mime"} data-collapsed={false} open={true}>
+      <summary style={{}} className={"openapi-markdown__details-summary-mime"}>
+        <h3 className={"openapi-markdown__details-summary-header-body"}>Body</h3>
+      </summary>
+      <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
+      <ul style={{ marginLeft: "1rem" }}>
+        <div>
+          <span className={"badge badge--info"}>anyOf</span>
+          <SchemaTabs>
+            <TabItem label={"TagsRequest"} value={"0-item-properties"}>
+              <SchemaItem collapsible={true} className={"schemaItem"}>
+                <details style={{}} className={"openapi-markdown__details"}>
+                  <summary style={{}}>
+                    <span className={"openapi-schema__container"}>
+                      <strong className={"openapi-schema__property"}>metadata</strong>
+                      <span className={"openapi-schema__name"}>object</span>
+                      <span className={"openapi-schema__divider"}></span>
+                      <span className={"openapi-schema__required"}>required</span>
+                    </span>
+                  </summary>
+                  <div style={{ marginLeft: "1rem" }}>
+                    <SchemaItem collapsible={true} className={"schemaItem"}>
+                      <details style={{}} className={"openapi-markdown__details"}>
+                        <summary style={{}}>
+                          <span className={"openapi-schema__container"}>
+                            <strong className={"openapi-schema__property"}>property name*</strong>
+                            <span className={"openapi-schema__name"}>FullJson-Input</span>
+                          </span>
+                        </summary>
+                        <div style={{ marginLeft: "1rem" }}>
+                          <div>
+                            <span className={"badge badge--info"}>anyOf</span>
+                            <SchemaTabs>
+                              <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                <div
+                                  style={{
+                                    marginTop: ".5rem",
+                                    marginBottom: ".5rem",
+                                  }}
+                                >
+                                  string
+                                </div>
+                              </TabItem>
+                              <TabItem label={"MOD2"} value={"1-item-properties"}>
+                                <div
+                                  style={{
+                                    marginTop: ".5rem",
+                                    marginBottom: ".5rem",
+                                  }}
+                                >
+                                  integer
+                                </div>
+                              </TabItem>
+                              <TabItem label={"MOD3"} value={"2-item-properties"}>
+                                <div
+                                  style={{
+                                    marginTop: ".5rem",
+                                    marginBottom: ".5rem",
+                                  }}
+                                >
+                                  number
+                                </div>
+                              </TabItem>
+                              <TabItem label={"MOD4"} value={"3-item-properties"}>
+                                <div
+                                  style={{
+                                    marginTop: ".5rem",
+                                    marginBottom: ".5rem",
+                                  }}
+                                >
+                                  boolean
+                                </div>
+                              </TabItem>
+                              <TabItem label={"MOD6"} value={"5-item-properties"}>
+                                <li>
+                                  <div
+                                    style={{
+                                      fontSize: "var(--ifm-code-font-size)",
+                                      opacity: "0.6",
+                                      marginLeft: "-.5rem",
+                                      paddingBottom: ".5rem",
+                                    }}
+                                  >
+                                    Array [
+                                  </div>
+                                </li>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"0"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"c"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"1"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"i"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"2"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"r"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"3"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"c"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"4"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"u"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"5"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"l"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"6"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"a"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"7"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"r"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"8"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"("}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"9"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"F"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"10"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"u"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"11"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"l"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"12"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"l"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"13"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"J"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"14"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"s"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"15"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"o"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"16"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"n"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"17"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"-"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"18"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"I"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"19"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"n"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"20"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"p"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"21"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"u"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"22"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={"t"}
+                                ></SchemaItem>
+                                <SchemaItem
+                                  collapsible={false}
+                                  name={"23"}
+                                  required={false}
+                                  schemaName={""}
+                                  qualifierMessage={undefined}
+                                  schema={")"}
+                                ></SchemaItem>
+                                <li>
+                                  <div
+                                    style={{
+                                      fontSize: "var(--ifm-code-font-size)",
+                                      opacity: "0.6",
+                                      marginLeft: "-.5rem",
+                                    }}
+                                  >
+                                    ]
+                                  </div>
+                                </li>
+                              </TabItem>
+                            </SchemaTabs>
+                          </div>
+                        </div>
+                      </details>
+                    </SchemaItem>
+                  </div>
+                </details>
+              </SchemaItem>
+            </TabItem>
+          </SchemaTabs>
+        </div>
+      </ul>
+    </details>
+  </TabItem>
+</MimeTabs>
+<div>
+  <div>
+    <ApiTabs label={undefined} id={undefined}>
+      <TabItem label={"200"} value={"200"}>
+        <div>Successful Response</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
+                      <strong>Schema</strong>
+                    </summary>
+                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
+                    <ul style={{ marginLeft: "1rem" }}>
+                      <SchemaItem
+                        collapsible={false}
+                        name={"count"}
+                        required={true}
+                        schemaName={"Count (integer)"}
+                        qualifierMessage={undefined}
+                        schema={{ type: "integer", title: "Count" }}
+                      ></SchemaItem>
+                      <SchemaItem collapsible={true} className={"schemaItem"}>
+                        <details style={{}} className={"openapi-markdown__details"}>
+                          <summary style={{}}>
+                            <span className={"openapi-schema__container"}>
+                              <strong className={"openapi-schema__property"}>testsets</strong>
+                              <span className={"openapi-schema__name"}>object[]</span>
+                            </span>
+                          </summary>
+                          <div style={{ marginLeft: "1rem" }}>
+                            <li>
+                              <div
+                                style={{
+                                  fontSize: "var(--ifm-code-font-size)",
+                                  opacity: "0.6",
+                                  marginLeft: "-.5rem",
+                                  paddingBottom: ".5rem",
+                                }}
+                              >
+                                Array [
+                              </div>
+                            </li>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>name</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>description</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>created_at</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>updated_at</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>deleted_at</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>created_by_id</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>updated_by_id</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>deleted_by_id</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>slug</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>id</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <div
+                                        style={{
+                                          marginTop: ".5rem",
+                                          marginBottom: ".5rem",
+                                        }}
+                                      >
+                                        string
+                                      </div>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>testcases</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                  <SchemaTabs>
+                                    <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                      <li>
+                                        <div
+                                          style={{
+                                            fontSize: "var(--ifm-code-font-size)",
+                                            opacity: "0.6",
+                                            marginLeft: "-.5rem",
+                                            paddingBottom: ".5rem",
+                                          }}
+                                        >
+                                          Array [
+                                        </div>
+                                      </li>
+                                      <SchemaItem collapsible={true} className={"schemaItem"}>
+                                        <details style={{}} className={"openapi-markdown__details"}>
+                                          <summary style={{}}>
+                                            <span className={"openapi-schema__container"}>
+                                              <strong className={"openapi-schema__property"}>property name*</strong>
+                                              <span className={"openapi-schema__name"}>FullJson-Output</span>
+                                            </span>
+                                          </summary>
+                                          <div style={{ marginLeft: "1rem" }}>
+                                            <div>
+                                              <span className={"badge badge--info"}>anyOf</span>
+                                              <SchemaTabs>
+                                                <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                                  <div
+                                                    style={{
+                                                      marginTop: ".5rem",
+                                                      marginBottom: ".5rem",
+                                                    }}
+                                                  >
+                                                    string
+                                                  </div>
+                                                </TabItem>
+                                                <TabItem label={"MOD2"} value={"1-item-properties"}>
+                                                  <div
+                                                    style={{
+                                                      marginTop: ".5rem",
+                                                      marginBottom: ".5rem",
+                                                    }}
+                                                  >
+                                                    integer
+                                                  </div>
+                                                </TabItem>
+                                                <TabItem label={"MOD3"} value={"2-item-properties"}>
+                                                  <div
+                                                    style={{
+                                                      marginTop: ".5rem",
+                                                      marginBottom: ".5rem",
+                                                    }}
+                                                  >
+                                                    number
+                                                  </div>
+                                                </TabItem>
+                                                <TabItem label={"MOD4"} value={"3-item-properties"}>
+                                                  <div
+                                                    style={{
+                                                      marginTop: ".5rem",
+                                                      marginBottom: ".5rem",
+                                                    }}
+                                                  >
+                                                    boolean
+                                                  </div>
+                                                </TabItem>
+                                                <TabItem label={"MOD6"} value={"5-item-properties"}>
+                                                  <li>
+                                                    <div
+                                                      style={{
+                                                        fontSize: "var(--ifm-code-font-size)",
+                                                        opacity: "0.6",
+                                                        marginLeft: "-.5rem",
+                                                        paddingBottom: ".5rem",
+                                                      }}
+                                                    >
+                                                      Array [
+                                                    </div>
+                                                  </li>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"0"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"c"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"1"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"i"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"2"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"r"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"3"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"c"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"4"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"u"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"5"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"l"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"6"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"a"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"7"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"r"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"8"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"("}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"9"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"F"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"10"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"u"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"11"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"l"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"12"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"l"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"13"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"J"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"14"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"s"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"15"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"o"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"16"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"n"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"17"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"-"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"18"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"O"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"19"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"u"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"20"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"t"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"21"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"p"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"22"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"u"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"23"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={"t"}
+                                                  ></SchemaItem>
+                                                  <SchemaItem
+                                                    collapsible={false}
+                                                    name={"24"}
+                                                    required={false}
+                                                    schemaName={""}
+                                                    qualifierMessage={undefined}
+                                                    schema={")"}
+                                                  ></SchemaItem>
+                                                  <li>
+                                                    <div
+                                                      style={{
+                                                        fontSize: "var(--ifm-code-font-size)",
+                                                        opacity: "0.6",
+                                                        marginLeft: "-.5rem",
+                                                      }}
+                                                    >
+                                                      ]
+                                                    </div>
+                                                  </li>
+                                                </TabItem>
+                                              </SchemaTabs>
+                                            </div>
+                                          </div>
+                                        </details>
+                                      </SchemaItem>
+                                      <li>
+                                        <div
+                                          style={{
+                                            fontSize: "var(--ifm-code-font-size)",
+                                            opacity: "0.6",
+                                            marginLeft: "-.5rem",
+                                          }}
+                                        >
+                                          ]
+                                        </div>
+                                      </li>
+                                    </TabItem>
+                                  </SchemaTabs>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <strong>metadata</strong>
+                                  <span style={{ opacity: "0.6" }}>object</span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}></div>
+                                <div>
+                                  <span className={"badge badge--info"}>anyOf</span>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <li>
+                              <div
+                                style={{
+                                  fontSize: "var(--ifm-code-font-size)",
+                                  opacity: "0.6",
+                                  marginLeft: "-.5rem",
+                                }}
+                              >
+                                ]
+                              </div>
+                            </li>
+                          </div>
+                        </details>
+                      </SchemaItem>
+                    </ul>
+                  </details>
+                </TabItem>
+                <TabItem label={"Example (from schema)"} value={"Example (from schema)"}>
+                  <ResponseSamples
+                    responseExample={
+                      '{\n  "count": 0,\n  "testsets": [\n    {\n      "name": "string",\n      "description": "string",\n      "created_at": "2025-05-15T13:01:54.630Z",\n      "updated_at": "2025-05-15T13:01:54.630Z",\n      "deleted_at": "2025-05-15T13:01:54.630Z",\n      "created_by_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",\n      "updated_by_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",\n      "deleted_by_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",\n      "slug": "string",\n      "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",\n      "testcases": [\n        null\n      ],\n      "metadata": {}\n    }\n  ]\n}'
+                    }
+                    language={"json"}
+                  ></ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+      <TabItem label={"422"} value={"422"}>
+        <div>Validation Error</div>
+        <div>
+          <MimeTabs className={"openapi-tabs__mime"} schemaType={"response"}>
+            <TabItem label={"application/json"} value={"application/json"}>
+              <SchemaTabs className={"openapi-tabs__schema"}>
+                <TabItem label={"Schema"} value={"Schema"}>
+                  <details
+                    style={{}}
+                    className={"openapi-markdown__details response"}
+                    data-collapsed={false}
+                    open={true}
+                  >
+                    <summary style={{}} className={"openapi-markdown__details-summary-response"}>
+                      <strong>Schema</strong>
+                    </summary>
+                    <div style={{ textAlign: "left", marginLeft: "1rem" }}></div>
+                    <ul style={{ marginLeft: "1rem" }}>
+                      <SchemaItem collapsible={true} className={"schemaItem"}>
+                        <details style={{}} className={"openapi-markdown__details"}>
+                          <summary style={{}}>
+                            <span className={"openapi-schema__container"}>
+                              <strong className={"openapi-schema__property"}>detail</strong>
+                              <span className={"openapi-schema__name"}>object[]</span>
+                            </span>
+                          </summary>
+                          <div style={{ marginLeft: "1rem" }}>
+                            <li>
+                              <div
+                                style={{
+                                  fontSize: "var(--ifm-code-font-size)",
+                                  opacity: "0.6",
+                                  marginLeft: "-.5rem",
+                                  paddingBottom: ".5rem",
+                                }}
+                              >
+                                Array [
+                              </div>
+                            </li>
+                            <SchemaItem collapsible={true} className={"schemaItem"}>
+                              <details style={{}} className={"openapi-markdown__details"}>
+                                <summary style={{}}>
+                                  <span className={"openapi-schema__container"}>
+                                    <strong className={"openapi-schema__property"}>loc</strong>
+                                    <span className={"openapi-schema__name"}>object[]</span>
+                                    <span className={"openapi-schema__divider"}></span>
+                                    <span className={"openapi-schema__required"}>required</span>
+                                  </span>
+                                </summary>
+                                <div style={{ marginLeft: "1rem" }}>
+                                  <li>
+                                    <div
+                                      style={{
+                                        fontSize: "var(--ifm-code-font-size)",
+                                        opacity: "0.6",
+                                        marginLeft: "-.5rem",
+                                        paddingBottom: ".5rem",
+                                      }}
+                                    >
+                                      Array [
+                                    </div>
+                                  </li>
+                                  <div>
+                                    <span className={"badge badge--info"}>anyOf</span>
+                                    <SchemaTabs>
+                                      <TabItem label={"MOD1"} value={"0-item-properties"}>
+                                        <div
+                                          style={{
+                                            marginTop: ".5rem",
+                                            marginBottom: ".5rem",
+                                          }}
+                                        >
+                                          string
+                                        </div>
+                                      </TabItem>
+                                      <TabItem label={"MOD2"} value={"1-item-properties"}>
+                                        <div
+                                          style={{
+                                            marginTop: ".5rem",
+                                            marginBottom: ".5rem",
+                                          }}
+                                        >
+                                          integer
+                                        </div>
+                                      </TabItem>
+                                    </SchemaTabs>
+                                  </div>
+                                  <li>
+                                    <div
+                                      style={{
+                                        fontSize: "var(--ifm-code-font-size)",
+                                        opacity: "0.6",
+                                        marginLeft: "-.5rem",
+                                      }}
+                                    >
+                                      ]
+                                    </div>
+                                  </li>
+                                </div>
+                              </details>
+                            </SchemaItem>
+                            <SchemaItem
+                              collapsible={false}
+                              name={"msg"}
+                              required={true}
+                              schemaName={"Message (string)"}
+                              qualifierMessage={undefined}
+                              schema={{ type: "string", title: "Message" }}
+                            ></SchemaItem>
+                            <SchemaItem
+                              collapsible={false}
+                              name={"type"}
+                              required={true}
+                              schemaName={"Error Type (string)"}
+                              qualifierMessage={undefined}
+                              schema={{ type: "string", title: "Error Type" }}
+                            ></SchemaItem>
+                            <li>
+                              <div
+                                style={{
+                                  fontSize: "var(--ifm-code-font-size)",
+                                  opacity: "0.6",
+                                  marginLeft: "-.5rem",
+                                }}
+                              >
+                                ]
+                              </div>
+                            </li>
+                          </div>
+                        </details>
+                      </SchemaItem>
+                    </ul>
+                  </details>
+                </TabItem>
+                <TabItem label={"Example (from schema)"} value={"Example (from schema)"}>
+                  <ResponseSamples
+                    responseExample={
+                      '{\n  "detail": [\n    {\n      "loc": [\n        "string",\n        0\n      ],\n      "msg": "string",\n      "type": "string"\n    }\n  ]\n}'
+                    }
+                    language={"json"}
+                  ></ResponseSamples>
+                </TabItem>
+              </SchemaTabs>
+            </TabItem>
+          </MimeTabs>
+        </div>
+      </TabItem>
+    </ApiTabs>
+  </div>
+</div>

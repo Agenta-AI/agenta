@@ -2,15 +2,14 @@ import {memo, useEffect} from "react"
 
 import {Button, Space, Typography} from "antd"
 import clsx from "clsx"
-import {useAtom, useAtomValue} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {loadable} from "jotai/utils"
 import {useRouter} from "next/router"
 
-import {useRunId} from "@/oss/contexts/RunIdContext"
 import {
-    displayedScenarioIdsFamily,
-    scenariosFamily,
-    scenarioStepProgressFamily,
+    displayedScenarioIds,
+    evaluationScenariosDisplayAtom,
+    scenarioStepProgressAtom,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 
 import EvalRunScenarioNavigator from "../../../components/EvalRunScenarioNavigator"
@@ -22,21 +21,10 @@ import ScenarioLoadingIndicator from "../ScenarioLoadingIndicator/ScenarioLoadin
 import {SingleScenarioViewerProps} from "./types"
 
 const SingleScenarioViewer = ({runId}: SingleScenarioViewerProps) => {
-    // Use run-scoped atoms with the provided runId
-    const effectiveRunId = useRunId() || runId
-
-    // Read from the same global store that writes are going to
-    const scenariosLoadable = useAtomValue(loadable(scenariosFamily(effectiveRunId)))
-    const scenarioIdsFromFamily = useAtomValue(displayedScenarioIdsFamily(effectiveRunId))
-
-    // Fallback: if displayedScenarioIdsFamily is empty but scenariosLoadable has data, use that
-    const scenarioIds =
-        scenarioIdsFromFamily?.length > 0
-            ? scenarioIdsFromFamily
-            : scenariosLoadable.state === "hasData"
-              ? scenariosLoadable.data?.map((s) => s.id) || []
-              : []
-    const scenarioStepProgress = useAtomValue(scenarioStepProgressFamily(effectiveRunId))
+    // Reset global evaluationRunState when runId changes to prevent stale scenarios leakage
+    const scenariosLoadable = useAtomValue(loadable(evaluationScenariosDisplayAtom))
+    const scenarioIds = useAtomValue(displayedScenarioIds)
+    const scenarioStepProgress = useAtomValue(scenarioStepProgressAtom)
 
     // Access URL state atom
     const router = useRouter()
@@ -78,7 +66,7 @@ const SingleScenarioViewer = ({runId}: SingleScenarioViewerProps) => {
             )
         }
         if (step === "scenario-steps" || step === "metrics") {
-            return <ScenarioLoadingIndicator runId={effectiveRunId} />
+            return <ScenarioLoadingIndicator />
         }
     }
 
@@ -101,7 +89,7 @@ const SingleScenarioViewer = ({runId}: SingleScenarioViewerProps) => {
                         activeId={activeId}
                         className="sticky top-0 z-10 bg-white pb-1"
                     />
-                    <EvalRunScenarioCard viewType="focus" scenarioId={activeId} runId={runId} />
+                    <EvalRunScenarioCard viewType="focus" scenarioId={activeId} />
                 </div>
 
                 <div className="flex flex-row gap-8 items-start self-stretch min-h-full h-full sticky top-0 z-10">

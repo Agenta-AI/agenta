@@ -222,21 +222,21 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
             await expect(nextBtn).toBeEnabled()
 
             // Navigate: 1 → 2
-            await expect(page.locator('span[title="Testcase: 1"]').first()).toBeVisible()
+            await expect(page.locator('span[title="Test case: 1"]').first()).toBeVisible()
             await nextBtn.click()
-            await expect(page.locator('span[title="Testcase: 2"]').first()).toBeVisible()
+            await expect(page.locator('span[title="Test case: 2"]').first()).toBeVisible()
 
             // Navigate: 2 → 3
             await nextBtn.click()
-            await expect(page.locator('span[title="Testcase: 3"]').first()).toBeVisible()
+            await expect(page.locator('span[title="Test case: 3"]').first()).toBeVisible()
 
             // Backward: 3 → 2
             await prevBtn.click()
-            await expect(page.locator('span[title="Testcase: 2"]').first()).toBeVisible()
+            await expect(page.locator('span[title="Test case: 2"]').first()).toBeVisible()
 
             // Backward: 2 → 1
             await prevBtn.click()
-            await expect(page.locator('span[title="Testcase: 1"]').first()).toBeVisible()
+            await expect(page.locator('span[title="Test case: 1"]').first()).toBeVisible()
         })
     },
 })

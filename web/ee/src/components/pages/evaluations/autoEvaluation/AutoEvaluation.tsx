@@ -1,40 +1,32 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import {message} from "antd"
 import {ColumnsType} from "antd/es/table"
-import {useAtom} from "jotai"
+
 import {useRouter} from "next/router"
+
+import {useAppId} from "@/oss/hooks/useAppId"
+
+import {EvaluationStatus} from "@/oss/lib/Types"
 
 import DeleteEvaluationModal from "@/oss/components/DeleteEvaluationModal/DeleteEvaluationModal"
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
 import {filterColumns} from "@/oss/components/Filters/EditColumns/assets/helper"
 import {getColumns} from "@/oss/components/HumanEvaluations/assets/utils"
 import {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
-import {useAppId} from "@/oss/hooks/useAppId"
-import useURL from "@/oss/hooks/useURL"
 import {EvaluationType} from "@/oss/lib/enums"
-import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
 import useEvaluations from "@/oss/lib/hooks/useEvaluations"
-import {tempEvaluationAtom} from "@/oss/lib/hooks/usePreviewRunningEvaluations/states/runningEvalAtom"
 import useRunMetricsMap from "@/oss/lib/hooks/useRunMetricsMap"
-import {EvaluationStatus} from "@/oss/lib/Types"
-import {useAppsData} from "@/oss/state/app"
-
-import {buildAppScopedUrl, buildEvaluationNavigationUrl, extractEvaluationAppId} from "../utils"
-
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query"
 import AutoEvaluationHeader from "./assets/AutoEvaluationHeader"
+import {useAtom} from "jotai"
+import {tempEvaluationAtom} from "@/oss/lib/hooks/usePreviewRunningEvaluations/states/runningEvalAtom"
 
-interface AutoEvaluationProps {
-    viewType?: "overview" | "evaluation"
-    scope?: "app" | "project"
-}
+const queryClient = new QueryClient()
 
-const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluationProps) => {
-    const routeAppId = useAppId()
-    const activeAppId = scope === "app" ? routeAppId || undefined : undefined
+const AutoEvaluation = ({viewType = "evaluation"}: {viewType?: "overview" | "evaluation"}) => {
+    const appId = useAppId()
     const router = useRouter()
-    const {baseAppURL, projectURL} = useURL()
 
     const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
 
@@ -43,7 +35,6 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
     const [isDeletingEvaluations, setIsDeletingEvaluations] = useState(false)
     const [hiddenColumns, setHiddenColumns] = useState<string[]>([])
     const [tempEvaluation, setTempEvaluation] = useAtom(tempEvaluationAtom)
-    const {apps: availableApps = []} = useAppsData()
 
     const {
         mergedEvaluations: _mergedEvaluations,
@@ -51,99 +42,35 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
         isLoadingLegacy,
         refetch,
         handleDeleteEvaluations: deleteEvaluations,
-        previewEvaluations,
     } = useEvaluations({
         withPreview: true,
         types: [EvaluationType.automatic, EvaluationType.auto_exact_match],
         evalType: "auto",
-        appId: activeAppId,
     })
 
-    const previewAutoEvals = useMemo(() => {
-        const evals = previewEvaluations.swrData?.data?.runs || []
-        if (!evals.length) return []
-
-        return evals.filter((run) => {
-            const steps = Array.isArray(run?.data?.steps) ? run.data.steps : []
-            const hasOnlyAutoAnnotations = steps.every(
-                (step) => step?.type !== "annotation" || step?.origin === "auto",
-            )
-            const isLive = run?.flags?.isLive === true || run?.flags?.is_live === true
-            const source =
-                typeof run?.meta?.source === "string" ? run.meta.source.toLowerCase() : undefined
-            const isOnlineSource = source === "online_evaluation_drawer"
-            return hasOnlyAutoAnnotations && !isLive && !isOnlineSource
-        })
-    }, [previewEvaluations])
 
     const mergedEvaluations = useMemo(() => {
-        const mergedIds = new Set(_mergedEvaluations?.map((e) => e.id))
+        const mergedIds = new Set(_mergedEvaluations.map((e) => e.id))
         const filteredTempEvals = tempEvaluation.filter((e) => !mergedIds.has(e.id))
         return [..._mergedEvaluations, ...filteredTempEvals]
     }, [_mergedEvaluations, tempEvaluation])
 
-    const runIds = useMemo(() => {
-        return mergedEvaluations
-            .map((evaluation) => {
-                const candidate = "id" in evaluation ? evaluation.id : evaluation.key
-                return typeof candidate === "string" ? candidate.trim() : undefined
-            })
-            .filter((id): id is string => Boolean(id && id.length > 0))
-    }, [mergedEvaluations])
-    const evaluatorSlugs = useMemo(() => {
-        const evaSlugs = new Set<string>()
-        previewAutoEvals.forEach((e) => {
-            e?.data.steps?.forEach((step) => {
-                if (step.type === "annotation") {
-                    evaSlugs.add(step.key)
-                }
-            })
-        })
-        return evaSlugs
-    }, [previewAutoEvals])
-
-    const {data: runMetricsMap} = useRunMetricsMap(runIds, evaluatorSlugs)
-
-    const resolveAppId = useCallback(
-        (record: EvaluationRow): string | undefined => {
-            const candidate = extractEvaluationAppId(record) || activeAppId
-            return candidate
-        },
-        [activeAppId],
+    const runIds = useMemo(
+        () => mergedEvaluations.map((e) => ("id" in e ? e.id : e.key)),
+        [mergedEvaluations],
     )
-
-    const isRecordNavigable = useCallback(
-        (record: EvaluationRow): boolean => {
-            const status = record.status?.value || record.status
-            const evaluationId = "id" in record ? record.id : record.key
-            const recordAppId = resolveAppId(record)
-            const isActionableStatus = ![
-                EvaluationStatus.PENDING,
-                EvaluationStatus.RUNNING,
-                EvaluationStatus.CANCELLED,
-                EvaluationStatus.INITIALIZED,
-            ].includes(status)
-            return Boolean(isActionableStatus && evaluationId && recordAppId)
-        },
-        [resolveAppId],
-    )
+    const {data: runMetricsMap} = useRunMetricsMap(runIds)
 
     const handleVariantNavigation = useCallback(
-        ({revisionId, appId: recordAppId}: {revisionId: string; appId?: string}) => {
-            const targetAppId = recordAppId || activeAppId
-            if (!targetAppId) {
-                message.warning("This application's variant is no longer available.")
-                return
-            }
-
+        (variantRevisionId: string) => {
             router.push({
-                pathname: buildAppScopedUrl(baseAppURL, targetAppId, "/playground"),
+                pathname: `/apps/${appId}/playground`,
                 query: {
-                    revisions: buildRevisionsQueryParam([revisionId]),
+                    revisions: JSON.stringify([variantRevisionId]),
                 },
             })
         },
-        [activeAppId, baseAppURL, router],
+        [appId],
     )
 
     const handleDelete = useCallback(
@@ -178,11 +105,6 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
             setIsDeleteEvalModalOpen,
             runMetricsMap,
             evalType: "auto",
-            scope,
-            baseAppURL,
-            extractAppId: extractEvaluationAppId,
-            projectURL,
-            resolveAppId,
         })
     }, [
         mergedEvaluations,
@@ -190,10 +112,6 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
         setSelectedEvalRecord,
         setIsDeleteEvalModalOpen,
         runMetricsMap,
-        scope,
-        baseAppURL,
-        projectURL,
-        resolveAppId,
     ])
 
     const visibleColumns = useMemo(
@@ -230,21 +148,11 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
                 setSelectedRowKeys={setSelectedRowKeys}
                 selectedEvalRecord={selectedEvalRecord!}
                 setIsDeleteEvalModalOpen={setIsDeleteEvalModalOpen}
-                runMetricsMap={runMetricsMap}
-                refetch={refetch}
-                scope={scope}
-                baseAppURL={baseAppURL}
-                projectURL={projectURL}
-                activeAppId={activeAppId}
-                extractAppId={extractEvaluationAppId}
             />
+
             <EnhancedTable
                 uniqueKey="auto-evaluations"
-                loading={
-                    isLoadingPreview ||
-                    isLoadingLegacy ||
-                    (previewAutoEvals?.length > 0 && !mergedEvaluations?.length)
-                }
+                loading={isLoadingPreview || isLoadingLegacy}
                 rowSelection={
                     viewType === "evaluation"
                         ? {
@@ -254,56 +162,43 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
                               onChange: (selectedRowKeys: React.Key[]) => {
                                   setSelectedRowKeys(selectedRowKeys)
                               },
-                              getCheckboxProps: (record: EvaluationRow) => ({
-                                  disabled: !isRecordNavigable(record),
-                              }),
                           }
                         : undefined
                 }
                 className="ph-no-capture"
-                showHorizontalScrollBar={true}
                 columns={visibleColumns}
-                rowKey={(record: any) => ("id" in record ? record.id : record.key)}
+                rowKey={"id"}
                 dataSource={dataSource}
                 tableLayout="fixed"
-                virtualized
-                onRow={(record) => {
-                    const navigable = isRecordNavigable(record)
-                    const recordAppId = resolveAppId(record)
-                    const evaluationId = "id" in record ? record.id : record.key
-                    return {
-                        style: {
-                            cursor: navigable ? "pointer" : "not-allowed",
-                        },
-                        className: navigable ? undefined : "cursor-not-allowed opacity-60",
-                        onClick: () => {
-                            if (!navigable || !recordAppId || !evaluationId) {
-                                message.warning(
-                                    "This evaluation's application is no longer available.",
-                                )
-                                return
-                            }
+                scroll={{x: "max-content"}}
+                onRow={(record) => ({
+                    style: {
+                        cursor: ![
+                            EvaluationStatus.PENDING,
+                            EvaluationStatus.RUNNING,
+                            EvaluationStatus.CANCELLED,
+                            EvaluationStatus.INITIALIZED,
+                        ].includes(record.status?.value || record.status)
+                            ? "pointer"
+                            : "not-allowed",
+                    },
+                    onClick: () => {
+                        const status = record.status?.value || record.status
 
-                            const targetPath = buildEvaluationNavigationUrl({
-                                scope,
-                                baseAppURL,
-                                projectURL,
-                                appId: recordAppId,
-                                path: `/evaluations/results/${evaluationId}`,
-                            })
-
-                            if (scope === "project") {
-                                router.push({
-                                    pathname: targetPath,
-                                    query: recordAppId ? {app_id: recordAppId} : undefined,
-                                })
-                            } else {
-                                router.push({pathname: targetPath, query: {eval_type: "auto"}})
-                            }
-                        },
-                    }
-                }}
+                        if (
+                            ![
+                                EvaluationStatus.PENDING,
+                                EvaluationStatus.RUNNING,
+                                EvaluationStatus.CANCELLED,
+                                EvaluationStatus.INITIALIZED,
+                            ].includes(status)
+                        ) {
+                            router.push(`/apps/${appId}/evaluations/results/${record.id}`)
+                        }
+                    },
+                })}
             />
+
             <DeleteEvaluationModal
                 confirmLoading={isDeletingEvaluations}
                 open={isDeleteEvalModalOpen}
@@ -324,4 +219,8 @@ const AutoEvaluation = ({viewType = "evaluation", scope = "app"}: AutoEvaluation
     )
 }
 
-export default AutoEvaluation
+export default ({viewType}: {viewType: "overview" | "evaluation"}) => (
+    <QueryClientProvider client={queryClient}>
+        <AutoEvaluation viewType={viewType} />
+    </QueryClientProvider>
+)

@@ -1,6 +1,5 @@
 import secrets
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote
 
 from fastapi import HTTPException
 
@@ -95,29 +94,16 @@ async def send_invitation_email(
         bool: True if the email was sent successfully, False otherwise.
     """
 
-    token_param = quote(token, safe="")
-    email_param = quote(email, safe="")
-    org_param = quote(str(organization_id), safe="")
-    workspace_param = quote(str(workspace_id), safe="")
-    project_param = quote(project_id, safe="")
-
-    invite_link = (
-        f"{env.AGENTA_WEB_URL}/auth"
-        f"?token={token_param}"
-        f"&email={email_param}"
-        f"&organization_id={org_param}"
-        f"&workspace_id={workspace_param}"
-        f"&project_id={project_param}"
-    )
+    invitation_link = f"""{env.AGENTA_WEB_URL}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}"""
     if not env.SENDGRID_API_KEY:
-        return invite_link
+        return invitation_link
 
     html_template = email_service.read_email_template("./templates/send_email.html")
     html_content = html_template.format(
         username_placeholder=user.username,
         action_placeholder="invited you to join",
         workspace_placeholder="their organization",
-        call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{env.AGENTA_WEB_URL}/auth?token={token}&organization_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
+        call_to_action=f"""Click the link below to accept the invitation:</p><br><a href="{env.AGENTA_WEB_URL}/auth?token={token}&org_id={organization_id}&project_id={project_id}&workspace_id={workspace_id}&email={email}">Accept Invitation</a>""",
     )
 
     if not env.AGENTA_SEND_EMAIL_FROM_ADDRESS:
@@ -233,7 +219,7 @@ async def resend_user_organization_invite(
 
     Args:
         user_uid (str): The user uid.
-        organization_id (str): The ID of the organization to invite the user to.
+        org_id (str): The ID of the organization to invite the user to.
         project_id (str): The ID of the project that belongs to the workspace/organization.
         payload (ResendInviteRequest): The payload containing the email address of the user to invite.
     """
@@ -297,8 +283,10 @@ async def accept_organization_invitation(
 
     try:
         user_exists = await db_manager.get_user_with_email(email=email)
-        if user_exists is None:
-            raise HTTPException(status_code=400, detail="User does not exist")
+        if user_exists is not None:
+            raise HTTPException(
+                status_code=400, detail="User is already a member of the organization"
+            )
 
         project_db = await db_manager.get_project_by_organization_id(
             organization_id=organization_id

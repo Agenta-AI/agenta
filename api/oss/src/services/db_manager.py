@@ -32,7 +32,7 @@ from oss.src.models.db_models import (
     AppDB,
     UserDB,
     APIKeyDB,
-    TestsetDB,
+    TestSetDB,
     IDsMappingDB,
     DeploymentDB,
     InvitationDB,
@@ -58,7 +58,7 @@ PARENT_DIRECTORY = Path(os.path.dirname(__file__)).parent
 
 async def fetch_project_by_id(
     project_id: str,
-) -> Optional[ProjectDB]:
+) -> ProjectDB:
     async with engine.core_session() as session:
         project = (
             (
@@ -73,44 +73,6 @@ async def fetch_project_by_id(
         )
 
         return project
-
-
-async def fetch_workspace_by_id(
-    workspace_id: str,
-) -> Optional[WorkspaceDB]:
-    async with engine.core_session() as session:
-        workspace = (
-            (
-                await session.execute(
-                    select(WorkspaceDB).filter_by(
-                        id=uuid.UUID(workspace_id),
-                    )
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-        return workspace
-
-
-async def fetch_organization_by_id(
-    organization_id: str,
-) -> Optional[OrganizationDB]:
-    async with engine.core_session() as session:
-        organization = (
-            (
-                await session.execute(
-                    select(OrganizationDB).filter_by(
-                        id=uuid.UUID(organization_id),
-                    )
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-        return organization
 
 
 async def add_testset_to_app_variant(
@@ -139,7 +101,7 @@ async def add_testset_to_app_variant(
                     "name": f"{app_name}_testset",
                     "csvdata": csvdata,
                 }
-                testset_db = TestsetDB(
+                testset_db = TestSetDB(
                     **testset,
                     project_id=uuid.UUID(project_id),
                 )
@@ -168,27 +130,6 @@ async def fetch_app_by_id(app_id: str) -> AppDB:
         if not app:
             raise NoResultFound(f"No application with ID '{app_uuid}' found")
         return app
-
-
-async def fetch_latest_app_variant(app_id: str) -> Optional[AppVariantDB]:
-    """Fetches the latest app variant for a given app ID.
-
-    Args:
-        app_id (str): The ID of the app to fetch the latest variant for.
-
-    Returns:
-        AppVariantDB: The latest app variant, or None if no app variant was found.
-    """
-
-    async with engine.core_session() as session:
-        base_query = (
-            select(AppVariantDB)
-            .filter_by(app_id=uuid.UUID(app_id))
-            .order_by(AppVariantDB.created_at.desc())
-        )
-        result = await session.execute(base_query)
-        app_variant = result.scalars().first()
-        return app_variant
 
 
 async def fetch_app_variant_by_id(app_variant_id: str) -> Optional[AppVariantDB]:
@@ -640,7 +581,6 @@ async def get_app_type_from_template_key(template_key: Optional[str]) -> Optiona
         AppType.CHAT_SERVICE,
         AppType.COMPLETION_SERVICE,
         AppType.CUSTOM,
-        AppType.SDK_CUSTOM,
     ]:
         return template_key
 
@@ -660,7 +600,6 @@ async def create_app_and_envs(
     app_name: str,
     template_key: Optional[str] = None,
     project_id: Optional[str] = None,
-    user_id: Optional[str] = None,
 ) -> AppDB:
     """
     Create a new app with the given name and organization ID.
@@ -676,9 +615,8 @@ async def create_app_and_envs(
         ValueError: If an app with the same name already exists.
     """
 
-    app = await fetch_app_by_name(
-        app_name=app_name,
-        project_id=project_id,
+    app = await fetch_app_by_name_and_parameters(
+        app_name=app_name, project_id=project_id
     )
     if app is not None:
         raise ValueError("App with the same name already exists")
@@ -689,10 +627,7 @@ async def create_app_and_envs(
 
     async with engine.core_session() as session:
         app = AppDB(
-            project_id=uuid.UUID(project_id),
-            app_name=app_name,
-            app_type=app_type,
-            modified_by_id=uuid.UUID(user_id) if user_id else None,
+            app_name=app_name, project_id=uuid.UUID(project_id), app_type=app_type
         )
 
         session.add(app)
@@ -703,7 +638,7 @@ async def create_app_and_envs(
         return app
 
 
-async def update_app(app_id: str, values_to_update: dict):
+async def update_app(app_id: str, values_to_update: dict) -> None:
     """Update the app in the database.
 
     Arguments:
@@ -741,7 +676,6 @@ async def update_app(app_id: str, values_to_update: dict):
                 setattr(app, key, value)
 
         await session.commit()
-        return app
 
 
 async def get_deployment_by_id(deployment_id: str) -> DeploymentDB:
@@ -833,7 +767,9 @@ async def list_app_variants_by_app_slug(
     """
 
     assert app_slug is not None, "app_slug cannot be None"
-    app_db = await fetch_app_by_name(app_name=app_slug, project_id=project_id)
+    app_db = await fetch_app_by_name_and_parameters(
+        app_name=app_slug, project_id=project_id
+    )
     if app_db is None:
         raise NoResultFound(f"App with name {app_slug} not found.")
 
@@ -1213,7 +1149,7 @@ async def create_workspace(name: str, organization_id: str):
         workspace_db = WorkspaceDB(
             name=name,
             organization_id=uuid.UUID(organization_id),
-            description="Default Workspace",
+            description="My Default Workspace",
             type="default",
         )
 
@@ -1907,7 +1843,9 @@ async def list_apps(
     """
 
     if app_name is not None:
-        app_db = await fetch_app_by_name(app_name=app_name, project_id=project_id)
+        app_db = await fetch_app_by_name_and_parameters(
+            app_name=app_name, project_id=project_id
+        )
         return [converters.app_db_to_pydantic(app_db)]
 
     else:
@@ -2537,17 +2475,14 @@ async def list_app_variant_revisions_by_variant(
         return app_variant_revisions
 
 
-async def fetch_app_variant_revision(
-    app_variant: str, revision_number: int
-) -> Optional[AppVariantRevisionsDB]:
-    """Returns a specific app variant revision for the given app variant and revision number.
+async def fetch_app_variant_revision(app_variant: str, revision_number: int):
+    """Returns list of app variant revision for the given app variant
 
     Args:
-        app_variant (str): The ID of the app variant to retrieve the revision for.
-        revision_number (int): The revision number to retrieve.
+        app_variant (AppVariantDB): The app variant to retrieve environments for.
 
     Returns:
-        AppVariantRevisionsDB: The app variant revision object, or None if not found.
+        List[AppVariantRevisionsDB]: A list of AppVariantRevisionsDB objects.
     """
 
     async with engine.core_session() as session:
@@ -2569,8 +2504,8 @@ async def fetch_app_variant_revision(
                 )  # type: ignore
             )
         result = await session.execute(query)
-        app_variant_revision = result.scalars().first()
-        return app_variant_revision
+        app_variant_revisions = result.scalars().first()
+        return app_variant_revisions
 
 
 async def remove_environment(environment_db: AppEnvironmentDB):
@@ -2593,38 +2528,20 @@ async def remove_environment(environment_db: AppEnvironmentDB):
         await session.commit()
 
 
-async def remove_testsets(
-    project_id: str,
-    #
-    testset_ids: List[str],
-):
+async def remove_testsets(testset_ids: List[str]):
     """
     Removes testsets.
 
     Args:
-        project_id (str): The ID of the project.
         testset_ids (List[str]):  The testset identifiers
     """
 
     async with engine.core_session() as session:
-        query = select(TestsetDB).where(
-            TestsetDB.project_id == uuid.UUID(project_id),
-            TestsetDB.id.in_(testset_ids),
-        )
+        query = select(TestSetDB).where(TestSetDB.id.in_(testset_ids))
         result = await session.execute(query)
         testsets = result.scalars().all()
-
-        for i, testset in enumerate(testsets):
-            log.info(
-                f"[TESTSET] DELETE ({i}):",
-                project_id=testset.project_id,
-                testset_id=testset.id,
-                count=len(testset.csvdata),
-                size=len(dumps(testset.csvdata).encode("utf-8")),
-            )
-
+        for testset in testsets:
             await session.delete(testset)
-
         await session.commit()
 
 
@@ -2768,116 +2685,82 @@ async def get_app_variant_instance_by_id(
         return app_variant_db
 
 
-async def fetch_testset_by_id(
-    project_id: str,
-    #
-    testset_id: str,
-) -> Optional[TestsetDB]:
+async def fetch_testset_by_id(testset_id: str) -> Optional[TestSetDB]:
     """Fetches a testset by its ID.
     Args:
-        project_id (str): The ID of the project.
         testset_id (str): The ID of the testset to fetch.
     Returns:
-        TestsetDB: The fetched testset, or None if no testset was found.
+        TestSetDB: The fetched testset, or None if no testset was found.
     """
 
-    async with engine.core_session() as session:
-        result = await session.execute(
-            select(TestsetDB).filter_by(
-                project_id=uuid.UUID(project_id),
-                id=uuid.UUID(testset_id),
-            )
-        )
-        testset = result.scalars().first()
+    if not isinstance(testset_id, str) or not testset_id:
+        raise ValueError(f"testset_id {testset_id} must be a non-empty string")
 
+    try:
+        testset_uuid = uuid.UUID(testset_id)
+    except ValueError as e:
+        raise ValueError(f"testset_id {testset_id} is not a valid UUID") from e
+
+    async with engine.core_session() as session:
+        result = await session.execute(select(TestSetDB).filter_by(id=testset_uuid))
+        testset = result.scalars().first()
         if not testset:
             raise NoResultFound(f"Testset with id {testset_id} not found")
-
-        log.info(
-            "[TESTSET] READ:",
-            project_id=testset.project_id,
-            testset_id=testset.id,
-            count=len(testset.csvdata),
-            size=len(dumps(testset.csvdata).encode("utf-8")),
-        )
-
         return testset
 
 
-async def create_testset(
-    project_id: str,
-    #
-    testset_data: Dict[str, Any],
-    #
-    testset_id: Optional[str] = None,
-) -> TestsetDB:
+async def create_testset(project_id: str, testset_data: Dict[str, Any]):
     """
     Creates a testset.
 
     Args:
+        app (AppDB): The app object
         project_id (str): The ID of the project
         testset_data (dict): The data of the testset to create with
-        testset_id (Optional[str]): The ID of the testset to create
 
     Returns:
         returns the newly created TestsetDB
     """
 
     async with engine.core_session() as session:
-        testset = TestsetDB(
-            **testset_data,
-            project_id=uuid.UUID(project_id),
-            id=uuid.UUID(testset_id) if testset_id else None,
-        )
+        testset_db = TestSetDB(**testset_data, project_id=uuid.UUID(project_id))
 
         log.info(
-            "[TESTSET] CREATE:",
-            project_id=testset.project_id,
-            testset_id=testset.id,
-            count=len(testset.csvdata),
-            size=len(dumps(testset.csvdata).encode("utf-8")),
+            "Saving testset:",
+            project_id=testset_db.project_id,
+            testset_id=testset_db.id,
+            count=len(testset_db.csvdata),
+            size=len(dumps(testset_db.csvdata).encode("utf-8")),
         )
 
-        session.add(testset)
+        session.add(testset_db)
         await session.commit()
-        await session.refresh(testset)
+        await session.refresh(testset_db)
 
-        return testset
+        return testset_db
 
 
-async def update_testset(
-    project_id: str,
-    #
-    testset_id: str,
-    #
-    values_to_update: dict,
-) -> None:
+async def update_testset(testset_id: str, values_to_update: dict) -> None:
     """Update a testset.
 
     Args:
-        project_id (str): The ID of the project
-        testset_id (str): The ID of the testset to update
         testset (TestsetDB): the testset object to update
         values_to_update (dict):  The values to update
     """
 
     async with engine.core_session() as session:
         result = await session.execute(
-            select(TestsetDB).filter_by(
-                project_id=uuid.UUID(project_id),
-                id=uuid.UUID(testset_id),
-            )
+            select(TestSetDB).filter_by(id=uuid.UUID(testset_id))
         )
         testset = result.scalars().first()
 
         # Validate keys in values_to_update and update attributes
         valid_keys = [key for key in values_to_update.keys() if hasattr(testset, key)]
-
         for key in valid_keys:
             setattr(testset, key, values_to_update[key])
 
         log.info(
-            "[TESTSET] UPDATE:",
+            "Saving testset:",
             project_id=testset.project_id,
             testset_id=testset.id,
             count=len(testset.csvdata),
@@ -2888,44 +2771,21 @@ async def update_testset(
         await session.refresh(testset)
 
 
-async def fetch_testsets_by_project_id(
-    project_id: str,
-    name: Optional[str] = None,
-) -> List[TestsetDB]:
+async def fetch_testsets_by_project_id(project_id: str):
     """Fetches all testsets for a given project.
 
     Args:
         project_id (str): The ID of the project.
 
     Returns:
-        List[TestsetDB]: The fetched testsets.
+        List[TestSetDB]: The fetched testsets.
     """
 
     async with engine.core_session() as session:
-        if not name:
-            result = await session.execute(
-                select(TestsetDB).filter_by(
-                    project_id=uuid.UUID(project_id),
-                )
-            )
-        else:
-            result = await session.execute(
-                select(TestsetDB).filter_by(
-                    project_id=uuid.UUID(project_id),
-                    name=name if name else None,
-                )
-            )
+        result = await session.execute(
+            select(TestSetDB).filter_by(project_id=uuid.UUID(project_id))
+        )
         testsets = result.scalars().all()
-
-        for i, testset in enumerate(testsets):
-            log.info(
-                f"[TESTSET] READ ({i}):",
-                project_id=testset.project_id,
-                testset_id=testset.id,
-                count=len(testset.csvdata),
-                size=len(dumps(testset.csvdata).encode("utf-8")),
-            )
-
         return testsets
 
 
@@ -3026,7 +2886,7 @@ async def update_app_variant(
         return app_variant
 
 
-async def fetch_app_by_name(
+async def fetch_app_by_name_and_parameters(
     app_name: str,
     project_id: Optional[str] = None,
 ):
@@ -3144,14 +3004,16 @@ async def create_evaluator_config(
     project_id: str,
     name: str,
     evaluator_key: str,
+    app_name: Optional[str] = None,
     settings_values: Optional[Dict[str, Any]] = None,
 ) -> EvaluatorConfigDB:
     """Create a new evaluator configuration in the database."""
 
     async with engine.core_session() as session:
+        name_suffix = f" ({app_name})" if app_name else ""
         new_evaluator_config = EvaluatorConfigDB(
             project_id=uuid.UUID(project_id),
-            name=name,
+            name=f"{name}{name_suffix}",
             evaluator_key=evaluator_key,
             settings_values=settings_values,
         )
@@ -3233,8 +3095,7 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
     """
 
     from bson import ObjectId
-
-    # from bson.errors import InvalidId
+    from bson.errors import InvalidId
 
     try:
         # Ensure the object_id is a valid MongoDB ObjectId
@@ -3242,7 +3103,7 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
             object_uuid_as_str = await fetch_corresponding_object_uuid(
                 table_name=table_name, object_id=object_id
             )
-    except:
+    except InvalidId:
         # Use the object_id directly if it is not a valid MongoDB ObjectId
         object_uuid_as_str = object_id
 

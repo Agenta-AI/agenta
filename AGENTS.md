@@ -3,7 +3,6 @@
 ## Dev Environment Tips
 - If you make changes to the frontend, make sure to run `pnpm format-fix` within the web folder
 - If you make changes to the backend or sdk, make sure to run black within the sdk or api folder
-- If you update Ant Design tokens, run `pnpm generate:tailwind-tokens` in the web folder and commit the generated file
 
 
 ## Testing Instructions

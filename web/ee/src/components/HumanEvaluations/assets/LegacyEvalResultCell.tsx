@@ -1,10 +1,7 @@
 import {memo} from "react"
-
 import {Tag, Typography, Space} from "antd"
-
-import {getTypedValue} from "@/oss/lib/helpers/evaluate"
-
 import EvaluationErrorPopover from "../../pages/evaluations/EvaluationErrorProps/EvaluationErrorPopover"
+import {getTypedValue} from "@/oss/lib/helpers/evaluate"
 
 export const LegacyEvalResultCell = memo(({matchingResults}: {matchingResults: any}) => {
     return (

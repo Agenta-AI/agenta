@@ -6,15 +6,11 @@ import EvalRunScenarioStatusTag from "../../../components/EvalRunScenarioStatusT
 
 import {EvalRunScenarioCardTitleProps} from "./types"
 
-const EvalRunScenarioCardTitle = ({
-    scenarioIndex,
-    scenarioId,
-    runId,
-}: EvalRunScenarioCardTitleProps) => {
+const EvalRunScenarioCardTitle = ({scenarioIndex, scenarioId}: EvalRunScenarioCardTitleProps) => {
     return (
         <div className="flex items-center justify-between">
-            <Typography.Text className="!text-base">Testcase #{scenarioIndex}</Typography.Text>
-            <EvalRunScenarioStatusTag scenarioId={scenarioId} runId={runId} />
+            <Typography.Text className="!text-base">Test Case #{scenarioIndex}</Typography.Text>
+            <EvalRunScenarioStatusTag scenarioId={scenarioId} />
         </div>
     )
 }

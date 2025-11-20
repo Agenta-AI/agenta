@@ -15,7 +15,6 @@ import type {
     StepResponseStep,
     UseEvaluationRunScenarioStepsFetcherResult,
 } from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
-import {PreviewTestcase, PreviewTestset} from "@/oss/lib/Types"
 
 import {
     deserializeRunIndex,
@@ -29,6 +28,7 @@ import {
     decorateScenarioResult,
     fetchTraceAndAnnotationMaps,
 } from "./pureEnrichment"
+import {PreviewTestCase, PreviewTestSet} from "@/oss/lib/Types"
 
 export const DEFAULT_BATCH_SIZE = 100
 export const DEFAULT_BATCH_CONCURRENCY = 2
@@ -43,11 +43,6 @@ export interface WorkerEvalContext extends Omit<EvalRunDataContextType, "runInde
     jwt: string
     apiUrl: string
     projectId: string
-    /** IDs of variants that are chat-based (hasMessages in request schema) */
-    chatVariantIds?: string[]
-    uriObject?: {runtimePrefix: string; routePath?: string}
-    /** Stable transformed parameters keyed by revision id */
-    parametersByRevisionId?: Record<string, any>
 }
 
 // ------------- helpers -------------
@@ -65,51 +60,19 @@ async function processScenarioBatchWorker(
     scenarioIds: string[],
     context: WorkerEvalContext,
 ): Promise<Map<string, UseEvaluationRunScenarioStepsFetcherResult>> {
-    const {runId, members, jwt, apiUrl, projectId, appType} = context
+    const {runId, members, jwt, apiUrl, projectId} = context
 
-    // Validate required parameters
-    if (!runId || !projectId || !jwt || !apiUrl) {
-        throw new Error("Missing required parameters for worker fetch")
-    }
+    const params = new URLSearchParams()
+    params.append("run_id", runId)
+    params.append("project_id", projectId)
+    scenarioIds.forEach((sid) => params.append("scenario_ids", sid))
 
-    // Validate scenario IDs and filter out skeleton/placeholder IDs
-    const validScenarioIds = scenarioIds.filter((id) => {
-        if (!id || typeof id !== "string") return false
-
-        // Skip skeleton/placeholder IDs gracefully
-        if (id.startsWith("skeleton-") || id.startsWith("placeholder-")) {
-            return false
-        }
-
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-        return uuidRegex.test(id)
-    })
-
-    if (validScenarioIds.length === 0) {
-        return new Map()
-    }
-
-    // POST to results query endpoint with body { result: { run_id, run_ids, scenario_ids }, windowing: {} }
-    const resultsUrl = `${apiUrl}/preview/evaluations/results/query?project_id=${encodeURIComponent(
-        projectId,
-    )}`
-    const body: Record<string, any> = {
-        result: {
-            run_id: runId,
-            run_ids: [runId],
-            scenario_ids: validScenarioIds,
-        },
-        windowing: {},
-    }
-
-    const resp = await fetch(resultsUrl, {
-        method: "POST",
+    const resp = await fetch(`${apiUrl}/preview/evaluations/steps/?${params.toString()}`, {
         headers: {
             "Content-Type": "application/json",
             Authorization: jwt ? `Bearer ${jwt}` : "",
         },
         credentials: "include",
-        body: JSON.stringify(body),
     })
 
     if (!resp.ok) {
@@ -118,10 +81,10 @@ async function processScenarioBatchWorker(
 
     const raw = (await resp.json()) as StepResponse
 
+    // console.log("[workerFetch] response", resp, raw)
+
     // Convert to camelCase once
-    const camelStepsAll = (raw.results ?? []).map((st) =>
-        snakeToCamelCaseKeys<StepResponseStep>(st),
-    )
+    const camelStepsAll = (raw.steps ?? []).map((st) => snakeToCamelCaseKeys<StepResponseStep>(st))
 
     // Group steps by scenarioId
     const perScenarioSteps = new Map<string, IStepResponse[]>()
@@ -139,85 +102,69 @@ async function processScenarioBatchWorker(
         }
     }
 
-    // Fetch testcase data (updated endpoint)
-    let updatedTestsets: PreviewTestset[] = Array.isArray(context.testsets)
-        ? [...context.testsets]
-        : []
-
-    if (testcaseIds.size > 0 && updatedTestsets.length > 0) {
-        const testcaseResp = await fetch(
-            `${apiUrl}/preview/testcases/query?project_id=${encodeURIComponent(projectId)}`,
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: jwt ? `Bearer ${jwt}` : "",
-                },
-                credentials: "include",
-                body: JSON.stringify({testcase_ids: Array.from(testcaseIds)}),
+    // Fetch testcase data
+    const testcaseResp = await fetch(
+        `${apiUrl}/preview/simple/testsets/testcases/query?project_id=${projectId}`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: jwt ? `Bearer ${jwt}` : "",
             },
-        )
+            credentials: "include",
+            body: JSON.stringify({testcase_ids: Array.from(testcaseIds)}),
+        },
+    )
+    const testcases = (await testcaseResp.json()) as {count: number; testcases: PreviewTestCase[]}
 
-        if (testcaseResp.ok) {
-            const testcases = (await testcaseResp.json()) as {
-                count: number
-                testcases: PreviewTestcase[]
+    // Group testcases by their testset_id for easier lookup
+    const testcasesByTestsetId = (testcases.testcases || []).reduce(
+        (acc, testcase) => {
+            if (!acc[testcase.testset_id]) {
+                acc[testcase.testset_id] = []
             }
+            acc[testcase.testset_id].push(testcase)
+            return acc
+        },
+        {} as Record<string, PreviewTestCase[]>,
+    )
 
-            // Group testcases by their testset_id for easier lookup
-            const testcasesByTestsetId = (testcases.testcases || []).reduce(
-                (acc, testcase) => {
-                    if (!acc[testcase.testset_id]) {
-                        acc[testcase.testset_id] = []
-                    }
-                    acc[testcase.testset_id].push(testcase)
-                    return acc
+    // Update testsets with their matching testcases
+    const updatedTestsets = context.testsets?.map((testset) => {
+        const matchingTestcases = testcasesByTestsetId[testset.id] || []
+
+        if (matchingTestcases.length > 0) {
+            return {
+                ...testset,
+                data: {
+                    ...testset.data,
+                    testcase_ids: matchingTestcases?.map((tc) => tc.id),
+                    testcases: matchingTestcases,
                 },
-                {} as Record<string, PreviewTestcase[]>,
-            )
-
-            updatedTestsets = updatedTestsets.map((testset) => {
-                const matchingTestcases = testcasesByTestsetId[testset.id] || []
-
-                if (matchingTestcases.length > 0) {
-                    return {
-                        ...testset,
-                        data: {
-                            ...testset.data,
-                            testcase_ids: matchingTestcases.map((tc) => tc.id),
-                            testcases: matchingTestcases,
-                        },
-                    }
-                }
-
-                return testset
-            }) as PreviewTestset[]
+            }
         }
-    }
 
+        // Return testset as is if no matching testcases found
+        return testset
+    }) as PreviewTestSet[]
+
+    // Update the context with the new testsets which have the fetched testcases
     context.testsets = updatedTestsets
 
     const scenarioMap = new Map<string, UseEvaluationRunScenarioStepsFetcherResult>()
 
     const runIndex = deserializeRunIndex(context.runIndex)
-    const safeEvaluators = Array.isArray(context.evaluators) ? context.evaluators : []
-    const safeTestsets = Array.isArray(context.testsets) ? context.testsets : []
-    const safeVariants = Array.isArray(context.variants) ? context.variants : []
-    const safeMappings = Array.isArray(context.mappings) ? context.mappings : context.mappings || []
-
     for (const [sid, stepsArr] of perScenarioSteps.entries()) {
         const core = buildScenarioCore({
             steps: stepsArr,
             runIndex: runIndex,
-            evaluators: safeEvaluators,
-            testsets: safeTestsets,
-            variants: safeVariants,
-            mappings: safeMappings,
-            uriObject: context.uriObject,
-            parametersByRevisionId: context.parametersByRevisionId,
-            appType: appType,
+            evaluators: context.evaluators,
+            testsets: context.testsets,
+            variants: context.variants,
+            mappings: context.mappings,
         })
 
+        // console.log("[workerFetch] core", core)
         const result: UseEvaluationRunScenarioStepsFetcherResult = {
             ...core,
             steps: stepsArr,
@@ -236,7 +183,7 @@ async function processScenarioBatchWorker(
     })
 
     const invocationStepsList = (raw.steps ?? []).filter((s: any) =>
-        runIndex?.invocationKeys?.has?.(s.stepKey),
+        runIndex?.invocationKeys?.has?.(s.key),
     )
 
     const {traceMap, annotationMap} = await fetchTraceAndAnnotationMaps({

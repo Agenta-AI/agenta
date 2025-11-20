@@ -1,6 +1,6 @@
 import type {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import type {PreviewTestset, WorkspaceMember} from "@/oss/lib/Types"
+import type {PreviewTestSet, WorkspaceMember} from "@/oss/lib/Types"
 
 import {RunIndex} from "../buildRunIndex"
 
@@ -13,12 +13,9 @@ export interface EvalWorkerContextBase {
     mappings: unknown[]
     members: WorkspaceMember[]
     evaluators: EvaluatorDto[]
-    testsets: PreviewTestset[]
+    testsets: PreviewTestSet[]
     variants: EnhancedVariant[]
     runIndex: RunIndex
-    uriObject?: {runtimePrefix: string; routePath?: string}
-    /** Stable transformed parameters keyed by revision id */
-    parametersByRevisionId?: Record<string, any>
 }
 
 /**

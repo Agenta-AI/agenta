@@ -5,16 +5,25 @@ import {Button, Input, Table, Tag, Space} from "antd"
 import {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import dynamic from "next/dynamic"
-import router from "next/router"
 
+import EnhancedDrawer from "@/oss/components/EnhancedUIs/Drawer"
+import AnnotateDrawerTitle from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/AnnotateDrawerTitle"
+import CreateEvaluator from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/CreateEvaluator"
+import {AnnotateDrawerSteps} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/enum"
 import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
-import useURL from "@/oss/hooks/useURL"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
 import {Evaluator, EvaluatorConfig} from "@/oss/lib/Types"
 
 import type {SelectEvaluatorSectionProps} from "../../types"
 
+const EvaluatorsModal = dynamic(
+    () => import("../../../autoEvaluation/EvaluatorsModal/EvaluatorsModal"),
+    {
+        ssr: false,
+        loading: () => null, // Prevent flash by not rendering until loaded
+    },
+)
 const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoResultsFound"), {
     ssr: false,
 })
@@ -43,19 +52,12 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
     preview,
     evaluators: propsEvaluators,
     evaluatorConfigs: propsEvaluatorConfigs,
-    selectedAppId,
     ...props
 }: SelectEvaluatorSectionProps & {preview?: Preview}) => {
-    const {projectURL} = useURL()
     const fetchData = useFetchEvaluatorsData({
         preview: preview as boolean,
         queries: {is_human: preview},
-        appId: selectedAppId || "",
     })
-    const evaluatorsRegistryUrl = useMemo(
-        () => `${projectURL}/evaluators?tab=${preview ? "human" : "automatic"}`,
-        [projectURL, preview],
-    )
 
     const evaluationData = useMemo(() => {
         if (preview) {
@@ -83,44 +85,49 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         evaluationData
 
     const [searchTerm, setSearchTerm] = useState("")
-    const prevSelectedAppIdRef = useRef<string | undefined>()
-    const {refetchEvaluatorConfigs} = fetchData
-
-    useEffect(() => {
-        if (!selectedAppId) {
-            prevSelectedAppIdRef.current = selectedAppId
-            return
-        }
-
-        if (prevSelectedAppIdRef.current === selectedAppId) {
-            return
-        }
-
-        prevSelectedAppIdRef.current = selectedAppId
-        refetchEvaluatorConfigs()
-    }, [selectedAppId, refetchEvaluatorConfigs])
+    const [isEvaluatorsModalOpen, setIsEvaluatorsModalOpen] = useState(false)
+    const [current, setCurrent] = useState(0)
+    const prevEvaluatorConfigsRef = useRef<EvaluatorDto<"response">[] | EvaluatorConfig[]>(
+        evaluationData.evaluatorConfigs,
+    )
 
     useEffect(() => {
         if (isLoadingEvaluators || isLoadingEvaluatorConfigs) return
 
-        const availableIds = new Set(
-            (preview
-                ? (evaluators as EvaluatorDto<"response">[])
-                : (evaluatorConfigs as EvaluatorConfig[])
-            ).map((config) => config.id),
-        )
-
-        setSelectedEvalConfigs((prevSelected) => {
-            const nextSelected = prevSelected.filter((id) => availableIds.has(id))
-            return nextSelected.length === prevSelected.length ? prevSelected : nextSelected
-        })
+        if (preview) {
+            const prevConfigs = prevEvaluatorConfigsRef.current as EvaluatorDto<"response">[]
+            const dataSource = evaluators as EvaluatorDto<"response">[]
+            const newConfigs = dataSource.filter(
+                (config) => !prevConfigs.some((prevConfig) => prevConfig.id === config.id),
+            )
+            if (newConfigs.length > 0) {
+                setSelectedEvalConfigs((prevSelected) => [
+                    ...prevSelected,
+                    ...newConfigs.map((config) => config.id),
+                ])
+            }
+            prevEvaluatorConfigsRef.current = dataSource
+        } else {
+            const prevConfigs = prevEvaluatorConfigsRef.current as EvaluatorConfig[]
+            const dataSource = evaluatorConfigs as EvaluatorConfig[]
+            const newConfigs = dataSource.filter(
+                (config) => !prevConfigs.some((prevConfig) => prevConfig.id === config.id),
+            )
+            if (newConfigs.length > 0) {
+                setSelectedEvalConfigs((prevSelected) => [
+                    ...prevSelected,
+                    ...newConfigs.map((config) => config.id),
+                ])
+            }
+            prevEvaluatorConfigsRef.current = dataSource
+        }
     }, [
         preview,
-        evaluators,
         evaluatorConfigs,
+        evaluators,
+        setSelectedEvalConfigs,
         isLoadingEvaluators,
         isLoadingEvaluatorConfigs,
-        setSelectedEvalConfigs,
     ])
 
     const columnsPreview: ColumnsType<EvaluatorDto<"response">> = useMemo(
@@ -231,7 +238,10 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                     <Space>
                         <Button
                             icon={<PlusOutlined />}
-                            onClick={() => router.push(evaluatorsRegistryUrl)}
+                            onClick={() => {
+                                setCurrent(1)
+                                setIsEvaluatorsModalOpen(true)
+                            }}
                         >
                             Create new
                         </Button>
@@ -244,7 +254,10 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                         title="No evaluators yet"
                         description="Evaluators help you measure and analyze your model's responses."
                         primaryActionLabel="Create your first evaluator"
-                        onPrimaryAction={() => router.push(evaluatorsRegistryUrl)}
+                        onPrimaryAction={() => {
+                            setCurrent(1)
+                            setIsEvaluatorsModalOpen(true)
+                        }}
                     />
                 ) : preview ? (
                     <Table<EvaluatorDto<"response">>
@@ -308,6 +321,38 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
                     />
                 )}
             </div>
+
+            {preview ? (
+                <EnhancedDrawer
+                    open={isEvaluatorsModalOpen}
+                    title={
+                        <AnnotateDrawerTitle
+                            steps={AnnotateDrawerSteps.CREATE_EVALUATOR}
+                            setSteps={() => setIsEvaluatorsModalOpen(false)}
+                            onClose={() => setIsEvaluatorsModalOpen(false)}
+                        />
+                    }
+                    closeIcon={null}
+                    width={400}
+                    onClose={() => setIsEvaluatorsModalOpen(false)}
+                    classNames={{body: "!p-0", header: "!p-4"}}
+                >
+                    <CreateEvaluator
+                        setSelectedEvaluators={(updater) => {
+                            setSelectedEvalConfigs(updater)
+                            setIsEvaluatorsModalOpen(false)
+                        }}
+                    />
+                </EnhancedDrawer>
+            ) : (
+                <EvaluatorsModal
+                    open={isEvaluatorsModalOpen}
+                    onCancel={() => setIsEvaluatorsModalOpen(false)}
+                    current={current}
+                    setCurrent={setCurrent}
+                    openedFromNewEvaluation={true}
+                />
+            )}
         </>
     )
 }

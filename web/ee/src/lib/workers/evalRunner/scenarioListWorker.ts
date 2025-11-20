@@ -23,7 +23,6 @@ interface WorkerRequest {
         jwt: string
         projectId: string
         runId: string
-        order?: "ascending" | "descending"
     }
 }
 
@@ -46,7 +45,6 @@ interface FetchArgs {
     runId: string
     next?: string | null
     limit: number
-    order?: "ascending" | "descending"
 }
 
 async function fetchPage({
@@ -56,37 +54,22 @@ async function fetchPage({
     runId,
     next,
     limit,
-    order,
-}: FetchArgs): Promise<{scenarios: IScenario[]; next?: string}> {
-    // POST to query endpoint
-    const url = `${apiUrl}/preview/evaluations/scenarios/query?project_id=${encodeURIComponent(projectId)}`
-    const body: Record<string, any> = {
-        scenario: {
-            ...(runId ? {run_ids: [runId]} : {}),
-        },
-        windowing: {
-            limit,
-            ...(next ? {next} : {}),
-            ...(order ? {order} : {}),
-        },
+}: FetchArgs): Promise<IScenario[]> {
+    const queryParams = new URLSearchParams()
+    if (runId) {
+        queryParams.append("run_ids", `{${runId}}`)
+        queryParams.append("limit", limit.toString())
+        if (next) queryParams.append("next", next)
+        queryParams.append("project_id", projectId)
     }
 
+    const url = `${apiUrl}/preview/evaluations/scenarios/?${queryParams.toString()}`
     const res = await fetch(url, {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${jwt}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
+        headers: {Authorization: `Bearer ${jwt}`},
     })
     if (!res.ok) throw new Error(`fetch ${res.status}`)
-    const json = (await res.json()) as {scenarios?: IScenario[]; next?: string}
-
-    const scenarios = json.scenarios ?? []
-    const nextCursor =
-        json.next ??
-        (scenarios.length === limit ? (scenarios[scenarios.length - 1]?.id ?? null) : null)
-    return {scenarios, next: nextCursor}
+    const json = (await res.json()) as {scenarios?: IScenario[]}
+    return json.scenarios ?? []
 }
 
 self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
@@ -94,17 +77,16 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     try {
         const scenarios: IScenario[] = []
         let next: string | null | undefined = null
-        let _batch = 0
+        let batch = 0
         do {
             const page = await fetchPage({
                 ...payload,
                 next,
                 limit: PAGE_SIZE,
-                order: payload.order,
             })
-            scenarios.push(...page.scenarios)
-            _batch += 1
-            next = page.next ?? null
+            scenarios.push(...page)
+            batch += 1
+            next = page.length === PAGE_SIZE ? page[page.length - 1]?.id : null
         } while (next)
 
         // Deduplicate scenarios by id in case backend returned duplicates
@@ -115,77 +97,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
             return true
         })
 
-        const shouldSortDescending = payload.order === "descending"
-
-        const toNumericValue = (value: unknown): number | null => {
-            if (value === null || value === undefined) {
-                return null
-            }
-            if (typeof value === "number") {
-                return Number.isFinite(value) ? value : null
-            }
-            if (typeof value === "string") {
-                const parsedDate = Date.parse(value)
-                if (!Number.isNaN(parsedDate)) {
-                    return parsedDate
-                }
-                const parsedNumber = Number(value)
-                if (!Number.isNaN(parsedNumber)) {
-                    return parsedNumber
-                }
-            }
-            return null
-        }
-
-        const getScenarioSortValue = (scenario: Record<string, any>): number => {
-            const primaryCandidates = [
-                scenario?.timestamp,
-                scenario?.createdAt,
-                scenario?.created_at,
-                scenario?.meta?.timestamp,
-                scenario?.meta?.createdAt,
-                scenario?.meta?.created_at,
-                scenario?.meta?.updatedAt,
-                scenario?.meta?.updated_at,
-            ]
-
-            for (const candidate of primaryCandidates) {
-                const numeric = toNumericValue(candidate)
-                if (numeric !== null) {
-                    return numeric
-                }
-            }
-
-            const indexCandidates = [
-                scenario?.meta?.index,
-                scenario?.meta?.order,
-                scenario?.meta?.order_index,
-                scenario?.index,
-            ]
-
-            for (const candidate of indexCandidates) {
-                const numeric = toNumericValue(candidate)
-                if (numeric !== null) {
-                    return numeric
-                }
-            }
-
-            return Number.MIN_SAFE_INTEGER
-        }
-
-        const orderedScenarios = shouldSortDescending
-            ? [...uniqueScenarios].sort((a, b) => {
-                  const diff = getScenarioSortValue(b) - getScenarioSortValue(a)
-                  if (diff !== 0) {
-                      return diff
-                  }
-                  const idA = typeof a?.id === "string" ? a.id : ""
-                  const idB = typeof b?.id === "string" ? b.id : ""
-                  return idB.localeCompare(idA)
-              })
-            : uniqueScenarios
-
-        const resp: WorkerResponse = {requestId, ok: true, data: orderedScenarios}
+        const resp: WorkerResponse = {requestId, ok: true, data: uniqueScenarios}
         // @ts-ignore
         self.postMessage(resp)
     } catch (err: any) {

@@ -14,32 +14,41 @@ import type {
     UseEvaluationRunScenarioStepsFetcherResult,
 } from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 import type {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
+import type {
+    AgentaConfigPrompt,
+    EnhancedObjectConfig,
+} from "@/oss/lib/shared/variant/genericTransformer/types"
 import {constructPlaygroundTestUrl} from "@/oss/lib/shared/variant/stringUtils"
+import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import type {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import type {PreviewTestset, WorkspaceMember} from "@/oss/lib/Types"
+import type {PreviewTestSet, WorkspaceMember} from "@/oss/lib/Types"
+
+// ----------------------- helper utilities -----------------------
+// Copy only the functions needed by workerFetch.
 
 function collectTraceIds({steps, invocationKeys}: {steps: any[]; invocationKeys: Set<string>}) {
     const traceIds: string[] = []
     steps.forEach((st: any) => {
-        if (invocationKeys.has(st.stepKey) && st.traceId) traceIds.push(st.traceId)
+        if (invocationKeys.has(st.key) && st.traceId) traceIds.push(st.traceId)
     })
     return traceIds
 }
 
 function buildAnnotationLinks({
-    annotationSteps,
+    invocationSteps,
     uuidToTraceId: toTrace,
     uuidToSpanId: toSpan,
 }: {
-    annotationSteps: any[]
+    invocationSteps: any[]
     uuidToTraceId: (uuid: string) => string | undefined
     uuidToSpanId: (uuid: string) => string | undefined
 }) {
-    return annotationSteps
+    return invocationSteps
         .filter((s) => s.traceId)
         .map((s) => ({trace_id: toTrace(s.traceId) || s.traceId, span_id: toSpan(s.traceId)}))
 }
 
+// --- Annotation map builder (copied) ---
 export function buildAnnotationMap({
     rawAnnotations,
     members,
@@ -58,40 +67,11 @@ export function buildAnnotationMap({
     return map
 }
 
-/** Simple dot-path resolver ("a.b.c"). Supports literal keys that contain dots. */
+// ------------------- additional pure helpers copied from enrichment.ts -------------------
+
+/** Simple dot-path resolver ("a.b.c") */
 export function resolvePath(obj: any, path: string): any {
-    if (!obj || typeof obj !== "object" || !path) return undefined
-
-    const parts = path.split(".")
-    let current: any = obj
-
-    for (let i = 0; i < parts.length; i++) {
-        if (current === undefined || current === null) return undefined
-
-        const part = parts[i]
-
-        if (Object.prototype.hasOwnProperty.call(current, part)) {
-            current = current[part]
-            continue
-        }
-
-        let combined = part
-        let found = false
-
-        for (let j = i + 1; j < parts.length; j++) {
-            combined += `.${parts[j]}`
-            if (Object.prototype.hasOwnProperty.call(current, combined)) {
-                current = current[combined]
-                i = j
-                found = true
-                break
-            }
-        }
-
-        if (!found) return undefined
-    }
-
-    return current
+    return path.split(".").reduce((o: any, key: string) => (o ? o[key] : undefined), obj)
 }
 
 export function computeInputsAndGroundTruth({
@@ -107,24 +87,18 @@ export function computeInputsAndGroundTruth({
 }) {
     const isRevisionKnown = Array.isArray(inputParamNames) && inputParamNames.length > 0
 
-    // Heuristic fallback names for ground truth columns when revision input params are unknown
-    const GT_NAMES = new Set(["correct_answer", "expected_output", "ground_truth", "label"])
+    const inputMappings = (mappings ?? []).filter(
+        (m) =>
+            m.step.key === inputKey &&
+            (isRevisionKnown
+                ? inputParamNames.includes(m.column?.name)
+                : m.column?.kind === "testset"),
+    )
 
-    const inputMappings = (mappings ?? []).filter((m) => {
-        if (m.step.key !== inputKey) return false
-        const name = m.column?.name
-        if (isRevisionKnown) return inputParamNames.includes(name)
-        // Fallback: treat testset columns not matching GT names as inputs
-        return m.column?.kind === "testset" && !GT_NAMES.has(name)
-    })
-
-    const groundTruthMappings = (mappings ?? []).filter((m) => {
-        if (m.step.key !== inputKey) return false
-        const name = m.column?.name
-        if (isRevisionKnown) return m.column?.kind === "testset" && !inputParamNames.includes(name)
-        // Fallback: treat well-known GT names as ground truth
-        return m.column?.kind === "testset" && GT_NAMES.has(name)
-    })
+    const groundTruthMappings = (mappings ?? []).filter(
+        (m) =>
+            m.step.key === inputKey && !inputMappings.includes(m) && m.column?.kind === "testset",
+    )
 
     const objFor = (filtered: any[]) =>
         filtered.reduce((acc: any, m: any) => {
@@ -136,31 +110,10 @@ export function computeInputsAndGroundTruth({
             return acc
         }, {})
 
-    let inputs = objFor(inputMappings)
-    let groundTruth = objFor(groundTruthMappings)
-
-    // Fallback: if no mappings for inputs, derive directly from testcase.data keys
-    if (!Object.keys(inputs).length && testcase && typeof testcase === "object") {
-        const dataObj = (testcase as any).data || {}
-        if (dataObj && typeof dataObj === "object") {
-            Object.keys(dataObj).forEach((k) => {
-                if (!GT_NAMES.has(k) && k !== "messages") {
-                    inputs[k] = dataObj[k]
-                }
-            })
-            // Ground truth fallback: pick a known GT field if present
-            if (!Object.keys(groundTruth).length) {
-                for (const name of Array.from(GT_NAMES)) {
-                    if (name in dataObj) {
-                        ;(groundTruth as any)[name] = dataObj[name]
-                        break
-                    }
-                }
-            }
-        }
+    return {
+        inputs: objFor(inputMappings),
+        groundTruth: objFor(groundTruthMappings),
     }
-
-    return {inputs, groundTruth}
 }
 
 export function identifyScenarioSteps({
@@ -172,56 +125,15 @@ export function identifyScenarioSteps({
     runIndex?: {inputKeys: Set<string>; invocationKeys: Set<string>; steps: Record<string, any>}
     evaluators: EvaluatorDto[]
 }) {
-    const inputSteps = steps.filter((s) => runIndex?.inputKeys?.has(s.stepKey))
+    const inputSteps = steps.filter((s) => runIndex?.inputKeys?.has(s.key))
 
     const invocationKeys = runIndex?.invocationKeys ?? new Set<string>()
-    const invocationSteps = steps.filter((s) => invocationKeys.has(s.stepKey))
+    const invocationSteps = steps.filter((s) => invocationKeys.has(s.key))
 
-    const evaluatorIds = new Set<string>(
-        (evaluators || []).map((e) => (typeof e.id === "string" ? e.id : "")).filter(Boolean),
-    )
-    const evaluatorSlugs = new Set<string>(
-        (evaluators || []).map((e) => (typeof e.slug === "string" ? e.slug : "")).filter(Boolean),
-    )
-
-    const annotationSteps = steps.filter((step) => {
-        const meta = runIndex?.steps?.[step.stepKey]
-        const refEvaluator = meta?.refs?.evaluator ?? (step as any)?.references?.evaluator
-        const candidateSlug: string | undefined =
-            typeof refEvaluator?.slug === "string"
-                ? refEvaluator.slug
-                : typeof (step as any)?.evaluator_slug === "string"
-                  ? (step as any).evaluator_slug
-                  : undefined
-        const candidateId: string | undefined =
-            typeof refEvaluator?.id === "string" ? refEvaluator.id : undefined
-
-        let matched = false
-
-        if (candidateId) {
-            if (evaluatorIds.has(candidateId)) {
-                matched = true
-            } else {
-                matched = true
-            }
-        }
-
-        if (!matched && candidateSlug) {
-            matched = evaluatorSlugs.has(candidateSlug)
-            if (!matched) {
-                matched = true
-            }
-        }
-
-        if (!matched) {
-            const keyParts = (step.stepKey || "").split(".")
-            const fallbackSlug = keyParts.length > 1 ? keyParts[keyParts.length - 1] : undefined
-            if (fallbackSlug && evaluatorSlugs.has(fallbackSlug)) {
-                matched = true
-            }
-        }
-
-        return matched
+    const annotationSteps = steps.filter((s) => {
+        const keyParts = (s.key || "").split(".")
+        const evaluatorSlug = keyParts.length > 1 ? keyParts[keyParts.length - 1] : undefined
+        return evaluatorSlug ? evaluators.some((e) => e.slug === evaluatorSlug) : false
     })
 
     return {inputSteps, invocationSteps, annotationSteps}
@@ -237,20 +149,20 @@ export function deriveTestsetAndRevision({
     inputSteps: any[]
     invocationSteps: any[]
     runIndex?: {steps: Record<string, any>}
-    testsets: PreviewTestset[]
+    testsets: PreviewTestSet[]
     variants: EnhancedVariant[]
-}): {testsets: PreviewTestset[]; revisions: EnhancedVariant[]} {
+}): {testsets: PreviewTestSet[]; revisions: EnhancedVariant[]} {
     const referencedTestsetIds = new Set<string>()
     const referencedRevisionIds = new Set<string>()
 
     if (runIndex) {
         inputSteps.forEach((step) => {
-            const meta = runIndex.steps[step.stepKey]
+            const meta = runIndex.steps[step.key]
             const tsId = meta?.refs?.testset?.id
             if (tsId) referencedTestsetIds.add(tsId)
         })
         invocationSteps.forEach((step) => {
-            const meta = runIndex.steps[step.stepKey]
+            const meta = runIndex.steps[step.key]
             const revId = meta?.refs?.applicationRevision?.id
             if (revId) referencedRevisionIds.add(revId)
         })
@@ -294,13 +206,37 @@ export function enrichInputSteps({
         if (canComputeFromTestset) {
             const testcase = ts?.data?.testcases?.find((tc: any) => tc.id === step.testcaseId)
             if (testcase) {
-                // We no longer rely on revision.inputParams in worker context.
-                // Passing an empty list will trigger heuristic fallback in computeInputsAndGroundTruth.
-                const inputParamNames: string[] = []
+                const inputParamNamesSet = new Set<string>()
+                if (Array.isArray(revisions)) {
+                    revisions.forEach((rev: any) => {
+                        const reqSchema = rev.requestSchema
+                        if (reqSchema) {
+                            if (Array.isArray(reqSchema.required)) {
+                                reqSchema.required.forEach((rk: string) => {
+                                    if (rk === "inputs" && Array.isArray(reqSchema.inputKeys)) {
+                                        reqSchema.inputKeys.forEach((k: string) =>
+                                            inputParamNamesSet.add(k),
+                                        )
+                                    } else {
+                                        inputParamNamesSet.add(rk)
+                                    }
+                                })
+                            }
+                            if (Array.isArray(reqSchema.inputKeys)) {
+                                reqSchema.inputKeys.forEach((k: string) =>
+                                    inputParamNamesSet.add(k),
+                                )
+                            }
+                        } else if (Array.isArray(rev.inputParams)) {
+                            rev.inputParams.forEach((p: any) => inputParamNamesSet.add(p.name))
+                        }
+                    })
+                }
+                const inputParamNames = Array.from(inputParamNamesSet)
                 const computed = computeInputsAndGroundTruth({
                     testcase,
                     mappings,
-                    inputKey: step.stepKey,
+                    inputKey: step.key,
                     inputParamNames,
                 })
                 for (const [k, v] of Object.entries(computed.inputs)) {
@@ -322,44 +258,42 @@ export function enrichInputSteps({
 export const prepareRequest = ({
     revision,
     inputParametersDict,
-    uriObject,
-    precomputedParameters,
-    appType,
 }: {
-    revision: EnhancedVariant<any>
+    revision: EnhancedVariant<EnhancedObjectConfig<AgentaConfigPrompt>>
     inputParametersDict: Record<string, string>
-    uriObject?: {runtimePrefix: string; routePath?: string}
-    /** Parameters computed on main thread via transformedPromptsAtomFamily({useStableParams: true}) */
-    precomputedParameters?: any
 }) => {
     if (!revision || !inputParametersDict) return null
 
-    // We no longer store chat flags on the revision; infer from inputs
-    const isChatVariant = Object.prototype.hasOwnProperty.call(
-        inputParametersDict || {},
-        "messages",
-    )
-    const isCustomVariant = !!appType && appType === "custom"
+    const isChatVariant = revision.isChatVariant
+    const isCustomVariant = revision.isCustom
+    const inputParamDefinition = revision.inputParams || []
+    // In worker context we cannot read metadata atom; pass empty object instead
+    const optionalParameters =
+        revision.optionalParameters || transformToRequestBody({variant: revision, allMetadata: {}})
 
     const mainInputParams: Record<string, any> = {}
     const secondaryInputParams: Record<string, string> = {}
 
-    // Derive splitting without relying on deprecated revision.inputParams:
-    // - messages => top-level (main) param for chat variants
-    // - everything else => goes under `inputs`
-    Object.keys(inputParametersDict).forEach((key) => {
-        const val = inputParametersDict[key]
-        if (key === "messages") {
-            mainInputParams[key] = val
+    for (const key of Object.keys(inputParametersDict)) {
+        const paramDefinition = inputParamDefinition.find((param) => param.name === key)
+        if (paramDefinition && !paramDefinition.input) {
+            secondaryInputParams[key] = inputParametersDict[key]
         } else {
-            secondaryInputParams[key] = val
+            mainInputParams[key] = inputParametersDict[key]
         }
-    })
+    }
 
-    // Start from stable precomputed parameters (main-thread transformed prompts)
-    const baseParams = (precomputedParameters as Record<string, any>) || {}
+    const optParams = Array.isArray(optionalParameters)
+        ? optionalParameters
+              .filter((param) => param.type !== "object")
+              .reduce((acc: any, param) => {
+                  acc[param.name] = param.default
+                  return acc
+              }, {})
+        : optionalParameters
+
     const requestBody: Record<string, any> = {
-        ...baseParams,
+        ...optParams,
         ...mainInputParams,
     }
 
@@ -367,11 +301,8 @@ export const prepareRequest = ({
         for (const key of Object.keys(inputParametersDict)) {
             if (key !== "inputs") requestBody[key] = inputParametersDict[key]
         }
-    } else {
-        requestBody["inputs"] = {...(requestBody["inputs"] || {}), ...secondaryInputParams}
-    }
-
-    if (isChatVariant) {
+    } else if (isChatVariant) {
+        requestBody["inputs"] = secondaryInputParams
         if (typeof requestBody["messages"] === "string") {
             try {
                 requestBody["messages"] = JSON.parse(requestBody["messages"])
@@ -379,48 +310,36 @@ export const prepareRequest = ({
                 throw new Error("content not valid for messages")
             }
         }
+    } else {
+        requestBody["inputs"] = secondaryInputParams
     }
-
-    // Ensure we never crash on missing uriObject; default to empty values
-    const safeUri = uriObject ?? {runtimePrefix: "", routePath: ""}
 
     return {
         requestBody,
-        endpoint: constructPlaygroundTestUrl(safeUri, "/test", true),
+        endpoint: constructPlaygroundTestUrl(revision.uriObject!, "/test", true),
     }
 }
 
 export function buildInvocationParameters({
     invocationSteps,
     inputSteps,
-    uriObject,
-    parametersByRevisionId,
-    appType,
 }: {
     invocationSteps: (IStepResponse & {revision?: any})[]
     inputSteps: (IStepResponse & {inputs?: Record<string, any>})[]
-    uriObject?: {runtimePrefix: string; routePath?: string}
-    /** Map of revisionId -> transformed prompts (stable) */
-    parametersByRevisionId?: Record<string, any>
 }) {
     const map: Record<string, any | null> = {}
     invocationSteps.forEach((step) => {
         const revision = (step as any).revision
         const matchInput = inputSteps.find((r) => r.testcaseId === step.testcaseId && r.inputs)
         if (step.status !== "success") {
-            const pre = revision?.id ? parametersByRevisionId?.[revision.id] : undefined
-
             const params = prepareRequest({
                 revision,
                 inputParametersDict: matchInput?.inputs ?? {},
-                uriObject,
-                precomputedParameters: pre?.ag_config ? pre : pre,
-                appType,
             })
-            map[step.stepKey] = params
+            map[step.key] = params
             ;(step as any).invocationParameters = params
         } else {
-            map[step.stepKey] = undefined
+            map[step.key] = undefined
             ;(step as any).invocationParameters = undefined
         }
     })
@@ -435,19 +354,18 @@ export function computeTraceAndAnnotationRefs({
     evaluators,
 }: {
     steps: StepResponseStep[]
-    runIndex?: {invocationKeys: Set<string>; annotationKeys: Set<string>}
+    runIndex?: {invocationKeys: Set<string>}
     evaluators: EvaluatorDto[]
 }) {
     const invocationKeys = runIndex?.invocationKeys ?? new Set<string>()
-    const annotationKeys = runIndex?.annotationKeys ?? new Set<string>()
-
     const traceIds = collectTraceIds({steps, invocationKeys})
 
     // simple evaluator-based identification
-    const annotationSteps = steps.filter((s) => annotationKeys.has(s.stepKey))
+    const annotationSteps = steps.filter((s) => s.evaluator)
+    const invocationSteps = steps.filter((s) => invocationKeys.has(s.key))
 
     const annotationLinks = buildAnnotationLinks({
-        annotationSteps,
+        invocationSteps,
         uuidToTraceId,
         uuidToSpanId,
     })
@@ -481,7 +399,6 @@ export async function fetchTraceAndAnnotationMaps({
             })
             const params = new URLSearchParams()
             params.append("filtering", filtering)
-            params.append("project_id", projectId)
             const resp = await fetch(`${apiUrl}/observability/v1/traces?${params.toString()}`, {
                 headers: {Authorization: `Bearer ${jwt}`},
             })
@@ -504,7 +421,7 @@ export async function fetchTraceAndAnnotationMaps({
                 {
                     method: "POST",
                     headers: {"Content-Type": "application/json", Authorization: `Bearer ${jwt}`},
-                    body: JSON.stringify({annotation_links: annotationLinks}),
+                    body: JSON.stringify({invocation: annotationLinks}),
                 },
             )
             if (resp.ok) {
@@ -532,19 +449,13 @@ export function buildScenarioCore({
     testsets,
     variants,
     mappings,
-    uriObject,
-    parametersByRevisionId,
-    appType,
 }: {
     steps: StepResponseStep[]
     runIndex?: RunIndex
     evaluators: EvaluatorDto[]
-    testsets: PreviewTestset[]
+    testsets: PreviewTestSet[]
     variants: EnhancedVariant[]
     mappings?: unknown
-    uriObject?: {runtimePrefix: string; routePath?: string}
-    parametersByRevisionId?: Record<string, any>
-    appType?: string
 }): UseEvaluationRunScenarioStepsFetcherResult {
     const {inputSteps, invocationSteps, annotationSteps} = identifyScenarioSteps({
         steps,
@@ -575,7 +486,7 @@ export function buildScenarioCore({
     const enrichedInvocationSteps = invocationSteps.map((inv) => {
         let revObj: any
         if (runIndex) {
-            const meta = (runIndex as any).steps?.[inv.stepKey]
+            const meta = (runIndex as any).steps?.[inv.key]
             const revId = meta?.refs?.applicationRevision?.id
             if (revId) revObj = revisionMap[revId]
         }
@@ -585,9 +496,6 @@ export function buildScenarioCore({
     buildInvocationParameters({
         invocationSteps: enrichedInvocationSteps,
         inputSteps: enrichedInputSteps,
-        uriObject,
-        parametersByRevisionId,
-        appType,
     })
 
     return {
@@ -617,7 +525,7 @@ export function decorateScenarioResult({
         const traceHex = rawTrace?.includes("-") ? _uuidToTraceId(rawTrace) : rawTrace
 
         // Invocation steps
-        if (invocationKeys.has(st.stepKey) || Boolean(st.references?.application)) {
+        if (invocationKeys.has(st.key) || Boolean(st.references?.application)) {
             st.isInvocation = true
             if (traceKey) {
                 const tw = traceMap.get(traceKey)
@@ -628,7 +536,7 @@ export function decorateScenarioResult({
         }
 
         // Annotation steps
-        if (runIndex?.annotationKeys?.has(st.stepKey)) {
+        if (runIndex?.annotationKeys?.has(st.key)) {
             if (traceHex) {
                 st.annotation = annotationMap.get(traceHex)
                 const tw = traceMap.get(traceKey)
@@ -639,10 +547,8 @@ export function decorateScenarioResult({
         }
 
         // Input steps
-        if (runIndex?.inputKeys?.has(st.stepKey) && Array.isArray(result.inputSteps)) {
-            const enriched = result.inputSteps.find(
-                (inp: any) => inp.stepKey === st.stepKey && inp.inputs,
-            )
+        if (runIndex?.inputKeys?.has(st.key) && Array.isArray(result.inputSteps)) {
+            const enriched = result.inputSteps.find((inp: any) => inp.key === st.key && inp.inputs)
             if (enriched) {
                 st.inputs = enriched.inputs
                 st.groundTruth = enriched.groundTruth

@@ -48,32 +48,18 @@ export async function fetchRunMetricsViaWorker(
         projectId: string
         evaluatorSlugs: string[]
         revisionSlugs: string[]
-        annotationSlugMap?: Record<string, string>
     },
     timeoutMs = 30000,
 ): Promise<{metrics: any[]; stats: Record<string, any>}> {
     if (typeof Worker === "undefined") throw new Error("Workers unsupported")
     ensureWorker()
     const requestId = (crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)) as string
-
     return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
-            console.error(`[runMetricsWorker] Timeout for runId: ${runId}, requestId: ${requestId}`)
             pendings.delete(requestId)
             reject(new Error("Worker timeout"))
         }, timeoutMs)
-
-        pendings.set(requestId, {
-            resolve: (result) => {
-                resolve(result)
-            },
-            reject: (error) => {
-                console.error(`[runMetricsWorker] Error for runId: ${runId}:`, error)
-                reject(error)
-            },
-            timer,
-        })
-
+        pendings.set(requestId, {resolve, reject, timer})
         worker!.postMessage({requestId, payload: {...context, runId}})
     })
 }

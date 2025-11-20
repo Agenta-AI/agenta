@@ -1,10 +1,9 @@
 import {cloneElement, isValidElement, memo, MouseEvent, useState} from "react"
 
-import {ArrowSquareOut, Database} from "@phosphor-icons/react"
 import dynamic from "next/dynamic"
 
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-
+import {ArrowSquareOut, Database} from "@phosphor-icons/react"
 import {SaveDataButtonProps} from "./types"
 
 const SaveDataModal = dynamic(() => import(".."), {ssr: false})
@@ -55,7 +54,7 @@ const SaveDataButton = ({
                 name={name}
                 rows={rows}
                 exportDataset={exportDataset}
-                open={isModalOpen && !!rows.length}
+                open={isModalOpen}
                 onCancel={() => setIsModalOpen(false)}
             />
         </>

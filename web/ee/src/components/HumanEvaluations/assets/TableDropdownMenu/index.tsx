@@ -1,18 +1,9 @@
-import {memo, useMemo} from "react"
-
-import {MoreOutlined} from "@ant-design/icons"
-import {Database, Note, Rocket, Trash} from "@phosphor-icons/react"
 import {Dropdown, Button, MenuProps} from "antd"
+import {memo, useMemo} from "react"
+import {Database, Note, Rocket, Trash} from "@phosphor-icons/react"
+import {MoreOutlined} from "@ant-design/icons"
 import {useRouter} from "next/router"
-
-import {EvaluationStatus} from "@/oss/lib/Types"
-
-import {
-    buildAppScopedUrl,
-    buildEvaluationNavigationUrl,
-    extractPrimaryInvocation,
-} from "../../../pages/evaluations/utils"
-
+import {useAppId} from "@/oss/hooks/useAppId"
 import {TableDropdownMenuProps} from "./types"
 
 const TableDropdownMenu = ({
@@ -21,18 +12,9 @@ const TableDropdownMenu = ({
     setSelectedEvalRecord,
     setIsDeleteEvalModalOpen,
     onVariantNavigation,
-    baseAppURL,
-    extractAppId,
-    scope,
-    projectURL,
-    resolveAppId,
-    disableVariantAction = false,
 }: TableDropdownMenuProps) => {
     const router = useRouter()
-    const primaryInvocation = extractPrimaryInvocation(record)
-    const resolvedAppId = resolveAppId ? resolveAppId(record) : undefined
-    const targetAppId = resolvedAppId || primaryInvocation?.appId || extractAppId(record)
-    const variantId = primaryInvocation?.revisionId || record.variants?.[0]?.id
+    const appId = useAppId()
 
     const items: MenuProps["items"] = useMemo(
         () => [
@@ -40,67 +22,29 @@ const TableDropdownMenu = ({
                 key: "details",
                 label: "Open details",
                 icon: <Note size={16} />,
-                disabled:
-                    [
-                        EvaluationStatus.PENDING,
-                        EvaluationStatus.RUNNING,
-                        EvaluationStatus.CANCELLED,
-                        EvaluationStatus.INITIALIZED,
-                    ].includes(record.status) || !targetAppId,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
-                    if (
-                        (evalType === "auto" || evalType === "custom") &&
-                        ![
-                            EvaluationStatus.PENDING,
-                            EvaluationStatus.RUNNING,
-                            EvaluationStatus.CANCELLED,
-                            EvaluationStatus.INITIALIZED,
-                        ].includes(record.status) &&
-                        targetAppId
-                    ) {
-                        const evaluationId = "id" in record ? record.id : record.key
-                        const suffix =
-                            evalType === "auto" || evalType === "custom"
-                                ? `/evaluations/results/${evaluationId}`
-                                : `/evaluations/single_model_test/${evaluationId}`
-                        const pathname = buildEvaluationNavigationUrl({
-                            scope,
-                            baseAppURL,
-                            projectURL,
-                            appId: targetAppId,
-                            path: suffix,
-                        })
-
-                        if (scope === "project") {
-                            router.push({
-                                pathname,
-                                query: targetAppId ? {app_id: targetAppId} : undefined,
-                            })
-                        } else {
-                            router.push(pathname)
-                        }
-                    }
+                    router.push(
+                        `/apps/${appId}/evaluations/${evalType == "auto" ? "results" : "single_model_test"}/${"id" in record ? record.id : record.key}`,
+                    )
                 },
             },
             {
                 key: "variant",
                 label: "View variant",
                 icon: <Rocket size={16} />,
-                disabled: disableVariantAction || !variantId || !targetAppId,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
-                    if (disableVariantAction || !variantId) return
-                    onVariantNavigation({revisionId: variantId, appId: targetAppId || undefined})
+                    onVariantNavigation(record.variants[0].id)
                 },
             },
             {
                 key: "view_testset",
-                label: "View testset",
+                label: "View test set",
                 icon: <Database size={16} />,
                 onClick: (e) => {
                     e.domEvent.stopPropagation()
-                    router.push(`${projectURL}/testsets/${record.testsets?.[0]?.id}`)
+                    router.push(`/testsets/${record.testsets?.[0]?.id}`)
                 },
             },
             {type: "divider"},
@@ -116,19 +60,7 @@ const TableDropdownMenu = ({
                 },
             },
         ],
-        [
-            setSelectedEvalRecord,
-            setIsDeleteEvalModalOpen,
-            record,
-            onVariantNavigation,
-            evalType,
-            targetAppId,
-            baseAppURL,
-            variantId,
-            projectURL,
-            primaryInvocation,
-            scope,
-        ],
+        [setSelectedEvalRecord, setIsDeleteEvalModalOpen, record, onVariantNavigation, evalType],
     )
     return (
         <Dropdown trigger={["click"]} overlayStyle={{width: 180}} menu={{items}}>

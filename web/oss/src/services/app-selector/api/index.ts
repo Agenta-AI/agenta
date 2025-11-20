@@ -1,15 +1,18 @@
-import Router from "next/router"
-
-import useURL from "@/oss/hooks/useURL"
+// @ts-nocheck
+import {getOrgValues} from "@/oss/contexts/org.context"
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {fetchJson} from "@/oss/lib/api/assets/fetchClient"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {LlmProvider} from "@/oss/lib/helpers/llmProviders"
-import {buildRevisionsQueryParam} from "@/oss/lib/helpers/url"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {getAllMetadata} from "@/oss/lib/hooks/useStatelessVariants/state"
+import {
+    fetchOpenApiSchemaJson,
+    findCustomWorkflowPath,
+    setVariant,
+    transformVariant,
+} from "@/oss/lib/shared/variant"
+import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {AppTemplate} from "@/oss/lib/Types"
-import {getOrgValues} from "@/oss/state/org"
-import {getProjectValues} from "@/oss/state/project"
-import {waitForValidURL} from "@/oss/state/url"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -19,14 +22,15 @@ import {waitForValidURL} from "@/oss/state/url"
 //  - delete: DELETE data from server
 
 export const fetchAllTemplates = async () => {
-    const {projectId} = getProjectValues()
-    const url = new URL(`${getAgentaApiUrl()}/containers/templates?project_id=${projectId}`)
-    const response = await fetchJson(url)
-    return response
+    const {projectId} = getCurrentProject()
+    const response = await axios.get(
+        `${getAgentaApiUrl()}/containers/templates?project_id=${projectId}`,
+    )
+    return response.data
 }
 
 export async function deleteApp(appId: string) {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     await axios.delete(`${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`, {
         data: {app_id: appId},
@@ -53,18 +57,14 @@ export const createApp = async ({
     templateKey: ServiceType
 }) => {
     const {selectedOrg} = getOrgValues()
-    const {projectId} = getProjectValues()
-    const url = new URL(`${getAgentaApiUrl()}/apps?project_id=${projectId}`)
-    const response = await fetchJson(url, {
-        method: "POST",
-        body: JSON.stringify({
-            app_name: appName,
-            template_key: templateKey,
-            organization_id: selectedOrg?.id,
-            workspace_id: selectedOrg?.default_workspace.id,
-        }),
+    const {projectId} = getCurrentProject()
+    const response = await axios.post(`${getAgentaApiUrl()}/apps?project_id=${projectId}`, {
+        app_name: appName,
+        template_key: templateKey,
+        organization_id: selectedOrg?.id,
+        workspace_id: selectedOrg?.default_workspace.id,
     })
-    return response
+    return response.data
 }
 
 export const createVariant = async ({
@@ -99,7 +99,7 @@ export const createVariant = async ({
         throw new Error("Either serviceUrl or templateKey should be provided")
     }
 
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const endpoint = `${getAgentaApiUrl()}/apps/${appId}/variant/${
         serviceUrl ? "from-service" : "from-template"
@@ -129,7 +129,7 @@ export const updateVariant = async (
     {serviceUrl, variantId}: {serviceUrl: string; variantId: string},
     ignoreAxiosError = false,
 ) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
     const response = await axios.put(
         `${getAgentaApiUrl()}/variants/${variantId}/service?project_id=${projectId}`,
         {
@@ -143,7 +143,7 @@ export const updateVariant = async (
 }
 
 export const createAppFromTemplate = async (templateObj: AppTemplate, ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/apps/app_and_variant_from_template?project_id=${projectId}`,
@@ -154,7 +154,7 @@ export const createAppFromTemplate = async (templateObj: AppTemplate, ignoreAxio
 }
 
 export const updateAppName = async (appId: string, appName: string, ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.patch(
         `${getAgentaApiUrl()}/apps/${appId}?project_id=${projectId}`,
@@ -184,46 +184,69 @@ export const createAndStartTemplate = async ({
         appId?: string,
     ) => void
 }) => {
-    // Import the atom-based app creation system
-    const {getDefaultStore} = await import("jotai")
-    const {createAppMutationAtom} = await import("@/oss/components/Playground/state/atoms")
-    const store = getDefaultStore()
-
     try {
-        // Use the atom-based app creation system
-        const result = await store.set(createAppMutationAtom, {
-            appName,
-            templateKey,
-            serviceUrl,
-            providerKey,
-            isCustomWorkflow,
-            onStatusChange,
-        })
-
-        const baseAppURL = (await waitForValidURL({requireApp: true}))?.baseAppURL
-        if (!result.success) {
-            // If the atom-based creation failed, propagate the error
-            onStatusChange?.("error", new Error(result.error || "App creation failed"))
-        } else if (result.appId && result.revisionId) {
-            await Router.push({
-                pathname: `${baseAppURL}/${result.appId}/playground`,
-                query: {
-                    revisions: buildRevisionsQueryParam([result.revisionId]),
-                },
+        onStatusChange?.("creating_app")
+        let app
+        try {
+            app = await createApp({
+                appName,
+                templateKey,
             })
-        } else if (result.appId) {
-            // Navigate to the newly created app's playground using Next.js router
-            if (typeof window !== "undefined") {
-                try {
-                    await Router.push(`${baseAppURL}/${result.appId}/playground`)
-                } catch (navigationError) {
-                    console.error("❌ [createAndStartTemplate] Navigation failed:", navigationError)
-                    // Don't fail the entire operation if navigation fails
+            let _variant
+            if (templateKey === ServiceType.Custom && serviceUrl) {
+                _variant = await createVariant({
+                    appId: app.app_id,
+                    serviceUrl,
+                    isCustomWorkflow,
+                })
+            } else {
+                _variant = await createVariant({
+                    appId: app.app_id,
+                    templateKey,
+                })
+            }
+            const uri = await findCustomWorkflowPath(_variant.uri)
+            const {schema} = await fetchOpenApiSchemaJson(uri?.runtimePrefix)
+
+            if (!schema) {
+                throw new Error("No schema found")
+            }
+
+            // TODO: HANDLE NEW UPDATE -> NEW REVISION MOUNT
+            const variant = transformVariant(setVariant(_variant, uri), schema, _variant.appType)
+
+            const parameters = transformToRequestBody({
+                variant,
+                allMetadata: getAllMetadata(),
+                routePath: uri.routePath,
+            })
+
+            // Exclude system_prompt and user_prompt keys
+            if (parameters?.ag_config) {
+                for (const key in parameters.ag_config) {
+                    if (typeof parameters.ag_config[key] === "object") {
+                        delete parameters.ag_config[key].system_prompt
+                        delete parameters.ag_config[key].user_prompt
+                    }
                 }
             }
+
+            await axios.put(
+                `/api/variants/${variant.id}/parameters?project_id=${getCurrentProject().projectId}`,
+                {
+                    parameters: parameters.ag_config,
+                },
+            )
+
+            onStatusChange?.("success", "", app?.app_id)
+        } catch (error: any) {
+            if (error?.response?.status === 400) {
+                onStatusChange?.("bad_request", error)
+                return
+            }
+            throw error
         }
     } catch (error) {
-        // Fallback to original implementation if atom system fails
-        console.warn("Atom-based app creation failed, falling back to direct API:", error)
+        onStatusChange?.("error", error)
     }
 }

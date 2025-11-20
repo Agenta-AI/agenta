@@ -15,11 +15,11 @@ import {UpdatedMetricsType} from "@/oss/components/pages/observability/drawer/An
 import {isAnnotationCreatedByCurrentUser} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/utils"
 import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {
-    getCurrentRunId,
+    evaluationEvaluatorsAtom,
     scenarioStepFamily,
 } from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {UseEvaluationRunScenarioStepsFetcherResult} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
+import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 
 import AnnotateScenarioButton from "../AnnotateScenarioButton"
 import RunEvalScenarioButton from "../RunEvalScenarioButton"
@@ -27,10 +27,7 @@ import RunEvalScenarioButton from "../RunEvalScenarioButton"
 import {ScenarioAnnotationPanelProps} from "./types"
 
 const Annotate = dynamic(
-    () =>
-        import(
-            "@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/Annotate"
-        ),
+    () => import("@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/Annotate"),
     {ssr: false},
 )
 
@@ -65,7 +62,7 @@ const ScenarioAnnotationPanelAnnotation = memo(
         // helper to compute per-step annotation & evaluator lists
         const buildAnnotateData = useCallback(
             (stepKey: string) => {
-                const _steps = annotationsByStep?.[stepKey] || []
+                const _steps = annotationsByStep[stepKey] || []
                 const _annotations = _steps
                     .map((s) => s.annotation)
                     .filter(Boolean) as AnnotationDto[]
@@ -75,12 +72,12 @@ const ScenarioAnnotationPanelAnnotation = memo(
 
                 return {
                     annotations: _annotations,
-                    evaluatorSlugs:
-                        evaluators
-                            ?.map((e) => e.slug)
-                            .filter((slug) => !annotationEvaluatorSlugs.includes(slug)) || [],
-                    evaluators:
-                        evaluators?.filter((e) => !annotationEvaluatorSlugs.includes(e.slug)) || [],
+                    evaluatorSlugs: evaluators
+                        .map((e) => e.slug)
+                        .filter((slug) => !annotationEvaluatorSlugs.includes(slug)),
+                    evaluators: evaluators.filter(
+                        (e) => !annotationEvaluatorSlugs.includes(e.slug),
+                    ),
                 }
             },
             [annotationsByStep, evaluators],
@@ -88,7 +85,7 @@ const ScenarioAnnotationPanelAnnotation = memo(
 
         const {_annotations, isAnnotated, isCreatedByCurrentUser, selectedEvaluators} =
             useMemo(() => {
-                const annotateData = buildAnnotateData(invStep.stepKey)
+                const annotateData = buildAnnotateData(invStep.key)
 
                 const _annotations = annotateData.annotations
                 const selectedEvaluators = annotateData.evaluatorSlugs
@@ -104,10 +101,10 @@ const ScenarioAnnotationPanelAnnotation = memo(
                     selectedEvaluators,
                     _annotations,
                 }
-            }, [invStep.stepKey, buildAnnotateData, evaluators])
+            }, [invStep.key, buildAnnotateData, evaluators])
 
         const isChangedMetricData = useMemo(() => {
-            const annotateData = buildAnnotateData(invStep.stepKey)
+            const annotateData = buildAnnotateData(invStep.key)
 
             const initialAnnotationMetrics = getInitialMetricsFromAnnotations({
                 annotations: annotateData.annotations,
@@ -121,18 +118,11 @@ const ScenarioAnnotationPanelAnnotation = memo(
             const filteredUpdatedMetrics = Object.fromEntries(
                 Object.entries(updatedMetrics).filter(([slug]) => annotationSlugs.includes(slug)),
             )
-
-            if (
-                Object.keys(filteredUpdatedMetrics).length === 0 &&
-                filteredUpdatedMetrics.constructor === Object
-            ) {
-                return true
-            }
             return deepEqual(filteredUpdatedMetrics, initialAnnotationMetrics)
-        }, [updatedMetrics, evaluators, invStep.stepKey])
+        }, [updatedMetrics, evaluators, invStep.key])
 
         const isChangedSelectedEvalMetrics = useMemo(() => {
-            const annotateData = buildAnnotateData(invStep.stepKey)
+            const annotateData = buildAnnotateData(invStep.key)
             const selectedEvaluators = annotateData.evaluatorSlugs
 
             const initialSelectedEvalMetrics = getInitialSelectedEvalMetrics({
@@ -146,18 +136,11 @@ const ScenarioAnnotationPanelAnnotation = memo(
                 ),
             )
 
-            if (
-                Object.keys(filteredUpdatedMetrics).length === 0 &&
-                filteredUpdatedMetrics.constructor === Object
-            ) {
-                return true
-            }
-
             return deepEqual(filteredUpdatedMetrics, initialSelectedEvalMetrics)
-        }, [updatedMetrics, updatedMetrics, evaluators, invStep.stepKey])
+        }, [updatedMetrics, updatedMetrics, evaluators, invStep.key])
 
         return (
-            <div className="flex flex-col">
+            <div key={invStep.key} className="flex flex-col">
                 <Annotate
                     annotations={_annotations}
                     updatedMetrics={updatedMetrics}
@@ -169,7 +152,7 @@ const ScenarioAnnotationPanelAnnotation = memo(
                 <AnnotateScenarioButton
                     runId={runId}
                     scenarioId={scenarioId}
-                    stepKey={invStep.stepKey}
+                    stepKey={invStep.key}
                     updatedMetrics={updatedMetrics}
                     formatErrorMessages={formatErrorMessages}
                     setErrorMessages={setErrorMessages}
@@ -194,33 +177,18 @@ const ScenarioAnnotationPanel: FC<ScenarioAnnotationPanelProps> = ({
     buttonClassName,
     onAnnotate,
 }) => {
-    // Use effective runId with fallback using useMemo
-    const effectiveRunId = useMemo(() => {
-        if (runId) return runId
-        try {
-            return getCurrentRunId()
-        } catch (error) {
-            console.warn("[ScenarioAnnotationPanel] No run ID available:", error)
-            return ""
-        }
-    }, [runId])
-
-    // Get evaluators from run-scoped state instead of global atom
-    const evaluatorsSelector = useCallback((state: any) => {
-        return state?.enrichedRun?.evaluators ? Object.values(state.enrichedRun.evaluators) : []
+    const evaluatorsSelector = useCallback((atom: EvaluatorDto[]) => {
+        return atom.map((evaluator) => evaluator)
     }, [])
 
     const evaluatorsAtom = useMemo(
-        () => selectAtom(evaluationRunStateFamily(effectiveRunId), evaluatorsSelector, deepEqual),
-        [effectiveRunId, evaluatorsSelector],
+        () => selectAtom(evaluationEvaluatorsAtom, evaluatorsSelector, deepEqual),
+        [evaluatorsSelector],
     )
     const evaluators = useAtomValue(evaluatorsAtom)
 
-    // Loadable step data for this scenario (always eager) - now run-scoped
-    // Read from the same global store that writes are going to
-    const stepDataLoadable = useAtomValue(
-        loadable(scenarioStepFamily({scenarioId, runId: effectiveRunId})),
-    )
+    // Loadable step data for this scenario (always eager)
+    const stepDataLoadable = useAtomValue(loadable(scenarioStepFamily(scenarioId)))
 
     // Preserve last known data so we can still show tool-tips / fields while revalidating
     const prevDataRef = useRef<UseEvaluationRunScenarioStepsFetcherResult | undefined>(undefined)
@@ -245,11 +213,11 @@ const ScenarioAnnotationPanel: FC<ScenarioAnnotationPanelProps> = ({
 
         // Pre-compute all annotation steps once (annotation step = has invocation key prefix)
         const allAnnSteps = (stepData.steps || []).filter((s) =>
-            _invocationSteps.some((invStep) => (s.stepKey ?? "").startsWith(`${invStep.stepKey}.`)),
+            _invocationSteps.some((invStep) => (s.key ?? "").startsWith(`${invStep.key}.`)),
         )
-        _invocationSteps.forEach(({stepKey}) => {
-            const anns = allAnnSteps.filter((s) => (s.stepKey ?? "").startsWith(`${stepKey}.`))
-            map[stepKey] = anns
+        _invocationSteps.forEach(({key}) => {
+            const anns = allAnnSteps.filter((s) => (s.key ?? "").startsWith(`${key}.`))
+            map[key] = anns
         })
         return map
     }, [stepData?.steps, _invocationSteps])
@@ -263,7 +231,7 @@ const ScenarioAnnotationPanel: FC<ScenarioAnnotationPanelProps> = ({
                     return (
                         <ScenarioAnnotationPanelAnnotation
                             buttonClassName={buttonClassName}
-                            key={invStep.id}
+                            key={invStep.key}
                             invStep={invStep}
                             annotationsByStep={annotationsByStep}
                             evaluators={evaluators}
@@ -285,8 +253,7 @@ const ScenarioAnnotationPanel: FC<ScenarioAnnotationPanelProps> = ({
                     <Typography>To annotate, please generate output</Typography>
                     <RunEvalScenarioButton
                         scenarioId={scenarioId}
-                        stepKey={_invocationSteps[0]?.stepKey}
-                        runId={effectiveRunId}
+                        stepKey={_invocationSteps[0]?.key}
                         key="run-button"
                     />
                 </div>

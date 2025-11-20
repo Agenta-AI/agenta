@@ -2,17 +2,9 @@ import type {Dispatch, HTMLProps, SetStateAction} from "react"
 
 import {ModalProps} from "antd"
 
-import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
 import {LLMRunRateLimit, Evaluator, EvaluatorConfig, testset} from "@/oss/lib/Types"
-
-export interface NewEvaluationAppOption {
-    label: string
-    value: string
-    type?: string | null
-    createdAt?: string | null
-    updatedAt?: string | null
-}
+import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 
 export interface LLMRunRateLimitWithCorrectAnswer extends LLMRunRateLimit {
     correct_answer_column: string
@@ -40,36 +32,29 @@ export interface NewEvaluationModalContentProps extends HTMLProps<HTMLDivElement
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
     setEvaluationName: Dispatch<SetStateAction<string>>
     isOpen?: boolean
-    testsets: testset[]
+    testSets: testset[]
     variants?: EnhancedVariant[]
-    variantsLoading?: boolean
     evaluators: Evaluator[] | EvaluatorDto<"response">[]
     evaluatorConfigs: EvaluatorConfig[]
     advanceSettings: LLMRunRateLimitWithCorrectAnswer
     setAdvanceSettings: Dispatch<SetStateAction<LLMRunRateLimitWithCorrectAnswer>>
-    appOptions: NewEvaluationAppOption[]
-    selectedAppId: string
-    onSelectApp: (value: string) => void
-    appSelectionDisabled?: boolean
 }
 
 export interface SelectVariantSectionProps extends HTMLProps<HTMLDivElement> {
-    isVariantLoading?: boolean
+    isVariantLoading: boolean
     variants?: EnhancedVariant[]
     selectedVariantRevisionIds: string[]
     setSelectedVariantRevisionIds: Dispatch<SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
     evaluationType: "auto" | "human"
-    selectedTestsetId?: string
 }
 
 export interface SelectTestsetSectionProps extends HTMLProps<HTMLDivElement> {
-    testsets: testset[]
+    testSets: testset[]
     selectedTestsetId: string
     setSelectedTestsetId: Dispatch<SetStateAction<string>>
     handlePanelChange: (key: string | string[]) => void
     preview?: boolean
-    selectedVariantRevisionIds: string[]
 }
 
 export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
@@ -79,7 +64,6 @@ export interface SelectEvaluatorSectionProps extends HTMLProps<HTMLDivElement> {
     setSelectedEvalConfigs: Dispatch<SetStateAction<string[]>>
     handlePanelChange: (key: string | string[]) => void
     preview?: boolean
-    selectedAppId?: string
 }
 
 export interface AdvancedSettingsProps {

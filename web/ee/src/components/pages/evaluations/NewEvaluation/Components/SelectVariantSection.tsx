@@ -2,12 +2,12 @@ import {memo, useCallback, useMemo, useState} from "react"
 
 import {Input} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
+import {useAppsData} from "@/oss/contexts/app.context"
+import {useAppId} from "@/oss/hooks/useAppId"
 import {useVariants} from "@/oss/lib/hooks/useVariants"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
-import {currentAppAtom} from "@/oss/state/app"
 
 import type {SelectVariantSectionProps} from "../types"
 
@@ -20,26 +20,23 @@ const NoResultsFound = dynamic(() => import("@/oss/components/NoResultsFound/NoR
 
 const SelectVariantSection = ({
     selectedVariantRevisionIds,
-    selectedTestsetId,
     className,
     setSelectedVariantRevisionIds,
     handlePanelChange,
     evaluationType,
     variants: propsVariants,
-    isVariantLoading: propsVariantLoading,
     ...props
 }: SelectVariantSectionProps) => {
-    const currentApp = useAtomValue(currentAppAtom)
-
-    const {data, isLoading: fallbackLoading} = useVariants(currentApp)
-    const variants = useMemo(() => propsVariants || data, [propsVariants, data])
-    const isVariantLoading = propsVariantLoading ?? fallbackLoading
+    const {currentApp} = useAppsData()
+    const appId = useAppId()
+    const {data, isLoading: isVariantLoading} = useVariants(currentApp)({appId})
+    const variants = useMemo(() => propsVariants || data?.variants, [propsVariants, data?.variants])
 
     const [searchTerm, setSearchTerm] = useState("")
 
     const filteredVariant = useMemo(() => {
         if (!searchTerm) return variants
-        return variants?.filter((item: EnhancedVariant) =>
+        return variants?.filter((item) =>
             item.variantName.toLowerCase().includes(searchTerm.toLowerCase()),
         )
     }, [searchTerm, variants])
@@ -49,10 +46,11 @@ const SelectVariantSection = ({
             const selectedId = selectedRowKeys[0] as string | undefined
             if (selectedId) {
                 setSelectedVariantRevisionIds([selectedId])
-                handlePanelChange("testsetPanel")
+                handlePanelChange("evaluatorPanel")
             } else {
                 setSelectedVariantRevisionIds([])
             }
+            
         },
         [setSelectedVariantRevisionIds, handlePanelChange],
     )
@@ -67,11 +65,9 @@ const SelectVariantSection = ({
         [selectedVariantRevisionIds, onSelectVariant],
     )
 
-    const variantsNonNull = (filteredVariant || []) as EnhancedVariant[]
-
     return (
         <div className={clsx(className)} {...props}>
-            <div className="flex items-start justify-between mb-2 gap-4">
+            <div className="flex items-center justify-between mb-2">
                 <Input.Search
                     placeholder="Search"
                     className="w-[300px] [&_input]:!py-[3.1px]"
@@ -80,7 +76,6 @@ const SelectVariantSection = ({
                 />
             </div>
             <VariantsTable
-                showStableName
                 rowSelection={{
                     type: "radio",
                     selectedRowKeys: selectedVariantRevisionIds,
@@ -91,15 +86,13 @@ const SelectVariantSection = ({
                 onRow={(record) => {
                     return {
                         style: {cursor: "pointer"},
-                        onClick: () => {
-                            onRowClick(record as EnhancedVariant)
-                        },
+                        onClick: () => onRowClick(record as EnhancedVariant),
                     }
                 }}
                 showActionsDropdown={false}
                 scroll={{x: "max-content", y: 455}}
                 isLoading={isVariantLoading}
-                variants={variantsNonNull}
+                variants={filteredVariant}
                 onRowClick={() => {}}
                 className="ph-no-capture"
                 rowKey={"id"}

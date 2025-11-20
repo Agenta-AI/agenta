@@ -35,13 +35,11 @@ evaluators = [
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
         },
         "description": "Exact Match evaluator determines if the output exactly matches the specified correct answer, ensuring precise alignment with expected results.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["functional"],
     },
@@ -51,8 +49,6 @@ evaluators = [
         "direct_use": True,
         "settings_template": {},
         "description": "'Contains JSON' evaluator checks if the output contains the a valid JSON.",
-        "requires_testcase": "never",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["functional", "classifiers"],
     },
@@ -75,13 +71,11 @@ evaluators = [
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
         },
         "description": "Similarity Match evaluator checks if the generated answer is similar to the expected answer. You need to provide the similarity threshold. It uses the Jaccard similarity to compare the answers.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["similarity", "functional"],
     },
@@ -98,12 +92,10 @@ evaluators = [
                 "type": "string",
                 "required": True,
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
         },
-        "requires_testcase": "always",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["similarity", "ai_llm"],
     },
@@ -127,8 +119,6 @@ evaluators = [
                 "description": "If the regex should match or mismatch",
             },
         },
-        "requires_testcase": "never",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["classifiers", "functional"],
     },
@@ -149,13 +139,11 @@ evaluators = [
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
         },
         "description": "JSON Field Match evaluator compares specific fields within JSON (JavaScript Object Notation) data. This matching can involve finding similarities or correspondences between fields in different JSON objects.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["functional"],
     },
@@ -191,12 +179,10 @@ evaluators = [
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
         },
-        "requires_testcase": "always",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["similarity", "functional"],
     },
@@ -205,78 +191,6 @@ evaluators = [
         "key": "auto_ai_critique",
         "direct_use": False,
         "requires_llm_api_keys": True,
-        "settings_presets": [
-            {
-                "key": "default",
-                "name": "Default",
-                "values": {
-                    "prompt_template": [
-                        {
-                            "role": "system",
-                            "content": "You are an expert evaluator grading model outputs. Your task is to grade the responses based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) assign a grade to the output. \n\n## Grading considerations\n- Evaluate the overall value provided in the model output\n- Verify all claims in the output meticulously\n- Differentiate between minor errors and major errors\n- Evaluate the outputs based on the inputs and whether they follow the instruction in the inputs if any\n- Give the highst and lowest score for cases where you have complete certainty about correctness and value\n\n## Scoring Criteria\n- The score should be a decimal value between 0.0 and 1.0\n- A score of 1.0 means that the answer is perfect. This is the highest (best) score \n- A score of 0.0 means that the answer does not meet any of the criteria. This is the lowest possible score you can give.\n\n## output format\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER\n",
-                        },
-                        {
-                            "role": "user",
-                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
-                        },
-                    ],
-                    "model": "gpt-4o-mini",
-                    "response_type": "json_schema",
-                    "json_schema": {
-                        "name": "schema",
-                        "schema": {
-                            "title": "extract",
-                            "description": "Extract information from the user's response.",
-                            "type": "object",
-                            "properties": {
-                                "correctness": {
-                                    "type": "boolean",
-                                    "description": "The grade results",
-                                }
-                            },
-                            "required": ["correctness"],
-                            "strict": True,
-                        },
-                    },
-                    "version": "4",
-                },
-            },
-            {
-                "key": "hallucination",
-                "name": "Hallucination Detection",
-                "values": {
-                    "prompt_template": [
-                        {
-                            "role": "system",
-                            "content": "You are an expert evaluator grading model outputs for hallucinations. Your task is to identify if the responses contain any hallucinated information based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) determine if the output contains hallucinations. \n\n## Hallucination considerations\n- Verify all factual claims in the output meticulously against the input data\n- Identify any information that is fabricated or not supported by the input data\n- Differentiate between minor inaccuracies and major hallucinations\n\n## Output format\nANSWER ONLY 'true' IF THE OUTPUT CONTAINS HALLUCINATIONS, OTHERWISE ANSWER 'false'. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN 'true' OR 'false'\n",
-                        },
-                        {
-                            "role": "user",
-                            "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
-                        },
-                    ],
-                    "model": "gpt-4o-mini",
-                    "response_type": "json_schema",
-                    "json_schema": {
-                        "name": "schema",
-                        "schema": {
-                            "title": "extract",
-                            "description": "Extract information from the user's response.",
-                            "type": "object",
-                            "properties": {
-                                "correctness": {
-                                    "type": "boolean",
-                                    "description": "The hallucination detection result",
-                                }
-                            },
-                            "required": ["correctness"],
-                            "strict": True,
-                        },
-                    },
-                    "version": "4",
-                },
-            },
-        ],
         "settings_template": {
             "prompt_template": {
                 "label": "Prompt Template",
@@ -286,11 +200,11 @@ evaluators = [
                 "default": [
                     {
                         "role": "system",
-                        "content": "You are an expert evaluator grading model outputs. Your task is to grade the responses based on the criteria and requirements provided below. \n\nGiven the model output and inputs (and any other data you might get) assign a grade to the output. \n\n## Grading considerations\n- Evaluate the overall value provided in the model output\n- Verify all claims in the output meticulously\n- Differentiate between minor errors and major errors\n- Evaluate the outputs based on the inputs and whether they follow the instruction in the inputs if any\n- Give the highst and lowest score for cases where you have complete certainty about correctness and value\n\n## Scoring Criteria\n- The score should be a decimal value between 0.0 and 1.0\n- A score of 1.0 means that the answer is perfect. This is the highest (best) score \n- A score of 0.0 means that the answer does not meet any of the criteria. This is the lowest possible score you can give.\n\n## output format\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER\n",
+                        "content": "You are an evaluator grading an LLM App.\n You will be the LLM APP OUTPUT, the CORRECT ANSWER, the PROMPT used in the LLM APP.\n Here is the grade criteria to follow:\n:- Ensure that the LLM APP OUTPUT has the same meaning as the CORRECT ANSWER\n\nSCORE:\n-The score should be a decimal between 0 and 1\n-A score of 1 means that the answer is perfect. This is the highest (best) score. \nA score of 0 means that the answer does not any of of the criteria. This is the lowest possible score you can give.\n\nANSWER ONLY THE SCORE. DO NOT USE MARKDOWN. DO NOT PROVIDE ANYTHING OTHER THAN THE NUMBER",
                     },
                     {
                         "role": "user",
-                        "content": "## Model inputs\n{{inputs}}\n## Model outputs\n{{outputs}}",
+                        "content": "CORRECT ANSWER:{correct_answer}\nLLM APP OUTPUT: {prediction}.",
                     },
                 ],
             },
@@ -300,67 +214,32 @@ evaluators = [
                 "type": "string",
                 "required": False,
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
             "model": {
                 "label": "Model",
-                "default": "gpt-4o-mini",
+                "default": "gpt-3.5-turbo",
                 "type": "multiple_choice",
                 "options": [
-                    "gpt-4-turbo",
+                    "gpt-3.5-turbo",
                     "gpt-4o",
-                    "gpt-4o-mini",
-                    "gpt-5",
-                    "gpt-5-mini",
-                    "gpt-5-nano",
-                    "claude-3-7-sonnet-20250219",
-                    "claude-opus-4-20250514",
-                    "claude-sonnet-4-20250514",
-                    "claude-opus-4-1-20250805",
-                    "claude-sonnet-4-5-20250929",
+                    "claude-3-5-sonnet-20240620",
+                    "claude-3-haiku-20240307",
+                    "claude-3-opus-20240229",
                 ],
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
                 "description": "The LLM model to use for the evaluation",
             },
-            "response_type": {
-                "label": "Response Type",
-                "default": "json_schema",
-                "type": "hidden",
-                "advanced": True,
-                "description": "The format of the response from the LLM",
-            },
-            "json_schema": {
-                "label": "Feedback Configuration",
-                "default": {
-                    "name": "schema",
-                    "schema": {
-                        "title": "extract",
-                        "description": "Extract information from the user's response.",
-                        "type": "object",
-                        "properties": {
-                            "correctness": {
-                                "type": "boolean",
-                                "description": "The grade results",
-                            }
-                        },
-                        "required": ["correctness"],
-                        "strict": True,
-                    },
-                },
-                "type": "llm_response_schema",
-                "advanced": False,
-                "description": "Select a response format to structure how your evaluation results are returned.",
-            },
             "version": {
                 "label": "Version",
                 "type": "hidden",
-                "default": "4",
+                "default": "2",
                 "description": "The version of the evaluator",  # ignore by the FE
                 "advanced": False,  # ignore by the FE
             },
         },
-        "description": "LLM-as-a-judge uses a configurable prompt template that takes the output—and optionally inputs or data from the testcase such as correct answer—to evaluate the generated output.",
+        "description": "LLM-as-a-judge uses a configurable prompt template that takes the output—and optionally inputs or data from the test case such as correct answer—to evaluate the generated output.",
         "oss": True,
         "tags": ["ai_llm", "functional"],
     },
@@ -390,7 +269,7 @@ evaluators = [
                 "type": "string",
                 "required": False,
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer. This will be shown in the results page.",
             },
         },
@@ -423,7 +302,7 @@ evaluators = [
                 "type": "string",
                 "required": False,
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
         },
@@ -450,8 +329,6 @@ evaluators = [
             },
         },
         "description": "Starts With evaluator checks if the output starts with a specified prefix, considering case sensitivity based on the settings.",
-        "requires_testcase": "never",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["classifiers", "functional"],
     },
@@ -474,8 +351,6 @@ evaluators = [
             },
         },
         "description": "Ends With evaluator checks if the output ends with a specified suffix, considering case sensitivity based on the settings.",
-        "requires_testcase": "never",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["classifiers", "functional"],
     },
@@ -498,8 +373,6 @@ evaluators = [
             },
         },
         "description": "Contains evaluator checks if the output contains a specified substring, considering case sensitivity based on the settings.",
-        "requires_testcase": "never",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["classifiers", "functional"],
     },
@@ -522,8 +395,6 @@ evaluators = [
             },
         },
         "description": "Contains Any evaluator checks if the output contains any of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
-        "requires_testcase": "never",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["classifiers", "functional"],
     },
@@ -546,8 +417,6 @@ evaluators = [
             },
         },
         "description": "Contains All evaluator checks if the output contains all of the specified substrings from a comma-separated list, considering case sensitivity based on the settings.",
-        "requires_testcase": "never",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["classifiers", "functional"],
     },
@@ -567,13 +436,11 @@ evaluators = [
                 "default": "correct_answer",
                 "type": "string",
                 "advanced": True,  # Tells the frontend that this setting is advanced and should be hidden by default
-                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the testset that should be shown as a ground truth to the user
+                "ground_truth_key": True,  # Tells the frontend that is the name of the column in the test set that should be shown as a ground truth to the user
                 "description": "The name of the column in the test data that contains the correct answer",
             },
         },
         "description": "This evaluator calculates the Levenshtein distance between the output and the correct answer. If a threshold is provided in the settings, it returns a boolean indicating whether the distance is within the threshold. If no threshold is provided, it returns the actual Levenshtein distance as a numerical value.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
         "oss": True,
         "tags": ["functional"],
     },
@@ -584,8 +451,6 @@ evaluators = [
         "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Faithfulness evaluator assesses the accuracy and reliability of responses generated by Retrieval-Augmented Generation (RAG) models. It evaluates how faithfully the responses adhere to the retrieved documents or sources, ensuring that the generated text accurately reflects the information from the original sources.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
         "tags": ["rag"],
     },
     {
@@ -595,8 +460,6 @@ evaluators = [
         "requires_llm_api_keys": True,
         "settings_template": rag_evaluator_settings_template,
         "description": "RAG Context Relevancy evaluator measures how relevant the retrieved documents or contexts are to the given question or prompt. It ensures that the selected documents provide the necessary information for generating accurate and meaningful responses, improving the overall quality of the RAG model's output.",
-        "requires_testcase": "always",
-        "requires_trace": "always",
         "tags": ["rag"],
     },
 ]

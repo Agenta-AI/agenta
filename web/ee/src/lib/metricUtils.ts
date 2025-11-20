@@ -46,105 +46,6 @@ export type SchemaMetricType = PrimitiveMetricType | PrimitiveMetricType[]
 // Helpers
 // ---------------------------------------------------------------------------
 
-const METRIC_KEY_SYNONYMS: string[][] = [
-    [
-        "attributes.ag.metrics.costs.cumulative.total",
-        "totalCost",
-        "costs.total",
-        "cost",
-        "ag.metrics.unit.costs.total",
-        "attributes.ag.metrics.unit.costs.total",
-        "otel.attributes.ag.metrics.unit.costs.total",
-    ],
-    [
-        "attributes.ag.metrics.duration.cumulative",
-        "duration",
-        "duration.total",
-        "ag.metrics.unit.duration.total",
-        "attributes.ag.metrics.unit.duration.total",
-        "otel.attributes.ag.metrics.unit.duration.total",
-    ],
-    [
-        "attributes.ag.metrics.tokens.cumulative.total",
-        "totalTokens",
-        "tokens.total",
-        "tokens",
-        "ag.metrics.unit.tokens.total",
-        "attributes.ag.metrics.unit.tokens.total",
-        "otel.attributes.ag.metrics.unit.tokens.total",
-    ],
-    ["attributes.ag.metrics.errors.cumulative", "errors"],
-]
-
-const aliasToCanonical = new Map<string, string>()
-const canonicalToGroup = new Map<string, string[]>()
-
-METRIC_KEY_SYNONYMS.forEach((group) => {
-    const [canonical] = group
-    canonicalToGroup.set(canonical, group)
-    group.forEach((alias) => {
-        aliasToCanonical.set(alias, canonical)
-    })
-})
-
-/**
- * Return the canonical metric key for the provided alias. If the key is not a
- * recognised alias it is returned unchanged.
- */
-export const canonicalizeMetricKey = (key: string): string => {
-    return aliasToCanonical.get(key) ?? key
-}
-
-const resolveMetricCandidates = (key: string): string[] => {
-    const canonical = canonicalizeMetricKey(key)
-    const group = canonicalToGroup.get(canonical)
-    return group ? group : [canonical]
-}
-
-/**
- * Fetch a metric value from a flat metrics map using canonical aliases.
- * Returns the first non-undefined candidate.
- */
-export const getMetricValueWithAliases = <T = unknown>(
-    metrics: Record<string, any>,
-    key: string,
-): T | undefined => {
-    if (!metrics) return undefined
-    const candidates = resolveMetricCandidates(key)
-    for (const candidate of candidates) {
-        if (candidate in metrics && metrics[candidate] !== undefined) {
-            return metrics[candidate] as T
-        }
-    }
-    return undefined
-}
-
-/**
- * Helper used by table headers to provide a human friendly label for well known
- * metrics regardless of whether we receive the legacy or the new analytics key.
- */
-export const getMetricDisplayName = (key: string): string => {
-    const canonical = canonicalizeMetricKey(key)
-    switch (canonical) {
-        case "attributes.ag.metrics.costs.cumulative.total":
-            return "Cost (Total)"
-        case "attributes.ag.metrics.duration.cumulative":
-            return "Duration (Total)"
-        case "attributes.ag.metrics.tokens.cumulative.total":
-            return "Tokens (Total)"
-        case "attributes.ag.metrics.errors.cumulative":
-            return "Errors"
-        default: {
-            const cleaned = canonical
-                .replace(/[_\.]/g, " ")
-                .replace(/\s+/g, " ")
-                .trim()
-                .toLowerCase()
-            return cleaned.replace(/\b\w/g, (c) => c.toUpperCase())
-        }
-    }
-}
-
 /**
  * Extract a single primitive value from a metric payload.
  *
@@ -249,32 +150,6 @@ export function metricCompare(a: unknown, b: unknown): number {
     // undefined / null handling – push to bottom
     if (a === undefined || a === null) return 1
     if (b === undefined || b === null) return -1
-
-    // Normalize boolean-like values so categorical metrics sort correctly.
-    // Accept true/false, "true"/"false" (case-insensitive), and 1/0.
-    const normalizeBool = (v: unknown): boolean | undefined => {
-        if (typeof v === "boolean") return v
-        if (typeof v === "number") {
-            if (v === 1) return true
-            if (v === 0) return false
-            return undefined
-        }
-        if (typeof v === "string") {
-            const s = v.trim().toLowerCase()
-            if (s === "true") return true
-            if (s === "false") return false
-            if (s === "1") return true
-            if (s === "0") return false
-        }
-        return undefined
-    }
-
-    const boolA = normalizeBool(a)
-    const boolB = normalizeBool(b)
-    if (boolA !== undefined && boolB !== undefined) {
-        // false < true when sorting ascending
-        return Number(boolA) - Number(boolB)
-    }
 
     const numA = Number(a as any)
     const numB = Number(b as any)

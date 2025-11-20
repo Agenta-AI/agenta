@@ -3,14 +3,14 @@ import {useState, useCallback, memo} from "react"
 import {Button} from "antd"
 import {useAtomValue} from "jotai"
 
-import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import {scenarioUiFlagsFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/progress"
-import {getProjectValues} from "@/oss/state/project"
 
-import {buildAnnotationContext} from "../../assets/annotationUtils"
 import {handleAnnotate, handleUpdateAnnotate} from "../../assets/helpers"
 
 import {AnnotateScenarioButtonProps} from "./types"
+import {buildAnnotationContext} from "../../assets/annotationUtils"
+import {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 
 const AnnotateScenarioButton = ({
     runId,
@@ -26,14 +26,14 @@ const AnnotateScenarioButton = ({
     className,
 }: AnnotateScenarioButtonProps) => {
     const [annotating, setAnnotating] = useState(false)
-    const uiFlags = useAtomValue(scenarioUiFlagsFamily({scenarioId, runId}))
+    const uiFlags = useAtomValue(scenarioUiFlagsFamily(scenarioId))
     const isLoading = annotating || uiFlags.isAnnotating || uiFlags.isRevalidating
 
     const onAnnotate = useCallback(async () => {
         try {
             setAnnotating(true)
 
-            const ctx = await buildAnnotationContext({scenarioId, stepKey, runId})
+            const ctx = await buildAnnotationContext({scenarioId, stepKey})
             if (!ctx) return
             const {evaluators, stepData} = ctx
             const annotations = stepData?.annotationSteps
@@ -54,7 +54,7 @@ const AnnotateScenarioButton = ({
                     updatedMetrics,
                     formatErrorMessages,
                     setErrorMessages,
-                    projectId: getProjectValues().projectId,
+                    projectId: getCurrentProject().projectId,
                     stepKey,
                 })
             }
@@ -66,7 +66,7 @@ const AnnotateScenarioButton = ({
                     updatedMetrics,
                     formatErrorMessages,
                     setErrorMessages,
-                    projectId: getProjectValues().projectId,
+                    projectId: getCurrentProject().projectId,
                     stepKey,
                 })
             }

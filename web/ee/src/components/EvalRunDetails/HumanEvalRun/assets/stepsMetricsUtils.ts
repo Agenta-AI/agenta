@@ -39,12 +39,12 @@ export const collectStepsAndMetrics = ({
 
     // Filter annotation steps belonging to the selected invocation step
     const stepAnnotationSteps = (stepData.annotationSteps || []).filter((ann: any) =>
-        (ann.stepKey ?? "").startsWith(`${stepKey}.`),
+        (ann.key ?? "").startsWith(`${stepKey}.`),
     )
 
     if (mode === "create") {
         // Track existing keys to avoid duplicates
-        const existingStepKeys = new Set(stepAnnotationSteps.map((s: any) => s.stepKey))
+        const existingStepKeys = new Set(stepAnnotationSteps.map((s: any) => s.key))
 
         annotationResponses.forEach((resp: any) => {
             const ann = resp?.data?.annotation
@@ -61,7 +61,7 @@ export const collectStepsAndMetrics = ({
             if (!existingStepKeys.has(evaluatorKey)) {
                 stepsToCreate.push({
                     status,
-                    step_key: evaluatorKey,
+                    key: evaluatorKey,
                     span_id: ann.span_id,
                     trace_id: ann.trace_id,
                     scenario_id: scenarioId,
@@ -98,6 +98,7 @@ export const collectStepsAndMetrics = ({
                 if ("unique" in stat) delete stat.unique
                 if ("binSize" in stat) delete stat.binSize
 
+                console.log("save value", k, schema, stat, v)
                 nestedMetrics[fullKey][k] = stat
             })
         })
@@ -106,11 +107,10 @@ export const collectStepsAndMetrics = ({
         stepAnnotationSteps.forEach((ann: any) => {
             const linkedResponse = annotationResponses.find((r) => {
                 const annKey = `${stepKey}.${r?.data?.annotation?.references?.evaluator?.slug}`
-                return annKey === ann.stepKey
+                return annKey === ann.key
             })
             if (linkedResponse) {
-                const status =
-                    evaluatorStatuses[ann.stepKey.split(".")[1]] || EvaluationStatus.SUCCESS
+                const status = evaluatorStatuses[ann.key.split(".")[1]] || EvaluationStatus.SUCCESS
                 patchStepsFull.push({
                     ...ann,
                     status,
@@ -131,7 +131,7 @@ export const collectStepsAndMetrics = ({
             )
             if (!linkedResponse) return
 
-            const slug = ann.stepKey.split(".")[1]
+            const slug = ann.key.split(".")[1]
             const evaluator = evaluators.find((e) => e.slug === slug)
             if (!evaluator) return
 

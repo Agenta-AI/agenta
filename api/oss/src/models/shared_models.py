@@ -71,7 +71,6 @@ class AppType(str, enum.Enum):
     CHAT_SERVICE = "SERVICE:chat"
     COMPLETION_SERVICE = "SERVICE:completion"
     CUSTOM = "CUSTOM"
-    SDK_CUSTOM = "SDK_CUSTOM"
 
     @classmethod
     def friendly_tag(cls, app_type: str):
@@ -81,6 +80,5 @@ class AppType(str, enum.Enum):
             cls.CHAT_SERVICE: "chat",
             cls.COMPLETION_SERVICE: "completion",
             cls.CUSTOM: "custom",
-            cls.SDK_CUSTOM: "custom (sdk)",
         }
         return mappings.get(app_type, None)  # type: ignore

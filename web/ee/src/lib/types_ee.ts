@@ -74,27 +74,6 @@ export interface GenerationDashboardData {
     avg_tokens: number
 }
 
-export interface TracingDashboardData {
-    buckets: {
-        errors: {
-            costs: number
-            count: number
-            duration: number
-            tokens: number
-        }
-        timestamp: string
-        total: {
-            costs: number
-            count: number
-            duration: number
-            tokens: number
-        }
-        window: number
-    }[]
-    count: number
-    version: string
-}
-
 export interface Trace extends Generation {}
 
 export interface TraceDetails extends GenerationDetails {

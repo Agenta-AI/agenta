@@ -61,4 +61,4 @@ python query.py
 
 ## Notes:
 
-- `generate_testset.py` is used to generate a testset of questions based on the documentation for evaluation.
+- `generate_test_set.py` is used to generate a test set of questions based on the documentation for evaluation.

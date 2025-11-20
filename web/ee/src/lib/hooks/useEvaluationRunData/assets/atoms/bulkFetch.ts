@@ -1,114 +1,56 @@
-import {createStore} from "jotai"
+import {atom, createStore} from "jotai"
 
 import {UseEvaluationRunScenarioStepsFetcherResult} from "../../../useEvaluationRunScenarioSteps/types"
 import {fetchScenarioViaWorkerAndCache} from "../helpers/fetchScenarioViaWorker"
 
-import {
-    bulkStepsStatusFamily,
-    bulkStepsCacheFamily,
-    evaluationRunStateFamily,
-    enrichedRunFamily,
-} from "./runScopedAtoms"
+import {evaluationRunIdAtom} from "./derived"
+import {evaluationRunStateAtom} from "./evaluationRunStateAtom"
+
+import {enrichedRunAtom} from "."
 
 /*
   Bulk scenario-step prefetching for Evaluation Run screen.
-  Updated to work with run-scoped atom families instead of global atoms.
-  This allows multiple evaluation runs to have independent bulk fetch states.
+  Delegates heavy lifting to the shared `fetchScenarioStepsBulk` helper created during the refactor.
+  This atom fires once per run, fetches + enriches all steps in the background, and puts the result
+  into `bulkStepsCacheAtom` for UI consumers.
 */
 
-// Legacy exports for backward compatibility during migration
-// These will be removed once all components are migrated
-export const bulkStepsStatusAtom = bulkStepsStatusFamily("__legacy__")
+export const bulkStepsStatusAtom = atom<"idle" | "loading" | "done" | "error">("idle")
 
-// Bulk fetch logic updated to work with run-scoped atom families
+export const bulkStepsCacheAtom = atom<Map<string, UseEvaluationRunScenarioStepsFetcherResult>>(
+    new Map(),
+)
+
+// Bulk fetch logic extracted to helper to reduce atom surface
 export async function runBulkFetch(
     store: ReturnType<typeof createStore>,
-    runId: string,
     scenarioIds: string[],
     opts: {
         force?: boolean
         onComplete?: (map: Map<string, UseEvaluationRunScenarioStepsFetcherResult>) => void
-        silent?: boolean
     } = {},
 ): Promise<Map<string, UseEvaluationRunScenarioStepsFetcherResult>> {
-    if (!scenarioIds || !scenarioIds.length) {
-        return new Map()
-    }
+    if (!scenarioIds.length) return new Map()
 
-    const status = store.get(bulkStepsStatusFamily(runId))
-
+    const status = store.get(bulkStepsStatusAtom)
     if (!opts.force && (status === "loading" || status === "done")) {
-        const cachedData = store.get(bulkStepsCacheFamily(runId))
-
-        return cachedData
+        return store.get(bulkStepsCacheAtom)
     }
 
-    const enrichedRun = store.get(enrichedRunFamily(runId))
-    const evaluationRunState = store.get(evaluationRunStateFamily(runId))
-    const runIndex = evaluationRunState?.runIndex
+    const runId = store.get(evaluationRunIdAtom)
+    const enrichedRun = store.get(enrichedRunAtom)
+    const {runIndex} = store.get(evaluationRunStateAtom)
+    if (!runId || !enrichedRun || !runIndex) return store.get(bulkStepsCacheAtom)
 
-    // Validate scenario IDs and filter out skeleton/placeholder IDs
-    const validScenarioIds = scenarioIds.filter((id) => {
-        if (!id || typeof id !== "string") return false
-
-        // Skip skeleton/placeholder IDs gracefully
-        if (id.startsWith("skeleton-") || id.startsWith("placeholder-")) {
-            return false
-        }
-
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-        return uuidRegex.test(id)
-    })
-
-    // Use filtered valid IDs
-    scenarioIds = validScenarioIds
-
-    // Early return if no valid scenario IDs remain after filtering
-    if (scenarioIds.length === 0) {
-        return store.get(bulkStepsCacheFamily(runId))
-    }
-
-    if (!runId || !enrichedRun || !runIndex) {
-        return store.get(bulkStepsCacheFamily(runId))
-    }
-
-    if (!opts.silent) {
-        store.set(bulkStepsStatusFamily(runId), "loading")
-    }
-    // return
+    store.set(bulkStepsStatusAtom, "loading")
     try {
         const params = {runId, evaluation: enrichedRun, runIndex}
-
-        const workerResult =
-            (await fetchScenarioViaWorkerAndCache(params, scenarioIds)) || new Map()
-
-        // Write all results to the bulk cache atom at once
-        store.set(bulkStepsCacheFamily(runId), (draft) => {
-            const next = draft ? new Map(draft) : new Map()
-            for (const [scenarioId, scenarioSteps] of workerResult?.entries() || []) {
-                if (scenarioSteps) {
-                    next.set(scenarioId, scenarioSteps)
-                }
-            }
-            return next
-        })
-
-        if (!opts.silent) {
-            store.set(bulkStepsStatusFamily(runId), "done")
-        }
-
-        if (typeof opts.onComplete === "function") {
-            opts.onComplete(workerResult)
-        }
-
-        return workerResult
+        await fetchScenarioViaWorkerAndCache(scenarioIds, params)
+        store.set(bulkStepsStatusAtom, "done")
+        // return store.get(bulkStepsCacheAtom)
     } catch (err) {
         console.error("[bulk-steps] bulk fetch ERROR", err)
-        if (!opts.silent) {
-            store.set(bulkStepsStatusFamily(runId), "error")
-        }
-        return store.get(bulkStepsCacheFamily(runId))
+        store.set(bulkStepsStatusAtom, "error")
+        // return store.get(bulkStepsCacheAtom)
     }
-
-    return store.get(bulkStepsCacheFamily(runId))
 }

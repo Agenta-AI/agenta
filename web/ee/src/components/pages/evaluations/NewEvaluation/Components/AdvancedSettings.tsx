@@ -2,10 +2,10 @@ import {memo, useCallback, useMemo} from "react"
 
 import {QuestionCircleOutlined} from "@ant-design/icons"
 import {Button, Col, Flex, Form, Input, InputNumber, Row, Tooltip, Typography} from "antd"
-import deepEqual from "fast-deep-equal"
 
-import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
 import {AdvancedSettingsProps} from "../types"
+import {DEFAULT_ADVANCE_SETTINGS} from "../assets/constants"
+import deepEqual from "fast-deep-equal"
 
 const AdvancedSettings = ({advanceSettings, setAdvanceSettings}: AdvancedSettingsProps) => {
     const handleChange = (key: string, value: any) => {
@@ -92,7 +92,7 @@ const AdvancedSettings = ({advanceSettings, setAdvanceSettings}: AdvancedSetting
                     label={
                         <>
                             Correct Answer Column&nbsp;
-                            <Tooltip title="Column in the testset containing the correct/expected answer">
+                            <Tooltip title="Column in the test set containing the correct/expected answer">
                                 <QuestionCircleOutlined />
                             </Tooltip>
                         </>

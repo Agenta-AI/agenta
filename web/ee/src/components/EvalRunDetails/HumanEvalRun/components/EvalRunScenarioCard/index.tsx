@@ -5,7 +5,7 @@ import deepEqual from "fast-deep-equal"
 import {useAtomValue} from "jotai"
 import {selectAtom} from "jotai/utils"
 
-import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
+import {evaluationRunStateAtom} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {EvaluationRunState} from "@/oss/lib/hooks/useEvaluationRunData/types"
 
 import EvalRunScenarioCardTitle from "../EvalRunScenarioCardTitle"
@@ -24,19 +24,18 @@ import {EvalRunScenarioCardProps} from "./types"
  * @param {ViewType} [viewType="list"] - Determines the layout of the scenario display,
  *                                       either as a "list" (card format) or "single" (full-width).
  */
-const EvalRunScenarioCard = ({scenarioId, runId, viewType = "list"}: EvalRunScenarioCardProps) => {
+const EvalRunScenarioCard = ({scenarioId, viewType = "list"}: EvalRunScenarioCardProps) => {
     /* scenario index for card title */
-    // Read from the same global store that writes are going to
     const scenarioIndex = useAtomValue(
         useMemo(
             () =>
                 selectAtom(
-                    evaluationRunStateFamily(runId), // Use run-scoped atom with runId
+                    evaluationRunStateAtom,
                     (state: EvaluationRunState) =>
                         state.scenarios?.find((s) => s.id === scenarioId)?.scenarioIndex,
                     deepEqual,
                 ),
-            [scenarioId, runId], // Include runId in dependencies
+            [scenarioId],
         ),
     )
 
@@ -45,21 +44,17 @@ const EvalRunScenarioCard = ({scenarioId, runId, viewType = "list"}: EvalRunScen
     return viewType === "list" ? (
         <Card
             title={
-                <EvalRunScenarioCardTitle
-                    scenarioId={scenarioId}
-                    runId={runId}
-                    scenarioIndex={scenarioIndex}
-                />
+                <EvalRunScenarioCardTitle scenarioId={scenarioId} scenarioIndex={scenarioIndex} />
             }
             style={{width: 400}}
             className="self-stretch"
             actions={[<RunEvalScenarioButton scenarioId={scenarioId} key="run" />]}
         >
-            <EvalRunScenarioCardBody scenarioId={scenarioId} runId={runId} />
+            <EvalRunScenarioCardBody scenarioId={scenarioId} />
         </Card>
     ) : (
         <div className="flex flex-col gap-4 w-full">
-            <EvalRunScenarioCardBody scenarioId={scenarioId} runId={runId} />
+            <EvalRunScenarioCardBody scenarioId={scenarioId} />
         </div>
     )
 }

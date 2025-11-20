@@ -1,28 +1,20 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {loadable} from "jotai/utils"
-
-// import {triggerScenarioRevalidation} from "@/oss/components/EvalRunDetails/assets/annotationUtils"
-// import {getCurrentProject} from "@/oss/contexts/project.context"
-// import {useAppId} from "@/oss/hooks/useAppId"
-// import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-// import {evalAtomStore} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
-// Import EE run-scoped atoms for multi-run support
 import {triggerScenarioRevalidation} from "@/oss/components/EvalRunDetails/HumanEvalRun/assets/annotationUtils"
 import {setOptimisticStepData} from "@/oss/components/EvalRunDetails/HumanEvalRun/assets/optimisticUtils"
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import {useAppId} from "@/oss/hooks/useAppId"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {evaluationRunStateFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedAtoms"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
+import {
+    evalAtomStore,
+    evaluationRunStateAtom,
+    scenarioStepsAtom,
+} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms"
 import {useJwtRefresher} from "@/oss/lib/hooks/useJWT"
 import {EvaluationStatus} from "@/oss/lib/Types"
 import {slugify} from "@/oss/lib/utils/slugify"
 import type {ConfigMessage, ResultMessage, RunEvalMessage} from "@/oss/lib/workers/evalRunner/types"
-import {getProjectValues} from "@/oss/state/project"
 
-// import {setOptimisticStepData} from "../../../components/EvalRunDetails/assets/optimisticUtils"
-import {evalAtomStore} from "../useEvaluationRunData/assets/atoms"
-import {triggerMetricsFetch} from "../useEvaluationRunData/assets/atoms/runScopedMetrics"
-import {scenarioStepFamily} from "../useEvaluationRunData/assets/atoms/runScopedScenarios"
 import {IInvocationStep} from "../useEvaluationRunScenarioSteps/types"
 
 import {BatchingQueue} from "./responseQueue"
@@ -32,25 +24,18 @@ let isWorkerInitialized = false
 
 const MAX_RETRIES = 1
 
-export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: string}) {
+export function useEvalScenarioQueue(options?: {concurrency?: number}) {
     const {jwt} = useJwtRefresher()
-    const {runId: optionsRunId} = options || {}
 
     /* -------- helpers that read atoms lazily -------- */
     const getRunMeta = useCallback(() => {
         const store = evalAtomStore()
-        const effectiveRunId = optionsRunId
-        if (!effectiveRunId) {
-            console.warn("[useEvalScenarioQueue] No runId provided, cannot get run metadata")
-            return {runId: undefined, revision: undefined}
-        }
-        const runState = store.get(evaluationRunStateFamily(effectiveRunId))
-        const run = runState?.enrichedRun
+        const run = store.get(evaluationRunStateAtom)?.enrichedRun
         return {
-            runId: effectiveRunId,
+            runId: store.get(evaluationRunStateAtom)?.rawRun?.id,
             revision: run?.variants?.[0],
         }
-    }, [optionsRunId])
+    }, [])
 
     const workerRef = useRef<Worker | null>(null)
     const retryCountRef = useRef<Map<string, number>>(new Map())
@@ -78,16 +63,12 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
                     if (!runId) return
                     const nextRetry = retryCount + 1
                     retryCountRef.current.set(scenarioId, nextRetry)
-                    setOptimisticStepData(
-                        scenarioId,
-                        [
-                            {
-                                ...structuredClone(invocationStepTarget),
-                                status: EvaluationStatus.RUNNING,
-                            },
-                        ],
-                        runId,
-                    )
+                    setOptimisticStepData(scenarioId, [
+                        {
+                            ...structuredClone(invocationStepTarget),
+                            status: EvaluationStatus.RUNNING,
+                        },
+                    ])
 
                     workerRef.current?.postMessage({
                         type: "run-invocation",
@@ -98,7 +79,7 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
                         requestBody: result?.requestBody ?? {},
                         endpoint: result?.endpoint ?? "",
                         apiUrl: getAgentaApiUrl(),
-                        projectId: getProjectValues().projectId,
+                        projectId: getCurrentProject().projectId,
                         invocationKey,
                         invocationStepTarget,
                     })
@@ -113,6 +94,7 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
                     ...structuredClone(invocationStepTarget),
                     status,
                     traceId: result.traceId,
+                    trace: result?.tree,
                 }
 
                 if ("invocationParameters" in invocationStepTarget) {
@@ -122,14 +104,7 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
                             : (invocationStepTarget as IInvocationStep).invocationParameters
                 }
 
-                if (runId) {
-                    // Apply optimistic updates directly to maintain loading state continuity
-                    setOptimisticStepData(scenarioId, [optimisticData], runId)
-                }
-
-                // Delay the server revalidation to allow optimistic state to be visible
-                // This prevents immediate overwrite of the "running" status
-                triggerScenarioRevalidation(runId, scenarioId, [optimisticData])
+                triggerScenarioRevalidation(scenarioId, [optimisticData])
             } catch (err) {
                 console.error("Failed to trigger scenario step refetch", err)
             }
@@ -149,11 +124,6 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
                 existingTimestamps.endedAt === undefined
             ) {
                 timestampsRef.current.set(scenarioId, {...existingTimestamps, endedAt: now})
-
-                // Trigger metrics refresh when scenario completes (success or failure)
-                if (runId) {
-                    triggerMetricsFetch(runId)
-                }
             }
         },
         [jwt, retryCountRef, abortedRef, appId],
@@ -193,24 +163,16 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
     const enqueueScenario = useCallback(
         (scenarioId: string, stepKey?: string) => {
             const store = evalAtomStore()
-            // Use run-scoped atom - runId should always be available in EE version
-            if (!optionsRunId) {
-                console.warn(
-                    "[useEvalScenarioQueue] No runId provided, cannot get scenario step data",
-                )
-                return undefined
-            }
-
-            const stepLoadable = store.get(
-                loadable(scenarioStepFamily({scenarioId, runId: optionsRunId})),
-            )
+            // const stepLoadable = store.get(loadable(scenarioStepFamily(scenarioId)))
+            const stepsMap = store.get(scenarioStepsAtom)
+            const stepLoadable = stepsMap[scenarioId]
 
             if (stepLoadable.state === "hasData") {
                 const stepData = stepLoadable.data
                 // use data safely here
                 const invSteps = stepData?.invocationSteps ?? []
                 const target = stepKey
-                    ? invSteps.find((s) => s.stepKey === stepKey)
+                    ? invSteps.find((s) => s.key === stepKey)
                     : invSteps.find((s) => s.invocationParameters)
 
                 if (!target?.invocationParameters) return
@@ -222,7 +184,7 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
                 let invocationStepTarget: any | undefined
                 if (invocationSteps) {
                     if (stepKey) {
-                        invocationStepTarget = invocationSteps.find((s) => s.stepKey === stepKey)
+                        invocationStepTarget = invocationSteps.find((s) => s.key === stepKey)
                     } else {
                         invocationStepTarget = invocationSteps.find((s) => s.invocationParameters)
                     }
@@ -233,19 +195,23 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
                         endpoint = invocationStepTarget.invocationParameters?.endpoint
                     }
                 }
+                if (process.env.NODE_ENV !== "production") {
+                    console.debug(`[EvalQueue] Enqueuing scenario ${scenarioId}`, {
+                        requestBody,
+                        endpoint,
+                    })
+                }
+
                 // Optimistic running override using shared helper
                 queueMicrotask(() => {
-                    setOptimisticStepData(
-                        scenarioId,
-                        [
-                            {
-                                ...structuredClone(invocationStepTarget),
-                                status: EvaluationStatus.RUNNING,
-                            },
-                        ],
-                        runId,
-                    )
+                    setOptimisticStepData(scenarioId, [
+                        {
+                            ...structuredClone(invocationStepTarget),
+                            status: EvaluationStatus.RUNNING,
+                        },
+                    ])
                 })
+
                 retryCountRef.current.set(scenarioId, 0)
                 abortedRef.current.delete(scenarioId)
 
@@ -305,7 +271,11 @@ export function useEvalScenarioQueue(options?: {concurrency?: number; runId?: st
                         invocationKey,
                         invocationStepTarget,
                         apiUrl: getAgentaApiUrl(),
-                        projectId: getProjectValues().projectId,
+                        projectId: getCurrentProject().projectId,
+                    }
+
+                    if (process.env.NODE_ENV !== "production") {
+                        console.debug("[EvalQueue] Enqueued scenario", message)
                     }
 
                     workerRef.current?.postMessage(message)

@@ -1,6 +1,6 @@
+import {getCurrentProject} from "@/oss/contexts/project.context"
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {getProjectValues} from "@/oss/state/project"
+import {getAgentaApiUrl} from "@/oss/lib/helpers/utils"
 
 //Prefix convention:
 //  - fetch: GET single entity from server
@@ -19,7 +19,7 @@ import {
 export const createEvaluatorDataMapping = async (
     config: EvaluatorMappingInput,
 ): Promise<EvaluatorMappingOutput> => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/evaluators/map?project_id=${projectId}`,
@@ -32,7 +32,7 @@ export const createEvaluatorRunExecution = async (
     evaluatorKey: string,
     config: EvaluatorInputInterface,
 ): Promise<EvaluatorOutputInterface> => {
-    const {projectId} = getProjectValues()
+    const {projectId} = getCurrentProject()
 
     const response = await axios.post(
         `${getAgentaApiUrl()}/evaluators/${evaluatorKey}/run?project_id=${projectId}`,

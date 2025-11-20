@@ -2,10 +2,7 @@ from typing import Optional, List
 
 from pydantic import BaseModel
 
-from oss.src.core.shared.dtos import (
-    Windowing,
-    Reference,
-)
+from oss.src.core.shared.dtos import Windowing, Reference
 from oss.src.core.workflows.dtos import (
     #
     Workflow,
@@ -13,7 +10,7 @@ from oss.src.core.workflows.dtos import (
     WorkflowEdit,
     WorkflowQuery,
     WorkflowFork,
-    WorkflowRevisionsLog,
+    WorkflowLog,
     #
     WorkflowVariant,
     WorkflowVariantCreate,
@@ -25,10 +22,11 @@ from oss.src.core.workflows.dtos import (
     WorkflowRevisionEdit,
     WorkflowRevisionQuery,
     WorkflowRevisionCommit,
+    #
+    WorkflowServiceRequest,
+    WorkflowServiceResponse,
+    WorkflowServiceInterface,
 )
-
-
-# WORKFLOWS --------------------------------------------------------------------
 
 
 class WorkflowCreateRequest(BaseModel):
@@ -41,16 +39,13 @@ class WorkflowEditRequest(BaseModel):
 
 class WorkflowQueryRequest(BaseModel):
     workflow: Optional[WorkflowQuery] = None
-    #
     workflow_refs: Optional[List[Reference]] = None
-    #
     include_archived: Optional[bool] = None
-    #
     windowing: Optional[Windowing] = None
 
 
-class WorkflowForkRequest(BaseModel):
-    workflow: WorkflowFork
+class WorkflowRequest(BaseModel):
+    workflow: Workflow
 
 
 class WorkflowResponse(BaseModel):
@@ -63,9 +58,6 @@ class WorkflowsResponse(BaseModel):
     workflows: List[Workflow] = []
 
 
-# WORKFLOW VARIANTS ------------------------------------------------------------
-
-
 class WorkflowVariantCreateRequest(BaseModel):
     workflow_variant: WorkflowVariantCreate
 
@@ -76,12 +68,9 @@ class WorkflowVariantEditRequest(BaseModel):
 
 class WorkflowVariantQueryRequest(BaseModel):
     workflow_variant: Optional[WorkflowVariantQuery] = None
-    #
     workflow_refs: Optional[List[Reference]] = None
     workflow_variant_refs: Optional[List[Reference]] = None
-    #
     include_archived: Optional[bool] = None
-    #
     windowing: Optional[Windowing] = None
 
 
@@ -95,9 +84,6 @@ class WorkflowVariantsResponse(BaseModel):
     workflow_variants: List[WorkflowVariant] = []
 
 
-# WORKFLOW REVISIONS -----------------------------------------------------------
-
-
 class WorkflowRevisionCreateRequest(BaseModel):
     workflow_revision: WorkflowRevisionCreate
 
@@ -108,28 +94,15 @@ class WorkflowRevisionEditRequest(BaseModel):
 
 class WorkflowRevisionQueryRequest(BaseModel):
     workflow_revision: Optional[WorkflowRevisionQuery] = None
-    #
     workflow_refs: Optional[List[Reference]] = None
     workflow_variant_refs: Optional[List[Reference]] = None
     workflow_revision_refs: Optional[List[Reference]] = None
-    #
     include_archived: Optional[bool] = None
-    #
     windowing: Optional[Windowing] = None
 
 
 class WorkflowRevisionCommitRequest(BaseModel):
     workflow_revision: WorkflowRevisionCommit
-
-
-class WorkflowRevisionRetrieveRequest(BaseModel):
-    workflow_ref: Optional[Reference] = None
-    workflow_variant_ref: Optional[Reference] = None
-    workflow_revision_ref: Optional[Reference] = None
-
-
-class WorkflowRevisionsLogRequest(BaseModel):
-    workflow: WorkflowRevisionsLog
 
 
 class WorkflowRevisionResponse(BaseModel):
@@ -140,3 +113,17 @@ class WorkflowRevisionResponse(BaseModel):
 class WorkflowRevisionsResponse(BaseModel):
     count: int = 0
     workflow_revisions: List[WorkflowRevision] = []
+
+
+class WorkflowForkRequest(BaseModel):
+    workflow: WorkflowFork
+
+
+class WorkflowLogRequest(BaseModel):
+    workflow: WorkflowLog
+
+
+class WorkflowRevisionRetrieveRequest(BaseModel):
+    workflow_ref: Optional[Reference] = None
+    workflow_variant_ref: Optional[Reference] = None
+    workflow_revision_ref: Optional[Reference] = None
