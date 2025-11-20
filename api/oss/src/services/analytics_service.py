@@ -35,6 +35,16 @@ LIMITED_EVENTS_PER_AUTH = {
     "spans_fetched": 3,
 }
 
+# Activation events and their corresponding person properties
+# Maps event names to (property_name, allowed_auth_methods)
+# If allowed_auth_methods is None, all auth methods are allowed
+ACTIVATION_EVENTS = {
+    "query_fetched": ("activated_prompt_management", {"ApiKey", "Secret"}),
+    "spans_created": ("activated_observability", {"ApiKey", "Secret"}),
+    "evaluation_created": ("activated_evaluation", None),
+    "app_variant_created": ("activated_playground", None),
+}
+
 
 if POSTHOG_API_KEY:
     posthog.api_key = POSTHOG_API_KEY
@@ -42,6 +52,61 @@ if POSTHOG_API_KEY:
     log.info("PostHog initialized with host %s", POSTHOG_HOST)
 else:
     log.warn("PostHog API key not found in environment variables")
+
+
+async def _set_activation_property(
+    distinct_id: str,
+    property_name: str,
+    request: Request,
+) -> None:
+    """
+    Set a person property for user activation.
+    Uses caching to ensure the property is only set once per user.
+    Uses PostHog's $set_once to ensure idempotency.
+    """
+    if not distinct_id or not env.POSTHOG_API_KEY:
+        return
+
+    # Check if we've already set this property for this user
+    cache_key = {"property": property_name}
+
+    already_set = await get_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="posthog:activations",
+        key=cache_key,
+        retry=False,
+    )
+
+    if already_set:
+        # Property already set, skip
+        return
+
+    try:
+        # Set the property using PostHog's $set_once (idempotent)
+        posthog.identify(
+            distinct_id=distinct_id,
+            properties={
+                "$set_once": {
+                    property_name: True,
+                }
+            },
+        )
+
+        # Mark in cache that we've set this property
+        await set_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            namespace="posthog:activations",
+            key=cache_key,
+            value=True,
+            ttl=365 * 24 * 60 * 60,  # 1 year (effectively permanent)
+        )
+
+        log.info(f"Set activation property '{property_name}' for user {distinct_id}")
+
+    except Exception as e:
+        log.error(f"Error setting activation property '{property_name}': {e}")
 
 
 async def analytics_middleware(request: Request, call_next: Callable):
@@ -153,6 +218,18 @@ async def analytics_middleware(request: Request, call_next: Callable):
                     properties=properties or {},
                 )
 
+                # Check if this is an activation event
+                if event_name in ACTIVATION_EVENTS:
+                    property_name, allowed_auth_methods = ACTIVATION_EVENTS[event_name]
+
+                    # Check if auth method is allowed for this activation
+                    if allowed_auth_methods is None or auth_method in allowed_auth_methods:
+                        await _set_activation_property(
+                            distinct_id=distinct_id,
+                            property_name=property_name,
+                            request=request,
+                        )
+
         except Exception as e:
             log.error(f"❌ Error capturing event in PostHog: {e}")
 
@@ -215,7 +292,12 @@ def _get_event_name_from_path(
     elif method == "PUT" and "/evaluators/configs/" in path:
         return "evaluator_updated"
 
-    elif method == "POST" and path == "/preview/evaluations/runs/":
+    elif method == "POST" and (
+        path == "/preview/evaluations/runs/"
+        or "/evaluations/preview/start" in path
+        or path == "/api/simple/evaluations/"
+        or path == "/api/evaluations/runs/"
+    ):
         return "evaluation_created"
 
     elif method == "POST" and "/human-evaluations" in path:
@@ -231,6 +313,16 @@ def _get_event_name_from_path(
     elif method == "GET" and "/observability/v1/traces" in path:
         return "spans_fetched"
     # <----------- End of Observability Events ------------->
+
+    # <----------- Query/Prompt Management Events ------------->
+    if method == "GET" and "/preview/queries/" in path:
+        # GET /preview/queries/{query_id} or GET /preview/queries/revisions/{revision_id}
+        return "query_fetched"
+
+    elif method == "POST" and "/preview/queries/revisions/retrieve" in path:
+        # POST /preview/queries/revisions/retrieve
+        return "query_fetched"
+    # <----------- End of Query/Prompt Management Events ------------->
 
     # <----------- User Lifecycle Events ------------->
     if (
