@@ -27,7 +27,7 @@ CACHE_DEBUG_VALUE = False
 
 # Use prefix-based separation instead of logical databases
 r = Redis.from_url(
-    url=env.REDIS_URL,
+    url=env.REDIS_URI,
     decode_responses=True,
     socket_timeout=0.5,  # read/write timeout
 )

@@ -53,7 +53,7 @@ ag.init(
 # BROKER -------------------------------------------------------------------
 # Create broker with Redis Streams (analogous to FastAPI app in routers.py)
 broker = RedisStreamBroker(
-    url=env.REDIS_URL,
+    url=env.REDIS_URI,
     queue_name="streams:tasks",
     consumer_group_name="streams:tasks",
 )

@@ -40,7 +40,7 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 │                          │ Delegates Tasks                              │ │
 │                          ▼                                              │ │
 │  ┌────────────────────────────────────────────────────────────────────┐ │ │
-│  │                        Worker :celery                              │ │ │
+│  │                        Worker :TaskIQ                              │ │ │
 │  │                    (Background Tasks)                              │ │ │
 │  │              Calls AI Services for Evaluation                      │ │ │
 │  └─────────────────────────┬──────────────────────────────────────────┘ │ │
@@ -49,14 +49,17 @@ Agenta uses a Docker-based network architecture with a dedicated bridge network 
 │  ┌────────────────────────────────────────────────────────────────────┐ │ │
 │  │                  Infrastructure Layer                              │ │ │
 │  │                                                                    │ │ │
-│  │ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌────────────────────┐   │ │ │
-│  │ │PostgreSQL │ │ RabbitMQ  │ │   Redis   │ │     SuperTokens    │   │ │ │
-│  │ │   :5432   │ │ :5672     │ │ :6379     │ │       :3567        │   │ │ │
-│  │ │           │ │ UI:15672  │ │Cache:6378 │ │                    │   │ │ │
-│  │ │           │ │           │ │           │ │                    │   │ │ │
-│  │ │◄─── API   │ │◄──Worker──┤ │◄──API─────┤ │◄─── API            │   │ │ │
-│  │ │     Worker│ │   API     │ │   Worker  │ │                    │   │ │ │
-│  │ └───────────┘ └───────────┘ └───────────┘ └────────────────────┘   │ │ │
+│  │ ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐ │ │ │
+│  │ │   PostgreSQL      │ │      Redis        │ │   SuperTokens     │ │ │ │
+│  │ │     :5432         │ │      :6379        │ │      :3567        │ │ │ │
+│  │ │                   │ │                   │ │                   │ │ │ │
+│  │ │                   │ │ • Task Queue      │ │                   │ │ │ │
+│  │ │◄─── API           │ │   (TaskIQ)        │ │◄─── API           │ │ │ │
+│  │ │     Worker        │ │ • Caching         │ │                   │ │ │ │
+│  │ │                   │ │ • Sessions        │ │                   │ │ │ │
+│  │ │                   │ │                   │ │                   │ │ │ │
+│  │ │                   │ │◄─── API / Worker  │ │                   │ │ │ │
+│  │ └───────────────────┘ └───────────────────┘ └───────────────────┘ │ │ │
 │  └────────────────────────────────────────────────────────────────────┘ │ │
 └─────────────────────────────────────────────────────────────────────────┘ │
                                     │                                     │ │
@@ -87,14 +90,12 @@ Web Container:
 
 API Container:
 ├── → postgres:5432 (Database operations)
-├── → redis:6379 (Caching)
+├── → redis:6379 (Task queue, caching, sessions)
 ├── → supertokens:3567 (Authentication)
-├── → rabbitmq:5672 (Task publishing)
-└── → worker (Task delegation)
+└── → worker (Task delegation via TaskIQ)
 
 Worker Container:
-├── ← rabbitmq:5672 (Task consumption)
-├── → redis:6379 (Result storage)
+├── → redis:6379 (Task queue via TaskIQ)
 ├── → postgres:5432 (Data access)
 └── → completion:80, chat:80 (AI operations)
 ```
@@ -124,9 +125,7 @@ These variables configure how containers communicate internally:
 | `POSTGRES_URI_CORE` | Core database | `postgresql+asyncpg://user:pass@postgres:5432/agenta_core` | Core database connection |
 | `POSTGRES_URI_TRACING` | Tracing database | `postgresql+asyncpg://user:pass@postgres:5432/agenta_tracing` | Tracing database connection |
 | `POSTGRES_URI_SUPERTOKENS` | Auth database | `postgresql://user:pass@postgres:5432/agenta_supertokens` | SuperTokens database connection |
-| `REDIS_URL` | Primary cache | `redis://redis:6379/0` | Main Redis instance |
-| `CELERY_BROKER_URL` | Task queue | `amqp://guest@rabbitmq//` | RabbitMQ broker for Celery |
-| `CELERY_RESULT_BACKEND` | Task results | `redis://redis:6379/0` | Redis for task results |
+| `REDIS_URI` | Task queue & cache | `redis://redis:6379/0` | Redis instance for TaskIQ and caching |
 | `SUPERTOKENS_CONNECTION_URI` | Auth service | `http://supertokens:3567` | SuperTokens service URL |
 
 ### Port Mapping (Optional)
@@ -136,10 +135,6 @@ These variables control external port exposure for direct access:
 | Variable | Default | Purpose | Description |
 |----------|---------|---------|-------------|
 | `POSTGRES_PORT` | `5432` | Database access | External PostgreSQL port (development) |
-| `RABBITMQ_PORT` | `5672` | Message queue | External RabbitMQ AMQP port |
-| `RABBITMQ_UI_PORT` | `15672` | Queue management | RabbitMQ management interface |
-| `REDIS_CACHE_PORT` | `6378` | Cache access | External Redis cache port |
-| `SUPERTOKENS_PORT` | `3567` | Auth service | External SuperTokens port |
 | `NGINX_PORT` | `80` | Alternative proxy | Nginx port (when using Nginx) |
 
 ## Traffic Routing Rules
@@ -214,9 +209,6 @@ docker exec :container-name: nc -zv postgres 5432
 
 # Test Redis connectivity
 docker exec :container-name: redis-cli -h redis ping
-
-# Test RabbitMQ connectivity
-docker exec :container-name: nc -zv rabbitmq 5672
 ```
 
 ### Port Conflicts

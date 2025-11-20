@@ -112,15 +112,15 @@ class EnvironSettings(BaseModel):
     )
 
     # REDIS (REQUIRED)
-    REDIS_URL: str | None = os.getenv("REDIS_URL")
+    REDIS_URI: str | None = os.getenv("REDIS_URI")
     REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "cache"
     REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6378")
 
     @model_validator(mode="after")
-    def build_redis_url(self):
-        """Ensure REDIS_URL exists, fallback to computed or default."""
-        if not self.REDIS_URL:
-            self.REDIS_URL = (
+    def build_redis_uri(self):
+        """Ensure REDIS_URI exists, fallback to computed or default."""
+        if not self.REDIS_URI:
+            self.REDIS_URI = (
                 f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
             )
 
