@@ -252,9 +252,10 @@ services:
 
         command: >
             redis-server
-            --appendonly yes
+            --appendonly no
+            --save ""
             --maxmemory 512mb
-            --maxmemory-policy allkeys-lru
+            --maxmemory-policy volatile-lru
 
         ports:
             - "6379:6379"

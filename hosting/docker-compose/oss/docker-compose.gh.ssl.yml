@@ -247,37 +247,19 @@ services:
 
     redis:
         image: redis:8
-            
-        volumes:
-            - redis-data:/data
-
-        networks:
-            - agenta-gh-ssl-network
-
-        restart: always
-        healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
-
-    cache:
-        image: redis:8
 
         command: >
             redis-server
-            --port 6378
             --appendonly no
-            --appendfsync no
             --save ""
-            --maxmemory 128mb
-            --maxmemory-policy allkeys-lru
+            --maxmemory 512mb
+            --maxmemory-policy volatile-lru
 
         ports:
-            - "${REDIS_CACHE_PORT:-6378}:6378"
+            - "6379:6379"
 
         volumes:
-            - cache-data:/data
+            - redis-data:/data
 
         networks:
             - agenta-gh-ssl-network
@@ -288,7 +270,7 @@ services:
         restart: always
 
         healthcheck:
-            test: ["CMD", "redis-cli", "-p", "6378", "ping"]
+            test: ["CMD", "redis-cli", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -334,4 +316,3 @@ networks:
 volumes:
     postgres-data:
     redis-data:
-    cache-data:
