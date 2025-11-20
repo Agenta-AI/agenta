@@ -1,0 +1,14 @@
+---
+title: "Reasoning Effort Support in the Playground"
+slug: reasoning-effort-support
+date: 2025-11-18
+tags: [v0.62.5]
+---
+
+You can now configure reasoning effort for models that support this parameter, such as OpenAI's o1 series and Google's Gemini 2.5 Pro.
+
+Reasoning effort controls how much computational thinking the model applies before generating a response. This is particularly useful for complex reasoning tasks where you want to balance response quality with latency and cost.
+
+The reasoning effort parameter is part of your prompt template configuration. When you fetch prompts via the SDK or invoke them through Agenta as an LLM gateway, the reasoning effort setting is included in the configuration and applied to your requests automatically.
+
+This gives you fine-grained control over model behavior directly from the playground, making it easier to optimize for your specific use case.
