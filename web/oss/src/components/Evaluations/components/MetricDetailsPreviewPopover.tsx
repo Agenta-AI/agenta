@@ -11,7 +11,6 @@ import ResponsiveFrequencyChart from "@/oss/components/HumanEvaluations/assets/M
 import ResponsiveMetricChart from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/ResponsiveMetricChart"
 import {buildChartData} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
-import type {BasicStats} from "@/oss/lib/metricUtils"
 
 const formatNumber = (value: unknown): string => {
     if (typeof value === "number") {
@@ -457,7 +456,7 @@ const MetricPopoverContent = ({
     // ) : null
 
     const headlineMetricsRow = headlineMetrics.length ? (
-        <div className="flex items-center gap-2 rounded-2xl border border-neutral-100 bg-neutral-50/80 py-2">
+        <div className="flex items-center gap-2 border border-neutral-100 py-2">
             {headlineMetrics.map(({label, value}) => (
                 <div
                     key={label}
@@ -555,15 +554,11 @@ const MetricPopoverContent = ({
                                                 ? (highlightScalar as number)
                                                 : undefined
                                         }
-                                        barColor="#2563eb"
-                                        disableGradient
                                     />
                                 ) : (
                                     <ResponsiveFrequencyChart
                                         data={frequencyChartData}
                                         highlightValues={frequencyHighlightValues}
-                                        barColor="#2563eb"
-                                        disableGradient
                                     />
                                 )}
                             </div>

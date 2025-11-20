@@ -1,14 +1,28 @@
+import {useMemo} from "react"
+
 import {Typography} from "antd"
 
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {
+    useRunRowDetails,
     useRunRowReferences,
     useRunRowSummary,
 } from "@/oss/components/EvaluationRunsTablePOC/context/RunRowDataContext"
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
+import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
+import {extractPrimaryInvocation} from "@/oss/components/pages/evaluations/utils"
+import {getUniquePartOfId, isUuid} from "@/oss/lib/helpers/utils"
+
 import useAppReference from "../hooks/useAppReference"
+import usePreviewVariantConfig from "../hooks/usePreviewVariantConfig"
+
+import {
+    formatRevisionLabel,
+    PreviewVariantCellSkeleton,
+    sanitizeVariantName,
+    stripVariantSuffix,
+} from "./VariantCells"
 
 export const PreviewAppCellSkeleton = () => <SkeletonLine width="55%" />
 
@@ -23,9 +37,14 @@ export const PreviewAppCell = ({
     isVisible?: boolean
     descriptor?: ReferenceColumnDescriptor
 }) => {
-    // const runId = record.preview?.id ?? record.runId
-    const canFetch = Boolean(!record.__isSkeleton && isVisible)
+    const projectId = record.projectId ?? null
+    const canFetch = Boolean(!record.__isSkeleton)
     const {summary, isLoading: summaryLoading} = useRunRowSummary(record, isVisible)
+    const {camelRun, isLoading: runLoading} = useRunRowDetails(record, isVisible)
+    const invocation = useMemo(
+        () => (camelRun ? extractPrimaryInvocation(camelRun as any) : null),
+        [camelRun],
+    )
     const referenceSequence = useRunRowReferences(record)
     const slot =
         descriptor && descriptor.role === "application"
@@ -35,6 +54,53 @@ export const PreviewAppCell = ({
     const slotAppId = slotValue?.id ?? null
     const slotLabel = slotValue?.label ?? slotValue?.slug ?? slotValue?.name ?? null
     const appId = slotAppId ?? summary?.appId ?? record.appId ?? null
+    const variantSlot =
+        (slot &&
+            referenceSequence?.find(
+                (candidate) =>
+                    candidate.role === "variant" &&
+                    candidate.stepIndex === slot.stepIndex &&
+                    candidate.stepKey === slot.stepKey,
+            )) ||
+        getSlotByRoleOrdinal(referenceSequence, "variant", descriptor?.roleOrdinal ?? 1)
+    const slotVariantValue =
+        variantSlot?.values.find((value) => value.source?.toLowerCase().includes("variant")) ??
+        variantSlot?.values?.[0] ??
+        null
+    const slotRevisionValue =
+        variantSlot?.values.find((value) => value.source?.toLowerCase().includes("revision")) ??
+        null
+    const revisionId =
+        slotRevisionValue?.id ?? invocation?.revisionId ?? slotVariantValue?.id ?? null
+    const shouldFetchVariant = Boolean(canFetch && projectId && revisionId)
+    const {config, isLoading: configLoading} = usePreviewVariantConfig(
+        {
+            projectId,
+            revisionId,
+        },
+        {enabled: shouldFetchVariant},
+    )
+    const variantIsLoading = runLoading || configLoading
+    // const invocationVariantName = sanitizeVariantName(invocation?.variantName) ?? null
+    const rawVariantName = config?.variantName ?? null
+    const sanitizedVariantName = sanitizeVariantName(rawVariantName)
+    const fallbackVariantId =
+        (typeof invocation?.variantId === "string" && invocation.variantId.trim().length > 0
+            ? invocation.variantId
+            : null) ??
+        slotVariantValue?.id ??
+        revisionId
+    const uniqueSuffix = fallbackVariantId ? getUniquePartOfId(fallbackVariantId) : null
+    const normalizedVariantName =
+        sanitizedVariantName && !isUuid(sanitizedVariantName)
+            ? stripVariantSuffix(sanitizedVariantName, uniqueSuffix)
+            : sanitizedVariantName
+    const displayVariantName = normalizedVariantName ?? null
+    const resolvedRevision = formatRevisionLabel(
+        config?.revision ?? invocation?.revisionLabel ?? null,
+    )
+    const hasVariantDetails = Boolean(displayVariantName)
+
     const {reference, isLoading: referenceLoading} = useAppReference(
         {
             projectId: record.projectId,
@@ -44,15 +110,7 @@ export const PreviewAppCell = ({
     )
     // const additionalCount = Math.max((slot?.values?.length ?? 0) - 1, 0)
 
-    const resolvedName =
-        reference?.name ??
-        reference?.slug ??
-        slotLabel ??
-        reference?.id ??
-        slotAppId ??
-        summary?.appId ??
-        record.appId ??
-        null
+    const resolvedName = reference?.name ?? null
     const contentLabel = resolvedName ?? "—"
     if (record.__isSkeleton) {
         return (
@@ -72,7 +130,7 @@ export const PreviewAppCell = ({
 
     const isReferenceMissing = Boolean(descriptor && (!slot || !(slot.values?.length ?? 0)))
     const hasResolvedValue = contentLabel !== "—"
-    if (isReferenceMissing && !hasResolvedValue) {
+    if (isReferenceMissing && !hasResolvedValue && !hasVariantDetails) {
         return <div className="not-available-table-cell" />
     }
 
@@ -82,6 +140,16 @@ export const PreviewAppCell = ({
                 {contentLabel}
                 {/* {additionalCount > 0 ? ` (+${additionalCount})` : ""} */}
             </Typography.Text>
+            {variantIsLoading && shouldFetchVariant ? (
+                <PreviewVariantCellSkeleton />
+            ) : hasVariantDetails ? (
+                <div className="application-variant-row">
+                    <span className="application-variant-label">{displayVariantName}</span>
+                    {resolvedRevision ? (
+                        <span className="application-variant-chip">{`v${resolvedRevision}`}</span>
+                    ) : null}
+                </div>
+            ) : null}
         </div>
     )
 }

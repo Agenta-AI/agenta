@@ -88,8 +88,7 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
                 collection.forEach((metric: any) => {
                     const runId = metric?.run_id || metric?.runId
                     if (!runId) return
-                    const hasScenario =
-                        Boolean(metric?.scenario_id) || Boolean(metric?.scenarioId)
+                    const hasScenario = Boolean(metric?.scenario_id) || Boolean(metric?.scenarioId)
                     if (bucket !== "scenario" && hasScenario) return
                     if (bucket === "scenario" && !hasScenario) return
                     if (!metricsByRun.has(runId)) {

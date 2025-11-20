@@ -248,6 +248,41 @@ const formatReferenceEntry = (value: ReferenceSlot["values"][number]): string | 
     )
 }
 
+const findVariantSlotForApplication = (
+    sequence: ReturnType<typeof buildReferenceSequence>,
+    applicationSlot: ReferenceSlot | undefined,
+    ordinal: number,
+) => {
+    if (!sequence?.length) {
+        return undefined
+    }
+    if (applicationSlot) {
+        const matchByStep = sequence.find(
+            (slot) =>
+                slot.role === "variant" &&
+                slot.stepIndex === applicationSlot.stepIndex &&
+                slot.stepKey === applicationSlot.stepKey,
+        )
+        if (matchByStep) {
+            return matchByStep
+        }
+    }
+    return getSlotByRoleOrdinal(sequence, "variant", ordinal)
+}
+
+const formatVariantSlotLabel = (slot: ReferenceSlot | undefined): string | null => {
+    if (!slot?.values?.length) {
+        return null
+    }
+    for (const value of slot.values) {
+        const formatted = formatReferenceEntry(value)
+        if (formatted) {
+            return formatted
+        }
+    }
+    return null
+}
+
 export const resolveReferenceExportValue = (
     record: EvaluationRunTableRow,
     descriptor: ReferenceColumnDescriptor,
@@ -266,6 +301,17 @@ export const resolveReferenceExportValue = (
             .map((value) => formatReferenceEntry(value))
             .find((label): label is string => Boolean(label)) ?? null
     if (entry) {
+        if (descriptor.role === "application") {
+            const variantSlot = findVariantSlotForApplication(
+                sequence,
+                slot,
+                descriptor.roleOrdinal,
+            )
+            const variantEntry = formatVariantSlotLabel(variantSlot)
+            if (variantEntry) {
+                return `${entry} • ${variantEntry}`
+            }
+        }
         return entry
     }
     if (descriptor.role === "application") {

@@ -8,10 +8,6 @@ import {
     INVOCATION_METRIC_LABELS,
 } from "@/oss/components/EvalRunDetails2/components/views/OverviewView/constants"
 import {
-    humanizeEvaluatorName,
-    humanizeMetricPath,
-} from "@/oss/lib/evaluations/utils/metrics"
-import {
     ColumnVisibilityMenuTrigger,
     createTableColumns,
     createColumnVisibilityAwareCell,
@@ -20,6 +16,7 @@ import {
 import type {TableColumnConfig} from "@/oss/components/InfiniteVirtualTable/columns/types"
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
 import {PreviewCreatedByCell} from "@/oss/components/References/cells/CreatedByCells"
+import {humanizeEvaluatorName, humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import RunActionsCell from "../../components/cells/ActionsCell"
@@ -40,11 +37,21 @@ import {
     type ReferenceColumnDescriptor,
 } from "../../utils/referenceSchema"
 
-import type {
-    EvaluatorHandles,
-    EvaluatorReferenceCandidate,
-    UseEvaluationRunsColumnsParams,
-} from "./types"
+import {
+    REFERENCE_CELL_RENDERERS,
+    REFERENCE_COLUMN_DIMENSIONS,
+    shouldUpdateApplicationCell,
+    shouldUpdateCreatedAtCell,
+    shouldUpdateCreatedByCell,
+    shouldUpdateEvaluatorCell,
+    shouldUpdateMetricCell,
+    shouldUpdateNameCell,
+    shouldUpdateReferenceCell,
+    shouldUpdateRowKeyCell,
+    shouldUpdateStatusCell,
+    shouldUpdateVariantCell,
+} from "./constants"
+import type {EvaluatorHandles, UseEvaluationRunsColumnsParams} from "./types"
 import {
     areMetricGroupsEqual,
     deriveDescriptorLabel,
@@ -63,20 +70,6 @@ import {
     resolveEvaluatorHandles,
     resolveEvaluatorReferenceCandidate,
 } from "./utils"
-import {
-    REFERENCE_CELL_RENDERERS,
-    REFERENCE_COLUMN_DIMENSIONS,
-    shouldUpdateApplicationCell,
-    shouldUpdateCreatedAtCell,
-    shouldUpdateCreatedByCell,
-    shouldUpdateEvaluatorCell,
-    shouldUpdateMetricCell,
-    shouldUpdateNameCell,
-    shouldUpdateReferenceCell,
-    shouldUpdateRowKeyCell,
-    shouldUpdateStatusCell,
-    shouldUpdateVariantCell,
-} from "./constants"
 
 export {
     formatMetricExportLabel,
@@ -103,6 +96,7 @@ const useEvaluationRunsColumns = ({
     const setEvaluatorBlueprint = useSetAtom(blueprintAtom)
     const stableRows = rows
 
+    console.log("evaluatorBlueprint", {evaluatorBlueprint})
     const previewRunEntries = useMemo(() => {
         return stableRows
             .filter((row) => !row.__isSkeleton && row.preview && row.previewMeta)
@@ -579,48 +573,52 @@ const useEvaluationRunsColumns = ({
             })
         }
 
-        ensuredReferenceBlueprint.forEach((descriptor) => {
-            const columnKey = buildReferenceColumnKey(descriptor)
-            const dimensions = REFERENCE_COLUMN_DIMENSIONS[descriptor.role]
-            const visibilityLabel = getReferenceVisibilityLabel(descriptor)
-            const columnBase: TableColumnConfig<EvaluationRunTableRow> = {
-                title: withColumnVisibilityHeader(columnKey, descriptor.label),
-                key: columnKey,
-                width: dimensions.width,
-                visibilityLabel,
-                align: "left",
-                exportLabel: descriptor.label,
-                exportValue: (record) => resolveReferenceExportValue(record, descriptor),
-                exportMetadata: {
-                    type: "reference",
-                    descriptor,
-                } satisfies EvaluationRunsColumnExportMetadata,
-                columnProps: {
-                    onHeaderCell: () => ({style: {minWidth: dimensions.minWidth}}),
-                    shouldCellUpdate:
-                        descriptor.role === "application"
-                            ? shouldUpdateApplicationCell
-                            : descriptor.role === "variant"
-                              ? shouldUpdateVariantCell
-                              : descriptor.role === "evaluator"
-                                ? shouldUpdateEvaluatorCell
-                                : shouldUpdateReferenceCell,
-                },
-            }
+        ensuredReferenceBlueprint
+            .filter(
+                (descriptor) => descriptor.role !== "evaluator" && descriptor.role !== "variant",
+            )
+            .forEach((descriptor) => {
+                const columnKey = buildReferenceColumnKey(descriptor)
+                const dimensions = REFERENCE_COLUMN_DIMENSIONS[descriptor.role]
+                const visibilityLabel = getReferenceVisibilityLabel(descriptor)
+                const columnBase: TableColumnConfig<EvaluationRunTableRow> = {
+                    title: withColumnVisibilityHeader(columnKey, descriptor.label),
+                    key: columnKey,
+                    width: dimensions.width,
+                    visibilityLabel,
+                    align: "left",
+                    exportLabel: descriptor.label,
+                    exportValue: (record) => resolveReferenceExportValue(record, descriptor),
+                    exportMetadata: {
+                        type: "reference",
+                        descriptor,
+                    } satisfies EvaluationRunsColumnExportMetadata,
+                    columnProps: {
+                        onHeaderCell: () => ({style: {minWidth: dimensions.minWidth}}),
+                        shouldCellUpdate:
+                            descriptor.role === "application"
+                                ? shouldUpdateApplicationCell
+                                : descriptor.role === "variant"
+                                  ? shouldUpdateVariantCell
+                                  : descriptor.role === "evaluator"
+                                    ? shouldUpdateEvaluatorCell
+                                    : shouldUpdateReferenceCell,
+                    },
+                }
 
-            const rendererFactory = REFERENCE_CELL_RENDERERS[descriptor.role]
-            if (!rendererFactory) {
-                return
-            }
-            columnConfigs.push({
-                ...columnBase,
-                cell: createColumnVisibilityAwareCell<EvaluationRunTableRow>({
-                    columnKey,
-                    keepMounted: true,
-                    render: rendererFactory(descriptor),
-                }),
+                const rendererFactory = REFERENCE_CELL_RENDERERS[descriptor.role]
+                if (!rendererFactory) {
+                    return
+                }
+                columnConfigs.push({
+                    ...columnBase,
+                    cell: createColumnVisibilityAwareCell<EvaluationRunTableRow>({
+                        columnKey,
+                        keepMounted: true,
+                        render: rendererFactory(descriptor),
+                    }),
+                })
             })
-        })
 
         columnConfigs.push(...metricNodes)
 

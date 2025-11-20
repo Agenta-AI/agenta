@@ -33,7 +33,7 @@ const PreviewQueryCellContent = ({
         null
     const isOnlineEvaluation = derivedKind === "online"
 
-    const shouldFetch = Boolean(runId && isOnlineEvaluation && isVisible)
+    const shouldFetch = Boolean(runId && isOnlineEvaluation)
     const safeRunId = runId ?? ""
     const {reference, revision, isLoading, error} = usePreviewQueryRevision(
         {runId: safeRunId},

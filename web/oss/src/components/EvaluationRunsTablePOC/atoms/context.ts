@@ -96,8 +96,8 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
         scope === "app" ? (routerAppId ?? explicitAppId ?? "app") : (explicitAppId ?? "all-apps")
     const scopeId = `${projectSegment}::${appSegment}::${evaluationKind}`
     const storageKey = `evaluation-runs:columns:${scopeId}`
-    const createSupported =
-        evaluationKind !== "all" && (isAutoOrHuman || evaluationKind === "online")
+    const standardCreateSupported = isAutoOrHuman || evaluationKind === "online"
+    const createSupported = evaluationKind === "all" ? true : standardCreateSupported
     const createEvaluationType =
         evaluationKind === "human" ? "human" : evaluationKind === "online" ? "online" : "auto"
 
@@ -132,6 +132,7 @@ export const evaluationRunsTableComponentSliceAtom = selectAtom(
         storageKey: context.storageKey,
         createSupported: context.createSupported,
         createEvaluationType: context.createEvaluationType,
+        evaluationKind: context.evaluationKind,
     }),
     (a, b) =>
         a.projectId === b.projectId &&
@@ -142,7 +143,8 @@ export const evaluationRunsTableComponentSliceAtom = selectAtom(
         a.activeAppId === b.activeAppId &&
         a.storageKey === b.storageKey &&
         a.createSupported === b.createSupported &&
-        a.createEvaluationType === b.createEvaluationType,
+        a.createEvaluationType === b.createEvaluationType &&
+        a.evaluationKind === b.evaluationKind,
 )
 
 export const evaluationRunsTableContextSetterAtom = atom(

@@ -27,6 +27,7 @@ const VariantDetailsWithStatus = ({
     showStable?: boolean
     className?: string
 }) => {
+    console.log("VariantDetailsWithStatus", {variant, variantName, revision})
     const _isDirty = useAtomValue(variantIsDirtyAtomFamily(variant?.id || ""))
     const isDirty = showStable ? false : _isDirty
 

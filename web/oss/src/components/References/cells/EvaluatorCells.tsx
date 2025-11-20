@@ -210,7 +210,7 @@ const PreviewEvaluatorCellContent = ({
             },
             {
                 enabled:
-                    Boolean(isVisible && record.projectId) &&
+                    Boolean(record.projectId) &&
                     Boolean(primarySlotValue) &&
                     Boolean((primarySlotValue?.slug ?? null) || (primarySlotValue?.id ?? null)),
             },

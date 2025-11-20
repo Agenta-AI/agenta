@@ -31,6 +31,7 @@ import {
     evaluationRunsTableContextSetterAtom,
     evaluationRunsTablePageSizeAtom,
     evaluationRunsSelectionSnapshotAtom,
+    evaluationRunsCreateSelectedTypeAtom,
 } from "../../atoms/view"
 import useEvaluationRunNavigationActions from "../../hooks/useEvaluationRunNavigationActions"
 import {
@@ -175,11 +176,15 @@ const EvaluationRunsTableActive = ({
         storageKey,
         createSupported,
         createEvaluationType,
+        evaluationKind: contextEvaluationKind,
     } = useAtomValue(evaluationRunsTableComponentSliceAtom)
     const setMetaUpdater = useSetAtom(evaluationRunsMetaUpdaterAtom)
     const setResetCallback = useSetAtom(evaluationRunsTableResetAtom)
     const setActivePreviewProjectId = useSetAtom(activePreviewProjectIdAtom)
     const [isCreateModalOpen, setIsCreateModalOpen] = useAtom(evaluationRunsCreateModalOpenAtom)
+    const [selectedCreateType, setSelectedCreateType] = useAtom(
+        evaluationRunsCreateSelectedTypeAtom,
+    )
     const [selectedRowKeys, setSelectedRowKeys] = useAtom(evaluationRunsSelectedRowKeysAtom)
     const [rowExportingKey, setRowExportingKey] = useState<string | null>(null)
     const setDeleteModalOpen = useSetAtom(evaluationRunsDeleteModalOpenAtom)
@@ -277,6 +282,12 @@ const EvaluationRunsTableActive = ({
         resetPages()
         setMetaUpdater((prev) => ({...prev}))
     }, [resetPages, setIsCreateModalOpen, setMetaUpdater])
+
+    useEffect(() => {
+        if (contextEvaluationKind !== "all") {
+            setSelectedCreateType(createEvaluationType)
+        }
+    }, [contextEvaluationKind, createEvaluationType, setSelectedCreateType])
 
     const tableProps = useMemo(
         () => ({
@@ -541,7 +552,7 @@ const EvaluationRunsTableActive = ({
             />
 
             {createSupported ? (
-                createEvaluationType === "online" ? (
+                selectedCreateType === "online" ? (
                     <OnlineEvaluationDrawer
                         open={isCreateModalOpen}
                         onClose={closeCreateModal}
@@ -551,7 +562,7 @@ const EvaluationRunsTableActive = ({
                     <NewEvaluationModal
                         preview
                         open={isCreateModalOpen}
-                        evaluationType={createEvaluationType}
+                        evaluationType={selectedCreateType}
                         onCancel={closeCreateModal}
                         onSuccess={handleCreateSuccess}
                     />

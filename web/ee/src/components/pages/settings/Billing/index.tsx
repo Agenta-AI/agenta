@@ -104,7 +104,7 @@ const Billing = () => {
 
                 <div className="w-full grid grid-cols-3 gap-4">
                     {Object.entries(usage)
-                        ?.filter(([key]) => (key !== "users" && key !== "applications"))
+                        ?.filter(([key]) => key !== "users" && key !== "applications")
                         ?.map(([key, info]) => {
                             return (
                                 <UsageProgressBar

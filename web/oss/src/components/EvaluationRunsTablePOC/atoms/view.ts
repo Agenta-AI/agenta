@@ -1,7 +1,7 @@
 import type {Key} from "react"
 
 import {atom} from "jotai"
-import {atomFamily, loadable, selectAtom} from "jotai/utils"
+import {atomFamily, atomWithStorage, loadable, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {getEvaluatorMetricBlueprintAtom} from "@/oss/components/References/atoms/metricBlueprint"
@@ -389,10 +389,19 @@ export const evaluationRunsTableHeaderStateAtom = atom((get) => {
     return {
         createEnabled,
         createTooltip,
+        evaluationKind: context.evaluationKind,
+        defaultCreateType: context.createEvaluationType,
     }
 })
 
+const CREATE_TYPE_STORAGE_KEY = "evaluation-runs:create-type"
+
 export const evaluationRunsCreateModalOpenAtom = atom(false)
+export const evaluationRunsCreateTypePreferenceAtom = atomWithStorage<ConcreteEvaluationRunKind>(
+    CREATE_TYPE_STORAGE_KEY,
+    "auto",
+)
+export const evaluationRunsCreateSelectedTypeAtom = atom<ConcreteEvaluationRunKind>("auto")
 
 interface EvaluationRunsFiltersSummary {
     statusFilters: string[]

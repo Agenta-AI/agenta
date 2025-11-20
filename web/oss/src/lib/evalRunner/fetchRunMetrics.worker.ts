@@ -72,8 +72,8 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
             if (scenarioResp.ok) {
                 const scenarioJson = (await scenarioResp.json()) as {metrics?: any[]}
                 const scenarioMetrics = Array.isArray(scenarioJson.metrics)
-                    ? scenarioJson.metrics.filter(
-                          (metric) => Boolean(metric?.scenario_id || metric?.scenarioId),
+                    ? scenarioJson.metrics.filter((metric) =>
+                          Boolean(metric?.scenario_id || metric?.scenarioId),
                       )
                     : []
                 camel.push(...scenarioMetrics)

@@ -1,4 +1,4 @@
-import {FC, memo, useState} from "react"
+import {FC, memo, useMemo, useState} from "react"
 
 import type {ChartDatum} from "../types"
 
@@ -19,7 +19,8 @@ interface ResponsiveMetricChartProps {
     disableGradient?: boolean
 }
 
-const DEFAULT_PRIMARY = "#69B1FF"
+const BAR_SOLIDS = Array(6).fill("#1677ff")
+const BAR_GRADIENTS = [["#91caff", "#1677ff"]]
 
 /**
  * ResponsiveMetricChart is a functional component that renders a responsive histogram
@@ -60,7 +61,12 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
             xTicks.push((i / xTickCount) * xMax)
         }
 
-        const clipPathId = `clip-histogram-${Math.random().toString(36).substr(2, 9)}`
+        const clipPathId = useMemo(
+            () => `clip-histogram-${Math.random().toString(36).substr(2, 9)}`,
+            [],
+        )
+        const GAP_RATIO = 0.18
+        const MAX_GAP_PIXELS = 8
         // Tooltip state
         const [hoveredBin, setHoveredBin] = useState<number | null>(null)
         const [mousePos, setMousePos] = useState<{x: number; y: number} | null>(null)
@@ -127,9 +133,20 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
         }
 
         // NEW: resolve fills (keep defaults)
-        const baseSolid = barColor || DEFAULT_PRIMARY
-        const baseFill = disableGradient ? baseSolid : "url(#barGradientBlue)"
-        const highlightFill = barColor || DEFAULT_PRIMARY
+        const highlightFill = barColor || "#1677ff"
+
+        const resolveBarFill = (index: number, isHighlighted: boolean) => {
+            if (isHighlighted) {
+                return disableGradient ? highlightFill : `url(#${clipPathId}-highlight)`
+            }
+            if (barColor) {
+                return disableGradient ? barColor : `url(#${clipPathId}-base-${index})`
+            }
+            if (disableGradient) {
+                return BAR_SOLIDS[index % BAR_SOLIDS.length]
+            }
+            return `url(#${clipPathId}-base-${index})`
+        }
 
         return (
             <div style={{position: "relative"}}>
@@ -146,7 +163,6 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                             ((xMax - value) / xMax) * plotHeight
 
                         const isVertical = direction === "vertical"
-                        const xScale = isVertical ? xScaleVertical : xScaleHorizontal
                         const yScale = isVertical ? yScaleVertical : yScaleHorizontal
 
                         return (
@@ -160,25 +176,39 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                         display: "block",
                                     }}
                                 >
-                                    {/* Bar gradient (use barColor if provided) */}
+                                    {/* Bar gradients */}
                                     <defs>
                                         {!disableGradient && (
-                                            <linearGradient
-                                                id="barGradientBlue"
-                                                x1="0%"
-                                                y1="100%"
-                                                x2="100%"
-                                                y2="0%"
-                                            >
-                                                <stop
-                                                    offset="0%"
-                                                    stopColor={barColor ? barColor : "#BAE0FF"}
-                                                />
-                                                <stop
-                                                    offset="100%"
-                                                    stopColor={barColor ? barColor : "#69B1FF"}
-                                                />
-                                            </linearGradient>
+                                            <>
+                                                {chartData.map((_, idx) => {
+                                                    const [from, to] = barColor
+                                                        ? [barColor, barColor]
+                                                        : BAR_GRADIENTS[idx % BAR_GRADIENTS.length]
+                                                    return (
+                                                        <linearGradient
+                                                            key={`${clipPathId}-base-${idx}`}
+                                                            id={`${clipPathId}-base-${idx}`}
+                                                            x1="0%"
+                                                            y1="100%"
+                                                            x2="100%"
+                                                            y2="0%"
+                                                        >
+                                                            <stop offset="0%" stopColor={from} />
+                                                            <stop offset="100%" stopColor={to} />
+                                                        </linearGradient>
+                                                    )
+                                                })}
+                                                <linearGradient
+                                                    id={`${clipPathId}-highlight`}
+                                                    x1="0%"
+                                                    y1="100%"
+                                                    x2="100%"
+                                                    y2="0%"
+                                                >
+                                                    <stop offset="0%" stopColor="#BFE8FF" />
+                                                    <stop offset="100%" stopColor={highlightFill} />
+                                                </linearGradient>
+                                            </>
                                         )}
                                     </defs>
 
@@ -222,7 +252,17 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                     </g>
 
                                     {/* Histogram bars */}
-                                    <g clipPath={`url(#${clipPathId})`}>
+                                    <clipPath id={`${clipPathId}-bars`}>
+                                        <rect
+                                            x={margin.left}
+                                            y={margin.top}
+                                            width={plotWidth}
+                                            height={plotHeight}
+                                            rx={8}
+                                        />
+                                    </clipPath>
+
+                                    <g clipPath={`url(#${clipPathId}-bars)`}>
                                         {chartData.map((d, idx) => {
                                             const isHighlighted = idx === computedHighlightBinIndex
                                             if (isVertical) {
@@ -230,26 +270,39 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                     margin.left + xScaleVertical(d.edge as number)
                                                 const barRight =
                                                     margin.left + xScaleVertical(d.edge + binSize)
-                                                const barWidth = Math.abs(barRight - barLeft)
+                                                const rawWidth = Math.abs(barRight - barLeft)
+                                                const widthGap = Math.min(
+                                                    rawWidth * GAP_RATIO,
+                                                    MAX_GAP_PIXELS,
+                                                )
+                                                const barWidth = Math.max(rawWidth - widthGap, 0)
+                                                const xOffset = (rawWidth - barWidth) / 2
                                                 const barHeight =
                                                     plotHeight - yScaleVertical(d.value)
                                                 return (
                                                     <g key={idx}>
                                                         <rect
-                                                            x={Math.min(barLeft, barRight)}
+                                                            x={
+                                                                Math.min(barLeft, barRight) +
+                                                                xOffset *
+                                                                    (barRight >= barLeft ? 1 : -1)
+                                                            }
                                                             y={margin.top + yScaleVertical(d.value)}
                                                             width={barWidth}
                                                             height={barHeight}
-                                                            fill={
-                                                                isHighlighted
-                                                                    ? highlightFill
-                                                                    : baseFill
-                                                            }
+                                                            fill={resolveBarFill(
+                                                                idx,
+                                                                isHighlighted,
+                                                            )}
                                                             strokeWidth={0}
                                                             className="histogram-bar cursor-pointer"
                                                         />
                                                         <rect
-                                                            x={Math.min(barLeft, barRight)}
+                                                            x={
+                                                                Math.min(barLeft, barRight) +
+                                                                xOffset *
+                                                                    (barRight >= barLeft ? 1 : -1)
+                                                            }
                                                             y={margin.top}
                                                             width={Math.max(barWidth, 20)}
                                                             height={plotHeight}
@@ -295,25 +348,35 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                 margin.top + yScaleHorizontal(d.edge + binSize)
                                             const barBottom =
                                                 margin.top + yScaleHorizontal(d.edge as number)
-                                            const barHeight = Math.abs(barBottom - barTop)
+                                            const rawHeight = Math.abs(barBottom - barTop)
+                                            const heightGap = Math.min(
+                                                rawHeight * GAP_RATIO,
+                                                MAX_GAP_PIXELS,
+                                            )
+                                            const barHeight = Math.max(rawHeight - heightGap, 0)
+                                            const yOffset = (rawHeight - barHeight) / 2
                                             const rawBarWidth = xScaleHorizontal(d.value)
                                             const barWidth = Math.min(rawBarWidth, plotWidth)
                                             return (
                                                 <g key={idx}>
                                                     <rect
                                                         x={margin.left}
-                                                        y={Math.min(barTop, barBottom)}
+                                                        y={
+                                                            Math.min(barTop, barBottom) +
+                                                            yOffset * (barBottom >= barTop ? 1 : -1)
+                                                        }
                                                         width={barWidth}
                                                         height={barHeight}
-                                                        fill={
-                                                            isHighlighted ? highlightFill : baseFill
-                                                        }
+                                                        fill={resolveBarFill(idx, isHighlighted)}
                                                         strokeWidth={0}
                                                         className="histogram-bar cursor-pointer [clip-path:inset(0_0_0_-4px_round_0_4px_4px_0)]"
                                                     />
                                                     <rect
                                                         x={margin.left}
-                                                        y={Math.min(barTop, barBottom)}
+                                                        y={
+                                                            Math.min(barTop, barBottom) +
+                                                            yOffset * (barBottom >= barTop ? 1 : -1)
+                                                        }
                                                         width={Math.max(barWidth, 20)}
                                                         height={barHeight}
                                                         fill="transparent"

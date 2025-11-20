@@ -69,7 +69,9 @@ const isOutputsColumn = (config: ColumnValueConfig): boolean => {
 
     const containsOutputIndicator = (candidate?: string) =>
         typeof candidate === "string" &&
-        (candidate === "outputs" || candidate.startsWith("outputs.") || candidate.includes(".outputs"))
+        (candidate === "outputs" ||
+            candidate.startsWith("outputs.") ||
+            candidate.includes(".outputs"))
 
     return (
         containsOutputIndicator(normalized) ||
@@ -702,9 +704,9 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     column.columnKind === "metric" ||
                     (column.stepType === "annotation" && Boolean(column.metricKey)))
 
-                let metricCandidate: ScenarioStepValueResult | null = null
+            let metricCandidate: ScenarioStepValueResult | null = null
 
-                if (shouldAttemptMetricLookup) {
+            if (shouldAttemptMetricLookup) {
                 const metricMeta = get(
                     scenarioMetricMetaAtomFamily({scenarioId: scenarioId as string, runId}),
                 )

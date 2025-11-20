@@ -1,4 +1,4 @@
-import {type FC, memo, useCallback, useState} from "react"
+import {type FC, memo, useMemo, useState} from "react"
 
 import clsx from "clsx"
 
@@ -23,14 +23,15 @@ interface ResponsiveFrequencyChartProps {
     dynamicMargin?: Partial<{top: number; right: number; bottom: number; left: number}>
 }
 
-// Resolve fills based on props (keep defaults when not provided)
-const DEFAULTS = {
-    greenSolid: "#95DE64",
-    blueSolid: "#69B1FF",
-    graySolid: "#97A4B0",
-}
-
-const CUSTOM_GRADIENT_ID = "barGradientCustom"
+const FREQUENCY_SOLIDS = ["#2563EB", "#7C3AED", "#0EA5E9", "#22C55E", "#F97316", "#EC4899"]
+const FREQUENCY_GRADIENTS = [
+    ["#9BC9FF", "#1D4ED8"],
+    ["#E6C9FF", "#7C3AED"],
+    ["#9CF0E3", "#0EA5E9"],
+    ["#B7F6C5", "#22C55E"],
+    ["#FFD4AD", "#F97316"],
+    ["#FFC2DD", "#EC4899"],
+]
 
 /**
  * ResponsiveFrequencyChart renders a vertical bar chart for categorical/frequency data.
@@ -85,13 +86,6 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
             dynamicMargin = {...defaultMargin, left: dynamicLeftMargin, ...dynamicPropsMargin}
         }
 
-        // Calculate maxCount and maxCountOccurrences once
-        const countMap = data.map((d) => d.count)
-        const maxCount = Math.max(...countMap)
-        const maxCountOccurrences = countMap.filter((count) => count === maxCount).length
-        // Store maxCount for later use in rendering
-        const uniqueMaxCount = maxCountOccurrences === 1 ? maxCount : null
-
         // Compute highlighted bar indices from highlightValues
         const computedHighlightBarIndices =
             highlightValues.length > 0
@@ -101,6 +95,12 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                       )
                       .filter((i) => i !== -1)
                 : []
+
+        const gradientBaseId = useMemo(() => `freq-${Math.random().toString(36).slice(2, 10)}`, [])
+        const customGradientId = `${gradientBaseId}-custom`
+        const highlightGradientId = `${gradientBaseId}-highlight`
+        const resolveBarGradientId = (index: number) =>
+            `${gradientBaseId}-bar-${index % FREQUENCY_GRADIENTS.length}`
 
         return (
             <ChartFrame margin={dynamicMargin}>
@@ -115,31 +115,19 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                     const barWidthVertical = plotWidth / yCount - 6
                     const yScaleVertical = (value: number) => ((xMax - value) / xMax) * plotHeight
 
-                    const getFill = useCallback(
-                        (isHighlighted: boolean, d: FrequencyDatum): string => {
-                            // If user supplies barColor, it overrides category colors:
-                            if (barColor) {
-                                // highlighted also uses barColor (solid), mirroring prior component behavior
-                                if (isHighlighted) return barColor
-                                return disableGradient ? barColor : `url(#${CUSTOM_GRADIENT_ID})`
-                            }
-                            // Default behavior (no barColor override)
-                            if (isHighlighted) return DEFAULTS.greenSolid
-                            if (disableGradient) {
-                                // Solid fallbacks
-                                if (d.label === "true") return DEFAULTS.greenSolid
-                                if (uniqueMaxCount !== null && d.count === uniqueMaxCount)
-                                    return DEFAULTS.blueSolid
-                                return DEFAULTS.graySolid
-                            }
-                            // Gradient fallbacks
-                            if (d.label === "true") return "url(#barGradientGreen)"
-                            if (uniqueMaxCount !== null && d.count === uniqueMaxCount)
-                                return "url(#barGradientBlue)"
-                            return "url(#barGradientGray)"
-                        },
-                        [barColor],
-                    )
+                    const resolveFill = (index: number, isHighlighted: boolean): string => {
+                        if (isHighlighted) {
+                            if (disableGradient) return "#0EA5E9"
+                            return `url(#${highlightGradientId})`
+                        }
+                        if (barColor) {
+                            return disableGradient ? barColor : `url(#${customGradientId})`
+                        }
+                        if (disableGradient) {
+                            return FREQUENCY_SOLIDS[index % FREQUENCY_SOLIDS.length]
+                        }
+                        return `url(#${resolveBarGradientId(index)})`
+                    }
 
                     return (
                         <>
@@ -156,57 +144,43 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                             >
                                 {/* Bar gradient defs */}
                                 <defs>
-                                    {/* If a custom barColor is provided and gradient is enabled, use a single custom gradient */}
-                                    {!disableGradient && barColor && (
-                                        <linearGradient
-                                            id={CUSTOM_GRADIENT_ID}
-                                            x1="0%"
-                                            y1="100%"
-                                            x2="100%"
-                                            y2="0%"
-                                        >
-                                            <stop offset="0%" stopColor={barColor} />
-                                            <stop offset="100%" stopColor={barColor} />
-                                        </linearGradient>
-                                    )}
-
-                                    {/* Otherwise keep the existing three gradients (when gradient is enabled) */}
-                                    {!disableGradient && !barColor && (
+                                    {!disableGradient && (
                                         <>
-                                            {/* Gradient for "true" state */}
+                                            {barColor ? (
+                                                <linearGradient
+                                                    id={customGradientId}
+                                                    x1="0%"
+                                                    y1="100%"
+                                                    x2="100%"
+                                                    y2="0%"
+                                                >
+                                                    <stop offset="0%" stopColor={barColor} />
+                                                    <stop offset="100%" stopColor={barColor} />
+                                                </linearGradient>
+                                            ) : (
+                                                FREQUENCY_GRADIENTS.map(([from, to], idx) => (
+                                                    <linearGradient
+                                                        key={`${gradientBaseId}-bar-${idx}`}
+                                                        id={`${gradientBaseId}-bar-${idx}`}
+                                                        x1="0%"
+                                                        y1="100%"
+                                                        x2="100%"
+                                                        y2="0%"
+                                                    >
+                                                        <stop offset="0%" stopColor={from} />
+                                                        <stop offset="100%" stopColor={to} />
+                                                    </linearGradient>
+                                                ))
+                                            )}
                                             <linearGradient
-                                                id="barGradientGreen"
+                                                id={highlightGradientId}
                                                 x1="0%"
                                                 y1="100%"
                                                 x2="100%"
                                                 y2="0%"
                                             >
-                                                <stop offset="0%" stopColor="#D9F7BE" />
-                                                <stop offset="100%" stopColor="#95DE64" />
-                                            </linearGradient>
-
-                                            {/* Gradient for default/false state */}
-                                            <linearGradient
-                                                id="barGradientGray"
-                                                x1="0%"
-                                                y1="100%"
-                                                x2="100%"
-                                                y2="0%"
-                                            >
-                                                <stop offset="0%" stopColor="#D6DEE6" />
-                                                <stop offset="100%" stopColor="#97A4B0" />
-                                            </linearGradient>
-
-                                            {/* Gradient for most-count (unique max) */}
-                                            <linearGradient
-                                                id="barGradientBlue"
-                                                x1="0%"
-                                                y1="100%"
-                                                x2="100%"
-                                                y2="0%"
-                                            >
-                                                <stop offset="0%" stopColor="#BAE0FF" />
-                                                <stop offset="100%" stopColor="#69B1FF" />
+                                                <stop offset="0%" stopColor="#CFFAFE" />
+                                                <stop offset="100%" stopColor="#06B6D4" />
                                             </linearGradient>
                                         </>
                                     )}
@@ -292,9 +266,6 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                     {data.map((d, idx) => {
                                         const isHighlighted =
                                             computedHighlightBarIndices.includes(idx)
-                                        const isMaxUnique =
-                                            uniqueMaxCount !== null && d.count === uniqueMaxCount
-
                                         if (isVertical) {
                                             const barX =
                                                 margin.left +
@@ -308,7 +279,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                     y={margin.top + yScaleVertical(d.count)}
                                                     width={barWidthVertical}
                                                     height={barHeight}
-                                                    fill={getFill(isHighlighted, d)}
+                                                    fill={resolveFill(idx, isHighlighted)}
                                                     strokeWidth={0}
                                                     className={clsx(
                                                         "frequency-bar cursor-pointer",
@@ -352,7 +323,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                 }
                                                 width={xScaleHorizontal(d.count)}
                                                 height={barHeightHorizontal}
-                                                fill={getFill(isHighlighted, d)}
+                                                fill={resolveFill(idx, isHighlighted)}
                                                 strokeWidth={0}
                                                 className={clsx(
                                                     "frequency-bar cursor-pointer",

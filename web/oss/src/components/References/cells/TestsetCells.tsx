@@ -1,6 +1,5 @@
 import {Typography} from "antd"
 
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {
     useRunRowReferences,
     useRunRowSummary,
@@ -8,6 +7,8 @@ import {
 import type {EvaluationRunTableRow} from "@/oss/components/EvaluationRunsTablePOC/types"
 import type {ReferenceColumnDescriptor} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
 import {getSlotByRoleOrdinal} from "@/oss/components/EvaluationRunsTablePOC/utils/referenceSchema"
+import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
+
 import usePreviewTestsetReference from "../hooks/usePreviewTestsetReference"
 
 const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
@@ -49,16 +50,16 @@ const PreviewTestsetCellContent = ({
             testsetId: firstTestsetId,
             stepReferences,
         },
-        {enabled: canFetch && Boolean(firstTestsetId) && isVisible},
+        {enabled: canFetch && Boolean(firstTestsetId)},
     )
 
-    const primaryName =
-        normalize(reference?.name) ??
-        (firstTestsetId ? normalize(testsetNames?.[firstTestsetId]) : null) ??
-        normalize(slot?.values?.[0]?.label) ??
-        normalize(slot?.values?.[0]?.slug) ??
-        normalize(slot?.values?.[0]?.name) ??
-        normalize(slot?.values?.[0]?.id)
+    const primaryName = normalize(reference?.name)
+    //  ??
+    // (firstTestsetId ? normalize(testsetNames?.[firstTestsetId]) : null) ??
+    // normalize(slot?.values?.[0]?.label) ??
+    // normalize(slot?.values?.[0]?.slug) ??
+    // normalize(slot?.values?.[0]?.name) ??
+    // normalize(slot?.values?.[0]?.id)
 
     const label = primaryName ?? "—"
     if (summaryLoading || referenceLoading) {

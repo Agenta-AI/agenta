@@ -20,7 +20,7 @@ const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-
 
 export const PreviewVariantCellSkeleton = () => <SkeletonLine width="60%" />
 
-const sanitizeVariantName = (value: string | null | undefined) => {
+export const sanitizeVariantName = (value: string | null | undefined) => {
     if (typeof value !== "string") {
         return null
     }
@@ -28,7 +28,7 @@ const sanitizeVariantName = (value: string | null | undefined) => {
     return trimmed.length > 0 ? trimmed : null
 }
 
-const stripVariantSuffix = (name: string | null, suffix: string | null) => {
+export const stripVariantSuffix = (name: string | null, suffix: string | null) => {
     if (!name) return null
     if (!suffix) return name
     const normalizedName = name.trim()
@@ -42,7 +42,7 @@ const stripVariantSuffix = (name: string | null, suffix: string | null) => {
     return normalizedName
 }
 
-const formatRevisionLabel = (revision: string | number | null | undefined) => {
+export const formatRevisionLabel = (revision: string | number | null | undefined) => {
     if (revision === null || revision === undefined) return null
     if (typeof revision === "number") return revision
     const trimmed = revision.trim()
@@ -85,7 +85,7 @@ const PreviewVariantCellContent = ({
         slot?.values.find((value) => value.source?.toLowerCase().includes("revision")) ?? null
     const revisionId = slotRevisionValue?.id ?? invocation?.revisionId ?? null
     const invocationVariantName = sanitizeVariantName(invocation?.variantName) ?? null
-    const shouldFetchConfig = Boolean(canFetch && revisionId && isVisible)
+    const shouldFetchConfig = Boolean(canFetch && revisionId)
     const {config, isLoading: configLoading} = usePreviewVariantConfig(
         {
             projectId,
@@ -102,10 +102,10 @@ const PreviewVariantCellContent = ({
 
     const rawVariantName =
         config?.variantName ??
-        slotVariantValue?.label ??
+        slotVariantValue?.slug ??
         invocationVariantName ??
         invocation?.appName ??
-        slotVariantValue?.slug ??
+        slotVariantValue?.label ??
         null
     const sanitizedVariantName = sanitizeVariantName(rawVariantName)
     const fallbackVariantId =
@@ -119,6 +119,16 @@ const PreviewVariantCellContent = ({
         sanitizedVariantName && !isUuid(sanitizedVariantName)
             ? stripVariantSuffix(sanitizedVariantName, uniqueSuffix)
             : null
+    console.log("normalizedVariantName", {
+        normalizedVariantName,
+        sanitizedVariantName,
+        descriptor,
+        referenceSequence,
+        invocation,
+        config,
+        projectId,
+        revisionId,
+    })
     const displayName = normalizedVariantName ?? (uniqueSuffix ? `Variant ${uniqueSuffix}` : null)
     const exportText =
         displayName && resolvedRevision

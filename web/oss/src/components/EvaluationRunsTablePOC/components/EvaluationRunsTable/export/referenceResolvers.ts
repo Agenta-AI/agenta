@@ -191,7 +191,7 @@ const resolveVariantReferenceValue = (
 
     const configVariantName = sanitizeVariantName(config?.variantName)
     const slotLabel =
-        sanitizeVariantName(variantEntry?.label) ?? sanitizeVariantName(variantEntry?.slug)
+        sanitizeVariantName(variantEntry?.slug) ?? sanitizeVariantName(variantEntry?.label)
     const sanitizedVariantName =
         configVariantName ?? slotLabel ?? invocationVariantName ?? fallbackLabel ?? null
     const normalizedVariantName =

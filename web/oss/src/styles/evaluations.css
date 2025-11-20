@@ -4,3 +4,30 @@
 .evaluations-tabs .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
     color: #0f172a;
 }
+
+.application-variant-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    margin-top: 2px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: rgba(15, 23, 42, 0.55);
+}
+
+.application-variant-label {
+    font-weight: 500;
+    color: rgba(15, 23, 42, 0.85);
+}
+
+.application-variant-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #1d2939;
+    background: rgba(5, 23, 41, 0.08);
+}

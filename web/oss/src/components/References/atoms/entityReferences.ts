@@ -293,38 +293,64 @@ const variantConfigBatchFetcher = createBatchFetcher<
                           ? payload
                           : []
 
-                    const lookup = new Map<string, VariantConfigReference>(
-                        configs
-                            .map((config: any) => {
-                                const variantRef = config?.variant_ref ?? {}
-                                const rawId = variantRef?.id ?? variantRef?._id ?? null
-                                if (!rawId) return null
-                                const revisionId = typeof rawId === "string" ? rawId : String(rawId)
-                                const variantName =
-                                    typeof variantRef?.slug === "string" ? variantRef.slug : null
-                                const revisionValue =
-                                    variantRef?.version !== undefined ? variantRef.version : null
-                                return [
-                                    revisionId,
-                                    {
-                                        revisionId,
-                                        variantName,
-                                        revision: revisionValue,
-                                    } satisfies VariantConfigReference,
-                                ] as const
-                            })
-                            .filter(isNonNullable),
-                    )
+                    const normalizedConfigs = configs
+                        .map((config: any) => {
+                            const variantRef = config?.variant_ref ?? {}
+                            const rawId = variantRef?.id ?? variantRef?._id ?? null
+                            const variantName =
+                                typeof variantRef?.slug === "string" ? variantRef.slug : null
+                            const revisionValue =
+                                variantRef?.version !== undefined ? variantRef.version : null
+                            const normalizedRevisionId =
+                                typeof rawId === "string"
+                                    ? rawId
+                                    : rawId != null
+                                      ? String(rawId)
+                                      : null
+                            if (!normalizedRevisionId && !variantName && revisionValue == null) {
+                                return null
+                            }
+                            return {
+                                rawId: normalizedRevisionId,
+                                reference: {
+                                    revisionId: normalizedRevisionId ?? "",
+                                    variantName,
+                                    revision: revisionValue,
+                                } satisfies VariantConfigReference,
+                            }
+                        })
+                        .filter(isNonNullable)
+
+                    const lookupByResponseId = new Map<string, VariantConfigReference>()
+                    const fallbackQueue: VariantConfigReference[] = []
+                    normalizedConfigs.forEach(({rawId, reference}) => {
+                        if (rawId) {
+                            lookupByResponseId.set(rawId, reference)
+                        }
+                        fallbackQueue.push(reference)
+                    })
 
                     group.requests.forEach((request, index) => {
                         const key = group.keys[index]
-                        const reference =
-                            lookup.get(request.revisionId) ??
-                            ({
+                        let reference: VariantConfigReference | undefined
+                        if (request.revisionId) {
+                            reference = lookupByResponseId.get(request.revisionId)
+                        }
+                        if (!reference) {
+                            reference = fallbackQueue.shift() ?? undefined
+                        }
+                        if (!reference) {
+                            reference = {
                                 revisionId: request.revisionId!,
                                 variantName: null,
                                 revision: null,
-                            } as VariantConfigReference)
+                            }
+                        } else if (!reference.revisionId && request.revisionId) {
+                            reference = {
+                                ...reference,
+                                revisionId: request.revisionId,
+                            }
+                        }
                         results.set(key, reference)
                     })
                 } catch (error) {

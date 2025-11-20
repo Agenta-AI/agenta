@@ -1,11 +1,9 @@
-import {Fragment, useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo} from "react"
 import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "react"
 
-import {Button, Checkbox, DatePicker, Divider, Select, Space, Tag, Typography} from "antd"
-import type {CheckboxOptionType} from "antd/es/checkbox/Group"
+import {Button, Divider, Select, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 import {useTestsetsData} from "@/oss/state/testset"
 
 import {evaluationRunsTableComponentSliceAtom} from "../../atoms/context"
@@ -29,6 +27,7 @@ import {areFlagMapsEqual} from "../../utils/flags"
 import {buildTestsetOptions} from "../../utils/testsetOptions"
 
 import QueryFilterOption from "./QueryFilterOption"
+import QuickDateRangePicker from "./QuickDateRangePicker"
 
 import {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
@@ -246,13 +245,11 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
         [setDraft],
     )
 
-    const handleDateChange = useCallback(
-        (key: "from" | "to", value: dayjs.Dayjs | null) => {
+    const handleDateRangeChange = useCallback(
+        (range: {from?: string | null; to?: string | null} | null) => {
             setDraft((prev) => {
                 if (!prev) return prev
-                const iso = value ? value.toISOString() : null
-                const nextRange = {...(prev.dateRange ?? {}), [key]: iso}
-                return {...prev, dateRange: nextRange}
+                return {...prev, dateRange: range}
             })
         },
         [setDraft],
@@ -514,38 +511,33 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
 
     return (
         <div className="flex flex-col gap-3 min-w-[320px] min-h-[0] text-gray-700 bg-white px-5 py-4 rounded-[20px] shadow-[0_20px_45px_rgba(15,23,42,0.12)]">
-        <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-2">
                 <Section title="Status">
-                    <Checkbox.Group
-                        className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-4"
+                    <Select
+                        mode="multiple"
+                        allowClear
                         value={draftStatusFilters}
-                        onChange={handleStatusChange}
-                    >
-                        {(STATUS_OPTIONS as CheckboxOptionType[]).map((option) => (
-                            <Checkbox key={String(option.value)} value={option.value}>
-                                {option.label}
-                            </Checkbox>
-                        ))}
-                    </Checkbox.Group>
+                        options={STATUS_OPTIONS}
+                        optionFilterProp="label"
+                        placeholder="Select statuses"
+                        onChange={(values) => handleStatusChange(values as (string | number)[])}
+                    />
                 </Section>
 
                 {shouldShowEvaluationTypeSection ? (
                     <Section title="Evaluation Type">
-                        <Checkbox.Group
-                            value={draftEvaluationTypes}
+                        <Select
+                            mode="multiple"
+                            allowClear
                             disabled={evaluationTypeDisabled}
+                            value={draftEvaluationTypes}
+                            options={EVALUATION_KIND_FILTER_OPTIONS}
+                            optionFilterProp="label"
+                            placeholder="Select evaluation types"
                             onChange={(values) =>
                                 handleEvaluationTypeChange(values as (string | number)[])
                             }
-                        >
-                            <Space size={10} wrap>
-                                {EVALUATION_KIND_FILTER_OPTIONS.map((option) => (
-                                    <Checkbox key={option.value} value={option.value}>
-                                        {option.label}
-                                    </Checkbox>
-                                ))}
-                            </Space>
-                        </Checkbox.Group>
+                        />
                         {evaluationTypeDisabled ? (
                             <Typography.Text type="secondary" className="text-xs">
                                 Evaluation type is controlled by the selected tab.
@@ -557,26 +549,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
 
             <Section title="Date range & references">
                 <div className="flex flex-col gap-3">
-                    <FieldGrid>
-                        <DatePicker
-                            showTime
-                            allowClear
-                            placeholder="From"
-                            value={draftDateRange?.from ? dayjs(draftDateRange.from) : null}
-                            onChange={(value) => handleDateChange("from", value)}
-                            className="w-full"
-                            disabledDate={(current) => current && current > dayjs()}
-                        />
-                        <DatePicker
-                            showTime
-                            allowClear
-                            placeholder="To"
-                            value={draftDateRange?.to ? dayjs(draftDateRange.to) : null}
-                            onChange={(value) => handleDateChange("to", value)}
-                            className="w-full"
-                            disabledDate={(current) => current && current > dayjs()}
-                        />
-                    </FieldGrid>
+                    <QuickDateRangePicker value={draftDateRange} onChange={handleDateRangeChange} />
                     {hasReferenceControls ? (
                         <FieldGrid>
                             {shouldShowTestsetSection ? (
