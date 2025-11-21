@@ -1,4 +1,4 @@
-import {useCallback, memo, useState} from "react"
+import {memo, useCallback, useMemo, useState} from "react"
 
 import {useLexicalComposerContext} from "@lexical/react/LexicalComposerContext"
 import {
@@ -9,10 +9,12 @@ import {
     CaretDown,
     CaretUp,
     Image as PhImage,
+    TextAa,
     FileArchive,
     MarkdownLogoIcon,
-    TextAa,
 } from "@phosphor-icons/react"
+import {Dropdown} from "antd"
+import type {MenuProps} from "antd"
 import clsx from "clsx"
 import {useAtom} from "jotai"
 
@@ -94,6 +96,54 @@ const TurnMessageHeaderOptions = ({
 
     const [isCopied, setIsCopied] = useState(false)
 
+    const maxImageReached = uploadCount !== undefined && uploadCount >= 5
+    const maxDocumentReached = documentCount !== undefined && documentCount >= 5
+
+    const canAddImageUpload = Boolean(onAddUploadSlot) && allowFileUpload && !maxImageReached
+    const canAddDocumentUpload =
+        Boolean(onAddDocumentSlot) && allowFileUpload && !maxDocumentReached
+    const attachmentButtonDisabled = !canAddImageUpload && !canAddDocumentUpload
+
+    const attachmentMenuItems = useMemo<NonNullable<MenuProps["items"]>>(() => {
+        const items: NonNullable<MenuProps["items"]> = []
+        if (onAddUploadSlot) {
+            items.push({
+                key: "image",
+                disabled: !canAddImageUpload,
+                label: (
+                    <span className="flex items-center gap-1">
+                        <PhImage size={12} />
+                        <span>Upload image</span>
+                    </span>
+                ),
+            })
+        }
+        if (onAddDocumentSlot) {
+            items.push({
+                key: "document",
+                disabled: !canAddDocumentUpload,
+                label: (
+                    <span className="flex items-center gap-1">
+                        <FileArchive size={12} />
+                        <span>Attach document</span>
+                    </span>
+                ),
+            })
+        }
+        return items
+    }, [onAddUploadSlot, onAddDocumentSlot, canAddImageUpload, canAddDocumentUpload])
+
+    const handleAttachmentMenuClick = useCallback<NonNullable<MenuProps["onClick"]>>(
+        ({key}) => {
+            if (key === "image" && canAddImageUpload) {
+                onAddUploadSlot?.()
+            } else if (key === "document" && canAddDocumentUpload) {
+                onAddDocumentSlot?.()
+            }
+        },
+        [onAddDocumentSlot, onAddUploadSlot, canAddDocumentUpload, canAddImageUpload],
+    )
+
     const onCopyText = useCallback(() => {
         const value = getTextContent(text || "")
         if (value) {
@@ -104,12 +154,7 @@ const TurnMessageHeaderOptions = ({
     }, [text])
 
     return (
-        <div
-            className={clsx(
-                "flex items-center gap-1 invisible group-hover/item:visible",
-                className,
-            )}
-        >
+        <div className={clsx("flex items-center gap-1 relative", className)}>
             {onRerun ? (
                 <EnhancedButton
                     icon={<ArrowClockwise size={14} />}
@@ -131,21 +176,26 @@ const TurnMessageHeaderOptions = ({
                 />
             )}
 
-            <EnhancedButton
-                icon={<PhImage size={14} />}
-                type="text"
-                onClick={onAddUploadSlot}
-                tooltipProps={{title: "Upload Image"}}
-                disabled={!allowFileUpload || (uploadCount !== undefined && uploadCount >= 5)}
-            />
-
-            <EnhancedButton
-                icon={<FileArchive size={14} />}
-                type="text"
-                onClick={onAddDocumentSlot}
-                tooltipProps={{title: "Attach Document"}}
-                disabled={!allowFileUpload || (documentCount !== undefined && documentCount >= 5)}
-            />
+            {attachmentMenuItems.length > 0 ? (
+                <Dropdown
+                    trigger={["click"]}
+                    placement="bottomRight"
+                    menu={{
+                        items: attachmentMenuItems,
+                        onClick: handleAttachmentMenuClick,
+                    }}
+                    disabled={attachmentButtonDisabled}
+                >
+                    <span className="inline-flex">
+                        <EnhancedButton
+                            icon={<FileArchive size={14} />}
+                            type="text"
+                            tooltipProps={{title: "Add attachment"}}
+                            disabled={attachmentButtonDisabled}
+                        />
+                    </span>
+                </Dropdown>
+            ) : null}
 
             <EnhancedButton
                 icon={isCopied ? <Check size={14} /> : <Copy size={14} />}

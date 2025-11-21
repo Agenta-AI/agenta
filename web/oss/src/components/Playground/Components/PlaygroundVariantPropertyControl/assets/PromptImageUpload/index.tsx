@@ -164,6 +164,7 @@ const PromptImageUpload = ({
                                 setError("")
                             }}
                             type="url"
+                            allowClear
                         />
                     )}
 

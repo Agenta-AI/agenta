@@ -304,7 +304,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
             baseImageProperties.length > 0 || baseFileProperties.length > 0 || footer ? (
                 <div
                     className={clsx([
-                        "flex items-center mt-2 w-full",
+                        "flex flex-col items-center mt-2 w-full",
                         messageProps?.footerClassName,
                     ])}
                 >

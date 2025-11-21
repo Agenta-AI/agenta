@@ -11,11 +11,11 @@ import EditorWrapper from "@/oss/components/Editor/Editor"
 import {ON_CHANGE_LANGUAGE} from "@/oss/components/Editor/plugins/code"
 import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/commands"
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
 
 type AccordionTreePanelProps = {
-    value: Record<string, any> | string
+    value: Record<string, any> | string | any[]
     label: string
     enableFormatSwitcher?: boolean
     bgColor?: string
@@ -125,7 +125,7 @@ const MarkdownToggleButton = () => {
 }
 
 const AccordionTreePanel = ({
-    value,
+    value: incomingValue,
     label,
     enableFormatSwitcher = false,
     bgColor,
@@ -136,10 +136,21 @@ const AccordionTreePanel = ({
     const [segmentedValue, setSegmentedValue] = useState<"json" | "yaml">("json")
     const editorRef = useRef<HTMLDivElement>(null)
 
+    const {data: sanitizedValue, attachments} = useMemo(() => {
+        return sanitizeDataWithBlobUrls(incomingValue)
+    }, [incomingValue])
+
+    const isStringValue = typeof sanitizedValue === "string"
+
     const yamlOutput = useMemo(() => {
-        if (segmentedValue === "yaml" && value && Object.keys(value).length) {
+        if (
+            segmentedValue === "yaml" &&
+            sanitizedValue &&
+            typeof sanitizedValue === "object" &&
+            Object.keys(sanitizedValue).length
+        ) {
             try {
-                const jsonObject = JSON.parse(getStringOrJson(value))
+                const jsonObject = JSON.parse(getStringOrJson(sanitizedValue))
                 return yaml.dump(jsonObject)
             } catch (error: any) {
                 console.error("Failed to convert JSON to YAML:", error)
@@ -147,7 +158,7 @@ const AccordionTreePanel = ({
             }
         }
         return ""
-    }, [segmentedValue, value])
+    }, [segmentedValue, sanitizedValue])
 
     const collapse = (
         <Collapse
@@ -166,10 +177,30 @@ const AccordionTreePanel = ({
                                 overflowY: "auto",
                             }}
                         >
-                            {typeof value === "string" ? (
+                            {attachments.length ? (
+                                <div className="border-b border-[#EAECF0] px-4 py-2 text-xs flex flex-col gap-1">
+                                    <span className="font-semibold uppercase tracking-wide text-[#475467]">
+                                        Files
+                                    </span>
+                                    <div className="flex flex-wrap gap-3">
+                                        {attachments.map((file, index) => (
+                                            <a
+                                                key={`${file.data}-${index}`}
+                                                href={file.data}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-[#1677ff]"
+                                            >
+                                                {file.filename || `File ${index + 1}`}
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
+                            {isStringValue ? (
                                 <div className="p-2">
                                     <EditorWrapper
-                                        initialValue={value}
+                                        initialValue={sanitizedValue as string}
                                         disabled
                                         codeOnly={false}
                                         showToolbar={false}
@@ -191,7 +222,7 @@ const AccordionTreePanel = ({
                                     <LanguageAwareViewer
                                         initialValue={
                                             segmentedValue === "json"
-                                                ? getStringOrJson(value)
+                                                ? getStringOrJson(sanitizedValue)
                                                 : yamlOutput
                                         }
                                         language={segmentedValue}
@@ -202,7 +233,7 @@ const AccordionTreePanel = ({
                     ),
                     extra: (
                         <Space size={12} onClick={(e) => e.stopPropagation()}>
-                            {enableFormatSwitcher && typeof value !== "string" && (
+                            {enableFormatSwitcher && !isStringValue && (
                                 <Radio.Group
                                     value={segmentedValue}
                                     onChange={(e) =>
@@ -213,10 +244,12 @@ const AccordionTreePanel = ({
                                     <Radio.Button value="yaml">YAML</Radio.Button>
                                 </Radio.Group>
                             )}
-                            {typeof value === "string" && <MarkdownToggleButton />}
+                            {isStringValue && <MarkdownToggleButton />}
                             <CopyButton
                                 text={
-                                    segmentedValue === "json" ? getStringOrJson(value) : yamlOutput
+                                    segmentedValue === "json"
+                                        ? getStringOrJson(sanitizedValue)
+                                        : yamlOutput
                                 }
                                 icon={true}
                                 buttonText={null}
@@ -231,10 +264,10 @@ const AccordionTreePanel = ({
         />
     )
 
-    if (typeof value === "string") {
+    if (isStringValue) {
         return (
             <EditorProvider
-                initialValue={value}
+                initialValue={sanitizedValue as string}
                 disabled
                 showToolbar={false}
                 className={classes.editor}

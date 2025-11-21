@@ -472,3 +472,91 @@ export const getUniquePartOfId = (id: string) => {
 export const convertToStringOrJson = (value: any) => {
     return typeof value === "string" ? value : JSON.stringify(value)
 }
+
+// Helper function to convert base64 data to object URL
+export type FileAttachment = {
+    filename: string
+    data: string
+    format?: string
+    size?: number | string
+}
+
+export const dataUriToObjectUrl = (dataUri: string): string => {
+    const match = dataUri.match(/^data:(.*?);base64,(.*)$/)
+    if (!match) return dataUri
+    try {
+        const mimeType = match[1] || "application/pdf"
+        const base64 = match[2]
+        const byteCharacters = atob(base64)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const blob = new Blob([byteArray], {type: mimeType})
+        return URL.createObjectURL(blob)
+    } catch (error) {
+        console.error("Unable to create preview URL from data URI", error)
+        return dataUri
+    }
+}
+
+// Helper function to check if a string is a base64
+export const isBase64 = (value: string): boolean => {
+    const match = value.match(/^data:(.*?);base64,(.*)$/)
+    return Boolean(match)
+}
+
+export const sanitizeDataWithBlobUrls = <T = any>(
+    input: T,
+): {data: T; blobUrls: string[]; attachments: FileAttachment[]} => {
+    const blobUrls: string[] = []
+    const attachments: FileAttachment[] = []
+
+    const convertString = (value: any) => {
+        if (typeof value === "string" && isBase64(value)) {
+            const url = dataUriToObjectUrl(value)
+            blobUrls.push(url)
+            return url
+        }
+        return value
+    }
+
+    const walk = (node: any): any => {
+        if (Array.isArray(node)) {
+            return node.map((item) => walk(item))
+        }
+        if (node && typeof node === "object") {
+            const cloned: Record<string, any> = {}
+            Object.entries(node).forEach(([key, value]) => {
+                const sanitized = walk(value)
+                cloned[key] = sanitized
+            })
+            const fileData = cloned.file_data ?? cloned.fileData
+            const fileId = cloned.file_id ?? cloned.fileId
+            const filename = cloned.filename ?? cloned.name ?? cloned.file_name
+            const format = cloned.format ?? cloned.file_format
+            const size = cloned.size ?? cloned.file_size
+            const dataCandidate = typeof fileId === "string" && fileId ? fileId : fileData
+            if (typeof dataCandidate === "string" && dataCandidate.length) {
+                const shouldConvert = isBase64(dataCandidate)
+                const resolved = shouldConvert ? dataUriToObjectUrl(dataCandidate) : dataCandidate
+                if (shouldConvert) blobUrls.push(resolved)
+                attachments.push({
+                    filename: filename || "Document",
+                    format,
+                    size,
+                    data: resolved,
+                })
+                if (cloned.file_data) cloned.file_data = resolved
+                if (cloned.fileData) cloned.fileData = resolved
+                if (cloned.file_id) cloned.file_id = resolved
+                if (cloned.fileId) cloned.fileId = resolved
+            }
+            return cloned
+        }
+        return convertString(node)
+    }
+
+    return {data: walk(input), blobUrls, attachments}
+}

@@ -153,55 +153,58 @@ export const createMessageFromSchema = (
                                         generatedItem.__metadata = (imageBase as any).__metadata
                                         generatedItem.__id = (imageBase as any).__id
                                     } else if (item.type === "file") {
-                                        console.log(
-                                            "[messageHelpers][createMessageFromSchema] file part input",
-                                            item,
-                                        )
                                         const fileOptionMetadata = itemMetadata.options?.find(
                                             (opt) => "file" in opt.properties,
                                         )
 
                                         const fileBase =
                                             createObjectFromMetadata(fileOptionMetadata)
-                                        const fileProp = (fileBase as any).file || {
-                                            file_id: {},
-                                            file_data: {},
-                                            name: {},
-                                            filename: {},
-                                            mime_type: {},
-                                            format: {},
+                                        const fileProp =
+                                            (fileBase as any)?.file ?? {
+                                                __id: generateId(),
+                                                __metadata: hashMetadata(itemMetadata),
+                                            }
+                                        const ensureScalarNode = (node: any) => {
+                                            if (node && typeof node === "object") return node
+                                            return {
+                                                __id: generateId(),
+                                                __metadata: hashMetadata(itemMetadata),
+                                                value: "",
+                                            }
                                         }
 
                                         generatedItem.file = {
                                             ...fileProp,
                                             file_id: {
-                                                ...fileProp?.file_id,
+                                                ...ensureScalarNode(fileProp?.file_id),
                                                 value: item.file?.file_id || "",
                                             },
                                             file_data: {
-                                                ...fileProp?.file_data,
+                                                ...ensureScalarNode(fileProp?.file_data),
                                                 value: item.file?.file_data || "",
                                             },
                                             name: {
-                                                ...fileProp?.name,
-                                                value: item.file?.name || "",
+                                                ...ensureScalarNode(fileProp?.name),
+                                                value: item.file?.name || item.file?.filename || "",
                                             },
                                             filename: {
-                                                ...fileProp?.filename,
+                                                ...ensureScalarNode(fileProp?.filename),
                                                 value: item.file?.filename || item.file?.name || "",
                                             },
                                             mime_type: {
-                                                ...fileProp?.mime_type,
-                                                value: item.file?.mime_type || "",
+                                                ...ensureScalarNode(fileProp?.mime_type),
+                                                value: item.file?.mime_type || item.file?.format || "",
                                             },
                                             format: {
-                                                ...fileProp?.format,
+                                                ...ensureScalarNode(fileProp?.format),
                                                 value: item.file?.format || item.file?.mime_type || "",
                                             },
                                         }
 
-                                        generatedItem.__metadata = (fileBase as any).__metadata
-                                        generatedItem.__id = (fileBase as any).__id
+                                        if (fileBase) {
+                                            generatedItem.__metadata = (fileBase as any).__metadata
+                                            generatedItem.__id = (fileBase as any).__id
+                                        }
                                     }
 
                                     return generatedItem

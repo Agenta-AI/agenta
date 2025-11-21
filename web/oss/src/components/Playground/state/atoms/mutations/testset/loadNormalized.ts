@@ -95,17 +95,21 @@ const buildFilePart = (raw: any): NormalizedContentPart | null => {
     const value = unwrapValue(raw)
     if (!value || typeof value !== "object") return null
     const fileId = asString((value as any).file_id ?? (value as any).fileId ?? value)
-    if (!fileId) return null
+    const fileData = asString((value as any).file_data ?? (value as any).fileData)
+    if (!fileId && !fileData) return null
     const name = asString((value as any).name)
-    const mimeType = asString((value as any).mime_type ?? (value as any).mimeType)
+
+    const mimeType = asString((value as any).format ?? (value as any).format)
     const filePart: NormalizedContentPart = {
         type: "file",
-        file: {
-            file_id: fileId,
-        },
+        file: {},
     }
+    if (fileId) filePart.file.file_id = fileId
+    if (fileData) filePart.file.file_data = fileData
     if (name) filePart.file.name = name
-    if (mimeType) filePart.file.mime_type = mimeType
+    if (mimeType) filePart.file.format = mimeType
+
+    console.log("filePart", filePart)
     return filePart
 }
 
@@ -191,6 +195,13 @@ const toolContentToString = (raw: any): string => {
                         return JSON.stringify(part.image_url)
                     } catch {
                         return String(part.image_url)
+                    }
+                }
+                if (part.type === "file") {
+                    try {
+                        return JSON.stringify(part.file)
+                    } catch {
+                        return String(part.file)
                     }
                 }
                 return ""

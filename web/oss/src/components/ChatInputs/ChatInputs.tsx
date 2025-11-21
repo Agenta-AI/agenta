@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
-import {MinusOutlined, PlusOutlined, PictureOutlined, FileTextOutlined} from "@ant-design/icons"
+import {MinusOutlined, PlusOutlined, PictureOutlined} from "@ant-design/icons"
 import {Button, Input, Select, Space, Tooltip} from "antd"
 import cloneDeep from "lodash/cloneDeep"
 import {createUseStyles} from "react-jss"
@@ -12,7 +12,6 @@ import {ChatMessage, ChatRole, JSSTheme} from "@/oss/lib/Types"
 import CopyButton from "../CopyButton/CopyButton"
 import {useAppTheme} from "../Layout/ThemeContextProvider"
 import {getTextContent} from "../Playground/adapters/TurnMessageHeaderOptions"
-import PromptDocumentUpload from "../Playground/Components/PlaygroundVariantPropertyControl/assets/PromptDocumentUpload"
 import PromptImageUpload from "../Playground/Components/PlaygroundVariantPropertyControl/assets/PromptImageUpload"
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
@@ -164,38 +163,6 @@ const ChatInputs: React.FC<Props> = ({
         updateMessages(newMessages)
     }
 
-    const setDocumentPartValue = (msgIdx: number, docIdx: number, value: string) => {
-        const newMessages = [...messages]
-        const msg = newMessages[msgIdx]
-
-        if (!Array.isArray(msg.content)) return
-
-        let fileIdx = 0
-        msg.content = msg.content.map((part) => {
-            if (part.type === "file") {
-                if (fileIdx === docIdx) {
-                    fileIdx++
-                    const trimmedValue = (value || "").trim()
-                    const normalizedFile = trimmedValue.startsWith("data:")
-                        ? {
-                              file_id: trimmedValue,
-                              file_data: trimmedValue,
-                          }
-                        : {file_id: trimmedValue}
-
-                    return {
-                        ...part,
-                        file: normalizedFile,
-                    }
-                }
-                fileIdx++
-            }
-            return part
-        })
-
-        updateMessages(newMessages)
-    }
-
     const handleRemoveImage = (msgIdx: number, imgIdx: number) => {
         const newMessages = [...messages]
         const msg = newMessages[msgIdx]
@@ -207,24 +174,6 @@ const ChatInputs: React.FC<Props> = ({
             if (part.type === "image_url") {
                 imageIndex++
                 return imageIndex !== imgIdx
-            }
-            return true
-        })
-
-        updateMessages(newMessages)
-    }
-
-    const handleRemoveDocument = (msgIdx: number, docIdx: number) => {
-        const newMessages = [...messages]
-        const msg = newMessages[msgIdx]
-
-        if (!Array.isArray(msg.content)) return
-
-        let fileIndex = -1
-        msg.content = msg.content.filter((part) => {
-            if (part.type === "file") {
-                fileIndex++
-                return fileIndex !== docIdx
             }
             return true
         })
@@ -266,29 +215,6 @@ const ChatInputs: React.FC<Props> = ({
         updateMessages(newMessages)
     }
 
-    const insertEmptyDocumentPart = (index: number) => {
-        const newMessages = [...messages]
-        const msg = newMessages[index]
-
-        const existingContent = Array.isArray(msg.content)
-            ? msg.content
-            : msg.content
-              ? [{type: "text", text: msg.content}]
-              : []
-
-        msg.content = [
-            ...existingContent,
-            {
-                type: "file",
-                file: {
-                    file_id: "",
-                },
-            },
-        ]
-
-        updateMessages(newMessages)
-    }
-
     return (
         <div className={classes.root}>
             {messages.map((msg, ix) => {
@@ -302,10 +228,6 @@ const ChatInputs: React.FC<Props> = ({
 
                 const imageParts = Array.isArray(msg.content)
                     ? msg.content.filter((part) => part.type === "image_url")
-                    : []
-
-                const documentParts = Array.isArray(msg.content)
-                    ? msg.content.filter((part) => part.type === "file")
                     : []
 
                 return (
@@ -393,17 +315,6 @@ const ChatInputs: React.FC<Props> = ({
                                     />
                                 </Tooltip>
                             )}
-                            {!readonly && msg.role === ChatRole.User && (
-                                <Tooltip title="Add document">
-                                    <Button
-                                        shape="circle"
-                                        size="small"
-                                        icon={<FileTextOutlined />}
-                                        onClick={() => insertEmptyDocumentPart(ix)}
-                                        disabled={documentParts.length >= 5}
-                                    />
-                                </Tooltip>
-                            )}
                         </div>
                         {msg.role === ChatRole.User &&
                             imageParts.map((img, imgIdx) => (
@@ -423,26 +334,6 @@ const ChatInputs: React.FC<Props> = ({
                                         uid: img.image_url.url,
                                         name: img.image_url.url,
                                     }}
-                                />
-                            ))}
-                        {msg.role === ChatRole.User &&
-                            documentParts.map((doc, docIdx) => (
-                                <PromptDocumentUpload
-                                    key={`doc-${docIdx}`}
-                                    mode="value"
-                                    disabled={disableEditContent || readonly}
-                                    value={{
-                                        file_id: doc.file?.file_id,
-                                        file_data: doc.file?.file_data,
-                                    }}
-                                    onValueChange={(next) =>
-                                        setDocumentPartValue(
-                                            ix,
-                                            docIdx,
-                                            next.file_id || next.file_data || "",
-                                        )
-                                    }
-                                    onRemove={() => handleRemoveDocument(ix, docIdx)}
                                 />
                             ))}
                     </div>
