@@ -15,6 +15,7 @@ import {
     CloudArrowUp,
     ChatCircle,
     Gauge,
+    Sparkle,
 } from "@phosphor-icons/react"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
@@ -23,6 +24,8 @@ import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useAppsData} from "@/oss/state/app"
 import {useOrgData} from "@/oss/state/org"
+import {showOnboardingWidgetAtom} from "@/oss/state/onboarding/atoms"
+import {useSetAtom} from "jotai"
 
 import {SidebarConfig} from "../../types"
 
@@ -32,6 +35,7 @@ export const useSidebarConfig = () => {
     const {selectedOrg} = useOrgData()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
+    const showOnboardingWidget = useSetAtom(showOnboardingWidgetAtom)
 
     const hasProjectURL = Boolean(projectURL)
 
@@ -163,6 +167,16 @@ export const useSidebarConfig = () => {
             icon: <Question size={16} />,
             isBottom: true,
             submenu: [
+                {
+                    key: "onboarding-guide",
+                    title: "Onboarding Guide",
+                    icon: <Sparkle size={16} />,
+                    onClick: (e) => {
+                        e.preventDefault()
+                        showOnboardingWidget()
+                    },
+                    divider: true,
+                },
                 {
                     key: "docs",
                     title: "Documentation",

@@ -81,6 +81,10 @@ const CustomWorkflowModalMount = dynamic(
     {ssr: false},
 )
 
+const OnboardingWidget = dynamic(() => import("@/oss/components/OnboardingWidget"), {
+    ssr: false,
+})
+
 const getHashFromAsPath = (asPath: string) => {
     const hashIndex = asPath.indexOf("#")
     if (hashIndex === -1) return undefined
@@ -182,6 +186,7 @@ const AppGlobalWrappers = () => {
             <DeploymentConfirmationModalWrapper />
             <DeploymentsDrawerWrapper />
             <CustomWorkflowModalMount />
+            <OnboardingWidget />
         </>
     )
 }
