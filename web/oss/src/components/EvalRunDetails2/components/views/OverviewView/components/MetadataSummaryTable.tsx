@@ -143,11 +143,15 @@ const UpdatedCell = ({runId}: MetadataCellProps) => {
 }
 
 const ApplicationCell = ({runId, projectURL}: MetadataCellProps) => (
-    <ApplicationReferenceLabel runId={runId} projectURL={projectURL} />
+    <div className="inline-flex">
+        <ApplicationReferenceLabel runId={runId} projectURL={projectURL} />
+    </div>
 )
 
 const LegacyVariantCell = memo(({runId}: MetadataCellProps) => (
-    <VariantReferenceLabel runId={runId} />
+    <div className="inline-flex">
+        <VariantReferenceLabel runId={runId} />
+    </div>
 ))
 
 const MetadataRunNameCell = memo(({runId, compareIndex}: MetadataCellProps) => {

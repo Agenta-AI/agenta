@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useRef, useState} from "react"
+import {memo, useMemo} from "react"
 
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
@@ -15,13 +15,12 @@ import {OverviewEmptyPlaceholder, OverviewLoadingPlaceholder} from "./OverviewPl
 
 interface OverviewSpiderChartProps {
     runIds: string[]
-    expand?: boolean
 }
 
 const INVOCATION_COST_KEY = INVOCATION_METRIC_KEYS[0]
 const INVOCATION_DURATION_KEY = INVOCATION_METRIC_KEYS[1]
 
-const OverviewSpiderChart = ({runIds, expand = false}: OverviewSpiderChartProps) => {
+const OverviewSpiderChart = ({runIds}: OverviewSpiderChartProps) => {
     const orderedRunIds = useMemo(() => runIds.filter((id): id is string => Boolean(id)), [runIds])
     const {runDescriptors, runColorMap, metricSelections} = useRunMetricData(orderedRunIds)
 
@@ -204,27 +203,6 @@ const OverviewSpiderChart = ({runIds, expand = false}: OverviewSpiderChartProps)
         return {metrics, series, maxScore, loading: hasLoading}
     }, [metricSelections, runDescriptors, runColorMap])
 
-    // Expanded: measure container once hooks are allowed (before any early returns)
-    const containerRef = useRef<HTMLDivElement | null>(null)
-    const [squareSize, setSquareSize] = useState<number>(320)
-
-    useEffect(() => {
-        if (!expand) return
-        const el = containerRef.current
-        if (!el) return
-        const ro = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                const cr = entry.contentRect
-                const w = Math.max(0, cr.width)
-                const h = Math.max(0, cr.height)
-                const size = Math.max(160, Math.floor(Math.min(w, h)))
-                setSquareSize(size)
-            }
-        })
-        ro.observe(el)
-        return () => ro.disconnect()
-    }, [expand])
-
     const showLoadingPlaceholder = chartState.loading
 
     if (showLoadingPlaceholder) {
@@ -248,23 +226,13 @@ const OverviewSpiderChart = ({runIds, expand = false}: OverviewSpiderChartProps)
         )
     }
 
-    if (!expand) {
-        return (
-            <EvaluatorMetricsSpiderChart
-                className="h-[320px]"
-                metrics={chartState.metrics as any}
-                series={chartState.series as any}
-                maxScore={chartState.maxScore}
-            />
-        )
-    }
-
     return (
-        <div ref={containerRef} className="relative h-full w-full">
-            <div className="mx-auto" style={{width: `${squareSize}px`, height: `${squareSize}px`}}>
+        <div className="flex h-full w-full items-center justify-center">
+            <div className="w-full max-w-[520px]" style={{minHeight: 320, aspectRatio: "1 / 1"}}>
                 <EvaluatorMetricsSpiderChart
                     className="h-full w-full"
                     metrics={chartState.metrics as any}
+                    e
                     series={chartState.series as any}
                     maxScore={chartState.maxScore}
                 />
