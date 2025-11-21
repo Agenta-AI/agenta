@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
-
+import dynamic from "next/dynamic"
 import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
 import {Collapse, Radio, Space} from "antd"
 import yaml from "js-yaml"
@@ -13,6 +13,7 @@ import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/com
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
+const ImagePreview = dynamic(() => import("@/oss/components/Common/ImagePreview"), {ssr: false})
 
 type AccordionTreePanelProps = {
     value: Record<string, any> | string | any[]
@@ -136,10 +137,13 @@ const AccordionTreePanel = ({
     const [segmentedValue, setSegmentedValue] = useState<"json" | "yaml">("json")
     const editorRef = useRef<HTMLDivElement>(null)
 
-    const {data: sanitizedValue, attachments} = useMemo(() => {
+    const {
+        data: sanitizedValue,
+        fileAttachments,
+        imageAttachments,
+    } = useMemo(() => {
         return sanitizeDataWithBlobUrls(incomingValue)
     }, [incomingValue])
-
     const isStringValue = typeof sanitizedValue === "string"
 
     const yamlOutput = useMemo(() => {
@@ -177,22 +181,38 @@ const AccordionTreePanel = ({
                                 overflowY: "auto",
                             }}
                         >
-                            {attachments.length ? (
-                                <div className="border-b border-[#EAECF0] px-4 py-2 text-xs flex flex-col gap-1">
-                                    <span className="font-semibold uppercase tracking-wide text-[#475467]">
-                                        Files
-                                    </span>
-                                    <div className="flex flex-wrap gap-3">
-                                        {attachments.map((file, index) => (
+                            {fileAttachments.length ? (
+                                <div className="border-b border-[#EAECF0] px-4 py-2 flex flex-col gap-1">
+                                    <span className="tracking-wide text-[#475467]">Files</span>
+                                    <div className="flex flex-wrap gap-2">
+                                        {fileAttachments.map((file, index) => (
                                             <a
                                                 key={`${file.data}-${index}`}
                                                 href={file.data}
                                                 target="_blank"
                                                 rel="noreferrer"
-                                                className="text-[#1677ff]"
+                                                className="text-[#0d62d8] max-w-[150px] truncate"
+                                                title={file.filename || `File ${index + 1}`}
                                             >
                                                 {file.filename || `File ${index + 1}`}
                                             </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : null}
+                            {imageAttachments.length ? (
+                                <div className="border-b border-[#EAECF0] px-4 py-2 flex flex-col gap-1">
+                                    <span className="tracking-wide text-[#475467]">Images</span>
+                                    <div className="flex flex-wrap gap-2">
+                                        {imageAttachments.map((image, index) => (
+                                            <ImagePreview
+                                                key={`${image.data}-${index}`}
+                                                src={image.data}
+                                                isValidPreview={true}
+                                                alt={image.filename || `Image ${index + 1}`}
+                                                size={48}
+                                                className=""
+                                            />
                                         ))}
                                     </div>
                                 </div>
