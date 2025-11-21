@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {LoadingOutlined, MinusCircleOutlined} from "@ant-design/icons"
 import {Image as ImageIcon} from "@phosphor-icons/react"
@@ -6,6 +6,7 @@ import {Button, Input, Progress, Spin, Typography, Upload} from "antd"
 import clsx from "clsx"
 
 import ImagePreview from "@/oss/components/Common/ImagePreview"
+import {dataUriToObjectUrl, isBase64} from "@/oss/lib/helpers/utils"
 import {generateId} from "@/oss/lib/shared/variant/stringUtils"
 
 import {isValidImageUrl} from "./assets/helpers"
@@ -26,10 +27,23 @@ const PromptImageUpload = ({
     const classes = useStyles()
     const uploadRef = useRef<HTMLInputElement>(null)
 
-    const [urlInput, setUrlInput] = useState("")
+    const [draftValue, setDraftValue] = useState<string | null>(null)
     const [error, setError] = useState("")
     const [isValidPreview, setIsValidPreview] = useState(false)
     const status = error ? "error" : imageFile?.status || ""
+
+    const imageBase64 = (imageFile as any)?.base64 as string | undefined
+
+    const resolvedRawValue = useMemo(() => {
+        if (draftValue !== null) return draftValue
+        const candidate = imageBase64 || imageFile?.url || imageFile?.thumbUrl || ""
+        return typeof candidate === "string" ? candidate : ""
+    }, [draftValue, imageBase64, imageFile?.thumbUrl, imageFile?.url])
+
+    const displayValue = useMemo(() => {
+        if (!resolvedRawValue) return ""
+        return isBase64(resolvedRawValue) ? dataUriToObjectUrl(resolvedRawValue) : resolvedRawValue
+    }, [resolvedRawValue])
 
     const triggerUpload = (e: React.MouseEvent) => {
         e.stopPropagation()
@@ -74,14 +88,17 @@ const PromptImageUpload = ({
     }
 
     useEffect(() => {
-        if (imageFile?.thumbUrl && !urlInput && !isValidPreview) {
-            setUrlInput(imageFile.thumbUrl)
+        if (draftValue !== null) {
+            validateUrlInput(draftValue)
         }
-    }, [imageFile?.thumbUrl])
+    }, [draftValue])
 
     useEffect(() => {
-        validateUrlInput(urlInput)
-    }, [urlInput])
+        if (draftValue !== null) return
+        const hasPreview = Boolean(imageFile?.thumbUrl || imageFile?.url)
+        setIsValidPreview(hasPreview)
+        if (!hasPreview) setError("")
+    }, [draftValue, imageFile?.thumbUrl, imageFile?.url])
 
     const handleFile = (file: File) => {
         if (!ALLOWED_TYPES.includes(file.type)) {
@@ -109,7 +126,7 @@ const PromptImageUpload = ({
                 size: file.size,
             })
 
-            setUrlInput(reader.result as string)
+            setDraftValue(reader.result as string)
             setError("")
         }
         reader.onerror = () => setError("Failed to read file.")
@@ -135,7 +152,7 @@ const PromptImageUpload = ({
                     <Spin indicator={<LoadingOutlined style={{fontSize: 48}} spin />} />
                 ) : isValidPreview ? (
                     <ImagePreview
-                        src={urlInput}
+                        src={displayValue}
                         alt="Preview"
                         size={48}
                         isValidPreview={isValidPreview}
@@ -158,9 +175,9 @@ const PromptImageUpload = ({
                     {!isUploading && (
                         <Input
                             placeholder="(Optionally) Enter a valid URL"
-                            value={urlInput}
+                            value={displayValue}
                             onChange={(e) => {
-                                setUrlInput(e.target.value)
+                                setDraftValue(e.target.value)
                                 setError("")
                             }}
                             type="url"

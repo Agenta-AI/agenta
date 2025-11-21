@@ -1,9 +1,10 @@
-import {useState} from "react"
+import {useMemo, useState} from "react"
 
 import {MagnifyingGlassPlus} from "@phosphor-icons/react"
 import {Modal} from "antd"
 
 import ImageWithFallback from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/PromptImageUpload/assets/components/ImageWithFallback"
+import {dataUriToObjectUrl, isBase64} from "@/oss/lib/helpers/utils"
 
 interface ImagePreviewProps {
     /** thumbnail & full preview source */
@@ -27,11 +28,25 @@ const ImagePreview = ({
     alt = "Preview",
     size = 48,
     className = "",
-    isValidPreview,
+    isValidPreview=true,
 }: ImagePreviewProps) => {
+
     const [open, setOpen] = useState(false)
 
-    const isSafeImageSrc = (url: string) => /^https?:\/\/[^ "]+$/i.test(url)
+    const isSafeImageSrc = (url: string) => {
+        if (!url) return false
+        if (/^https?:\/\/[^ "]+$/i.test(url)) return true
+        if (url.startsWith("blob:")) return true
+        return /^data:image\/(png|jpe?g|gif|webp);base64,.+/i.test(url)
+    }
+
+    const imageURL = useMemo(() => {
+        try {
+            return isBase64(src) ? dataUriToObjectUrl(src) : src
+        } catch (error) {
+            return src
+        }
+    }, [src])
 
     return (
         <>
@@ -57,13 +72,12 @@ const ImagePreview = ({
                 open={open}
                 footer={null}
                 onCancel={() => setOpen(false)}
-                width="auto"
-                style={{
-                    body: {padding: 0, display: "flex", justifyContent: "center"},
-                }}
+                centered
+                width={800}
+                height={600}
             >
-                {isValidPreview && isSafeImageSrc(src) && (
-                    <img src={src} alt={alt} style={{maxWidth: "80vw", maxHeight: "80vh"}} />
+                {isValidPreview && isSafeImageSrc(imageURL) && (
+                    <img src={imageURL} alt={alt} className="w-full h-full max-h-[600px] max-w-[800px] object-contain" />
                 )}
             </Modal>
         </>
