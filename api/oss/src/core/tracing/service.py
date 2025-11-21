@@ -1,7 +1,9 @@
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID
+from orjson import dumps, loads
+from redis.asyncio import Redis
 
-
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.tracing.interfaces import TracingDAOInterface
@@ -28,11 +30,19 @@ log = get_module_logger(__name__)
 
 
 class TracingService:
+    """
+    Tracing service with Redis Streams publishing.
+
+    Replaces asyncio.Queue from PR #1223 with Redis Streams for persistence and scalability.
+    """
+
     def __init__(
         self,
         tracing_dao: TracingDAOInterface,
+        redis_client: Optional[Redis] = None,
     ):
         self.tracing_dao = tracing_dao
+        self.redis = redis_client or Redis.from_url(env.REDIS_URI, decode_responses=False)
 
     async def create(
         self,
@@ -256,3 +266,113 @@ class TracingService:
         )
 
         return bucket_dtos
+
+    # Redis Streams methods (from PR #1223, adapted for Redis Streams)
+
+    def serialize(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        span_dto: OTelFlatSpan,
+    ) -> bytes:
+        """
+        Serialize span for Redis Streams.
+
+        Args:
+            organization_id: Organization UUID
+            project_id: Project UUID
+            user_id: User UUID
+            span_dto: Span to serialize
+
+        Returns:
+            Serialized span bytes
+        """
+        data = dict(
+            organization_id=organization_id.hex,
+            project_id=project_id.hex,
+            user_id=user_id.hex,
+            span_dto=span_dto.model_dump(mode="json", exclude_unset=True),
+        )
+
+        span_bytes = dumps(data)
+
+        # Strip null bytes from serialized data
+        if b"\x00" in span_bytes:
+            span_bytes = (
+                span_bytes.decode("utf-8", "replace")
+                .replace("\x00", "")
+                .encode("utf-8")
+            )
+
+        return span_bytes
+
+    def deserialize(self, *, span_bytes: bytes) -> Tuple[UUID, UUID, UUID, OTelFlatSpan]:
+        """
+        Deserialize span from Redis Streams.
+
+        Args:
+            span_bytes: Serialized span bytes
+
+        Returns:
+            Tuple of (organization_id, project_id, user_id, span_dto)
+        """
+        data = loads(span_bytes)
+
+        organization_id = UUID(hex=data["organization_id"])
+        project_id = UUID(hex=data["project_id"])
+        user_id = UUID(hex=data["user_id"])
+        span_dto = OTelFlatSpan(**data["span_dto"])
+
+        return (organization_id, project_id, user_id, span_dto)
+
+    async def publish_to_stream(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        span_dtos: List[OTelFlatSpan],
+        stream_name: str = "streams:otlp",
+    ) -> int:
+        """
+        Publish spans to Redis Streams.
+
+        Replaces asyncio.Queue.put() from PR #1223.
+
+        Args:
+            organization_id: Organization UUID
+            project_id: Project UUID
+            user_id: User UUID
+            span_dtos: Spans to publish
+            stream_name: Stream name (default: streams:otlp)
+
+        Returns:
+            Number of spans published
+        """
+        count = 0
+
+        for span_dto in span_dtos:
+            span_bytes = self.serialize(
+                organization_id=organization_id,
+                project_id=project_id,
+                user_id=user_id,
+                span_dto=span_dto,
+            )
+
+            await self.redis.xadd(
+                name=stream_name,
+                fields={"data": span_bytes},
+            )
+
+            count += 1
+
+        log.debug(
+            f"[TracingService] Published {count} spans to {stream_name}",
+            org_id=str(organization_id),
+            project_id=str(project_id),
+            user_id=str(user_id),
+        )
+
+        return count

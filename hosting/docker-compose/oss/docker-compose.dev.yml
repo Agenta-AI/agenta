@@ -30,12 +30,12 @@ services:
         restart: always
 
     api:
-        build: 
+        build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/routers.py:/app/routers.py
+            - ../../../api/routes.py:/app/routes.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -59,7 +59,7 @@ services:
         command:
             [
                 "uvicorn",
-                "routers:app",
+                "routes:app",
                 "--host",
                 "0.0.0.0",
                 "--port",
@@ -76,13 +76,13 @@ services:
                 condition: service_completed_successfully
         restart: always
 
-    worker:
+    queues:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/workers.py:/app/workers.py
+            - ../../../api/queues.py:/app/queues.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 
@@ -101,7 +101,34 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python workers.py
+            python queues.py
+
+    streams:
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.dev
+
+        volumes:
+            - ../../../api/streams.py:/app/streams.py
+            - ../../../api/oss:/app/oss
+            - ../../../sdk:/sdk
+
+        env_file:
+            - ${ENV_FILE:-./.env.oss.dev}
+
+        depends_on:
+            - postgres
+            - redis
+
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        networks:
+            - agenta-network
+        restart: always
+
+        command: >
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            python streams.py
 
     cron:
         image: agenta-oss-dev-api:latest
@@ -128,12 +155,12 @@ services:
         command: cron -f
 
     alembic:
-        build: 
+        build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.dev
 
         volumes:
-            - ../../../api/routers.py:/app/routers.py
+            - ../../../api/routes.py:/app/routes.py
             - ../../../api/oss:/app/oss
             - ../../../sdk:/sdk
 

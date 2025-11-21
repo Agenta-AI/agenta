@@ -182,9 +182,9 @@ def main() -> int:
         log.info("[WORKER] Starting Taskiq worker with Redis Streams")
 
         # Run Taskiq worker
-        # Broker and workers are instantiated above (like routers.py does for FastAPI)
+        # Broker and workers are instantiated above (like routes.py does for FastAPI)
         args = WorkerArgs(
-            broker="workers:broker",  # Reference broker from this module
+            broker="queues:broker",  # Reference broker from this module
             modules=[],  # Workers already registered, no auto-discovery needed
             fs_discover=False,
             workers=1,  # Number of worker processes

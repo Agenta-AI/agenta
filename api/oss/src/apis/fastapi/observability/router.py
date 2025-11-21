@@ -394,8 +394,11 @@ class ObservabilityRouter:
 
         try:
             # ---------------------------------------------------------------- #
+            # Publish to Redis Streams instead of direct creation
+            # Workers will consume from streams:otlp:spans
             if flag_create_spans_from_nodes:
-                await self.tracing.create(
+                await self.tracing.publish_to_stream(
+                    organization_id=UUID(request.state.organization_id),
                     project_id=UUID(request.state.project_id),
                     user_id=UUID(request.state.user_id),
                     span_dtos=tracing_spans,
@@ -403,7 +406,7 @@ class ObservabilityRouter:
             # ---------------------------------------------------------------- #
         except Exception as e:
             log.warn(
-                "Failed to create spans from project %s with error:",
+                "Failed to publish tracing spans to stream from project %s with error:",
                 request.state.project_id,
                 exc_info=True,
             )

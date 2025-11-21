@@ -50,7 +50,7 @@ services:
             - SCRIPT_NAME=/api
 
         command: >
-            newrelic-admin run-program gunicorn routers:app
+            newrelic-admin run-program gunicorn routes:app
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
@@ -69,7 +69,7 @@ services:
                 condition: service_completed_successfully
         restart: always
 
-    worker:
+    queues:
         build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
@@ -89,7 +89,35 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "workers.py"
+                "queues.py"
+            ]
+
+        depends_on:
+            - postgres
+            - redis
+        restart: always
+
+    streams:
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+
+        image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
+
+        networks:
+            - agenta-oss-gh-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "streams.py"
             ]
 
         depends_on:

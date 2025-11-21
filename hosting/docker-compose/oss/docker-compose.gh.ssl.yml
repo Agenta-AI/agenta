@@ -49,7 +49,7 @@ services:
         environment:
             - SCRIPT_NAME=/api
         command: >
-            newrelic-admin run-program gunicorn routers:app
+            newrelic-admin run-program gunicorn routes:app
             --bind 0.0.0.0:8000
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
@@ -68,8 +68,8 @@ services:
                 condition: service_completed_successfully
         restart: always
 
-    worker:
-        build: 
+    queues:
+        build:
             context: ../../../api
             dockerfile: oss/docker/Dockerfile.gh
 
@@ -88,7 +88,36 @@ services:
                 "newrelic-admin",
                 "run-program",
                 "python",
-                "workers.py"
+                "queues.py"
+            ]
+        depends_on:
+            postgres:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        restart: always
+
+    streams:
+        build:
+            context: ../../../api
+            dockerfile: oss/docker/Dockerfile.gh
+
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+
+        networks:
+            - agenta-gh-ssl-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+        env_file:
+            - ${ENV_FILE:-./.env.oss.gh}
+
+        command:
+            [
+                "newrelic-admin",
+                "run-program",
+                "python",
+                "streams.py"
             ]
         depends_on:
             postgres:

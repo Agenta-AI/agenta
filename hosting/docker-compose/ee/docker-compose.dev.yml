@@ -76,7 +76,7 @@ services:
         command:
             [
                 "uvicorn",
-                "routers:app",
+                "routes:app",
                 "--host",
                 "0.0.0.0",
                 "--port",
@@ -94,7 +94,7 @@ services:
             supertokens:
                 condition: service_healthy
 
-    worker:
+    queues:
         image: agenta-ee-dev-api:latest
 
         volumes:
@@ -118,7 +118,33 @@ services:
 
         command: >
             watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
-            python workers.py
+            python queues.py
+
+    streams:
+        image: agenta-ee-dev-api:latest
+
+        volumes:
+            - ../../../api:/app
+            - ../../../sdk:/sdk
+
+        env_file:
+            - ${ENV_FILE:-./.env.ee.dev}
+
+        depends_on:
+            - postgres
+            - redis
+
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+
+        restart: always
+
+        networks:
+            - agenta-network
+
+        command: >
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive --
+            python streams.py
 
     cron:
         image: agenta-ee-dev-api:latest

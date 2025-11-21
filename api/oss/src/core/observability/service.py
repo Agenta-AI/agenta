@@ -1,6 +1,7 @@
 from uuid import UUID
 from typing import List, Optional, Tuple
 
+from oss.src.utils.logging import get_module_logger
 from oss.src.core.observability.interfaces import ObservabilityDAOInterface
 from oss.src.core.observability.dtos import (
     QueryDTO,
@@ -19,8 +20,14 @@ from oss.src.core.observability.utils import (
     parse_ingest,
 )
 
+log = get_module_logger(__name__)
+
 
 class ObservabilityService:
+    """
+    Observability service for span ingestion and querying.
+    """
+
     def __init__(
         self,
         observability_dao: ObservabilityDAOInterface,
