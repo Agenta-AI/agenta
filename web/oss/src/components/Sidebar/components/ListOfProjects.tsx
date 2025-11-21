@@ -231,28 +231,6 @@ const ListOfProjects = ({
         [renameForm],
     )
 
-    const confirmDeleteProject = useCallback(
-        (target: ProjectsResponse) => {
-            AlertPopup({
-                title: "Delete project",
-                message: (
-                    <div className="space-y-2">
-                        <p>
-                            Are you sure you want to delete <strong>{target.project_name}</strong>?
-                        </p>
-                        <p className="text-xs text-neutral-500">This action cannot be undone.</p>
-                    </div>
-                ),
-                okText: "Delete",
-                okType: "danger",
-                onOk: async () => {
-                    await deleteMutation.mutateAsync(target.project_id)
-                },
-            })
-        },
-        [deleteMutation],
-    )
-
     const handleMakeDefault = useCallback(
         (target: ProjectsResponse) => {
             if (!target.project_id || target.is_default_project) return
@@ -269,6 +247,65 @@ const ListOfProjects = ({
             void router.push(href)
         },
         [router],
+    )
+
+    const findFallbackProject = useCallback(
+        (excludedProjectId: string) => {
+            const candidates = projectsForSelectedOrganization.filter(
+                (proj) => proj.project_id !== excludedProjectId,
+            )
+
+            if (!candidates.length) return null
+
+            const defaultProject = candidates.find((proj) => proj.is_default_project)
+            if (defaultProject) return defaultProject
+
+            const nonDemoProject = candidates.find((proj) => !proj.is_demo)
+            if (nonDemoProject) return nonDemoProject
+
+            return candidates[0]
+        },
+        [projectsForSelectedOrganization],
+    )
+
+    const confirmDeleteProject = useCallback(
+        (target: ProjectsResponse) => {
+            AlertPopup({
+                title: "Delete project",
+                message: (
+                    <div className="space-y-2">
+                        <p>
+                            Are you sure you want to delete <strong>{target.project_name}</strong>?
+                        </p>
+                        <p className="text-xs text-neutral-500">This action cannot be undone.</p>
+                    </div>
+                ),
+                okText: "Delete",
+                okType: "danger",
+                onOk: async () => {
+                    await deleteMutation.mutateAsync(target.project_id)
+                    if (project?.project_id === target.project_id) {
+                        const fallbackProject = findFallbackProject(target.project_id)
+                        if (fallbackProject) {
+                            navigateToProject(
+                                fallbackProject.workspace_id ?? target.workspace_id ?? "",
+                                fallbackProject.project_id,
+                                fallbackProject.organization_id ?? selectedOrganizationId,
+                            )
+                        }
+                    }
+                    void refreshProjects()
+                },
+            })
+        },
+        [
+            deleteMutation,
+            findFallbackProject,
+            navigateToProject,
+            project?.project_id,
+            refreshProjects,
+            selectedOrganizationId,
+        ],
     )
 
     const {projectMenuItems, projectKeyMap} = useMemo(() => {
