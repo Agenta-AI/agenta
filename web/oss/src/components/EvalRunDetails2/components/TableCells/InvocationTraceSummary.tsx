@@ -79,10 +79,10 @@ const InvocationTraceSummary = ({
     return (
         <div
             className={clsx(
-                "flex items-center gap-1 pt-1 text-[11px] text-neutral-600",
+                "scenario-table-meta flex items-center gap-1 pt-1 text-[11px]",
                 !formattedLatency && !formattedTokens && !formattedCost && !summary.traceId
                     ? "text-neutral-500"
-                    : null,
+                    : "text-neutral-600",
             )}
         >
             <TraceDrawerButton result={traceButtonResult} size="small" type="default" />

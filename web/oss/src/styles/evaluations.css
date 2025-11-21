@@ -160,3 +160,43 @@
 .metadata-summary-table .ant-table-tbody > tr:last-child > td {
     border-bottom: none;
 }
+
+.agenta-scenario-table .ant-table-tbody > tr > td {
+    padding: 0 !important;
+    vertical-align: top;
+    background-color: #fff;
+}
+
+.agenta-scenario-table .scenario-row--comparison .ant-table-cell {
+    background-color: inherit !important;
+}
+
+.scenario-table-cell {
+    width: 100%;
+    min-height: 96px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.scenario-table-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #0f172a;
+}
+
+.scenario-table-placeholder {
+    color: #98a2b3;
+}
+
+.scenario-table-meta {
+    font-size: 12px;
+    color: #667085;
+}
+
+.scenario-table-cell .ant-tag {
+    border-radius: 999px;
+}

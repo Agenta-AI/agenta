@@ -107,19 +107,6 @@ const PreviewEvalRunHeader = ({
             </div>
             <div className="flex items-center gap-3 shrink-0">
                 <Space size={8} wrap className="text-[#475467]">
-                    {/* <VariantReferenceChip
-                        variantId={
-                            invocationRefs.variantId ?? invocationRefs.applicationVariantId ?? null
-                        }
-                    /> */}
-                    {/* {testsetIds.slice(0, 2).map((id) => (
-                        <TestsetReferenceChip key={id} testsetId={id} />
-                    ))} */}
-                    {/* {testsetIds.length > 2 ? (
-                        <Typography.Text type="secondary">
-                            +{testsetIds.length - 2} more
-                        </Typography.Text>
-                    ) : null} */}
                     {runStatus ? (
                         <>
                             <span

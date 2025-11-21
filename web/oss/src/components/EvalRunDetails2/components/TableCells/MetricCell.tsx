@@ -1,4 +1,5 @@
 import {memo, useMemo} from "react"
+import clsx from "clsx"
 
 import EvaluatorMetricBar from "@/oss/components/HumanEvaluations/assets/EvaluatorMetricBar"
 import type {BasicStats} from "@/oss/lib/metricUtils"
@@ -9,7 +10,7 @@ import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../../utils/metricFormatter"
 import MetricDetailsPreviewPopover from "@/oss/components/evaluations/components/MetricDetailsPreviewPopover"
 
-const CONTAINER_CLASS = "min-h-[100px] flex flex-col justify-center px-2"
+const CONTAINER_CLASS = "scenario-table-cell min-h-[96px]"
 
 const resolveColumnWidth = (column: EvaluationTableColumn): number => {
     if (typeof column.width === "number") return column.width
@@ -119,9 +120,9 @@ const PreviewEvaluationMetricCell = ({
 
     const displayNode = (
         <span
-            className={`metric-cell-content text-xs whitespace-pre-wrap ${
-                isPlaceholder ? "text-neutral-500" : "text-neutral-800"
-            }`}
+            className={clsx("metric-cell-content scenario-table-text whitespace-pre-wrap", {
+                "scenario-table-placeholder": isPlaceholder,
+            })}
         >
             {formatted}
         </span>

@@ -40,44 +40,34 @@ const wrapHeader = (columnKey: string, content: React.ReactNode) => (
     <ColumnVisibilityHeader columnKey={columnKey}>{content ?? columnKey}</ColumnVisibilityHeader>
 )
 
-const STATUS_STYLE_MAP: Record<
-    string,
-    {badgeClass: string; textClass: string; borderClass: string}
-> = {
+const STATUS_STYLE_MAP: Record<string, {dotClass: string; textClass: string}> = {
     success: {
-        badgeClass: "bg-emerald-100",
+        dotClass: "bg-emerald-500",
         textClass: "text-emerald-700",
-        borderClass: "border border-emerald-200",
     },
     failed: {
-        badgeClass: "bg-red-100",
+        dotClass: "bg-red-500",
         textClass: "text-red-700",
-        borderClass: "border border-red-200",
     },
     error: {
-        badgeClass: "bg-red-100",
+        dotClass: "bg-red-500",
         textClass: "text-red-700",
-        borderClass: "border border-red-200",
     },
     running: {
-        badgeClass: "bg-blue-100",
+        dotClass: "bg-blue-500",
         textClass: "text-blue-700",
-        borderClass: "border border-blue-200",
     },
     queued: {
-        badgeClass: "bg-amber-100",
+        dotClass: "bg-amber-400",
         textClass: "text-amber-700",
-        borderClass: "border border-amber-200",
     },
     pending: {
-        badgeClass: "bg-amber-100",
+        dotClass: "bg-amber-400",
         textClass: "text-amber-700",
-        borderClass: "border border-amber-200",
     },
     default: {
-        badgeClass: "bg-neutral-100",
+        dotClass: "bg-neutral-400",
         textClass: "text-neutral-700",
-        borderClass: "border border-neutral-300",
     },
 }
 
@@ -293,15 +283,11 @@ export function buildPreviewColumns<RowType>({
                     return (
                         <div className="flex h-full min-h-[54px] w-full items-center justify-start">
                             <Tooltip title={tooltipLabel} placement="topLeft">
-                                <span
-                                    className={clsx(
-                                        "inline-flex h-6 min-w-[32px] items-center justify-center rounded-full px-2 text-xs font-semibold",
-                                        style.badgeClass,
-                                        style.textClass,
-                                        style.borderClass,
-                                    )}
-                                >
-                                    {displayValue}
+                                <span className="inline-flex items-center gap-2 text-xs font-medium">
+                                    <span
+                                        className={clsx("h-2 w-2 rounded-full", style.dotClass)}
+                                    />
+                                    <span className={clsx(style.textClass)}>{displayValue}</span>
                                 </span>
                             </Tooltip>
                         </div>

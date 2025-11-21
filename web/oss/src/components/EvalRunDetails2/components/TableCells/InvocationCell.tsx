@@ -1,12 +1,13 @@
-import {memo} from "react"
+import {memo, useMemo} from "react"
 
 import type {EvaluationTableColumn} from "../../atoms/table"
 import {COLUMN_WIDTHS} from "../../constants/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 
 import InvocationTraceSummary from "./InvocationTraceSummary"
+import {renderScenarioChatMessages} from "../../utils/chatMessages"
 
-const CONTAINER_CLASS = "min-h-[100px] flex flex-col justify-center gap-2"
+const CONTAINER_CLASS = "scenario-table-cell min-h-[96px] gap-2"
 
 const resolveColumnWidth = (column: EvaluationTableColumn): number => {
     if (typeof column.width === "number") return column.width
@@ -107,6 +108,14 @@ const PreviewEvaluationInvocationCell = ({
 
     const width = resolveColumnWidth(column)
     const widthStyle = {width: "100%"}
+    const chatNodes = useMemo(
+        () =>
+            renderScenarioChatMessages(
+                value,
+                `${scenarioId ?? "scenario"}-${column.stepKey ?? column.id ?? "invocation"}`,
+            ),
+        [column.id, column.stepKey, scenarioId, value],
+    )
 
     if (showSkeleton) {
         return (
@@ -119,7 +128,20 @@ const PreviewEvaluationInvocationCell = ({
     if (value === undefined || value === null) {
         return (
             <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                <span className="text-xs text-neutral-500">—</span>
+                <span className="scenario-table-text scenario-table-placeholder">—</span>
+            </div>
+        )
+    }
+
+    if (chatNodes && chatNodes.length) {
+        return (
+            <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
+                <div className="flex w-full flex-col gap-2">{chatNodes}</div>
+                <InvocationTraceSummary
+                    scenarioId={scenarioId}
+                    stepKey={column.stepKey}
+                    runId={runId}
+                />
             </div>
         )
     }
@@ -128,7 +150,7 @@ const PreviewEvaluationInvocationCell = ({
 
     return (
         <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-            <span className="text-xs text-neutral-800 whitespace-pre-wrap">{displayValue}</span>
+            <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
             <InvocationTraceSummary
                 scenarioId={scenarioId}
                 stepKey={column.stepKey}

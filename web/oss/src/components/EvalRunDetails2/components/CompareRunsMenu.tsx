@@ -80,7 +80,7 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
 
     const button = (
         <Button
-            variant="primary"
+            type="primary"
             onClick={() => setOpen((prev) => !prev)}
             disabled={!availability.canCompare}
         >

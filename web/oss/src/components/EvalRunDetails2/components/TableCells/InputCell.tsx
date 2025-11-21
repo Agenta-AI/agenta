@@ -1,8 +1,9 @@
-import {memo} from "react"
+import {memo, useMemo} from "react"
 
 import type {EvaluationTableColumn} from "../../atoms/table"
 import {COLUMN_WIDTHS} from "../../constants/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
+import {renderScenarioChatMessages} from "../../utils/chatMessages"
 
 interface PreviewEvaluationInputCellProps {
     scenarioId?: string
@@ -23,7 +24,7 @@ const normalizeValue = (value: unknown): string => {
     }
 }
 
-const CONTAINER_CLASS = "min-h-[100px] flex flex-col justify-center"
+const CONTAINER_CLASS = "scenario-table-cell min-h-[96px]"
 
 const resolveColumnWidth = (column: EvaluationTableColumn): number => {
     if (typeof column.width === "number") return column.width
@@ -47,6 +48,14 @@ const PreviewEvaluationInputCell = ({
 
     const width = resolveColumnWidth(column)
     const widthStyle = {width: "100%"}
+    const chatNodes = useMemo(
+        () =>
+            renderScenarioChatMessages(
+                value,
+                `${scenarioId ?? "scenario"}-${column.id ?? column.path ?? "input"}`,
+            ),
+        [column.id, column.path, scenarioId, value],
+    )
 
     if (showSkeleton) {
         return (
@@ -59,7 +68,15 @@ const PreviewEvaluationInputCell = ({
     if (value === undefined || value === null) {
         return (
             <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                <span className="text-xs text-neutral-500">—</span>
+                <span className="scenario-table-text scenario-table-placeholder">—</span>
+            </div>
+        )
+    }
+
+    if (chatNodes && chatNodes.length) {
+        return (
+            <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
+                <div className="flex w-full flex-col gap-2">{chatNodes}</div>
             </div>
         )
     }
@@ -68,7 +85,7 @@ const PreviewEvaluationInputCell = ({
 
     return (
         <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-            <span className="text-xs text-neutral-800 whitespace-pre-wrap">{displayValue}</span>
+            <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
         </div>
     )
 }

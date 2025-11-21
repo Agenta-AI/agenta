@@ -8,7 +8,6 @@ import {useRouter} from "next/router"
 
 import type {EvaluatorPreview} from "@/oss/components/Evaluators/assets/types"
 import useURL from "@/oss/hooks/useURL"
-import {} from "@/oss/lib/helpers/evaluate"
 import {getEvaluatorTags} from "@/oss/lib/evaluations/legacy"
 import {capitalize} from "@/oss/lib/helpers/utils"
 import useFetchEvaluatorsData from "@/oss/lib/hooks/useFetchEvaluatorsData"
