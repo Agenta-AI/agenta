@@ -302,28 +302,26 @@ const TurnMessageAdapter: React.FC<Props> = ({
     const footerContent = useMemo(
         () =>
             baseImageProperties.length > 0 || baseFileProperties.length > 0 || footer ? (
-                <div
-                    className={clsx([
-                        "flex flex-col items-center mt-2 w-full",
-                        messageProps?.footerClassName,
-                    ])}
-                >
-                    {Array.isArray(baseImageProperties) && baseImageProperties.length > 0 && (
-                        <MessageImageList
-                            properties={baseImageProperties as any[]}
-                            disabled={effectiveDisabled}
-                            onRemove={onRemoveUploadItem}
-                            onChange={onChangeUploadItem}
-                        />
-                    )}
-                    {Array.isArray(baseFileProperties) && baseFileProperties.length > 0 && (
-                        <MessageDocumentList
-                            items={baseFileProperties as any[]}
-                            disabled={effectiveDisabled}
-                            onRemove={onRemoveUploadItem}
-                            onChange={onChangeUploadItem}
-                        />
-                    )}
+                <div className={clsx(["flex flex-col mt-2 w-full", messageProps?.footerClassName])}>
+                    <div className="flex flex-col gap-2 w-full">
+                        {Array.isArray(baseImageProperties) && baseImageProperties.length > 0 && (
+                            <MessageImageList
+                                properties={baseImageProperties as any[]}
+                                disabled={effectiveDisabled}
+                                onRemove={onRemoveUploadItem}
+                                onChange={onChangeUploadItem}
+                            />
+                        )}
+                        {Array.isArray(baseFileProperties) && baseFileProperties.length > 0 && (
+                            <MessageDocumentList
+                                items={baseFileProperties as any[]}
+                                disabled={effectiveDisabled}
+                                onRemove={onRemoveUploadItem}
+                                onChange={onChangeUploadItem}
+                            />
+                        )}
+                    </div>
+
                     {footer}
                 </div>
             ) : null,
@@ -404,7 +402,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                             actions={{
                                 onAddUploadSlot: isToolKind ? undefined : onAddUploadSlot,
                                 onAddDocumentSlot: isToolKind ? undefined : onAddDocumentSlot,
-                                onRerun: isToolKind ? undefined : propsHandleRerun ?? handleRerun,
+                                onRerun: isToolKind ? undefined : (propsHandleRerun ?? handleRerun),
                                 onMinimize: () => setMinimized((c) => !c),
                                 onDelete: isToolKind ? undefined : deleteMessage,
                             }}
@@ -466,7 +464,7 @@ const TurnMessageAdapter: React.FC<Props> = ({
                         actions={{
                             onAddUploadSlot: isToolKind ? undefined : onAddUploadSlot,
                             onAddDocumentSlot: isToolKind ? undefined : onAddDocumentSlot,
-                            onRerun: isToolKind ? undefined : propsHandleRerun ?? handleRerun,
+                            onRerun: isToolKind ? undefined : (propsHandleRerun ?? handleRerun),
                             onMinimize: () => setMinimized((c) => !c),
                             onDelete: isToolKind ? undefined : deleteMessage,
                         }}
