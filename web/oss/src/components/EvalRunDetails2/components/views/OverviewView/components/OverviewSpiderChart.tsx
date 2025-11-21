@@ -227,7 +227,7 @@ const OverviewSpiderChart = ({runIds}: OverviewSpiderChartProps) => {
     }
 
     return (
-        <div className="flex h-full w-full items-center justify-center">
+        <div className="flex h-full w-full items-center justify-end">
             <div className="w-full max-w-[520px]" style={{minHeight: 320, aspectRatio: "1 / 1"}}>
                 <EvaluatorMetricsSpiderChart
                     className="h-full w-full"

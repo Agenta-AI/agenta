@@ -551,13 +551,13 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
             <div className="p-2 w-full flex gap-2 shrink-0">
                 <div className="w-full overflow-y-auto">
                     <Table<MetadataRowRecord>
+                        className="metadata-summary-table"
                         rowKey="key"
                         size="small"
                         pagination={false}
                         columns={columns}
                         dataSource={dataSource}
                         scroll={{x: "max-content"}}
-                        bordered
                         showHeader={false}
                     />
                 </div>
