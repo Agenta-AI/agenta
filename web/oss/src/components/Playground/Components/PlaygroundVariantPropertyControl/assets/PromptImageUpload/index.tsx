@@ -232,7 +232,7 @@ const PromptImageUpload = ({
                         onClick={(e) => {
                             e.stopPropagation()
                             handleRemoveUploadFile()
-                            setUrlInput("")
+                            setDraftValue("")
                             setError("")
                             setIsValidPreview(false)
                         }}

@@ -6,10 +6,7 @@ import {Button, Input, Typography, Upload} from "antd"
 import clsx from "clsx"
 
 import {useStyles} from "../PromptImageUpload/assets/styles"
-import {
-    PromptDocumentUploadProps,
-    PromptDocumentUploadPropertyProps,
-} from "./types"
+import {PromptDocumentUploadProps, PromptDocumentUploadPropertyProps} from "./types"
 import {isBase64, dataUriToObjectUrl} from "@/oss/lib/helpers/utils"
 
 const isUrl = (value: string): boolean => {
@@ -237,10 +234,10 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
                                     href={value}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="break-all"
+                                    className="text-start"
                                     type="secondary"
                                 >
-                                    Preview: {rest?.filenameValue}
+                                    Preview: {rest?.filenameValue || rest?.filename || "document"}
                                 </Typography.Link>
                             )}
                             {error && (
