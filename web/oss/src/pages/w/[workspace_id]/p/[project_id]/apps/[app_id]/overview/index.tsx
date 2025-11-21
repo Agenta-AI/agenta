@@ -14,10 +14,7 @@ import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/moda
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import DeploymentOverview from "@/oss/components/pages/overview/deployments/DeploymentOverview"
 import VariantsOverview from "@/oss/components/pages/overview/variants/VariantsOverview"
-import useURL from "@/oss/hooks/useURL"
 import type {JSSTheme} from "@/oss/lib/Types"
-import {deleteApp} from "@/oss/services/app-selector/api"
-import {useEnvironments} from "@/oss/services/deployment/hooks/useEnvironments"
 import {useAppsData} from "@/oss/state/app"
 
 const CustomWorkflowHistory: any = dynamic(
@@ -29,11 +26,6 @@ const ObservabilityOverview: any = dynamic(
 
 const AutoEvaluation = dynamic(
     () => import("@/oss/components/pages/evaluations/autoEvaluation/AutoEvaluation"),
-    {ssr: false},
-)
-
-const AbTestingEvaluation = dynamic(
-    () => import("@/oss/components/HumanEvaluations/AbTestingEvaluation"),
     {ssr: false},
 )
 
@@ -127,7 +119,6 @@ const OverviewPage = () => {
                 <VariantsOverview />
 
                 <AutoEvaluation viewType="overview" />
-                <AbTestingEvaluation viewType="overview" />
                 <SingleModelEvaluation viewType="overview" />
             </div>
 

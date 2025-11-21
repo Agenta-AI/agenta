@@ -1,23 +1,21 @@
 import {memo, useMemo, type ReactNode} from "react"
 
-import {Space, Table, Tag, Typography} from "antd"
+import {Table, Typography} from "antd"
 import type {ColumnsType} from "antd/es/table"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"
 import {
     runCreatedAtAtomFamily,
-    runDisplayNameAtomFamily,
-    runStatusAtomFamily,
     runInvocationRefsAtomFamily,
     runTestsetIdsAtomFamily,
     runUpdatedAtAtomFamily,
 } from "../../../../atoms/runDerived"
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
-import {evaluationRunIndexAtomFamily} from "../../../../atoms/table/run"
+import {evaluationRunIndexAtomFamily, evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
 import type {
     QueryConditionPayload,
     QueryFilteringPayload,
@@ -25,6 +23,10 @@ import type {
 import {ApplicationReferenceLabel, TestsetTagList, VariantReferenceLabel} from "../../../reference"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
+import EvalNameTag from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/EvalNameTag"
+import {EVAL_BG_COLOR, EVAL_TAG_COLOR} from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/utils"
+import RenameEvalButton from "@/oss/components/EvalRunDetails/HumanEvalRun/components/Modals/RenameEvalModal/assets/RenameEvalButton"
+import {RunIdProvider} from "@/oss/contexts/RunIdContext"
 
 interface MetadataSummaryTableProps {
     runIds: string[]
@@ -94,7 +96,7 @@ const QuerySummaryCell = ({runId}: MetadataCellProps) => {
 
 interface MetadataRowRecord {
     key: string
-    label: string
+    label: ReactNode
     Cell: (props: MetadataCellProps) => JSX.Element
     shouldDisplay?: (context: MetadataRowContext) => boolean
 }
@@ -121,28 +123,9 @@ interface MetadataRowContext {
     snapshots: RunReferenceSnapshot[]
 }
 
-const RunHeader = ({runId, index}: {runId: string; index: number}) => {
-    const name = useAtomValueWithSchedule(
-        useMemo(() => runDisplayNameAtomFamily(runId), [runId]),
-        {
-            priority: LOW_PRIORITY,
-        },
-    )
-    const status = useAtomValueWithSchedule(
-        useMemo(() => runStatusAtomFamily(runId), [runId]),
-        {
-            priority: LOW_PRIORITY,
-        },
-    )
-    return (
-        <Space size={8} wrap>
-            <Typography.Text strong>{name}</Typography.Text>
-            <Tag color={index === 0 ? "geekblue" : "purple"}>
-                {index === 0 ? "Base run" : `Comparison ${index}`}
-            </Tag>
-            {status ? <Tag color="blue">{status}</Tag> : null}
-        </Space>
-    )
+const useRunDetails = (runId: string) => {
+    const runAtom = useMemo(() => evaluationRunQueryAtomFamily(runId), [runId])
+    return useAtomValueWithSchedule(runAtom, {priority: LOW_PRIORITY})
 }
 
 const CreatedCell = ({runId}: MetadataCellProps) => {
@@ -163,13 +146,47 @@ const ApplicationCell = ({runId, projectURL}: MetadataCellProps) => (
     <ApplicationReferenceLabel runId={runId} projectURL={projectURL} />
 )
 
-const VariantCell = ({runId}: MetadataCellProps) => <VariantReferenceLabel runId={runId} />
+const LegacyVariantCell = memo(({runId}: MetadataCellProps) => (
+    <VariantReferenceLabel runId={runId} />
+))
 
-const TestsetsCell = ({runId, projectURL}: MetadataCellProps) => {
-    const idsAtom = useMemo(() => runTestsetIdsAtomFamily(runId), [runId])
-    const ids = useAtomValueWithSchedule(idsAtom, {priority: LOW_PRIORITY})
-    return <TestsetTagList ids={ids} projectURL={projectURL} runId={runId} />
-}
+const MetadataRunNameCell = memo(({runId, compareIndex}: MetadataCellProps) => {
+    const runQuery = useRunDetails(runId)
+    const runData = runQuery?.data?.camelRun ?? runQuery?.data?.rawRun ?? null
+    const isLoading = runQuery?.isPending && !runData
+    if (isLoading) {
+        return <Typography.Text type="secondary">…</Typography.Text>
+    }
+    if (!runData) {
+        return <Typography.Text type="secondary">—</Typography.Text>
+    }
+    const color = EVAL_TAG_COLOR?.[compareIndex + 1]
+    return (
+        <RunIdProvider runId={runId}>
+            <div className="group flex items-center justify-between gap-2 w-full">
+                <EvalNameTag run={runData} color={color} />
+                <span className="opacity-0 transition-opacity group-hover:opacity-100">
+                    <RenameEvalButton
+                        id={runId}
+                        runId={runId}
+                        name={runData?.name ?? undefined}
+                        description={(runData as any)?.description ?? undefined}
+                        type="text"
+                        size="small"
+                    />
+                </span>
+            </div>
+        </RunIdProvider>
+    )
+})
+
+const LegacyTestsetsCell = memo(({runId, projectURL}: MetadataCellProps) => {
+    const testsetAtom = useMemo(() => runTestsetIdsAtomFamily(runId), [runId])
+    const testsetIds = useAtomValueWithSchedule(testsetAtom, {priority: LOW_PRIORITY}) ?? []
+    return (
+        <TestsetTagList ids={testsetIds} projectURL={projectURL ?? undefined} runId={runId} />
+    )
+})
 
 const ScenarioCountCell = ({runId}: MetadataCellProps) => {
     const selection = useAtomValueWithSchedule(
@@ -285,8 +302,9 @@ const InvocationErrorsCell = makeMetricCell("attributes.ag.metrics.errors.cumula
 })
 
 const METADATA_ROWS: MetadataRowRecord[] = [
-    {key: "created", label: "Created", Cell: CreatedCell},
-    {key: "updated", label: "Updated", Cell: UpdatedCell},
+    {key: "evaluations", label: "Evaluations", Cell: MetadataRunNameCell},
+    {key: "created", label: "Created at", Cell: CreatedCell},
+    {key: "updated", label: "Updated at", Cell: UpdatedCell},
     {
         key: "application",
         label: "Application",
@@ -308,7 +326,7 @@ const METADATA_ROWS: MetadataRowRecord[] = [
     {
         key: "variant",
         label: "Variant",
-        Cell: VariantCell,
+        Cell: LegacyVariantCell,
         shouldDisplay: ({snapshots}) =>
             snapshots.some(({invocationRefs}) => {
                 const refs = invocationRefs?.rawRefs ?? {}
@@ -324,15 +342,15 @@ const METADATA_ROWS: MetadataRowRecord[] = [
     {
         key: "testsets",
         label: "Test sets",
-        Cell: TestsetsCell,
+        Cell: LegacyTestsetsCell,
         shouldDisplay: ({snapshots}) =>
             snapshots.some(({testsetIds}) => (testsetIds?.length ?? 0) > 0),
     },
-    {key: "scenarios", label: "Scenarios evaluated", Cell: ScenarioCountCell},
-    {key: "invocation_cost", label: "Invocation cost", Cell: InvocationCostCell},
-    {key: "invocation_duration", label: "Invocation duration", Cell: InvocationDurationCell},
-    {key: "invocation_tokens", label: "Invocation tokens", Cell: InvocationTokensCell},
-    {key: "invocation_errors", label: "Invocation errors", Cell: InvocationErrorsCell},
+    // {key: "scenarios", label: "Scenarios evaluated", Cell: ScenarioCountCell},
+    {key: "invocation_cost", label: "Cost (Total)", Cell: InvocationCostCell},
+    {key: "invocation_duration", label: "Duration (Total)", Cell: InvocationDurationCell},
+    {key: "invocation_tokens", label: "Tokens (Total)", Cell: InvocationTokensCell},
+    {key: "invocation_errors", label: "Errors", Cell: InvocationErrorsCell},
 ]
 
 const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) => {
@@ -369,7 +387,7 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
     const evaluatorMetricRows = useMemo<MetadataRowRecord[]>(() => {
         if (!metricSelections.length) return []
 
-        const rows: MetadataRowRecord[] = []
+        const rows: {record: MetadataRowRecord; sortKey: string}[] = []
 
         metricSelections.forEach(({metric, selections}) => {
             if (metric.evaluatorLabel === "Invocation") {
@@ -415,16 +433,30 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
                     ? metric.evaluatorLabel
                     : metric.fallbackEvaluatorLabel || "Evaluator"
 
+            const baseStats = baseSelection.stats as BasicStats | undefined
+            const hasMeanValue = typeof baseStats?.mean === "number"
+
             rows.push({
-                key: metric.id,
-                label: `${evaluatorLabel}: ${metric.displayLabel}`,
-                Cell: EvaluatorMetricCell,
+                sortKey: `${evaluatorLabel}:${metric.displayLabel}`,
+                record: {
+                    key: metric.id,
+                    label: (
+                        <div className="flex flex-col gap-0.5">
+                            <span className="text-[#586673]">{evaluatorLabel}</span>
+                            <div className="flex items-center gap-2">
+                                <span>{metric.displayLabel}</span>
+                                {hasMeanValue ? <span className="text-[#586673]">(mean)</span> : null}
+                            </div>
+                        </div>
+                    ),
+                    Cell: EvaluatorMetricCell,
+                },
             })
         })
 
-        rows.sort((a, b) => a.label.localeCompare(b.label))
+        rows.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
 
-        return rows
+        return rows.map(({record}) => record)
     }, [metricSelections])
 
     const hasQueryAnywhereAtom = useMemo(
@@ -458,7 +490,11 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
     const dataSource = useMemo(() => {
         const base = [...METADATA_ROWS]
         if (anyHasQuery) {
-            base.splice(3, 0, {key: "query_config", label: "Query", Cell: QuerySummaryCell})
+            base.splice(3, 0, {
+                key: "query_config",
+                label: "Filters / Queries",
+                Cell: QuerySummaryCell,
+            })
         }
         const rows = [...base, ...evaluatorMetricRows]
             .filter((row) => (row.shouldDisplay ? row.shouldDisplay(rowContext) : true))
@@ -466,39 +502,63 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
         return rows
     }, [anyHasQuery, evaluatorMetricRows, rowContext])
 
+    const isComparison = orderedRunIds.length > 1
+
     const columns = useMemo<ColumnsType<MetadataRowRecord>>(() => {
         const baseColumn = {
-            title: "Run",
+            title: null,
             dataIndex: "label",
             key: "metric",
-            width: 150,
+            width: 180,
             fixed: "left" as const,
-            render: (value: string) => (
-                <Typography.Text className="font-medium text-neutral-600">{value}</Typography.Text>
+            render: (value: ReactNode) => (
+                <div className="text-[#586673] font-medium leading-snug">{value}</div>
             ),
         }
 
         const runColumns = orderedRunIds.map((runId, index) => ({
-            title: <RunHeader runId={runId} index={index} />,
+            title: null,
             dataIndex: runId,
             key: runId,
+            width: 160,
+            onCell: (record: MetadataRowRecord) => {
+                if (!isComparison || record.key === "query_config" || record.key === "testsets") {
+                    return {}
+                }
+                const tone = (EVAL_BG_COLOR as Record<number, string>)[index + 1]
+                return tone ? {style: {backgroundColor: tone}} : {}
+            },
             render: (_: unknown, record: MetadataRowRecord) => (
                 <record.Cell runId={runId} compareIndex={index} projectURL={projectURL} />
             ),
         }))
 
         return [baseColumn, ...runColumns]
-    }, [orderedRunIds, projectURL])
+    }, [isComparison, orderedRunIds, projectURL])
 
     return (
-        <Table<MetadataRowRecord>
-            rowKey="key"
-            size="small"
-            pagination={false}
-            columns={columns}
-            dataSource={dataSource}
-            scroll={{x: "max-content"}}
-        />
+        <div className="border border-solid border-[#EAEFF5] rounded h-full">
+            <div className="py-2 px-3 flex flex-col justify-center border-0 border-b border-solid border-[#EAEFF5]">
+                <Typography.Text className="font-medium">Evaluator Scores Overview</Typography.Text>
+                <Typography.Text className="text-[#758391]">
+                    Average evaluator score across evaluations
+                </Typography.Text>
+            </div>
+            <div className="p-2 w-full flex gap-2 shrink-0">
+                <div className="w-full overflow-y-auto">
+                    <Table<MetadataRowRecord>
+                        rowKey="key"
+                        size="small"
+                        pagination={false}
+                        columns={columns}
+                        dataSource={dataSource}
+                        scroll={{x: "max-content"}}
+                        bordered
+                        showHeader={false}
+                    />
+                </div>
+            </div>
+        </div>
     )
 }
 

@@ -39,15 +39,15 @@ export const CopyableText = ({
         <TooltipWithCopyAction title="Copy value" copyText={copyValue ?? value}>
             <Text
                 className={clsx(
-                    "inline-flex max-w-full cursor-copy items-center",
+                    "inline-flex w-full max-w-full cursor-copy items-center",
                     toneClass,
                     className,
                 )}
-                ellipsis
-                style={{width: "100%"}}
                 strong={strong}
             >
-                {value}
+                <span className="block w-full max-w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                    {value}
+                </span>
             </Text>
         </TooltipWithCopyAction>
     )

@@ -4,7 +4,9 @@ import {Button, Checkbox, Input, List, Popover, Space, Tag, Tooltip, Typography}
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
+import axios from "@/oss/lib/api/assets/axiosConfig"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {
     MAX_COMPARISON_RUNS,
@@ -13,7 +15,10 @@ import {
     compareRunIdsWriteAtom,
     computeStructureFromRawRun,
 } from "../atoms/compare"
+import useRunScopedUrls from "../hooks/useRunScopedUrls"
 import {setCompareQueryParams} from "../state/urlCompare"
+
+import ReferenceTag from "./reference/ReferenceTag"
 
 import usePreviewEvaluations from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
@@ -27,6 +32,7 @@ interface CandidateRun {
     id: string
     name: string
     status?: string
+    description?: string | null
     createdAt?: string
     testsetNames: string[]
     structure: {
@@ -73,7 +79,11 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
           : undefined
 
     const button = (
-        <Button onClick={() => setOpen((prev) => !prev)} disabled={!availability.canCompare}>
+        <Button
+            variant="primary"
+            onClick={() => setOpen((prev) => !prev)}
+            disabled={!availability.canCompare}
+        >
             Compare{compareIds.length ? ` (${compareIds.length})` : ""}
         </Button>
     )
@@ -94,7 +104,7 @@ const CompareRunsMenu = ({runId}: CompareRunsMenuProps) => {
                 trigger={["click"]}
                 placement="bottomRight"
                 destroyOnHidden
-                overlayStyle={{minWidth: 360}}
+                overlayStyle={{minWidth: 360, maxHeight: 440}}
                 content={
                     open && availability.canCompare ? (
                         <CompareRunsPopoverContent runId={runId} availability={availability} />
@@ -121,8 +131,11 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
     const compareIds = useAtomValue(compareRunIdsAtom)
     const setCompareIds = useSetAtom(compareRunIdsWriteAtom)
     const [searchTerm, setSearchTerm] = useState("")
+    const [statusFilter, setStatusFilter] = useState<StatusFilterOption>("all")
 
     const {runs, swrData} = usePreviewEvaluations({skip: !availability.canCompare})
+    const matchingTestsetNameMap = useTestsetNameMap(availability.testsetIds)
+    const {buildTestsetHref} = useRunScopedUrls(runId)
 
     const candidates = useMemo<CandidateRun[]>(() => {
         if (!availability.canCompare || !Array.isArray(runs)) return []
@@ -135,6 +148,7 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                     id: run.id,
                     name: run.name || "Untitled run",
                     status: run.status,
+                    description: (run as any)?.description ?? (run as any)?.summary ?? null,
                     createdAt: run.createdAt ?? run.created_at,
                     testsetNames: Array.isArray(run.testsets)
                         ? run.testsets.map((t) => t?.name || "Unnamed testset")
@@ -153,11 +167,29 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
             })
     }, [availability.canCompare, availability.testsetIds, runs, runId])
 
+    const candidateTestsetIds = useMemo(() => {
+        const ids = new Set<string>()
+        candidates.forEach((candidate) => {
+            candidate.structure.testsetIds.forEach((id) => ids.add(id))
+        })
+        return Array.from(ids)
+    }, [candidates])
+    const candidateTestsetNameMap = useTestsetNameMap(candidateTestsetIds)
+
     const filteredCandidates = useMemo(() => {
-        if (!searchTerm.trim()) return candidates
         const query = searchTerm.trim().toLowerCase()
-        return candidates.filter((candidate) => candidate.name.toLowerCase().includes(query))
-    }, [candidates, searchTerm])
+        return candidates.filter((candidate) => {
+            const matchesSearch = query ? candidate.name.toLowerCase().includes(query) : true
+            if (!matchesSearch) return false
+
+            if (statusFilter === "all") return true
+            const tone = candidate.status ? resolveStatusTone(candidate.status) : "default"
+            if (statusFilter === "other") {
+                return !["success", "error", "processing"].includes(tone)
+            }
+            return tone === statusFilter
+        })
+    }, [candidates, searchTerm, statusFilter])
 
     const handleToggle = useCallback(
         (targetId: string) => {
@@ -208,20 +240,33 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
     return (
         <Space direction="vertical" style={{width: "100%"}} size="small">
             <div>
-                <Space split={<span>/</span>} size={4} wrap>
+                <Space direction="vertical" size={2} style={{width: "100%"}}>
                     {availability.testsetIds.length ? (
-                        <Text type="secondary">
-                            Matching testsets: {availability.testsetIds.join(", ")}
-                        </Text>
+                        <Space size={[6, 6]} wrap className="compare-runs-match-tags">
+                            {availability.testsetIds.map((id) => {
+                                const label = matchingTestsetNameMap[id] ?? id
+                                const copyValue = id
+                                const href = buildTestsetHref(id)
+
+                                return (
+                                    <TestsetReferenceTag
+                                        key={id}
+                                        label={label}
+                                        copyValue={copyValue}
+                                        href={href ?? undefined}
+                                    />
+                                )
+                            })}
+                        </Space>
                     ) : null}
-                    <Text type="secondary">
-                        Selected {compareIds.length}/{MAX_COMPARISON_RUNS}
-                    </Text>
                 </Space>
             </div>
 
-            {compareIds.length ? (
-                <Space size={[4, 4]} wrap>
+            <div className="compare-runs-selected-tags w-full flex max-w-prose">
+                <Text type="secondary" className="whitespace-nowrap">
+                    Selected {compareIds.length}/{MAX_COMPARISON_RUNS}
+                </Text>
+                <div className="flex gap-1 grow min-w-0 overflow-auto">
                     {selectedDetails.map((run) => (
                         <Tag
                             key={run.id}
@@ -234,24 +279,33 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                             {run.name}
                         </Tag>
                     ))}
+                </div>
+                {compareIds.length ? (
                     <Button size="small" type="link" onClick={handleClearAll}>
                         Clear
                     </Button>
-                </Space>
-            ) : null}
+                ) : null}
+            </div>
 
             <Input
                 placeholder="Search evaluations"
                 allowClear
-                size="small"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
             />
 
+            <StatusFilterChips
+                activeFilter={statusFilter}
+                onChange={setStatusFilter}
+                availableCandidates={candidates}
+            />
+
             <List
                 size="small"
-                bordered
                 dataSource={filteredCandidates}
+                split={false}
+                className="compare-runs-list"
+                style={{maxHeight: 360, overflowY: "auto"}}
                 locale={{
                     emptyText: swrData.isLoading
                         ? "Loading evaluations…"
@@ -262,32 +316,77 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
                     const createdLabel = item.createdAt
                         ? dayjs(item.createdAt).format("DD MMM YYYY")
                         : ""
+                    const resolvedTestsetNames =
+                        item.testsetNames.length > 0
+                            ? item.testsetNames
+                            : item.structure.testsetIds
+                                  .map((id) => candidateTestsetNameMap[id])
+                                  .filter((name): name is string => Boolean(name))
                     return (
                         <List.Item
                             key={item.id}
                             onClick={() => handleToggle(item.id)}
-                            style={{cursor: "pointer"}}
+                            className="compare-run-row flex flex-col !items-start justify-start"
                         >
-                            <Space direction="vertical" size={0} style={{width: "100%"}}>
-                                <Space align="start" style={{width: "100%"}}>
-                                    <Checkbox checked={isChecked}>
-                                        <Text strong>{item.name}</Text>
-                                    </Checkbox>
-                                    <Space size={4} wrap>
-                                        {item.status ? <Tag color="blue">{item.status}</Tag> : null}
-                                        {createdLabel ? (
-                                            <Text type="secondary" style={{fontSize: 12}}>
-                                                {createdLabel}
-                                            </Text>
-                                        ) : null}
-                                    </Space>
+                            <div className="compare-run-row__main">
+                                <Checkbox
+                                    checked={isChecked}
+                                    onClick={(event) => event.stopPropagation()}
+                                    onChange={(event) => {
+                                        event.stopPropagation()
+                                        handleToggle(item.id)
+                                    }}
+                                >
+                                    <div className="flex flex-col gap-1">
+                                        <Text>{item.name}</Text>
+                                        <Text
+                                            type="secondary"
+                                            style={{fontSize: 12}}
+                                            className="text-left"
+                                        >
+                                            {item.description?.trim()
+                                                ? item.description
+                                                : "No description"}
+                                        </Text>
+                                    </div>
+                                </Checkbox>
+
+                                <Space
+                                    size={4}
+                                    wrap
+                                    className="compare-run-row__meta"
+                                    align="center"
+                                >
+                                    {item.status ? <StatusChip status={item.status} /> : null}
+                                    {createdLabel ? (
+                                        <Text type="secondary" style={{fontSize: 12}}>
+                                            {createdLabel}
+                                        </Text>
+                                    ) : null}
                                 </Space>
-                                {item.testsetNames.length ? (
-                                    <Text type="secondary" style={{fontSize: 12}}>
-                                        Testsets: {item.testsetNames.join(", ")}
-                                    </Text>
-                                ) : null}
-                            </Space>
+                            </div>
+
+                            {/* {resolvedTestsetNames.length ? (
+                                <Text type="secondary" className="compare-run-row__sub">
+                                    Testsets:
+                                </Text>
+                            ) : null}
+                            {resolvedTestsetNames.length ? (
+                                <div className="compare-run-row__testsets">
+                                    {item.structure.testsetIds.map((id) => {
+                                        const label =
+                                            candidateTestsetNameMap[id] ?? id ?? "Unknown testset"
+                                        return (
+                                            <TestsetReferenceTag
+                                                key={`${item.id}-${id}`}
+                                                label={label}
+                                                copyValue={id}
+                                                href={buildTestsetHref(id) ?? undefined}
+                                            />
+                                        )
+                                    })}
+                                </div>
+                            ) : null} */}
                         </List.Item>
                     )
                 }}
@@ -295,3 +394,203 @@ const CompareRunsPopoverContent = memo(({runId, availability}: CompareRunsPopove
         </Space>
     )
 })
+
+type StatusTone = "success" | "error" | "processing" | "warning" | "default"
+type StatusFilterOption = StatusTone | "all" | "other"
+
+const STATUS_COLOR_MAP: Record<StatusTone, {background: string; text: string}> = {
+    success: {background: "#ECFDF3", text: "#027A48"},
+    error: {background: "#FEF3F2", text: "#B42318"},
+    processing: {background: "#EFF8FF", text: "#175CD3"},
+    warning: {background: "#FFFAEB", text: "#B54708"},
+    default: {background: "#F2F4F7", text: "#344054"},
+}
+
+const normalizeStatusLabel = (value: string) =>
+    value
+        .toString()
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/\b\w/g, (ch) => ch.toUpperCase())
+
+const resolveStatusTone = (status: string): StatusTone => {
+    const normalized = status.toLowerCase()
+    if (normalized.includes("success") || normalized.includes("complete")) return "success"
+    if (normalized.includes("fail") || normalized.includes("error")) return "error"
+    if (normalized.includes("warn") || normalized.includes("degrade")) return "warning"
+    if (
+        normalized.includes("run") ||
+        normalized.includes("progress") ||
+        normalized.includes("queue") ||
+        normalized.includes("active") ||
+        normalized.includes("pending")
+    )
+        return "processing"
+    return "default"
+}
+
+const StatusChip = ({status}: {status: string}) => {
+    const tone = resolveStatusTone(status)
+    const colors = STATUS_COLOR_MAP[tone]
+    return (
+        <Tag
+            bordered={false}
+            style={{
+                backgroundColor: colors.background,
+                color: colors.text,
+                fontWeight: 600,
+            }}
+        >
+            {normalizeStatusLabel(status)}
+        </Tag>
+    )
+}
+
+const TestsetReferenceTag = ({
+    label,
+    copyValue,
+    href,
+}: {
+    label: string
+    copyValue?: string
+    href?: string
+}) => (
+    <ReferenceTag
+        label={label}
+        copyValue={copyValue}
+        href={href}
+        tone="testset"
+        className="max-w-[200px]"
+    />
+)
+
+const STATUS_FILTER_OPTIONS: {key: StatusFilterOption; label: string}[] = [
+    {key: "all", label: "All"},
+    {key: "success", label: "Success"},
+    {key: "processing", label: "Running"},
+    {key: "error", label: "Errors"},
+    {key: "other", label: "Other"},
+]
+
+const StatusFilterChips = memo(
+    ({
+        activeFilter,
+        onChange,
+        availableCandidates,
+    }: {
+        activeFilter: StatusFilterOption
+        onChange: (value: StatusFilterOption) => void
+        availableCandidates: CandidateRun[]
+    }) => {
+        const counts = useMemo(() => {
+            const tally: Record<StatusTone, number> = {
+                success: 0,
+                error: 0,
+                processing: 0,
+                warning: 0,
+                default: 0,
+            }
+            availableCandidates.forEach((candidate) => {
+                const tone = candidate.status ? resolveStatusTone(candidate.status) : "default"
+                tally[tone] += 1
+            })
+            return tally
+        }, [availableCandidates])
+
+        if (!availableCandidates.length) {
+            return null
+        }
+
+        const renderCount = (filter: StatusFilterOption) => {
+            if (filter === "all") return availableCandidates.length
+            if (filter === "other") {
+                return counts.default + counts.warning
+            }
+            return counts[filter]
+        }
+
+        return (
+            <div className="compare-runs-status-filters">
+                <Text type="secondary" className="compare-runs-status-filters__label">
+                    Filters:
+                </Text>
+                <Space size={[4, 4]} wrap>
+                    {STATUS_FILTER_OPTIONS.map((option) => (
+                        <Button
+                            key={option.key}
+                            size="small"
+                            type={option.key === activeFilter ? "primary" : "default"}
+                            ghost={false}
+                            onClick={() => onChange(option.key)}
+                            className={
+                                option.key === activeFilter
+                                    ? "compare-runs-filter-active"
+                                    : undefined
+                            }
+                        >
+                            {option.label} ({renderCount(option.key)})
+                        </Button>
+                    ))}
+                </Space>
+            </div>
+        )
+    },
+)
+
+const useTestsetNameMap = (testsetIds: string[]) => {
+    const projectId = useAtomValue(projectIdAtom)
+    const [names, setNames] = useState<Record<string, string>>({})
+    const memoizedIds = useMemo(() => {
+        const unique = Array.from(new Set(testsetIds.filter((id): id is string => Boolean(id))))
+        return {
+            key: unique.join("|"),
+            ids: unique,
+        }
+    }, [testsetIds])
+    const idsKey = memoizedIds.key
+
+    useEffect(() => {
+        if (!projectId || !memoizedIds.ids.length) {
+            setNames({})
+            return
+        }
+        let cancelled = false
+        const fetchNames = async () => {
+            try {
+                const response = await axios.post(
+                    "/preview/testsets/query",
+                    {
+                        testset_refs: memoizedIds.ids.map((id) => ({id})),
+                        include_archived: true,
+                        windowing: {limit: memoizedIds.ids.length},
+                    },
+                    {params: {project_id: projectId}},
+                )
+                const payload = response?.data ?? {}
+                const list = Array.isArray(payload?.testsets)
+                    ? payload.testsets
+                    : Array.isArray(payload)
+                      ? payload
+                      : []
+                const lookup: Record<string, string> = {}
+                list.forEach((item: any) => {
+                    if (!item?.id) return
+                    lookup[item.id] = item?.name ?? item?.slug ?? item.id
+                })
+                if (!cancelled) {
+                    setNames(lookup)
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setNames({})
+                }
+            }
+        }
+        fetchNames()
+        return () => {
+            cancelled = true
+        }
+    }, [projectId, idsKey])
+
+    return names
+}

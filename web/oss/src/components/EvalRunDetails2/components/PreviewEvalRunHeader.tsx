@@ -106,21 +106,20 @@ const PreviewEvalRunHeader = ({
                 />
             </div>
             <div className="flex items-center gap-3 shrink-0">
-                <CompareRunsMenu runId={runId} />
                 <Space size={8} wrap className="text-[#475467]">
-                    <VariantReferenceChip
+                    {/* <VariantReferenceChip
                         variantId={
                             invocationRefs.variantId ?? invocationRefs.applicationVariantId ?? null
                         }
-                    />
-                    {testsetIds.slice(0, 2).map((id) => (
+                    /> */}
+                    {/* {testsetIds.slice(0, 2).map((id) => (
                         <TestsetReferenceChip key={id} testsetId={id} />
-                    ))}
-                    {testsetIds.length > 2 ? (
+                    ))} */}
+                    {/* {testsetIds.length > 2 ? (
                         <Typography.Text type="secondary">
                             +{testsetIds.length - 2} more
                         </Typography.Text>
-                    ) : null}
+                    ) : null} */}
                     {runStatus ? (
                         <>
                             <span
@@ -142,6 +141,7 @@ const PreviewEvalRunHeader = ({
                         </>
                     ) : null}
                 </Space>
+                <CompareRunsMenu runId={runId} />
             </div>
         </div>
     )

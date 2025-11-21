@@ -164,6 +164,7 @@ interface EvaluationRunsFiltersContentProps {
 }
 
 const sectionClass = "flex flex-col gap-2"
+const chipSelectClassName = "filter-chip-select"
 
 const SectionTitle = ({children}: {children: React.ReactNode}) => (
     <Typography.Text strong className="text-gray-700">
@@ -505,17 +506,91 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
     const hasReferenceControls =
         shouldShowTestsetSection ||
         shouldShowEvaluatorSection ||
-        shouldShowAppSection ||
-        shouldShowVariantSection ||
-        shouldShowQuerySection
 
-    return (
+    setMetaUpdater((prev) => ({
+        ...prev,
+        referenceFilters: nextReferenceFilters,
+        statusFilters: nextStatusFilters.length ? nextStatusFilters : null,
+        previewFlags,
+        evaluationTypeFilters: evaluationTypePayload,
+        dateRange: nextDateRange,
+    }))
+
+    clearDraft()
+    onClose()
+}, [
+    draft,
+    clearDraft,
+    filtersContext.derivedPreviewFlags,
+    draftFlags,
+    draftReferences,
+    draftStatusFilters,
+    hasPendingChanges,
+    draftEvaluationTypes,
+    draftDateRange,
+    filtersContext.evaluationKind,
+    onClose,
+    setMetaUpdater,
+])
+
+const preventTagMouseDown = (event: ReactMouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+}
+
+const referenceTagRenderers = useMemo(() => {
+    const createRenderer = (key: ReferenceFilterKey) => (tagProps: TagRenderProps) => {
+        const isLocked = lockedReferenceSets[key].has(tagProps.value as string)
+        const {label, value, closable, onClose, className, style} = tagProps
+        return (
+            <Tag
+                className={className}
+                style={style}
+                onMouseDown={preventTagMouseDown}
+                closable={!isLocked && closable}
+                onClose={isLocked ? undefined : onClose}
+            >
+                {label ?? value}
+            </Tag>
+        )
+    }
+    return {
+        testset: createRenderer("testset"),
+        evaluator: createRenderer("evaluator"),
+        app: createRenderer("app"),
+        variant: createRenderer("variant"),
+        query: createRenderer("query"),
+    }
+}, [lockedReferenceSets])
+
+const shouldShowEvaluatorSection =
+    filtersContext.isAutoOrHuman ||
+    filtersContext.evaluationKind === "online" ||
+    filtersContext.evaluationKind === "all"
+const shouldShowQuerySection =
+    filtersContext.evaluationKind === "online" || filtersContext.evaluationKind === "all"
+const shouldShowEvaluationTypeSection = filtersContext.evaluationKind === "all"
+const evaluationTypeDisabled = !shouldShowEvaluationTypeSection
+const shouldShowTestsetSection =
+    filtersContext.evaluationKind !== "online" && Boolean(projectId)
+const shouldShowAppSection = filtersContext.evaluationKind !== "online"
+const shouldShowVariantSection = filtersContext.evaluationKind !== "online"
+const hasReferenceControls =
+    shouldShowTestsetSection ||
+    shouldShowEvaluatorSection ||
+    shouldShowAppSection ||
+    shouldShowVariantSection ||
+    shouldShowQuerySection
+
+return (
+    <>
         <div className="flex flex-col gap-3 min-w-[320px] min-h-[0] text-gray-700 bg-white px-5 py-4 rounded-[20px] shadow-[0_20px_45px_rgba(15,23,42,0.12)]">
             <div className="grid gap-6 lg:grid-cols-2">
                 <Section title="Status">
                     <Select
                         mode="multiple"
                         allowClear
+                        className={chipSelectClassName}
                         value={draftStatusFilters}
                         options={STATUS_OPTIONS}
                         optionFilterProp="label"
@@ -530,6 +605,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                             mode="multiple"
                             allowClear
                             disabled={evaluationTypeDisabled}
+                            className={chipSelectClassName}
                             value={draftEvaluationTypes}
                             options={EVALUATION_KIND_FILTER_OPTIONS}
                             optionFilterProp="label"
@@ -556,6 +632,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                                 <Section title="Testsets">
                                     <Select
                                         mode="tags"
+                                        className={chipSelectClassName}
                                         value={draftReferences.testset}
                                         options={testsetOptions}
                                         loading={testsetsLoading}
@@ -576,6 +653,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                                 <Section title="Evaluators">
                                     <Select
                                         mode="tags"
+                                        className={chipSelectClassName}
                                         value={draftReferences.evaluator}
                                         options={filterOptions.evaluatorOptions}
                                         loading={
@@ -594,6 +672,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                                 <Section title="Applications">
                                     <Select
                                         mode="tags"
+                                        className={chipSelectClassName}
                                         value={draftReferences.app}
                                         options={filterOptions.appOptions}
                                         loading={filterOptions.appsLoading}
@@ -609,6 +688,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                                 <Section title="Variants">
                                     <Select
                                         mode="tags"
+                                        className={chipSelectClassName}
                                         value={draftReferences.variant}
                                         options={variantOptionsState.options}
                                         loading={variantOptionsState.isLoading}
@@ -629,6 +709,7 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                                 <Section title="Queries">
                                     <Select
                                         mode="tags"
+                                        className={chipSelectClassName}
                                         value={draftReferences.query}
                                         loading={queryOptionsState.isLoading}
                                         disabled={!queryOptionsState.enabled}
@@ -671,7 +752,36 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                 </Button>
             </div>
         </div>
-    )
-}
+        <style jsx global>{`
+            .${chipSelectClassName} .ant-select-selector {
+                min-height: 44px;
+                display: flex;
+                align-items: center;
+                padding-top: 4px !important;
+                padding-bottom: 4px !important;
+            }
+
+            .${chipSelectClassName} .ant-select-selection-overflow {
+                flex-wrap: nowrap !important;
+                overflow-x: auto;
+                scrollbar-width: thin;
+                gap: 6px;
+            }
+
+            .${chipSelectClassName} .ant-select-selection-overflow::-webkit-scrollbar {
+                height: 6px;
+            }
+
+            .${chipSelectClassName} .ant-select-selection-overflow::-webkit-scrollbar-thumb {
+                background-color: rgba(5, 23, 41, 0.2);
+                border-radius: 999px;
+            }
+
+            .${chipSelectClassName} .ant-select-selection-item {
+                margin-inline-end: 0 !important;
+            }
+        `}</style>
+    </>
+)
 
 export default EvaluationRunsFiltersContent

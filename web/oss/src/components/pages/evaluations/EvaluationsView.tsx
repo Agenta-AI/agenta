@@ -3,9 +3,7 @@ import {memo, useEffect, useMemo, useRef, useState, useTransition, type CSSPrope
 import {Tabs, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
-import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
-// import {createUseStyles} from "react-jss"
 
 import {
     EvaluationRunsTablePOC,
@@ -19,33 +17,11 @@ import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {ConcreteEvaluationRunKind} from "../../EvaluationRunsTablePOC/types"
-const AbTestingEvaluation = dynamic(
-    () => import("@/oss/components/HumanEvaluations/AbTestingEvaluation"),
-    {ssr: false},
-)
 
 type EvaluationScope = "app" | "project"
-type AppTabKey = EvaluationRunKind | "human_ab_testing"
+type AppTabKey = EvaluationRunKind
 
 const TAB_CONTENT_SWITCH_DELAY_MS = 220
-
-const APP_TAB_COLOR_MAP: Record<AppTabKey, string> = {
-    all: "#e0f2fe",
-    auto: "#dbeafe",
-    human: "#ede9fe",
-    online: "#dcfce7",
-    custom: "#fce7f3",
-    human_ab_testing: "#fef3f7",
-}
-
-const APP_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
-    {key: "all", label: "All Evaluations"},
-    {key: "auto", label: "Automatic Evaluations"},
-    {key: "human", label: "Human Evaluations"},
-    {key: "online", label: "Online Evaluations"},
-    {key: "custom", label: "SDK Evaluations"},
-    {key: "human_ab_testing", label: "Human AB Testing"},
-]
 
 const POC_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
     {key: "all", label: "All Evaluations"},
@@ -61,24 +37,16 @@ const POC_TAB_COLOR_MAP: Record<AppTabKey, string> = {
     human: "#ede9fe",
     online: "#dcfce7",
     custom: "#fce7f3",
-    human_ab_testing: "#fef3f7",
 }
 
 interface EvaluationTabsProps {
     scope: EvaluationScope
     tabItems: {key: AppTabKey; label: string}[]
     tabColorMap: Record<AppTabKey, string>
-    includeAbTesting: boolean
     useRouteAppId: boolean
 }
 
-const EvaluationTabs = ({
-    scope,
-    tabItems,
-    tabColorMap,
-    includeAbTesting,
-    useRouteAppId,
-}: EvaluationTabsProps) => {
+const EvaluationTabs = ({scope, tabItems, tabColorMap, useRouteAppId}: EvaluationTabsProps) => {
     const router = useRouter()
     const projectId = useAtomValue(projectIdAtom)
     const setEvaluationTypeFilters = useSetAtom(evaluationRunsTypeFiltersAtom)
@@ -115,11 +83,9 @@ const EvaluationTabs = ({
         return () => window.clearTimeout(handle)
     }, [activeTab, displayedTab, isPending])
 
-    const displayedRunKind =
-        displayedTab === "human_ab_testing" ? null : (displayedTab as EvaluationRunKind)
+    const displayedRunKind = displayedTab as EvaluationRunKind
 
     useEffect(() => {
-        if (!displayedRunKind) return
         if (displayedRunKind === "all") {
             setEvaluationTypeFilters([])
         } else {
@@ -128,7 +94,7 @@ const EvaluationTabs = ({
     }, [displayedRunKind, setEvaluationTypeFilters])
 
     useEffect(() => {
-        if (!displayedRunKind || isNavigatingAway) return
+        if (isNavigatingAway) return
         const next = {
             appId: determineAppId,
             projectIdOverride: projectId ?? null,
@@ -184,10 +150,6 @@ const EvaluationTabs = ({
     )
 
     const renderContent = useMemo(() => {
-        if (includeAbTesting && displayedTab === "human_ab_testing") {
-            return <AbTestingEvaluation viewType="evaluation" />
-        }
-        if (!displayedRunKind) return null
         return (
             <div className="grow flex flex-col min-h-0">
                 <EvaluationRunsTablePOC
@@ -199,7 +161,7 @@ const EvaluationTabs = ({
                 />
             </div>
         )
-    }, [displayedTab, displayedRunKind, projectId, includeAbTesting])
+    }, [displayedTab, displayedRunKind, projectId])
 
     return (
         <>
@@ -265,7 +227,6 @@ const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
                 scope="project"
                 tabItems={POC_TAB_ITEMS}
                 tabColorMap={POC_TAB_COLOR_MAP as Record<AppTabKey, string>}
-                includeAbTesting={false}
                 useRouteAppId={false}
             />
         )
@@ -273,9 +234,8 @@ const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
     return (
         <EvaluationTabs
             scope="app"
-            tabItems={APP_TAB_ITEMS}
-            tabColorMap={APP_TAB_COLOR_MAP}
-            includeAbTesting={true}
+            tabItems={POC_TAB_ITEMS}
+            tabColorMap={POC_TAB_COLOR_MAP as Record<AppTabKey, string>}
             useRouteAppId={true}
         />
     )

@@ -116,7 +116,7 @@ const AppWithVariants = memo(
                                             "flex flex-col min-h-0 grow":
                                                 isHumanEval || isEvaluator,
                                             "[&.ant-layout-content]:p-0 [&.ant-layout-content]:m-0":
-                                                isPlayground || isEvaluator,
+                                                isPlayground,
                                         })}
                                     >
                                         <ErrorBoundary FallbackComponent={ErrorFallback}>
@@ -236,8 +236,8 @@ const App: React.FC<LayoutProps> = ({children}) => {
                 pathname.includes("/post-signup") ||
                 pathname.includes("/workspaces"),
             isAppRoute: baseAppURL ? asPath.startsWith(baseAppURL) : false,
-            isPlayground:
-                pathname.includes("/playground") || pathname.includes("/evaluations/results"),
+            isPlayground: pathname.includes("/playground"),
+            //  || pathname.includes("/evaluations/results"),
             isEvaluator: pathname.includes("/evaluators/configure"),
             isHumanEval:
                 pathname.includes("/evaluations/single_model_test") ||

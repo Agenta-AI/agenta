@@ -113,8 +113,8 @@ const EvaluationRunsCreateButton = () => {
                             {isActive ? <Check size={14} weight="bold" /> : null}
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-sm font-medium text-gray-900">{copy.title}</span>
-                            <span className="text-xs text-gray-500">{copy.description}</span>
+                            <span className="font-medium text-gray-900">{copy.title}</span>
+                            <span className="text-gray-500">{copy.description}</span>
                         </div>
                     </div>
                 ),

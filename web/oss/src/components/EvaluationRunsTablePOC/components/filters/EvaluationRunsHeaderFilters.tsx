@@ -481,6 +481,7 @@ const EvaluationRunsHeaderFilters = () => {
                     arrow: false,
                     styles: {
                         body: {
+                            maxWidth: "360px",
                             backgroundColor: "transparent",
                             boxShadow: "none",
                             border: "none",
