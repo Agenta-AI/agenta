@@ -428,14 +428,12 @@ class EvaluationsService:
         limit_is_positive = bool(limit and limit > 0)
 
         if required_kinds and windowing and limit_is_positive:
-            _runs, _ = await self._query_runs_with_kind_windowing(
+            return await self._query_runs_with_kind_windowing(
                 project_id=project_id,
                 run=run,
                 windowing=windowing,
                 required_kinds=required_kinds,
             )
-
-            return _runs
 
         runs = await self.evaluations_dao.query_runs(
             project_id=project_id,
