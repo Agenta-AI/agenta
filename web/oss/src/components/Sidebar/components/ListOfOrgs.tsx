@@ -1,141 +1,226 @@
 import {memo, useMemo, useState} from "react"
 
-import {CaretDown} from "@phosphor-icons/react"
-import {Button, ButtonProps, Dropdown, DropdownProps} from "antd"
+import {CaretDown, SignOut} from "@phosphor-icons/react"
+import {Button, ButtonProps, Dropdown, DropdownProps, MenuProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useSession} from "@/oss/hooks/useSession"
 import {useOrgData} from "@/oss/state/org"
-import {orgsAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
+import {orgsAtom as organizationsAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
 
 import Avatar from "../../Avatar/Avatar"
-import {useDropdownItems} from "../hooks/useDropdownItems"
+import ListOfProjects from "./ListOfProjects"
 
-interface ListOfOrgsProps extends DropdownProps {
+interface ListOfOrgsProps extends Omit<DropdownProps, "menu" | "children"> {
     collapsed: boolean
     buttonProps?: ButtonProps
     /**
      * When false, renders a non-interactive display (no dropdown, no navigation)
-     * Useful on pages like post-signup where changing org should not trigger redirects
+     * Useful on pages like post-signup where changing organization should not trigger redirects
      */
     interactive?: boolean
     /**
-     * Optional override for currently selected org id when URL-derived selection is not available
+     * Optional override for currently selected organization id when URL-derived selection is not available
      */
-    overrideOrgId?: string
+    overrideOrganizationId?: string
     /**
-     * When false, org items remain visible but are not actionable. Logout remains actionable.
+     * When false, organization items remain visible but are not actionable. Logout remains actionable.
      */
-    orgSelectionEnabled?: boolean
+    organizationSelectionEnabled?: boolean
 }
 
 const ListOfOrgs = ({
     collapsed,
     buttonProps,
     interactive = true,
-    overrideOrgId,
-    orgSelectionEnabled = true,
-    ...props
+    overrideOrganizationId,
+    organizationSelectionEnabled = true,
+    ...dropdownProps
 }: ListOfOrgsProps) => {
     const {user} = useProfileData()
     const {logout} = useSession()
-    const {selectedOrg, orgs, changeSelectedOrg} = useOrgData()
-    const selectedOrgId = useAtomValue(selectedOrgIdAtom)
-    const effectiveSelectedId = overrideOrgId || selectedOrgId
-    const orgList = useAtomValue(orgsAtom)
-    const selectedBasicOrg = useMemo(
-        () => orgList.find((o) => o.id === effectiveSelectedId) || null,
-        [orgList, effectiveSelectedId],
+    const {selectedOrg: selectedOrganization, orgs: organizations, changeSelectedOrg} = useOrgData()
+    const selectedOrganizationId = useAtomValue(selectedOrgIdAtom)
+    const effectiveSelectedId =
+        overrideOrganizationId || selectedOrganization?.id || selectedOrganizationId
+    const organizationList = useAtomValue(organizationsAtom)
+    const selectedBasicOrganization = useMemo(
+        () =>
+            organizationList.find((organization) => organization.id === effectiveSelectedId) ||
+            null,
+        [organizationList, effectiveSelectedId],
     )
-    const {project, projects} = useProjectData()
+    const {project} = useProjectData()
+    const organizationDisplayName =
+        selectedBasicOrganization?.name ||
+        selectedOrganization?.name ||
+        organizations?.[0]?.name ||
+        "Organization"
 
-    const dropdownItems = useDropdownItems({
-        logout,
-        orgs,
-        selectedOrg,
-        user,
-        project,
-        projects,
-        interactive,
-    })
+    const organizationMenuItems = useMemo<MenuProps["items"]>(() => {
+        const items: MenuProps["items"] = organizations.map((organization) => ({
+            key: `organization:${organization.id}`,
+            disabled: !interactive || !organizationSelectionEnabled,
+            label: (
+                <div className="flex items-center gap-2">
+                    <Avatar size="small" name={organization.name} />
+                    <span className="truncate">{organization.name}</span>
+                </div>
+            ),
+        }))
 
-    const [dropdownOpen, setDropdownOpen] = useState(false)
+        if (items.length) {
+            items.push({type: "divider", key: "organizations-divider"})
+        }
 
-    const contentButton = (
+        items.push({
+            key: "logout",
+            danger: true,
+            label: (
+                <div className="flex items-center gap-2">
+                    <SignOut size={16} />
+                    Logout
+                </div>
+            ),
+        })
+
+        return items
+    }, [interactive, organizationSelectionEnabled, organizations])
+
+    const [organizationDropdownOpen, setOrganizationDropdownOpen] = useState(false)
+
+    const organizationButtonLabel = organizationDisplayName
+
+    const sharedButtonProps = useMemo(() => {
+        if (!buttonProps) {
+            return {
+                className: undefined,
+                type: undefined,
+                disabled: undefined,
+                rest: {} as ButtonProps,
+            }
+        }
+
+        const {className, type, disabled, ...rest} = buttonProps
+        return {className, type, disabled, rest: rest as ButtonProps}
+    }, [buttonProps])
+
+    const renderSelectionButton = (
+        label: string,
+        placeholder: string,
+        isOpen: boolean,
+        showCaret: boolean,
+        disabled?: boolean,
+    ) => (
         <Button
-            type="text"
-            className={clsx([
-                "flex items-center justify-between gap-2 w-full px-1.5 py-4",
+            type={sharedButtonProps.type ?? "text"}
+            className={clsx(
+                "flex items-center justify-between gap-2 w-full px-1.5 py-3",
                 {"!w-auto": collapsed},
-            ])}
-            {...buttonProps}
+                sharedButtonProps.className,
+            )}
+            disabled={disabled || sharedButtonProps.disabled}
+            {...sharedButtonProps.rest}
         >
             <div className="flex items-center gap-2">
-                <Avatar size="small" name={selectedBasicOrg?.name || selectedOrg?.name} />
+                <Avatar size="small" name={label || placeholder} />
                 {!collapsed && (
-                    <span
-                        className="max-w-[150px] truncate"
-                        title={selectedBasicOrg?.name || selectedOrg?.name}
-                    >
-                        {selectedBasicOrg?.name || selectedOrg?.name}
+                    <span className="max-w-[150px] truncate" title={label || placeholder}>
+                        {label || placeholder}
                     </span>
                 )}
             </div>
-            {!collapsed && interactive && (
+            {!collapsed && showCaret && (
                 <CaretDown
                     size={14}
-                    className={clsx("transition-transform", dropdownOpen ? "rotate-180" : "")}
+                    className={clsx("transition-transform", isOpen ? "rotate-180" : "")}
                 />
             )}
         </Button>
     )
 
-    const canShow = Boolean((effectiveSelectedId || selectedOrg?.id) && user?.id)
+    const canShow = Boolean(
+        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) && user?.id,
+    )
+
+    const handleOrganizationMenuClick: MenuProps["onClick"] = ({key}) => {
+        if (key === "logout") {
+            setOrganizationDropdownOpen(false)
+            AlertPopup({
+                title: "Logout",
+                message: "Are you sure you want to logout?",
+                onOk: logout,
+            })
+            return
+        }
+
+        if (!interactive || !organizationSelectionEnabled) {
+            setOrganizationDropdownOpen(false)
+            return
+        }
+
+        const [, organizationId] = (key as string).split(":")
+        if (organizationId) {
+            setOrganizationDropdownOpen(false)
+            void changeSelectedOrg(organizationId)
+        }
+    }
+
+    const selectedOrganizationKey = effectiveSelectedId
+        ? [`organization:${effectiveSelectedId}`]
+        : undefined
 
     return (
-        <div className="h-[51px] flex items-center justify-center px-2">
+        <div className={clsx("flex flex-col gap-2 px-2 py-3", {"items-center": collapsed})}>
             {canShow ? (
-                interactive ? (
-                    <Dropdown
-                        {...props}
-                        trigger={["click"]}
-                        placement="bottomRight"
-                        overlayStyle={{zIndex: 2000}}
-                        menu={{
-                            // @ts-ignore - dropdown items union types differ from antd ItemType
-                            items: dropdownItems,
-                            selectedKeys:
-                                selectedBasicOrg?.id || selectedOrg?.id
-                                    ? [String(selectedBasicOrg?.id || selectedOrg?.id)]
-                                    : [],
-                            onClick: ({key}) => {
-                                if (key === "logout") {
-                                    setDropdownOpen(false)
-                                    return
-                                }
-                                if (!orgSelectionEnabled) {
-                                    setDropdownOpen(false)
-                                    return
-                                }
-                                setDropdownOpen(false)
-                                void changeSelectedOrg(String(key))
-                            },
-                        }}
-                        onOpenChange={setDropdownOpen}
-                        open={dropdownOpen}
-                        className={clsx({"flex items-center justify-center": collapsed})}
-                    >
-                        {contentButton}
-                    </Dropdown>
-                ) : (
-                    // Non-interactive display (no dropdown, no navigation)
-                    <div className={clsx({"flex items-center justify-center": collapsed})}>
-                        {contentButton}
-                    </div>
-                )
+                <>
+                    {interactive ? (
+                        <Dropdown
+                            {...dropdownProps}
+                            trigger={["click"]}
+                            placement="bottomRight"
+                            destroyPopupOnHide
+                            overlayStyle={{zIndex: 2000}}
+                            onOpenChange={setOrganizationDropdownOpen}
+                            className={clsx({"flex items-center justify-center": collapsed})}
+                            menu={{
+                                items: organizationMenuItems,
+                                selectedKeys: selectedOrganizationKey,
+                                onClick: handleOrganizationMenuClick,
+                            }}
+                        >
+                            {renderSelectionButton(
+                                organizationButtonLabel,
+                                "Organization",
+                                organizationDropdownOpen,
+                                true,
+                                false,
+                            )}
+                        </Dropdown>
+                    ) : (
+                        <div className={clsx({"flex items-center justify-center": collapsed})}>
+                            {renderSelectionButton(
+                                organizationButtonLabel,
+                                "Organization",
+                                false,
+                                false,
+                                true,
+                            )}
+                        </div>
+                    )}
+
+                    <ListOfProjects
+                        collapsed={collapsed}
+                        buttonProps={buttonProps}
+                        interactive={interactive}
+                        selectedOrganizationId={effectiveSelectedId}
+                        dropdownProps={dropdownProps}
+                    />
+                </>
             ) : null}
         </div>
     )

@@ -61,37 +61,48 @@ const projectMatchesWorkspace = (project: ProjectsResponse, workspaceId: string)
 const pickPreferredProject = (projects: ProjectsResponse[], workspaceId: string | null) => {
     if (!projects.length) return null
 
-    const nonDemo = projects.filter((project) => !project.is_demo)
-    if (workspaceId) {
-        const workspaceMatch = projects.find(
-            (project) => projectMatchesWorkspace(project, workspaceId) && !project.is_demo,
-        )
-        if (workspaceMatch) return workspaceMatch
+    const workspaceProjects = workspaceId
+        ? projects.filter((project) => projectMatchesWorkspace(project, workspaceId))
+        : []
 
-        const workspaceAny = projects.find((project) =>
-            projectMatchesWorkspace(project, workspaceId),
-        )
-        if (workspaceAny) return workspaceAny
+    const workspaceDefault = workspaceProjects.find((project) => project.is_default_project)
+    if (workspaceDefault) return workspaceDefault
+
+    if (workspaceProjects.length) {
+        const workspaceNonDemo = workspaceProjects.find((project) => !project.is_demo)
+        if (workspaceNonDemo) return workspaceNonDemo
+        return workspaceProjects[0]
     }
 
+    const globalDefault = projects.find((project) => project.is_default_project)
+    if (globalDefault) return globalDefault
+
+    const nonDemo = projects.filter((project) => !project.is_demo)
     if (nonDemo.length) return nonDemo[0]
+
     return projects[0]
 }
 
+export const projectIdAtom = atom((get) => get(appIdentifiersAtom).projectId)
+
 export const projectAtom = eagerAtom((get) => {
     const projects = get(projectsAtom) as ProjectsResponse[]
-    const org = get(selectedOrgAtom)
-    const workspaceId = org?.default_workspace?.id ?? null
+    const organization = get(selectedOrgAtom)
+    const workspaceId = organization?.default_workspace?.id ?? null
+    const projectId = get(projectIdAtom)
 
     if (!projects.length) return null
+
+    if (projectId) {
+        const selectedProject = projects.find((project) => project.project_id === projectId)
+        if (selectedProject) return selectedProject
+    }
 
     const preferred = pickPreferredProject(projects, workspaceId)
     if (preferred) return preferred
 
     return projects[0] ?? null
 })
-
-export const projectIdAtom = atom((get) => get(appIdentifiersAtom).projectId)
 
 export const projectNavigationAtom = atom(null, (get, set, next: string | null) => {
     const {workspaceId, projectId} = get(appIdentifiersAtom)
