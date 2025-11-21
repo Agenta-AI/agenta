@@ -2111,8 +2111,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             )
 
             if metric is not None:
-                scenario_null = getattr(metric, "scenario_null", None)
-
                 if metric.ids is not None:
                     stmt = stmt.filter(
                         EvaluationMetricsDBE.id.in_(metric.ids),
@@ -2128,45 +2126,21 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                         EvaluationMetricsDBE.run_id.in_(metric.run_ids),
                     )
 
-                if scenario_null:
+                if metric.scenario_id is not None:
                     stmt = stmt.filter(
-                        EvaluationMetricsDBE.scenario_id.is_(None),
+                        EvaluationMetricsDBE.scenario_id == metric.scenario_id,
                     )
-                else:
-                    scenario_ids: List[UUID] = []
-                    include_null_scenario = False
 
-                    fields_set = getattr(metric, "__fields_set__", None)
-                    if fields_set is None:
-                        fields_set = getattr(metric, "model_fields_set", set())
-
-                    if fields_set and "scenario_id" in fields_set:
-                        if metric.scenario_id is None:
-                            include_null_scenario = True
-                        elif metric.scenario_id is not None:
-                            scenario_ids.append(metric.scenario_id)
-
-                    if metric.scenario_ids is not None:
-                        for sid in metric.scenario_ids:
-                            if sid is None:
-                                include_null_scenario = True
-                            else:
-                                scenario_ids.append(sid)
-
-                    non_null_scenario_ids = [sid for sid in scenario_ids if sid is not None]
-
-                    if include_null_scenario and non_null_scenario_ids:
-                        stmt = stmt.filter(
-                            or_(
-                                EvaluationMetricsDBE.scenario_id.is_(None),
-                                EvaluationMetricsDBE.scenario_id.in_(non_null_scenario_ids),
-                            )
-                        )
-                    elif include_null_scenario:
+                if metric.scenario_ids is not None:
+                    if metric.scenario_ids is False:
                         stmt = stmt.filter(EvaluationMetricsDBE.scenario_id.is_(None))
-                    elif non_null_scenario_ids:
+                    elif metric.scenario_ids is True:
                         stmt = stmt.filter(
-                            EvaluationMetricsDBE.scenario_id.in_(non_null_scenario_ids),
+                            EvaluationMetricsDBE.scenario_id.is_not(None)
+                        )
+                    else:
+                        stmt = stmt.filter(
+                            EvaluationMetricsDBE.scenario_id.in_(metric.scenario_ids),
                         )
 
                 if metric.timestamp is not None:
@@ -2175,18 +2149,14 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     )
 
                 if metric.timestamps is not None:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.timestamp.in_(metric.timestamps),
-                    )
-
-                if metric.timestamp_null is True:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.timestamp.is_(None),
-                    )
-                elif metric.timestamp_null is False:
-                    stmt = stmt.filter(
-                        EvaluationMetricsDBE.timestamp.is_not(None),
-                    )
+                    if metric.timestamps is False:
+                        stmt = stmt.filter(EvaluationMetricsDBE.timestamp.is_(None))
+                    elif metric.timestamps is True:
+                        stmt = stmt.filter(EvaluationMetricsDBE.timestamp.is_not(None))
+                    else:
+                        stmt = stmt.filter(
+                            EvaluationMetricsDBE.timestamp.in_(metric.timestamps),
+                        )
 
                 if metric.interval is not None:
                     stmt = stmt.filter(

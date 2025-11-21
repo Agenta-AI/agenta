@@ -253,7 +253,6 @@ async def parse_metrics_query_request(
     #
     status: Optional[EvaluationStatus] = Query(None),
     statuses: Optional[List[EvaluationStatus]] = Query(None),
-    scenario_null: Optional[bool] = Query(None),
     # WINDOWING
     newest: Optional[datetime] = Query(None),
     oldest: Optional[datetime] = Query(None),
@@ -282,7 +281,6 @@ async def parse_metrics_query_request(
             run_ids=run_ids,
             #
             ids=ids,
-            scenario_null=scenario_null,
         ),
         windowing=Windowing(
             newest=newest,

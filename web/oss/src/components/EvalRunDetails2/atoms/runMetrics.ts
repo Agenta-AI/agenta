@@ -502,8 +502,8 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
             const basePayload = {
                 metrics: {
                     run_ids: Array.from(entry.runIds),
-                    scenario_null: true,
-                    timestamp_null: true,
+                    scenario_ids: true,
+                    timestamps: true,
                 },
                 windowing: {},
             }
@@ -538,7 +538,7 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
                             ...basePayload,
                             metrics: {
                                 ...basePayload.metrics,
-                                timestamp_null: false,
+                                timestamps: false,
                             },
                         },
                         {params: {project_id: entry.projectId}},

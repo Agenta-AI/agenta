@@ -527,7 +527,9 @@ class EvaluationsService:
         required_kinds: set[str],
     ) -> Tuple[List[EvaluationRun], Optional[Windowing]]:
         collected: List[EvaluationRun] = []
-        current_window = self._clone_windowing(template=windowing, next_value=windowing.next)
+        current_window = self._clone_windowing(
+            template=windowing, next_value=windowing.next
+        )
         last_cursor: Optional[UUID] = windowing.next
         has_more = False
         limit_value = windowing.limit or 0
@@ -959,7 +961,9 @@ class EvaluationsService:
             scenario_filters = set()
             include_null_scenarios = bool(scenario_null)
             if scenario_null:
-                metrics = [m for m in metrics if getattr(m, "scenario_id", None) is None]
+                metrics = [
+                    m for m in metrics if getattr(m, "scenario_id", None) is None
+                ]
 
             if not scenario_null:
                 fields_set = getattr(metric, "__fields_set__", None)
@@ -989,7 +993,10 @@ class EvaluationsService:
                     for m in metrics
                     if (
                         (scenario_filters and m.scenario_id in scenario_filters)
-                        or (include_null_scenarios and getattr(m, "scenario_id", None) is None)
+                        or (
+                            include_null_scenarios
+                            and getattr(m, "scenario_id", None) is None
+                        )
                     )
                 ]
 
@@ -1051,9 +1058,21 @@ class EvaluationsService:
                 continue
             step = getattr(mapping, "step", None) or {}
             column = getattr(mapping, "column", None) or {}
-            step_key = getattr(step, "key", None) if not isinstance(step, dict) else step.get("key")
-            raw_path = getattr(step, "path", None) if not isinstance(step, dict) else step.get("path")
-            kind_value = getattr(column, "kind", None) if not isinstance(column, dict) else column.get("kind")
+            step_key = (
+                getattr(step, "key", None)
+                if not isinstance(step, dict)
+                else step.get("key")
+            )
+            raw_path = (
+                getattr(step, "path", None)
+                if not isinstance(step, dict)
+                else step.get("path")
+            )
+            kind_value = (
+                getattr(column, "kind", None)
+                if not isinstance(column, dict)
+                else column.get("kind")
+            )
             kind = (kind_value or "").lower()
             if not step_key or not raw_path or kind not in {"annotation", "evaluator"}:
                 continue
@@ -1097,7 +1116,9 @@ class EvaluationsService:
                         get_metrics_keys_from_schema(schema=schemas),
                     )
 
-                service_format = self._to_dict(evaluator_data.get("service")).get("format")
+                service_format = self._to_dict(evaluator_data.get("service")).get(
+                    "format"
+                )
                 if service_format:
                     metrics_keys.extend(
                         get_metrics_keys_from_schema(schema=service_format),
@@ -1110,7 +1131,9 @@ class EvaluationsService:
             sanitized_metrics = []
             for metric_key in metrics_keys:
                 normalized = self._normalize_metric_path(
-                    metric_key.get("path") if isinstance(metric_key, dict) else getattr(metric_key, "path", None)
+                    metric_key.get("path")
+                    if isinstance(metric_key, dict)
+                    else getattr(metric_key, "path", None)
                 )
                 if not normalized:
                     continue
@@ -1234,7 +1257,7 @@ class EvaluationsService:
 
         filter_kwargs: Dict[str, Any] = {"run_id": run_id}
         if scenario_id is None:
-            filter_kwargs["scenario_null"] = True
+            filter_kwargs["scenarioo_ids"] = True
         else:
             filter_kwargs["scenario_id"] = scenario_id
 
