@@ -39,8 +39,9 @@ LIMITED_EVENTS_PER_AUTH = {
 # Maps event names to (property_name, allowed_auth_methods)
 # If allowed_auth_methods is None, all auth methods are allowed
 ACTIVATION_EVENTS = {
-    "query_fetched": ("activated_prompt_management", {"ApiKey", "Secret"}),
-    "spans_created": ("activated_observability", {"ApiKey", "Secret"}),
+    "app_revision_fetched": ("activated_prompt_management", {"ApiKey"}),
+    "query_created": ("activated_online_evaluation", None),
+    "spans_created": ("activated_observability", {"ApiKey"}),
     "evaluation_created": ("activated_evaluation", None),
     "app_variant_created": ("activated_playground", None),
 }
@@ -295,8 +296,7 @@ def _get_event_name_from_path(
     elif method == "POST" and (
         path == "/preview/evaluations/runs/"
         or "/evaluations/preview/start" in path
-        or path == "/api/simple/evaluations/"
-        or path == "/api/evaluations/runs/"
+        or path == "/preview/simple/evaluations/"
     ):
         return "evaluation_created"
 
@@ -315,13 +315,11 @@ def _get_event_name_from_path(
     # <----------- End of Observability Events ------------->
 
     # <----------- Query/Prompt Management Events ------------->
-    if method == "GET" and "/preview/queries/" in path:
-        # GET /preview/queries/{query_id} or GET /preview/queries/revisions/{revision_id}
-        return "query_fetched"
+    if method == "POST" and path == "/preview/queries/":
+        return "query_created"
 
-    elif method == "POST" and "/preview/queries/revisions/retrieve" in path:
-        # POST /preview/queries/revisions/retrieve
-        return "query_fetched"
+    elif method == "POST" and path == "/preview/simple/queries/":
+        return "query_created"
     # <----------- End of Query/Prompt Management Events ------------->
 
     # <----------- User Lifecycle Events ------------->
