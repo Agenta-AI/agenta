@@ -551,7 +551,7 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                         const response = await axios.post(
                             `/preview/evaluations/metrics/query`,
                             {
-                                metric: {
+                                metrics: {
                                     ...metricPayload,
                                 },
                             },
