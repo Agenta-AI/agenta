@@ -293,11 +293,12 @@ export const createMetricProcessor = ({
                 try {
                     const params = new URLSearchParams()
                     params.set("project_id", projectId)
-                    params.set("run_id", runId)
-                    uniqueScenarioIds.forEach((id) => params.append("scenario_ids", id))
                     const response = await axios.post(
                         `/preview/evaluations/metrics/refresh`,
-                        undefined,
+                        {
+                            run_id: runId,
+                            scenario_ids: uniqueScenarioIds,
+                        },
                         {
                             params,
                         },
@@ -347,11 +348,12 @@ export const createMetricProcessor = ({
                         try {
                             const params = new URLSearchParams()
                             params.set("project_id", projectId)
-                            params.set("run_id", runId)
-                            params.append("scenario_ids", scenarioId)
                             const response = await axios.post(
                                 `/preview/evaluations/metrics/refresh`,
-                                undefined,
+                                {
+                                    run_id: runId,
+                                    scenario_id: scenarioId,
+                                },
                                 {
                                     params,
                                 },
@@ -459,10 +461,11 @@ export const createMetricProcessor = ({
             try {
                 const params = new URLSearchParams()
                 params.set("project_id", projectId)
-                params.set("run_id", runId)
                 const response = await axios.post(
                     `/preview/evaluations/metrics/refresh`,
-                    undefined,
+                    {
+                        run_id: runId,
+                    },
                     {
                         params,
                     },

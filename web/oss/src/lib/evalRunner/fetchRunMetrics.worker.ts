@@ -41,7 +41,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
         } = payload
         const url = `${apiUrl}/preview/evaluations/metrics/query?project_id=${projectId}`
         const body: Record<string, any> = {
-            metrics: {run_ids: [runId], scenario_null: true},
+            metrics: {run_ids: [runId], scenario_ids: true},
             windowing: {},
         }
         const resp = await fetch(url, {
@@ -59,7 +59,7 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
         try {
             const scenarioBody = {
                 ...body,
-                metrics: {...body.metrics, scenario_null: false},
+                metrics: {...body.metrics, scenario_ids: false},
             }
             const scenarioResp = await fetch(url, {
                 method: "POST",

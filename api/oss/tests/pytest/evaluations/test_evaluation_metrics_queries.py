@@ -268,7 +268,7 @@ class TestEvaluationMetricsQueries:
         assert all(metric["id"] in metrics_ids for metric in response["metrics"])
         # ----------------------------------------------------------------------
 
-    def test_query_metrics_timestamp_null_filters(self, authed_api, mock_data):
+    def test_query_metrics_no_timestamps_filters(self, authed_api, mock_data):
         # ARRANGE --------------------------------------------------------------
         run_id = mock_data["runs"][0]["id"]
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -296,7 +296,7 @@ class TestEvaluationMetricsQueries:
             json={
                 "metric": {
                     "run_id": run_id,
-                    "scenario_null": True,
+                    "scenario_ids": True,
                 }
             },
         )
@@ -306,8 +306,8 @@ class TestEvaluationMetricsQueries:
             json={
                 "metric": {
                     "run_id": run_id,
-                    "scenario_null": True,
-                    "timestamp_null": False,
+                    "scenario_ids": True,
+                    "timestamps": False,
                 }
             },
         )
@@ -317,10 +317,15 @@ class TestEvaluationMetricsQueries:
         assert run_level_response.status_code == 200
         run_level_payload = run_level_response.json()
         assert run_level_payload["count"] >= 1
-        assert all(metric.get("timestamp") is None for metric in run_level_payload["metrics"])
+        assert all(
+            metric.get("timestamp") is None for metric in run_level_payload["metrics"]
+        )
 
         assert temporal_response.status_code == 200
         temporal_payload = temporal_response.json()
         assert temporal_payload["count"] >= 1
-        assert all(metric.get("timestamp") is not None for metric in temporal_payload["metrics"])
+        assert all(
+            metric.get("timestamp") is not None
+            for metric in temporal_payload["metrics"]
+        )
         # ----------------------------------------------------------------------

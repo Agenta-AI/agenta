@@ -324,18 +324,15 @@ class EvaluationMetricsQuery(Metadata):
     intervals: Optional[List[int]] = None
 
     timestamp: Optional[datetime] = None
-    timestamps: Optional[List[datetime]] = None
-    timestamp_null: Optional[bool] = None
+    timestamps: Optional[Union[List[datetime], bool]] = None
 
     scenario_id: Optional[UUID] = None
-    scenario_ids: Optional[List[UUID]] = None
+    scenario_ids: Optional[Union[List[UUID], bool]] = None
 
     run_id: Optional[UUID] = None
     run_ids: Optional[List[UUID]] = None
 
     ids: Optional[List[UUID]] = None
-
-    scenario_null: Optional[bool] = None
 
 
 class EvaluationMetricsRefresh(BaseModel):

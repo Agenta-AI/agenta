@@ -712,6 +712,7 @@ async def configs_query(
     request: Request,
     query: ConfigsQueryRequestModel,
 ) -> ConfigsResponseModel:
+    application_ref = query.application_ref
     variant_refs = query.variant_refs or []
 
     if not variant_refs:
@@ -720,27 +721,30 @@ async def configs_query(
     seen_keys = set()
     configs: List[ConfigDTO] = []
 
-    for ref in variant_refs:
+    for variant_ref in variant_refs:
         dedup_key = (
-            str(ref.id) if ref.id else None,
-            ref.slug or None,
-            ref.version or None,
+            str(variant_ref.id) if variant_ref.id else None,
+            variant_ref.slug or None,
+            variant_ref.version or None,
         )
         if dedup_key in seen_keys:
             continue
+
         seen_keys.add(dedup_key)
 
-        config = await fetch_config_by_variant_ref(
-            project_id=request.state.project_id,
-            variant_ref=ref,
-            application_ref=query.application_ref,
-            user_id=request.state.user_id,
+        config = await configs_fetch(
+            request=request,
+            variant_ref=variant_ref,
+            application_ref=application_ref,
         )
 
         if config:
             configs.append(config)
 
-    return ConfigsResponseModel(count=len(configs), configs=configs)
+    return ConfigsResponseModel(
+        count=len(configs),
+        configs=configs,
+    )
 
 
 @router.post(

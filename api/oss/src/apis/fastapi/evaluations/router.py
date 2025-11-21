@@ -1296,9 +1296,12 @@ class EvaluationsRouter:
         self,
         request: Request,
         *,
-        run_id: UUID,
+        run_id: Optional[UUID] = None,
+        run_ids: Optional[List[UUID]] = None,
         scenario_id: Optional[UUID] = None,
+        scenario_ids: Optional[List[UUID]] = None,
         timestamp: Optional[datetime] = None,
+        timestamps: Optional[List[datetime]] = None,
         interval: Optional[int] = None,
     ) -> EvaluationMetricsResponse:
         if is_ee():
@@ -1309,31 +1312,45 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        scenario_ids = request.query_params.getlist("scenario_ids")
-
         metrics: List[EvaluationMetrics] = []
 
-        if scenario_ids:
-            for raw_scenario_id in dict.fromkeys(scenario_ids):
-                try:
-                    scenario_uuid = UUID(raw_scenario_id)
-                except ValueError:
-                    log.warning(
-                        "[WARN] Ignoring invalid scenario_id during metrics refresh",
-                        extra={"scenario_id": raw_scenario_id},
-                    )
-                    continue
-
-                metrics.extend(
-                    await self.evaluations_service.refresh_metrics(
-                        project_id=UUID(request.state.project_id),
-                        user_id=UUID(request.state.user_id),
-                        run_id=run_id,
-                        scenario_id=scenario_uuid,
-                        timestamp=timestamp,
-                        interval=interval,
-                    )
+        if run_ids:
+            for _run_id in run_ids:
+                _metrics = await self.evaluations_service.refresh_metrics(
+                    project_id=UUID(request.state.project_id),
+                    user_id=UUID(request.state.user_id),
+                    run_id=_run_id,
                 )
+                metrics.extend(_metrics)
+
+        # !run_ids
+        elif not run_id:
+            metrics = []
+
+        # !run_ids & run_id
+        elif scenario_ids:
+            for _scenario_id in scenario_ids:
+                _metrics = await self.evaluations_service.refresh_metrics(
+                    project_id=UUID(request.state.project_id),
+                    user_id=UUID(request.state.user_id),
+                    run_id=run_id,
+                    scenario_id=_scenario_id,
+                )
+                metrics.extend(_metrics)
+
+        # !run_ids & run_id & !scenario_ids
+        elif timestamps:
+            for _timestamp in timestamps:
+                _metrics = await self.evaluations_service.refresh_metrics(
+                    project_id=UUID(request.state.project_id),
+                    user_id=UUID(request.state.user_id),
+                    run_id=run_id,
+                    timestamp=_timestamp,
+                    interval=interval,
+                )
+                metrics.extend(_metrics)
+
+        # !run_ids & run_id & !scenario_ids & !timestamps
         else:
             metrics = await self.evaluations_service.refresh_metrics(
                 project_id=UUID(request.state.project_id),
