@@ -58,7 +58,7 @@
         "jotai-eager": "^0.2.3",
         "jotai-immer": "^0.4.1",
         "jotai-tanstack-query": "^0.11.0",
-        "js-yaml": "^4.1.0",
+        "js-yaml": "^4.1.1",
         "jsonrepair": "^3.13.0",
         "lodash": "^4.17.21",
         "postcss": "^8.5.6",
