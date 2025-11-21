@@ -428,14 +428,12 @@ class EvaluationsService:
         limit_is_positive = bool(limit and limit > 0)
 
         if required_kinds and windowing and limit_is_positive:
-            _runs, _ = await self._query_runs_with_kind_windowing(
+            return await self._query_runs_with_kind_windowing(
                 project_id=project_id,
                 run=run,
                 windowing=windowing,
                 required_kinds=required_kinds,
             )
-
-            return _runs
 
         runs = await self.evaluations_dao.query_runs(
             project_id=project_id,
@@ -891,15 +889,6 @@ class EvaluationsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationMetrics]:
-        if (
-            metric
-            and getattr(metric, "scenario_null", None)
-            and getattr(metric, "timestamp_null", None) is None
-            and getattr(metric, "timestamp", None) is None
-            and not getattr(metric, "timestamps", None)
-        ):
-            metric.timestamps = True
-
         metrics = await self.evaluations_dao.query_metrics(
             project_id=project_id,
             #
@@ -1216,12 +1205,12 @@ class EvaluationsService:
 
         filter_kwargs: Dict[str, Any] = {"run_id": run_id}
         if scenario_id is None:
-            filter_kwargs["scenarioo_ids"] = True
+            filter_kwargs["scenario_ids"] = False
         else:
             filter_kwargs["scenario_id"] = scenario_id
 
         if timestamp is None:
-            filter_kwargs["timestamp_null"] = True
+            filter_kwargs["timestamps"] = False
         else:
             filter_kwargs["timestamp"] = timestamp
 

@@ -61,20 +61,20 @@ def compute_next_windowing(
     # Extract attributes from the last record
     entity_id_attribute = getattr(last_record, "id", None)
     span_id_attribute = getattr(last_record, "span_id", None)
-    id_attribute = span_id_attribute or entity_id_attribute or None
+    id_attribute_value = span_id_attribute or entity_id_attribute or None
     created_at_attribute = getattr(last_record, "created_at", None)
     start_time_attribute = getattr(last_record, "start_time", None)
-    time_attribute = start_time_attribute or created_at_attribute or None
+    time_attribute_value = start_time_attribute or created_at_attribute or None
 
     order_attribute_name = attribute.lower()
 
-    if not time_attribute or not id_attribute:
+    if not time_attribute_value or not id_attribute_value:
         return None
 
     if order_attribute_name in id_attributes:
-        next_value = id_attribute
+        next_value = id_attribute_value
     elif order_attribute_name in time_attributes:
-        next_value = time_attribute
+        next_value = time_attribute_value
     else:
         return None
 
