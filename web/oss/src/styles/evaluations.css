@@ -135,3 +135,28 @@
 .filter-chip-select .ant-select-selection-item {
     margin-inline-end: 0 !important;
 }
+
+.metadata-summary-table .ant-table,
+.metadata-summary-table .ant-table-container,
+.metadata-summary-table .ant-table-content {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.metadata-summary-table .ant-table-container::before,
+.metadata-summary-table .ant-table-container::after {
+    display: none;
+}
+
+.metadata-summary-table .ant-table-tbody > tr > td {
+    border-bottom: 1px solid #eaeff5;
+    border-inline: none;
+}
+
+.metadata-summary-table .ant-table-tbody > tr > td:first-of-type {
+    border-right: 1px solid #eaeff5;
+}
+
+.metadata-summary-table .ant-table-tbody > tr:last-child > td {
+    border-bottom: none;
+}
