@@ -11,6 +11,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.evaluations.interfaces import EvaluationsDAOInterface
 from oss.src.core.evaluations.types import EvaluationClosedConflict
@@ -536,7 +537,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 return None
 
             if status:
-                run_dbe.status = status.value
+                run_dbe.status = status.value  # type: ignore
                 flag_modified(run_dbe, "status")
 
             if run_dbe.flags is None:
