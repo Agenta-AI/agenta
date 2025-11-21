@@ -1,15 +1,13 @@
 import re
 import traceback
 from datetime import datetime
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import posthog
 from fastapi import Request
-
+from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import set_cache, get_cache
-
 
 log = get_module_logger(__name__)
 
@@ -224,7 +222,10 @@ async def analytics_middleware(request: Request, call_next: Callable):
                     property_name, allowed_auth_methods = ACTIVATION_EVENTS[event_name]
 
                     # Check if auth method is allowed for this activation
-                    if allowed_auth_methods is None or auth_method in allowed_auth_methods:
+                    if (
+                        allowed_auth_methods is None
+                        or auth_method in allowed_auth_methods
+                    ):
                         await _set_activation_property(
                             distinct_id=distinct_id,
                             property_name=property_name,
