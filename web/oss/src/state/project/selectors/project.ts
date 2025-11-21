@@ -61,20 +61,13 @@ const projectMatchesWorkspace = (project: ProjectsResponse, workspaceId: string)
 const pickPreferredProject = (projects: ProjectsResponse[], workspaceId: string | null) => {
     if (!projects.length) return null
 
-    const nonDemo = projects.filter((project) => !project.is_demo)
     if (workspaceId) {
-        const workspaceMatch = projects.find(
-            (project) => projectMatchesWorkspace(project, workspaceId) && !project.is_demo,
-        )
-        if (workspaceMatch) return workspaceMatch
-
-        const workspaceAny = projects.find((project) =>
+        const workspaceMatch = projects.find((project) =>
             projectMatchesWorkspace(project, workspaceId),
         )
-        if (workspaceAny) return workspaceAny
+        if (workspaceMatch) return workspaceMatch
     }
 
-    if (nonDemo.length) return nonDemo[0]
     return projects[0]
 }
 

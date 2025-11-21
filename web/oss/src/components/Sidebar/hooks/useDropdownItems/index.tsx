@@ -24,7 +24,7 @@ export const useDropdownItems = ({
 
     const filteredOrgs = useMemo(() => {
         return projects.flatMap((project) =>
-            orgs.filter((org) => org.id === project.organization_id && !project.is_demo),
+            orgs.filter((org) => org.id === project.organization_id),
         )
     }, [projects, orgs])
 

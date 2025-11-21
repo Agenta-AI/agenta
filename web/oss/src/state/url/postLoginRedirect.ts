@@ -31,13 +31,9 @@ const pickPreferredProject = (
         ? projects.filter((project) => projectMatchesWorkspace(project, workspaceId))
         : projects
 
-    const nonDemoScoped = scoped.find((project) => !project.is_demo)
-    if (nonDemoScoped) return nonDemoScoped
-
     if (scoped.length > 0) return scoped[0]
 
-    const nonDemoAny = projects.find((project) => !project.is_demo)
-    return nonDemoAny ?? projects[0]
+    return projects[0]
 }
 
 export interface WorkspaceContext {
