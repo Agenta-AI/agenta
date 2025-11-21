@@ -14,9 +14,9 @@ def apply_windowing(
     windowing: Windowing,
 ) -> Select:
     # ---------------------------------------------------------------- #
-    entitty_id_attribute = DBE.id if getattr(DBE, "id", None) else None  # type: ignore
+    entity_id_attribute = DBE.id if getattr(DBE, "id", None) else None  # type: ignore
     span_id_attribute = DBE.span_id if getattr(DBE, "span_id", None) else None  # type: ignore
-    id_attribute = span_id_attribute or entitty_id_attribute or None
+    id_attribute = span_id_attribute or entity_id_attribute or None
     created_at_attribute = DBE.created_at if getattr(DBE, "created_at", None) else None  # type: ignore
     start_time_attribute = DBE.start_time if getattr(DBE, "start_time", None) else None  # type: ignore
     time_attribute = start_time_attribute or created_at_attribute or None

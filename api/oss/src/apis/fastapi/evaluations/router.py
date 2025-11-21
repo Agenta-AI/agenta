@@ -9,6 +9,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
+from oss.src.apis.fastapi.shared.utils import compute_next_windowing
+
 from oss.src.core.queries.service import (
     QueriesService,
 )
@@ -609,7 +611,7 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        runs, next_window = await self.evaluations_service.query_runs(
+        runs = await self.evaluations_service.query_runs(
             project_id=UUID(request.state.project_id),
             #
             run=run_query_request.run,
@@ -617,10 +619,16 @@ class EvaluationsRouter:
             windowing=run_query_request.windowing,
         )
 
+        windowing = compute_next_windowing(
+            entities=runs,
+            attribute="id",
+            windowing=run_query_request.windowing,
+        )
+
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
-            windowing=next_window,
+            windowing=windowing,
         )
 
         return runs_response

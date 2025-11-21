@@ -2,13 +2,13 @@ from typing import List, Optional, Tuple, Dict, Any
 from uuid import UUID
 from asyncio import sleep
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from celery import current_app as celery_dispatch
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta, Data
+from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta
 from oss.src.core.evaluations.interfaces import EvaluationsDAOInterface
 from oss.src.core.evaluations.types import (
     EvaluationStatus,
@@ -65,7 +65,6 @@ from oss.src.core.tracing.dtos import (
     Filtering,
     Condition,
     ListOperator,
-    MetricsBucket,
     MetricSpec,
     MetricType,
 )
@@ -80,7 +79,6 @@ from oss.src.core.evaluators.dtos import EvaluatorRevision
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
-from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 
 from oss.src.core.evaluations.utils import filter_scenario_ids
@@ -416,7 +414,7 @@ class EvaluationsService:
         run: Optional[EvaluationRunQuery] = None,
         #
         windowing: Optional[Windowing] = None,
-    ) -> Tuple[List[EvaluationRun], Optional[Windowing]]:
+    ) -> List[EvaluationRun]:
         required_kinds: Optional[set[str]] = None
         if run is not None:
             kinds: set[str] = set()
@@ -430,12 +428,14 @@ class EvaluationsService:
         limit_is_positive = bool(limit and limit > 0)
 
         if required_kinds and windowing and limit_is_positive:
-            return await self._query_runs_with_kind_windowing(
+            _runs, _ = await self._query_runs_with_kind_windowing(
                 project_id=project_id,
                 run=run,
                 windowing=windowing,
                 required_kinds=required_kinds,
             )
+
+            return _runs
 
         runs = await self.evaluations_dao.query_runs(
             project_id=project_id,
@@ -450,9 +450,7 @@ class EvaluationsService:
             if self._include_run(dto=dto, required_kinds=required_kinds):
                 filtered_runs.append(dto)
 
-        next_window = self._derive_next_window(windowing=windowing, rows=runs)
-
-        return filtered_runs, next_window
+        return filtered_runs
 
     def _include_run(
         self,
@@ -487,37 +485,6 @@ class EvaluationsService:
 
         return True
 
-    def _derive_next_window(
-        self,
-        *,
-        windowing: Optional[Windowing],
-        rows: List[EvaluationRun],
-    ) -> Optional[Windowing]:
-        if not windowing or not windowing.limit or not rows:
-            return None
-        if len(rows) < windowing.limit:
-            return None
-        last_cursor = getattr(rows[-1], "id", None)
-        if not last_cursor:
-            return None
-        return self._clone_windowing(template=windowing, next_value=last_cursor)
-
-    def _clone_windowing(
-        self,
-        *,
-        template: Windowing,
-        next_value: Optional[UUID],
-    ) -> Windowing:
-        return Windowing(
-            newest=template.newest,
-            oldest=template.oldest,
-            next=next_value,
-            limit=template.limit,
-            order=template.order,
-            interval=template.interval,
-            rate=template.rate,
-        )
-
     async def _query_runs_with_kind_windowing(
         self,
         *,
@@ -525,11 +492,11 @@ class EvaluationsService:
         run: Optional[EvaluationRunQuery],
         windowing: Windowing,
         required_kinds: set[str],
-    ) -> Tuple[List[EvaluationRun], Optional[Windowing]]:
+    ) -> List[EvaluationRun]:
         collected: List[EvaluationRun] = []
-        current_window = self._clone_windowing(
-            template=windowing, next_value=windowing.next
-        )
+
+        current_window = windowing
+
         last_cursor: Optional[UUID] = windowing.next
         has_more = False
         limit_value = windowing.limit or 0
@@ -565,19 +532,11 @@ class EvaluationsService:
                 has_more = False
                 break
 
-            current_window = self._clone_windowing(
-                template=current_window,
-                next_value=last_cursor,
-            )
+            current_window.next = last_cursor
 
         trimmed = collected if not limit_value else collected[:limit_value]
-        next_window = (
-            self._clone_windowing(template=windowing, next_value=last_cursor)
-            if has_more and last_cursor
-            else None
-        )
 
-        return trimmed, next_window
+        return trimmed
 
     # - EVALUATION SCENARIO ----------------------------------------------------
 
@@ -939,7 +898,7 @@ class EvaluationsService:
             and getattr(metric, "timestamp", None) is None
             and not getattr(metric, "timestamps", None)
         ):
-            metric.timestamp_null = True
+            metric.timestamps = True
 
         metrics = await self.evaluations_dao.query_metrics(
             project_id=project_id,
