@@ -1,4 +1,4 @@
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
 import {MinusCircleOutlined} from "@ant-design/icons"
 import {FileArchive} from "@phosphor-icons/react"
@@ -6,11 +6,17 @@ import {Button, Input, Typography, Upload} from "antd"
 import clsx from "clsx"
 
 import {useStyles} from "../PromptImageUpload/assets/styles"
-import {PromptDocumentUploadProps} from "./types"
+import {
+    PromptDocumentUploadProps,
+    PromptDocumentUploadPropertyProps,
+} from "./types"
 import {isBase64, dataUriToObjectUrl} from "@/oss/lib/helpers/utils"
 
 const isUrl = (value: string): boolean => {
-    const match = value.match(/^blob:http?:\/\//) || value.match(/^https?:\/\//)
+    const match =
+        value.match(/^blob:http?:\/\//) ||
+        value.match(/^https?:\/\//) ||
+        value.match(/^blob:https?:\/\//)
     return Boolean(match)
 }
 
@@ -24,18 +30,27 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
     const [error, setError] = useState("")
     const [fileSource, setFileSource] = useState<"upload" | "input" | null>(null)
 
-    const currentValue = useCallback(() => {
-        const value =
-            rest.mode === "value"
-                ? rest.value.file_data || rest.value.file_id || ""
-                : rest.fileDataValue || rest.fileIdValue || ""
-        if (isBase64(value)) {
-            return dataUriToObjectUrl(value)
-        }
-        return value
-    }, [rest])
+    // Derive the raw value (base64, URL, or empty) from props and only transform to blob URL
+    // when the actual data changes. This avoids regenerating object URLs every re-render.
+    const isValueMode = rest.mode === "value"
+    const valueProps = isValueMode ? rest : undefined
+    const propertyProps = !isValueMode ? (rest as PromptDocumentUploadPropertyProps) : undefined
 
-    const value = currentValue()
+    const fileDataCandidate =
+        valueProps?.value?.file_data ?? propertyProps?.fileDataValue ?? undefined
+    const fileIdCandidate = valueProps?.value?.file_id ?? propertyProps?.fileIdValue ?? undefined
+
+    const rawValue = useMemo(
+        () => fileDataCandidate || fileIdCandidate || "",
+        [fileDataCandidate, fileIdCandidate],
+    )
+
+    const value = useMemo(() => {
+        if (isBase64(rawValue)) {
+            return dataUriToObjectUrl(rawValue)
+        }
+        return rawValue
+    }, [rawValue])
 
     const setValue = useCallback(
         (value: string, filename?: string) => {
@@ -46,7 +61,7 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
                     rest.onValueChange({
                         file_data: value,
                         filename: filename || rest.value.filename || "uploaded_file.pdf",
-                        format: "pdf",
+                        format: "application/pdf",
                     })
                 } else {
                     // Regular URL or file ID → use file_id
@@ -54,7 +69,7 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
                         file_id: value,
                         // Also set filename/format for URLs to satisfy validation
                         filename: filename || "document",
-                        format: "pdf",
+                        format: "application/pdf",
                     })
                 }
             } else {
@@ -90,7 +105,7 @@ const PromptDocumentUpload = ({disabled, onRemove, ...rest}: PromptDocumentUploa
                 // ALWAYS set the format if provided and we have a property ID for it
                 // This is required by validation regardless of whether it's a URL or base64
                 if (rest.formatPropertyId) {
-                    const format = "pdf"
+                    const format = "application/pdf"
                     rest.onChange(rest.formatPropertyId, format)
                 }
             }
