@@ -1,17 +1,18 @@
 import {useMemo, useCallback} from "react"
 import type {ReactNode} from "react"
 
+import ColumnVisibilityMenuTrigger from "@/oss/components/InfiniteVirtualTable/components/columnVisibility/ColumnVisibilityMenuTrigger"
+
 import {
     EvaluationTableColumn,
     EvaluationTableColumnGroup,
     EvaluationTableColumnsResult,
     MetricColumnDefinition,
 } from "../atoms/table"
-
+import type {PreviewTableRow} from "../atoms/tableRows"
 import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import {buildPreviewColumns, SkeletonRenderContext} from "../utils/buildPreviewColumns"
 import {buildSkeletonColumnResult} from "../utils/buildSkeletonColumns"
-import type {PreviewTableRow} from "../atoms/tableRows"
 
 type TableRowData = PreviewTableRow
 
@@ -136,8 +137,22 @@ const usePreviewColumns = ({
         [columnData, evaluationType, getRenderer, isSkeletonRecord, renderSkeletonCell],
     )
 
+    const columnsWithVisibilityTrigger = useMemo(() => {
+        const triggerColumn = {
+            key: "__column_visibility__",
+            title: <ColumnVisibilityMenuTrigger variant="icon" />,
+            width: 48,
+            fixed: "right" as const,
+            align: "center" as const,
+            columnVisibilityLocked: true,
+            dataIndex: "__column_visibility__",
+            render: () => null,
+        }
+        return [...baseColumnsResult.columns, triggerColumn]
+    }, [baseColumnsResult.columns])
+
     return {
-        columns: baseColumnsResult.columns,
+        columns: columnsWithVisibilityTrigger,
         evaluators: columnData.evaluators,
         staticMetricColumns: columnData.staticMetricColumns,
         loadedColumnGroups: columnData.groups,

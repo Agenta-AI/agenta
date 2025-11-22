@@ -1,6 +1,8 @@
 import {memo, useMemo} from "react"
+
 import clsx from "clsx"
 
+import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import EvaluatorMetricBar from "@/oss/components/HumanEvaluations/assets/EvaluatorMetricBar"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
@@ -8,7 +10,6 @@ import type {EvaluationTableColumn} from "../../atoms/table"
 import {COLUMN_WIDTHS} from "../../constants/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../../utils/metricFormatter"
-import MetricDetailsPreviewPopover from "@/oss/components/evaluations/components/MetricDetailsPreviewPopover"
 
 const CONTAINER_CLASS = "scenario-table-cell min-h-[96px]"
 
@@ -27,7 +28,6 @@ const PreviewEvaluationMetricCell = ({
     runId?: string
     column: EvaluationTableColumn
 }) => {
-    console.log("PreviewEvaluationMetricCell")
     const {ref, selection, showSkeleton, isVisible} = useScenarioCellValue({
         scenarioId,
         runId,
@@ -35,55 +35,16 @@ const PreviewEvaluationMetricCell = ({
     })
     const {value, displayValue, isLoading} = selection
 
-    if (
-        process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" &&
-        isVisible &&
-        !isLoading &&
-        typeof window !== "undefined"
-    ) {
-        try {
-            const display =
-                displayValue ??
-                formatMetricDisplay({
-                    value,
-                    metricKey: column.metricKey ?? column.valueKey ?? column.path,
-                    metricType: column.metricType,
-                })
-            // console.info("[EvalRunDetails2][MetricCell] resolved metric", {
-            //     scenarioId,
-            //     runId,
-            //     columnId: column.id,
-            //     columnLabel: column.displayLabel ?? column.label,
-            //     path: column.path,
-            //     metricKey: column.metricKey,
-            //     evaluatorId: column.evaluatorId,
-            //     evaluatorSlug: column.evaluatorSlug,
-            //     valueShape: typeof value,
-            //     value,
-            //     displayValue: displayValue ?? null,
-            //     formatted: display,
-            // })
-        } catch (error) {
-            console.warn("[EvalRunDetails2][MetricCell] debug log failed", {
-                scenarioId,
-                runId,
-                columnId: column.id,
-                error,
-            })
-        }
-    }
-
-    const formatted =
-        displayValue ??
-        formatMetricDisplay({
-            value,
-            metricKey: column.metricKey ?? column.valueKey ?? column.path,
-            metricType: column.metricType,
-        })
+    const formatted = formatMetricDisplay({
+        value,
+        metricKey: column.metricKey ?? column.valueKey ?? column.path,
+        metricType: column.metricType,
+    })
 
     const isPlaceholder = formatted === METRIC_EMPTY_PLACEHOLDER
     const highlightValue = value
     const fallbackValue = value ?? displayValue ?? formatted
+
     const statsValue = useMemo<BasicStats | undefined>(() => {
         if (!value || typeof value !== "object") return undefined
         const candidate = value as BasicStats & Record<string, any>
@@ -97,6 +58,7 @@ const PreviewEvaluationMetricCell = ({
         }
         return undefined
     }, [value])
+
     const hasDistribution =
         column.stepType === "annotation" &&
         Boolean(
@@ -104,6 +66,31 @@ const PreviewEvaluationMetricCell = ({
                 (Array.isArray((statsValue as any)?.frequency) ||
                     Array.isArray((statsValue as any)?.rank)),
         )
+
+    const displayNode = useMemo(
+        () => (
+            <span
+                className={clsx("metric-cell-content scenario-table-text whitespace-pre-wrap", {
+                    "scenario-table-placeholder": isPlaceholder,
+                })}
+            >
+                {formatted}
+            </span>
+        ),
+        [formatted, isPlaceholder],
+    )
+
+    const content = useMemo(() => {
+        if (hasDistribution) {
+            return (
+                <div className="flex flex-col gap-1">
+                    <EvaluatorMetricBar stats={statsValue} />
+                    {displayNode}
+                </div>
+            )
+        }
+        return displayNode
+    }, [displayNode, hasDistribution, statsValue])
 
     if (showSkeleton) {
         return (
@@ -117,25 +104,6 @@ const PreviewEvaluationMetricCell = ({
             </div>
         )
     }
-
-    const displayNode = (
-        <span
-            className={clsx("metric-cell-content scenario-table-text whitespace-pre-wrap", {
-                "scenario-table-placeholder": isPlaceholder,
-            })}
-        >
-            {formatted}
-        </span>
-    )
-
-    const content = hasDistribution ? (
-        <div className="flex flex-col gap-1">
-            <EvaluatorMetricBar stats={statsValue} />
-            {displayNode}
-        </div>
-    ) : (
-        displayNode
-    )
 
     return (
         <div ref={ref} className={CONTAINER_CLASS} data-cell-type="metric" style={{width: "100%"}}>

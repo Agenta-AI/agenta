@@ -1,8 +1,9 @@
 import React from "react"
 
 import {Tooltip} from "antd"
-import clsx from "clsx"
 import type {ColumnsType, ColumnType} from "antd/es/table"
+import clsx from "clsx"
+
 import {ColumnVisibilityHeader} from "@/oss/components/InfiniteVirtualTable"
 
 import type {
@@ -10,13 +11,12 @@ import type {
     EvaluationTableColumnGroup,
     MetricColumnDefinition,
 } from "../atoms/table"
-
+import PreviewEvaluationActionCell from "../components/TableCells/ActionCell"
 import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import PreviewEvaluationInvocationCell from "../components/TableCells/InvocationCell"
 import PreviewEvaluationMetricCell from "../components/TableCells/MetricCell"
-import PreviewEvaluationActionCell from "../components/TableCells/ActionCell"
-import {COLUMN_WIDTHS} from "../constants/table"
 import StepGroupHeader from "../components/TableHeaders/StepGroupHeader"
+import {COLUMN_WIDTHS} from "../constants/table"
 
 const TITLEIZE = (value: string) =>
     value

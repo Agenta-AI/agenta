@@ -7,7 +7,6 @@ import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/
 import type {PreviewTestCase} from "@/oss/lib/Types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"
-import type {EvaluationTableColumn} from "./table"
 import {previewEvalTypeAtom} from "../state/evalType"
 import {formatMetricDisplay} from "../utils/metricFormatter"
 import {resolveInvocationTraceValue} from "../utils/traceValue"
@@ -23,6 +22,7 @@ import {evaluationAnnotationQueryAtomFamily} from "./annotations"
 import {scenarioMetricMetaAtomFamily, scenarioMetricValueAtomFamily} from "./metrics"
 import {activePreviewRunIdAtom} from "./run"
 import {scenarioStepsQueryFamily} from "./scenarioSteps"
+import type {EvaluationTableColumn} from "./table"
 import {
     columnValueDescriptorMapAtomFamily,
     createColumnValueDescriptor,
@@ -143,8 +143,6 @@ const debugScenarioValue =
                   if (onceFlag.has(options.onceKey)) return
                   onceFlag.add(options.onceKey)
               }
-
-              //   console.debug(`[EvalRunDetails2] ${message}`, payload)
           }
         : () => {}
 
@@ -419,7 +417,7 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     : undefined
                 const stepValue = resolveInputStepValueByPath(targetStep, pathSegments)
 
-                const traceCandidates: Array<{path: string; valueKey?: string}> = [
+                const traceCandidates: {path: string; valueKey?: string}[] = [
                     {path: column.path, valueKey: column.valueKey},
                 ]
                 if (column.path.endsWith(".inputs")) {
@@ -772,7 +770,8 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     isLoading: metricMeta.isLoading,
                     isFetching: metricMeta.isFetching,
                     error: metricMeta.error,
-                }
+                    resolvedStepKey: resolvedMetricStepKey,
+                } as ScenarioStepValueResult & {resolvedStepKey?: string | null | undefined}
 
                 if (column.stepType === "metric" || column.columnKind === "metric") {
                     return metricCandidate

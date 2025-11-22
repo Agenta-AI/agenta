@@ -68,6 +68,12 @@ export interface ScenarioMetricData {
     flat: Record<string, any>
 }
 
+export interface RunLevelMetricData {
+    metrics: EvaluationMetricEntry[]
+    raw: Record<string, any>
+    flat: Record<string, any>
+}
+
 const metricBatcherCache = new Map<string, BatchFetcher<string, ScenarioMetricData | null>>()
 
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
@@ -197,6 +203,27 @@ const buildGroupedMetrics = (
     })
 
     return grouped
+}
+
+const buildRunLevelMetricData = (rawMetrics: any[]): RunLevelMetricData => {
+    const rawAccumulator: Record<string, any> = {}
+    const entries: EvaluationMetricEntry[] = []
+
+    rawMetrics.forEach((rawMetric: any) => {
+        const metric = snakeToCamelCaseKeys(rawMetric) as EvaluationMetricEntry
+        if (metric.scenarioId) {
+            return
+        }
+        entries.push(metric)
+        const data = metric.data ?? {}
+        Object.assign(rawAccumulator, mergeDeep(rawAccumulator, data))
+    })
+
+    const aggregates = computeAggregatedMetrics(rawAccumulator)
+    const raw = applyAggregatesToRaw(rawAccumulator, aggregates)
+    const flat = flattenMetrics(raw)
+
+    return {metrics: entries, raw, flat}
 }
 
 const asNumber = (value: any): number | undefined => {
@@ -729,4 +756,41 @@ export const scenarioMetricMetaAtomFamily = atomFamily(
             (a, b) =>
                 a.isLoading === b.isLoading && a.isFetching === b.isFetching && a.error === b.error,
         ),
+)
+
+export const runLevelMetricQueryAtomFamily = atomFamily(({runId}: {runId?: string | null} = {}) =>
+    atomWithQuery<RunLevelMetricData | null>((get) => {
+        const effectiveRunId = resolveEffectiveRunId(get, runId)
+        const projectId = resolveProjectId(get)
+
+        return {
+            queryKey: ["preview", "run-level-metrics", projectId, effectiveRunId],
+            enabled: Boolean(projectId && effectiveRunId),
+            staleTime: 30_000,
+            gcTime: 5 * 60 * 1000,
+            refetchOnWindowFocus: false,
+            refetchOnReconnect: false,
+            queryFn: async () => {
+                if (!projectId || !effectiveRunId) return null
+
+                const response = await axios.post(
+                    `/preview/evaluations/metrics/query`,
+                    {
+                        run_ids: [effectiveRunId],
+                        scenario_ids: false,
+                        timestamps: false,
+                    },
+                    {params: {project_id: projectId}},
+                )
+
+                const entries = Array.isArray(response.data?.metrics) ? response.data.metrics : []
+
+                if (!entries.length) {
+                    return {metrics: [], raw: {}, flat: {}}
+                }
+
+                return buildRunLevelMetricData(entries)
+            },
+        }
+    }),
 )
