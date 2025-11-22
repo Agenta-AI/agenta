@@ -61,11 +61,10 @@ from oss.src.utils.validators import (
 
 
 async def _get_blocked_domains() -> Set[str]:
-    # 1. If env var is defined and is not empty, always use it
-    if env.AGENTA_BLOCKED_DOMAINS:
-        return env.AGENTA_BLOCKED_DOMAINS
+    # Start with domains from environment variable
+    blocked_domains = set(env.AGENTA_BLOCKED_DOMAINS) if env.AGENTA_BLOCKED_DOMAINS else set()
 
-    # 2. Else, try PostHog feature flags if API key is present
+    # Add domains from PostHog feature flags if API key is present
     if env.POSTHOG_API_KEY:
         feature_flag = "blocked-domains"
         cache_key = {
@@ -80,7 +79,8 @@ async def _get_blocked_domains() -> Set[str]:
         )
 
         if flag_blocked_domains is not None:
-            return set(flag_blocked_domains)
+            blocked_domains.update(flag_blocked_domains)
+            return blocked_domains
 
         # Fetch from PostHog if not cached
         flag_blocked_domains = posthog.get_feature_flag(
@@ -102,18 +102,16 @@ async def _get_blocked_domains() -> Set[str]:
             value=blocked_set,
         )
 
-        return set(blocked_set)
+        blocked_domains.update(blocked_set)
 
-    # 3. Else, return empty set
-    return set()
+    return blocked_domains
 
 
 async def _get_blocked_emails() -> Set[str]:
-    # 1. If env var is defined and is not empty, always use it
-    if env.AGENTA_BLOCKED_EMAILS:
-        return env.AGENTA_BLOCKED_EMAILS
+    # Start with emails from environment variable
+    blocked_emails = set(env.AGENTA_BLOCKED_EMAILS) if env.AGENTA_BLOCKED_EMAILS else set()
 
-    # 2. Else, try PostHog feature flags if API key is present
+    # Add emails from PostHog feature flags if API key is present
     if env.POSTHOG_API_KEY:
         feature_flag = "blocked-emails"
         cache_key = {
@@ -128,7 +126,8 @@ async def _get_blocked_emails() -> Set[str]:
         )
 
         if flag_blocked_emails is not None:
-            return set(flag_blocked_emails)
+            blocked_emails.update(flag_blocked_emails)
+            return blocked_emails
 
         # Fetch from PostHog if not cached
         flag_blocked_emails = posthog.get_feature_flag(
@@ -150,10 +149,9 @@ async def _get_blocked_emails() -> Set[str]:
             value=blocked_set,
         )
 
-        return set(blocked_set)
+        blocked_emails.update(blocked_set)
 
-    # 3. Else, return empty set
-    return set()
+    return blocked_emails
 
 
 async def _is_blocked(email: str) -> bool:
