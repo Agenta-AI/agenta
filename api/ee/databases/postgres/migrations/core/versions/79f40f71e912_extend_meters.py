@@ -1,7 +1,7 @@
 """add CREDITS to meters_type
 
 Revision ID: 79f40f71e912
-Revises: 3b5f5652f611
+Revises: baa02d66a365
 Create Date: 2025-11-03 15:00:00.000000
 """
 

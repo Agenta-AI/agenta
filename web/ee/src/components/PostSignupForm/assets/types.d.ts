@@ -3,6 +3,7 @@ export interface FormDataType {
     userRole?: string
     userExperience?: string
     userInterests?: string[]
+    userInterestsInputOption?: string
     hearAboutUs?: string
-    hearAboutUsInputOption: string
+    hearAboutUsInputOption?: string
 }
