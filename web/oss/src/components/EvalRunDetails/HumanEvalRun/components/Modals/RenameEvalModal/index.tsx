@@ -87,18 +87,23 @@ const RenameEvalModal = ({
 
     return (
         <EnhancedModal
-            title="Rename"
+            title={<div className="text-lg font-semibold text-gray-900">Rename evaluation</div>}
             onOk={handleSave}
             confirmLoading={loading}
-            okText="Save"
+            okText="Confirm"
             afterClose={onAfterClose}
             onCancel={onCancel}
-            okButtonProps={{disabled: isDisabled}}
+            okButtonProps={{
+                disabled: isDisabled,
+                className: "bg-slate-900 hover:bg-slate-800 text-white",
+            }}
+            cancelButtonProps={{className: "text-gray-700"}}
             {...modalProps}
         >
             <RenameEvalModalContent
                 loading={loading}
                 error={error}
+                currentName={name}
                 editName={editName}
                 setEditName={setEditName}
                 editDescription={editDescription}

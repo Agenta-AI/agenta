@@ -14,6 +14,7 @@ export interface RenameEvalModalProps extends ModalProps {
 export interface RenameEvalModalContentProps {
     loading?: boolean
     error: string | null
+    currentName: string
     editName: string
     setEditName: Dispatch<SetStateAction<string>>
     editDescription: string
