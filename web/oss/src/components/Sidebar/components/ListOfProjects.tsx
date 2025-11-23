@@ -505,6 +505,7 @@ const ListOfProjects = ({
                 onOk={() => createForm.submit()}
                 confirmLoading={createMutation.isPending}
                 destroyOnClose
+                centered
             >
                 <Form
                     form={createForm}
@@ -533,6 +534,7 @@ const ListOfProjects = ({
                 onOk={() => renameForm.submit()}
                 confirmLoading={renameMutation.isPending}
                 destroyOnClose
+                centered
             >
                 <Form
                     form={renameForm}

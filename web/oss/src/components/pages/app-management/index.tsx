@@ -26,6 +26,7 @@ import ApplicationManagementSection from "./components/ApplicationManagementSect
 import GetStartedSection from "./components/GetStartedSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
+import {useProjectData} from "@/oss/state/project"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -47,6 +48,7 @@ const ObservabilityDashboardSection: any = dynamic(
 const {Title} = Typography
 
 const AppManagement: React.FC = () => {
+    const {project} = useProjectData()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
@@ -154,7 +156,7 @@ const AppManagement: React.FC = () => {
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
-                        <Title className="!m-0">App Management</Title>
+                        <Title className="!m-0">{project?.project_name} App Management</Title>
 
                         <GetStartedSection
                             selectedOrg={selectedOrg}
