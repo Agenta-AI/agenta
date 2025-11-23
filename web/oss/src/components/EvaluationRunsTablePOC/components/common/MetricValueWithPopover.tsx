@@ -3,6 +3,7 @@ import type {ReactNode} from "react"
 import {Typography} from "antd"
 
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
+import type {BasicStats} from "@/oss/lib/metricUtils"
 
 const CLASS_NAME = "metric-cell-content text-xs whitespace-pre-wrap"
 
@@ -21,6 +22,7 @@ interface MetricValueWithPopoverProps {
     showScenarioValue?: boolean
     className?: string
     disablePopover?: boolean
+    prefetchedStats?: BasicStats | undefined
 }
 
 const MetricValueWithPopover = ({
@@ -38,6 +40,7 @@ const MetricValueWithPopover = ({
     showScenarioValue = true,
     className,
     disablePopover = false,
+    prefetchedStats,
 }: MetricValueWithPopoverProps) => {
     const content = (
         <Typography.Text
@@ -66,6 +69,7 @@ const MetricValueWithPopover = ({
             highlightValue={highlightValue}
             fallbackValue={fallbackValue ?? display}
             showScenarioValue={showScenarioValue}
+            prefetchedStats={prefetchedStats}
         >
             <div className={`flex w-full h-full max-w-full truncate ${className ?? ""}`}>
                 {children ?? content}

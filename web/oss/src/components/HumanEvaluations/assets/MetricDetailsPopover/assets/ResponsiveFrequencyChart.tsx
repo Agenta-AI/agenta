@@ -101,36 +101,40 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
         const highlightGradientId = `${gradientBaseId}-highlight`
         const resolveBarGradientId = (index: number) =>
             `${gradientBaseId}-bar-${index % FREQUENCY_GRADIENTS.length}`
+        const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+        const TOOLTIP_WIDTH = 160
+        const TOOLTIP_HEIGHT = 52
 
         return (
-            <ChartFrame margin={dynamicMargin}>
-                {({svgWidth, svgHeight, plotWidth, plotHeight, margin}) => {
-                    // Scales for both orientations
-                    const yLabelScaleHorizontal = (idx: number) =>
-                        (idx + 0.5) * (plotHeight / yCount)
-                    const barHeightHorizontal = plotHeight / yCount - 6
-                    const xScaleHorizontal = (count: number) => (count / xMax) * plotWidth
+            <div style={{position: "relative", width: "100%", height: "100%"}}>
+                <ChartFrame margin={dynamicMargin}>
+                    {({svgWidth, svgHeight, plotWidth, plotHeight, margin}) => {
+                        // Scales for both orientations
+                        const yLabelScaleHorizontal = (idx: number) =>
+                            (idx + 0.5) * (plotHeight / yCount)
+                        const barHeightHorizontal = plotHeight / yCount - 6
+                        const xScaleHorizontal = (count: number) => (count / xMax) * plotWidth
 
-                    const xLabelScaleVertical = (idx: number) => (idx + 0.5) * (plotWidth / yCount)
-                    const barWidthVertical = plotWidth / yCount - 6
-                    const yScaleVertical = (value: number) => ((xMax - value) / xMax) * plotHeight
+                        const xLabelScaleVertical = (idx: number) => (idx + 0.5) * (plotWidth / yCount)
+                        const barWidthVertical = plotWidth / yCount - 6
+                        const yScaleVertical = (value: number) => ((xMax - value) / xMax) * plotHeight
 
-                    const resolveFill = (index: number, isHighlighted: boolean): string => {
-                        if (isHighlighted) {
-                            if (disableGradient) return "#0EA5E9"
-                            return `url(#${highlightGradientId})`
+                        const resolveFill = (index: number, isHighlighted: boolean): string => {
+                            if (isHighlighted) {
+                                if (disableGradient) return "#0EA5E9"
+                                return `url(#${highlightGradientId})`
+                            }
+                            if (barColor) {
+                                return disableGradient ? barColor : `url(#${customGradientId})`
+                            }
+                            if (disableGradient) {
+                                return FREQUENCY_SOLIDS[index % FREQUENCY_SOLIDS.length]
+                            }
+                            return `url(#${resolveBarGradientId(index)})`
                         }
-                        if (barColor) {
-                            return disableGradient ? barColor : `url(#${customGradientId})`
-                        }
-                        if (disableGradient) {
-                            return FREQUENCY_SOLIDS[index % FREQUENCY_SOLIDS.length]
-                        }
-                        return `url(#${resolveBarGradientId(index)})`
-                    }
 
-                    return (
-                        <>
+                        return (
+                            <>
                             <svg
                                 width={svgWidth}
                                 height={svgHeight}
@@ -285,23 +289,17 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                         "frequency-bar cursor-pointer",
                                                         "[clip-path:inset(-4px_0_0_0_round_4px_4px_0_0)]",
                                                     )}
-                                                    onMouseEnter={(e) => {
+                                                    onMouseEnter={() => {
                                                         setHoveredBar(idx)
-                                                        const svgRect = (
-                                                            e.target as SVGRectElement
-                                                        ).ownerSVGElement?.getBoundingClientRect()
                                                         setMousePos({
-                                                            x: e.clientX - (svgRect?.left ?? 0),
-                                                            y: e.clientY - (svgRect?.top ?? 0),
+                                                            x: margin.left + xLabelScaleVertical(idx),
+                                                            y: margin.top + yScaleVertical(d.count),
                                                         })
                                                     }}
-                                                    onMouseMove={(e) => {
-                                                        const svgRect = (
-                                                            e.target as SVGRectElement
-                                                        ).ownerSVGElement?.getBoundingClientRect()
+                                                    onMouseMove={() => {
                                                         setMousePos({
-                                                            x: e.clientX - (svgRect?.left ?? 0),
-                                                            y: e.clientY - (svgRect?.top ?? 0),
+                                                            x: margin.left + xLabelScaleVertical(idx),
+                                                            y: margin.top + yScaleVertical(d.count),
                                                         })
                                                     }}
                                                     onMouseLeave={() => {
@@ -329,23 +327,17 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                     "frequency-bar cursor-pointer",
                                                     "[clip-path:inset(0_0_0_-4px_round_0_4px_4px_0)]",
                                                 )}
-                                                onMouseEnter={(e) => {
+                                                onMouseEnter={() => {
                                                     setHoveredBar(idx)
-                                                    const svgRect = (
-                                                        e.target as SVGRectElement
-                                                    ).ownerSVGElement?.getBoundingClientRect()
                                                     setMousePos({
-                                                        x: e.clientX - (svgRect?.left ?? 0),
-                                                        y: e.clientY - (svgRect?.top ?? 0),
+                                                        x: margin.left + xScaleHorizontal(d.count),
+                                                        y: margin.top + yLabelScaleHorizontal(idx),
                                                     })
                                                 }}
-                                                onMouseMove={(e) => {
-                                                    const svgRect = (
-                                                        e.target as SVGRectElement
-                                                    ).ownerSVGElement?.getBoundingClientRect()
+                                                onMouseMove={() => {
                                                     setMousePos({
-                                                        x: e.clientX - (svgRect?.left ?? 0),
-                                                        y: e.clientY - (svgRect?.top ?? 0),
+                                                        x: margin.left + xScaleHorizontal(d.count),
+                                                        y: margin.top + yLabelScaleHorizontal(idx),
                                                     })
                                                 }}
                                                 onMouseLeave={() => {
@@ -389,13 +381,19 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                             {/* Tooltip rendered outside SVG, absolutely positioned */}
                             {hoveredBar !== null && data[hoveredBar] && mousePos && (
                                 <div
-                                    className="pointer-events-none z-50 absolute px-3 py-2 rounded border border-gray-300 bg-white/95 shadow-lg text-xs text-gray-900 animate-fadein"
+                                    className="pointer-events-none z-50 absolute rounded-xl border border-[#d0d7e3]/80 bg-white/90 px-3 py-2 text-xs text-gray-900 shadow-[0_6px_18px_rgba(15,23,42,0.12)] backdrop-blur-sm"
                                     style={{
-                                        left: mousePos.x + 16,
-                                        top: mousePos.y - 32,
-                                        minWidth: 120,
-                                        maxWidth: 220,
-                                        whiteSpace: "nowrap",
+                                        left: clamp(
+                                            mousePos.x + 10,
+                                            margin.left,
+                                            margin.left + plotWidth - TOOLTIP_WIDTH,
+                                        ),
+                                        top: clamp(
+                                            mousePos.y - TOOLTIP_HEIGHT / 2,
+                                            margin.top - 8,
+                                            margin.top + plotHeight - TOOLTIP_HEIGHT - 8,
+                                        ),
+                                        width: TOOLTIP_WIDTH,
                                     }}
                                     role="tooltip"
                                     aria-live="polite"
@@ -413,9 +411,13 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                             borderTop: "7px solid #d1d5db",
                                         }}
                                     />
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-semibold">Label:</span>
-                                        <span>{String(data[hoveredBar].label)}</span>
+                                    <div className="mb-1">
+                                        <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                                            Label
+                                        </span>
+                                        <span className="ml-2 inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                            {String(data[hoveredBar].label)}
+                                        </span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <span className="font-semibold">Count:</span>
@@ -424,9 +426,10 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                 </div>
                             )}
                         </>
-                    )
-                }}
-            </ChartFrame>
+                        )
+                    }}
+                </ChartFrame>
+            </div>
         )
     },
 )

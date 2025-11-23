@@ -17,10 +17,14 @@ interface ResponsiveMetricChartProps {
     barColor?: string
     /** Optional: when true, disables gradient and uses a solid color for bars. */
     disableGradient?: boolean
+    /** Optional label (formatted) describing bin width; displayed in tooltip */
+    binWidthLabel?: string
 }
 
 const BAR_SOLIDS = Array(6).fill("#1677ff")
 const BAR_GRADIENTS = [["#91caff", "#1677ff"]]
+const MEAN_LINE_COLOR = "#102a57"
+const MEAN_BADGE_BG = "rgba(248, 250, 255, 0.98)"
 
 /**
  * ResponsiveMetricChart is a functional component that renders a responsive histogram
@@ -46,6 +50,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
         dynamicMargin: dynamicPropsMargin,
         barColor,
         disableGradient = false,
+        binWidthLabel,
     }) => {
         const binSize = extraDimensions.binSize || 1
         const yMin = Math.min(...(chartData.map((d) => d.edge) as number[]))
@@ -211,19 +216,6 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                             </>
                                         )}
                                     </defs>
-
-                                    {/* Bin size overlay */}
-                                    {typeof extraDimensions.binSize === "number" && (
-                                        <text
-                                            x={svgWidth - 8}
-                                            y={16}
-                                            fontSize="10"
-                                            fill="#888"
-                                            textAnchor="end"
-                                        >
-                                            bin {format3Sig(extraDimensions.binSize)}
-                                        </text>
-                                    )}
 
                                     {/* Grid lines */}
                                     <g>
@@ -412,70 +404,126 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
 
                                     {/* Reference lines */}
                                     {typeof extraDimensions.mean === "number" &&
-                                        (isVertical ? (
-                                            <g>
-                                                <line
-                                                    x1={
-                                                        margin.left +
-                                                        xScaleVertical(extraDimensions.mean)
-                                                    }
-                                                    y1={margin.top}
-                                                    x2={
-                                                        margin.left +
-                                                        xScaleVertical(extraDimensions.mean)
-                                                    }
-                                                    y2={margin.top + plotHeight}
-                                                    stroke="#1C2C3D"
-                                                    strokeWidth={2}
-                                                    strokeDasharray="5 5"
-                                                />
-                                                <text
-                                                    x={
-                                                        margin.left +
-                                                        xScaleVertical(extraDimensions.mean)
-                                                    }
-                                                    y={margin.top - 5}
-                                                    fill="#1C2C3D"
-                                                    fontSize="10"
-                                                    fontWeight="bold"
-                                                    textAnchor="middle"
-                                                >
-                                                    {`μ=${format3Sig(extraDimensions.mean)}`}
-                                                </text>
-                                            </g>
-                                        ) : (
-                                            <g>
-                                                <line
-                                                    x1={margin.left}
-                                                    y1={
-                                                        margin.top +
-                                                        yScaleHorizontal(extraDimensions.mean)
-                                                    }
-                                                    x2={margin.left + plotWidth}
-                                                    y2={
-                                                        margin.top +
-                                                        yScaleHorizontal(extraDimensions.mean)
-                                                    }
-                                                    stroke="#1C2C3D"
-                                                    strokeWidth={2}
-                                                    strokeDasharray="5 5"
-                                                />
-                                                <text
-                                                    x={margin.left + plotWidth - 5}
-                                                    y={
-                                                        margin.top +
-                                                        yScaleHorizontal(extraDimensions.mean) -
-                                                        5
-                                                    }
-                                                    fill="#1C2C3D"
-                                                    fontSize="10"
-                                                    fontWeight="bold"
-                                                    textAnchor="end"
-                                                >
-                                                    {`μ=${format3Sig(extraDimensions.mean)}`}
-                                                </text>
-                                            </g>
-                                        ))}
+                                        (() => {
+                                            const meanDisplay = format3Sig(
+                                                extraDimensions.mean,
+                                            )
+                                            const labelText = `μ=${meanDisplay}`
+                                            const approxCharWidth = 7
+                                            const labelWidth = Math.max(
+                                                88,
+                                                labelText.length * approxCharWidth + 28,
+                                            )
+                                            const labelHeight = 22
+                                            if (isVertical) {
+                                                const lineX =
+                                                    margin.left +
+                                                    xScaleVertical(extraDimensions.mean)
+                                                const badgeX = Math.min(
+                                                    Math.max(
+                                                        margin.left,
+                                                        lineX - labelWidth / 2,
+                                                    ),
+                                                    margin.left + plotWidth - labelWidth,
+                                                )
+                                                const badgeY = Math.max(
+                                                    4,
+                                                    margin.top - labelHeight - 8,
+                                                )
+                                                return (
+                                                    <g>
+                                                        <line
+                                                            x1={lineX}
+                                                            y1={margin.top}
+                                                            x2={lineX}
+                                                            y2={margin.top + plotHeight}
+                                                            stroke={MEAN_LINE_COLOR}
+                                                            strokeWidth={2}
+                                                            strokeDasharray="4 4"
+                                                        />
+                                                        <rect
+                                                            x={badgeX}
+                                                            y={badgeY}
+                                                            width={labelWidth}
+                                                            height={labelHeight}
+                                                            rx={labelHeight / 2}
+                                                            fill={MEAN_BADGE_BG}
+                                                            stroke={MEAN_LINE_COLOR}
+                                                            strokeWidth={0.8}
+                                                        />
+                                                        <text
+                                                            x={badgeX + labelWidth / 2}
+                                                            y={
+                                                                badgeY +
+                                                                labelHeight / 2 +
+                                                                0.5
+                                                            }
+                                                            fill={MEAN_LINE_COLOR}
+                                                            fontSize="11"
+                                                            fontWeight={600}
+                                                            textAnchor="middle"
+                                                            dominantBaseline="middle"
+                                                        >
+                                                            {labelText}
+                                                        </text>
+                                                    </g>
+                                                )
+                                            }
+                                            const lineY =
+                                                margin.top +
+                                                yScaleHorizontal(extraDimensions.mean)
+                                            const labelCenterY = Math.min(
+                                                Math.max(
+                                                    lineY,
+                                                    margin.top + labelHeight / 2 + 2,
+                                                ),
+                                                margin.top +
+                                                    plotHeight -
+                                                    labelHeight / 2 -
+                                                    2,
+                                            )
+                                            const badgeY = labelCenterY - labelHeight / 2
+                                            const desiredBadgeX =
+                                                margin.left + plotWidth + 12
+                                            const badgeX = Math.min(
+                                                svgWidth - labelWidth - 4,
+                                                desiredBadgeX,
+                                            )
+                                            return (
+                                                <g>
+                                                    <line
+                                                        x1={margin.left}
+                                                        y1={lineY}
+                                                        x2={margin.left + plotWidth}
+                                                        y2={lineY}
+                                                        stroke={MEAN_LINE_COLOR}
+                                                        strokeWidth={2}
+                                                        strokeDasharray="4 4"
+                                                    />
+                                                    <g transform={`translate(${badgeX}, ${badgeY})`}>
+                                                        <rect
+                                                            width={labelWidth}
+                                                            height={labelHeight}
+                                                            rx={labelHeight / 2}
+                                                            fill={MEAN_BADGE_BG}
+                                                            stroke={MEAN_LINE_COLOR}
+                                                            strokeWidth={0.8}
+                                                        />
+                                                        <text
+                                                            x={labelWidth / 2}
+                                                            y={labelHeight / 2}
+                                                            fill={MEAN_LINE_COLOR}
+                                                            fontSize="11"
+                                                            fontWeight={600}
+                                                            textAnchor="middle"
+                                                            dominantBaseline="middle"
+                                                        >
+                                                            {labelText}
+                                                        </text>
+                                                    </g>
+                                                </g>
+                                            )
+                                        })()}
 
                                     {typeof highlightValue === "number" &&
                                         highlightValue !== extraDimensions.mean &&
@@ -630,11 +678,15 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                         const total = chartData.reduce((sum, d) => sum + d.value, 0)
                                         const count = chartData[hoveredBin].value
                                         const percent = total > 0 ? (count / total) * 100 : 0
+                                        const binWidthText =
+                                            typeof binWidthLabel === "string"
+                                                ? binWidthLabel
+                                                : format3Sig(binSize)
                                         const isHighlighted =
                                             hoveredBin === computedHighlightBinIndex
                                         return (
                                             <div
-                                                className="pointer-events-none z-50 absolute px-3 py-2 rounded border border-gray-300 bg-white/95 shadow-lg text-xs text-gray-900 animate-fadein"
+                                                className="pointer-events-none z-50 absolute rounded-lg border border-[#d0d7e3] bg-white/95 px-3 py-2 text-xs text-gray-900 shadow-lg"
                                                 style={{
                                                     left: mousePos.x + 16,
                                                     top: mousePos.y - 32,
@@ -659,8 +711,10 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                     }}
                                                 />
                                                 <div className="mb-1 flex items-center gap-2">
-                                                    <span className="font-semibold">Range:</span>
-                                                    <span>
+                                                    <span className="font-semibold text-gray-800">
+                                                        Range:
+                                                    </span>
+                                                    <span className="text-gray-700">
                                                         {format3Sig(
                                                             chartData[hoveredBin].edge as number,
                                                         )}
@@ -668,6 +722,11 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         {format3Sig(
                                                             chartData[hoveredBin].edge + binSize,
                                                         )}
+                                                        {binWidthText ? (
+                                                            <span className="ml-2 text-[11px] text-gray-500">
+                                                                [bin width: {binWidthText}]
+                                                            </span>
+                                                        ) : null}
                                                     </span>
                                                     {isHighlighted && (
                                                         <span className="ml-2 px-1 py-0.5 rounded bg-yellow-100 text-yellow-800 font-semibold text-[10px] border border-yellow-300">
@@ -676,7 +735,9 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
-                                                    <span className="font-semibold">Count:</span>{" "}
+                                                    <span className="font-semibold text-gray-800">
+                                                        Count:
+                                                    </span>{" "}
                                                     <span>{count}</span>
                                                     <span className="ml-2 text-gray-500">
                                                         ({percent.toFixed(1)}%)

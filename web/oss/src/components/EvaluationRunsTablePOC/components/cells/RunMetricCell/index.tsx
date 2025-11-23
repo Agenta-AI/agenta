@@ -203,6 +203,7 @@ const RunMetricCellContent = memo(
                 className={className}
                 disablePopover={isUnavailable}
                 children={customChildren}
+                prefetchedStats={stats}
             />
         )
     },

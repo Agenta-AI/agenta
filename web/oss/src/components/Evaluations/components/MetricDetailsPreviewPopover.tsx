@@ -11,13 +11,21 @@ import ResponsiveFrequencyChart from "@/oss/components/HumanEvaluations/assets/M
 import ResponsiveMetricChart from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/ResponsiveMetricChart"
 import {buildChartData} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
+import type {BasicStats} from "@/oss/lib/metricUtils"
 
 const formatNumber = (value: unknown): string => {
     if (typeof value === "number") {
         if (!Number.isFinite(value)) return String(value)
-        if (Math.abs(value) >= 1000)
+        const abs = Math.abs(value)
+        if (abs === 0) return "0"
+        if (abs >= 1000) {
             return value.toLocaleString(undefined, {maximumFractionDigits: 2})
-        return value.toFixed(Math.abs(value) >= 1 ? 2 : 4).replace(/\.?0+$/, "")
+        }
+        if (abs >= 1) {
+            return value.toFixed(2).replace(/\.?0+$/, "")
+        }
+        const decimals = Math.min(12, Math.max(4, Math.ceil(Math.abs(Math.log10(abs))) + 2))
+        return value.toFixed(decimals).replace(/\.?0+$/, "")
     }
     return String(value ?? "")
 }
@@ -78,6 +86,15 @@ const Section = ({title, children}: {title: string; children: ReactNode}) => (
         </span>
         {children}
     </section>
+)
+
+const DistributionSkeleton = () => (
+    <div className="flex flex-col gap-3">
+        <div className="h-3 w-24 rounded-full bg-neutral-200/80 animate-pulse" />
+        <div className="relative h-[160px] w-full overflow-hidden rounded-2xl border border-neutral-100 bg-neutral-50">
+            <div className="h-full w-full animate-pulse bg-gradient-to-r from-neutral-100 via-neutral-200/80 to-neutral-100" />
+        </div>
+    </div>
 )
 
 const normalizeStatShape = (value: any) => {
@@ -225,6 +242,7 @@ const MetricPopoverContent = ({
     stepKey,
     shouldLoad,
     showScenarioValue = true,
+    prefetchedStats,
 }: {
     runId?: string
     metricKey?: string
@@ -236,18 +254,33 @@ const MetricPopoverContent = ({
     stepKey?: string
     shouldLoad: boolean
     showScenarioValue?: boolean
+    prefetchedStats?: BasicStats
 }) => {
+    const prefetchedSelectionAtom = useMemo(
+        () =>
+            prefetchedStats
+                ? atom<RunLevelMetricSelection>({
+                      state: "hasData",
+                      stats: prefetchedStats,
+                      resolvedKey: metricKey ?? metricPath,
+                  })
+                : null,
+        [prefetchedStats, metricKey, metricPath],
+    )
+    const effectiveShouldLoad = shouldLoad || Boolean(prefetchedStats)
     const selectionAtom = useMemo(
         () =>
-            runId && shouldLoad
-                ? previewRunMetricStatsSelectorFamily({
-                      runId,
-                      metricKey,
-                      metricPath,
-                      stepKey,
-                  })
+            prefetchedSelectionAtom
+                ? prefetchedSelectionAtom
+                : runId && effectiveShouldLoad
+                  ? previewRunMetricStatsSelectorFamily({
+                        runId,
+                        metricKey,
+                        metricPath,
+                        stepKey,
+                    })
                 : idleRunMetricSelectionAtom,
-        [runId, metricKey, metricPath, stepKey, shouldLoad],
+        [prefetchedSelectionAtom, runId, metricKey, metricPath, stepKey, effectiveShouldLoad],
     )
 
     const selection = useAtomValue(selectionAtom)
@@ -337,10 +370,16 @@ const MetricPopoverContent = ({
                   typeof entry.value === "number"
                       ? entry.value
                       : Number.isFinite(Number(entry.value))
-                        ? Number(entry.value)
-                        : 0,
+                  ? Number(entry.value)
+                  : 0,
           }))
         : []
+    const binSize =
+        typeof (stats as any)?.binSize === "number" && Number.isFinite((stats as any).binSize)
+            ? (stats as any).binSize
+            : undefined
+    const binWidthDisplay =
+        typeof binSize === "number" ? formatMetricNumber(metricKey, binSize) : null
     const frequencyChartData = hasHistogram
         ? []
         : chartData
@@ -492,7 +531,7 @@ const MetricPopoverContent = ({
     //     }
     // }
 
-    if (!shouldLoad) {
+    if (!shouldLoad && !prefetchedStats) {
         return <span className="text-xs text-neutral-500">Loading statistics…</span>
     }
 
@@ -532,7 +571,16 @@ const MetricPopoverContent = ({
                 {headlineMetricsRow}
             </div>
             {loading ? (
-                <span className="text-neutral-500">Loading statistics…</span>
+                <>
+                    {showScenarioValue ? (
+                        <Section title="Scenario value">
+                            <div className="h-3 w-3/4 rounded-full bg-neutral-200/70 animate-pulse" />
+                        </Section>
+                    ) : null}
+                    <Section title="Distribution">
+                        <DistributionSkeleton />
+                    </Section>
+                </>
             ) : hasDetails ? (
                 <>
                     {scenarioDisplay ? (
@@ -549,6 +597,7 @@ const MetricPopoverContent = ({
                                     <ResponsiveMetricChart
                                         chartData={histogramChartData}
                                         extraDimensions={stats as any}
+                                        binWidthLabel={binWidthDisplay ?? undefined}
                                         highlightValue={
                                             typeof highlightScalar === "number"
                                                 ? (highlightScalar as number)
@@ -601,6 +650,7 @@ const MetricDetailsPreviewPopover = memo(
         stepType,
         stepKey,
         showScenarioValue,
+        prefetchedStats,
         children,
     }: {
         runId?: string
@@ -612,6 +662,7 @@ const MetricDetailsPreviewPopover = memo(
         stepType?: string
         stepKey?: string
         showScenarioValue?: boolean
+        prefetchedStats?: BasicStats
         children: React.ReactNode
     }) => {
         const [shouldLoad, setShouldLoad] = useState(false)
@@ -638,6 +689,7 @@ const MetricDetailsPreviewPopover = memo(
                         stepKey={stepKey}
                         shouldLoad={shouldLoad}
                         showScenarioValue={showScenarioValue}
+                        prefetchedStats={prefetchedStats}
                     />
                 }
             >
