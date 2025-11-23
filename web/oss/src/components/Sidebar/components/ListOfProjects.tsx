@@ -20,7 +20,7 @@ import {useMutation} from "@tanstack/react-query"
 import AlertPopup from "@/oss/components/AlertPopup/AlertPopup"
 import {useOrgData} from "@/oss/state/org"
 import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
-import {useProjectData} from "@/oss/state/project"
+import {cacheLastUsedProjectId, useProjectData} from "@/oss/state/project"
 
 import type {ProjectsResponse} from "@/oss/services/project/types"
 import {createProject, deleteProject, patchProject} from "@/oss/services/project"
@@ -97,13 +97,30 @@ const ListOfProjects = ({
         await refetch()
     }, [refetch])
 
+    const resolveWorkspaceKey = useCallback(
+        (target?: {workspace_id?: string | null; organization_id?: string | null}) =>
+            target?.workspace_id || target?.organization_id || selectedOrganizationId || "",
+        [selectedOrganizationId],
+    )
+
     const createMutation = useMutation({
         mutationFn: ({name}: ProjectFormValues) => createProject({name: name.trim()}),
-        onSuccess: () => {
+        onSuccess: (createdProject) => {
             message.success("Project created")
-            void refreshProjects()
             createForm.resetFields()
             setCreateModalOpen(false)
+
+            const workspaceKey = resolveWorkspaceKey(createdProject)
+            if (workspaceKey && createdProject?.project_id) {
+                cacheLastUsedProjectId(workspaceKey, createdProject.project_id)
+                navigateToProject(
+                    workspaceKey,
+                    createdProject.project_id,
+                    createdProject.organization_id ?? selectedOrganizationId,
+                )
+            }
+
+            void refreshProjects()
         },
         onError: (error: any) => {
             const detail =
@@ -186,15 +203,12 @@ const ListOfProjects = ({
             disabled={disabled || sharedButtonProps.disabled}
             {...sharedButtonProps.rest}
         >
-            {!collapsed ? (
-                <span className="max-w-[180px] truncate" title={label || placeholder}>
-                    {label || placeholder}
-                </span>
-            ) : (
-                <span className="truncate" title={label || placeholder}>
-                    {label || placeholder}
-                </span>
-            )}
+            <span
+                className={clsx("truncate", collapsed ? "max-w-[52px]" : "max-w-[180px]")}
+                title={label || placeholder}
+            >
+                {label || placeholder}
+            </span>
             {!collapsed && showCaret && (
                 <CaretDown
                     size={14}
@@ -242,6 +256,7 @@ const ListOfProjects = ({
     const navigateToProject = useCallback(
         (workspaceId: string, projectId: string, organizationId?: string | null) => {
             if (!workspaceId || !projectId) return
+            cacheLastUsedProjectId(workspaceId, projectId)
             if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
             const href = `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
             void router.push(href)
@@ -287,8 +302,10 @@ const ListOfProjects = ({
                     if (project?.project_id === target.project_id) {
                         const fallbackProject = findFallbackProject(target.project_id)
                         if (fallbackProject) {
+                            const workspaceKey =
+                                resolveWorkspaceKey(fallbackProject) || target.workspace_id || ""
                             navigateToProject(
-                                fallbackProject.workspace_id ?? target.workspace_id ?? "",
+                                workspaceKey,
                                 fallbackProject.project_id,
                                 fallbackProject.organization_id ?? selectedOrganizationId,
                             )
@@ -304,6 +321,7 @@ const ListOfProjects = ({
             navigateToProject,
             project?.project_id,
             refreshProjects,
+            resolveWorkspaceKey,
             selectedOrganizationId,
         ],
     )
@@ -455,7 +473,7 @@ const ListOfProjects = ({
                     <Dropdown
                         {...(dropdownProps ?? {})}
                         trigger={["click"]}
-                        placement="bottomRight"
+                        placement={collapsed ? "bottomLeft" : "bottomRight"}
                         destroyPopupOnHide
                         overlayStyle={{zIndex: 2000}}
                         onOpenChange={setProjectDropdownOpen}

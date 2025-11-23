@@ -11,6 +11,7 @@ import {useOrgData} from "@/oss/state/org"
 import {orgsAtom as organizationsAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
+import {useRouter} from "next/router"
 
 import Avatar from "../../Avatar/Avatar"
 import ListOfProjects from "./ListOfProjects"
@@ -41,6 +42,7 @@ const ListOfOrgs = ({
     organizationSelectionEnabled = true,
     ...dropdownProps
 }: ListOfOrgsProps) => {
+    const router = useRouter()
     const {user} = useProfileData()
     const {logout} = useSession()
     const {selectedOrg: selectedOrganization, orgs: organizations, changeSelectedOrg} = useOrgData()
@@ -143,8 +145,11 @@ const ListOfOrgs = ({
         </Button>
     )
 
+    const isSurveyPage = router.pathname === "/workspaces/accept" && Boolean(router.query.survey)
     const canShow = Boolean(
-        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) && user?.id,
+        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) &&
+            user?.id &&
+            !isSurveyPage,
     )
 
     const handleOrganizationMenuClick: MenuProps["onClick"] = ({key}) => {
