@@ -1,8 +1,6 @@
 import {Typography} from "antd"
 import clsx from "clsx"
-import {useAtomValue} from "jotai"
-import {atom} from "jotai"
-import {useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import LastTurnFooterControls from "@/oss/components/Playground/Components/ChatCommon/LastTurnFooterControls"
 import {isComparisonViewAtom} from "@/oss/components/Playground/state/atoms"
@@ -12,8 +10,8 @@ import {
 } from "@/oss/components/Playground/state/atoms/generationProperties"
 import {
     addChatTurnAtom,
-    runChatTurnAtom,
     cancelChatTurnAtom,
+    runChatTurnAtom,
 } from "@/oss/state/newPlayground/chat/actions"
 import {promptsAtomFamily} from "@/oss/state/newPlayground/core/prompts"
 
@@ -65,7 +63,7 @@ const GenerationChat = ({variantId, viewAs}: GenerationChatProps) => {
             >
                 <div className="flex flex-col gap-1">
                     {!isComparisonView && (
-                        <div className="shrink-0 top-[48px] sticky bg-colorBgContainer z-[10] w-full">
+                        <div className="shrink-0 top-[48px] sticky bg-white z-[10] w-full">
                             <Typography>Chat</Typography>
                         </div>
                     )}
