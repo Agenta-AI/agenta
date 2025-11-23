@@ -145,11 +145,9 @@ const ListOfOrgs = ({
         </Button>
     )
 
-    const isSurveyPage = router.pathname === "/workspaces/accept" && Boolean(router.query.survey)
+    const isPostSignupPage = router.pathname === "/post-signup"
     const canShow = Boolean(
-        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) &&
-            user?.id &&
-            !isSurveyPage,
+        (project?.project_id || effectiveSelectedId || selectedOrganization?.id) && user?.id,
     )
 
     const handleOrganizationMenuClick: MenuProps["onClick"] = ({key}) => {
@@ -218,13 +216,15 @@ const ListOfOrgs = ({
                         </div>
                     )}
 
-                    <ListOfProjects
-                        collapsed={collapsed}
-                        buttonProps={buttonProps}
-                        interactive={interactive}
-                        selectedOrganizationId={effectiveSelectedId}
-                        dropdownProps={dropdownProps}
-                    />
+                    {isPostSignupPage ? null : (
+                        <ListOfProjects
+                            collapsed={collapsed}
+                            buttonProps={buttonProps}
+                            interactive={interactive}
+                            selectedOrganizationId={effectiveSelectedId}
+                            dropdownProps={dropdownProps}
+                        />
+                    )}
                 </>
             ) : null}
         </div>

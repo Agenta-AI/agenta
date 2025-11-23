@@ -192,12 +192,11 @@ const ProjectHeaderActions = () => {
         <>
             <Dropdown
                 trigger={["click"]}
-                placement="bottomRight"
+                placement="bottomLeft"
                 destroyPopupOnHide
-                arrow
                 menu={{items: menuItems, onClick: handleMenuClick}}
             >
-                <Button icon={<DotsThreeVertical size={16} weight="bold" />} />
+                <Button type="text" icon={<DotsThreeVertical size={16} weight="bold" />} />
             </Dropdown>
 
             <Modal

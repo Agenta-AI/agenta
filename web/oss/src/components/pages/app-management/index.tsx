@@ -157,7 +157,7 @@ const AppManagement: React.FC = () => {
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
-                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-3 flex-wrap">
                             <Title level={3} className="!m-0 flex items-center gap-2 min-w-0">
                                 <span
                                     className="truncate max-w-[360px]"
