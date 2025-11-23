@@ -12,7 +12,7 @@ export interface PreviewRunsRequestParams {
     references?: any[] | null
     flags?: Record<string, any> | null
     statuses?: string[] | null
-    evaluationKind?: string | null
+    evaluationTypes?: string[] | null
     windowing?: QueryWindowingPayload | null
 }
 
@@ -34,7 +34,7 @@ const normalizeParams = ({
     references,
     flags,
     statuses,
-    evaluationKind,
+    evaluationTypes,
     windowing,
 }: PreviewRunsRequestParams) => ({
     projectId,
@@ -43,7 +43,7 @@ const normalizeParams = ({
     references: Array.isArray(references) ? references : [],
     flags: normalizeFlags(flags),
     statuses: normalizeStatuses(statuses),
-    evaluationKind: evaluationKind ? evaluationKind.toLowerCase() : null,
+    evaluationTypes: normalizeEvaluationTypes(evaluationTypes),
     windowing: windowing
         ? {
               next: windowing.next ?? null,
@@ -73,29 +73,48 @@ const normalizeStatuses = (statuses: string[] | null | undefined) => {
     return unique.length ? unique : null
 }
 
+const normalizeEvaluationTypes = (types: string[] | null | undefined) => {
+    if (!Array.isArray(types) || types.length === 0) return null
+    const unique = Array.from(new Set(types.map((value) => value ?? "")))
+        .filter((value) => value && value.length > 0)
+        .map((value) => value.toLowerCase())
+        .sort()
+    return unique.length ? unique : null
+}
+
 const buildPayload = ({
     searchQuery,
     references,
     flags,
     statuses,
-    evaluationKind,
+    evaluationTypes,
     windowing,
 }: PreviewRunsRequestParams) => {
-    const payload: Record<string, any> = {run: {}}
-    payload.run.references = Array.isArray(references) ? references : []
+    const payload: Record<string, any> = {}
+    const runPayload: Record<string, any> = {}
+    const normalizedReferences = Array.isArray(references)
+        ? references.filter((entry): entry is Record<string, any> => !!entry && Object.keys(entry).length > 0)
+        : []
+    if (normalizedReferences.length) {
+        runPayload.references = normalizedReferences
+    }
     if (searchQuery) {
-        payload.run.search = searchQuery
+        runPayload.search = searchQuery
     }
     const normalizedFlags = normalizeFlags(flags)
     if (normalizedFlags) {
-        payload.run.flags = normalizedFlags
+        runPayload.flags = normalizedFlags
     }
     const normalizedStatuses = normalizeStatuses(statuses)
     if (normalizedStatuses) {
-        payload.run.statuses = normalizedStatuses
+        runPayload.statuses = normalizedStatuses
     }
-    if (evaluationKind) {
-        payload.run.evaluation_kind = evaluationKind.toLowerCase()
+    const normalizedTypes = normalizeEvaluationTypes(evaluationTypes)
+    if (normalizedTypes) {
+        runPayload.evaluation_kinds = normalizedTypes
+    }
+    if (Object.keys(runPayload).length > 0) {
+        payload.run = runPayload
     }
     if (windowing) {
         payload.windowing = {

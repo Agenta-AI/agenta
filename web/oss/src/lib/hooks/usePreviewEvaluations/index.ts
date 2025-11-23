@@ -40,6 +40,12 @@ export interface RunFlagsFilter {
     is_live?: boolean
     is_active?: boolean
     is_closed?: boolean
+    has_queries?: boolean
+    has_testsets?: boolean
+    has_evaluators?: boolean
+    has_custom?: boolean
+    has_human?: boolean
+    has_auto?: boolean
 }
 
 interface PreviewEvaluationRunsQueryParams {
@@ -51,12 +57,24 @@ interface PreviewEvaluationRunsQueryParams {
     debug: boolean
     enabled: boolean
     flags?: RunFlagsFilter
+    evaluationTypes?: string[]
+    statuses?: string[] | null
 }
 
 const previewEvaluationRunsQueryAtomFamily = atomFamily((serializedParams: string) =>
     atomWithQuery<PreviewEvaluationRunsData>(() => {
         const params = JSON.parse(serializedParams) as PreviewEvaluationRunsQueryParams
-        const {projectId, appId, searchQuery, references, typesKey, enabled, flags} = params
+        const {
+            projectId,
+            appId,
+            searchQuery,
+            references,
+            typesKey,
+            enabled,
+            flags,
+            evaluationTypes,
+            statuses,
+        } = params
 
         return {
             queryKey: [
@@ -67,6 +85,8 @@ const previewEvaluationRunsQueryAtomFamily = atomFamily((serializedParams: strin
                 searchQuery ?? "",
                 JSON.stringify(references ?? []),
                 JSON.stringify(flags ?? {}),
+                JSON.stringify(evaluationTypes ?? []),
+                JSON.stringify(statuses ?? null),
             ],
             enabled,
             refetchOnWindowFocus: false,
@@ -82,6 +102,8 @@ const previewEvaluationRunsQueryAtomFamily = atomFamily((serializedParams: strin
                     searchQuery,
                     references,
                     flags,
+                    evaluationTypes,
+                    statuses,
                 })
 
                 primePreviewRunCache(projectId, response.runs)

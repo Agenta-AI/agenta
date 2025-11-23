@@ -4,6 +4,7 @@ import type {CSSProperties, MouseEvent as ReactMouseEvent, ReactNode} from "reac
 import {Button, Divider, Select, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import type {RunFlagsFilter} from "@/oss/lib/hooks/usePreviewEvaluations"
 import {useTestsetsData} from "@/oss/state/testset"
 
 import {evaluationRunsTableComponentSliceAtom} from "../../atoms/context"
@@ -21,15 +22,12 @@ import {
     evaluationRunsFiltersDraftInitializeAtom,
     evaluationRunsFiltersDraftClearAtom,
 } from "../../atoms/view"
-import {EVALUATION_KIND_FILTER_OPTIONS, STATUS_OPTIONS, type FlagKey} from "../../constants"
+import {EVALUATION_KIND_FILTER_OPTIONS, STATUS_OPTIONS} from "../../constants"
 import type {ConcreteEvaluationRunKind} from "../../types"
-import {areFlagMapsEqual} from "../../utils/flags"
 import {buildTestsetOptions} from "../../utils/testsetOptions"
 
 import QueryFilterOption from "./QueryFilterOption"
 import QuickDateRangePicker from "./QuickDateRangePicker"
-
-import {RunFlagsFilter} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 
 interface TagRenderProps {
     label: ReactNode
@@ -45,8 +43,6 @@ const REFERENCE_FILTER_KEYS = ["testset", "evaluator", "app", "variant", "query"
 type ReferenceFilterKey = (typeof REFERENCE_FILTER_KEYS)[number]
 
 type DraftReferenceFilters = Record<ReferenceFilterKey, string[]>
-
-type DraftFlagState = Partial<Record<FlagKey, boolean>>
 
 const EVALUATION_TYPE_VALUES = EVALUATION_KIND_FILTER_OPTIONS.map((option) => option.value)
 
@@ -93,28 +89,6 @@ const normalizeReferenceFilters = (values: DraftReferenceFilters) => {
     return Object.keys(next).length ? next : null
 }
 
-const extractTrueFlags = (flags: DraftFlagState): RunFlagsFilter =>
-    Object.entries(flags).reduce<RunFlagsFilter>((acc, [key, value]) => {
-        if (value === true) {
-            acc[key as FlagKey] = true
-        }
-        return acc
-    }, {})
-
-const buildPreviewFlagsPayload = (
-    flags: DraftFlagState,
-    baseFlags?: DraftFlagState,
-): RunFlagsFilter | undefined => {
-    const scopedBase = baseFlags ?? {}
-    const normalized = Object.entries(flags).reduce<RunFlagsFilter>((acc, [key, value]) => {
-        if (value === true && scopedBase[key as FlagKey] !== value) {
-            acc[key as FlagKey] = value
-        }
-        return acc
-    }, {})
-    return Object.keys(normalized).length ? normalized : undefined
-}
-
 const createSummarySignature = (summary: {
     statusFilters: string[]
     evaluatorFilters: string[]
@@ -123,11 +97,11 @@ const createSummarySignature = (summary: {
     queryFilters: string[]
     testsetFilters: string[]
     evaluationTypeFilters: ConcreteEvaluationRunKind[]
-    mergedFlags: DraftFlagState
     dateRange: {from?: string | null; to?: string | null} | null
+    mergedFlags: RunFlagsFilter
 }) => {
     const sortStrings = (list: string[]) => [...list].sort()
-    const sortedFlags = Object.entries(extractTrueFlags(summary.mergedFlags))
+    const sortedFlags = Object.entries(summary.mergedFlags ?? {})
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([key, value]) => `${key}:${value}`)
 
@@ -204,10 +178,8 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
 
     const draftStatusFilters = draft?.statusFilters ?? summary.statusFilters
     const draftReferences = draft?.referenceFilters ?? createReferenceDraftFromSummary(summary)
-    const draftFlags = draft?.flags ?? summary.mergedFlags
     const draftEvaluationTypes = draft?.evaluationTypes ?? summary.evaluationTypeFilters
     const draftDateRange = draft?.dateRange ?? summary.dateRange ?? null
-
     const summarySignature = useMemo(() => createSummarySignature(summary), [summary])
 
     const testsetOptions = useMemo(() => buildTestsetOptions(testsets), [testsets])
@@ -334,12 +306,6 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
         [persistedReferences],
     )
 
-    const draftTrueFlags = useMemo(() => extractTrueFlags(draftFlags), [draftFlags])
-    const persistedTrueFlags = useMemo(
-        () => extractTrueFlags(summary.mergedFlags),
-        [summary.mergedFlags],
-    )
-
     const normalizedDraftEvaluationTypes = useMemo(
         () => normalizeEvaluationTypes(draftEvaluationTypes),
         [draftEvaluationTypes],
@@ -393,10 +359,9 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
             return true
         }
 
-        return !areFlagMapsEqual(draftTrueFlags, persistedTrueFlags)
+        return false
     }, [
         draft,
-        draftTrueFlags,
         normalizedDraftReferences,
         normalizedDraftStatuses,
         normalizedDraftEvaluationTypes,
@@ -405,7 +370,6 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
         normalizedPersistedStatuses,
         normalizedPersistedEvaluationTypes,
         normalizedPersistedDateRange,
-        persistedTrueFlags,
     ])
 
     const handleApply = useCallback(() => {
@@ -420,26 +384,18 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
 
         const nextReferenceFilters = normalizeReferenceFilters(draftReferences)
         const nextStatusFilters = normalizeStatusFilters(draftStatusFilters)
-        const previewFlags = buildPreviewFlagsPayload(
-            draftFlags,
-            filtersContext.derivedPreviewFlags,
-        )
         const nextEvaluationTypes = normalizeEvaluationTypes(draftEvaluationTypes)
         const nextDateRange = normalizeDateRange(draftDateRange)
         const evaluationTypePayload =
-            filtersContext.evaluationKind === "all"
-                ? nextEvaluationTypes.length
-                    ? nextEvaluationTypes
-                    : null
-                : summary.evaluationTypeFilters.length
-                  ? summary.evaluationTypeFilters
-                  : null
+            filtersContext.evaluationKind === "all" && nextEvaluationTypes.length
+                ? nextEvaluationTypes
+                : null
 
         setMetaUpdater((prev) => ({
             ...prev,
             referenceFilters: nextReferenceFilters,
             statusFilters: nextStatusFilters.length ? nextStatusFilters : null,
-            previewFlags,
+            previewFlags: filtersContext.derivedPreviewFlags,
             evaluationTypeFilters: evaluationTypePayload,
             dateRange: nextDateRange,
         }))
@@ -449,8 +405,6 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
     }, [
         draft,
         clearDraft,
-        filtersContext.derivedPreviewFlags,
-        draftFlags,
         draftReferences,
         draftStatusFilters,
         hasPendingChanges,
@@ -497,8 +451,8 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
         filtersContext.evaluationKind === "all"
     const shouldShowQuerySection =
         filtersContext.evaluationKind === "online" || filtersContext.evaluationKind === "all"
-    const shouldShowEvaluationTypeSection = filtersContext.evaluationKind === "all"
-    const evaluationTypeDisabled = !shouldShowEvaluationTypeSection
+    const shouldShowEvaluationTypeSection = true
+    const evaluationTypeDisabled = filtersContext.evaluationKind !== "all"
     const shouldShowTestsetSection =
         filtersContext.evaluationKind !== "online" && Boolean(projectId)
     const shouldShowAppSection = filtersContext.evaluationKind !== "online"
@@ -542,11 +496,11 @@ const EvaluationRunsFiltersContent = ({isOpen, onClose}: EvaluationRunsFiltersCo
                                     handleEvaluationTypeChange(values as (string | number)[])
                                 }
                             />
-                            {evaluationTypeDisabled ? (
+                            {/* {evaluationTypeDisabled ? (
                                 <Typography.Text type="secondary" className="text-xs">
                                     Evaluation type is controlled by the selected tab.
                                 </Typography.Text>
-                            ) : null}
+                            ) : null} */}
                         </Section>
                     ) : null}
                 </div>

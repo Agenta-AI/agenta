@@ -15,9 +15,7 @@ import {evaluatorsQueryAtomFamily} from "@/oss/state/evaluators"
 import {queriesQueryAtomFamily} from "@/oss/state/queries"
 
 import {fromFilteringPayload} from "../../pages/evaluations/onlineEvaluation/assets/helpers"
-import type {FlagKey} from "../constants"
 import type {ConcreteEvaluationRunKind, EvaluationRunKind, EvaluationRunTableRow} from "../types"
-import {areFlagMapsEqual} from "../utils/flags"
 import {summarizeQueryFilters} from "../utils/querySummary"
 import {buildReferencePayload} from "../utils/referencePayload"
 
@@ -251,64 +249,11 @@ export const evaluationRunsResetFiltersAtom = atom(null, (get, set) => {
             previewFlags: context.derivedPreviewFlags,
             referenceFilters: null,
             previewReferences: buildReferencePayload(null),
-            evaluationTypeFilters:
-                context.evaluationKind === "all"
-                    ? null
-                    : [context.evaluationKind as ConcreteEvaluationRunKind],
+            evaluationTypeFilters: null,
             dateRange: null,
         }
     })
 })
-
-export const evaluationRunsFlagToggleAtom = atom(
-    null,
-    (get, set, {flag, checked}: {flag: FlagKey; checked: boolean}) => {
-        const context = get(evaluationRunsTableContextAtom)
-        if (flag === "is_live" && context.evaluationKind === "online") {
-            return
-        }
-
-        const baseFlags = context.derivedPreviewFlags ?? {}
-
-        set(evaluationRunsMetaUpdaterAtom, (prev) => {
-            const merged: RunFlagsFilter = {}
-            Object.entries(baseFlags).forEach(([key, value]) => {
-                if (typeof value === "boolean") {
-                    merged[key as FlagKey] = value
-                }
-            })
-            Object.entries(prev.previewFlags ?? {}).forEach(([key, value]) => {
-                if (typeof value === "boolean") {
-                    merged[key as FlagKey] = value
-                }
-            })
-
-            if (checked) {
-                merged[flag] = true
-            } else if (flag in baseFlags) {
-                merged[flag] = baseFlags[flag]
-            } else {
-                delete merged[flag]
-            }
-
-            const normalizedEntries = Object.entries(merged).filter(
-                ([, value]) => typeof value === "boolean",
-            ) as [string, boolean][]
-            const normalized: RunFlagsFilter | undefined = normalizedEntries.length
-                ? (Object.fromEntries(normalizedEntries) as RunFlagsFilter)
-                : undefined
-
-            if (areFlagMapsEqual(prev.previewFlags, normalized)) {
-                return prev
-            }
-
-            return {
-                ...prev,
-                previewFlags: normalized,
-            }
-        })
-    },
-)
 
 const evaluationRunsSelectionSourceAtom = atom(
     (get) => {
@@ -415,12 +360,9 @@ interface EvaluationRunsFiltersSummary {
     mergedFlags: RunFlagsFilter
     filtersCount: number
     filtersActive: boolean
-    lockLiveFlag: boolean
-    shouldShowFlagFilters: boolean
     isAutoOrHuman: boolean
     evaluationKind: EvaluationRunKind
     referenceFilters: Record<string, string[]>
-    lockedFlagKeys: string[]
     lockedReferenceFilters: Record<ReferenceFilterKey, string[]>
 }
 
@@ -440,20 +382,14 @@ export const evaluationRunsFiltersSummaryAtom = atom<EvaluationRunsFiltersSummar
 
     Object.entries(context.derivedPreviewFlags ?? {}).forEach(([key, value]) => {
         if (typeof value === "boolean") {
-            mergedFlags[key as FlagKey] = value
+            mergedFlags[key as keyof RunFlagsFilter] = value
         }
     })
     Object.entries(meta.previewFlags ?? {}).forEach(([key, value]) => {
         if (typeof value === "boolean") {
-            mergedFlags[key as FlagKey] = value
+            mergedFlags[key as keyof RunFlagsFilter] = value
         }
     })
-
-    const baseFlagSet = new Set(
-        Object.entries(context.derivedPreviewFlags ?? {})
-            .filter(([, value]) => value === true)
-            .map(([key]) => key),
-    )
 
     const lockedReferenceFilters: Record<ReferenceFilterKey, string[]> = {
         testset: [],
@@ -476,8 +412,6 @@ export const evaluationRunsFiltersSummaryAtom = atom<EvaluationRunsFiltersSummar
 
     lockedReferenceFilters.app = Array.from(new Set(normalizedLockedAppIds))
 
-    const flagCount = Object.entries(mergedFlags ?? {}).filter(([, value]) => value === true).length
-
     const evaluationTypeFilters = meta.evaluationTypeFilters ?? []
     const dateRange = meta.dateRange ?? null
 
@@ -488,13 +422,10 @@ export const evaluationRunsFiltersSummaryAtom = atom<EvaluationRunsFiltersSummar
 
     const filtersCount =
         statusFilters.length +
-        flagCount +
         referenceCount +
         evaluationTypeFilters.length +
         (dateRange?.from || dateRange?.to ? 1 : 0)
     const filtersActive = filtersCount > 0
-    const lockLiveFlag = context.evaluationKind === "online"
-    const shouldShowFlagFilters = !context.isAutoOrHuman
 
     const summary: EvaluationRunsFiltersSummary = {
         statusFilters,
@@ -507,12 +438,9 @@ export const evaluationRunsFiltersSummaryAtom = atom<EvaluationRunsFiltersSummar
         mergedFlags,
         filtersCount,
         filtersActive,
-        lockLiveFlag,
-        shouldShowFlagFilters,
         isAutoOrHuman: context.isAutoOrHuman,
         evaluationKind: context.evaluationKind,
         referenceFilters: referenceFilters ?? {},
-        lockedFlagKeys: Array.from(baseFlagSet),
         lockedReferenceFilters,
         dateRange,
     }
@@ -520,8 +448,6 @@ export const evaluationRunsFiltersSummaryAtom = atom<EvaluationRunsFiltersSummar
 })
 
 export type ReferenceFilterKey = "testset" | "evaluator" | "app" | "variant" | "query"
-type DraftFlagState = Partial<Record<FlagKey, boolean>>
-
 interface QueryFilterOption {
     value: string
     label: string
@@ -533,7 +459,6 @@ interface QueryFilterOption {
 export interface FiltersDraftState {
     statusFilters: string[]
     referenceFilters: Record<ReferenceFilterKey, string[]>
-    flags: DraftFlagState
     evaluationTypes: ConcreteEvaluationRunKind[]
     dateRange: {from?: string | null; to?: string | null} | null
 }
@@ -547,7 +472,6 @@ const createDraftFromSummary = (summary: EvaluationRunsFiltersSummary): FiltersD
         variant: [...summary.variantFilters],
         query: [...summary.queryFilters],
     },
-    flags: {...(summary.mergedFlags ?? {})},
     evaluationTypes: [...summary.evaluationTypeFilters],
     dateRange: summary.dateRange ? {...summary.dateRange} : null,
 })

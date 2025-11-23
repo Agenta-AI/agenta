@@ -80,8 +80,23 @@ export const evaluationRunsTableContextAtom = atom<EvaluationRunsTableContext>((
     const scopedAppId = scope === "app" ? (routerAppId ?? explicitAppId ?? null) : null
     const effectiveAppIds = deriveAppIds(explicitAppId, scopedAppId, availableAppIds)
 
-    const derivedPreviewFlags =
-        evaluationKind === "online" ? ({is_live: true} as RunFlagsFilter) : undefined
+    let derivedPreviewFlags: RunFlagsFilter | undefined
+    switch (evaluationKind) {
+        case "online":
+            derivedPreviewFlags = {is_live: true}
+            break
+        case "auto":
+            derivedPreviewFlags = {has_auto: true}
+            break
+        case "human":
+            derivedPreviewFlags = {has_human: true}
+            break
+        case "custom":
+            derivedPreviewFlags = {has_custom: true}
+            break
+        default:
+            derivedPreviewFlags = undefined
+    }
 
     const isAutoOrHuman = evaluationKind === "auto" || evaluationKind === "human"
     const supportsPreviewMetrics =

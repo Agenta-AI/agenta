@@ -26,7 +26,7 @@ interface FetchPreviewRunsParams {
     references?: any[]
     flags?: RunFlagsFilter
     statuses?: string[]
-    evaluationKind?: EvaluationRunKind
+    evaluationTypes?: ConcreteEvaluationRunKind[] | null
     windowing?: QueryWindowingPayload | null
 }
 
@@ -53,8 +53,8 @@ const fetchPreviewRuns = async ({
     references,
     flags,
     statuses,
-    evaluationKind,
     windowing,
+    evaluationTypes,
 }: FetchPreviewRunsParams): Promise<PreviewEvaluationRunsResult> => {
     const response = await fetchPreviewRunsShared({
         projectId,
@@ -63,7 +63,7 @@ const fetchPreviewRuns = async ({
         references,
         flags,
         statuses,
-        evaluationKind,
+        evaluationTypes,
         windowing,
     })
 
@@ -294,7 +294,10 @@ export const fetchEvaluationRunsWindow = async ({
         evaluationKind === "all" && evaluationTypeFilters && evaluationTypeFilters.length
             ? new Set<ConcreteEvaluationRunKind>(evaluationTypeFilters)
             : null
-    const normalizedKindForQuery = evaluationKind === "all" ? undefined : evaluationKind
+    const evaluationTypesPayload =
+        evaluationKind === "all" && allowedKinds && allowedKinds.size
+            ? Array.from(allowedKinds)
+            : null
     const windowingPayload: QueryWindowingPayload = {
         limit,
         order: "descending" as const,
@@ -315,7 +318,7 @@ export const fetchEvaluationRunsWindow = async ({
               references: previewReferences,
               flags: previewFlags,
               statuses: statusFilters && statusFilters.length ? statusFilters : undefined,
-              evaluationKind: normalizedKindForQuery,
+              evaluationTypes: evaluationTypesPayload,
               windowing: windowingPayload,
           })
         : {runs: [], count: 0, windowing: null}

@@ -4,7 +4,6 @@ import {atomFamily, selectAtom} from "jotai/utils"
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {loadableScenarioStepFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedScenarios"
 import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
-import type {PreviewTestCase} from "@/oss/lib/Types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"
 import {previewEvalTypeAtom} from "../state/evalType"
@@ -13,7 +12,6 @@ import {resolveInvocationTraceValue} from "../utils/traceValue"
 import {
     resolveGenericStepValueByPath,
     resolveInputStepValueByPath,
-    resolveTestcaseValueByPath,
     resolveValueBySegments,
     splitPath,
 } from "../utils/valueAccess"

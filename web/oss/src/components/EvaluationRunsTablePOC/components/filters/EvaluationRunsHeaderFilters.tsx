@@ -20,12 +20,11 @@ import {
     evaluationRunsSearchInputAtom,
     evaluationRunsVariantOptionsAtom,
     evaluationRunsStatusFiltersAtom,
-    evaluationRunsFlagToggleAtom,
     evaluationRunsFiltersButtonStateAtom,
     evaluationRunsTypeFiltersAtom,
     evaluationRunsDateRangeAtom,
 } from "../../atoms/view"
-import {STATUS_OPTIONS, type FlagKey, EVALUATION_KIND_LABELS} from "../../constants"
+import {STATUS_OPTIONS, EVALUATION_KIND_LABELS} from "../../constants"
 import type {ConcreteEvaluationRunKind} from "../../types"
 import {buildTestsetOptions} from "../../utils/testsetOptions"
 
@@ -41,7 +40,6 @@ type ChipKind =
     | "app"
     | "variant"
     | "testset"
-    | "flag"
     | "evaluationType"
     | "dateRange"
 
@@ -136,7 +134,6 @@ const FiltersSummary = () => {
     const setReferenceFilters = useSetAtom(evaluationRunsReferenceFiltersAtom)
     const setEvaluationTypeFilters = useSetAtom(evaluationRunsTypeFiltersAtom)
     const setDateRange = useSetAtom(evaluationRunsDateRangeAtom)
-    const toggleFlag = useSetAtom(evaluationRunsFlagToggleAtom)
 
     const statusLabels = useMemo(() => optionMap(STATUS_OPTIONS), [])
     const evaluatorLabels = useMemo(
@@ -166,10 +163,6 @@ const FiltersSummary = () => {
     )
     const testsetLabels = useMemo(() => optionMap(testsetOptions), [testsetOptions])
 
-    const lockedFlagSet = useMemo(
-        () => new Set(summary.lockedFlagKeys ?? []),
-        [summary.lockedFlagKeys],
-    )
     const lockedReferenceSets = useMemo(
         () => ({
             testset: new Set(summary.lockedReferenceFilters?.testset ?? []),
@@ -305,24 +298,6 @@ const FiltersSummary = () => {
             testsetsLoading,
         )
 
-        const flagChips = Object.entries(summary.mergedFlags ?? {})
-            .filter(([, value]) => value === true)
-            .map(([key]) => ({
-                value: key,
-                label: key
-                    .replace(/^is[_-]?/, "")
-                    .replace(/_/g, " ")
-                    .replace(/\b\w/g, (char) => char.toUpperCase()),
-                closable: !lockedFlagSet.has(key),
-            }))
-        if (flagChips.length) {
-            result.push({
-                label: "Flags",
-                kind: "flag",
-                chips: flagChips,
-            })
-        }
-
         return result
     }, [
         summary,
@@ -332,7 +307,6 @@ const FiltersSummary = () => {
         appLabels,
         variantLabels,
         testsetLabels,
-        lockedFlagSet,
         lockedReferenceSets,
         evaluationTypeLabels,
         evaluationKindLocked,
@@ -372,10 +346,6 @@ const FiltersSummary = () => {
             case "evaluationType": {
                 const next = summary.evaluationTypeFilters.filter((type) => type !== value)
                 setEvaluationTypeFilters(next as ConcreteEvaluationRunKind[])
-                break
-            }
-            case "flag": {
-                toggleFlag({flag: value as FlagKey, checked: false})
                 break
             }
             case "dateRange": {
