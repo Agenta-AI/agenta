@@ -14,6 +14,7 @@ from oss.src.core.evaluations.types import (
     EvaluationStatus,
     # EVALUATION RUN
     EvaluationRunFlags,
+    EvaluationRunQueryFlags,
     EvaluationRunDataMappingColumn,
     EvaluationRunDataMappingStep,
     EvaluationRunDataMapping,
@@ -2703,9 +2704,9 @@ class SimpleEvaluationsService:
         is_active: Optional[bool] = None,
     ) -> EvaluationRunFlags:
         return EvaluationRunFlags(
-            is_closed=is_closed,
-            is_live=is_live,
-            is_active=is_active,
+            is_closed=is_closed or False,
+            is_live=is_live or False,
+            is_active=is_active or False,
         )
 
     async def _make_evaluation_run_query(

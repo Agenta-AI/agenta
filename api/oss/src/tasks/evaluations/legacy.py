@@ -85,6 +85,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataStep,
     EvaluationRunData,
     EvaluationRunFlags,
+    EvaluationRunQueryFlags,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -257,7 +258,7 @@ async def setup_evaluation(
             #
             flags=(
                 EvaluationRunFlags(
-                    is_closed=None,
+                    is_closed=False,
                     is_live=True,
                     is_active=True,
                 )

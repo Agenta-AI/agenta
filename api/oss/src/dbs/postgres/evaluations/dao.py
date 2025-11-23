@@ -18,6 +18,7 @@ from oss.src.core.evaluations.types import EvaluationClosedConflict
 from oss.src.core.evaluations.types import (
     EvaluationStatus,
     EvaluationRunFlags,
+    EvaluationRunQueryFlags,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -47,6 +48,14 @@ from oss.src.core.evaluations.types import (
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
 from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.dbs.postgres.evaluations.utils import (
+    create_run_references,
+    edit_run_references,
+    query_run_references,
+    #
+    create_run_flags,
+    edit_run_flags,
+)
 from oss.src.dbs.postgres.evaluations.mappings import (
     create_dbe_from_dto,
     edit_dbe_from_dto,
@@ -88,23 +97,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             created_by_id=user_id,
         )
 
-        run_references: List[dict] = []
+        run_references = create_run_references(_run)
 
-        if _run and _run.data and _run.data.steps:
-            _references: Dict[str, dict] = {}
-
-            for step in _run.data.steps:
-                if not step.references:
-                    continue
-
-                for key, ref in step.references.items():
-                    _key = getattr(ref, "id", None) or key
-                    _references[_key] = ref.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    ) | {"key": str(key)}
-
-            run_references = list(_references.values())
+        run_flags = create_run_flags(_run)
 
         run_dbe = create_dbe_from_dto(
             DBE=EvaluationRunDBE,
@@ -112,6 +107,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             dto=_run,
             #
             references=run_references,
+            flags=run_flags,
         )
 
         if _run.data:
@@ -156,38 +152,20 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             for run in runs
         ]
 
-        runs_references: List[List[dict]] = []
-
-        for _run in _runs:
-            run_references: List[dict] = []
-
-            if _run and _run.data and _run.data.steps:
-                _references: Dict[str, dict] = {}
-
-                for step in _run.data.steps:
-                    if not step.references:
-                        continue
-
-                    for key, ref in step.references.items():
-                        _key = getattr(ref, "id", None) or key
-                        _references[_key] = ref.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                        ) | {"key": str(key)}
-
-                run_references = list(_references.values())
-
-            runs_references.append(run_references)
-
         run_dbes = []
 
-        for i, _run in enumerate(_runs):
+        for _run in _runs:
+            run_references = create_run_references(_run)
+
+            run_flags = create_run_flags(_run)
+
             run_dbe = create_dbe_from_dto(
                 DBE=EvaluationRunDBE,
                 project_id=project_id,
                 dto=_run,
                 #
-                references=runs_references[i],
+                references=run_references,
+                flags=run_flags,
             )
 
             if _run.data:
@@ -316,30 +294,18 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     run_id=run.id,
                 )
 
-            run_references: List[dict] = []
+            run_references = edit_run_references(run)
 
-            if run and run.data and run.data.steps:
-                _references: Dict[str, dict] = {}
-
-                for step in run.data.steps:
-                    if not step.references:
-                        continue
-
-                    for key, ref in step.references.items():
-                        _key = getattr(ref, "id", None) or key
-                        _references[_key] = ref.model_dump(
-                            mode="json",
-                            exclude_none=True,
-                        ) | {"key": str(key)}
-
-                run_references = list(_references.values())
+            run_flags = edit_run_flags(run)
 
             run_dbe = edit_dbe_from_dto(
                 dbe=run_dbe,
                 dto=run,
                 updated_at=datetime.now(timezone.utc),
                 updated_by_id=user_id,
+                #
                 references=run_references,
+                flags=run_flags,
             )
 
             if run.data:
@@ -399,30 +365,18 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 if run is None:
                     continue
 
-                run_references: List[dict] = []
+                run_references = edit_run_references(run)
 
-                if run and run.data and run.data.steps:
-                    _references: Dict[str, dict] = {}
-
-                    for step in run.data.steps:
-                        if not step.references:
-                            continue
-
-                        for key, ref in step.references.items():
-                            _key = getattr(ref, "id", None) or key
-                            _references[_key] = ref.model_dump(
-                                mode="json",
-                                exclude_none=True,
-                            ) | {"key": str(key)}
-
-                    run_references = list(_references.values())
+                run_flags = edit_run_flags(run)
 
                 run_dbe = edit_dbe_from_dto(
                     dbe=run_dbe,
                     dto=run,
                     updated_at=datetime.now(timezone.utc),
                     updated_by_id=user_id,
+                    #
                     references=run_references,
+                    flags=run_flags,
                 )
 
                 if run.data:
@@ -543,7 +497,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if run_dbe.flags is None:
                 run_dbe.flags = EvaluationRunFlags().model_dump(  # type: ignore
                     mode="json",
-                    exclude_none=True,
                 )
 
             # run_dbe.flags["is_closed"] = True  # type: ignore
@@ -592,7 +545,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 if run_dbe.flags is None:
                     run_dbe.flags = EvaluationRunFlags().model_dump(  # type: ignore
                         mode="json",
-                        exclude_none=True,
                     )
 
                 # run_dbe.flags["is_closed"] = True  # type: ignore
@@ -643,7 +595,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if run_dbe.flags is None:
                 run_dbe.flags = EvaluationRunFlags().model_dump(  # type: ignore
                     mode="json",
-                    exclude_none=True,
                 )
 
             run_dbe.flags["is_closed"] = False  # type: ignore
@@ -692,7 +643,6 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                 if run_dbe.flags is None:
                     run_dbe.flags = EvaluationRunFlags().model_dump(  # type: ignore
                         mode="json",
-                        exclude_none=True,
                     )
 
                 run_dbe.flags["is_closed"] = False  # type: ignore
@@ -735,18 +685,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     )
 
                 if run.references is not None:
-                    run_references: List[dict] = list()
-
-                    for _references in run.references:
-                        for key, ref in _references.items():
-                            # _key = getattr(ref, "id", None) or key
-                            run_references.append(
-                                ref.model_dump(
-                                    mode="json",
-                                    exclude_none=True,
-                                )
-                                # | {"key": str(key)}
-                            )
+                    run_references = query_run_references(run)
 
                     stmt = stmt.filter(
                         EvaluationRunDBE.references.contains(run_references),
