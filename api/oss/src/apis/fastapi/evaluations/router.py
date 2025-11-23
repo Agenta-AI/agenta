@@ -19,7 +19,6 @@ from oss.src.core.evaluations.service import (
     EvaluationsService,
     SimpleEvaluationsService,
 )
-from oss.src.core.evaluations.types import EvaluationMetrics
 
 from oss.src.apis.fastapi.evaluations.models import (
     # EVALUATION RUNS
@@ -1320,7 +1319,7 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        metrics: List[EvaluationMetrics] = []
+        metrics = list()
 
         if run_ids:
             for _run_id in run_ids:
