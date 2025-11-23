@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 import dynamic from "next/dynamic"
-import {MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
+import {Copy, Download, FileText, MarkdownLogoIcon, TextAa} from "@phosphor-icons/react"
 import {Collapse, Radio, Space} from "antd"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
@@ -13,6 +13,7 @@ import {TOGGLE_MARKDOWN_VIEW} from "@/oss/components/Editor/plugins/markdown/com
 import EnhancedButton from "@/oss/components/Playground/assets/EnhancedButton"
 import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {JSSTheme} from "@/oss/lib/Types"
+import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
 const ImagePreview = dynamic(() => import("@/oss/components/Common/ImagePreview"), {ssr: false})
 
 type AccordionTreePanelProps = {
@@ -146,6 +147,13 @@ const AccordionTreePanel = ({
     }, [incomingValue])
     const isStringValue = typeof sanitizedValue === "string"
 
+    const downloadFile = useCallback((url: string) => {
+        const link = document.createElement("a")
+        link.href = url
+        link.download = ""
+        link.click()
+    }, [])
+
     const yamlOutput = useMemo(() => {
         if (
             segmentedValue === "yaml" &&
@@ -181,42 +189,6 @@ const AccordionTreePanel = ({
                                 overflowY: "auto",
                             }}
                         >
-                            {fileAttachments.length ? (
-                                <div className="border-b border-[#EAECF0] px-4 py-2 flex flex-col gap-1">
-                                    <span className="tracking-wide text-[#475467]">Files</span>
-                                    <div className="flex flex-wrap gap-2">
-                                        {fileAttachments.map((file, index) => (
-                                            <a
-                                                key={`${file.data}-${index}`}
-                                                href={file.data}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="text-[#0d62d8] max-w-[150px] truncate"
-                                                title={file.filename || `File ${index + 1}`}
-                                            >
-                                                {file.filename || `File ${index + 1}`}
-                                            </a>
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : null}
-                            {imageAttachments.length ? (
-                                <div className="border-b border-[#EAECF0] px-4 py-2 flex flex-col gap-1">
-                                    <span className="tracking-wide text-[#475467]">Images</span>
-                                    <div className="flex flex-wrap gap-2">
-                                        {imageAttachments.map((image, index) => (
-                                            <ImagePreview
-                                                key={`${image.data}-${index}`}
-                                                src={image.data}
-                                                isValidPreview={true}
-                                                alt={image.filename || `Image ${index + 1}`}
-                                                size={48}
-                                                className=""
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                            ) : null}
                             {isStringValue ? (
                                 <div className="p-2">
                                     <EditorWrapper
@@ -298,7 +270,68 @@ const AccordionTreePanel = ({
         )
     }
 
-    return collapse
+    return (
+        <>
+            {fileAttachments?.length || imageAttachments?.length ? (
+                <div className="flex flex-col gap-2 mb-4">
+                    <span className="tracking-wide">Attachments</span>
+                    <div className="flex flex-wrap gap-2">
+                        {(fileAttachments || [])?.map((file, index) => (
+                            <a
+                                key={`${file.data}-${index}`}
+                                className="group w-[80px] h-[60px] rounded border border-solid border-gray-200 bg-gray-100 px-2 pt-3 pb-2 hover:bg-gray-200 hover:scale-[1.02] cursor-pointer flex flex-col justify-between"
+                                href={file.data}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                <div className="w-full flex items-start gap-1">
+                                    <FileText size={16} className="shrink-0" />
+                                    <span className="text-[10px] truncate">
+                                        {file.filename || `File ${index + 1}`}
+                                    </span>
+                                </div>
+                                <div className="flex gap-1.5 shrink-0 invisible group-hover:visible">
+                                    <EnhancedButton
+                                        icon={<Download size={10} className="mb-[1px]" />}
+                                        size="small"
+                                        tooltipProps={{title: "Download"}}
+                                        className="!w-5 !h-5"
+                                        onClick={(e) => {
+                                            e.preventDefault()
+                                            downloadFile(file.data)
+                                        }}
+                                    />
+                                    <EnhancedButton
+                                        icon={<Copy size={10} className="mb-[1px]" />}
+                                        size="small"
+                                        tooltipProps={{title: "Copy URL"}}
+                                        className="!w-5 !h-5"
+                                        onClick={(e) => {
+                                            e.preventDefault()
+                                            copyToClipboard(file.data)
+                                        }}
+                                    />
+                                </div>
+                            </a>
+                        ))}
+
+                        {(imageAttachments || [])?.map((image, index) => (
+                            <ImagePreview
+                                key={`${image.data}-${index}`}
+                                src={image.data}
+                                isValidPreview={true}
+                                alt={image.filename || `Image ${index + 1}`}
+                                size={80}
+                                className=""
+                            />
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+
+            {collapse}
+        </>
+    )
 }
 
 export default AccordionTreePanel
