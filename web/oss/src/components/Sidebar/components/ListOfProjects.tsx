@@ -390,8 +390,8 @@ const ListOfProjects = ({
                 key,
                 disabled: !interactive,
                 label: (
-                    <div className="flex items-center gap-2">
-                        <span>{proj.project_name}</span>
+                    <div className="flex items-center gap-2 w-full max-w-[300px]">
+                        <span className="truncate">{proj.project_name}</span>
                         {proj.is_default_project && (
                             <Tag className="bg-[#0517290F] m-0">Default</Tag>
                         )}
