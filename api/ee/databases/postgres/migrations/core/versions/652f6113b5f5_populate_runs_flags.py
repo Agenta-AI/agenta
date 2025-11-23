@@ -98,6 +98,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    conn = op.get_bind()
-    # Simple downgrade, same style as the references migration
-    conn.execute(sa.text("UPDATE evaluation_runs SET flags = NULL"))
+    pass
