@@ -13,7 +13,7 @@ const abortControllers = new Map<string, AbortController>()
 const isFileReference = (value: string) => {
     if (!value) return false
     if (/^https?:\/\//i.test(value)) return true
-    return value.startsWith("file_")
+    return value.startsWith("file_") || value.startsWith("file-")
 }
 
 const stripFileMetadataForUrlAttachments = (messages: any[]) => {
@@ -36,7 +36,6 @@ const applyModelAttachmentRules = (variant: EnhancedVariant, requestBody: Record
         stripFileMetadataForUrlAttachments(requestBody.messages)
     }
 }
-
 
 async function runVariantInputRow(payload: {
     variant: EnhancedVariant
