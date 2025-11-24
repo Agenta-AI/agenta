@@ -405,9 +405,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                     {/* Reference lines */}
                                     {typeof extraDimensions.mean === "number" &&
                                         (() => {
-                                            const meanDisplay = format3Sig(
-                                                extraDimensions.mean,
-                                            )
+                                            const meanDisplay = format3Sig(extraDimensions.mean)
                                             const labelText = `μ=${meanDisplay}`
                                             const approxCharWidth = 7
                                             const labelWidth = Math.max(
@@ -420,10 +418,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                     margin.left +
                                                     xScaleVertical(extraDimensions.mean)
                                                 const badgeX = Math.min(
-                                                    Math.max(
-                                                        margin.left,
-                                                        lineX - labelWidth / 2,
-                                                    ),
+                                                    Math.max(margin.left, lineX - labelWidth / 2),
                                                     margin.left + plotWidth - labelWidth,
                                                 )
                                                 const badgeY = Math.max(
@@ -453,11 +448,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         />
                                                         <text
                                                             x={badgeX + labelWidth / 2}
-                                                            y={
-                                                                badgeY +
-                                                                labelHeight / 2 +
-                                                                0.5
-                                                            }
+                                                            y={badgeY + labelHeight / 2 + 0.5}
                                                             fill={MEAN_LINE_COLOR}
                                                             fontSize="11"
                                                             fontWeight={600}
@@ -470,21 +461,13 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                 )
                                             }
                                             const lineY =
-                                                margin.top +
-                                                yScaleHorizontal(extraDimensions.mean)
+                                                margin.top + yScaleHorizontal(extraDimensions.mean)
                                             const labelCenterY = Math.min(
-                                                Math.max(
-                                                    lineY,
-                                                    margin.top + labelHeight / 2 + 2,
-                                                ),
-                                                margin.top +
-                                                    plotHeight -
-                                                    labelHeight / 2 -
-                                                    2,
+                                                Math.max(lineY, margin.top + labelHeight / 2 + 2),
+                                                margin.top + plotHeight - labelHeight / 2 - 2,
                                             )
                                             const badgeY = labelCenterY - labelHeight / 2
-                                            const desiredBadgeX =
-                                                margin.left + plotWidth + 12
+                                            const desiredBadgeX = margin.left + plotWidth + 12
                                             const badgeX = Math.min(
                                                 svgWidth - labelWidth - 4,
                                                 desiredBadgeX,
@@ -500,7 +483,9 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         strokeWidth={2}
                                                         strokeDasharray="4 4"
                                                     />
-                                                    <g transform={`translate(${badgeX}, ${badgeY})`}>
+                                                    <g
+                                                        transform={`translate(${badgeX}, ${badgeY})`}
+                                                    >
                                                         <rect
                                                             width={labelWidth}
                                                             height={labelHeight}

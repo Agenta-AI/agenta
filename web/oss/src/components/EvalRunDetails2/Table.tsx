@@ -174,6 +174,10 @@ const EvalRunDetailsTable = ({
             if (!targetRunId) return
 
             const focusTarget = {focusRunId: targetRunId, focusScenarioId: scenarioId}
+            if (process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true") {
+                // eslint-disable-next-line no-console
+                console.info("[EvalRunDetails2][Table] row click", {focusTarget, record})
+            }
 
             setFocusDrawerTarget(focusTarget)
             openFocusDrawer(focusTarget)
@@ -213,7 +217,11 @@ const EvalRunDetailsTable = ({
                         tableLayout: "fixed",
                         scroll: {x: "max-content"},
                         onRow: (record) => ({
-                            onClick: () => handleRowClick(record as TableRowData),
+                            onClick: (event) => {
+                                const target = event.target as HTMLElement | null
+                                if (target?.closest("[data-ivt-stop-row-click]")) return
+                                handleRowClick(record as TableRowData)
+                            },
                             className: clsx({
                                 "comparison-row": record.isComparisonRow,
                             }),

@@ -587,12 +587,6 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                             },
                         )
 
-                        console.log("evaluationMetricBatcherFamily", {
-                            projectId,
-                            effectiveRunId,
-                            scenarioIds: unique,
-                            response,
-                        })
                         return Array.isArray(response.data?.metrics) ? response.data.metrics : []
                     }
 
@@ -650,19 +644,6 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                             cleanupPerformed = cleanupPerformed || retryCleanupPerformed
                         }
 
-                        if (process.env.NODE_ENV !== "production") {
-                            console.debug("[EvalRunDetails2] Scenario metrics refresh state", {
-                                projectId,
-                                runId: effectiveRunId,
-                                cleanupPerformed,
-                                refreshed: flushResult.refreshed,
-                                staleMetricIds: flushResult.staleMetricIds,
-                                refreshedScenarioIds: flushResult.refreshedScenarioIds,
-                                missingScenarioIdsAfterAttempts:
-                                    flushResult.missingScenarioIdsAfterAttempts,
-                            })
-                        }
-
                         return grouped
                     }
 
@@ -697,7 +678,6 @@ export const evaluationMetricQueryAtomFamily = atomFamily(
                         throw new Error("Metric batcher is not initialised")
                     }
                     const value = await batcher(scenarioId)
-                    console.log("evaluationMetricQueryAtomFamily", {runId, scenarioId, value})
                     return value ?? null
                 },
             }

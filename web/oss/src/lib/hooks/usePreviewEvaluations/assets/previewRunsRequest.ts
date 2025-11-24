@@ -93,7 +93,9 @@ const buildPayload = ({
     const payload: Record<string, any> = {}
     const runPayload: Record<string, any> = {}
     const normalizedReferences = Array.isArray(references)
-        ? references.filter((entry): entry is Record<string, any> => !!entry && Object.keys(entry).length > 0)
+        ? references.filter(
+              (entry): entry is Record<string, any> => !!entry && Object.keys(entry).length > 0,
+          )
         : []
     if (normalizedReferences.length) {
         runPayload.references = normalizedReferences

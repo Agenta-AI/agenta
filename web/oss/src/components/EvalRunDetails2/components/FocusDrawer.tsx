@@ -4,11 +4,12 @@ import {isValidElement} from "react"
 import {Skeleton, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
+import MetricDetailsPreviewPopover from "@/oss/components/evaluations/components/MetricDetailsPreviewPopover"
 import GenericDrawer from "@/oss/components/GenericDrawer"
 
 import ReadOnlyBox from "../../pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
 import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../atoms/runDerived"
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import type {
     ColumnValueDescriptor,
     EvaluationTableColumn,
@@ -33,7 +34,6 @@ import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricForm
 
 import FocusDrawerHeader from "./FocusDrawerHeader"
 import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
-import MetricDetailsPreviewPopover from "@/oss/components/evaluations/components/MetricDetailsPreviewPopover"
 import {VariantReferenceChip, TestsetChipList} from "./reference"
 
 const SECTION_CARD_CLASS = "rounded-xl border border-[#EAECF0] bg-white"
@@ -167,21 +167,6 @@ const RunMetricValue = memo(
 
         const valueToFormat = scenarioHasValue ? scenarioMetric.value : runScalar
         const resolvedValue = scenarioHasValue ? scenarioMetric.value : (runStats ?? runScalar)
-
-        if (process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" && typeof window !== "undefined") {
-            console.info("[EvalRunDetails2][FocusDrawer][RunMetric]", {
-                scenarioId,
-                runId,
-                columnId: column.id,
-                columnLabel: column.displayLabel ?? column.label,
-                metricKey: descriptor.metricKey,
-                metricPath: descriptor.path,
-                scenarioHasValue,
-                scenarioValueShape: typeof scenarioMetric.value,
-                runSelectionState: runSelection.state,
-                runResolvedKey: runSelection.resolvedKey,
-            })
-        }
 
         const formattedValue =
             valueToFormat === undefined || valueToFormat === null
@@ -538,6 +523,7 @@ const FocusDrawer = () => {
             onClose={handleClose}
             afterOpenChange={handleAfterOpenChange}
             expandable
+            closeOnLayoutClick={false}
             className="[&_.ant-drawer-body]:p-0 [&_.ant-drawer-body]:bg-[#F8FAFC]"
             sideContentDefaultSize={240}
             headerExtra={

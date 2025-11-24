@@ -101,7 +101,8 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
         const highlightGradientId = `${gradientBaseId}-highlight`
         const resolveBarGradientId = (index: number) =>
             `${gradientBaseId}-bar-${index % FREQUENCY_GRADIENTS.length}`
-        const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+        const clamp = (value: number, min: number, max: number) =>
+            Math.min(Math.max(value, min), max)
         const TOOLTIP_WIDTH = 160
         const TOOLTIP_HEIGHT = 52
 
@@ -115,9 +116,11 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                         const barHeightHorizontal = plotHeight / yCount - 6
                         const xScaleHorizontal = (count: number) => (count / xMax) * plotWidth
 
-                        const xLabelScaleVertical = (idx: number) => (idx + 0.5) * (plotWidth / yCount)
+                        const xLabelScaleVertical = (idx: number) =>
+                            (idx + 0.5) * (plotWidth / yCount)
                         const barWidthVertical = plotWidth / yCount - 6
-                        const yScaleVertical = (value: number) => ((xMax - value) / xMax) * plotHeight
+                        const yScaleVertical = (value: number) =>
+                            ((xMax - value) / xMax) * plotHeight
 
                         const resolveFill = (index: number, isHighlighted: boolean): string => {
                             if (isHighlighted) {
@@ -135,171 +138,234 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
 
                         return (
                             <>
-                            <svg
-                                width={svgWidth}
-                                height={svgHeight}
-                                style={{
-                                    position: "relative",
-                                    zIndex: 1,
-                                    margin: 0,
-                                    padding: 0,
-                                    display: "block",
-                                }}
-                            >
-                                {/* Bar gradient defs */}
-                                <defs>
-                                    {!disableGradient && (
-                                        <>
-                                            {barColor ? (
-                                                <linearGradient
-                                                    id={customGradientId}
-                                                    x1="0%"
-                                                    y1="100%"
-                                                    x2="100%"
-                                                    y2="0%"
-                                                >
-                                                    <stop offset="0%" stopColor={barColor} />
-                                                    <stop offset="100%" stopColor={barColor} />
-                                                </linearGradient>
-                                            ) : (
-                                                FREQUENCY_GRADIENTS.map(([from, to], idx) => (
+                                <svg
+                                    width={svgWidth}
+                                    height={svgHeight}
+                                    style={{
+                                        position: "relative",
+                                        zIndex: 1,
+                                        margin: 0,
+                                        padding: 0,
+                                        display: "block",
+                                    }}
+                                >
+                                    {/* Bar gradient defs */}
+                                    <defs>
+                                        {!disableGradient && (
+                                            <>
+                                                {barColor ? (
                                                     <linearGradient
-                                                        key={`${gradientBaseId}-bar-${idx}`}
-                                                        id={`${gradientBaseId}-bar-${idx}`}
+                                                        id={customGradientId}
                                                         x1="0%"
                                                         y1="100%"
                                                         x2="100%"
                                                         y2="0%"
                                                     >
-                                                        <stop offset="0%" stopColor={from} />
-                                                        <stop offset="100%" stopColor={to} />
+                                                        <stop offset="0%" stopColor={barColor} />
+                                                        <stop offset="100%" stopColor={barColor} />
                                                     </linearGradient>
-                                                ))
-                                            )}
-                                            <linearGradient
-                                                id={highlightGradientId}
-                                                x1="0%"
-                                                y1="100%"
-                                                x2="100%"
-                                                y2="0%"
-                                            >
-                                                <stop offset="0%" stopColor="#CFFAFE" />
-                                                <stop offset="100%" stopColor="#06B6D4" />
-                                            </linearGradient>
-                                        </>
-                                    )}
-                                </defs>
+                                                ) : (
+                                                    FREQUENCY_GRADIENTS.map(([from, to], idx) => (
+                                                        <linearGradient
+                                                            key={`${gradientBaseId}-bar-${idx}`}
+                                                            id={`${gradientBaseId}-bar-${idx}`}
+                                                            x1="0%"
+                                                            y1="100%"
+                                                            x2="100%"
+                                                            y2="0%"
+                                                        >
+                                                            <stop offset="0%" stopColor={from} />
+                                                            <stop offset="100%" stopColor={to} />
+                                                        </linearGradient>
+                                                    ))
+                                                )}
+                                                <linearGradient
+                                                    id={highlightGradientId}
+                                                    x1="0%"
+                                                    y1="100%"
+                                                    x2="100%"
+                                                    y2="0%"
+                                                >
+                                                    <stop offset="0%" stopColor="#CFFAFE" />
+                                                    <stop offset="100%" stopColor="#06B6D4" />
+                                                </linearGradient>
+                                            </>
+                                        )}
+                                    </defs>
 
-                                {/* Grid and highlight lines */}
-                                {isVertical ? (
-                                    <g>
-                                        {xTicks.map((tick, idx) => (
-                                            <line
-                                                key={`grid-vertical-${idx}`}
-                                                x1={margin.left}
-                                                y1={margin.top + yScaleVertical(tick)}
-                                                x2={margin.left + plotWidth}
-                                                y2={margin.top + yScaleVertical(tick)}
-                                                stroke="#f0f0f0"
-                                                strokeWidth={1}
-                                            />
-                                        ))}
-                                        {highlightValues.map((val, i) => {
-                                            const idx = data.findIndex(
-                                                (d) =>
-                                                    typeof d.label === "number" && d.label === val,
-                                            )
-                                            if (idx === -1) return null
-                                            return (
+                                    {/* Grid and highlight lines */}
+                                    {isVertical ? (
+                                        <g>
+                                            {xTicks.map((tick, idx) => (
                                                 <line
-                                                    key={"highlight-value-" + val + "-" + i}
+                                                    key={`grid-vertical-${idx}`}
                                                     x1={margin.left}
-                                                    y1={margin.top + yScaleVertical(val as number)}
+                                                    y1={margin.top + yScaleVertical(tick)}
                                                     x2={margin.left + plotWidth}
-                                                    y2={margin.top + yScaleVertical(val as number)}
-                                                    stroke="#faad14"
-                                                    strokeWidth={2}
-                                                    strokeDasharray="4 2"
+                                                    y2={margin.top + yScaleVertical(tick)}
+                                                    stroke="#f0f0f0"
+                                                    strokeWidth={1}
                                                 />
-                                            )
-                                        })}
-                                    </g>
-                                ) : (
-                                    <g>
-                                        {xTicks.map((tick, idx) => (
-                                            <line
-                                                key={`grid-horizontal-${idx}`}
-                                                x1={margin.left + xScaleHorizontal(tick)}
-                                                y1={margin.top}
-                                                x2={margin.left + xScaleHorizontal(tick)}
-                                                y2={margin.top + plotHeight}
-                                                stroke="#f0f0f0"
-                                                strokeWidth={1}
-                                            />
-                                        ))}
-                                        {highlightValues.map((val, i) => {
-                                            const idx = data.findIndex(
-                                                (d) =>
-                                                    typeof d.label === "number" && d.label === val,
-                                            )
-                                            if (idx === -1) return null
-                                            return (
+                                            ))}
+                                            {highlightValues.map((val, i) => {
+                                                const idx = data.findIndex(
+                                                    (d) =>
+                                                        typeof d.label === "number" &&
+                                                        d.label === val,
+                                                )
+                                                if (idx === -1) return null
+                                                return (
+                                                    <line
+                                                        key={"highlight-value-" + val + "-" + i}
+                                                        x1={margin.left}
+                                                        y1={
+                                                            margin.top +
+                                                            yScaleVertical(val as number)
+                                                        }
+                                                        x2={margin.left + plotWidth}
+                                                        y2={
+                                                            margin.top +
+                                                            yScaleVertical(val as number)
+                                                        }
+                                                        stroke="#faad14"
+                                                        strokeWidth={2}
+                                                        strokeDasharray="4 2"
+                                                    />
+                                                )
+                                            })}
+                                        </g>
+                                    ) : (
+                                        <g>
+                                            {xTicks.map((tick, idx) => (
                                                 <line
-                                                    key={"highlight-value-" + val + "-" + i}
-                                                    x1={
-                                                        margin.left +
-                                                        xScaleHorizontal(val as number)
-                                                    }
+                                                    key={`grid-horizontal-${idx}`}
+                                                    x1={margin.left + xScaleHorizontal(tick)}
                                                     y1={margin.top}
-                                                    x2={
-                                                        margin.left +
-                                                        xScaleHorizontal(val as number)
-                                                    }
+                                                    x2={margin.left + xScaleHorizontal(tick)}
                                                     y2={margin.top + plotHeight}
-                                                    stroke="#faad14"
-                                                    strokeWidth={2}
-                                                    strokeDasharray="4 2"
+                                                    stroke="#f0f0f0"
+                                                    strokeWidth={1}
                                                 />
-                                            )
-                                        })}
-                                    </g>
-                                )}
+                                            ))}
+                                            {highlightValues.map((val, i) => {
+                                                const idx = data.findIndex(
+                                                    (d) =>
+                                                        typeof d.label === "number" &&
+                                                        d.label === val,
+                                                )
+                                                if (idx === -1) return null
+                                                return (
+                                                    <line
+                                                        key={"highlight-value-" + val + "-" + i}
+                                                        x1={
+                                                            margin.left +
+                                                            xScaleHorizontal(val as number)
+                                                        }
+                                                        y1={margin.top}
+                                                        x2={
+                                                            margin.left +
+                                                            xScaleHorizontal(val as number)
+                                                        }
+                                                        y2={margin.top + plotHeight}
+                                                        stroke="#faad14"
+                                                        strokeWidth={2}
+                                                        strokeDasharray="4 2"
+                                                    />
+                                                )
+                                            })}
+                                        </g>
+                                    )}
 
-                                {/* Bars */}
-                                <g>
-                                    {data.map((d, idx) => {
-                                        const isHighlighted =
-                                            computedHighlightBarIndices.includes(idx)
-                                        if (isVertical) {
-                                            const barX =
-                                                margin.left +
-                                                xLabelScaleVertical(idx) -
-                                                barWidthVertical / 2
-                                            const barHeight = plotHeight - yScaleVertical(d.count)
+                                    {/* Bars */}
+                                    <g>
+                                        {data.map((d, idx) => {
+                                            const isHighlighted =
+                                                computedHighlightBarIndices.includes(idx)
+                                            if (isVertical) {
+                                                const barX =
+                                                    margin.left +
+                                                    xLabelScaleVertical(idx) -
+                                                    barWidthVertical / 2
+                                                const barHeight =
+                                                    plotHeight - yScaleVertical(d.count)
+                                                return (
+                                                    <rect
+                                                        key={idx}
+                                                        x={barX}
+                                                        y={margin.top + yScaleVertical(d.count)}
+                                                        width={barWidthVertical}
+                                                        height={barHeight}
+                                                        fill={resolveFill(idx, isHighlighted)}
+                                                        strokeWidth={0}
+                                                        className={clsx(
+                                                            "frequency-bar cursor-pointer",
+                                                            "[clip-path:inset(-4px_0_0_0_round_4px_4px_0_0)]",
+                                                        )}
+                                                        onMouseEnter={() => {
+                                                            setHoveredBar(idx)
+                                                            setMousePos({
+                                                                x:
+                                                                    margin.left +
+                                                                    xLabelScaleVertical(idx),
+                                                                y:
+                                                                    margin.top +
+                                                                    yScaleVertical(d.count),
+                                                            })
+                                                        }}
+                                                        onMouseMove={() => {
+                                                            setMousePos({
+                                                                x:
+                                                                    margin.left +
+                                                                    xLabelScaleVertical(idx),
+                                                                y:
+                                                                    margin.top +
+                                                                    yScaleVertical(d.count),
+                                                            })
+                                                        }}
+                                                        onMouseLeave={() => {
+                                                            setHoveredBar(null)
+                                                            setMousePos(null)
+                                                        }}
+                                                    />
+                                                )
+                                            }
+
                                             return (
                                                 <rect
                                                     key={idx}
-                                                    x={barX}
-                                                    y={margin.top + yScaleVertical(d.count)}
-                                                    width={barWidthVertical}
-                                                    height={barHeight}
+                                                    x={margin.left}
+                                                    y={
+                                                        margin.top +
+                                                        yLabelScaleHorizontal(idx) -
+                                                        barHeightHorizontal / 2
+                                                    }
+                                                    width={xScaleHorizontal(d.count)}
+                                                    height={barHeightHorizontal}
                                                     fill={resolveFill(idx, isHighlighted)}
                                                     strokeWidth={0}
                                                     className={clsx(
                                                         "frequency-bar cursor-pointer",
-                                                        "[clip-path:inset(-4px_0_0_0_round_4px_4px_0_0)]",
+                                                        "[clip-path:inset(0_0_0_-4px_round_0_4px_4px_0)]",
                                                     )}
                                                     onMouseEnter={() => {
                                                         setHoveredBar(idx)
                                                         setMousePos({
-                                                            x: margin.left + xLabelScaleVertical(idx),
-                                                            y: margin.top + yScaleVertical(d.count),
+                                                            x:
+                                                                margin.left +
+                                                                xScaleHorizontal(d.count),
+                                                            y:
+                                                                margin.top +
+                                                                yLabelScaleHorizontal(idx),
                                                         })
                                                     }}
                                                     onMouseMove={() => {
                                                         setMousePos({
-                                                            x: margin.left + xLabelScaleVertical(idx),
-                                                            y: margin.top + yScaleVertical(d.count),
+                                                            x:
+                                                                margin.left +
+                                                                xScaleHorizontal(d.count),
+                                                            y:
+                                                                margin.top +
+                                                                yLabelScaleHorizontal(idx),
                                                         })
                                                     }}
                                                     onMouseLeave={() => {
@@ -308,124 +374,86 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                     }}
                                                 />
                                             )
-                                        }
+                                        })}
+                                    </g>
 
-                                        return (
-                                            <rect
-                                                key={idx}
-                                                x={margin.left}
-                                                y={
-                                                    margin.top +
-                                                    yLabelScaleHorizontal(idx) -
-                                                    barHeightHorizontal / 2
-                                                }
-                                                width={xScaleHorizontal(d.count)}
-                                                height={barHeightHorizontal}
-                                                fill={resolveFill(idx, isHighlighted)}
-                                                strokeWidth={0}
-                                                className={clsx(
-                                                    "frequency-bar cursor-pointer",
-                                                    "[clip-path:inset(0_0_0_-4px_round_0_4px_4px_0)]",
-                                                )}
-                                                onMouseEnter={() => {
-                                                    setHoveredBar(idx)
-                                                    setMousePos({
-                                                        x: margin.left + xScaleHorizontal(d.count),
-                                                        y: margin.top + yLabelScaleHorizontal(idx),
-                                                    })
-                                                }}
-                                                onMouseMove={() => {
-                                                    setMousePos({
-                                                        x: margin.left + xScaleHorizontal(d.count),
-                                                        y: margin.top + yLabelScaleHorizontal(idx),
-                                                    })
-                                                }}
-                                                onMouseLeave={() => {
-                                                    setHoveredBar(null)
-                                                    setMousePos(null)
-                                                }}
-                                            />
-                                        )
-                                    })}
-                                </g>
+                                    {/* Axes */}
+                                    {isVertical ? (
+                                        <ChartAxis
+                                            svgWidth={svgWidth}
+                                            svgHeight={svgHeight}
+                                            plotWidth={plotWidth}
+                                            plotHeight={plotHeight}
+                                            margin={margin}
+                                            xLabels={yLabels}
+                                            yTicks={xTicks}
+                                            xScale={(idx) => xLabelScaleVertical(idx)}
+                                            yScale={yScaleVertical}
+                                        />
+                                    ) : (
+                                        <ChartAxis
+                                            svgWidth={svgWidth}
+                                            svgHeight={svgHeight}
+                                            plotWidth={plotWidth}
+                                            plotHeight={plotHeight}
+                                            margin={margin}
+                                            xLabels={xTicks}
+                                            yLabels={yLabels}
+                                            yLabelScale={yLabelScaleHorizontal}
+                                            xScale={(idx) => xScaleHorizontal(xTicks[idx])}
+                                            yScale={() => 0}
+                                        />
+                                    )}
+                                </svg>
 
-                                {/* Axes */}
-                                {isVertical ? (
-                                    <ChartAxis
-                                        svgWidth={svgWidth}
-                                        svgHeight={svgHeight}
-                                        plotWidth={plotWidth}
-                                        plotHeight={plotHeight}
-                                        margin={margin}
-                                        xLabels={yLabels}
-                                        yTicks={xTicks}
-                                        xScale={(idx) => xLabelScaleVertical(idx)}
-                                        yScale={yScaleVertical}
-                                    />
-                                ) : (
-                                    <ChartAxis
-                                        svgWidth={svgWidth}
-                                        svgHeight={svgHeight}
-                                        plotWidth={plotWidth}
-                                        plotHeight={plotHeight}
-                                        margin={margin}
-                                        xLabels={xTicks}
-                                        yLabels={yLabels}
-                                        yLabelScale={yLabelScaleHorizontal}
-                                        xScale={(idx) => xScaleHorizontal(xTicks[idx])}
-                                        yScale={() => 0}
-                                    />
-                                )}
-                            </svg>
-
-                            {/* Tooltip rendered outside SVG, absolutely positioned */}
-                            {hoveredBar !== null && data[hoveredBar] && mousePos && (
-                                <div
-                                    className="pointer-events-none z-50 absolute rounded-xl border border-[#d0d7e3]/80 bg-white/90 px-3 py-2 text-xs text-gray-900 shadow-[0_6px_18px_rgba(15,23,42,0.12)] backdrop-blur-sm"
-                                    style={{
-                                        left: clamp(
-                                            mousePos.x + 10,
-                                            margin.left,
-                                            margin.left + plotWidth - TOOLTIP_WIDTH,
-                                        ),
-                                        top: clamp(
-                                            mousePos.y - TOOLTIP_HEIGHT / 2,
-                                            margin.top - 8,
-                                            margin.top + plotHeight - TOOLTIP_HEIGHT - 8,
-                                        ),
-                                        width: TOOLTIP_WIDTH,
-                                    }}
-                                    role="tooltip"
-                                    aria-live="polite"
-                                >
-                                    {/* Caret */}
+                                {/* Tooltip rendered outside SVG, absolutely positioned */}
+                                {hoveredBar !== null && data[hoveredBar] && mousePos && (
                                     <div
+                                        className="pointer-events-none z-50 absolute rounded-xl border border-[#d0d7e3]/80 bg-white/90 px-3 py-2 text-xs text-gray-900 shadow-[0_6px_18px_rgba(15,23,42,0.12)] backdrop-blur-sm"
                                         style={{
-                                            position: "absolute",
-                                            left: 4,
-                                            top: "100%",
-                                            width: 0,
-                                            height: 0,
-                                            borderLeft: "7px solid transparent",
-                                            borderRight: "7px solid transparent",
-                                            borderTop: "7px solid #d1d5db",
+                                            left: clamp(
+                                                mousePos.x + 10,
+                                                margin.left,
+                                                margin.left + plotWidth - TOOLTIP_WIDTH,
+                                            ),
+                                            top: clamp(
+                                                mousePos.y - TOOLTIP_HEIGHT / 2,
+                                                margin.top - 8,
+                                                margin.top + plotHeight - TOOLTIP_HEIGHT - 8,
+                                            ),
+                                            width: TOOLTIP_WIDTH,
                                         }}
-                                    />
-                                    <div className="mb-1">
-                                        <span className="text-[10px] uppercase tracking-wide text-gray-400">
-                                            Label
-                                        </span>
-                                        <span className="ml-2 inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                                            {String(data[hoveredBar].label)}
-                                        </span>
+                                        role="tooltip"
+                                        aria-live="polite"
+                                    >
+                                        {/* Caret */}
+                                        <div
+                                            style={{
+                                                position: "absolute",
+                                                left: 4,
+                                                top: "100%",
+                                                width: 0,
+                                                height: 0,
+                                                borderLeft: "7px solid transparent",
+                                                borderRight: "7px solid transparent",
+                                                borderTop: "7px solid #d1d5db",
+                                            }}
+                                        />
+                                        <div className="mb-1">
+                                            <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                                                Label
+                                            </span>
+                                            <span className="ml-2 inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                                {String(data[hoveredBar].label)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold">Count:</span>
+                                            <span>{data[hoveredBar].count}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="font-semibold">Count:</span>
-                                        <span>{data[hoveredBar].count}</span>
-                                    </div>
-                                </div>
-                            )}
-                        </>
+                                )}
+                            </>
                         )
                     }}
                 </ChartFrame>

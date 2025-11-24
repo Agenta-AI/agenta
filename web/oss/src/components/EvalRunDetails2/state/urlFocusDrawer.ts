@@ -14,6 +14,13 @@ import {
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
 
 const isBrowser = typeof window !== "undefined"
+const debugEnabled = process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true"
+
+const logDebug = (...args: any[]) => {
+    if (!debugEnabled) return
+    // eslint-disable-next-line no-console
+    console.info("[EvalRunDetails2][FocusDrawer][urlSync]", ...args)
+}
 
 export const FOCUS_SCENARIO_QUERY_KEY = "focusScenarioId"
 export const FOCUS_RUN_QUERY_KEY = "focusRunId"
@@ -52,6 +59,7 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
         const runId = rawRun?.trim() || undefined
 
         const currentState = store.get(focusDrawerAtom)
+        logDebug("sync from url", {nextUrl, scenarioId, runId, currentState})
 
         if (ensureCleanFocusParams(url)) {
             return
@@ -83,6 +91,7 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
             if (shouldReset) {
                 store.set(resetFocusDrawerAtom, null)
             }
+            logDebug("sync: no scenario, reset", {shouldReset, currentState})
             return
         }
 
@@ -97,9 +106,11 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
             currentState.focusRunId === nextTarget.focusRunId
 
         if (alreadyOpen && !currentState.isClosing) {
+            logDebug("sync: already open", {nextTarget})
             return
         }
 
+        logDebug("sync: opening", {nextTarget})
         store.set(setFocusDrawerTargetAtom, nextTarget)
         store.set(openFocusDrawerAtom, nextTarget)
     } catch (err) {
@@ -143,6 +154,8 @@ export const patchFocusDrawerQueryParams = ({focusRunId, focusScenarioId}: Focus
             open: true,
             isClosing: false,
         })
+        store.set(setFocusDrawerTargetAtom, nextTarget)
+        store.set(openFocusDrawerAtom, nextTarget)
 
         const url = new URL(window.location.href)
         url.searchParams.set(FOCUS_SCENARIO_QUERY_KEY, focusScenarioId)
@@ -152,9 +165,12 @@ export const patchFocusDrawerQueryParams = ({focusRunId, focusScenarioId}: Focus
             url.searchParams.delete(FOCUS_RUN_QUERY_KEY)
         }
         const newPath = `${url.pathname}${url.search}${url.hash}`
+        logDebug("patch params", {nextTarget, newPath})
         void Router.replace(newPath, undefined, {shallow: true}).catch((error) => {
             console.error("Failed to update focus drawer query params:", error)
         })
+        // Ensure local state reacts immediately, even if the router skips callbacks on shallow updates
+        syncFocusDrawerStateFromUrl(newPath)
     } catch (err) {
         console.error("Failed to update focus drawer query params:", err)
     }

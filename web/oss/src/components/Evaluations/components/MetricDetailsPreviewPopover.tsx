@@ -279,7 +279,7 @@ const MetricPopoverContent = ({
                         metricPath,
                         stepKey,
                     })
-                : idleRunMetricSelectionAtom,
+                  : idleRunMetricSelectionAtom,
         [prefetchedSelectionAtom, runId, metricKey, metricPath, stepKey, effectiveShouldLoad],
     )
 
@@ -370,8 +370,8 @@ const MetricPopoverContent = ({
                   typeof entry.value === "number"
                       ? entry.value
                       : Number.isFinite(Number(entry.value))
-                  ? Number(entry.value)
-                  : 0,
+                        ? Number(entry.value)
+                        : 0,
           }))
         : []
     const binSize =

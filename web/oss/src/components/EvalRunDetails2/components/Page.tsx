@@ -120,8 +120,6 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                     ]}
                 />
             </div>
-
-            <FocusDrawer />
         </div>
     )
 }

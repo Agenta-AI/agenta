@@ -15,7 +15,10 @@ import {
     runTestsetIdsAtomFamily,
     runUpdatedAtAtomFamily,
 } from "../../../../atoms/runDerived"
-import {evaluationRunIndexAtomFamily, evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
+import {
+    evaluationRunIndexAtomFamily,
+    evaluationRunQueryAtomFamily,
+} from "../../../../atoms/table/run"
 import type {
     QueryConditionPayload,
     QueryFilteringPayload,
@@ -24,7 +27,10 @@ import {ApplicationReferenceLabel, TestsetTagList, VariantReferenceLabel} from "
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
 import EvalNameTag from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/EvalNameTag"
-import {EVAL_BG_COLOR, EVAL_TAG_COLOR} from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/utils"
+import {
+    EVAL_BG_COLOR,
+    EVAL_TAG_COLOR,
+} from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/utils"
 import RenameEvalButton from "@/oss/components/EvalRunDetails/HumanEvalRun/components/Modals/RenameEvalModal/assets/RenameEvalButton"
 import {RunIdProvider} from "@/oss/contexts/RunIdContext"
 
@@ -187,9 +193,7 @@ const MetadataRunNameCell = memo(({runId, compareIndex}: MetadataCellProps) => {
 const LegacyTestsetsCell = memo(({runId, projectURL}: MetadataCellProps) => {
     const testsetAtom = useMemo(() => runTestsetIdsAtomFamily(runId), [runId])
     const testsetIds = useAtomValueWithSchedule(testsetAtom, {priority: LOW_PRIORITY}) ?? []
-    return (
-        <TestsetTagList ids={testsetIds} projectURL={projectURL ?? undefined} runId={runId} />
-    )
+    return <TestsetTagList ids={testsetIds} projectURL={projectURL ?? undefined} runId={runId} />
 })
 
 const ScenarioCountCell = ({runId}: MetadataCellProps) => {
@@ -449,7 +453,9 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
                             <span className="text-[#586673]">{evaluatorLabel}</span>
                             <div className="flex items-center gap-2">
                                 <span>{metric.displayLabel}</span>
-                                {hasMeanValue ? <span className="text-[#586673]">(mean)</span> : null}
+                                {hasMeanValue ? (
+                                    <span className="text-[#586673]">(mean)</span>
+                                ) : null}
                             </div>
                         </div>
                     ),

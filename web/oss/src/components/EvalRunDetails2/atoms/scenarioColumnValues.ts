@@ -550,18 +550,6 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                 const traceId = toTraceId(targetStep)
                 const pathSegments = descriptor.pathSegments
 
-                // if (
-                //     process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" &&
-                //     typeof window !== "undefined"
-                // ) {
-                //     console.debug("[EvalRunDetails2] invocation step context", {
-                //         scenarioId,
-                //         stepKey: column.stepKey,
-                //         resolvedTraceId: traceId,
-                //         stepTraceId: (targetStep as any)?.traceId ?? (targetStep as any)?.trace_id,
-                //     })
-                // }
-
                 let scenarioInvocationValue: unknown = undefined
                 if (scenarioData && column.stepKey) {
                     const invocationResponse = readInvocationResponse({
@@ -860,22 +848,6 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                                 metricKey: column.metricKey ?? column.valueKey ?? column.path,
                                 metricType: column.metricType,
                             })
-                if (
-                    process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true" &&
-                    typeof window !== "undefined"
-                ) {
-                    console.info("[EvalRunDetails2][AnnotationMetric] resolved value", {
-                        scenarioId,
-                        runId,
-                        columnId: column.id,
-                        metricKey: column.metricKey,
-                        selectedSource: selectedCandidate.source,
-                        shouldCoerceBoolean,
-                        normalizedBoolean,
-                        rawValueShape: summarizeDataShape(rawValue),
-                        metricCandidateAvailable: Boolean(metricCandidate),
-                    })
-                }
 
                 if (
                     (displaySource === undefined || displaySource === null) &&

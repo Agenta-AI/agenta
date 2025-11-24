@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import Router from "next/router"
 
 import {navigationRequestAtom, type NavigationCommand} from "@/oss/state/appState"
+import {legacyFocusDrawerEnabledAtom} from "@/oss/state/focusDrawerPreference"
 import {urlQuerySyncAtom} from "@/oss/state/url/test"
 
 const TraceDrawer = dynamic(
@@ -14,6 +15,11 @@ const TraceDrawer = dynamic(
 
 const EvalRunFocusDrawer = dynamic(
     () => import("@/oss/components/EvalRunDetails/AutoEvalRun/components/EvalRunFocusDrawer"),
+    {ssr: false},
+)
+
+const EvalRunFocusDrawerPreview = dynamic(
+    () => import("@/oss/components/EvalRunDetails2/components/FocusDrawer"),
     {ssr: false},
 )
 
@@ -165,12 +171,13 @@ const NavigationCommandListener = () => {
 }
 
 const AppGlobalWrappers = () => {
+    const legacyFocusDrawerEnabled = useAtomValue(legacyFocusDrawerEnabledAtom)
     useAtomValue(urlQuerySyncAtom)
     return (
         <>
             <NavigationCommandListener />
             <TraceDrawer />
-            <EvalRunFocusDrawer />
+            {legacyFocusDrawerEnabled ? <EvalRunFocusDrawer /> : <EvalRunFocusDrawerPreview />}
             <DeleteAppModalWrapper />
             <EditAppModalWrapper />
             <VariantDrawerWrapper />
