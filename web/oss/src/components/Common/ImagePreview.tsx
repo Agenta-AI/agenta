@@ -35,9 +35,29 @@ const ImagePreview = ({
 
     const isSafeImageSrc = (url: string) => {
         if (!url) return false
-        if (/^https?:\/\/[^ "]+$/i.test(url)) return true
-        if (url.startsWith("blob:")) return true
-        return /^data:image\/(png|jpe?g|gif|webp);base64,.+/i.test(url)
+        // Only allow valid https/http image URLs, blob URLs, or safe data:image URLs
+        try {
+            // Block javascript: and other schemes
+            const lower = url.toLowerCase().trim();
+            // Only allow https/http with proper image extensions
+            if (/^https?:\/\/[^ "]+$/i.test(lower)) {
+                // Optional: Allow only image file extensions
+                if (/\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(lower)) {
+                    // Further checking could be done here (e.g., image mimetype fetch), but for now file extension is checked
+                    return true;
+                }
+                // Otherwise, reject
+                return false;
+            }
+            // Allow blob: URLs (browser-generated, controlled)
+            if (lower.startsWith("blob:")) return true;
+            // Only allow specific data:image/*;base64 URLs
+            if (/^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=]+$/i.test(lower)) return true;
+            // Otherwise, reject
+            return false;
+        } catch {
+            return false;
+        }
     }
 
     const imageURL = useMemo(() => {
