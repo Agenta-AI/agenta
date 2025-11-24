@@ -10,6 +10,29 @@ import {parseValidationError} from "../../../assets/utilities/errors"
 // Track in-flight requests so we can cancel them by runId
 const abortControllers = new Map<string, AbortController>()
 
+const MODELS = ["gemini"]
+
+const extractPromptModel = (variant: EnhancedVariant, requestBody: Record<string, any>) => {
+    const candidates = [
+        requestBody?.ag_config?.prompt,
+        Array.isArray(requestBody?.ag_config?.prompts)
+            ? requestBody?.ag_config?.prompts?.[0]
+            : undefined,
+        variant?.parameters?.ag_config?.prompt,
+        variant?.parameters?.prompt,
+        (variant?.parameters as any)?.agConfig?.prompt,
+    ]
+
+    for (const prompt of candidates) {
+        if (!prompt) continue
+        const llmCfg = (prompt as any).llm_config || (prompt as any).llmConfig
+        if (llmCfg?.model) {
+            return llmCfg.model as string
+        }
+    }
+    return undefined
+}
+
 const isFileReference = (value: string) => {
     if (!value) return false
     if (/^https?:\/\//i.test(value)) return true
@@ -33,6 +56,10 @@ const stripFileMetadataForUrlAttachments = (messages: any[]) => {
 const applyModelAttachmentRules = (variant: EnhancedVariant, requestBody: Record<string, any>) => {
     if (!requestBody || typeof requestBody !== "object") return
     if (Array.isArray(requestBody.messages)) {
+        const modelName = extractPromptModel(variant, requestBody)
+        if (modelName && MODELS.some((allowed) => modelName.toLowerCase().includes(allowed))) {
+            return
+        }
         stripFileMetadataForUrlAttachments(requestBody.messages)
     }
 }
