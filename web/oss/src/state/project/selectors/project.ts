@@ -14,6 +14,36 @@ import {profileQueryAtom} from "@/oss/state/profile"
 import {sessionExistsAtom} from "@/oss/state/session"
 import {logAtom} from "@/oss/state/utils/logAtom"
 
+const LAST_USED_PROJECTS_KEY = "lastUsedProjectsByWorkspace"
+
+const readLastUsedProjectId = (workspaceId: string | null): string | null => {
+    if (typeof window === "undefined" || !workspaceId) return null
+    try {
+        const raw = window.localStorage.getItem(LAST_USED_PROJECTS_KEY)
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        if (!parsed || typeof parsed !== "object") return null
+        const value = parsed[workspaceId]
+        return typeof value === "string" && value.trim() ? value.trim() : null
+    } catch {
+        return null
+    }
+}
+
+export const cacheLastUsedProjectId = (workspaceId: string | null, projectId: string | null) => {
+    if (typeof window === "undefined") return
+    if (!workspaceId || !projectId) return
+    try {
+        const raw = window.localStorage.getItem(LAST_USED_PROJECTS_KEY)
+        const parsed = raw ? JSON.parse(raw) : {}
+        const next = parsed && typeof parsed === "object" ? parsed : {}
+        next[workspaceId] = projectId
+        window.localStorage.setItem(LAST_USED_PROJECTS_KEY, JSON.stringify(next))
+    } catch {
+        // ignore storage errors
+    }
+}
+
 export const projectsQueryAtom = atomWithQuery<ProjectsResponse[]>((get) => {
     const workspaceId = get(selectedOrgIdAtom)
     const snapshot = get(appStateSnapshotAtom)
@@ -58,8 +88,19 @@ const projectMatchesWorkspace = (project: ProjectsResponse, workspaceId: string)
     return false
 }
 
-const pickPreferredProject = (projects: ProjectsResponse[], workspaceId: string | null) => {
+const pickPreferredProject = (
+    projects: ProjectsResponse[],
+    workspaceId: string | null,
+    lastUsedProjectId: string | null,
+) => {
     if (!projects.length) return null
+
+    if (lastUsedProjectId) {
+        const lastUsed = projects.find((project) => project.project_id === lastUsedProjectId)
+        if (lastUsed && projectMatchesWorkspace(lastUsed, workspaceId ?? lastUsed.workspace_id)) {
+            return lastUsed
+        }
+    }
 
     const workspaceProjects = workspaceId
         ? projects.filter((project) => projectMatchesWorkspace(project, workspaceId))
@@ -88,7 +129,8 @@ export const projectIdAtom = atom((get) => get(appIdentifiersAtom).projectId)
 export const projectAtom = eagerAtom((get) => {
     const projects = get(projectsAtom) as ProjectsResponse[]
     const organization = get(selectedOrgAtom)
-    const workspaceId = organization?.default_workspace?.id ?? null
+    const identifiers = get(appIdentifiersAtom)
+    const workspaceId = identifiers.workspaceId ?? organization?.default_workspace?.id ?? null
     const projectId = get(projectIdAtom)
 
     if (!projects.length) return null
@@ -98,7 +140,9 @@ export const projectAtom = eagerAtom((get) => {
         if (selectedProject) return selectedProject
     }
 
-    const preferred = pickPreferredProject(projects, workspaceId)
+    const lastUsedProjectId = readLastUsedProjectId(workspaceId)
+
+    const preferred = pickPreferredProject(projects, workspaceId, lastUsedProjectId)
     if (preferred) return preferred
 
     return projects[0] ?? null

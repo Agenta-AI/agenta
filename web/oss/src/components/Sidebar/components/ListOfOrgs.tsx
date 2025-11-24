@@ -11,6 +11,7 @@ import {useOrgData} from "@/oss/state/org"
 import {orgsAtom as organizationsAtom, selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 import {useProfileData} from "@/oss/state/profile"
 import {useProjectData} from "@/oss/state/project"
+import {useRouter} from "next/router"
 
 import Avatar from "../../Avatar/Avatar"
 import ListOfProjects from "./ListOfProjects"
@@ -41,6 +42,7 @@ const ListOfOrgs = ({
     organizationSelectionEnabled = true,
     ...dropdownProps
 }: ListOfOrgsProps) => {
+    const router = useRouter()
     const {user} = useProfileData()
     const {logout} = useSession()
     const {selectedOrg: selectedOrganization, orgs: organizations, changeSelectedOrg} = useOrgData()
@@ -143,6 +145,7 @@ const ListOfOrgs = ({
         </Button>
     )
 
+    const isPostSignupPage = router.pathname === "/post-signup"
     const canShow = Boolean(
         (project?.project_id || effectiveSelectedId || selectedOrganization?.id) && user?.id,
     )
@@ -213,13 +216,15 @@ const ListOfOrgs = ({
                         </div>
                     )}
 
-                    <ListOfProjects
-                        collapsed={collapsed}
-                        buttonProps={buttonProps}
-                        interactive={interactive}
-                        selectedOrganizationId={effectiveSelectedId}
-                        dropdownProps={dropdownProps}
-                    />
+                    {isPostSignupPage ? null : (
+                        <ListOfProjects
+                            collapsed={collapsed}
+                            buttonProps={buttonProps}
+                            interactive={interactive}
+                            selectedOrganizationId={effectiveSelectedId}
+                            dropdownProps={dropdownProps}
+                        />
+                    )}
                 </>
             ) : null}
         </div>
