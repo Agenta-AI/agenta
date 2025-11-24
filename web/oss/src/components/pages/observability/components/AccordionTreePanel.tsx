@@ -272,8 +272,9 @@ const AccordionTreePanel = ({
 
     return (
         <>
+            {collapse}
             {fileAttachments?.length || imageAttachments?.length ? (
-                <div className="flex flex-col gap-2 mb-4">
+                <div className="flex flex-col gap-2 mt-4">
                     <span className="tracking-wide">Attachments</span>
                     <div className="flex flex-wrap gap-2">
                         {(fileAttachments || [])?.map((file, index) => (
@@ -328,8 +329,6 @@ const AccordionTreePanel = ({
                     </div>
                 </div>
             ) : null}
-
-            {collapse}
         </>
     )
 }
