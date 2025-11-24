@@ -10,46 +10,10 @@ import {parseValidationError} from "../../../assets/utilities/errors"
 // Track in-flight requests so we can cancel them by runId
 const abortControllers = new Map<string, AbortController>()
 
-type ModelAttachmentRule = {
-    stripFileMetaOnUrl?: boolean
-}
-
-const MODEL_ATTACHMENT_RULES: Record<string, ModelAttachmentRule> = {
-    anthropic: {
-        stripFileMetaOnUrl: true,
-    },
-}
-
-const getAttachmentRule = (modelName?: string): ModelAttachmentRule | null => {
-    if (!modelName) return null
-    const lower = modelName.toLowerCase()
-    for (const [key, rule] of Object.entries(MODEL_ATTACHMENT_RULES)) {
-        if (lower.includes(key)) {
-            return rule
-        }
-    }
-    return null
-}
-
-const extractPromptModel = (variant: EnhancedVariant, requestBody: Record<string, any>) => {
-    const candidates = [
-        requestBody?.ag_config?.prompt,
-        Array.isArray(requestBody?.ag_config?.prompts)
-            ? requestBody?.ag_config?.prompts?.[0]
-            : undefined,
-        variant?.parameters?.ag_config?.prompt,
-        variant?.parameters?.prompt,
-        (variant?.parameters as any)?.agConfig?.prompt,
-    ]
-
-    for (const prompt of candidates) {
-        if (!prompt) continue
-        const llmCfg = (prompt as any).llm_config || (prompt as any).llmConfig
-        if (llmCfg?.model) {
-            return llmCfg.model as string
-        }
-    }
-    return undefined
+const isFileReference = (value: string) => {
+    if (!value) return false
+    if (/^https?:\/\//i.test(value)) return true
+    return value.startsWith("file_")
 }
 
 const stripFileMetadataForUrlAttachments = (messages: any[]) => {
@@ -59,7 +23,7 @@ const stripFileMetadataForUrlAttachments = (messages: any[]) => {
             if (!part || part.type !== "file") return
             const fileNode = part.file || {}
             const fileId = fileNode.file_id || fileNode.fileId
-            if (typeof fileId !== "string" || !/^https?:\/\//i.test(fileId)) return
+            if (typeof fileId !== "string" || !isFileReference(fileId)) return
             delete fileNode.filename
             delete fileNode.format
         })
@@ -68,11 +32,7 @@ const stripFileMetadataForUrlAttachments = (messages: any[]) => {
 
 const applyModelAttachmentRules = (variant: EnhancedVariant, requestBody: Record<string, any>) => {
     if (!requestBody || typeof requestBody !== "object") return
-    const modelName = extractPromptModel(variant, requestBody)
-    const rule = getAttachmentRule(modelName)
-    if (!rule) return
-
-    if (rule.stripFileMetaOnUrl && Array.isArray(requestBody.messages)) {
+    if (Array.isArray(requestBody.messages)) {
         stripFileMetadataForUrlAttachments(requestBody.messages)
     }
 }
