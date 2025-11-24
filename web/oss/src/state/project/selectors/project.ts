@@ -30,6 +30,9 @@ const readLastUsedProjectId = (workspaceId: string | null): string | null => {
     }
 }
 
+export const getLastUsedProjectId = (workspaceId: string | null): string | null =>
+    readLastUsedProjectId(workspaceId)
+
 export const cacheLastUsedProjectId = (workspaceId: string | null, projectId: string | null) => {
     if (typeof window === "undefined") return
     if (!workspaceId || !projectId) return
