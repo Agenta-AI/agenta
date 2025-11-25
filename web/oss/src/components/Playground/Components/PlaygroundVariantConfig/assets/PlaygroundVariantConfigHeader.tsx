@@ -118,10 +118,7 @@ const PlaygroundVariantConfigHeader = ({
             </div>
             {!embedded && (
                 <div className="flex items-center gap-2">
-                    <DeployVariantButton
-                        revisionId={variantId}
-                        id="tour-playground-deploy-button"
-                    />
+                    <DeployVariantButton revisionId={variantId} />
 
                     <CommitVariantChangesButton
                         variantId={variantId}

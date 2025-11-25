@@ -5,10 +5,7 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {appTypeAtom} from "@/oss/components/Playground/state/atoms/app"
-import {
-    generationInputRowIdsAtom,
-    generationRowIdsAtom,
-} from "@/oss/components/Playground/state/atoms/generationProperties"
+import {generationInputRowIdsAtom} from "@/oss/components/Playground/state/atoms/generationProperties"
 import {clearAllRunsMutationAtom} from "@/oss/components/Playground/state/atoms/utilityMutations"
 import {runAllChatAtom} from "@/oss/state/newPlayground/chat/actions"
 
@@ -100,6 +97,7 @@ const GenerationHeader = ({variantId}: GenerationHeaderProps) => {
                     {!isRunning ? (
                         <Tooltip title="Run all (Ctrl+Enter / ⌘+Enter)">
                             <RunButton
+                                id="tour-playground-run-all-button"
                                 isRunAll
                                 type="primary"
                                 onClick={() => runTests()}

@@ -1,64 +1,6 @@
+import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
 import {getDefaultStore} from "jotai"
-import {
-    appChatModeAtom,
-    displayedVariantsAtom,
-    variantByRevisionIdAtomFamily,
-} from "@/oss/components/Playground/state/atoms"
-import {closeTraceDrawerAtom} from "@/oss/components/Playground/Components/Drawers/TraceDrawer/store/traceDrawerStore"
-import {
-    openDeployVariantModalAtom,
-    closeDeployVariantModalAtom,
-} from "@/oss/components/Playground/Components/Modals/DeployVariantModal/store/deployVariantModalStore"
-import {TRACE_DRAWER_STEPS} from "./traceSteps"
 import {OnboardingStepsContext, TourDefinition} from "./types"
-
-const triggerTraceButtonClick = () => {
-    if (typeof window === "undefined") return
-    const button = document.getElementById("tour-playground-trace-button")
-    if (!button) return
-    button.dispatchEvent(new MouseEvent("click", {bubbles: true}))
-}
-
-const closeTraceDrawer = () => {
-    getDefaultStore().set(closeTraceDrawerAtom)
-}
-
-const TRACE_STEPS_FOR_PLAYGROUND = TRACE_DRAWER_STEPS.slice(0, 5).map((step) => {
-    if (step.selector === "#tour-trace-tree-panel") {
-        return {
-            ...step,
-            onEnter: () => triggerTraceButtonClick(),
-            onboardingSection: "playgroundPostRun",
-        }
-    }
-
-    return {
-        ...step,
-        onboardingSection: "playgroundPostRun",
-    }
-})
-
-const openDeployModalForCurrentVariant = () => {
-    const store = getDefaultStore()
-    const variants = store.get(displayedVariantsAtom) || []
-    const revisionId = variants[0]
-    if (!revisionId) return
-    const variant = store.get(variantByRevisionIdAtomFamily(revisionId)) as any
-
-    const payload = {
-        parentVariantId: variant?.variantId ?? null,
-        revisionId: variant?.id ?? revisionId,
-        variantName: variant?.variantName ?? variant?.name ?? "Current variant",
-        revision: variant?.revisionNumber ?? variant?.revision ?? "",
-        mutate: undefined,
-    }
-
-    store.set(openDeployVariantModalAtom, payload as any)
-}
-
-const closeDeployModal = () => {
-    getDefaultStore().set(closeDeployVariantModalAtom)
-}
 
 export const PLAYGROUND_COMPLETION_TOUR: TourDefinition[number]["steps"] = [
     {
@@ -75,22 +17,6 @@ export const PLAYGROUND_COMPLETION_TOUR: TourDefinition[number]["steps"] = [
         showSkip: true,
         pointerPadding: 12,
         pointerRadius: 12,
-    },
-    {
-        icon: "🎛️",
-        title: "Set test variables",
-        content: (
-            <span>
-                Provide example values for your template inputs to preview different scenarios.
-            </span>
-        ),
-        selector: "#tour-playground-variable",
-        side: "right",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        viewportId: "scrollable-viewport",
     },
     {
         icon: "🧪",
@@ -178,7 +104,7 @@ export const PLAYGROUND_CHAT_TOUR: TourDefinition[number]["steps"] = [
                 Execute the chat turn to preview the assistant response and iterate quickly.
             </span>
         ),
-        selector: "#tour-playground-run-button",
+        selector: "#tour-playground-run-all-button",
         side: "bottom",
         showControls: true,
         showSkip: true,
@@ -188,149 +114,49 @@ export const PLAYGROUND_CHAT_TOUR: TourDefinition[number]["steps"] = [
     },
 ]
 
+export const POST_PLAYGROUND_TOUR = [
+    {
+        icon: "🧠",
+        title: "Trace every run",
+        content: (
+            <span>
+                Open the trace drawer to debug latency, token usage, and each span that powered this
+                run.
+            </span>
+        ),
+        selector: "#tour-playground-trace-button",
+        side: "bottom",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        onboardingSection: "playgroundPostRun" as const,
+    },
+    {
+        icon: "🧪",
+        title: "Add runs to a testset",
+        content: (
+            <span>
+                Capture the current outputs into a testset so you can build regression suites and
+                evaluate new variants later.
+            </span>
+        ),
+        selector: "#tour-playground-add-testset",
+        side: "left",
+        showControls: true,
+        showSkip: true,
+        pointerPadding: 12,
+        pointerRadius: 12,
+        onboardingSection: "playgroundPostRun" as const,
+    },
+]
+
 const getPlaygroundTourDefinition = (): TourDefinition => {
     const store = getDefaultStore()
     const isChat = store.get(appChatModeAtom)
     return isChat
         ? [{tour: "playground-chat-quickstart", steps: PLAYGROUND_CHAT_TOUR}]
         : [{tour: "playground-completion-quickstart", steps: PLAYGROUND_COMPLETION_TOUR}]
-}
-
-const buildPostRunSteps = (mode: "completion" | "chat") => {
-    const isChat = mode === "chat"
-
-    return [
-        {
-            icon: isChat ? "💬" : "📄",
-            title: isChat ? "Inspect assistant turns" : "Review the response",
-            content: (
-                <span>
-                    {isChat
-                        ? "Scroll through the assistant response to validate tool calls, JSON payloads, and structured replies."
-                        : "Inspect the latest output and verify whether the completion follows the variables and instructions you provided."}
-                </span>
-            ),
-            selector: "#tour-playground-output-panel",
-            side: "left",
-            showControls: true,
-            showSkip: true,
-            pointerPadding: 12,
-            pointerRadius: 12,
-            viewportId: "scrollable-viewport",
-            onboardingSection: "playgroundPostRun" as const,
-        },
-        {
-            icon: "🧠",
-            title: "Trace every run",
-            content: (
-                <span>
-                    Open the trace drawer to debug latency, token usage, and each span that powered
-                    this run.
-                </span>
-            ),
-            selector: "#tour-playground-trace-button",
-            side: "bottom",
-            showControls: true,
-            showSkip: true,
-            pointerPadding: 12,
-            pointerRadius: 12,
-            onboardingSection: "playgroundPostRun" as const,
-            onEnter: () => closeTraceDrawer(),
-        },
-        ...TRACE_STEPS_FOR_PLAYGROUND,
-        {
-            icon: "🧪",
-            title: "Add runs to a testset",
-            content: (
-                <span>
-                    Capture the current outputs into a testset so you can build regression suites
-                    and evaluate new variants later.
-                </span>
-            ),
-            selector: "#tour-playground-add-testset",
-            side: "left",
-            showControls: true,
-            showSkip: true,
-            pointerPadding: 12,
-            pointerRadius: 12,
-            onboardingSection: "playgroundPostRun" as const,
-            onEnter: () => closeTraceDrawer(),
-        },
-        {
-            icon: "🚀",
-            title: "Deploy your variant",
-            content: (
-                <span>
-                    Ship this iteration to an environment when you&apos;re confident with the
-                    current run.
-                </span>
-            ),
-            selector: "#tour-playground-deploy-button",
-            side: "bottom",
-            showControls: true,
-            showSkip: true,
-            pointerPadding: 12,
-            pointerRadius: 12,
-            onboardingSection: "playgroundPostRun" as const,
-            onEnter: () => closeDeployModal(),
-        },
-        {
-            icon: "🌐",
-            title: "Choose an environment",
-            content: (
-                <span>
-                    Pick the target environment for this deployment. Each row represents one of your
-                    configured stages.
-                </span>
-            ),
-            selector: "#tour-playground-deploy-modal-table",
-            side: "top",
-            showControls: true,
-            showSkip: true,
-            pointerPadding: 12,
-            pointerRadius: 12,
-            onboardingSection: "playgroundPostRun" as const,
-            onEnter: () => openDeployModalForCurrentVariant(),
-        },
-        {
-            icon: "✅",
-            title: "Confirm deployment",
-            content: (
-                <span>
-                    Deploy the selected variant to the chosen environment. You can always redeploy
-                    after more changes.
-                </span>
-            ),
-            selector: "#tour-playground-deploy-modal-confirm",
-            side: "bottom",
-            showControls: true,
-            showSkip: true,
-            pointerPadding: 12,
-            pointerRadius: 12,
-            onboardingSection: "playgroundPostRun" as const,
-            onCleanup: () => closeDeployModal(),
-        },
-    ]
-}
-
-const PLAYGROUND_COMPLETION_RESULT_TOUR: TourDefinition = [
-    {
-        tour: "playground-completion-post-run",
-        steps: buildPostRunSteps("completion"),
-    },
-]
-
-const PLAYGROUND_CHAT_RESULT_TOUR: TourDefinition = [
-    {
-        tour: "playground-chat-post-run",
-        steps: buildPostRunSteps("chat"),
-    },
-]
-
-const getPlaygroundResultTourDefinition = (): TourDefinition => {
-    const store = getDefaultStore()
-    const isChat = store.get(appChatModeAtom)
-    return isChat ? PLAYGROUND_CHAT_RESULT_TOUR : PLAYGROUND_COMPLETION_RESULT_TOUR
 }
 
 const PLAYGROUND_TOUR_MAP: Record<string, (ctx: OnboardingStepsContext) => TourDefinition> = {
@@ -348,4 +174,4 @@ export const PLAYGROUND_TOURS = new Proxy(PLAYGROUND_TOUR_MAP, {
     },
 }) as typeof PLAYGROUND_TOUR_MAP
 
-export const resolvePlaygroundPostRunTour = () => getPlaygroundResultTourDefinition()
+export const resolvePlaygroundPostRunTour = () => POST_PLAYGROUND_TOUR

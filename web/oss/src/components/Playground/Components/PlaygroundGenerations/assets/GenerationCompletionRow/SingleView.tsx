@@ -10,7 +10,7 @@ import RunButton from "@/oss/components/Playground/assets/RunButton"
 import TypingIndicator from "@/oss/components/Playground/assets/TypingIndicator"
 import {variableIdsUnifiedAtomFamily} from "@/oss/state/newPlayground/generation/selectors"
 
-import {RunningPlaceholder, ClickRunPlaceholder} from "../ResultPlaceholder"
+import {ClickRunPlaceholder} from "../ResultPlaceholder"
 
 import ErrorPanel from "./ErrorPanel"
 import GenerationResponsePanel from "./GenerationResponsePanel"
@@ -124,7 +124,6 @@ const SingleView = ({
             {!inputOnly ? (
                 <div className="w-full flex gap-1">
                     <div
-                        id={enableTourTargets ? "tour-playground-run-button" : undefined}
                         className={clsx("flex items-start justify-start h-fit w-[100px] shrink-0")}
                     >
                         {!isBusy ? (
