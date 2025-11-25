@@ -1817,7 +1817,7 @@ class SimpleEvaluationsService:
             meta=query.meta if query else None,
         )
 
-        runs, _ = await self.evaluations_service.query_runs(
+        runs = await self.evaluations_service.query_runs(
             project_id=project_id,
             #
             run=run_query,
