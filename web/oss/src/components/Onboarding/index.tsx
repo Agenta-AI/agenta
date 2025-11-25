@@ -7,17 +7,16 @@ import {useAtomValue, useSetAtom} from "jotai"
 import type {CardComponentProps} from "nextstepjs"
 import {NormalizedStepContent} from "./types"
 
+import type {UserOnboardingStatus} from "@/oss/state/onboarding"
 import {
     currentOnboardingStepAtom,
     isNewUserAtom,
     resolveOnboardingSection,
-    updateUserOnboardingStatusAtom,
     triggerOnboardingAtom,
+    updateUserOnboardingStatusAtom,
 } from "@/oss/state/onboarding"
-import type {UserOnboardingStatus} from "@/oss/state/onboarding"
-import {urlLocationAtom} from "@/oss/state/url"
 import {fullJourneyStateAtom} from "@/oss/state/onboarding/atoms/helperAtom"
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {urlLocationAtom} from "@/oss/state/url"
 
 const {Text} = Typography
 
@@ -54,7 +53,6 @@ const OnboardingCard = ({
     const fullJourneyState = useAtomValue(fullJourneyStateAtom)
     const setFullJourneyState = useSetAtom(fullJourneyStateAtom)
     const setTriggerOnboarding = useSetAtom(triggerOnboardingAtom)
-    const posthog = usePostHogAg()
 
     const cleanupHandlersRef = useRef<Set<() => void>>(new Set())
 
@@ -82,15 +80,6 @@ const OnboardingCard = ({
             cleanupHandlersRef.current.add(extendedStep.onCleanup)
         }
 
-        const resolvedSection =
-            extendedStep?.onboardingSection ?? resolveOnboardingSection(userSection)
-        posthog?.capture("onboarding_step_viewed", {
-            title: step?.title,
-            stepIndex: currentStep,
-            totalSteps,
-            section: resolvedSection,
-        })
-
         return () => {
             extendedStep?.onExit?.()
         }
@@ -106,17 +95,8 @@ const OnboardingCard = ({
     const captureStepAction = useCallback(
         (action: string) => {
             const extendedStep = step as StepWithEffects | undefined
-            const resolvedSection =
-                extendedStep?.onboardingSection ?? resolveOnboardingSection(userSection)
-            posthog?.capture("onboarding_step_action", {
-                action,
-                title: step?.title,
-                stepIndex: currentStep,
-                totalSteps,
-                section: resolvedSection,
-            })
         },
-        [step, posthog, currentStep, totalSteps, userSection],
+        [step, currentStep, totalSteps, userSection],
     )
 
     const onPrevStep = useCallback(() => {

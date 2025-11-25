@@ -2,8 +2,6 @@ import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
 import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 import {getDefaultStore} from "jotai"
 import {OnboardingStepsContext} from "../types"
-import {AUTO_EVALUATION_TOURS} from "./autoEvaluationSteps"
-import {HUMAN_EVALUATION_TOURS} from "./humanEvaluationSteps"
 import {ONLINE_EVALUATION_TOURS} from "./onlineEvaluationSteps"
 
 export const evaluationTour = (ctx: OnboardingStepsContext) => {
@@ -17,13 +15,7 @@ export const evaluationTour = (ctx: OnboardingStepsContext) => {
     }
 
     if (currentEval === "auto_evaluation" || evalType === "auto") {
-        // const resolver = (AUTO_EVALUATION_TOURS as any)[role] ?? AUTO_EVALUATION_TOURS.Hobbyist
         return []
-    }
-
-    if (currentEval === "human_evaluation" || evalType === "human") {
-        const resolver = (HUMAN_EVALUATION_TOURS as any)[role] ?? HUMAN_EVALUATION_TOURS.Hobbyist
-        return resolver(ctx)
     }
 
     return []

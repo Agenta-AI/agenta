@@ -4,25 +4,23 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {message} from "@/oss/components/AppMessageContext"
 import EnhancedModal from "@/oss/components/EnhancedUIs/Modal"
+import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
+
 import {
     isNewUserAtom,
-    isNewUserStorageAtom,
-    newOnboardingStateAtom,
     resolveOnboardingSection,
     triggerOnboardingAtom,
     updateUserOnboardingStatusAtom,
+    userOnboardingProfileAtom,
     userOnboardingStatusAtom,
-    userOnboardingProfileContextAtom,
 } from "@/oss/state/onboarding"
-import {urlLocationAtom} from "@/oss/state/url"
-import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 import {createOnlineEvaluation, redirectToAppsPage} from "@/oss/state/onboarding/assets/utils"
 import {
     demoOnlineEvaluationAtom,
     fullJourneyStateAtom,
 } from "@/oss/state/onboarding/atoms/helperAtom"
+import {urlLocationAtom} from "@/oss/state/url"
 import {WelcomeModalProps} from "../../types"
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 const WelcomeModalContent = dynamic(() => import("./assets/WelcomeModalContent"), {ssr: false})
 
@@ -30,13 +28,12 @@ const WelcomeModal = ({open, ...props}: WelcomeModalProps) => {
     const isNewUser = useAtomValue(isNewUserAtom)
     const userLocation = useAtomValue(urlLocationAtom)
     const userOnboardingJourneyStatus = useAtomValue(userOnboardingStatusAtom)
-    const userProfile = useAtomValue(userOnboardingProfileContextAtom)
+    const userProfile = useAtomValue(userOnboardingProfileAtom)
     const setTriggerOnboarding = useSetAtom(triggerOnboardingAtom)
     const updateOnboardingStatus = useSetAtom(updateUserOnboardingStatusAtom)
     const setDemoEvaluationContext = useSetAtom(demoOnlineEvaluationAtom)
     const setLastVisitedEvaluation = useSetAtom(lastVisitedEvaluationAtom)
     const setFullJourneyState = useSetAtom(fullJourneyStateAtom)
-    const posthog = usePostHogAg()
 
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isStartingTour, setIsStartingTour] = useState(false)
@@ -59,26 +56,18 @@ const WelcomeModal = ({open, ...props}: WelcomeModalProps) => {
         if (sectionStatus !== "idle") return
 
         setIsModalOpen(true)
-        posthog?.capture("onboarding_welcome_action", {
-            action: "visible",
-        })
-    }, [isNewUser, userLocation, userOnboardingJourneyStatus, posthog, isSme])
+    }, [isNewUser, userLocation, userOnboardingJourneyStatus, isSme])
 
     const onSkip = useCallback(() => {
         if (isStartingTour) return
-        posthog?.capture("onboarding_welcome_action", {
-            action: "skip",
-        })
+
         updateOnboardingStatus({section: "apps", status: "skipped"})
         setFullJourneyState({active: false, state: null, journeyId: null})
         updateOnboardingStatus({section: "fullJourney", status: "skipped"})
         setIsModalOpen(false)
-    }, [isStartingTour, updateOnboardingStatus, setFullJourneyState, posthog, isSme])
+    }, [isStartingTour, updateOnboardingStatus, setFullJourneyState, isSme])
 
     const onStartTour = useCallback(async () => {
-        posthog?.capture("onboarding_welcome_action", {
-            action: "start",
-        })
         updateOnboardingStatus({section: "apps", status: "started"})
 
         if (!isSme) {
@@ -111,7 +100,6 @@ const WelcomeModal = ({open, ...props}: WelcomeModalProps) => {
         setLastVisitedEvaluation,
         setTriggerOnboarding,
         setFullJourneyState,
-        posthog,
     ])
 
     return (

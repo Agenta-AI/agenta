@@ -1,21 +1,19 @@
 import {
-    newOnboardingStateAtom,
     isNewUserAtom,
-    userOnboardingStatusAtom,
+    onboardingStepsAtom,
     resolveOnboardingSection,
     triggerOnboardingAtom,
+    userOnboardingStatusAtom,
 } from "@/oss/state/onboarding"
-import {useAtomValue, useSetAtom} from "jotai"
-import {NextStep} from "nextstepjs"
-import OnboardingCard from "../../index"
-import {urlLocationAtom} from "@/oss/state/url"
-import {useEffect, useRef} from "react"
-import {useNextStep} from "nextstepjs"
 import {fullJourneyStateAtom} from "@/oss/state/onboarding/atoms/helperAtom"
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {urlLocationAtom} from "@/oss/state/url"
+import {useAtomValue, useSetAtom} from "jotai"
+import {NextStep, useNextStep} from "nextstepjs"
+import {useEffect, useRef} from "react"
+import OnboardingCard from "../../index"
 
 const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
-    const onboardingSteps = useAtomValue(newOnboardingStateAtom)
+    const onboardingSteps = useAtomValue(onboardingStepsAtom)
     const isNewUser = useAtomValue(isNewUserAtom)
     const userLocation = useAtomValue(urlLocationAtom)
     const userOnboardingJourneyStatus = useAtomValue(userOnboardingStatusAtom)
@@ -25,7 +23,6 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
     const setFullJourneyState = useSetAtom(fullJourneyStateAtom)
     const {startNextStep} = useNextStep()
     const autoStartSignatureRef = useRef<string | null>(null)
-    const posthog = usePostHogAg()
 
     const previousSectionRef = useRef(userLocation.section)
     useEffect(() => {
@@ -70,11 +67,7 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
         if (autoStartSignatureRef.current === signature) return
 
         autoStartSignatureRef.current = signature
-        posthog?.capture("onboarding_tour_started", {
-            tourId: currentTour.tour,
-            section: tourSection,
-            trigger: "auto",
-        })
+
         startNextStep(currentTour.tour)
     }, [
         isNewUser,
@@ -97,13 +90,9 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
         lastManualTriggerRef.current = manualTrigger
         const tourId = onboardingSteps[0]?.tour
         if (!tourId) return
-        posthog?.capture("onboarding_tour_started", {
-            tourId,
-            trigger: "manual",
-            section: manualTrigger.state,
-        })
+
         startNextStep(tourId)
-    }, [manualTrigger, onboardingSteps, startNextStep, posthog, fullJourneyState.journeyId])
+    }, [manualTrigger, onboardingSteps, startNextStep, fullJourneyState.journeyId])
 
     const handleComplete = () => {
         setTriggerOnboarding(null)

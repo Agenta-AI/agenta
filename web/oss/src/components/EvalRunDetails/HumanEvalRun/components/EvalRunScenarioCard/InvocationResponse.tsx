@@ -27,10 +27,7 @@ const InvocationResponse = ({
                 <Typography.Title level={4} className="!font-medium !m-0">
                     Model Response
                 </Typography.Title>
-                <div
-                    id={highlightTour ? "tour-human-eval-run-button" : undefined}
-                    className="flex items-center"
-                >
+                <div className="flex items-center">
                     <RunEvalScenarioButton
                         stepKey={stepKey}
                         scenarioId={scenarioId}

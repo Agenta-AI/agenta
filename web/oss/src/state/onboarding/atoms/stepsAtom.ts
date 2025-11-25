@@ -1,8 +1,8 @@
-import {atom, getDefaultStore} from "jotai"
+import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
+import {atom} from "jotai"
 import {eagerAtom} from "jotai-eager"
 import {atomWithStorage} from "jotai/utils"
 import {Tour} from "nextstepjs"
-import {appStatusLoadingAtom} from "@/oss/state/variant/atoms/fetcher"
 
 import {userAtom} from "../../profile"
 import {sessionExistsAtom} from "../../session"
@@ -14,8 +14,7 @@ import {
     OnboardingState,
     UserOnboardingStatus,
 } from "../types"
-import {playgroundHasFirstRunAtom, fullJourneyStateAtom} from "./helperAtom"
-import {posthogAtom} from "@/oss/lib/helpers/analytics/store/atoms"
+import {fullJourneyStateAtom, playgroundHasFirstRunAtom} from "./helperAtom"
 
 const NEW_USER_STORAGE_KEY = "new-user"
 const USER_ONBOARDING_STATE_TRACKER = "user-onboarding-state-tracker"
@@ -37,7 +36,7 @@ export const isNewUserAtom = eagerAtom((get) => {
 })
 
 // Rename to userOnboardingProfileAtom
-export const userOnboardingProfileContextAtom = atomWithStorage<{
+export const userOnboardingProfileAtom = atomWithStorage<{
     userRole: string
     userExperience: string
     userInterest: string
@@ -124,11 +123,6 @@ export const updateUserOnboardingStatusAtom = atom(
         if (currentStatus[params.section] === params.status) return
 
         set(userOnboardingStatusAtom, {...currentStatus, [params.section]: params.status})
-        const posthog = getDefaultStore().get(posthogAtom)
-        posthog?.capture("onboarding_tour_status", {
-            section: params.section,
-            status: params.status,
-        })
     },
 )
 
@@ -155,10 +149,9 @@ export const triggerOnboardingAtom = atom<{
     type?: "beginner" | "advanced"
 } | null>(null)
 
-// rename to onboardingStateAtom
-export const newOnboardingStateAtom = atom<Tour[]>((get) => {
+export const onboardingStepsAtom = atom<Tour[]>((get) => {
     const appStatusLoading = get(appStatusLoadingAtom)
-    const onboardingProfile = get(userOnboardingProfileContextAtom)
+    const onboardingProfile = get(userOnboardingProfileAtom)
     const userLocation = get(urlLocationAtom)
     const userOnboardingJourneyStatus = get(userOnboardingStatusAtom)
     const isNewUser = get(isNewUserStorageAtom)

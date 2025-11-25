@@ -115,7 +115,6 @@ const CustomWorkflowModalFooter = ({
                     }
                 >
                     <Button
-                        id="tour-create-custom-app-button"
                         type="primary"
                         disabled={
                             !customWorkflowAppValues.appName ||

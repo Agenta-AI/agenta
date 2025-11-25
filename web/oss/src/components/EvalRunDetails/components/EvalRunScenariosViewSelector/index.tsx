@@ -9,8 +9,8 @@ import {runViewTypeAtom} from "../../state/urlState"
 
 import {
     ENABLE_CARD_VIEW,
-    VIEW_HUMAN_OPTIONS,
     VIEW_AUTO_OPTIONS,
+    VIEW_HUMAN_OPTIONS,
     VIEW_ONLINE_OPTIONS,
 } from "./assets/constants"
 
@@ -23,13 +23,6 @@ const EvalRunScenariosViewSelector = () => {
     const router = useRouter()
 
     // Sync local atom from urlStateAtom changes
-    const resolveTourId = (value: string) => {
-        if (evalType !== "online") return undefined
-        if (value === "overview") return "tour-online-eval-tab-overview"
-        if (value === "results") return "tour-online-eval-tab-results"
-        if (value === "configuration") return "tour-online-eval-tab-configuration"
-        return undefined
-    }
 
     return (
         <div className="flex items-center gap-2 shrink-0">
@@ -58,17 +51,7 @@ const EvalRunScenariosViewSelector = () => {
                 defaultValue={evalType === "online" ? "results" : "focus"}
                 value={ENABLE_CARD_VIEW ? viewType : viewType === "list" ? "focus" : viewType}
             >
-                <div
-                    id={
-                        viewType === "focus"
-                            ? "tour-human-eval-focus-tab"
-                            : viewType === "table"
-                              ? "tour-human-eval-table-view"
-                              : viewType === "results"
-                                ? "tour-human-eval-results-tab"
-                                : ""
-                    }
-                >
+                <div>
                     {(evalType === "human"
                         ? VIEW_HUMAN_OPTIONS
                         : evalType === "online"
@@ -79,7 +62,6 @@ const EvalRunScenariosViewSelector = () => {
                             key={option.value}
                             value={option.value}
                             disabled={option.disabled}
-                            id={resolveTourId(option.value)}
                         >
                             {option.label}
                         </Radio.Button>

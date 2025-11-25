@@ -11,7 +11,7 @@ import ListOfOrgs from "@/oss/components/Sidebar/components/ListOfOrgs"
 import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {useSurvey} from "@/oss/lib/helpers/analytics/hooks/useSurvey"
-import {userOnboardingProfileContextAtom} from "@/oss/state/onboarding"
+import {userOnboardingProfileAtom} from "@/oss/state/onboarding"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
@@ -66,7 +66,7 @@ const PostSignupForm = () => {
     const {user} = useProfileData()
     const classes = useStyles()
     const {orgs} = useOrgData()
-    const setUserOnboardingProfileContext = useSetAtom(userOnboardingProfileContextAtom)
+    const setUserOnboardingProfileContext = useSetAtom(userOnboardingProfileAtom)
     const selectedHearAboutUsOption = Form.useWatch("hearAboutUs", form)
     const selectedUserInterests = Form.useWatch("userInterests", form)
     const formData = Form.useWatch([], form)

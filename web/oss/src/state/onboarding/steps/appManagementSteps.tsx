@@ -1,18 +1,14 @@
-import {getDefaultStore} from "jotai"
 import {isAddAppFromTemplatedAtom} from "@/oss/components/pages/app-management/state/atom"
+import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
+import {getDefaultStore} from "jotai"
 import {
-    closeCustomWorkflowModalAtom,
-    openCustomWorkflowModalAtom,
-} from "../../customWorkflow/modalAtoms"
-import {OnboardingStepsContext, TourDefinition} from "./types"
-import {PLAYGROUND_COMPLETION_TOUR, PLAYGROUND_CHAT_TOUR} from "./playgroundSteps"
-import {ONLINE_EVAL_RUN_STEPS} from "./evaluations/onlineEvaluationSteps"
-import {
-    getOnlineEvaluationsRoute,
     getDemoEvaluationRunRoute,
+    getOnlineEvaluationsRoute,
     getPlaygroundRoute,
 } from "../assets/utils"
-import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
+import {ONLINE_EVAL_RUN_STEPS} from "./evaluations/onlineEvaluationSteps"
+import {PLAYGROUND_CHAT_TOUR, PLAYGROUND_COMPLETION_TOUR} from "./playgroundSteps"
+import {OnboardingStepsContext, TourDefinition} from "./types"
 
 const openTemplateModal = () => {
     getDefaultStore().set(isAddAppFromTemplatedAtom, true)
@@ -20,22 +16,6 @@ const openTemplateModal = () => {
 
 const closeTemplateModal = () => {
     getDefaultStore().set(isAddAppFromTemplatedAtom, false)
-}
-
-const closeCustomWorkflowModal = () => {
-    getDefaultStore().set(closeCustomWorkflowModalAtom)
-}
-
-const openCustomWorkflowModal = () => {
-    getDefaultStore().set(openCustomWorkflowModalAtom, {
-        open: true,
-        onCancel: () => {
-            closeCustomWorkflowModal()
-        },
-        handleCreateApp: () => {},
-        configureWorkflow: false,
-        appId: "new-app",
-    })
 }
 
 export const GLOBAL_APP_MANAGEMENT_STEPS = [
@@ -94,79 +74,6 @@ export const GLOBAL_APP_MANAGEMENT_STEPS = [
         pointerRadius: 12,
         onEnter: openTemplateModal,
         onCleanup: closeTemplateModal,
-    },
-]
-
-export const CUSTOM_APPS_CREATION_STEPS = [
-    {
-        icon: "🚀",
-        title: "Create a custom app",
-        content: (
-            <span>
-                This card opens the guided flow for app creation. Click it to launch the template
-                library.
-            </span>
-        ),
-        selector: "#tour-create-custom-app",
-        side: "bottom",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        userRole: ["Hobbyist"],
-        onEnter: closeCustomWorkflowModal,
-        onCleanup: closeCustomWorkflowModal,
-    },
-    {
-        icon: "📝",
-        title: "Name your app",
-        content: (
-            <span>
-                Give your app a descriptive name so teammates immediately understand its purpose.
-            </span>
-        ),
-        selector: "#tour-custom-app-name-input",
-        side: "top",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: openCustomWorkflowModal,
-        onCleanup: closeCustomWorkflowModal,
-    },
-    {
-        icon: "📚",
-        title: "Add your custom workflow URL",
-        content: (
-            <span>
-                Add your custom workflow URL to connect your app to Agenta. Check docs for more
-                details.{" "}
-                <a href="https://docs.agenta.ai/custom-workflows/quick-start">
-                    Learn more about custom workflows
-                </a>
-            </span>
-        ),
-        selector: "#tour-custom-app-url-input",
-        side: "top",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: openCustomWorkflowModal,
-        onCleanup: closeCustomWorkflowModal,
-    },
-    {
-        icon: "✅",
-        title: "Create the app",
-        content: <span>Provision your first app by creating it with the selected template.</span>,
-        selector: "#tour-create-custom-app-button",
-        side: "top",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: openCustomWorkflowModal,
-        onCleanup: closeCustomWorkflowModal,
     },
 ]
 

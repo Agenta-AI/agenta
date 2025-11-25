@@ -105,7 +105,6 @@ const GetStartedSection = ({
                     title={<Code size={24} />}
                     className={classes.getStartedCard}
                     onClick={() => setIsWriteOwnAppModal(true)}
-                    id="tour-create-custom-app"
                 >
                     <div className="flex items-center justify-between">
                         <Text>Create Custom Workflow</Text>

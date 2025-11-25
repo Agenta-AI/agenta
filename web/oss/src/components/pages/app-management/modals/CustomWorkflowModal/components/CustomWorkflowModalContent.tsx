@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo} from "react"
 
 import {CloseOutlined} from "@ant-design/icons"
 import {Scroll} from "@phosphor-icons/react"
-import {Typography, Space, Button, notification} from "antd"
+import {Button, notification, Space, Typography} from "antd"
 import {useAtom} from "jotai"
 
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
@@ -12,9 +12,9 @@ import {findCustomWorkflowPath, removeTrailingSlash} from "@/oss/lib/shared/vari
 import {updateVariant} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
 import {
-    customWorkflowValuesAtomFamily,
-    customWorkflowTestStatusAtom,
     customWorkflowConfiguringAtom,
+    customWorkflowTestStatusAtom,
+    customWorkflowValuesAtomFamily,
 } from "@/oss/state/customWorkflow/modalAtoms"
 
 import {useStyles} from "../assets/styles"
@@ -250,7 +250,7 @@ const CustomWorkflowModalContent = ({
                 </Text>
             )}
 
-            <div className="space-y-1" id="tour-custom-app-name-input">
+            <div className="space-y-1">
                 <SharedEditor
                     header={<Typography className={classes.label}>App name *</Typography>}
                     initialValue={values.appName}
@@ -301,7 +301,7 @@ const CustomWorkflowModalContent = ({
                 )}
             </div>
 
-            <div id="tour-custom-app-url-input">
+            <div>
                 <SharedEditor
                     header={<Typography className={classes.label}>Workflow URL *</Typography>}
                     initialValue={workflowUrlInput}
