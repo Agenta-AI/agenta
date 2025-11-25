@@ -46,7 +46,6 @@ from oss.src.core.evaluations.types import (
     EvaluationQueueEdit,
     EvaluationQueueQuery,
 )
-from oss.src.core.evaluations.utils import determine_evaluation_kind
 from oss.src.core.evaluations.types import (
     Target,
     Origin,
@@ -416,88 +415,13 @@ class EvaluationsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationRun]:
-        required_kinds: Optional[set[str]] = None
-        if run is not None:
-            kinds: set[str] = set()
-            if getattr(run, "evaluation_kind", None):
-                kinds.add(str(run.evaluation_kind).lower())
-            if getattr(run, "evaluation_kinds", None):
-                kinds.update(str(kind).lower() for kind in run.evaluation_kinds or [])
-            required_kinds = kinds if kinds else None
-
-        limit = windowing.limit if windowing else None
-        limit_is_positive = bool(limit and limit > 0)
-
-        if required_kinds and windowing and limit_is_positive:
-            return await self._query_runs_with_kind_windowing(
-                project_id=project_id,
-                run=run,
-                windowing=windowing,
-                required_kinds=required_kinds,
-            )
-
-        runs = await self.evaluations_dao.query_runs(
+        return await self.evaluations_dao.query_runs(
             project_id=project_id,
             #
             run=run,
             #
             windowing=windowing,
         )
-
-        return runs
-
-
-    async def _query_runs_with_kind_windowing(
-        self,
-        *,
-        project_id: UUID,
-        run: Optional[EvaluationRunQuery],
-        windowing: Windowing,
-        required_kinds: set[str],
-    ) -> List[EvaluationRun]:
-        collected: List[EvaluationRun] = []
-
-        current_window = windowing
-
-        last_cursor: Optional[UUID] = windowing.next
-        has_more = False
-        limit_value = windowing.limit or 0
-
-        while True:
-            batch = await self.evaluations_dao.query_runs(
-                project_id=project_id,
-                run=run,
-                windowing=current_window,
-            )
-
-            if not batch:
-                last_cursor = None
-                has_more = False
-                break
-
-            for dto in batch:
-                collected.append(dto)
-                if limit_value and len(collected) >= limit_value:
-                    break
-
-            last_cursor = getattr(batch[-1], "id", None)
-
-            fetch_limit = current_window.limit or len(batch)
-            limit_reached = bool(fetch_limit and len(batch) >= fetch_limit)
-
-            if not limit_value or len(collected) >= limit_value:
-                has_more = bool(limit_reached and last_cursor)
-                break
-
-            if not limit_reached or not last_cursor:
-                has_more = False
-                break
-
-            current_window.next = last_cursor
-
-        trimmed = collected if not limit_value else collected[:limit_value]
-
-        return trimmed
 
     # - EVALUATION SCENARIO ----------------------------------------------------
 
@@ -2612,32 +2536,20 @@ class SimpleEvaluationsService:
                 for step_key in application_invocation_steps_keys
             )
 
-            evaluator_annotation_mappings: List[EvaluationRunDataMapping] = []
-            for step_key in evaluator_annotation_steps_keys:
-                for metric_key in evaluator_metrics_keys[step_key]:
-                    metric_path_value = (
-                        metric_key.get("path")
-                        if isinstance(metric_key, dict)
-                        else getattr(metric_key, "path", "")
-                    ) or ""
-                    column_name = metric_path_value
-                    mapping_path = (
-                        f"attributes.ag.data.outputs.{metric_path_value}"
-                        if metric_path_value
-                        else "attributes.ag.data.outputs"
-                    )
-                    evaluator_annotation_mappings.append(
-                        EvaluationRunDataMapping(
-                            column=EvaluationRunDataMappingColumn(
-                                kind="annotation",
-                                name=column_name,
-                            ),
-                            step=EvaluationRunDataMappingStep(
-                                key=step_key,
-                                path=mapping_path,
-                            ),
-                        )
-                    )
+            evaluator_annotation_mappings: List[EvaluationRunDataMapping] = list(  # type: ignore
+                EvaluationRunDataMapping(
+                    column=EvaluationRunDataMappingColumn(
+                        kind="annotation",
+                        name=metric_key.get("path", ""),
+                    ),
+                    step=EvaluationRunDataMappingStep(
+                        key=step_key,
+                        path=f"attributes.ag.data.outputs{('.' + metric_key.get('path', '')) if metric_key.get('path') else ''}",
+                    ),
+                )
+                for step_key in evaluator_annotation_steps_keys
+                for metric_key in evaluator_metrics_keys[step_key]
+            )
 
             mappings: List[EvaluationRunDataMapping] = (
                 query_input_mappings
