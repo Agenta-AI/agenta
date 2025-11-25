@@ -444,45 +444,8 @@ class EvaluationsService:
             windowing=windowing,
         )
 
-        filtered_runs: List[EvaluationRun] = []
-        for dto in runs:
-            if self._include_run(dto=dto, required_kinds=required_kinds):
-                filtered_runs.append(dto)
+        return runs
 
-        return filtered_runs
-
-    def _include_run(
-        self,
-        *,
-        dto: EvaluationRun,
-        required_kinds: Optional[set[str]],
-    ) -> bool:
-        kind = determine_evaluation_kind(dto)
-        if required_kinds and kind not in required_kinds:
-            return False
-
-        try:
-            if isinstance(dto.meta, dict):
-                meta = dto.meta
-            elif dto.meta is None:
-                meta = {}
-            elif hasattr(dto.meta, "model_dump"):
-                meta = dto.meta.model_dump()  # type: ignore[attr-defined]
-            elif hasattr(dto.meta, "dict"):
-                meta = dto.meta.dict()  # type: ignore[attr-defined]
-            else:
-                meta = dict(dto.meta)  # type: ignore[arg-type]
-        except Exception:  # pragma: no cover - defensive fallback
-            meta = {}
-
-        if isinstance(meta, dict) and meta.get("evaluation_kind") != kind:
-            meta = {**meta, "evaluation_kind": kind}
-            try:
-                dto.meta = meta  # type: ignore[assignment]
-            except Exception:  # pragma: no cover - best effort
-                pass
-
-        return True
 
     async def _query_runs_with_kind_windowing(
         self,
@@ -513,10 +476,9 @@ class EvaluationsService:
                 break
 
             for dto in batch:
-                if self._include_run(dto=dto, required_kinds=required_kinds):
-                    collected.append(dto)
-                    if limit_value and len(collected) >= limit_value:
-                        break
+                collected.append(dto)
+                if limit_value and len(collected) >= limit_value:
+                    break
 
             last_cursor = getattr(batch[-1], "id", None)
 
