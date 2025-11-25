@@ -74,6 +74,23 @@ const cloneNodeDeep = (value: any) => {
     }
 }
 
+const scrubLargeFields = (value: any): any => {
+    if (Array.isArray(value)) {
+        return value.map((item) => scrubLargeFields(item))
+    }
+    if (value && typeof value === "object") {
+        const next: Record<string, unknown> = {}
+        for (const [key, val] of Object.entries(value)) {
+            next[key] = scrubLargeFields(val)
+        }
+        return next
+    }
+    if (typeof value === "string" && value.startsWith("data:") && value.length > 120) {
+        return `${value.slice(0, 60)}...(${value.length})`
+    }
+    return value
+}
+
 function resolveEffectiveRevisionId(
     get: any,
     requestedVariantId: string | undefined,
@@ -102,7 +119,10 @@ function detectIsChatVariant(get: any, rowId: string): boolean {
     return false
 }
 
-type ResolvedVariableKeys = {ordered: string[]; set: Set<string>}
+interface ResolvedVariableKeys {
+    ordered: string[]
+    set: Set<string>
+}
 
 function computeVariableValues(
     get: any,
@@ -360,7 +380,7 @@ export const triggerWebWorkerTestAtom = atom(
             const historyTurns = turnHistoryIds.map((id) => get(chatTurnsByIdAtom)[id])
 
             chatHistory = historyTurns
-                .map((t) => {
+                .map((t, historyIdx) => {
                     const x = []
                     if (t.userMessage) {
                         x.push(extractValueByMetadata(t.userMessage, allMetadata))
