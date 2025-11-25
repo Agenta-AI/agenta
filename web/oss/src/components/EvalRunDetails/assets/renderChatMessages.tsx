@@ -15,19 +15,18 @@ const formatFiles = (msg: {content: any[]; role: string}) => {
     const files = msg.content.filter((content) => content.type === "file")
 
     const formattedFiles = files?.map((f, idx) => {
-        const filename =
-            f.file.name || f.file.filename.includes(f.file.format)
-                ? f.file.filename
-                : `${f.file.filename}${f.file.format ? `.${f.file.format}` : ""}` ||
-                  `Document ${idx + 1}${f.file.format ? `.${f.file.format}` : ""}`
+        const filename = !f.file?.filename
+            ? `Document ${idx + 1}${f.file.format ? `.${f.file.format}` : ""}`
+            : f.file.filename
+
         return {
             filename,
-            format: f.file.format,
-            size: f.file.size,
-            dataUri: f.file.file_id
-                ? f.file.file_id
-                : isBase64(f.file.file_data ?? "")
-                  ? dataUriToObjectUrl(f.file.file_data)
+            format: f.file?.format,
+            size: f.file?.size,
+            dataUri: f.file?.file_id
+                ? f.file?.file_id
+                : isBase64(f.file?.file_data ?? "")
+                  ? dataUriToObjectUrl(f.file?.file_data || "")
                   : "",
         }
     })
