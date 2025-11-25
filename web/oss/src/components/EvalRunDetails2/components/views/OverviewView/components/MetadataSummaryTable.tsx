@@ -23,7 +23,11 @@ import type {
     QueryConditionPayload,
     QueryFilteringPayload,
 } from "../../../../services/onlineEvaluations/api"
-import {ApplicationReferenceLabel, TestsetTagList, VariantReferenceLabel} from "../../../reference"
+import {
+    ApplicationReferenceLabel,
+    TestsetTagList,
+    VariantReferenceLabel,
+} from "@/oss/components/References"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
 import EvalNameTag from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/EvalNameTag"

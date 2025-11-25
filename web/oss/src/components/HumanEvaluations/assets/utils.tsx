@@ -1,5 +1,9 @@
 import type {Dispatch, SetStateAction} from "react"
 
+import {
+    extractPrimaryInvocation,
+    extractEvaluationAppId,
+} from "@agenta/oss/src/components/pages/evaluations/utils"
 import UserAvatarTag from "@agenta/oss/src/components/ui/UserAvatarTag"
 import VariantDetailsWithStatus from "@agenta/oss/src/components/VariantDetailsWithStatus"
 import {GearSix} from "@phosphor-icons/react"
@@ -13,7 +17,7 @@ import {USEABLE_METRIC_TYPES} from "@/oss/components/pages/observability/drawer/
 import {getDefaultValue} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import LabelValuePill from "@/oss/components/ui/LabelValuePill"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
-import {calculateAvgScore} from "@/oss/lib/helpers/evaluate"
+import {calculateAvgScore} from "@/oss/lib/evaluations/legacy"
 import {
     RunIndex,
     ColumnDef,
@@ -34,10 +38,6 @@ import {BasicStats} from "@/oss/services/runMetrics/api/types"
 import {appDetailQueryAtomFamily} from "@/oss/state/app"
 
 import {GeneralAutoEvalMetricColumns} from "../../EvalRunDetails/components/VirtualizedScenarioTable/assets/constants"
-import {
-    extractPrimaryInvocation,
-    extractEvaluationAppId,
-} from "@agenta/oss/src/components/pages/evaluations/utils"
 import {EvaluationRow} from "../types"
 
 import EvaluationStatusCell from "./EvaluationStatusCell"
@@ -1465,89 +1465,7 @@ export const getColumns = ({
         }
     })
 
-    const hasLegacyRun = evaluations.some((rec) => !rec?.data?.steps)
     let legacyScoreColumns: ColumnsType<EvaluationRow> = []
-
-    if (hasLegacyRun) {
-        if (evalType === "human") {
-            legacyScoreColumns = [
-                {
-                    title: (
-                        <div className="flex flex-col">
-                            <span>Average score</span>
-                            <span>(legacy)</span>
-                        </div>
-                    ),
-                    dataIndex: "averageScore",
-                    key: "averageScore",
-                    onHeaderCell: () => ({
-                        style: {minWidth: 160},
-                    }),
-                    render: (_, record) => {
-                        const isLegacy = !record?.data?.steps
-                        const score = calculateAvgScore(record)
-                        return isLegacy ? (
-                            <span>
-                                <Statistic
-                                    className="[&_.ant-statistic-content-value]:text-sm [&_.ant-statistic-content-value]:text-primary [&_.ant-statistic-content-suffix]:text-sm [&_.ant-statistic-content-suffix]:text-primary"
-                                    value={score}
-                                    precision={score <= 99 ? 2 : 1}
-                                    suffix="%"
-                                />
-                            </span>
-                        ) : (
-                            <div className="not-available-table-cell" />
-                        )
-                    },
-                },
-            ]
-        } else if (evalType === "auto" || evalType === "custom") {
-            const legacyAutoEvals = evaluations.filter((rec) => !rec?.data?.steps)
-
-            const evaluators = getDefaultStore().get(evaluatorsAtom)
-            const evaluatorConfigs = uniqBy(
-                legacyAutoEvals
-                    ?.map((item) =>
-                        item.aggregated_results?.map((item) => ({
-                            ...item.evaluator_config,
-                            evaluator: evaluators?.find(
-                                (e) => e.key === item.evaluator_config.evaluator_key,
-                            ),
-                        })),
-                    )
-                    .flat(),
-                "id",
-            )
-
-            legacyScoreColumns = [
-                {
-                    title: "Results",
-                    key: "results",
-                    align: "left",
-                    collapsible: true,
-                    onHeaderCell: () => ({style: {minWidth: 240}}),
-                    children: evaluatorConfigs?.map((evaluator) => ({
-                        title: () => <LegacyEvalResultCellTitle evaluator={evaluator} />,
-                        key: evaluator?.name,
-                        onHeaderCell: () => ({style: {minWidth: 240}}),
-                        render: (_, record) => {
-                            if (!evaluators?.length) return
-
-                            const matchingResults = record.aggregated_results?.filter(
-                                (result) => result.evaluator_config.id === evaluator?.id,
-                            )
-
-                            if (!matchingResults?.length) {
-                                return null
-                            }
-
-                            return <LegacyEvalResultCell matchingResults={matchingResults} />
-                        },
-                    })),
-                },
-            ]
-        }
-    }
 
     const runMetricsGroup = getRunMetricColumns({
         runMetricsMap: runMetricsMap ?? {},

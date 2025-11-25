@@ -10,9 +10,6 @@ import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
 import usePreviewTableData from "../hooks/usePreviewTableData"
 import {previewEvalTypeAtom} from "../state/evalType"
-import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../atoms/runDerived"
-import {VariantReferenceChip, TestsetChipList} from "./reference"
-
 const toSectionAnchorId = (value: string) =>
     `focus-section-${value
         .toLowerCase()
@@ -29,14 +26,6 @@ interface FocusDrawerSidePanelProps {
 const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) => {
     const {columnResult} = usePreviewTableData({runId})
     const evalType = useAtomValue(previewEvalTypeAtom)
-    const invocationRefs = useAtomValue(
-        useMemo(() => runInvocationRefsAtomFamily(runId ?? null), [runId]),
-    )
-    const testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId ?? null), [runId]))
-    const variantId = useMemo(
-        () => invocationRefs?.variantId ?? invocationRefs?.applicationVariantId ?? null,
-        [invocationRefs],
-    )
 
     const {rows} = useInfiniteTablePagination({
         store: evaluationPreviewTableStore,
@@ -107,16 +96,6 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
             },
         ]
 
-        if (metricNodes.length) {
-            children.push({
-                title: "Metrics",
-                key: "metrics",
-                icon: <Speedometer size={14} className="text-[#1677FF]" />,
-                children: metricNodes,
-                anchorId: groupAnchorMap.get("metrics:auto") ?? toSectionAnchorId("metrics:auto"),
-            })
-        }
-
         if (evaluatorNodes.length) {
             children.push({
                 title: "Evaluator",
@@ -124,6 +103,16 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
                 icon: <Speedometer size={14} className="text-[#758391]" />,
                 children: evaluatorNodes,
                 anchorId: groupAnchorMap.get("annotations"),
+            })
+        }
+
+        if (metricNodes.length) {
+            children.push({
+                title: "Metrics",
+                key: "metrics",
+                icon: <Speedometer size={14} className="text-[#1677FF]" />,
+                children: metricNodes,
+                anchorId: groupAnchorMap.get("metrics:auto") ?? toSectionAnchorId("metrics:auto"),
             })
         }
 
@@ -158,10 +147,6 @@ const FocusDrawerSidePanel = ({runId, scenarioId}: FocusDrawerSidePanelProps) =>
 
     return (
         <div className="p-4">
-            <div className="flex flex-wrap items-center gap-2 mb-3">
-                {variantId ? <VariantReferenceChip variantId={variantId} /> : null}
-                <TestsetChipList ids={testsetIds ?? []} />
-            </div>
             <div className="rounded-xl border border-[#EAECF0] bg-white p-2">
                 <Tree
                     treeData={treeData}

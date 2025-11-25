@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Form, Input, Skeleton, Tag, Typography} from "antd"
+import {Form, Input, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
@@ -9,6 +9,7 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 
 import {evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
 import {deriveRunTags} from "../utils"
+import {SectionSkeleton} from "./SectionPrimitives"
 
 const {Text} = Typography
 
@@ -103,7 +104,7 @@ const GeneralSection = ({runId, onRegisterActions}: GeneralSectionProps) => {
     }, [onRegisterActions, handleSave, handleReset, isSaveDisabled, saving])
 
     if (isLoading) {
-        return <Skeleton active paragraph={{rows: 4}} />
+        return <SectionSkeleton lines={4} />
     }
 
     return (

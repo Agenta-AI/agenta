@@ -18,7 +18,7 @@ import {
 import useRunScopedUrls from "../hooks/useRunScopedUrls"
 import {setCompareQueryParams} from "../state/urlCompare"
 
-import ReferenceTag from "./reference/ReferenceTag"
+import ReferenceTag from "@/oss/components/References/ReferenceTag"
 
 import usePreviewEvaluations from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations"
 

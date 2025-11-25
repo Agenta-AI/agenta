@@ -26,6 +26,34 @@ export interface EvaluatorMetricEntry {
     metrics: EvaluatorMetricDefinition[]
 }
 
+export const extractEvaluatorRef = (rawRefs: Record<string, any> | undefined | null) => {
+    if (!rawRefs) return {id: undefined, slug: undefined}
+
+    const ref =
+        rawRefs.evaluator ??
+        rawRefs.evaluator_ref ??
+        rawRefs.evaluatorRef ??
+        rawRefs.evaluatorRevision ??
+        rawRefs.evaluator_revision ??
+        rawRefs.evaluator_revision_ref ??
+        null
+
+    const id =
+        typeof ref?.id === "string" && ref.id.trim()
+            ? ref.id.trim()
+            : typeof rawRefs.evaluator_id === "string" && rawRefs.evaluator_id.trim()
+              ? rawRefs.evaluator_id.trim()
+              : undefined
+    const slug =
+        typeof ref?.slug === "string" && ref.slug.trim()
+            ? ref.slug.trim()
+            : typeof rawRefs.evaluator_slug === "string" && rawRefs.evaluator_slug.trim()
+              ? rawRefs.evaluator_slug.trim()
+              : undefined
+
+    return {id, slug}
+}
+
 export const buildEvaluatorMetricEntries = (
     statsMap: Record<string, unknown> | null | undefined,
     evaluatorSteps: EvaluatorStepMeta[],
@@ -133,7 +161,7 @@ export const buildEvaluatorFallbackMetricsByStep = (
 
     Array.from(runIndex.annotationKeys ?? []).forEach((stepKey) => {
         const stepMeta = runIndex.steps?.[stepKey]
-        const evaluatorRef = stepMeta?.refs?.evaluator ?? {}
+        const evaluatorRef = extractEvaluatorRef(stepMeta?.refs)
         const candidates =
             (evaluatorRef.slug && metricsBySlug.get(evaluatorRef.slug)) ||
             (evaluatorRef.id && metricsById.get(evaluatorRef.id)) ||

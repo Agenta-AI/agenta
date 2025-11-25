@@ -40,7 +40,7 @@ const OverviewView = ({runId}: OverviewViewProps) => {
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col bg-zinc-1 px-6 pt-2">
+        <div className="flex h-full min-h-0 flex-col bg-zinc-1 px-3 pt-2">
             <div className="flex-1 overflow-y-auto">
                 <div className="flex flex-col gap-6 pb-6">
                     <AggregatedOverviewSection runIds={runIds} />

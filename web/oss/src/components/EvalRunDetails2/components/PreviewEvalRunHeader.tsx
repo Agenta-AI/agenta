@@ -4,13 +4,14 @@ import {Space, Tabs, Tag, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
+import {VariantReferenceChip, TestsetReferenceChip} from "@/oss/components/References"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
 
 import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../atoms/runDerived"
 import {evaluationRunQueryAtomFamily} from "../atoms/table"
+import {previewEvalTypeAtom} from "../state/evalType"
 
 import CompareRunsMenu from "./CompareRunsMenu"
-import {VariantReferenceChip, TestsetReferenceChip} from "./reference"
 
 const statusColor = (status?: string | null) => {
     if (!status) return "default"
@@ -21,7 +22,7 @@ const statusColor = (status?: string | null) => {
     return "default"
 }
 
-type ActiveView = "overview" | "scenarios" | "configuration"
+type ActiveView = "overview" | "focus" | "scenarios" | "configuration"
 
 const PreviewEvalRunHeader = ({
     runId,
@@ -38,6 +39,7 @@ const PreviewEvalRunHeader = ({
     const runQuery = useAtomValue(runQueryAtom)
     const invocationRefs = useAtomValue(useMemo(() => runInvocationRefsAtomFamily(runId), [runId]))
     const testsetIds = useAtomValue(useMemo(() => runTestsetIdsAtomFamily(runId), [runId]))
+    const evalType = useAtomValue(previewEvalTypeAtom)
 
     const runData = runQuery.data?.camelRun ?? runQuery.data?.rawRun ?? null
     const runStatus = runData?.status ?? null
@@ -71,12 +73,18 @@ const PreviewEvalRunHeader = ({
     })()
 
     const tabs = useMemo(() => {
-        return [
-            {label: "Overview", value: "overview" as ActiveView},
-            {label: "Scenarios", value: "scenarios" as ActiveView},
-            {label: "Configuration", value: "configuration" as ActiveView},
+        const base: {label: string; value: ActiveView}[] = [
+            {label: "Overview", value: "overview"},
+            {label: "Scenarios", value: "scenarios"},
+            {label: "Configuration", value: "configuration"},
         ]
-    }, [])
+
+        if (evalType === "human") {
+            base.splice(1, 0, {label: "Focus", value: "focus"})
+        }
+
+        return base
+    }, [evalType])
 
     const currentView = activeView ?? tabs[0]?.value ?? "overview"
 
@@ -84,7 +92,7 @@ const PreviewEvalRunHeader = ({
         <div
             className={clsx(
                 "w-full",
-                "flex items-center justify-between gap-4 py-2 sticky top-0 z-[11] bg-white",
+                "flex items-center justify-between gap-4 p-2 sticky top-0 z-[11] bg-white",
                 currentView === "overview" && "border-0",
                 className,
             )}

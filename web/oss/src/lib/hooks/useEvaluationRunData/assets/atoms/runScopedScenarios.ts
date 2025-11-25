@@ -53,6 +53,12 @@ export const scenarioStepFamily = atomFamily<
         // Depend on refresh version so that incrementing it triggers refetch
         const refresh = get(scenarioStepRefreshFamily(params))
 
+        // Check local cache first so preview/POC flows can hydrate without full run state
+        const local = get(scenarioStepLocalFamily(params))
+        if (local && Object.keys(local).length > 0) {
+            return local
+        }
+
         // Access data directly from run-scoped atom instead of derived atoms
         const runState = get(evaluationRunStateFamily(runId))
         const evaluation = runState?.enrichedRun
@@ -116,20 +122,6 @@ export const scenarioStepFamily = atomFamily<
             scenarioStepInFlightMap.set(runId, new Map())
         }
         const inFlightMap = scenarioStepInFlightMap.get(runId)!
-
-        // Local cached value first
-        const local = get(scenarioStepLocalFamily(params))
-        if (local && Object.keys(local).length > 0) {
-            if (refresh > 0 && !inFlightMap.has(scenarioId)) {
-                const bgPromise = (async () => {
-                    await fetchScenarioViaWorkerAndCache(fetchParams, [scenarioId])
-                    evalAtomStore().set(scenarioStepRefreshFamily(params), 0)
-                })()
-                inFlightMap.set(scenarioId, bgPromise)
-                bgPromise.finally(() => inFlightMap.delete(scenarioId))
-            }
-            return local
-        }
 
         // Fallback to bulk cache - return undefined if not cached
         return undefined

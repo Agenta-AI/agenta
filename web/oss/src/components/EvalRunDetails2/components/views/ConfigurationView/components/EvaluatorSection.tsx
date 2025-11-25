@@ -1,6 +1,7 @@
 import {useMemo, useState} from "react"
 
-import {Alert, Form, Segmented, Skeleton, Tag, Typography} from "antd"
+import {DownOutlined} from "@ant-design/icons"
+import {Alert, Button, Form, Segmented, Skeleton, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -14,10 +15,10 @@ import {useEvaluatorTypeMeta} from "@/oss/components/pages/evaluations/onlineEva
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../../atoms/table/evaluators"
 import type {EvaluatorDefinition} from "../../../../atoms/table/types"
 import useRunScopedUrls from "../../../../hooks/useRunScopedUrls"
-import ReferenceTag from "../../../reference/ReferenceTag"
+import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import {stringifyError} from "../utils"
 
-import {SectionCard, SectionHeaderRow, SectionLabel} from "./SectionPrimitives"
+import {SectionCard, SectionLabel} from "./SectionPrimitives"
 
 const {Text} = Typography
 const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
@@ -57,16 +58,17 @@ const EvaluatorSection = ({runId}: EvaluatorSectionProps) => {
     }
 
     return (
-        <Form layout="vertical" requiredMark={false}>
-            {evaluators.map((evaluator) => (
+        <div className="flex flex-col gap-4">
+            {evaluators.map((evaluator, index) => (
                 <EvaluatorCard
                     key={evaluator.id}
                     evaluator={evaluator}
                     evaluatorTypeLookup={evaluatorTypeLookup}
                     runId={runId}
+                    index={index}
                 />
             ))}
-        </Form>
+        </div>
     )
 }
 
@@ -74,13 +76,16 @@ const EvaluatorCard = ({
     evaluator,
     evaluatorTypeLookup,
     runId,
+    index,
 }: {
     evaluator: EvaluatorDefinition
     evaluatorTypeLookup: Map<string, {slug: string; label: string}>
     runId: string
+    index: number
 }) => {
     const rawEvaluator = evaluator.raw
     const [view, setView] = useState<"details" | "json">("details")
+    const [collapsed, setCollapsed] = useState(false)
 
     const details = useEvaluatorDetails({
         evaluator: rawEvaluator as any,
@@ -103,6 +108,14 @@ const EvaluatorCard = ({
     const finalTypeColor = cfgColor ?? typeColor
     const finalFallbackColors = cfgColor ? undefined : fallbackColors
     const finalShowType = Boolean(finalTypeLabel)
+    const evaluatorDisplayLabel =
+        evaluator.name || evaluator.slug || rawEvaluator?.name || rawEvaluator?.slug
+            ? (evaluator.name ??
+              evaluator.slug ??
+              rawEvaluator?.name ??
+              rawEvaluator?.slug ??
+              `Evaluator ${index + 1}`)
+            : `Evaluator ${index + 1}`
 
     const evaluatorJson = useMemo(() => {
         if (!rawEvaluator) return ""
@@ -141,40 +154,44 @@ const EvaluatorCard = ({
         : undefined
 
     return (
-        <SectionCard>
-            {rawEvaluator ? (
-                <div className="flex flex-col gap-3">
-                    {hasEvaluatorJson ? (
-                        <>
-                            <SectionHeaderRow
-                                left={
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <ReferenceTag
-                                            label={evaluator.name || evaluator.slug || "—"}
-                                            copyValue={evaluator.id}
-                                            tooltip={
-                                                evaluator.name || evaluator.slug || evaluator.id
-                                            }
-                                            href={evaluatorHref}
-                                            showIcon={Boolean(evaluatorHref)}
-                                            className="max-w-[220px]"
-                                            tone="evaluator"
+        <Form layout="vertical" requiredMark={false}>
+            <SectionCard>
+                {rawEvaluator ? (
+                    <div className="flex flex-col gap-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="flex flex-col gap-1">
+                                <Typography.Title level={5} className="!mb-0 !mt-0 text-[#101828]">
+                                    {evaluatorDisplayLabel}
+                                </Typography.Title>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <ReferenceTag
+                                        label={evaluator.name || evaluator.slug || "—"}
+                                        copyValue={evaluator.id}
+                                        tooltip={evaluator.name || evaluator.slug || evaluator.id}
+                                        href={evaluatorHref}
+                                        showIcon={Boolean(evaluatorHref)}
+                                        className="max-w-[220px]"
+                                        tone="evaluator"
+                                    />
+                                    {finalShowType ? (
+                                        <EvaluatorTypeTag
+                                            label={finalTypeLabel!}
+                                            color={finalTypeColor}
+                                            fallback={finalFallbackColors}
                                         />
-                                        {finalShowType ? (
-                                            <EvaluatorTypeTag
-                                                label={finalTypeLabel!}
-                                                color={finalTypeColor}
-                                                fallback={finalFallbackColors}
-                                            />
-                                        ) : null}
-                                        {evaluator.version ? (
-                                            <Tag className="!m-0 !bg-[#0517290F]" bordered={false}>
-                                                V{evaluator.version}
-                                            </Tag>
-                                        ) : null}
-                                    </div>
-                                }
-                                right={
+                                    ) : null}
+                                    {evaluator.version ? (
+                                        <Tag className="!m-0 !bg-[#0517290F]" bordered={false}>
+                                            V{evaluator.version}
+                                        </Tag>
+                                    ) : null}
+                                </div>
+                                {evaluator.description ? (
+                                    <Text type="secondary">{evaluator.description}</Text>
+                                ) : null}
+                            </div>
+                            <div className="flex items-start gap-2">
+                                {hasEvaluatorJson ? (
                                     <Segmented
                                         options={[
                                             {label: "Details", value: "details"},
@@ -184,68 +201,85 @@ const EvaluatorCard = ({
                                         value={view}
                                         onChange={(val) => setView(val as "details" | "json")}
                                     />
-                                }
-                            />
-                            {evaluator.description ? (
-                                <Text type="secondary">{evaluator.description}</Text>
-                            ) : null}
-                        </>
-                    ) : null}
-
-                    {view === "json" && hasEvaluatorJson ? (
-                        <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
-                            <JsonEditor
-                                key={evaluatorJsonKey}
-                                initialValue={evaluatorJson}
-                                language="json"
-                                codeOnly
-                                showToolbar={false}
-                                disabled
-                                enableResize={false}
-                                boundWidth
-                                dimensions={{width: "100%", height: 260}}
-                            />
+                                ) : null}
+                                <Button
+                                    type="text"
+                                    size="small"
+                                    icon={
+                                        <DownOutlined
+                                            rotate={collapsed ? -90 : 0}
+                                            style={{fontSize: 12}}
+                                        />
+                                    }
+                                    onClick={() => setCollapsed((v) => !v)}
+                                />
+                            </div>
                         </div>
-                    ) : (
-                        <EvaluatorDetailsPreview
-                            details={details as any}
-                            typeLabel={finalTypeLabel}
-                            typeColor={finalTypeColor}
-                            fallbackColors={finalFallbackColors}
-                            showType={finalShowType}
-                        />
-                    )}
-                </div>
-            ) : (
-                <div className="flex flex-col gap-2">
-                    <Text type="secondary">
-                        Evaluator configuration snapshot is unavailable for this run.
-                    </Text>
-                    {metricsFallback.length ? (
-                        <div className="flex flex-wrap gap-2">
-                            {metricsFallback.map((metric) => (
-                                <Tag key={`${evaluator.id}-${metric.name}`} className="!m-0">
-                                    {metric.displayLabel ?? metric.name}
-                                </Tag>
-                            ))}
-                        </div>
-                    ) : null}
-                </div>
-            )}
 
-            {metricsFallback.length > 0 && rawEvaluator ? (
-                <div className="flex flex-col gap-1">
-                    <SectionLabel>Metrics</SectionLabel>
-                    <div className="flex flex-wrap gap-2">
-                        {metricsFallback.map((metric) => (
-                            <Tag key={`${evaluator.id}-${metric.name}`} className="!m-0">
-                                {metric.displayLabel ?? metric.name}
-                            </Tag>
-                        ))}
+                        {!collapsed ? (
+                            <>
+                                <div className="rounded-md border border-solid border-[#E4E7EC] p-3">
+                                    {view === "json" && hasEvaluatorJson ? (
+                                        <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
+                                            <JsonEditor
+                                                key={evaluatorJsonKey}
+                                                initialValue={evaluatorJson}
+                                                language="json"
+                                                codeOnly
+                                                showToolbar={false}
+                                                disabled
+                                                enableResize={false}
+                                                boundWidth
+                                                dimensions={{width: "100%", height: 260}}
+                                            />
+                                        </div>
+                                    ) : (
+                                        <EvaluatorDetailsPreview
+                                            details={details as any}
+                                            typeLabel={finalTypeLabel}
+                                            typeColor={finalTypeColor}
+                                            fallbackColors={finalFallbackColors}
+                                            showType={finalShowType}
+                                        />
+                                    )}
+                                </div>
+
+                                {metricsFallback.length > 0 ? (
+                                    <div className="flex flex-col gap-1">
+                                        <SectionLabel>Metrics</SectionLabel>
+                                        <div className="flex flex-wrap gap-2">
+                                            {metricsFallback.map((metric) => (
+                                                <Tag
+                                                    key={`${evaluator.id}-${metric.name}`}
+                                                    className="!m-0"
+                                                >
+                                                    {metric.displayLabel ?? metric.name}
+                                                </Tag>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : null}
+                            </>
+                        ) : null}
                     </div>
-                </div>
-            ) : null}
-        </SectionCard>
+                ) : (
+                    <div className="flex flex-col gap-2">
+                        <Text type="secondary">
+                            Evaluator configuration snapshot is unavailable for this run.
+                        </Text>
+                        {metricsFallback.length ? (
+                            <div className="flex flex-wrap gap-2">
+                                {metricsFallback.map((metric) => (
+                                    <Tag key={`${evaluator.id}-${metric.name}`} className="!m-0">
+                                        {metric.displayLabel ?? metric.name}
+                                    </Tag>
+                                ))}
+                            </div>
+                        ) : null}
+                    </div>
+                )}
+            </SectionCard>
+        </Form>
     )
 }
 

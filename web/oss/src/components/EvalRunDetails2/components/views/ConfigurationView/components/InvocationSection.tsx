@@ -1,7 +1,9 @@
-import {memo, useEffect, useMemo} from "react"
+import {memo, useEffect, useMemo, useState} from "react"
 
-import {Tag, Typography} from "antd"
+import {DownOutlined} from "@ant-design/icons"
+import {Button, Segmented, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
+import dynamic from "next/dynamic"
 
 import {
     clearProjectVariantReferencesAtom,
@@ -10,18 +12,25 @@ import {
     type ProjectVariantConfigKey,
 } from "@/oss/state/projectVariantConfig"
 
-import {variantReferenceQueryAtomFamily} from "../../../../atoms/references"
+import {
+    applicationReferenceQueryAtomFamily,
+    variantReferenceQueryAtomFamily,
+} from "../../../../atoms/references"
 import {effectiveProjectIdAtom} from "../../../../atoms/run"
 import {runInvocationRefsAtomFamily} from "../../../../atoms/runDerived"
 import {evaluationVariantConfigAtomFamily} from "../../../../atoms/variantConfig"
-import {ApplicationReferenceLabel, VariantReferenceLabel} from "../../../reference"
 import {toIdString} from "../utils"
 
+import {
+    ApplicationReferenceLabel,
+    VariantReferenceLabel,
+} from "@/oss/components/References/ReferenceLabels"
 import {ReadOnlySkeleton} from "./CopyableFields"
 import PromptConfigCard from "./PromptConfigCard"
-import {SectionCard} from "./SectionPrimitives"
+import {SectionCard, SectionSkeleton} from "./SectionPrimitives"
 
 const {Text} = Typography
+const JsonEditor = dynamic(() => import("@/oss/components/Editor/Editor"), {ssr: false})
 
 interface InvocationSectionProps {
     runId: string
@@ -52,6 +61,22 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
             variantConfig?.variant_ref?.variantId,
     )
 
+    const applicationId = toIdString(
+        applicationRef?.id ??
+            applicationRef?.app_id ??
+            applicationRevisionRef?.application_id ??
+            applicationRevisionRef?.applicationId ??
+            applicationVariantRef?.application_id ??
+            applicationVariantRef?.applicationId ??
+            null,
+    )
+
+    const applicationAtom = useMemo(
+        () => applicationReferenceQueryAtomFamily(applicationId ?? null),
+        [applicationId],
+    )
+    const applicationQuery = useAtomValue(applicationAtom)
+
     const variantAtom = useMemo(() => variantReferenceQueryAtomFamily(variantId), [variantId])
     const variantQuery = useAtomValue(variantAtom)
     const variantLoading = variantQuery.isPending || variantQuery.isFetching
@@ -77,6 +102,28 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
         null
 
     const hasParamsSnapshot = Boolean(variantConfig?.params)
+    const applicationLabel =
+        applicationQuery.data?.name ??
+        applicationQuery.data?.slug ??
+        applicationRef?.name ??
+        applicationRef?.app_name ??
+        applicationRef?.slug ??
+        applicationRef?.app_slug ??
+        (applicationId && applicationId.length > 12
+            ? `${applicationId.slice(0, 6)}…${applicationId.slice(-4)}`
+            : applicationId) ??
+        null
+    const variantLabel =
+        variantName ??
+        variantConfig?.variant_ref?.name ??
+        variantConfig?.variant_ref?.variant_name ??
+        variantConfig?.variant_ref?.slug ??
+        variantConfig?.variant_ref?.variant_slug ??
+        variantSlug ??
+        (variantDisplayId && variantDisplayId.length > 12
+            ? `${variantDisplayId.slice(0, 6)}…${variantDisplayId.slice(-4)}`
+            : variantDisplayId) ??
+        null
 
     const promptVariantKey = useMemo(() => {
         const variantRef = variantConfig?.variant_ref ?? {}
@@ -164,42 +211,90 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
         applicationRevisionRef,
     ])
 
+    const [collapsed, setCollapsed] = useState(false)
+    const [view, setView] = useState<"details" | "json">("details")
+
     if (!rawRefs || Object.keys(rawRefs).length === 0) return null
+    if (isVariantLoading || variantLoading) {
+        return <SectionSkeleton lines={4} />
+    }
+
+    const headerContent = (
+        <div className="flex flex-col gap-1">
+            <Text className="text-sm font-semibold text-[#344054]">Application</Text>
+            <div className="flex flex-wrap items-center gap-2">
+                <ApplicationReferenceLabel runId={runId} applicationId={applicationId} />
+                {variantId ? (
+                    <VariantReferenceLabel
+                        variantId={variantId}
+                        applicationId={applicationId}
+                        runId={runId}
+                        fallbackLabel={variantLabel}
+                        showVersionPill
+                        explicitVersion={variantVersion}
+                    />
+                ) : variantLabel ? (
+                    <span className="text-sm text-[#475467]">{variantLabel}</span>
+                ) : null}
+            </div>
+        </div>
+    )
 
     return (
         <SectionCard>
-            <VariantConfigurationBlock
-                title={
-                    <div className="flex flex-col gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <ApplicationReferenceLabel
-                                runId={runId}
-                                applicationId={toIdString(applicationRef?.id) ?? null}
-                            />
-                            <VariantReferenceLabel
-                                runId={runId}
-                                variantId={variantId}
-                                applicationId={toIdString(applicationRef?.id) ?? null}
-                            />
-                            {variantVersion ? (
-                                <Tag className="!m-0 !bg-[#0517290F]" bordered={false}>
-                                    V{variantVersion}
-                                </Tag>
-                            ) : null}
-                        </div>
+            <div className="flex items-start justify-between gap-3">
+                {headerContent}
+                <div className="flex items-center gap-2">
+                    {variantConfig ? (
+                        <Segmented
+                            options={[
+                                {label: "Details", value: "details"},
+                                {label: "JSON", value: "json"},
+                            ]}
+                            size="small"
+                            value={view}
+                            onChange={(val) => setView(val as "details" | "json")}
+                        />
+                    ) : null}
+                    <Button
+                        type="text"
+                        size="small"
+                        icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                        onClick={() => setCollapsed((v) => !v)}
+                    />
+                </div>
+            </div>
+
+            {!collapsed ? (
+                view === "json" && variantConfig ? (
+                    <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
+                        <JsonEditor
+                            initialValue={JSON.stringify(variantConfig, null, 2)}
+                            language="json"
+                            codeOnly
+                            showToolbar={false}
+                            disabled
+                            enableResize={false}
+                            boundWidth
+                            dimensions={{width: "100%", height: 320}}
+                        />
                     </div>
-                }
-                isLoading={isVariantLoading || variantLoading}
-                hasVariantConfig={Boolean(variantConfig)}
-                promptVariantKey={promptVariantKey}
-                variantParameters={variantConfig?.params}
-                variantDisplayId={variantDisplayId}
-                variantName={variantName}
-                variantSlug={variantSlug}
-                variantResolved={variantResolved}
-                variantVersion={variantVersion}
-                hasParamsSnapshot={hasParamsSnapshot}
-            />
+                ) : (
+                    <VariantConfigurationBlock
+                        title={null}
+                        isLoading={isVariantLoading || variantLoading}
+                        hasVariantConfig={Boolean(variantConfig)}
+                        promptVariantKey={promptVariantKey}
+                        variantParameters={variantConfig?.params}
+                        variantDisplayId={variantDisplayId}
+                        variantName={variantName}
+                        variantSlug={variantSlug}
+                        variantResolved={variantResolved}
+                        variantVersion={variantVersion}
+                        hasParamsSnapshot={hasParamsSnapshot}
+                    />
+                )
+            ) : null}
         </SectionCard>
     )
 }
@@ -239,12 +334,7 @@ const VariantConfigurationBlock = memo(
 
         return (
             <div className="flex flex-col gap-2">
-                <Text
-                    type="secondary"
-                    style={{textTransform: "uppercase", fontWeight: 600, fontSize: 12}}
-                >
-                    {title}
-                </Text>
+                {title ? <div>{title}</div> : null}
                 <PromptConfigCard
                     className="flex flex-col gap-3"
                     variantId={promptVariantKey ?? undefined}

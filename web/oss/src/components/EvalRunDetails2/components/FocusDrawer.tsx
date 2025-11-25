@@ -1,26 +1,34 @@
 import {memo, useCallback, useMemo} from "react"
 import {isValidElement} from "react"
 
-import {Skeleton, Typography} from "antd"
+import {Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import MetricDetailsPreviewPopover from "@/oss/components/evaluations/components/MetricDetailsPreviewPopover"
 import GenericDrawer from "@/oss/components/GenericDrawer"
+import {VariantReferenceChip, TestsetChipList} from "@/oss/components/References"
 
 import ReadOnlyBox from "../../pages/evaluations/onlineEvaluation/components/ReadOnlyBox"
+import {
+    applicationReferenceQueryAtomFamily,
+    testsetReferenceQueryAtomFamily,
+    variantReferenceQueryAtomFamily,
+} from "../atoms/references"
 import {runInvocationRefsAtomFamily, runTestsetIdsAtomFamily} from "../atoms/runDerived"
 import type {
     ColumnValueDescriptor,
     EvaluationTableColumn,
     MetricColumnDefinition,
 } from "../atoms/table"
+import type {EvaluationTableColumnGroup} from "../atoms/table"
 import {
     columnValueDescriptorMapAtomFamily,
     createColumnValueDescriptor,
 } from "../atoms/table/columnAccess"
 import {evaluationRunIndexAtomFamily} from "../atoms/table/run"
 import usePreviewTableData from "../hooks/usePreviewTableData"
+import useRunIdentifiers from "../hooks/useRunIdentifiers"
 import useScenarioCellValue from "../hooks/useScenarioCellValue"
 import {useScenarioStepValue} from "../hooks/useScenarioStepValue"
 import {
@@ -34,7 +42,6 @@ import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricForm
 
 import FocusDrawerHeader from "./FocusDrawerHeader"
 import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
-import {VariantReferenceChip, TestsetChipList} from "./reference"
 
 const SECTION_CARD_CLASS = "rounded-xl border border-[#EAECF0] bg-white"
 
@@ -125,6 +132,85 @@ interface FocusDrawerSection {
     label: string
     columns: SectionColumnEntry[]
     anchorId: string
+    group: EvaluationTableColumn["groupId"] extends infer _ ? EvaluationTableColumn["groupId"] : any
+}
+
+interface InvocationRefs {
+    applicationId: string | null
+    applicationVariantId: string | null
+    variantRevision: string | number | null
+}
+
+const useInvocationRefs = (
+    group: EvaluationTableColumnGroup | null,
+    runId: string | null,
+): InvocationRefs => {
+    const runIdentifiers = useRunIdentifiers(runId)
+
+    const applicationId =
+        (group?.meta?.refs?.application?.id as string | undefined) ??
+        (group?.meta?.refs?.app?.id as string | undefined) ??
+        (group?.meta?.refs?.agent?.id as string | undefined) ??
+        (group?.meta?.refs?.tool?.id as string | undefined) ??
+        runIdentifiers.applicationId ??
+        null
+    const applicationVariantId =
+        (group?.meta?.refs?.variant?.id as string | undefined) ??
+        (group?.meta?.refs?.application_variant?.id as string | undefined) ??
+        runIdentifiers.variantId ??
+        runIdentifiers.applicationVariantId ??
+        null
+    const variantRevision =
+        (group?.meta?.refs?.variant?.revision as string | number | undefined) ??
+        (group?.meta?.refs?.variant?.version as string | number | undefined) ??
+        (group?.meta?.refs?.application_variant?.revision as string | number | undefined) ??
+        (group?.meta?.refs?.application_variant?.version as string | number | undefined) ??
+        (runIdentifiers.rawRefs?.variant?.revision as string | number | undefined) ??
+        (runIdentifiers.rawRefs?.variant?.version as string | number | undefined) ??
+        (runIdentifiers.rawRefs?.applicationVariant?.revision as string | number | undefined) ??
+        (runIdentifiers.rawRefs?.applicationVariant?.version as string | number | undefined) ??
+        null
+
+    return {applicationId, applicationVariantId, variantRevision}
+}
+
+const FocusGroupLabel = ({
+    group,
+    label,
+    runId,
+}: {
+    group: EvaluationTableColumnGroup | null
+    label: string
+    runId: string | null
+}) => {
+    const testsetId = group?.meta?.refs?.testset?.id as string | undefined
+    const {applicationId, applicationVariantId, variantRevision} = useInvocationRefs(group, runId)
+
+    const appQuery = useAtomValue(
+        useMemo(() => applicationReferenceQueryAtomFamily(applicationId ?? null), [applicationId]),
+    )
+    const testsetQuery = useAtomValue(
+        useMemo(() => testsetReferenceQueryAtomFamily(testsetId ?? null), [testsetId]),
+    )
+    const variantQuery = useAtomValue(
+        useMemo(
+            () => variantReferenceQueryAtomFamily(applicationVariantId ?? null),
+            [applicationVariantId],
+        ),
+    )
+
+    if (group?.kind === "input" && testsetId && testsetQuery.data?.name) {
+        return <>{`Testset ${testsetQuery.data.name}`}</>
+    }
+
+    if (group?.kind === "invocation") {
+        const applicationLabel =
+            appQuery.data?.name ?? appQuery.data?.slug ?? appQuery.data?.id ?? applicationId ?? null
+
+        if (applicationLabel) return <>{`Application ${applicationLabel}`}</>
+    }
+
+    return <>{label}</>
 }
 
 const RunMetricValue = memo(
@@ -344,7 +430,75 @@ const ScenarioColumnValue = memo(
 
 ScenarioColumnValue.displayName = "ScenarioColumnValue"
 
-const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps) => {
+const InvocationMetaChips = memo(
+    ({group, runId}: {group: EvaluationTableColumnGroup | null; runId: string | null}) => {
+        const {applicationId, applicationVariantId, variantRevision} = useInvocationRefs(
+            group,
+            runId,
+        )
+
+        const appQuery = useAtomValue(
+            useMemo(
+                () => applicationReferenceQueryAtomFamily(applicationId ?? null),
+                [applicationId],
+            ),
+        )
+        const variantQuery = useAtomValue(
+            useMemo(
+                () => variantReferenceQueryAtomFamily(applicationVariantId ?? null),
+                [applicationVariantId],
+            ),
+        )
+
+        const appLabel =
+            appQuery.data?.name ?? appQuery.data?.slug ?? appQuery.data?.id ?? applicationId ?? null
+        const variantLabel =
+            variantQuery.data?.name ??
+            variantQuery.data?.slug ??
+            variantQuery.data?.id ??
+            applicationVariantId ??
+            null
+        const resolvedVariantRevision =
+            variantQuery.data?.revision !== undefined && variantQuery.data?.revision !== null
+                ? String(variantQuery.data.revision)
+                : variantRevision !== undefined && variantRevision !== null
+                  ? String(variantRevision)
+                  : null
+
+        if (!appLabel && !variantLabel) {
+            return null
+        }
+
+        const revisionBadge =
+            resolvedVariantRevision && resolvedVariantRevision.length
+                ? resolvedVariantRevision.startsWith("v")
+                    ? resolvedVariantRevision
+                    : `v${resolvedVariantRevision}`
+                : null
+
+        return (
+            <div className="flex flex-col gap-1 px-4 pb-1">
+                {appLabel ? (
+                    <span className="text-sm font-medium text-[#101828]">{appLabel}</span>
+                ) : null}
+                {variantLabel ? (
+                    <div className="flex items-center gap-2 text-sm text-[#475467]">
+                        <span>{variantLabel}</span>
+                        {revisionBadge ? (
+                            <span className="rounded-full bg-[#F2F4F7] px-2 py-0.5 text-xs font-semibold text-[#344054]">
+                                {revisionBadge}
+                            </span>
+                        ) : null}
+                    </div>
+                ) : null}
+            </div>
+        )
+    },
+)
+
+InvocationMetaChips.displayName = "InvocationMetaChips"
+
+export const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps) => {
     const {columnResult} = usePreviewTableData({runId})
     const descriptorMap = useAtomValue(
         useMemo(() => columnValueDescriptorMapAtomFamily(runId ?? null), [runId]),
@@ -417,6 +571,7 @@ const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps) => {
                     label: sectionLabel,
                     columns,
                     anchorId: toSectionAnchorId(group.id),
+                    group,
                 }
             })
             .filter((section): section is FocusDrawerSection => Boolean(section))
@@ -439,9 +594,16 @@ const FocusDrawerContent = ({runId, scenarioId}: FocusDrawerContentProps) => {
                 >
                     <div className="border-b border-[#EAECF0] px-4 py-3">
                         <Title level={5} className="!mb-0 text-[#1D2939]">
-                            {section.label}
+                            <FocusGroupLabel
+                                group={section.group}
+                                label={section.label}
+                                runId={runId}
+                            />
                         </Title>
                     </div>
+                    {section.group?.kind === "invocation" ? (
+                        <InvocationMetaChips group={section.group} runId={runId} />
+                    ) : null}
                     <div className="flex flex-col gap-3 px-4 pb-4">
                         {section.columns.map(({column, descriptor}) => (
                             <ScenarioColumnValue

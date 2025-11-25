@@ -21,6 +21,7 @@ import type {AggregatedMetricChartData} from "../types"
 import {
     buildEvaluatorFallbackMetricsByStep,
     buildEvaluatorMetricEntries,
+    extractEvaluatorRef,
 } from "../utils/evaluatorMetrics"
 import {resolveMetricValue} from "../utils/metrics"
 
@@ -149,45 +150,37 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
         return rawData as Record<string, BasicStats>
     }, [metricsLoadable])
 
+    const evaluatorByKey = useMemo(() => {
+        const map = new Map<string, any>()
+        evaluatorDefinitions.forEach((def) => {
+            if (def.id) map.set(def.id, def)
+            if (def.slug) map.set(def.slug, def)
+        })
+        return map
+    }, [evaluatorDefinitions])
+
     const evaluatorSteps = useMemo(() => {
         if (!runIndex) return []
         return Array.from(runIndex.annotationKeys ?? []).map((stepKey) => {
             const meta = runIndex.steps?.[stepKey]
-            const evaluatorRefMeta = meta?.refs?.evaluator ?? {}
-            const refSlug =
-                (typeof evaluatorRefMeta?.slug === "string" && evaluatorRefMeta.slug.length
-                    ? evaluatorRefMeta.slug
-                    : undefined) ??
-                (typeof evaluatorRefMeta?.id === "string" && evaluatorRefMeta.id.length
-                    ? evaluatorRefMeta.id
-                    : undefined) ??
-                (typeof evaluatorRefMeta?.name === "string" && evaluatorRefMeta.name.length
-                    ? evaluatorRefMeta.name
-                    : undefined) ??
-                undefined
+            const evaluatorRefMeta = extractEvaluatorRef(meta?.refs)
             const evaluator =
-                evaluatorDefinitions.find(
-                    (def) => def.slug === refSlug || def.id === refSlug || def.name === refSlug,
-                ) ?? null
-            const label = evaluator?.name || evaluator?.slug || refSlug || stepKey
+                (evaluatorRefMeta.id && evaluatorByKey.get(evaluatorRefMeta.id)) ||
+                (evaluatorRefMeta.slug && evaluatorByKey.get(evaluatorRefMeta.slug)) ||
+                null
+            const fallbackLabel =
+                evaluatorRefMeta.slug || evaluatorRefMeta.id || (meta?.refs as any)?.evaluator?.name
+            const label = evaluator?.name || evaluator?.slug || fallbackLabel || stepKey
             const evaluatorRef: EvaluatorRef | null =
-                evaluator || evaluatorRefMeta
+                evaluator || evaluatorRefMeta.id || evaluatorRefMeta.slug
                     ? {
-                          id:
-                              evaluator?.id ??
-                              (typeof evaluatorRefMeta?.id === "string"
-                                  ? evaluatorRefMeta.id
-                                  : null),
-                          slug:
-                              evaluator?.slug ??
-                              (typeof evaluatorRefMeta?.slug === "string"
-                                  ? evaluatorRefMeta.slug
-                                  : null),
+                          id: evaluator?.id ?? (evaluatorRefMeta.id ?? null),
+                          slug: evaluator?.slug ?? (evaluatorRefMeta.slug ?? null),
                       }
                     : null
             return {stepKey, label, evaluatorRef}
         })
-    }, [evaluatorDefinitions, runIndex])
+    }, [evaluatorByKey, runIndex])
 
     const fallbackMetricMap = useMemo(
         () => buildEvaluatorFallbackMetricsByStep(runIndex ?? null, evaluatorDefinitions),

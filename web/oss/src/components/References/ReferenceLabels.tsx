@@ -1,16 +1,16 @@
 import {memo, useMemo} from "react"
 
 import {Skeleton, Typography} from "antd"
+import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import {
     applicationReferenceQueryAtomFamily,
     testsetReferenceQueryAtomFamily,
     variantReferenceQueryAtomFamily,
-} from "../../atoms/references"
-import useRunIdentifiers from "../../hooks/useRunIdentifiers"
-import useRunScopedUrls from "../../hooks/useRunScopedUrls"
-
+    useRunIdentifiers,
+    useRunScopedUrls,
+} from "./EvalRunReferences"
 import ReferenceTag from "./ReferenceTag"
 
 const {Text} = Typography
@@ -60,17 +60,19 @@ export const TestsetTagList = memo(
         ids,
         projectURL,
         runId,
+        className,
     }: {
         ids: string[]
         projectURL?: string | null
         runId?: string | null
+        className?: string
     }) => {
         if (!ids.length) {
             return <Text type="secondary">—</Text>
         }
 
         return (
-            <div className="flex flex-wrap gap-2">
+            <div className={clsx("flex flex-wrap gap-2", className)}>
                 {ids.map((id) => (
                     <TestsetTag key={id} testsetId={id} projectURL={projectURL} runId={runId} />
                 ))}
@@ -138,10 +140,16 @@ export const VariantReferenceLabel = memo(
         variantId: explicitVariantId,
         applicationId: explicitApplicationId,
         runId,
+        fallbackLabel,
+        showVersionPill = false,
+        explicitVersion,
     }: {
         variantId?: string | null
         applicationId?: string | null
         runId?: string | null
+        fallbackLabel?: string | null
+        showVersionPill?: boolean
+        explicitVersion?: number | string | null
     }) => {
         const {variantId: runVariantId, applicationId: runApplicationId} = useRunIdentifiers(runId)
         const effectiveVariantId = explicitVariantId ?? runVariantId ?? null
@@ -163,18 +171,30 @@ export const VariantReferenceLabel = memo(
         }
 
         const ref = query.data
-        const label = ref?.name ?? ref?.slug ?? ref?.id ?? effectiveVariantId
+        const label = ref?.name ?? ref?.slug ?? fallbackLabel ?? ref?.id ?? effectiveVariantId
+        const resolvedVersion =
+            explicitVersion ??
+            ref?.revision ??
+            ref?.version ??
+            (typeof ref?.variant === "object" ? (ref.variant as any)?.revision : null)
         const href = buildVariantPlaygroundHref(effectiveVariantId)
 
         return (
-            <ReferenceTag
-                label={label}
-                href={href ?? undefined}
-                tooltip={label}
-                copyValue={effectiveVariantId ?? undefined}
-                className="max-w-[220px]"
-                tone="variant"
-            />
+            <div className="flex items-center gap-2">
+                <ReferenceTag
+                    label={label}
+                    href={href ?? undefined}
+                    tooltip={label}
+                    copyValue={effectiveVariantId ?? undefined}
+                    className="max-w-[220px]"
+                    tone="variant"
+                />
+                {showVersionPill && resolvedVersion ? (
+                    <span className="rounded-full bg-[#F2F4F7] px-2 py-0.5 text-xs font-semibold text-[#344054]">
+                        v{resolvedVersion}
+                    </span>
+                ) : null}
+            </div>
         )
     },
 )

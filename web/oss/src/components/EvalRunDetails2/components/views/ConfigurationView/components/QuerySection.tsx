@@ -10,7 +10,7 @@ import {
     evaluationQueryReferenceAtomFamily,
     evaluationQueryRevisionAtomFamily,
 } from "../../../../atoms/query"
-import ReferenceTag from "../../../reference/ReferenceTag"
+import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import {formatSamplingRate, formatWindowRange, stringifyError} from "../utils"
 
 import {ReadOnlyContainer} from "./CopyableFields"

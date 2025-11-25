@@ -122,3 +122,34 @@ export const evaluationAnnotationQueryAtomFamily = atomFamily(
             }
         }),
 )
+
+export const scenarioAnnotationsQueryAtomFamily = atomFamily(
+    ({traceIds, runId}: {traceIds: string[]; runId?: string | null}) =>
+        atomWithQuery<AnnotationDto[]>((get) => {
+            const batcher = get(evaluationAnnotationBatcherFamily({runId}))
+            const {projectId: globalProjectId} = getProjectValues()
+            const projectId = globalProjectId ?? get(effectiveProjectIdAtom)
+            const effectiveRunId = resolveEffectiveRunId(get, runId)
+            const uniqueTraceIds = Array.from(new Set(traceIds.filter(Boolean)))
+
+            return {
+                queryKey: [
+                    "preview",
+                    "scenario-annotations",
+                    effectiveRunId,
+                    projectId,
+                    uniqueTraceIds.join("|"),
+                ],
+                enabled: Boolean(projectId && batcher && uniqueTraceIds.length),
+                staleTime: 30_000,
+                gcTime: 5 * 60 * 1000,
+                refetchOnWindowFocus: false,
+                refetchOnReconnect: false,
+                queryFn: async () => {
+                    if (!batcher || uniqueTraceIds.length === 0) return []
+                    const results = await Promise.all(uniqueTraceIds.map((id) => batcher(id)))
+                    return results.filter(Boolean) as AnnotationDto[]
+                },
+            }
+        }),
+)

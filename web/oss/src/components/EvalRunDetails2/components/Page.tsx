@@ -16,9 +16,10 @@ import EvalRunDetailsTable from "../Table"
 import FocusDrawer from "./FocusDrawer"
 import PreviewEvalRunHeader from "./PreviewEvalRunHeader"
 import ConfigurationView from "./views/ConfigurationView"
+import FocusView from "./views/FocusView"
 import OverviewView from "./views/OverviewView"
 
-type ViewKey = "overview" | "scenarios" | "configuration"
+type ViewKey = "overview" | "focus" | "scenarios" | "configuration"
 
 interface EvalRunPreviewPageProps {
     runId: string
@@ -67,8 +68,9 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
         }
     }, [])
 
-    const [activeViewParam, setActiveViewParam] = useQueryParam("view", "overview", "replace")
-    const activeView = (activeViewParam as ViewKey) ?? "overview"
+    const defaultView = evaluationType === "human" ? "focus" : "overview"
+    const [activeViewParam, setActiveViewParam] = useQueryParam("view", defaultView, "replace")
+    const activeView = (activeViewParam as ViewKey) ?? defaultView
 
     return (
         <div className="flex h-full min-h-0 flex-col">
@@ -83,18 +85,31 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                     className="flex-1 min-h-0 overflow-hidden"
                     activeKey={activeView}
                     onChange={(key) => setActiveViewParam(key)}
-                    destroyInactiveTabPane
+                    destroyOnHidden
                     renderTabBar={() => <div style={{display: "none"}} />}
                     items={[
                         {
                             key: "overview",
                             label: "Overview",
                             children: (
-                                <div className="h-full overflow-auto pr-2">
+                                <div className="h-full overflow-auto">
                                     <OverviewView runId={runId} />
                                 </div>
                             ),
                         },
+                        ...(evaluationType === "human"
+                            ? [
+                                  {
+                                      key: "focus",
+                                      label: "Focus",
+                                      children: (
+                                          <div className="h-full min-h-0">
+                                              <FocusView runId={runId} />
+                                          </div>
+                                      ),
+                                  } satisfies (typeof Tabs)["prototype"]["props"]["items"][number],
+                              ]
+                            : []),
                         {
                             key: "scenarios",
                             label: "Scenarios",

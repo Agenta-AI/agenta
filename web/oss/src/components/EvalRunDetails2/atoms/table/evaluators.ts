@@ -3,7 +3,6 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-
 import createBatchFetcher from "@/oss/state/utils/createBatchFetcher"
 
 import {effectiveProjectIdAtom} from "../run"
@@ -134,10 +133,10 @@ const evaluatorFetchBatcher = createBatchFetcher<EvaluatorFetchRequest, Evaluato
             {
                 projectId: string
                 flags: Record<string, boolean> | null
-                entries: Array<{
+                entries: {
                     serializedKey: string
                     refs: EvaluatorReferenceInput[]
-                }>
+                }[]
             }
         >()
 
@@ -194,13 +193,19 @@ const evaluatorFetchBatcher = createBatchFetcher<EvaluatorFetchRequest, Evaluato
                     return
                 }
 
-                const expectedKeys = new Set(
-                    entry.refs.map((ref) => `${ref.id ?? ""}:${ref.slug ?? ""}`),
-                )
-
-                const filtered = evaluatorDefinitions.filter((definition) =>
-                    expectedKeys.has(`${definition.id ?? ""}:${definition.slug ?? ""}`),
-                )
+                const filtered = evaluatorDefinitions.filter((definition) => {
+                    return entry.refs.some((ref) => {
+                        const idMatches =
+                            ref.id && definition.id
+                                ? ref.id === definition.id || ref.id === definition.slug
+                                : false
+                        const slugMatches =
+                            ref.slug && (definition.slug || definition.id)
+                                ? ref.slug === definition.slug || ref.slug === definition.id
+                                : false
+                        return idMatches || slugMatches
+                    })
+                })
 
                 responseMap.set(entry.serializedKey, filtered)
             })
@@ -223,9 +228,22 @@ const fetchEvaluators = async ({
         return []
     }
 
+    const sanitizedRefs = refs
+        .map((ref) => ({
+            ...(ref.id ? {id: ref.id.trim()} : {}),
+            ...(ref.slug ? {slug: ref.slug.trim()} : {}),
+        }))
+        .filter((ref) => Object.keys(ref).length > 0)
+
+    const normalizedRefs = normalizeEvaluatorRefs(sanitizedRefs)
+
+    if (!normalizedRefs.length) {
+        return []
+    }
+
     return evaluatorFetchBatcher({
         projectId,
-        refs,
+        refs: normalizedRefs,
         flags: normalizeFlags(flags),
     })
 }
@@ -261,31 +279,81 @@ export const evaluationEvaluatorsByRunQueryAtomFamily = atomFamily((runId: strin
     atomWithQuery<EvaluatorDefinition[]>((get) => {
         const projectId = get(effectiveProjectIdAtom)
         const runQuery = runId ? get(evaluationRunQueryAtomFamily(runId)) : undefined
-        const evaluatorRefs = runQuery?.data
-            ? normalizeEvaluatorRefs(
-                  Object.values(runQuery.data.runIndex.steps ?? {}).map((step: any) => {
-                      const ref = step?.refs?.evaluator ?? {}
-                      const id =
-                          typeof ref?.id === "string" && ref.id.length > 0 ? ref.id : undefined
-                      const slug =
-                          typeof ref?.slug === "string" && ref.slug.length > 0
-                              ? ref.slug
-                              : undefined
-                      return {id, slug}
-                  }),
-              )
+
+        const extractEvaluatorRef = (rawRefs: Record<string, any>): EvaluatorReferenceInput => {
+            const ref =
+                rawRefs.evaluator ??
+                rawRefs.evaluator_ref ??
+                rawRefs.evaluatorRef ??
+                rawRefs.evaluatorRevision ??
+                rawRefs.evaluator_revision ??
+                rawRefs.evaluator_revision_ref ??
+                null
+
+            let id =
+                typeof ref?.id === "string" && ref.id.trim().length > 0 ? ref.id.trim() : undefined
+            let slug =
+                typeof ref?.slug === "string" && ref.slug.trim().length > 0
+                    ? ref.slug.trim()
+                    : undefined
+
+            if (!id && typeof rawRefs.evaluator_id === "string" && rawRefs.evaluator_id.trim()) {
+                id = rawRefs.evaluator_id.trim()
+            }
+            if (
+                !slug &&
+                typeof rawRefs.evaluator_slug === "string" &&
+                rawRefs.evaluator_slug.trim()
+            ) {
+                slug = rawRefs.evaluator_slug.trim()
+            }
+
+            return {id, slug}
+        }
+
+        const refsFromIndex = runQuery?.data
+            ? Object.values(runQuery.data.runIndex.steps ?? {})
+                  .map((step: any) => extractEvaluatorRef(step?.refs ?? {}))
+                  .filter((ref) => ref.id || ref.slug)
+            : []
+
+        const rawSteps =
+            (runQuery?.data?.camelRun as any)?.data?.steps ??
+            (runQuery?.data?.rawRun as any)?.data?.steps ??
+            []
+        const refsFromRawSteps = Array.isArray(rawSteps)
+            ? rawSteps
+                  .map((step: any) => extractEvaluatorRef(step?.references ?? {}))
+                  .filter((ref) => ref.id || ref.slug)
+            : []
+
+        const evaluatorRefs = normalizeEvaluatorRefs([...refsFromIndex, ...refsFromRawSteps])
+
+        const embeddedEvaluators = ((runQuery?.data?.camelRun as any)?.data?.evaluators ??
+            (runQuery?.data?.rawRun as any)?.data?.evaluators ??
+            []) as any[]
+        const embeddedEvaluatorDefinitions = Array.isArray(embeddedEvaluators)
+            ? embeddedEvaluators.map(toEvaluatorDefinition)
             : []
 
         return {
-            queryKey: buildEvaluatorQueryKey(projectId ?? null, evaluatorRefs),
+            queryKey: [
+                ...buildEvaluatorQueryKey(projectId ?? null, evaluatorRefs),
+                embeddedEvaluatorDefinitions.length || null,
+            ],
             enabled:
-                Boolean(projectId && runId && evaluatorRefs.length > 0) && Boolean(runQuery?.data),
+                Boolean(projectId && runId && runQuery?.data) &&
+                (evaluatorRefs.length > 0 || embeddedEvaluatorDefinitions.length > 0),
             staleTime: 60_000,
             gcTime: 5 * 60 * 1000,
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,
             queryFn: async () => {
-                if (!projectId || !runId || evaluatorRefs.length === 0) return []
+                if (!projectId || !runId) return []
+                if (embeddedEvaluatorDefinitions.length) {
+                    return embeddedEvaluatorDefinitions
+                }
+                if (evaluatorRefs.length === 0) return []
                 return fetchEvaluators({projectId, refs: evaluatorRefs})
             },
         }

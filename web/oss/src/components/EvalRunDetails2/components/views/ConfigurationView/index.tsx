@@ -1,6 +1,7 @@
-import {memo, useCallback, useMemo, useRef, useState} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {ReactNode, UIEvent} from "react"
 
+import {DownOutlined} from "@ant-design/icons"
 import {Button, Card, Skeleton, Space, Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
@@ -26,6 +27,7 @@ import GeneralSection from "./components/GeneralSection"
 import InvocationSection from "./components/InvocationSection"
 import QuerySection from "./components/QuerySection"
 import TestsetSection from "./components/TestsetSection"
+import {SectionSkeleton} from "./components/SectionPrimitives"
 import {hasQueryReference} from "./utils"
 
 const {Text, Title} = Typography
@@ -421,11 +423,11 @@ const sectionDefinitions: SectionDefinition[] = [
     },
     {
         key: "invocation",
-        title: "Invocation",
+        title: "Application",
         hasData: (summary) => summary.hasInvocation,
         getSubtitle: (summary) => summary?.invocationSubtitle,
         render: (runId) => <InvocationSection runId={runId} />,
-        fallbackMessage: "Invocation metadata unavailable.",
+        fallbackMessage: "Application metadata unavailable.",
     },
     {
         key: "query",
@@ -434,14 +436,6 @@ const sectionDefinitions: SectionDefinition[] = [
         getSubtitle: (summary) => summary?.querySubtitle,
         render: (runId) => <QuerySection runId={runId} />,
         fallbackMessage: "No query linked to this evaluation.",
-    },
-    {
-        key: "evaluators",
-        title: "Evaluators",
-        hasData: (summary) => summary.hasEvaluatorSection,
-        getSubtitle: (summary) => summary?.evaluatorSubtitle,
-        render: (runId) => <EvaluatorSection runId={runId} />,
-        fallbackMessage: "No evaluators configured.",
     },
 ]
 
@@ -474,7 +468,7 @@ const ConfigurationSectionColumn = memo(
 
         let content: ReactNode = null
         if (summary.isLoading) {
-            content = <Skeleton active paragraph={{rows: 3}} />
+            content = <SectionSkeleton />
         } else if (columnHasData || section.alwaysVisible) {
             // Only the base run column provides header actions for the section
             const register =
@@ -490,6 +484,18 @@ const ConfigurationSectionColumn = memo(
             !summary.isBaseRun && summary.accentColor !== "transparent"
                 ? summary.accentColor
                 : undefined
+
+        if (
+            section.key === "evaluators" ||
+            section.key === "testsets" ||
+            section.key === "invocation"
+        ) {
+            return (
+                <div className="flex flex-col gap-6 px-0 py-2" style={{borderColor: accentColor}}>
+                    {content}
+                </div>
+            )
+        }
 
         return (
             <div
@@ -533,6 +539,11 @@ const ConfigurationSectionRow = memo(
         registerScrollContainer: (key: string, node: HTMLDivElement | null) => void
         syncScroll: (key: string, scrollLeft: number) => void
     }) => {
+        const [collapsed, setCollapsed] = useState(false)
+        useEffect(() => {
+            setCollapsed(false)
+        }, [runIdsSignature, section.key])
+
         const [headerActions, setHeaderActions] = useState<{
             save: () => void
             reset: () => void
@@ -570,12 +581,54 @@ const ConfigurationSectionRow = memo(
             return null
         }
 
+        const grid = (
+            <div
+                ref={handleRef}
+                onScroll={handleScroll}
+                className="grid grid-flow-col auto-cols-[minmax(320px,1fr)] gap-4 overflow-x-auto pb-2"
+            >
+                {runIds.map((runId, index) => {
+                    const descriptor = runDescriptors[index]
+                    return (
+                        <ConfigurationSectionColumn
+                            key={`${section.key}-${runId}`}
+                            runId={runId}
+                            compareIndex={index}
+                            section={section}
+                            runName={descriptor?.displayName}
+                            onRegisterHeaderActions={setHeaderActions}
+                        />
+                    )
+                })}
+            </div>
+        )
+
+        if (section.key === "evaluators") {
+            return !collapsed ? grid : null
+        }
+
+        const headerContent = (
+            <div className="flex items-center gap-2">
+                <Title level={5} className="!mb-0 !mt-0">
+                    {section.title}
+                </Title>
+                <Button
+                    type="text"
+                    size="small"
+                    icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                    onClick={() => setCollapsed((v) => !v)}
+                />
+            </div>
+        )
+
+        if (section.key === "testsets" || section.key === "invocation") {
+            return !collapsed ? grid : null
+        }
+
         return (
             <Card>
                 <div className="flex items-center justify-between !mb-3">
-                    <Title level={5} className="!mb-0 !mt-0">
-                        {section.title}
-                    </Title>
+                    {headerContent}
                     {section.key === "general" && headerActions ? (
                         <Space size={8} wrap>
                             <Button
@@ -595,25 +648,7 @@ const ConfigurationSectionRow = memo(
                         </Space>
                     ) : null}
                 </div>
-                <div
-                    ref={handleRef}
-                    onScroll={handleScroll}
-                    className="grid grid-flow-col auto-cols-[minmax(320px,1fr)] gap-4 overflow-x-auto pb-2"
-                >
-                    {runIds.map((runId, index) => {
-                        const descriptor = runDescriptors[index]
-                        return (
-                            <ConfigurationSectionColumn
-                                key={`${section.key}-${runId}`}
-                                runId={runId}
-                                compareIndex={index}
-                                section={section}
-                                runName={descriptor?.displayName}
-                                onRegisterHeaderActions={setHeaderActions}
-                            />
-                        )
-                    })}
-                </div>
+                {!collapsed ? grid : null}
             </Card>
         )
     },
@@ -643,6 +678,14 @@ const ConfigurationLayout = memo(({runIds}: {runIds: string[]}) => {
                     syncScroll={syncScroll}
                 />
             ))}
+            {/* Render evaluators without a shared wrapper; each run renders its own evaluator cards directly */}
+            <div className="grid grid-flow-col auto-cols-[minmax(320px,1fr)] gap-4 overflow-x-auto pb-2">
+                {runIds.map((runId) => (
+                    <div key={`evaluators-${runId}`} className="flex flex-col gap-4">
+                        <EvaluatorSection runId={runId} />
+                    </div>
+                ))}
+            </div>
         </div>
     )
 })

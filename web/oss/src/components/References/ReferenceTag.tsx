@@ -1,13 +1,11 @@
 import {ArrowSquareOut} from "@phosphor-icons/react"
-import {Tag, TagProps, Tooltip} from "antd"
+import {Tag, type TagProps, Tooltip} from "antd"
 import clsx from "clsx"
 import {useRouter} from "next/router"
 
 import {message} from "@/oss/components/AppMessageContext"
-import {
-    getReferenceToneColors,
-    type ReferenceTone,
-} from "@/oss/components/References/referenceColors"
+
+import {getReferenceToneColors, type ReferenceTone} from "./referenceColors"
 
 interface ReferenceTagProps extends TagProps {
     label: string

@@ -385,7 +385,30 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
                 const order = orderBase + counters[stepType as keyof typeof counters]++
                 const columnId = `${mapping.column.kind}:${mapping.column.name}:${order}`
                 const width = widthByStepType[stepType] ?? undefined
-                const evaluatorRef = stepMeta?.refs?.evaluator
+                const evaluatorRefs = stepMeta?.refs ?? {}
+                const evaluatorRef =
+                    evaluatorRefs.evaluator ??
+                    evaluatorRefs.evaluator_ref ??
+                    evaluatorRefs.evaluatorRef ??
+                    evaluatorRefs.evaluatorRevision ??
+                    evaluatorRefs.evaluator_revision ??
+                    evaluatorRefs.evaluator_revision_ref
+
+                const evaluatorIdRaw =
+                    typeof evaluatorRef?.id === "string" && evaluatorRef.id.trim()
+                        ? evaluatorRef.id.trim()
+                        : typeof evaluatorRefs.evaluator_id === "string" &&
+                            evaluatorRefs.evaluator_id.trim()
+                          ? evaluatorRefs.evaluator_id.trim()
+                          : undefined
+                const evaluatorSlug =
+                    typeof evaluatorRef?.slug === "string" && evaluatorRef.slug.trim()
+                        ? evaluatorRef.slug.trim()
+                        : typeof evaluatorRefs.evaluator_slug === "string" &&
+                            evaluatorRefs.evaluator_slug.trim()
+                          ? evaluatorRefs.evaluator_slug.trim()
+                          : undefined
+                const evaluatorId = evaluatorIdRaw ?? evaluatorSlug
 
                 const baseColumn: EvaluationTableColumn = {
                     id: columnId,
@@ -399,15 +422,15 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
                     valueKey,
                     metricKey:
                         canonicalMetricKey ?? (stepType === "annotation" ? valueKey : undefined),
-                    evaluatorId: evaluatorRef?.id,
-                    evaluatorSlug: evaluatorRef?.slug,
+                    evaluatorId,
+                    evaluatorSlug,
                     order,
                     width,
                     minWidth: width,
                     groupId:
                         stepType === "annotation"
-                            ? evaluatorRef?.id
-                                ? `annotation:${evaluatorRef.id}`
+                            ? evaluatorId
+                                ? `annotation:${evaluatorId}`
                                 : "annotations"
                             : undefined,
                 }
@@ -425,6 +448,11 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
             })
 
         const evaluatorById = new Map(evaluators.map((definition) => [definition.id, definition]))
+        evaluators.forEach((definition) => {
+            if (definition.slug && !evaluatorById.has(definition.slug)) {
+                evaluatorById.set(definition.slug, definition)
+            }
+        })
 
         const annotationGroups = new Map<
             string,

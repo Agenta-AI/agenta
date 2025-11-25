@@ -1,10 +1,9 @@
 import {memo} from "react"
 
+import EvaluationErrorPopover from "@agenta/oss/src/components/pages/evaluations/EvaluationErrorProps/EvaluationErrorPopover"
 import {Tag, Typography, Space} from "antd"
 
-import {getTypedValue} from "@/oss/lib/helpers/evaluate"
-
-import EvaluationErrorPopover from "@agenta/oss/src/components/pages/evaluations/EvaluationErrorProps/EvaluationErrorPopover"
+import {getTypedValue} from "@/oss/lib/evaluations/legacy"
 
 export const LegacyEvalResultCell = memo(({matchingResults}: {matchingResults: any}) => {
     return (

@@ -2,40 +2,25 @@ import {memo, useCallback, useEffect, useMemo} from "react"
 
 import {LeftOutlined, RightOutlined} from "@ant-design/icons"
 import {Button, Select, SelectProps, Tag, Typography} from "antd"
-import {useAtomValue} from "jotai"
-
-import {evaluationPreviewTableStore} from "../evaluationPreviewTableStore"
-import {previewEvalTypeAtom} from "../state/evalType"
-import {patchFocusDrawerQueryParams} from "../state/urlFocusDrawer"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 
-interface FocusDrawerHeaderProps {
+import {evaluationPreviewTableStore} from "../../../evaluationPreviewTableStore"
+
+interface ScenarioNavigatorProps {
     runId: string
     scenarioId: string | null
-    onScenarioChange?: (scenarioId: string) => void
+    onChange: (scenarioId: string) => void
 }
 
 const PAGE_SIZE = 50
 
-const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHeaderProps) => {
-    const evalType = useAtomValue(previewEvalTypeAtom)
+const ScenarioNavigator = ({runId, scenarioId, onChange}: ScenarioNavigatorProps) => {
     const {rows, paginationInfo, loadNextPage} = useInfiniteTablePagination({
         store: evaluationPreviewTableStore,
         scopeId: runId,
         pageSize: PAGE_SIZE,
     })
-
-    const changeScenario = useCallback(
-        (nextScenarioId: string) => {
-            if (onScenarioChange) {
-                onScenarioChange(nextScenarioId)
-            } else {
-                patchFocusDrawerQueryParams({focusRunId: runId, focusScenarioId: nextScenarioId})
-            }
-        },
-        [onScenarioChange, runId],
-    )
 
     const loadedScenarios = useMemo(
         () =>
@@ -49,23 +34,8 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
         [rows],
     )
 
-    useEffect(() => {
-        if (!scenarioId) return
-        const hasScenarioLoaded = loadedScenarios.some((row) => row.scenarioId === scenarioId)
-        if (!hasScenarioLoaded && paginationInfo.hasMore && !paginationInfo.isFetching) {
-            loadNextPage()
-        }
-    }, [
-        scenarioId,
-        loadedScenarios,
-        paginationInfo.hasMore,
-        paginationInfo.isFetching,
-        loadNextPage,
-    ])
-
-    const scenarioLabel = evalType === "human" ? "Scenario" : "Test case"
-
     const options = useMemo(() => {
+        const scenarioLabel = "Scenario"
         const base = loadedScenarios.map((row) => ({
             value: row.scenarioId as string,
             label: `${scenarioLabel} #${row.scenarioIndex ?? "?"}`,
@@ -81,7 +51,7 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
         }
 
         return base
-    }, [loadedScenarios, scenarioLabel, scenarioId])
+    }, [loadedScenarios, scenarioId])
 
     const currentIndex = useMemo(() => {
         if (!scenarioId) return -1
@@ -91,24 +61,38 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
     const handleSelect = useCallback<NonNullable<SelectProps["onSelect"]>>(
         (value) => {
             const nextScenarioId = typeof value === "string" ? value : String(value)
-            changeScenario(nextScenarioId)
+            onChange(nextScenarioId)
         },
-        [changeScenario],
+        [onChange],
     )
 
     const handlePrev = useCallback(() => {
         if (currentIndex <= 0) return
         const target = loadedScenarios[currentIndex - 1]
         if (!target?.scenarioId) return
-        changeScenario(target.scenarioId)
-    }, [changeScenario, currentIndex, loadedScenarios])
+        onChange(target.scenarioId)
+    }, [currentIndex, loadedScenarios, onChange])
 
     const handleNext = useCallback(() => {
         if (currentIndex === -1) return
         const target = loadedScenarios[currentIndex + 1]
         if (!target?.scenarioId) return
-        changeScenario(target.scenarioId)
-    }, [changeScenario, currentIndex, loadedScenarios])
+        onChange(target.scenarioId)
+    }, [currentIndex, loadedScenarios, onChange])
+
+    useEffect(() => {
+        if (!scenarioId) return
+        const hasScenarioLoaded = loadedScenarios.some((row) => row.scenarioId === scenarioId)
+        if (!hasScenarioLoaded && paginationInfo.hasMore && !paginationInfo.isFetching) {
+            loadNextPage()
+        }
+    }, [
+        scenarioId,
+        loadedScenarios,
+        paginationInfo.hasMore,
+        paginationInfo.isFetching,
+        loadNextPage,
+    ])
 
     const selectedOption = useMemo(
         () => options.find((option) => option.value === scenarioId),
@@ -137,12 +121,12 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
                     size="small"
                     value={scenarioId ?? undefined}
                     options={options}
-                    placeholder={`Select a ${scenarioLabel.toLowerCase()}`}
+                    placeholder="Select a scenario"
                     onSelect={handleSelect}
                     filterOption={(input, option) =>
                         (option?.label as string)?.toLowerCase().includes(input.toLowerCase())
                     }
-                    style={{minWidth: 160}}
+                    style={{minWidth: 200}}
                     optionRender={(option) => (
                         <div className="flex flex-col">
                             <span>{option.data.label}</span>
@@ -166,4 +150,4 @@ const FocusDrawerHeader = ({runId, scenarioId, onScenarioChange}: FocusDrawerHea
     )
 }
 
-export default memo(FocusDrawerHeader)
+export default memo(ScenarioNavigator)

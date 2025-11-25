@@ -1,15 +1,12 @@
 import {memo, useMemo} from "react"
 
-import {Tag, TagProps} from "antd"
+import {Tag, type TagProps} from "antd"
 import clsx from "clsx"
 import {useAtomValue} from "jotai"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 
-import {
-    variantReferenceQueryAtomFamily,
-    testsetReferenceQueryAtomFamily,
-} from "../../atoms/references"
+import {variantReferenceQueryAtomFamily, testsetReferenceQueryAtomFamily} from "./EvalRunReferences"
 
 type ChipTone = "variant" | "testset"
 
