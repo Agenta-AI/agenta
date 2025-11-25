@@ -115,23 +115,37 @@ export const evaluationRunsMetaUpdaterAtom = atom(
     },
 )
 
+const searchInputStateAtom = atom<string | null>(null)
+let searchInputDebounce: ReturnType<typeof setTimeout> | null = null
+
 export const evaluationRunsSearchInputAtom = atom(
     (get) => {
+        const state = get(searchInputStateAtom)
+        if (state !== null) return state
         const meta = get(evaluationRunsTableMetaAtom)
         return meta.previewSearchQuery ?? ""
     },
     (_get, set, value: string) => {
-        const sanitized = value.trim()
-        const next = sanitized.length ? sanitized : undefined
-        set(evaluationRunsMetaUpdaterAtom, (prev) => {
-            if ((prev.previewSearchQuery ?? undefined) === next) {
-                return prev
-            }
-            return {
-                ...prev,
-                previewSearchQuery: next,
-            }
-        })
+        set(searchInputStateAtom, value)
+
+        if (searchInputDebounce) {
+            clearTimeout(searchInputDebounce)
+        }
+
+        searchInputDebounce = setTimeout(() => {
+            const sanitized = value.trim()
+            const next = sanitized.length ? sanitized : undefined
+
+            set(evaluationRunsMetaUpdaterAtom, (prev) => {
+                if ((prev.previewSearchQuery ?? undefined) === next) {
+                    return prev
+                }
+                return {
+                    ...prev,
+                    previewSearchQuery: next,
+                }
+            })
+        }, 300)
     },
 )
 
@@ -412,7 +426,12 @@ export const evaluationRunsFiltersSummaryAtom = atom<EvaluationRunsFiltersSummar
 
     lockedReferenceFilters.app = Array.from(new Set(normalizedLockedAppIds))
 
-    const evaluationTypeFilters = meta.evaluationTypeFilters ?? []
+    const evaluationTypeFilters =
+        meta.evaluationTypeFilters && meta.evaluationTypeFilters.length
+            ? meta.evaluationTypeFilters
+            : context.evaluationKind !== "all"
+              ? [context.evaluationKind]
+              : []
     const dateRange = meta.dateRange ?? null
 
     const referenceCount = Object.entries(referenceFilters ?? {}).reduce(
