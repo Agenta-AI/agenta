@@ -7,7 +7,7 @@ import ImagePreview from "@/oss/components/Common/ImagePreview"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
-import {isBase64, dataUriToObjectUrl} from "@/oss/lib/helpers/utils"
+import {isBase64, dataUriToObjectUrl, isUrl} from "@/oss/lib/helpers/utils"
 
 const Tooltip = dynamic(() => import("antd").then((mod) => mod.Tooltip), {ssr: false})
 
@@ -96,14 +96,18 @@ export function renderChatMessages({
                         <div className="flex gap-2 flex-wrap">
                             {files.map((fileContent: any, index: number) => (
                                 <div key={`msg-file-${index}`} className="mt-1 text-xs">
-                                    <a
-                                        href={fileContent.dataUri}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-[#1677ff]"
-                                    >
-                                        {fileContent.filename}
-                                    </a>
+                                    {isUrl(fileContent?.dataUri) ? (
+                                        <a
+                                            href={fileContent.dataUri}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[#1677ff]"
+                                        >
+                                            {fileContent.filename}
+                                        </a>
+                                    ) : (
+                                        <span>{fileContent?.dataUri}</span>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -163,14 +167,18 @@ export function renderChatMessages({
 
                                 {files.map((fileContent: any, index: number) => (
                                     <div key={`msg-file-${index}`} className="mt-1 text-xs">
-                                        <a
-                                            href={fileContent.dataUri}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-[#1677ff]"
-                                        >
-                                            {fileContent.filename}
-                                        </a>
+                                        {isUrl(fileContent?.dataUri) ? (
+                                            <a
+                                                href={fileContent.dataUri}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-[#1677ff]"
+                                            >
+                                                {fileContent.filename}
+                                            </a>
+                                        ) : (
+                                            <span>{fileContent?.dataUri}</span>
+                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -224,14 +232,18 @@ export function renderChatMessages({
 
                                 {files.map((fileContent: any, index: number) => (
                                     <div key={`msg-file-${index}`} className="mt-1 text-xs">
-                                        <a
-                                            href={fileContent.dataUri}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-[#1677ff]"
-                                        >
-                                            {fileContent.filename}
-                                        </a>
+                                        {isUrl(fileContent?.dataUri) ? (
+                                            <a
+                                                href={fileContent?.dataUri}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-[#1677ff]"
+                                            >
+                                                {fileContent.filename}
+                                            </a>
+                                        ) : (
+                                            <span>{fileContent?.dataUri}</span>
+                                        )}
                                     </div>
                                 ))}
                             </div>

@@ -7,15 +7,7 @@ import clsx from "clsx"
 
 import {useStyles} from "../PromptImageUpload/assets/styles"
 import {PromptDocumentUploadProps, PromptDocumentUploadPropertyProps} from "./types"
-import {isBase64, dataUriToObjectUrl} from "@/oss/lib/helpers/utils"
-
-const isUrl = (value: string): boolean => {
-    const match =
-        value.match(/^blob:http?:\/\//) ||
-        value.match(/^https?:\/\//) ||
-        value.match(/^blob:https?:\/\//)
-    return Boolean(match)
-}
+import {isBase64, dataUriToObjectUrl, isUrl} from "@/oss/lib/helpers/utils"
 
 const {Dragger} = Upload
 const MAX_FILE_SIZE = 8 * 1024 * 1024 // 8MB

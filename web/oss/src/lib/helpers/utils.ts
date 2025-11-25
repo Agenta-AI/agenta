@@ -694,3 +694,11 @@ export const sanitizeDataWithBlobUrls = <T = any>(
 
     return {data: walk(input), blobUrls, fileAttachments, imageAttachments}
 }
+
+export const isUrl = (value: string): boolean => {
+    const match =
+        value.match(/^blob:http?:\/\//) ||
+        value.match(/^https?:\/\//) ||
+        value.match(/^blob:https?:\/\//)
+    return Boolean(match)
+}
