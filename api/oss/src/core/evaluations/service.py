@@ -776,77 +776,13 @@ class EvaluationsService:
         #
         windowing: Optional[Windowing] = None,
     ) -> List[EvaluationMetrics]:
-        metrics = await self.evaluations_dao.query_metrics(
+        return await self.evaluations_dao.query_metrics(
             project_id=project_id,
             #
             metric=metric,
             #
             windowing=windowing,
         )
-
-        if metric:
-            scenario_null = getattr(metric, "scenario_null", None)
-
-            run_filters = set()
-            if getattr(metric, "run_id", None):
-                run_filters.add(metric.run_id)
-            if getattr(metric, "run_ids", None):
-                run_filters.update(metric.run_ids)
-
-            scenario_filters = set()
-            include_null_scenarios = bool(scenario_null)
-            if scenario_null:
-                metrics = [
-                    m for m in metrics if getattr(m, "scenario_id", None) is None
-                ]
-
-            if not scenario_null:
-                fields_set = getattr(metric, "__fields_set__", None)
-                if fields_set is None:
-                    fields_set = getattr(metric, "model_fields_set", set())
-
-                if fields_set and "scenario_id" in fields_set:
-                    if metric.scenario_id is None:
-                        include_null_scenarios = True
-                    else:
-                        scenario_filters.add(metric.scenario_id)
-
-                scenario_ids = getattr(metric, "scenario_ids", None)
-                if scenario_ids is not None:
-                    for sid in scenario_ids:
-                        if sid is None:
-                            include_null_scenarios = True
-                        else:
-                            scenario_filters.add(sid)
-
-            if run_filters:
-                metrics = [m for m in metrics if m.run_id in run_filters]
-
-            if scenario_filters or include_null_scenarios:
-                metrics = [
-                    m
-                    for m in metrics
-                    if (
-                        (scenario_filters and m.scenario_id in scenario_filters)
-                        or (
-                            include_null_scenarios
-                            and getattr(m, "scenario_id", None) is None
-                        )
-                    )
-                ]
-
-            log.info(
-                "[EvaluationsService] query_metrics filters applied",
-                run_filters=[str(r) for r in run_filters],
-                scenario_filters=[
-                    "null" if s is None else str(s) for s in scenario_filters
-                ],
-                scenario_null=scenario_null,
-                include_null_scenarios=include_null_scenarios,
-                returned=len(metrics),
-            )
-
-        return metrics
 
     @staticmethod
     def _normalize_metric_path(raw_path: Optional[str]) -> Optional[str]:
