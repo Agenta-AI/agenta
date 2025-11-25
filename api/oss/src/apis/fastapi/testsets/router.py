@@ -1397,31 +1397,19 @@ class SimpleTestsetsRouter:
         requested_refs = simple_testset_query_request.testset_refs or []
         has_only_ref_ids = requested_refs and all(ref.id for ref in requested_refs)
 
-        if has_only_ref_ids:
-            testsets = []
-            for ref in requested_refs:
-                testset = (
-                    await self.simple_testsets_service.testsets_service.fetch_testset(
-                        project_id=UUID(request.state.project_id),
-                        testset_ref=Reference(id=ref.id),
-                    )
-                )
-                if testset:
-                    testsets.append(testset)
-        else:
-            testsets = (
-                await self.simple_testsets_service.testsets_service.query_testsets(
-                    project_id=UUID(request.state.project_id),
-                    #
-                    testset_query=simple_testset_query_request.testset,
-                    #
-                    testset_refs=simple_testset_query_request.testset_refs,
-                    #
-                    include_archived=simple_testset_query_request.include_archived,
-                    #
-                    windowing=simple_testset_query_request.windowing,
-                )
+        testsets = (
+            await self.simple_testsets_service.testsets_service.query_testsets(
+                project_id=UUID(request.state.project_id),
+                #
+                testset_query=simple_testset_query_request.testset,
+                #
+                testset_refs=simple_testset_query_request.testset_refs,
+                #
+                include_archived=simple_testset_query_request.include_archived,
+                #
+                windowing=simple_testset_query_request.windowing,
             )
+        )
 
         simple_testsets: List[SimpleTestset] = []
 
