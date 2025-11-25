@@ -11,8 +11,10 @@ export const buildReferencePayload = (filters: Record<string, string[]> | null |
 
     const looksLikeHexId = (value: string) => /^[0-9a-f]{24}$/i.test(value)
 
-    const entries = Object.entries(filters).flatMap(([key, values]) =>
-        values
+    const entries = Object.entries(filters).flatMap(([key, values]) => {
+        if (!Array.isArray(values)) return []
+
+        return values
             .map((value) => {
                 const normalized = normalizeValue(value)
                 if (!normalized) return null
@@ -57,8 +59,8 @@ export const buildReferencePayload = (filters: Record<string, string[]> | null |
                     [key]: {slug: normalized},
                 }
             })
-            .filter(Boolean),
-    )
+            .filter(Boolean)
+    })
 
     const filtered = entries.filter(Boolean) as Record<string, {slug?: string; id?: string}>[]
     return filtered.length ? filtered : undefined

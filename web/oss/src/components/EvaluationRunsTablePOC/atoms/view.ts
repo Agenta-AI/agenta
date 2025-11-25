@@ -565,22 +565,28 @@ export const evaluationRunsFilterOptionsAtom = atom((get) => {
         evaluatorData.length > 0
             ? evaluatorData
                   .map((item) => {
-                      const slug =
-                          (typeof item.slug === "string" && item.slug.trim()) ||
-                          (typeof (item as any).key === "string" && (item as any).key.trim()) ||
+                      const id =
                           (typeof item.id === "string" && item.id.trim()) ||
+                          (typeof (item as any).key === "string" && (item as any).key.trim()) ||
                           null
-                      if (!slug) return null
+                      const slug = (typeof item.slug === "string" && item.slug.trim()) || null
+                      const value = id || slug
+                      if (!value) return null
                       const label =
-                          (typeof item.name === "string" && item.name.trim()) || slug || "Evaluator"
-                      return {label, value: slug}
+                          (typeof item.name === "string" && item.name.trim()) ||
+                          slug ||
+                          value ||
+                          "Evaluator"
+                      return {label, value, slug: slug || undefined}
                   })
-                  .filter((option, index, self): option is {label: string; value: string} => {
-                      if (!option) return false
-                      return (
-                          self.findIndex((candidate) => candidate?.value === option.value) === index
-                      )
-                  })
+                  .filter(
+                      (option, index, self): option is {label: string; value: string; slug?: string} => {
+                          if (!option) return false
+                          return (
+                              self.findIndex((candidate) => candidate?.value === option.value) === index
+                          )
+                      },
+                  )
             : blueprintOptions
 
     const appsQuery = get(appsQueryAtom)

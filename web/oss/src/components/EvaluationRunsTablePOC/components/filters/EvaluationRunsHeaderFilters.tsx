@@ -86,7 +86,7 @@ const REFERENCE_CHIP_TONES: Partial<Record<ChipKind, ReferenceTone>> = {
 }
 
 const buildPendingLabel = (value: string, label: string | undefined) => {
-    if (label && label !== value) {
+    if (label) {
         return label
     }
     return "Loading…"
@@ -95,7 +95,6 @@ const buildPendingLabel = (value: string, label: string | undefined) => {
 const isReferenceChipPending = (payload: {label?: string; value: string; loading: boolean}) => {
     if (payload.loading) return true
     if (!payload.label) return true
-    if (payload.label === payload.value) return true
     return false
 }
 
@@ -213,15 +212,15 @@ const FiltersSummary = () => {
                 chips: values.map((value) => ({
                     value,
                     label: isReferenceChipPending({
-                        label: map.get(value),
+                        label: map.get(value) ?? value,
                         value,
                         loading: Boolean(loading),
                     })
-                        ? buildPendingLabel(value, map.get(value))
+                        ? buildPendingLabel(value, map.get(value) ?? value)
                         : (map.get(value) ?? value),
                     closable: isClosable ? isClosable(value) : true,
                     pending: isReferenceChipPending({
-                        label: map.get(value),
+                        label: map.get(value) ?? value,
                         value,
                         loading: Boolean(loading),
                     }),
