@@ -4,41 +4,27 @@ import type * as Preset from "@docusaurus/preset-classic";
 import type { Config } from "@docusaurus/types";
 import type * as Plugin from "@docusaurus/types/src/plugin";
 import type * as OpenApiPlugin from "docusaurus-plugin-openapi-docs";
-import "dotenv/config";
 
 const config: Config = {
   title: "Docs - Agenta",
   tagline: "The LLMOps platform.",
   favicon: "images/favicon.ico",
-  // Public site lives on the main domain under /docs
-  url: "https://agenta.ai",
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
-  baseUrl: "/docs/",
+  // Local development configuration
+  url: "http://localhost:5000",
+  baseUrl: "/",
   organizationName: "Agenta-AI",
   projectName: "agenta",
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "throw",
   onBrokenAnchors: "throw",
   titleDelimiter: "-",
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans". 
   i18n: {
     defaultLocale: "en",
     locales: ["en"],
   },
 
-  scripts: [
-    {
-      src: "https://www.googletagmanager.com/gtag/js?id=G-LTF78FZS33",
-      async: true,
-    },
-    {
-      src: "/docs/hotjar.js",
-      async: true,
-    },
-  ],
+  // No production scripts for local development
+  scripts: [],
 
   presets: [
     [
@@ -150,13 +136,6 @@ const config: Config = {
             },
           },
         },
-
-        // {
-        //   to: "https://github.com/orgs/Agenta-AI/projects/13/views/1",
-        //   position: "left",
-        //   label: "Roadmap",
-        // },
-        // nav social links
         {
           type: "search",
           position: "right",
@@ -296,12 +275,13 @@ const config: Config = {
         } satisfies Plugin.PluginOptions,
       },
     ],
+    // PostHog disabled for local development
     [
       "posthog-docusaurus",
       {
-        apiKey: process.env.POSTHOG_API_KEY || "dummy",  // Posthog is only available on the prod website
-        appUrl: "https://agenta.ai/docs",
-        enableInDevelopment: false, // optional
+        apiKey: "dummy",
+        appUrl: "http://localhost:5000",
+        enableInDevelopment: false,
         api_host: "https://alef.agenta.ai",
         ui_host: "https://us.posthog.com",
       },
@@ -542,3 +522,4 @@ const config: Config = {
 export default async function createConfig() {
   return config;
 }
+

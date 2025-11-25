@@ -1,19 +1,20 @@
 name: agenta-ee-dev
 
 services:
+    # Build services - keep for caching but not strictly needed
     .api:
         image: agenta-ee-dev-api:latest
         build:
             context: ../../../api
             dockerfile: ee/docker/Dockerfile.dev
-        command: ["true"]  # exits immediately
+        command: ["true"]
 
     .web:
         image: agenta-ee-dev-web:latest
         build:
             context: ../../../web
             dockerfile: ee/docker/Dockerfile.dev
-        command: ["true"]  # exits immediately
+        command: ["true"]
 
     web:
         profiles:
@@ -37,8 +38,9 @@ services:
         
         networks:
             - agenta-network
+            
         labels:
-            - "traefik.http.routers.agenta-web.rule= PathPrefix(`/`)"
+            - "traefik.http.routers.agenta-web.rule=PathPrefix(`/`)"
             - "traefik.http.routers.agenta-web.entrypoints=web"
             - "traefik.http.services.agenta-web.loadbalancer.server.port=3000"
 
@@ -67,6 +69,7 @@ services:
         
         networks:
             - agenta-network
+            
         extra_hosts:
             - "host.docker.internal:host-gateway"
 
@@ -115,7 +118,8 @@ services:
             - agenta-network
 
         command: >
-            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1 --loglevel=DEBUG
+            watchmedo auto-restart --directory=/app/ --pattern=*.py --recursive -- 
+            celery -A entrypoint.celery_app worker --concurrency=1 --max-tasks-per-child=1 --prefetch-multiplier=1 --loglevel=DEBUG
 
     cron:
         image: agenta-ee-dev-api:latest
@@ -154,13 +158,14 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+                
         networks:
             - agenta-network
 
         command: sh -c "python -m ee.databases.postgres.migrations.runner"
 
     completion:
-        build: 
+        build:
             context: ../../../services/completion
             dockerfile: ee/docker/Dockerfile.dev
 
@@ -170,8 +175,10 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
+
         labels:
             - "traefik.http.routers.completion.rule=PathPrefix(`/services/completion/`)"
             - "traefik.http.routers.completion.entrypoints=web"
@@ -180,16 +187,27 @@ services:
             - "traefik.http.routers.completion.middlewares=completion-strip"
             - "traefik.http.services.completion.loadbalancer.server.port=80"
             - "traefik.http.routers.completion.service=completion"
-        
+
         restart: always
-        
+
         networks:
             - agenta-network
-        
-        command: ["python", "oss/src/main.py"]
+
+        command:
+            [
+                "uvicorn",
+                "oss.src.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "80",
+                "--reload",
+                "--root-path",
+                "/services/completion",
+            ]
 
     chat:
-        build: 
+        build:
             context: ../../../services/chat
             dockerfile: ee/docker/Dockerfile.dev
 
@@ -199,8 +217,10 @@ services:
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+
         extra_hosts:
             - "host.docker.internal:host-gateway"
+
         labels:
             - "traefik.http.routers.chat.rule=PathPrefix(`/services/chat/`)"
             - "traefik.http.routers.chat.entrypoints=web"
@@ -209,19 +229,31 @@ services:
             - "traefik.http.routers.chat.middlewares=chat-strip"
             - "traefik.http.services.chat.loadbalancer.server.port=80"
             - "traefik.http.routers.chat.service=chat"
-        
+
         restart: always
-        
+
         networks:
             - agenta-network
 
-        command: ["python", "oss/src/main.py"]
+        command:
+            [
+                "uvicorn",
+                "oss.src.main:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "80",
+                "--reload",
+                "--root-path",
+                "/services/chat",
+            ]
 
     postgres:
         image: postgres:16.2
         
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
+            
         ports:
             - "5432:5432"
         
@@ -229,9 +261,11 @@ services:
         
         networks:
             - agenta-network
+            
         volumes:
             - postgres-data:/var/lib/postgresql/data/
             - ../../../api/ee/databases/postgres/init-db-ee.sql:/docker-entrypoint-initdb.d/init-db.sql
+            
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U username -d agenta_ee_core"]
             interval: 10s
@@ -242,10 +276,12 @@ services:
         image: rabbitmq:3-management
         
         ports:
-            - "5672:5672"
-            - "15672:15672"
+            - "${RABBITMQ_PORT:-5672}:5672"
+            - "${RABBITMQ_UI_PORT:-15672}:15672"
+            
         volumes:
             - rabbitmq-data:/var/lib/rabbitmq
+            
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}
         
@@ -261,6 +297,7 @@ services:
         
         networks:
             - agenta-network
+            
         volumes:
             - redis-data:/data
 
@@ -298,20 +335,34 @@ services:
             start_period: 5s
 
     traefik:
-        image: traefik:v2.10
-
-        command: --api.dashboard=true --api.insecure=true --providers.docker --entrypoints.web.address=:${AGENTA_PORT:-80}
+        image: traefik:v2.11
+        
+        command: 
+            - --api.dashboard=true
+            - --api.insecure=true
+            - --providers.docker
+            - --entrypoints.web.address=:80
+            - --ping=true
+            - --accesslog=true  # Enable access logs for debugging
+        
+        ports:
+            - "80:80"      # ALB forwards to this port
+            - "8080:8080"  # Dashboard (optional, can be internal only)
+        
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
-        ports:
-            - "${AGENTA_PORT:-80}:${AGENTA_PORT:-80}"
-            - "8080:8080"
-            - "443:443"
-        
-        restart: always
         
         networks:
             - agenta-network
+        
+        restart: always
+        
+        healthcheck:
+            test: ["CMD", "traefik", "healthcheck", "--ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 3
+            start_period: 10s
 
     supertokens:
         image: registry.supertokens.io/supertokens/supertokens-postgresql
@@ -323,7 +374,7 @@ services:
                 condition: service_completed_successfully
 
         ports:
-            - 3567:3567
+            - "3567:3567"
 
         env_file:
             - ${ENV_FILE:-./.env.ee.dev}

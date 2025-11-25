@@ -64,6 +64,30 @@ const SelectControl = ({
         }))
     }, [_options])
 
+    const canClear = useMemo(() => {
+        if (!allowClear) return false
+
+        if (Array.isArray(value)) {
+            return value.length > 0
+        }
+
+        if (typeof value === "string") {
+            return value.length > 0
+        }
+
+        return false
+    }, [allowClear, value])
+
+    const handleClear = () => {
+        if (!onChange) return
+
+        if (mode === "multiple") {
+            onChange([])
+        } else {
+            onChange("")
+        }
+    }
+
     return (
         <PlaygroundVariantPropertyControlWrapper className="multi-select-control">
             {!!label && withTooltip ? (
@@ -82,7 +106,7 @@ const SelectControl = ({
                     showSearch={showSearch}
                     mode={mode}
                     size={size}
-                    value={value || null}
+                    value={value ?? undefined}
                     onChange={onChange}
                     options={options}
                     popupMatchSelectWidth={false}
@@ -96,12 +120,12 @@ const SelectControl = ({
                     placeholder={mode === "multiple" ? "Select multiple" : "Select one"}
                     {...rest}
                 />
-                {value?.length && allowClear ? (
+                {canClear ? (
                     <Button
                         icon={<X size={14} />}
                         type="text"
                         size="small"
-                        onClick={() => onChange?.("")}
+                        onClick={handleClear}
                         disabled={disabled || disableClear}
                     />
                 ) : null}

@@ -25,12 +25,26 @@ export const shippedFeatures: ShippedFeature[] = [
   // Observability: DE74FF
   // Evaluation: 86B7FF
   // Integration: FFA500
+    {
+    id: "jinja2-playground",
+    title: "Jinja2 Template Support in the Playground",
+    description:
+      "Use Jinja2 templating in prompts to add conditional logic, filters, and template blocks. The template format is stored in the configuration schema, and the SDK handles rendering automatically.",
+    changelogPath: "/docs/changelog/jinja2-template-support",
+    shippedAt: "2025-11-17",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
   {
     id: "evaluation-sdk",
     title: "Programmatic Evaluation through the SDK",
     description:
       "Run evaluations programmatically from code with full control over test data and evaluation logic. Evaluate agents built with any framework and view results in the Agenta dashboard.",
-    changelogPath: "/changelog/evaluation-sdk",
+    changelogPath: "/docs/changelog/evaluation-sdk",
     shippedAt: "2025-11-11",
     labels: [
       {
@@ -44,7 +58,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Online Evaluation",
     description:
       "Automatically evaluate every request to your LLM application in production. Catch hallucinations and off-brand responses as they happen instead of discovering them through user complaints.",
-    changelogPath: "/changelog/online-evaluation",
+    changelogPath: "/docs/changelog/online-evaluation",
     shippedAt: "2025-11-11",
     labels: [
       {
@@ -58,7 +72,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Customize LLM-as-a-Judge Output Schemas",
     description:
       "Configure LLM-as-a-Judge evaluators with custom output schemas. Use binary, multiclass, or custom JSON formats. Enable reasoning for better evaluation quality.",
-    changelogPath: "/changelog/customize-llm-as-a-judge-output-schemas",
+    changelogPath: "/docs/changelog/customize-llm-as-a-judge-output-schemas",
     shippedAt: "2025-11-10",
     labels: [
       {
@@ -72,7 +86,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Structured Output Support in the Playground",
     description:
       "Define and validate structured output formats in the playground. Save structured output schemas as part of your prompt configuration.",
-    changelogPath: "/changelog/structured-output-support-in-the-playground",
+    changelogPath: "/docs/changelog/structured-output-support-in-the-playground",
     shippedAt: "2025-04-15",
     labels: [
       {
@@ -86,7 +100,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Vertex AI Provider Support",
     description:
       "Use Google Cloud's Vertex AI models including Gemini and partner models in the playground, Model Hub, and through Gateway endpoints.",
-    changelogPath: "/changelog/vertex-ai-provider-support",
+    changelogPath: "/docs/changelog/vertex-ai-provider-support",
     shippedAt: "2025-10-24",
     labels: [
       {
@@ -104,7 +118,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Filtering Traces by Annotation",
     description:
       "Filter and search for traces based on their annotations. Find traces with low scores or feedback quickly using the rebuilt filtering system.",
-    changelogPath: "/changelog/filtering-traces-by-annotation",
+    changelogPath: "/docs/changelog/filtering-traces-by-annotation",
     shippedAt: "2025-10-14",
     labels: [
       {
@@ -118,7 +132,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "New Evaluation Results Dashboard",
     description:
       "Completely redesigned evaluation results dashboard with performance plots, side-by-side comparison, improved testcases view, focused detail view, configuration visibility, and run naming.",
-    changelogPath: "/changelog/new-evaluation-results-dashboard",
+    changelogPath: "/docs/changelog/new-evaluation-results-dashboard",
     shippedAt: "2025-09-26",
     labels: [
       {
@@ -132,7 +146,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Deep URL Support for Sharable Links",
     description:
       "URLs now include workspace context, making them shareable between team members. Fixed workspace bugs with page refresh and workspace selection.",
-    changelogPath: "/changelog/deep-url-support-for-sharable-links",
+    changelogPath: "/docs/changelog/deep-url-support-for-sharable-links",
     shippedAt: "2025-09-24",
     labels: [
       {
@@ -146,7 +160,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Speed Improvements in the Playground",
     description:
       "We improved the speed of the playground (creation of prompts, navigation, etc.) especially with hundreds of revisions.",
-    changelogPath: "/changelog/speed-improvements-in-the-playground",
+    changelogPath: "/docs/changelog/speed-improvements-in-the-playground",
     shippedAt: "2025-09-19",
     labels: [
       {
@@ -160,7 +174,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Markdown support ",
     description:
       "You can view prompt and messages in markdown both in the playground and in the observability drawer.",
-    changelogPath: "/changelog/major-playground-improvements-and-enhancements",
+    changelogPath: "/docs/changelog/major-playground-improvements-and-enhancements",
     shippedAt: "2025-08-07",
     labels: [
       {
@@ -178,7 +192,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Image Support in playground",
     description:
       "You can now upload images to the playground and use them in your prompts.",
-    changelogPath: "/changelog/support-for-images-in-playground",
+    changelogPath: "/docs/changelog/support-for-images-in-playground",
     shippedAt: "2025-07-29",
     labels: [
       {
@@ -191,7 +205,7 @@ export const shippedFeatures: ShippedFeature[] = [
     id: "llamaindex-integration",
     title: "LLamaIndex Integration",
     description: "You can trace your calls from LlamaIndex in one line.",
-    changelogPath: "/changelog/llamaindex-integration",
+    changelogPath: "/docs/changelog/llamaindex-integration",
     shippedAt: "2025-06-17",
     labels: [
       {
@@ -205,7 +219,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Endpoint to Capture User Feedback for Traces",
     description:
       "You can now use the annotation API to add annotations (e.g. scores, feedback) to LLM responses traced in Agenta.",
-    changelogPath: "/changelog/annotate-your-llm-response-preview",
+    changelogPath: "/docs/changelog/annotate-your-llm-response-preview",
     shippedAt: "2025-05-15",
     labels: [
       {
@@ -219,7 +233,7 @@ export const shippedFeatures: ShippedFeature[] = [
     title: "Tool Support in the Playground",
     description:
       "You can now define and test tools in the playground. You can save tool definitions as part of your prompts.",
-    changelogPath: "/changelog/tool-support-in-the-playground",
+    changelogPath: "/docs/changelog/tool-support-in-the-playground",
     shippedAt: "2025-05-10",
     labels: [
       {
@@ -253,19 +267,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       {
         name: "Misc",
         color: "000000",
-      },
-    ],
-  },
-  {
-    id: "jinja2-playground",
-    title: "Jinja2 Template Support in the Playground",
-    description:
-      "Add Jinja2 template support to enable conditional logic, filters, and template blocks in prompts. The prompt type will be stored in the schema, and the SDK will handle rendering.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2856",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
       },
     ],
   },

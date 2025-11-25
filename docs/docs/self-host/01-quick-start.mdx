@@ -14,12 +14,15 @@ This guide explains how to set up Agenta on your local machine, either using the
 
 1. Clone Agenta:
 ```bash
-git clone https://github.com/Agenta-AI/agenta && cd agenta
+git clone --depth 1 https://github.com/Agenta-AI/agenta && cd agenta
 ```
 
-2. Copy `hosting/docker-compose/oss/.env.oss.gh.example` to `hosting/docker-compose/oss/.env.oss.gh` and edit the configuration.
+2. Copy configuration and, optionally, edit it:
+```bash
+cp hosting/docker-compose/oss/env.oss.gh.example hosting/docker-compose/oss/.env.oss.gh
+```
 
-3. Start Agenta services:
+3. Start Agenta:
 ```bash
 docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml --env-file hosting/docker-compose/oss/.env.oss.gh --profile with-web --profile with-traefik up -d
 ```

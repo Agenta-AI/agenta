@@ -1,6 +1,6 @@
 from typing import Optional, Any
 
-ERRORS_BASE_URL = "https://docs.agenta.ai/errors"
+ERRORS_BASE_URL = "https://agenta.ai/docs/errors"
 
 
 class ErrorStatus(Exception):

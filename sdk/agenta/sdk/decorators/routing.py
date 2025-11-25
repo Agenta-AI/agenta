@@ -133,7 +133,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
         )
 
     else:
-        type = "https://docs.agenta.ai/errors#v1:sdk:unknown-workflow-invoke-error"
+        type = "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error"
 
         code = (
             getattr(exception, "status_code")
@@ -223,10 +223,12 @@ class route:
 
         async def invoke_endpoint(req: Request, request: WorkflowServiceRequest):
             credentials = req.state.auth.get("credentials")
+            secrets = req.state.auth.get("secrets")
 
             try:
                 response = await workflow.invoke(
                     request=request,
+                    secrets=secrets,
                     credentials=credentials,
                 )
 

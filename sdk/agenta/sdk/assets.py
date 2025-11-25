@@ -27,6 +27,7 @@ supported_llm_models = {
         "deepinfra/mistralai/Mistral-7B-Instruct-v0.1",
     ],
     "gemini": [
+        "gemini/gemini-3-pro-preview",
         "gemini/gemini-2.5-pro",
         "gemini/gemini-2.5-pro-preview-05-06",
         "gemini/gemini-2.5-flash",
@@ -64,6 +65,7 @@ supported_llm_models = {
     ],
     "openai": [
         "gpt-5",
+        "gpt-5.1",
         "gpt-5-mini",
         "gpt-5-nano",
         "gpt-4.5-preview",

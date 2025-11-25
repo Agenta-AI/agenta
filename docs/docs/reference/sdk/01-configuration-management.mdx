@@ -286,6 +286,7 @@ All configuration data must be nested under the `prompt` key.
 | prompt.llm_config.top_p | number or null | Nucleus sampling parameter (alternative to temperature) |
 | prompt.llm_config.frequency_penalty | number or null | Penalty for token frequency (-2.0 to 2.0) |
 | prompt.llm_config.presence_penalty | number or null | Penalty for token presence (-2.0 to 2.0) |
+| prompt.llm_config.reasoning_effort | string or null | Controls reasoning effort for thinking models. Options: `none` (cost-optimized, 0 tokens), `low` (1024 tokens), `medium` (2048 tokens), `high` (4096 tokens) |
 | prompt.llm_config.response_format | object or null | Output format specification |
 | prompt.llm_config.response_format.type | string | Format type: `text`, `json_object`, or `json_schema` |
 | prompt.llm_config.response_format.json_schema | object | Schema definition (required when type is `json_schema`) |

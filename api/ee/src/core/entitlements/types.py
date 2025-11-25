@@ -22,6 +22,7 @@ class Counter(str, Enum):
     EVALUATIONS = "evaluations"
     EVALUATORS = "evaluators"
     ANNOTATIONS = "annotations"
+    CREDITS = "credits"
 
 
 class Gauge(str, Enum):
@@ -209,6 +210,7 @@ ENTITLEMENTS = {
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(limit=5_000, monthly=True, free=5_000),
             Counter.EVALUATIONS: Quota(limit=20, monthly=True, free=20, strict=True),
+            Counter.CREDITS: Quota(limit=100, monthly=True, free=100, strict=True),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(limit=2, strict=True, free=2),
@@ -223,6 +225,7 @@ ENTITLEMENTS = {
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(monthly=True, free=10_000),
             Counter.EVALUATIONS: Quota(monthly=True, strict=True),
+            Counter.CREDITS: Quota(limit=100, monthly=True, free=100, strict=True),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(limit=10, strict=True, free=3),
@@ -237,6 +240,7 @@ ENTITLEMENTS = {
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(monthly=True, free=1_000_000),
             Counter.EVALUATIONS: Quota(monthly=True, strict=True),
+            Counter.CREDITS: Quota(limit=100, monthly=True, free=100, strict=True),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(strict=True),
@@ -279,6 +283,12 @@ ENTITLEMENTS = {
         Tracker.COUNTERS: {
             Counter.TRACES: Quota(monthly=True),
             Counter.EVALUATIONS: Quota(monthly=True, strict=True),
+            Counter.CREDITS: Quota(
+                limit=100_000,
+                monthly=True,
+                free=100_000,
+                strict=True,
+            ),
         },
         Tracker.GAUGES: {
             Gauge.USERS: Quota(strict=True),
