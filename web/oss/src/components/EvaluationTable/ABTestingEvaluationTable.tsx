@@ -358,7 +358,13 @@ const ABTestingEvaluationTable: React.FC<ABTestingEvaluationTableProps> = ({
                         return {
                             ...msg,
                             content: msg.content.filter((part) => {
-                                return part.type !== "image_url" || part.image_url.url.trim() !== ""
+                                if (part.type === "image_url") {
+                                    return part.image_url.url.trim() !== ""
+                                }
+                                if (part.type === "file") {
+                                    return (part.file?.file_id || "").trim() !== ""
+                                }
+                                return true
                             }),
                         }
                     })

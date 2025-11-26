@@ -172,7 +172,7 @@ export const runChatTurnAtom = atom(
 )
 
 // Run the last runnable chat row (logical turn) across displayed revisions
-// Runnable means the user message has non-empty text or an image_url with a url
+// Runnable means the user message has non-empty text, an image_url with a url, or a file with a file_id
 export const runAllChatAtom = atom(null, (get, set) => {
     const turnIds = (get(chatTurnIdsAtom) || []) as string[]
     if (!Array.isArray(turnIds) || turnIds.length === 0) return

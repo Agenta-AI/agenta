@@ -14,9 +14,12 @@ export interface ComputeDisplayValueArgs {
     contentProperty?: {value?: any}
 }
 
+export type AttachmentNodeType = "image_url" | "file"
+
 export interface AddUploadSlotArgs {
     contentProperty?: {__metadata?: string; value?: any}
     max?: number
+    attachmentType?: AttachmentNodeType
 }
 
 export interface RemoveUploadItemArgs {
@@ -106,6 +109,64 @@ export function useMessageContentHandlers() {
         return imageNode
     }, [])
 
+    const getAttachmentOption = (
+        itemMetadata: AnyObj | undefined,
+        predicate: (part: AnyObj) => boolean,
+    ) => {
+        return (itemMetadata?.options || []).find(predicate) as AnyObj | undefined
+    }
+
+    const buildFileNode = useCallback((contentMetaId?: string) => {
+        let fileNode: AnyObj | null = null
+        if (contentMetaId) {
+            const meta: AnyObj | undefined = getMetadataLazy(contentMetaId) as any
+            const arrayOption = (meta?.options || []).find(
+                (opt: AnyObj) =>
+                    opt?.value === "array" ||
+                    opt?.label === "array" ||
+                    opt?.config?.type === "array",
+            ) as AnyObj | undefined
+            const itemCompound = arrayOption?.config?.itemMetadata as AnyObj | undefined
+            const fileOption = getAttachmentOption(itemCompound, (part: AnyObj) => {
+                const props = (part as AnyObj)?.properties
+                return props && typeof props === "object" && "file" in props
+            })
+            if (fileOption) fileNode = createObjectFromMetadata(fileOption)
+            if (fileNode) fileNode.type.value = "file"
+        }
+        if (!fileNode) {
+            fileNode = {
+                __id: generateId(),
+                __metadata: {},
+                type: {
+                    __id: generateId(),
+                    __metadata: {},
+                    value: "file",
+                },
+                file: {
+                    __id: generateId(),
+                    __metadata: {},
+                    file_id: {
+                        __id: generateId(),
+                        __metadata: {},
+                        value: "",
+                    },
+                    name: {
+                        __id: generateId(),
+                        __metadata: {},
+                        value: "",
+                    },
+                    mime_type: {
+                        __id: generateId(),
+                        __metadata: {},
+                        value: "",
+                    },
+                },
+            }
+        }
+        return fileNode
+    }, [])
+
     const buildTextNode = useCallback((contentMetaId?: string) => {
         let textNode: AnyObj | null = null
         if (contentMetaId) {
@@ -137,18 +198,24 @@ export function useMessageContentHandlers() {
 
     const addUploadSlot = useCallback(
         (args: AddUploadSlotArgs) => {
-            const {contentProperty, max = 5} = args
+            const {contentProperty, max = 5, attachmentType = "image_url"} = args
             const images = Array.isArray(contentProperty?.value)
                 ? (contentProperty!.value as AnyObj[]).filter(
                       (part: AnyObj) =>
                           part &&
                           typeof part === "object" &&
-                          ("image_url" in part || "imageUrl" in part),
+                          ((part?.type?.value ?? part?.type) === attachmentType ||
+                              (attachmentType === "image_url" &&
+                                  ("image_url" in part || "imageUrl" in part)) ||
+                              (attachmentType === "file" && "file" in part)),
                   )
                 : []
             if (images.length >= max) return null
 
-            const imageNode = buildImageNode((contentProperty as AnyObj)?.__metadata)
+            const newNode =
+                attachmentType === "file"
+                    ? buildFileNode((contentProperty as AnyObj)?.__metadata)
+                    : buildImageNode((contentProperty as AnyObj)?.__metadata)
 
             let baseArray: AnyObj[]
             if (Array.isArray(contentProperty?.value)) {
@@ -157,10 +224,10 @@ export function useMessageContentHandlers() {
                 const textNode = buildTextNode((contentProperty as AnyObj)?.__metadata)
                 baseArray = [textNode]
             }
-            baseArray.push(imageNode)
+            baseArray.push(newNode)
             return baseArray
         },
-        [buildImageNode, buildTextNode],
+        [buildFileNode, buildImageNode, buildTextNode],
     )
 
     const updateTextContent = useCallback(

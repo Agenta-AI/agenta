@@ -98,6 +98,7 @@ const GenerationComparisonChatOutputCell = ({
                                 resultHashes={resultHashes}
                                 messageOptionProps={{
                                     hideAddToTestset: true,
+                                    allowFileUpload: true,
                                 }}
                                 messageProps={{
                                     className:
@@ -105,7 +106,7 @@ const GenerationComparisonChatOutputCell = ({
                                     editorClassName: "!p-3",
                                     headerClassName:
                                         "min-h-[48px] px-3 border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                                    footerClassName: "px-3 h-[48px] !m-0",
+                                    footerClassName: "px-2",
                                     editorType: "borderless",
                                 }}
                             />
@@ -143,7 +144,7 @@ const GenerationComparisonChatOutputCell = ({
                             editorClassName: "!p-3",
                             headerClassName:
                                 "min-h-[48px] border-0 border-b border-solid border-[rgba(5,23,41,0.06)]",
-                            footerClassName: "px-3 h-[48px] !m-0",
+                            footerClassName: "px-3 !m-0",
                             editorType: "borderless",
                         }}
                     />

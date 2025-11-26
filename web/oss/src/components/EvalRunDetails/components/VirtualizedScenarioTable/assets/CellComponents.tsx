@@ -11,6 +11,7 @@ import {Expandable} from "@/oss/components/Tables/ExpandableCell"
 import {useOptionalRunId, useRunId} from "@/oss/contexts/RunIdContext"
 import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
 import {resolvePath} from "@/oss/lib/evalRunner/pureEnrichment"
+import {dataUriToObjectUrl, isBase64} from "@/oss/lib/helpers/utils"
 import {useAppNavigation, useAppState} from "@/oss/state/appState"
 
 import {
@@ -77,25 +78,109 @@ const unwrapForDisplay = (value: any, preferredKeys: string[] = []): any => {
     return value
 }
 
-const formatPrimitiveValue = (value: any): string => {
+const buildFileLink = (value: any): {filename: string; href: string} | null => {
+    if (!value || typeof value !== "object") return null
+    const payload =
+        value.type === "file" && value.file && typeof value.file === "object"
+            ? value.file
+            : value.file && typeof value.file === "object"
+              ? value.file
+              : value
+
+    if (!payload || typeof payload !== "object") return null
+
+    const fileId = payload.file_id ?? payload.fileId
+    const fileData = payload.file_data ?? payload.fileData
+    const hasResolvableData = Boolean(
+        (typeof fileId === "string" && fileId) ||
+            (typeof fileData === "string" && isBase64(fileData)),
+    )
+
+    if (!hasResolvableData) return null
+
+    const format = payload.format ?? payload.file_format
+    const rawName =
+        payload.name ??
+        payload.filename ??
+        payload.original_filename ??
+        (value.type === "file" && typeof value.filename === "string" ? value.filename : "Document")
+
+    const filename =
+        format && rawName && !rawName.endsWith(`.${format}`)
+            ? `${rawName}.${format}`
+            : rawName || "Document"
+
+    let href = typeof fileId === "string" && fileId ? fileId : ""
+    if (!href && typeof fileData === "string" && isBase64(fileData)) {
+        href = dataUriToObjectUrl(fileData)
+    }
+    if (!href) return null
+
+    return {filename, href}
+}
+
+const wrapValuesInLines = (values: (ReactNode | string)[], keyPrefix: string) => {
+    return (
+        <span className="flex flex-col gap-2">
+            {values.map((entry, index) => (
+                <span key={`${keyPrefix}-${index}`} className="whitespace-pre-line">
+                    {entry}
+                </span>
+            ))}
+        </span>
+    )
+}
+
+const formatPrimitiveValue = (value: any): ReactNode => {
     if (value == null) return ""
-    if (typeof value === "string") return value
-    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        return String(value)
+    }
     if (Array.isArray(value)) {
-        return value
+        const formattedItems = value
             .map((item) => formatPrimitiveValue(unwrapForDisplay(item)))
-            .filter(Boolean)
-            .join("\n")
+            .filter((item) => item !== "" && item !== null && item !== undefined)
+        if (!formattedItems.length) return ""
+        const onlyStrings = formattedItems.every((item) => typeof item === "string")
+        if (onlyStrings) {
+            return (formattedItems as string[]).join("\n")
+        }
+        return wrapValuesInLines(formattedItems, "primitive-array")
     }
     if (typeof value === "object") {
-        return Object.entries(value)
+        const fileLink = buildFileLink(value)
+        if (fileLink) {
+            return (
+                <a href={fileLink.href} target="_blank" rel="noreferrer" className="text-[#1677ff]">
+                    {fileLink.filename}
+                </a>
+            )
+        }
+
+        const entries = Object.entries(value ?? {})
             .map(([key, nested]) => {
                 const formatted = formatPrimitiveValue(unwrapForDisplay(nested))
-                if (!formatted) return ""
-                return `${titleCase(key)}: ${formatted}`
+                if (formatted === "" || formatted === null || formatted === undefined) return null
+                return {key: titleCase(key), formatted}
             })
-            .filter(Boolean)
-            .join("\n")
+            .filter(Boolean) as {key: string; formatted: ReactNode}[]
+
+        if (!entries.length) return ""
+        const allStrings = entries.every(({formatted}) => typeof formatted === "string")
+        if (allStrings) {
+            return entries
+                .map(({key, formatted}) => `${key}: ${formatted as string}`)
+                .filter(Boolean)
+                .join("\n")
+        }
+
+        const nodes = entries.map(({key, formatted}) => (
+            <span className="whitespace-pre-line">
+                <span>{key}: </span>
+                {formatted}
+            </span>
+        ))
+        return wrapValuesInLines(nodes, "primitive-object")
     }
     return String(value)
 }
@@ -188,7 +273,7 @@ const buildOnlineOutput = (
     rawValue: any,
     fallback: any,
     keyPrefix: string,
-): {text?: string; chat?: ReactNode[]} => {
+): {text?: ReactNode; chat?: ReactNode[]} => {
     const candidates = [rawValue, fallback]
     for (const candidate of candidates) {
         if (candidate == null) continue
@@ -731,6 +816,7 @@ export const InvocationResultCell = memo(
         }
 
         const isOnlineEval = evalType === "online"
+        console.log("isOnlineEval", isOnlineEval)
         const onlineOutput = useMemo(() => {
             if (!isOnlineEval) return {text: undefined, chat: undefined}
             if (messageNodes) return {text: undefined, chat: messageNodes}

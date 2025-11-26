@@ -2,7 +2,7 @@ import {ColumnsType} from "antd/es/table"
 
 import ResultTag from "@/oss/components/ResultTag/ResultTag"
 import TruncatedTooltipTag from "@/oss/components/TruncatedTooltipTag"
-import {getStringOrJson} from "@/oss/lib/helpers/utils"
+import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
 import {TraceSpanNode} from "@/oss/services/tracing/types"
 
 import CostCell from "../components/CostCell"
@@ -72,9 +72,10 @@ export const getObservabilityColumns = ({evaluatorSlugs}: ObservabilityColumnsPr
             className: "overflow-hidden text-ellipsis whitespace-nowrap max-w-[400px]",
             render: (_, record) => {
                 const inputs = getTraceInputs(record)
+                const {data: sanitizedInputs} = sanitizeDataWithBlobUrls(inputs)
                 return (
                     <TruncatedTooltipTag
-                        children={inputs ? getStringOrJson(inputs) : ""}
+                        children={inputs ? getStringOrJson(sanitizedInputs) : ""}
                         placement="bottom"
                     />
                 )
