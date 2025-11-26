@@ -6,7 +6,7 @@ interface MessageImageListProps {
     properties: any[]
     disabled?: boolean
     onRemove: (propertyId: string) => void
-    onChange?: (propertyId: string, url: string) => void
+    onChange?: (propertyId: string, value: string) => void
 }
 
 /**
@@ -25,8 +25,8 @@ const MessageImageList: React.FC<MessageImageListProps> = ({
             {properties.map((property: any) => {
                 const currentUrl =
                     property && typeof property.value === "object" && property.value
-                        ? ((property.value as any).value ?? "")
-                        : ((property as any)?.value ?? "")
+                        ? (property.value as any).value ?? ""
+                        : (property as any)?.value ?? ""
 
                 return (
                     <PromptImageUpload
