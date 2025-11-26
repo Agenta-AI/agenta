@@ -29,7 +29,9 @@ const ProjectHeaderActions = () => {
             if (!workspaceKey || !target.project_id) return
             cacheLastUsedProjectId(workspaceKey, target.project_id)
             if (target.organization_id) cacheWorkspaceOrgPair(workspaceKey, target.organization_id)
-            const href = `/w/${encodeURIComponent(workspaceKey)}/p/${encodeURIComponent(target.project_id)}/apps`
+            const href = `/w/${encodeURIComponent(workspaceKey)}/p/${encodeURIComponent(
+                target.project_id,
+            )}/apps`
             void router.push(href)
         },
         [router],
@@ -37,9 +39,15 @@ const ProjectHeaderActions = () => {
 
     const findFallbackProject = useCallback(
         (excludedProjectId: string) => {
+            if (!project?.workspace_id) return null
+            const workspaceId = project.workspace_id
             const candidates = projects.filter(
-                (proj) => proj && proj.project_id && proj.project_id !== excludedProjectId,
-            ) as ProjectsResponse[]
+                (proj): proj is ProjectsResponse =>
+                    !!proj &&
+                    !!proj.project_id &&
+                    proj.project_id !== excludedProjectId &&
+                    proj.workspace_id === workspaceId,
+            )
 
             if (!candidates.length) return null
 
@@ -51,7 +59,7 @@ const ProjectHeaderActions = () => {
 
             return candidates[0]
         },
-        [projects],
+        [project?.workspace_id, projects],
     )
 
     const renameMutation = useMutation({
@@ -95,7 +103,14 @@ const ProjectHeaderActions = () => {
         },
         onSuccess: async () => {
             message.success("Project deleted")
+            const fallback = project?.project_id ? findFallbackProject(project.project_id) : null
+            if (fallback) {
+                navigateToProject(fallback)
+            }
             await refetch()
+            if (!fallback && project?.workspace_id) {
+                await router.push(`/w/${encodeURIComponent(project.workspace_id)}`)
+            }
         },
         onError: (error: any) => {
             const detail =
