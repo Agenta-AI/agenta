@@ -384,7 +384,7 @@ async def delete_project(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    return JSONResponse(status_code=204, content={"detail": "Project deleted"})
+    return JSONResponse(status_code=200, content={"detail": "Project deleted"})
 
 
 @router.patch(
