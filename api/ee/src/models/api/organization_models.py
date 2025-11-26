@@ -12,7 +12,6 @@ class Organization(BaseModel):
     workspaces: List[str] = Field(default_factory=list)
     members: List[str] = Field(default_factory=list)
     invitations: List = Field(default_factory=list)
-    is_paying: Optional[bool] = None
 
 
 class CreateOrganization(BaseModel):

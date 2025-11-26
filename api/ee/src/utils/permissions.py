@@ -1,18 +1,20 @@
-from typing import Dict, List, Union, Optional
+from typing import Dict, List, Union, Optional, Sequence, Any
 
 from fastapi import HTTPException
-from fastapi.responses import JSONResponse
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
 
-from ee.src.models.db_models import (
+from oss.src.models.db_models import (
     OrganizationDB,
     WorkspaceDB,
-    Permission,
-    WorkspaceRole,
     ProjectDB,
 )
+from ee.src.models.shared_models import (
+    Permission,
+    WorkspaceRole,
+)
+
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee
 from ee.src.utils.entitlements import check_entitlements, Flag
@@ -25,6 +27,61 @@ FORBIDDEN_EXCEPTION = HTTPException(
     status_code=403,
     detail="You do not have access to perform this action. Please contact your organization admin.",
 )
+
+
+def _get_project_member_role(
+    user_id: str,
+    members: Sequence[Any],
+) -> Optional[str]:
+    """Return the role of a user in a given project_members list, or None."""
+    member = next(
+        (m for m in members if str(m.user_id) == user_id),
+        None,
+    )
+    return getattr(member, "role", None) if member else None
+
+
+def _project_is_owner(
+    user_id: str,
+    members: Sequence[Any],
+) -> bool:
+    """True if the user is OWNER in the project."""
+    role = _get_project_member_role(user_id, members)
+    return role == WorkspaceRole.OWNER
+
+
+def _project_has_role(
+    user_id: str,
+    role_to_check: WorkspaceRole,
+    members: Sequence[Any],
+) -> bool:
+    """True if the user's role exactly matches role_to_check."""
+    role = _get_project_member_role(user_id, members)
+    return role == role_to_check if role is not None else False
+
+
+def _project_has_permission(
+    user_id: str,
+    permission: Permission,
+    members: Sequence[Any],
+) -> bool:
+    """True if the user's role implies the given permission."""
+    role = _get_project_member_role(user_id, members)
+    if role is None:
+        return False
+    # Permission.default_permissions was used in the old model methods
+    return permission in Permission.default_permissions(role)
+
+
+async def _get_workspace_member_ids(workspace: WorkspaceDB) -> List[str]:
+    """
+    Return all user IDs that are members of the given workspace.
+
+    This assumes db_manager_ee.get_workspace_members(workspace_id=...) exists
+    and returns workspace member rows with a .user_id attribute.
+    """
+    members = await db_manager_ee.get_workspace_members(workspace_id=str(workspace.id))
+    return [str(m.user_id) for m in members]
 
 
 async def check_user_org_access(
@@ -85,7 +142,7 @@ async def check_user_access_to_workspace(
         log.error("User ID is missing in user_org_workspace_data")
         return False
 
-    workspace_members = workspace.get_all_members()
+    workspace_members = await _get_workspace_member_ids(workspace)
     if user_id not in workspace_members:
         log.error("User does not belong to the workspace")
         return False
@@ -288,17 +345,19 @@ async def check_project_has_role_or_permission(
     project_members = await db_manager_ee.get_project_members(
         project_id=str(project.id)
     )
-    if project.is_owner(user_id, project_members):
+
+    # OWNER always passes
+    if _project_is_owner(user_id, project_members):
         return True
 
     if role is not None:
         if role not in list(WorkspaceRole):
             raise Exception("Invalid role specified")
-        return project.has_role(user_id, role, project_members)
+        return _project_has_role(user_id, role, project_members)
 
     if permission is not None:
         if permission not in list(Permission):
             raise Exception("Invalid permission specified")
-        return project.has_permission(user_id, permission, project_members)
+        return _project_has_permission(user_id, permission, project_members)
 
     return False

@@ -77,7 +77,6 @@ async def list_organizations(
             description=str(organization_db.description),
             type=organization_db.type,  # type: ignore
             workspaces=[str(active_workspace.id)] if not is_ee() else [],
-            is_paying=organization_db.is_paying if is_ee() else None,
         ).model_dump(exclude_unset=True)
         for organization_db in organizations_db
     ]

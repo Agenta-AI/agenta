@@ -67,6 +67,28 @@ async def _assert_org_owner(request: Request):
     return organization
 
 
+def _get_oss_user_role(organization, user_id: str) -> str:
+    """Owner vs editor logic used across OSS endpoints."""
+    return "owner" if str(organization.owner) == str(user_id) else "editor"
+
+
+async def _get_ee_membership_for_project(user_id, project_id):
+    """
+    Return the project membership for this user & project in EE, or None.
+    Uses the same source as get_projects/get_project (fetch_project_memberships_by_user_id).
+    """
+    if not is_ee():
+        return None
+
+    memberships = await db_manager_ee.fetch_project_memberships_by_user_id(
+        user_id=user_id
+    )
+    return next(
+        (m for m in memberships if str(m.project_id) == str(project_id)),
+        None,
+    )
+
+
 async def _project_to_response(
     project,
     *,
@@ -139,11 +161,7 @@ async def get_projects(
             if not projects_db:
                 raise HTTPException(status_code=404, detail="No projects found")
 
-            user_role = (
-                "owner"
-                if str(organization.owner) == str(request.state.user_id)
-                else "editor"
-            )
+            user_role = _get_oss_user_role(organization, request.state.user_id)
 
             projects = []
             for project in projects_db:
@@ -224,17 +242,19 @@ async def get_project(
             if not project:
                 raise HTTPException(status_code=404, detail="Project not found")
 
-            user_role = (
-                "owner"
-                if project.organization
-                and str(project.organization.owner) == str(request.state.user_id)
-                else "editor"
-            )
+            organization = project.organization
+            if not organization:
+                organization = await db_manager.fetch_organization_by_id(
+                    organization_id=str(project.organization_id)
+                )
+
+            user_role = _get_oss_user_role(organization, request.state.user_id)
 
             return await _project_to_response(
                 project,
                 user_role=user_role,
                 is_demo=False,
+                organization=organization,
             )
 
         if is_ee():
@@ -279,37 +299,63 @@ async def create_project(
     request: Request,
     payload: CreateProjectRequest,
 ) -> ProjectsResponse:
-    await _assert_org_owner(request)
+    # await _assert_org_owner(request)
 
     workspace_id = getattr(request.state, "workspace_id", None)
     organization_id = getattr(request.state, "organization_id", None)
+
     if not workspace_id or not organization_id:
         raise HTTPException(
             status_code=400, detail="Workspace and organization context are required"
         )
 
     project_name = payload.name.strip()
+
     if not project_name:
         raise HTTPException(status_code=400, detail="Project name cannot be empty")
 
     if is_ee():
+        # EE: project created + memberships cloned
         project = await db_manager_ee.create_workspace_project(
             project_name=project_name,
             workspace_id=str(workspace_id),
             set_default=payload.make_default,
         )
-    else:
-        project = await db_manager.create_workspace_project(
-            project_name=project_name,
-            workspace_id=str(workspace_id),
-            organization_id=str(organization_id),
-            set_default=payload.make_default,
+
+        membership = await _get_ee_membership_for_project(
+            user_id=request.state.user_id,
+            project_id=project.id,
         )
+        user_role = membership.role if membership else None
+        is_demo = membership.is_demo if membership else None
+
+        return await _project_to_response(
+            project,
+            user_role=user_role,
+            is_demo=is_demo,
+        )
+
+    # OSS
+    project = await db_manager.create_workspace_project(
+        project_name=project_name,
+        workspace_id=str(workspace_id),
+        organization_id=str(organization_id),
+        set_default=payload.make_default,
+    )
+
+    organization = await db_manager.fetch_organization_by_id(
+        organization_id=str(organization_id)
+    )
+    if not organization:
+        raise HTTPException(status_code=404, detail="Organization not found")
+
+    user_role = _get_oss_user_role(organization, request.state.user_id)
 
     return await _project_to_response(
         project,
-        user_role="owner",
+        user_role=user_role,
         is_demo=False,
+        organization=organization,
     )
 
 
@@ -321,12 +367,15 @@ async def delete_project(
     project_id: UUID,
     request: Request,
 ):
-    await _assert_org_owner(request)
+    # await _assert_org_owner(request)
+
     workspace_id = getattr(request.state, "workspace_id", None)
+
     if not workspace_id:
         raise HTTPException(status_code=400, detail="Workspace context is required")
 
     project = await db_manager.fetch_project_by_id(project_id=str(project_id))
+
     if not project or str(project.workspace_id) != str(workspace_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -348,12 +397,15 @@ async def update_project(
     payload: UpdateProjectRequest,
     request: Request,
 ) -> ProjectsResponse:
-    await _assert_org_owner(request)
+    # await _assert_org_owner(request)
+
     workspace_id = getattr(request.state, "workspace_id", None)
+
     if not workspace_id:
         raise HTTPException(status_code=400, detail="Workspace context is required")
 
     project = await db_manager.fetch_project_by_id(project_id=str(project_id))
+
     if not project or str(project.workspace_id) != str(workspace_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -383,14 +435,26 @@ async def update_project(
     workspace = await db_manager.fetch_workspace_by_id(
         workspace_id=str(updated_project.workspace_id)
     )
+
     organization = await db_manager.fetch_organization_by_id(
         organization_id=str(updated_project.organization_id)
     )
 
+    if is_ee():
+        membership = await _get_ee_membership_for_project(
+            user_id=request.state.user_id,
+            project_id=updated_project.id,
+        )
+        user_role = membership.role if membership else None
+        is_demo = membership.is_demo if membership else None
+    else:
+        user_role = _get_oss_user_role(organization, request.state.user_id)
+        is_demo = False
+
     return await _project_to_response(
         updated_project,
-        user_role="owner",
-        is_demo=False,
+        user_role=user_role,
+        is_demo=is_demo,
         workspace=workspace,
         organization=organization,
     )

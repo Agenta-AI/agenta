@@ -26,13 +26,17 @@ from ee.src.models.api.organization_models import (
     OrganizationUpdate,
 )
 from ee.src.models.shared_models import WorkspaceRole
-from ee.src.models.db_models import (
-    ProjectDB,
-    WorkspaceDB,
+
+from oss.src.models.db_models import (
     OrganizationDB,
-    ProjectMemberDB,
-    WorkspaceMemberDB,
+    WorkspaceDB,
+    ProjectDB,
+)
+
+from ee.src.models.db_models import (
     OrganizationMemberDB,
+    WorkspaceMemberDB,
+    ProjectMemberDB,
 )
 from oss.src.models.db_models import (
     UserDB,
@@ -129,24 +133,43 @@ async def get_organization_workspaces(organization_id: str):
         return workspaces
 
 
+async def get_workspace_members(workspace_id: str) -> List[WorkspaceMemberDB]:
+    """
+    Return all membership rows for a given workspace.
+
+    Used by RBAC / admin helpers to derive roles and permissions.
+    """
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(WorkspaceMemberDB).where(
+                WorkspaceMemberDB.workspace_id == workspace_id
+            )
+        )
+        return list(result.scalars().all())
+
+
 async def get_workspace_administrators(workspace: WorkspaceDB) -> List[UserDB]:
     """
     Retrieve the administrators of a workspace.
 
-    Args:
-        workspace (WorkspaceDB): The workspace to retrieve the administrators for.
-
-    Returns:
-        List[UserDB]: A list of UserDB objects representing the administrators of the workspace.
+    Administrators are members whose role is WORKSPACE_ADMIN or OWNER.
     """
 
-    administrators = []
-    for member in workspace.members:
-        if workspace.has_role(
-            member.user_id, WorkspaceRole.WORKSPACE_ADMIN
-        ) or workspace.has_role(member.user_id, WorkspaceRole.OWNER):
-            user = await db_manager.get_user_with_id(member.user_id)
+    # Fetch all membership rows for this workspace
+    members = await get_workspace_members(workspace_id=str(workspace.id))
+
+    admin_user_ids = [
+        str(member.user_id)
+        for member in members
+        if member.role in (WorkspaceRole.WORKSPACE_ADMIN, WorkspaceRole.OWNER)
+    ]
+
+    administrators: List[UserDB] = []
+    for user_id in admin_user_ids:
+        user = await db_manager.get_user_with_id(user_id=user_id)
+        if user:
             administrators.append(user)
+
     return administrators
 
 
@@ -817,9 +840,7 @@ async def remove_user_from_workspace(
     project_ids = [project.id for project in projects]
 
     async with engine.core_session() as session:
-        if (
-            not user
-        ):  # User is an invited user who has not yet created an account and therefore does not have a user object
+        if not user:  # User is an invited user who has not yet created an account and therefore does not have a user object
             pass
         else:
             # Ensure that a user can not remove the owner of the workspace
@@ -985,7 +1006,9 @@ async def create_organization(
             description=(
                 "Default Workspace"
                 if payload.type == "default"
-                else payload.description if payload.description else ""
+                else payload.description
+                if payload.description
+                else ""
             ),
         )
 
@@ -1155,7 +1178,6 @@ async def get_org_details(organization: Organization) -> dict:
         "owner": organization.owner,
         "workspaces": [str(workspace.id) for workspace in workspaces],
         "default_workspace": default_workspace,
-        "is_paying": organization.is_paying if is_ee() else None,
     }
     return sample_organization
 

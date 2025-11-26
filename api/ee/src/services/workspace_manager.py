@@ -7,9 +7,9 @@ from fastapi.responses import JSONResponse
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from ee.src.services import db_manager_ee, converters
-from ee.src.models.db_models import (
-    WorkspaceDB,
+from oss.src.models.db_models import (
     OrganizationDB,
+    WorkspaceDB,
 )
 from oss.src.models.db_models import UserDB
 from ee.src.models.api.api_models import (
