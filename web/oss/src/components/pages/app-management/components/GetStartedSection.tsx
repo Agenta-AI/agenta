@@ -73,7 +73,6 @@ const GetStartedSection = ({
                 <Card
                     title={<Rocket size={24} />}
                     className={classes.getStartedCard}
-                    id="tour-create-new-prompt"
                     onClick={() => {
                         setIsAddAppFromTemplatedModal(true)
                     }}

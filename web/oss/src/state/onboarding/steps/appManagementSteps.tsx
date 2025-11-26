@@ -1,4 +1,3 @@
-import {isAddAppFromTemplatedAtom} from "@/oss/components/pages/app-management/state/atom"
 import {appChatModeAtom} from "@/oss/components/Playground/state/atoms"
 import {getDefaultStore} from "jotai"
 import {
@@ -10,81 +9,26 @@ import {ONLINE_EVAL_RUN_STEPS} from "./evaluations/onlineEvaluationSteps"
 import {PLAYGROUND_CHAT_TOUR, PLAYGROUND_COMPLETION_TOUR} from "./playgroundSteps"
 import {OnboardingStepsContext, TourDefinition} from "./types"
 
-const openTemplateModal = () => {
-    getDefaultStore().set(isAddAppFromTemplatedAtom, true)
-}
-
-const closeTemplateModal = () => {
-    getDefaultStore().set(isAddAppFromTemplatedAtom, false)
-}
-
-export const GLOBAL_APP_MANAGEMENT_STEPS = [
+const APP_CREATION_STEPS = [
     {
-        icon: "🚀",
-        title: "Create a new prompt",
-        content: <span>Click here to create new application using predefined templates</span>,
-        selector: "#tour-create-new-prompt",
-        side: "bottom",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: closeTemplateModal,
-        onCleanup: closeTemplateModal,
-    },
-    {
-        icon: "📝",
-        title: "Name your app",
-        content: (
-            <span>
-                Give your app a descriptive name so teammates immediately understand its purpose.
-            </span>
-        ),
-        selector: "#tour-app-name-input",
-        side: "top",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: openTemplateModal,
-        onCleanup: closeTemplateModal,
-    },
-    {
-        icon: "📚",
-        title: "Choose a template",
-        content: <span>Select a template that fits your use case.</span>,
-        selector: "#tour-template-list",
-        side: "top",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: openTemplateModal,
-        onCleanup: closeTemplateModal,
-    },
-    {
-        icon: "✅",
-        title: "Create the app",
-        content: <span>Provision your first app by creating it with the selected template.</span>,
-        selector: "#tour-create-app-button",
-        side: "top",
-        showControls: true,
-        showSkip: true,
-        pointerPadding: 12,
-        pointerRadius: 12,
-        onEnter: openTemplateModal,
-        onCleanup: closeTemplateModal,
+        tour: "create-first-app",
+        steps: [
+            {
+                icon: "🚀",
+                title: "Create a new prompt",
+                content: (
+                    <span>Click here to create new application using predefined templates</span>
+                ),
+                selector: "#tour-create-new-prompt",
+                side: "left",
+                showControls: false,
+                showSkip: false,
+                pointerPadding: 12,
+                pointerRadius: 12,
+            },
+        ],
     },
 ]
-
-const resolveGlobalAppTour = (): TourDefinition => {
-    return [
-        {
-            tour: "create-first-app",
-            steps: GLOBAL_APP_MANAGEMENT_STEPS,
-        },
-    ]
-}
 
 const withOnboardingSection = (() => {
     const cache = new WeakMap<
@@ -112,7 +56,7 @@ const withOnboardingSection = (() => {
     }
 })()
 
-const APP_SECTION_STEPS = withOnboardingSection(GLOBAL_APP_MANAGEMENT_STEPS, "apps")
+const APP_SECTION_STEPS = withOnboardingSection(APP_CREATION_STEPS, "apps")
 const COMPLETION_PLAYGROUND_SECTION_STEPS = withOnboardingSection(
     PLAYGROUND_COMPLETION_TOUR,
     "playground",
@@ -185,9 +129,9 @@ const resolveSmeJourneyTour = (ctx: OnboardingStepsContext): TourDefinition => {
 }
 
 const APP_MANAGEMENT_TOUR_MAP: Record<string, (ctx: OnboardingStepsContext) => TourDefinition> = {
-    Hobbyist: () => resolveGlobalAppTour(),
-    "ML/AI Engineer or Data scientist": () => resolveGlobalAppTour(),
-    "Frontend / Backend Developer": () => resolveGlobalAppTour(),
+    Hobbyist: () => APP_CREATION_STEPS,
+    "ML/AI Engineer or Data scientist": () => APP_CREATION_STEPS,
+    "Frontend / Backend Developer": () => APP_CREATION_STEPS,
     sme: (ctx) => resolveSmeJourneyTour(ctx),
 }
 

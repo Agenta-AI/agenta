@@ -70,6 +70,12 @@ const OnboardingCard = ({
     }, [])
 
     useEffect(() => {
+        if (!step?.selector && !currentStep) {
+            skipTour?.()
+        }
+    }, [step, skipTour, currentStep])
+
+    useEffect(() => {
         if (!step) return
 
         const extendedStep = step as StepWithEffects | undefined
@@ -92,22 +98,13 @@ const OnboardingCard = ({
         }
     }, [setCurrentStep, runCleanupHandlers])
 
-    const captureStepAction = useCallback(
-        (action: string) => {
-            const extendedStep = step as StepWithEffects | undefined
-        },
-        [step, currentStep, totalSteps, userSection],
-    )
-
     const onPrevStep = useCallback(() => {
-        captureStepAction("previous")
         prevStep()
-    }, [captureStepAction, prevStep])
+    }, [prevStep])
 
     const onNextStep = useCallback(() => {
-        captureStepAction("next")
         nextStep()
-    }, [captureStepAction, nextStep])
+    }, [nextStep])
 
     const onSkipStep = useCallback(
         (status: string) => {
@@ -122,7 +119,6 @@ const OnboardingCard = ({
                 extendedStep?.onboardingSection ?? resolveOnboardingSection(userSection)
             if (!resolvedSection) return
 
-            captureStepAction(status === "done" ? "finish" : "skip")
             updateOnboardingStatus({section: resolvedSection, status})
 
             if (fullJourneyState.active) {
@@ -141,7 +137,6 @@ const OnboardingCard = ({
             fullJourneyState.active,
             setFullJourneyState,
             setTriggerOnboarding,
-            captureStepAction,
         ],
     )
 
@@ -200,17 +195,16 @@ const OnboardingCard = ({
                             {normalized.content}
                         </Text>
                     </div>
+                    {normalized.showControls ? (
+                        <div className="flex flex-col gap-4">
+                            <div className="h-1.5 w-full rounded-full bg-gray-200">
+                                <div
+                                    className="h-full rounded-full bg-colorPrimary transition-all duration-300"
+                                    style={{width: progressWidth}}
+                                    role="presentation"
+                                />
+                            </div>
 
-                    <div className="flex flex-col gap-4">
-                        <div className="h-1.5 w-full rounded-full bg-gray-200">
-                            <div
-                                className="h-full rounded-full bg-colorPrimary transition-all duration-300"
-                                style={{width: progressWidth}}
-                                role="presentation"
-                            />
-                        </div>
-
-                        {normalized.showControls ? (
                             <div className="flex flex-wrap items-center justify-between gap-3">
                                 <Button
                                     onClick={onPrevStep}
@@ -243,8 +237,8 @@ const OnboardingCard = ({
                                     </Button>
                                 )}
                             </div>
-                        ) : null}
-                    </div>
+                        </div>
+                    ) : null}
                 </div>
 
                 {normalized.showSkip && skipTour ? (
@@ -254,7 +248,7 @@ const OnboardingCard = ({
                         onClick={() => onSkipStep("skipped")}
                         disabled={currentStep === totalSteps - 1}
                     >
-                        Skip Tour
+                        Skip
                     </Button>
                 ) : null}
 

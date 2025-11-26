@@ -15,6 +15,7 @@ import {
     UserOnboardingStatus,
 } from "../types"
 import {fullJourneyStateAtom, playgroundHasFirstRunAtom} from "./helperAtom"
+import {isAddAppFromTemplatedAtom} from "@/oss/components/pages/app-management/state/atom"
 
 const NEW_USER_STORAGE_KEY = "new-user"
 const USER_ONBOARDING_STATE_TRACKER = "user-onboarding-state-tracker"
@@ -160,8 +161,9 @@ export const onboardingStepsAtom = atom<Tour[]>((get) => {
     const hasPlaygroundRun = get(playgroundHasFirstRunAtom)
     const fullJourneyState = get(fullJourneyStateAtom)
     const fullJourneyStatus = userOnboardingJourneyStatus.fullJourney
+    const isAddAppFromTemplated = get(isAddAppFromTemplatedAtom)
 
-    if (appStatusLoading) return []
+    if (appStatusLoading || isAddAppFromTemplated) return []
 
     const resolveStepsForState = (stateKey: keyof typeof TOUR_STEPS) => {
         const tourSteps = TOUR_STEPS[stateKey]
