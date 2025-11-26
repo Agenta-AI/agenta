@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type ReactNode} from "react"
+import {useEffect, memo, useRef, useState, type ReactNode} from "react"
 
 import clsx from "clsx"
 
@@ -138,49 +138,53 @@ export const createViewportAwareCell = <Row extends object>(opts: {
     className: clsx("ivt-cell ivt-cell--viewport-wrapper", opts.className),
 })
 
-const ColumnVisibilityAwareCell = <Row extends object>({
-    row,
-    index,
-    columnKey,
-    render,
-    placeholder,
-    keepMounted = false,
-}: {
-    row: Row
-    index: number
-    columnKey?: string
-    render: (row: Row, index: number, isVisible: boolean) => ReactNode
-    placeholder?: ReactNode | ((row: Row, index: number) => ReactNode)
-    keepMounted?: boolean
-}) => {
-    const isVisible = useColumnVisibilityFlag(columnKey)
-    if (!keepMounted && !isVisible) {
-        if (placeholder) {
-            return (
-                <div className="ivt-cell ivt-cell--column-visibility w-full h-full flex items-center">
-                    {typeof placeholder === "function" ? placeholder(row, index) : placeholder}
-                </div>
-            )
-        }
-        return null
-    }
-    const content = render(row, index, isVisible)
-
-    if (!content && !placeholder) {
-        if (!keepMounted) {
+const ColumnVisibilityAwareCell = memo(
+    <Row extends object>({
+        row,
+        index,
+        columnKey,
+        render,
+        placeholder,
+        keepMounted = false,
+    }: {
+        row: Row
+        index: number
+        columnKey?: string
+        render: (row: Row, index: number, isVisible: boolean) => ReactNode
+        placeholder?: ReactNode | ((row: Row, index: number) => ReactNode)
+        keepMounted?: boolean
+    }) => {
+        console.log("ColumnVisibilityAwareCell")
+        const isVisible = useColumnVisibilityFlag(columnKey)
+        if (!keepMounted && !isVisible) {
+            if (placeholder) {
+                return (
+                    <div className="ivt-cell ivt-cell--column-visibility w-full h-full flex items-center">
+                        {typeof placeholder === "function" ? placeholder(row, index) : placeholder}
+                    </div>
+                )
+            }
             return null
         }
-        return (
-            <div className="ivt-cell ivt-cell--column-visibility w-full h-full flex items-center" />
-        )
-    }
+        const content = render(row, index, isVisible)
 
-    return (
-        <div className="ivt-cell ivt-cell--column-visibility w-full h-full flex items-center">
-            {content ?? (typeof placeholder === "function" ? placeholder(row, index) : placeholder)}
-        </div>
-    )
-}
+        if (!content && !placeholder) {
+            if (!keepMounted) {
+                return null
+            }
+            return (
+                <div className="ivt-cell ivt-cell--column-visibility w-full h-full flex items-center" />
+            )
+        }
+
+        return (
+            <div className="ivt-cell ivt-cell--column-visibility w-full h-full flex items-center">
+                {content ??
+                    (typeof placeholder === "function" ? placeholder(row, index) : placeholder)}
+            </div>
+        )
+    },
+)
 
 export const createColumnVisibilityAwareCell = <Row extends object>(opts: {
     columnKey?: string

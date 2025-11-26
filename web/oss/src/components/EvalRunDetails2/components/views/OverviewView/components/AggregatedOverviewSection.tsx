@@ -19,7 +19,7 @@ const AggregatedOverviewSection = ({runIds}: AggregatedOverviewSectionProps) => 
     }
 
     return (
-        <Card bordered>
+        <Card variant="outlined">
             <div className="flex flex-col gap-6">
                 <div className="flex flex-col gap-6 lg:flex-row">
                     <div className="flex-1 lg:max-w-[50%]">
@@ -29,8 +29,6 @@ const AggregatedOverviewSection = ({runIds}: AggregatedOverviewSectionProps) => 
                         <OverviewSpiderChart runIds={orderedRunIds} />
                     </div>
                 </div>
-
-                {/* <OverviewMetricComparison runIds={orderedRunIds} /> */}
             </div>
         </Card>
     )

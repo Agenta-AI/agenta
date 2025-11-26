@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {Form, Input, Tag, Typography} from "antd"
+import {DownOutlined} from "@ant-design/icons"
+import {Button, Form, Input, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
 import {message} from "@/oss/components/AppMessageContext"
@@ -9,21 +10,26 @@ import axios from "@/oss/lib/api/assets/axiosConfig"
 
 import {evaluationRunQueryAtomFamily} from "../../../../atoms/table/run"
 import {deriveRunTags} from "../utils"
-import {SectionSkeleton} from "./SectionPrimitives"
+
+import {SectionHeaderRow, SectionSkeleton} from "./SectionPrimitives"
 
 const {Text} = Typography
 
 interface GeneralSectionProps {
     runId: string
-    onRegisterActions?: (actions: {
-        save: () => void
-        reset: () => void
-        disabled: boolean
-        saving: boolean
-    }) => void
+    showActions?: boolean
 }
 
-const GeneralSection = ({runId, onRegisterActions}: GeneralSectionProps) => {
+const GeneralSectionHeader = ({runId, index}: {runId: string; index: number}) => {
+    return (
+        <div className="flex flex-col gap-1">
+            <Text className="text-sm font-semibold text-[#344054]">General</Text>
+        </div>
+    )
+}
+
+const GeneralSection = ({runId, showActions = true}: GeneralSectionProps) => {
+    const [collapsed, setCollapsed] = useState(false)
     const runQueryAtom = useMemo(() => evaluationRunQueryAtomFamily(runId), [runId])
     const runQuery = useAtomValue(runQueryAtom)
     const isLoading = runQuery.isPending && !runQuery.data
@@ -93,57 +99,77 @@ const GeneralSection = ({runId, onRegisterActions}: GeneralSectionProps) => {
         setEditDescription(runDescription ?? "")
     }, [runData?.name, runDescription])
 
-    // Register header actions with parent if provided (must be before any conditional returns)
-    useEffect(() => {
-        onRegisterActions?.({
-            save: handleSave,
-            reset: handleReset,
-            disabled: isSaveDisabled,
-            saving,
-        })
-    }, [onRegisterActions, handleSave, handleReset, isSaveDisabled, saving])
-
     if (isLoading) {
         return <SectionSkeleton lines={4} />
     }
 
     return (
         <Form layout="vertical" requiredMark={false}>
-            <Form.Item label="Name" style={{marginBottom: 12}}>
-                <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    maxLength={100}
-                    placeholder="Run name"
-                    disabled={isLoading || saving}
-                />
-                {runSlug ? <Text type="secondary">Slug: {runSlug}</Text> : null}
-            </Form.Item>
-            <Form.Item label="Description" style={{marginBottom: 12}}>
-                <Input.TextArea
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                    rows={3}
-                    maxLength={500}
-                    placeholder="Description (optional)"
-                    disabled={isLoading || saving}
-                />
-            </Form.Item>
-            <Form.Item label="Tags" style={{marginBottom: 0}}>
-                {runTags.length ? (
-                    <ReadOnlyBox>
-                        <div className="flex flex-wrap gap-1">
-                            {runTags.map((tag) => (
-                                <Tag key={tag} className="!m-0">
-                                    {tag}
-                                </Tag>
-                            ))}
+            <SectionHeaderRow
+                left={<GeneralSectionHeader runId={runId} />}
+                right={
+                    <Button
+                        type="text"
+                        size="small"
+                        icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
+                        onClick={() => setCollapsed((v) => !v)}
+                    />
+                }
+            />
+            {!collapsed ? (
+                <div className="flex flex-col mt-1 gap-1">
+                    <Form.Item label="Name" style={{marginBottom: 12}}>
+                        <Input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            maxLength={100}
+                            placeholder="Run name"
+                            disabled={isLoading || saving}
+                        />
+                        {runSlug ? <Text type="secondary">Slug: {runSlug}</Text> : null}
+                    </Form.Item>
+                    <Form.Item label="Description" style={{marginBottom: 12}}>
+                        <Input.TextArea
+                            value={editDescription}
+                            onChange={(e) => setEditDescription(e.target.value)}
+                            rows={3}
+                            maxLength={500}
+                            placeholder="Description (optional)"
+                            disabled={isLoading || saving}
+                        />
+                    </Form.Item>
+                    <Form.Item label="Tags" style={{marginBottom: 0}}>
+                        {runTags.length ? (
+                            <ReadOnlyBox>
+                                <div className="flex flex-wrap gap-1">
+                                    {runTags.map((tag) => (
+                                        <Tag key={tag} className="!m-0">
+                                            {tag}
+                                        </Tag>
+                                    ))}
+                                </div>
+                            </ReadOnlyBox>
+                        ) : (
+                            <Text type="secondary">No tags</Text>
+                        )}
+                    </Form.Item>
+                    {showActions ? (
+                        <div className="flex justify-end gap-2 pt-2">
+                            <Button onClick={handleReset} disabled={saving || isSaveDisabled}>
+                                Reset
+                            </Button>
+                            <Button
+                                type="primary"
+                                onClick={handleSave}
+                                loading={saving}
+                                disabled={isSaveDisabled}
+                            >
+                                Save
+                            </Button>
                         </div>
-                    </ReadOnlyBox>
-                ) : (
-                    <Text type="secondary">No tags</Text>
-                )}
-            </Form.Item>
+                    ) : null}
+                </div>
+            ) : null}
         </Form>
     )
 }

@@ -95,6 +95,7 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                       )
                       .filter((i) => i !== -1)
                 : []
+        const hasAnyHighlight = computedHighlightBarIndices.length > 0
 
         const gradientBaseId = useMemo(() => `freq-${Math.random().toString(36).slice(2, 10)}`, [])
         const customGradientId = `${gradientBaseId}-custom`
@@ -131,9 +132,9 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                 return disableGradient ? barColor : `url(#${customGradientId})`
                             }
                             if (disableGradient) {
-                                return FREQUENCY_SOLIDS[index % FREQUENCY_SOLIDS.length]
+                                return FREQUENCY_SOLIDS[0]
                             }
-                            return `url(#${resolveBarGradientId(index)})`
+                            return `url(#${resolveBarGradientId(0)})`
                         }
 
                         return (
@@ -297,6 +298,11 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                         height={barHeight}
                                                         fill={resolveFill(idx, isHighlighted)}
                                                         strokeWidth={0}
+                                                        opacity={
+                                                            hasAnyHighlight && !isHighlighted
+                                                                ? 0.25
+                                                                : 1
+                                                        }
                                                         className={clsx(
                                                             "frequency-bar cursor-pointer",
                                                             "[clip-path:inset(-4px_0_0_0_round_4px_4px_0_0)]",
@@ -343,6 +349,9 @@ const ResponsiveFrequencyChart: FC<ResponsiveFrequencyChartProps> = memo(
                                                     height={barHeightHorizontal}
                                                     fill={resolveFill(idx, isHighlighted)}
                                                     strokeWidth={0}
+                                                    opacity={
+                                                        hasAnyHighlight && !isHighlighted ? 0.25 : 1
+                                                    }
                                                     className={clsx(
                                                         "frequency-bar cursor-pointer",
                                                         "[clip-path:inset(0_0_0_-4px_round_0_4px_4px_0)]",

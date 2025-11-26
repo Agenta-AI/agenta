@@ -5,8 +5,22 @@ import type {ColumnsType} from "antd/es/table"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
+import EvalNameTag from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/EvalNameTag"
+import {
+    EVAL_BG_COLOR,
+    EVAL_TAG_COLOR,
+} from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/utils"
+import RenameEvalButton from "@/oss/components/EvalRunDetails/HumanEvalRun/components/Modals/RenameEvalModal/assets/RenameEvalButton"
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
+import {
+    ApplicationReferenceLabel,
+    TestsetTagList,
+    VariantReferenceLabel,
+} from "@/oss/components/References"
+import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
+import {RunIdProvider} from "@/oss/contexts/RunIdContext"
 import type {BasicStats} from "@/oss/lib/metricUtils"
+import {projectIdAtom, useProjectData} from "@/oss/state/project"
 
 import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"
 import {
@@ -23,20 +37,8 @@ import type {
     QueryConditionPayload,
     QueryFilteringPayload,
 } from "../../../../services/onlineEvaluations/api"
-import {
-    ApplicationReferenceLabel,
-    TestsetTagList,
-    VariantReferenceLabel,
-} from "@/oss/components/References"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
-import EvalNameTag from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/EvalNameTag"
-import {
-    EVAL_BG_COLOR,
-    EVAL_TAG_COLOR,
-} from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/utils"
-import RenameEvalButton from "@/oss/components/EvalRunDetails/HumanEvalRun/components/Modals/RenameEvalModal/assets/RenameEvalButton"
-import {RunIdProvider} from "@/oss/contexts/RunIdContext"
 
 interface MetadataSummaryTableProps {
     runIds: string[]
@@ -365,6 +367,13 @@ const METADATA_ROWS: MetadataRowRecord[] = [
     {key: "invocation_errors", label: "Errors", Cell: InvocationErrorsCell},
 ]
 
+const EvaluatorNameLabel = ({evaluatorId}: {evaluatorId: string}) => {
+    const projectId = useProjectData()?.projectId
+    const x = useEvaluatorReference({evaluatorId, projectId})
+    console.log("EvaluatorNameLabel", {x, evaluatorId})
+    return x?.reference?.name ?? "--"
+}
+
 const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) => {
     const orderedRunIds = useMemo(() => runIds.filter((id): id is string => Boolean(id)), [runIds])
     const {metricSelections} = useRunMetricData(orderedRunIds)
@@ -454,7 +463,9 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
                     key: metric.id,
                     label: (
                         <div className="flex flex-col gap-0.5">
-                            <span className="text-[#586673]">{evaluatorLabel}</span>
+                            <span className="text-[#586673]">
+                                <EvaluatorNameLabel evaluatorId={metric.evaluatorRef?.id} />{" "}
+                            </span>
                             <div className="flex items-center gap-2">
                                 <span>{metric.displayLabel}</span>
                                 {hasMeanValue ? (
@@ -471,7 +482,7 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
         rows.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
 
         return rows.map(({record}) => record)
-    }, [metricSelections])
+    }, [metricSelections, rowContext])
 
     const hasQueryAnywhereAtom = useMemo(
         () =>

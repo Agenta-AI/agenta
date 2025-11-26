@@ -232,7 +232,6 @@ const OverviewSpiderChart = ({runIds}: OverviewSpiderChartProps) => {
                 <EvaluatorMetricsSpiderChart
                     className="h-full w-full"
                     metrics={chartState.metrics as any}
-                    e
                     series={chartState.series as any}
                     maxScore={chartState.maxScore}
                 />

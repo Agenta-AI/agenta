@@ -6,6 +6,10 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {
+    ApplicationReferenceLabel,
+    VariantReferenceLabel,
+} from "@/oss/components/References/ReferenceLabels"
+import {
     clearProjectVariantReferencesAtom,
     prefetchProjectVariantConfigs,
     setProjectVariantReferencesAtom,
@@ -21,10 +25,6 @@ import {runInvocationRefsAtomFamily} from "../../../../atoms/runDerived"
 import {evaluationVariantConfigAtomFamily} from "../../../../atoms/variantConfig"
 import {toIdString} from "../utils"
 
-import {
-    ApplicationReferenceLabel,
-    VariantReferenceLabel,
-} from "@/oss/components/References/ReferenceLabels"
 import {ReadOnlySkeleton} from "./CopyableFields"
 import PromptConfigCard from "./PromptConfigCard"
 import {SectionCard, SectionSkeleton} from "./SectionPrimitives"
@@ -222,7 +222,7 @@ const InvocationSection = ({runId}: InvocationSectionProps) => {
     const headerContent = (
         <div className="flex flex-col gap-1">
             <Text className="text-sm font-semibold text-[#344054]">Application</Text>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
                 <ApplicationReferenceLabel runId={runId} applicationId={applicationId} />
                 {variantId ? (
                     <VariantReferenceLabel

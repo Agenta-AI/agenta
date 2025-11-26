@@ -1,11 +1,13 @@
 import {memo, useMemo} from "react"
 
+import clsx from "clsx"
+
 import type {EvaluationTableColumn} from "../../atoms/table"
 import {COLUMN_WIDTHS} from "../../constants/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
+import {renderScenarioChatMessages} from "../../utils/chatMessages"
 
 import InvocationTraceSummary from "./InvocationTraceSummary"
-import {renderScenarioChatMessages} from "../../utils/chatMessages"
 
 const CONTAINER_CLASS = "scenario-table-cell min-h-[96px] gap-2"
 
@@ -149,7 +151,7 @@ const PreviewEvaluationInvocationCell = ({
     const displayValue = normalizeValue(value)
 
     return (
-        <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
+        <div ref={ref} className={clsx(CONTAINER_CLASS, "!justify-between")} style={widthStyle}>
             <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
             <InvocationTraceSummary
                 scenarioId={scenarioId}

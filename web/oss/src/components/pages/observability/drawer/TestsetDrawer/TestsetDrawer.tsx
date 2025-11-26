@@ -35,9 +35,9 @@ import {KeyValuePair, testset} from "@/oss/lib/Types"
 import {createNewTestset, fetchTestset, updateTestset} from "@/oss/services/testsets/api"
 import {useTestsetsData} from "@/oss/state/testset"
 
+import {getValueAtPath} from "./assets/helpers"
 import {useStyles} from "./assets/styles"
 import {Mapping, Preview, TestsetColumn, TestsetDrawerProps, TestsetTraceData} from "./assets/types"
-import {getValueAtPath} from "./assets/helpers"
 
 const TestsetDrawer = ({
     onClose,

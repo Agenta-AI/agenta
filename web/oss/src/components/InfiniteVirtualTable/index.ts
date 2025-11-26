@@ -24,7 +24,6 @@ export {default as ColumnVisibilityPopoverContent} from "./components/columnVisi
 export {default as FiltersPopoverTrigger} from "./components/filters/FiltersPopoverTrigger"
 export {default as TableShell} from "./components/TableShell"
 export {InfiniteVirtualTableFeatureShell, useInfiniteTableFeaturePagination} from "./features"
-export {default as useScopedColumnVisibility} from "./hooks/useScopedColumnVisibility"
 export {default as ColumnVisibilityHeader} from "./components/ColumnVisibilityHeader"
 export {default as ColumnVisibilityProvider} from "./providers/ColumnVisibilityProvider"
 export {useColumnVisibilityContext} from "./context/ColumnVisibilityContext"

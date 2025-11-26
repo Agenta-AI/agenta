@@ -4,10 +4,11 @@ import {DownOutlined} from "@ant-design/icons"
 import {Button, Form, Tag, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
+import {TestsetTagList} from "@/oss/components/References"
+
 import {testsetReferenceQueryAtomFamily} from "../../../../atoms/references"
 import {runTestsetIdsAtomFamily} from "../../../../atoms/runDerived"
 import {simpleTestsetDetailsAtomFamily} from "../../../../atoms/testsetDetails"
-import {TestsetTagList} from "@/oss/components/References"
 
 import {SectionCard, SectionHeaderRow, SectionSkeleton} from "./SectionPrimitives"
 
@@ -104,9 +105,9 @@ const TestsetCard = ({
                     />
                 }
             />
-            <TestsetTagList ids={[testsetId]} runId={runId} className="-mt-3" />
+            <TestsetTagList ids={[testsetId]} runId={runId} className="-mt-2" />
             {!collapsed ? (
-                <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-3 mt-1">
                     {simple?.description ? (
                         <Text type="secondary" className="text-sm leading-5">
                             {simple.description}
@@ -115,7 +116,7 @@ const TestsetCard = ({
 
                     <div className="flex flex-wrap items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <Text className="text-sm font-medium text-neutral-800">Test cases</Text>
+                            <Text className="font-medium text-neutral-800">Test cases</Text>
                             <Tag className="!m-0 !bg-[#EEF2FF] !border-[#E0EAFF] !text-[#344054]">
                                 {testcaseCount ?? "—"}
                             </Tag>
@@ -135,7 +136,7 @@ const TestsetCard = ({
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <Text className="text-sm font-medium text-neutral-800">Column preview</Text>
+                        <Text className="font-medium text-neutral-800">Column preview</Text>
                         {columns && columns.length ? (
                             <div className="flex flex-wrap gap-2">
                                 {columnPreview.map((col) => (

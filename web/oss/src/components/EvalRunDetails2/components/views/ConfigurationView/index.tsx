@@ -2,7 +2,7 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 import type {ReactNode, UIEvent} from "react"
 
 import {DownOutlined} from "@ant-design/icons"
-import {Button, Card, Skeleton, Space, Typography} from "antd"
+import {Button, Card, Skeleton, Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai/utils"
 
@@ -26,8 +26,8 @@ import EvaluatorSection from "./components/EvaluatorSection"
 import GeneralSection from "./components/GeneralSection"
 import InvocationSection from "./components/InvocationSection"
 import QuerySection from "./components/QuerySection"
+import {SectionCard, SectionSkeleton} from "./components/SectionPrimitives"
 import TestsetSection from "./components/TestsetSection"
-import {SectionSkeleton} from "./components/SectionPrimitives"
 import {hasQueryReference} from "./utils"
 
 const {Text, Title} = Typography
@@ -278,126 +278,13 @@ const useScrollSync = () => {
     return {register, syncScroll}
 }
 
-const RunSummaryCard = memo(
-    ({
-        runId,
-        compareIndex,
-        runName,
-        runStatus,
-    }: {
-        runId: string
-        compareIndex: number
-        runName?: string
-        runStatus?: string | null
-    }) => {
-        const summaryAtom = useMemo(
-            () => configurationRunSummaryAtomFamily({runId, compareIndex}),
-            [runId, compareIndex],
-        )
-        const summary = useAtomValue(summaryAtom)
-
-        const _displayName = runName ?? summary.runName
-        const _displayStatus = runStatus ?? summary.runStatus
-        const _showSkeleton =
-            summary.isLoading &&
-            (!_displayName || (typeof _displayName === "string" && _displayName === "—"))
-
-        return (
-            <div className="flex min-h-[140px] flex-col gap-3 rounded-lg border border-neutral-200 bg-white p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="flex min-w-0 flex-col gap-1">
-                        {/* {showSkeleton ? (
-                            <Skeleton.Input active size="small" style={{width: 120}} />
-                        ) : (
-                            <Text className="truncate text-base font-semibold text-neutral-900">
-                                {displayName ?? "—"}
-                            </Text>
-                        )} */}
-
-                        {/* {summary.generalSubtitle ? (
-                            <Text className="truncate text-xs text-neutral-500">
-                                {summary.generalSubtitle}
-                            </Text>
-                        ) : null} */}
-                    </div>
-                    {/* <Space size={4} wrap>
-                        <Tag color={compareIndex === 0 ? "geekblue" : "purple"}>
-                            {compareIndex === 0 ? "Base run" : `Comparison ${compareIndex}`}
-                        </Tag>
-                        {displayStatus ? <Tag color="blue">{displayStatus}</Tag> : null}
-                    </Space> */}
-                </div>
-                {/* <ContextChipList runId={runId} /> */}
-            </div>
-        )
-    },
-)
-
-const _RunSummaryRow = memo(
-    ({
-        runIds,
-        runDescriptors,
-        registerScrollContainer,
-        syncScroll,
-    }: {
-        runIds: string[]
-        runDescriptors: RunDescriptor[]
-        registerScrollContainer: (key: string, node: HTMLDivElement | null) => void
-        syncScroll: (key: string, scrollLeft: number) => void
-    }) => {
-        const handleRef = useCallback(
-            (node: HTMLDivElement | null) => registerScrollContainer("summary", node),
-            [registerScrollContainer],
-        )
-        const handleScroll = useCallback(
-            (event: UIEvent<HTMLDivElement>) =>
-                syncScroll("summary", event.currentTarget.scrollLeft),
-            [syncScroll],
-        )
-
-        return (
-            <Card>
-                <Title level={5} className="!mb-3">
-                    Evaluation context
-                </Title>
-                <div
-                    ref={handleRef}
-                    onScroll={handleScroll}
-                    className="grid grid-flow-col auto-cols-[minmax(320px,1fr)] gap-4 overflow-x-auto pb-2"
-                >
-                    {runIds.map((runId, index) => {
-                        const descriptor = runDescriptors[index]
-                        return (
-                            <RunSummaryCard
-                                key={runId}
-                                runId={runId}
-                                compareIndex={index}
-                                runName={descriptor?.displayName}
-                                runStatus={descriptor?.status}
-                            />
-                        )
-                    })}
-                </div>
-            </Card>
-        )
-    },
-)
-
 interface SectionDefinition {
     key: string
     title: string
     alwaysVisible?: boolean
     hasData: (summary: ConfigurationRunSummary) => boolean
     getSubtitle?: (summary?: ConfigurationRunSummary) => string | undefined
-    render: (
-        runId: string,
-        registerActions?: (actions: {
-            save: () => void
-            reset: () => void
-            disabled: boolean
-            saving: boolean
-        }) => void,
-    ) => ReactNode
+    render: (runId: string, context?: {compareIndex: number}) => ReactNode
     fallbackMessage?: string
 }
 
@@ -409,8 +296,8 @@ const sectionDefinitions: SectionDefinition[] = [
         hasData: () => true,
         // getSubtitle: (summary) => null,
         // getSubtitle: (summary) => summary?.generalSubtitle,
-        render: (runId, registerActions) => (
-            <GeneralSection runId={runId} onRegisterActions={registerActions} />
+        render: (runId, context) => (
+            <GeneralSection runId={runId} showActions={(context?.compareIndex ?? 0) === 0} />
         ),
     },
     {
@@ -444,19 +331,16 @@ const ConfigurationSectionColumn = memo(
         runId,
         compareIndex,
         section,
-        runName,
-        onRegisterHeaderActions,
+        headerTitle,
+        collapsed,
+        onToggleCollapse,
     }: {
         runId: string
         compareIndex: number
         section: SectionDefinition
-        runName?: string
-        onRegisterHeaderActions?: (actions: {
-            save: () => void
-            reset: () => void
-            disabled: boolean
-            saving: boolean
-        }) => void
+        headerTitle?: string
+        collapsed?: boolean
+        onToggleCollapse?: () => void
     }) => {
         const summaryAtom = useMemo(
             () => configurationRunSummaryAtomFamily({runId, compareIndex}),
@@ -470,12 +354,7 @@ const ConfigurationSectionColumn = memo(
         if (summary.isLoading) {
             content = <SectionSkeleton />
         } else if (columnHasData || section.alwaysVisible) {
-            // Only the base run column provides header actions for the section
-            const register =
-                section.key === "general" && compareIndex === 0
-                    ? onRegisterHeaderActions
-                    : undefined
-            content = section.render(runId, register)
+            content = section.render(runId, {compareIndex})
         } else if (section.fallbackMessage) {
             content = <Text className="text-sm text-neutral-500">{section.fallbackMessage}</Text>
         }
@@ -497,29 +376,31 @@ const ConfigurationSectionColumn = memo(
             )
         }
 
-        return (
-            <div
-                className="flex flex-col overflow-hidden rounded-lg border border-neutral-200 bg-white"
+        const card = (
+            <SectionCard
+                className="h-full"
                 style={accentColor ? {borderColor: accentColor} : undefined}
             >
-                {/* <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-4 py-3">
-                    <div className="min-w-0">
-                        <Text className="block truncate text-sm font-medium text-neutral-900">
-                            {displayName}
+                {headerTitle ? (
+                    <div className="flex items-center justify-between gap-2">
+                        <Text className="text-base font-semibold text-neutral-900">
+                            {headerTitle}
                         </Text>
-                        {subtitle ? (
-                            <Text className="block truncate text-xs text-neutral-500">
-                                {subtitle}
-                            </Text>
-                        ) : null}
+                        <Button
+                            type="text"
+                            size="small"
+                            icon={
+                                <DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />
+                            }
+                            onClick={onToggleCollapse}
+                        />
                     </div>
-                    <Tag color={compareIndex === 0 ? "geekblue" : "purple"}>
-                        {compareIndex === 0 ? "Base" : `Comparison ${compareIndex}`}
-                    </Tag>
-                </div> */}
-                <div className="flex-1 px-2 py-2">{content}</div>
-            </div>
+                ) : null}
+                {!collapsed ? content : null}
+            </SectionCard>
         )
+
+        return card
     },
 )
 
@@ -544,12 +425,6 @@ const ConfigurationSectionRow = memo(
             setCollapsed(false)
         }, [runIdsSignature, section.key])
 
-        const [headerActions, setHeaderActions] = useState<{
-            save: () => void
-            reset: () => void
-            disabled: boolean
-            saving: boolean
-        } | null>(null)
         const sectionVisibleAtom = useMemo(
             () =>
                 atom((get) => {
@@ -581,76 +456,30 @@ const ConfigurationSectionRow = memo(
             return null
         }
 
+        const showRowHeader = false
+        // section.key === "general" || section.key === "query"
+
         const grid = (
             <div
                 ref={handleRef}
                 onScroll={handleScroll}
                 className="grid grid-flow-col auto-cols-[minmax(320px,1fr)] gap-4 overflow-x-auto pb-2"
             >
-                {runIds.map((runId, index) => {
-                    const descriptor = runDescriptors[index]
-                    return (
-                        <ConfigurationSectionColumn
-                            key={`${section.key}-${runId}`}
-                            runId={runId}
-                            compareIndex={index}
-                            section={section}
-                            runName={descriptor?.displayName}
-                            onRegisterHeaderActions={setHeaderActions}
-                        />
-                    )
-                })}
+                {runIds.map((runId, index) => (
+                    <ConfigurationSectionColumn
+                        key={`${section.key}-${runId}`}
+                        runId={runId}
+                        compareIndex={index}
+                        section={section}
+                        headerTitle={showRowHeader ? section.title : undefined}
+                        collapsed={showRowHeader ? collapsed : false}
+                        onToggleCollapse={showRowHeader ? () => setCollapsed((v) => !v) : undefined}
+                    />
+                ))}
             </div>
         )
 
-        if (section.key === "evaluators") {
-            return !collapsed ? grid : null
-        }
-
-        const headerContent = (
-            <div className="flex items-center gap-2">
-                <Title level={5} className="!mb-0 !mt-0">
-                    {section.title}
-                </Title>
-                <Button
-                    type="text"
-                    size="small"
-                    icon={<DownOutlined rotate={collapsed ? -90 : 0} style={{fontSize: 12}} />}
-                    onClick={() => setCollapsed((v) => !v)}
-                />
-            </div>
-        )
-
-        if (section.key === "testsets" || section.key === "invocation") {
-            return !collapsed ? grid : null
-        }
-
-        return (
-            <Card>
-                <div className="flex items-center justify-between !mb-3">
-                    {headerContent}
-                    {section.key === "general" && headerActions ? (
-                        <Space size={8} wrap>
-                            <Button
-                                onClick={headerActions.reset}
-                                disabled={headerActions.saving || headerActions.disabled}
-                            >
-                                Reset
-                            </Button>
-                            <Button
-                                type="primary"
-                                onClick={headerActions.save}
-                                loading={headerActions.saving}
-                                disabled={headerActions.disabled}
-                            >
-                                Save
-                            </Button>
-                        </Space>
-                    ) : null}
-                </div>
-                {!collapsed ? grid : null}
-            </Card>
-        )
+        return <div className="flex flex-col gap-2">{grid}</div>
     },
 )
 
@@ -661,12 +490,6 @@ const ConfigurationLayout = memo(({runIds}: {runIds: string[]}) => {
 
     return (
         <div className="flex flex-col gap-4 pb-6">
-            {/* <RunSummaryRow
-                runIds={runIds}
-                runDescriptors={runDescriptors}
-                registerScrollContainer={register}
-                syncScroll={syncScroll}
-            /> */}
             {sectionDefinitions.map((section) => (
                 <ConfigurationSectionRow
                     key={section.key}

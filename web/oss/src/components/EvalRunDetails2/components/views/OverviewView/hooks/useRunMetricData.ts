@@ -30,6 +30,7 @@ const emptyLoadableAtom = atom({state: "loading"} as const)
 const emptyRunIndexAtom = atom(null as ReturnType<typeof evaluationRunIndexAtomFamily> | null)
 const falseAtom = atom(false)
 const emptyTemporalSeriesAtom = atom<Record<string, TemporalMetricPoint[]>>({})
+const emptyMetricSelectionsAtom = atom<RunMetricSelectionEntry[]>([])
 
 export interface RunDescriptor {
     runId: string
@@ -188,8 +189,14 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
     )
 
     const evaluatorMetricEntries = useMemo(
-        () => buildEvaluatorMetricEntries(baseStatsMap, evaluatorSteps, fallbackMetricMap),
-        [baseStatsMap, evaluatorSteps, fallbackMetricMap],
+        () =>
+            buildEvaluatorMetricEntries(
+                baseStatsMap,
+                evaluatorSteps,
+                fallbackMetricMap,
+                evaluatorDefinitions,
+            ),
+        [evaluatorDefinitions, baseStatsMap, evaluatorSteps, fallbackMetricMap],
     )
 
     const metricCatalog = useMemo(() => {
@@ -202,9 +209,9 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
                     metric.rawKey.replace(/[_\.]/g, " ")
                 return {
                     id: `${entry.stepKey}:${metricKey}`,
-                    evaluatorLabel: humanizeEvaluatorName(entry.label),
+                    evaluatorLabel: entry.label,
                     evaluatorRef: entry.evaluatorRef ?? null,
-                    fallbackEvaluatorLabel: humanizeEvaluatorName(entry.label),
+                    fallbackEvaluatorLabel: entry.label,
                     stepKey: entry.stepKey,
                     canonicalKey: metric.canonicalKey,
                     rawKey: metric.rawKey,
@@ -229,36 +236,44 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
         return [...evaluatorMetrics, ...invocationMetrics]
     }, [evaluatorMetricEntries])
 
-    const metricCatalogSignature = useMemo(
-        () => metricCatalog.map((metric) => metric.id).join("|"),
-        [metricCatalog],
-    )
+    const selectionSignature = useMemo(() => {
+        const metricSig = metricCatalog.map((metric) => metric.id).join("|")
+        const runSig = orderedRunIds.join("|")
+        return `${metricSig}__${runSig}`
+    }, [metricCatalog, orderedRunIds])
 
-    const metricSelectionsAtom = useMemo(
-        () =>
-            atom((get) =>
-                metricCatalog.map((metric) => ({
-                    metric,
-                    selections: orderedRunIds.map((runId, index) => ({
-                        runId,
-                        index,
-                        runKey: index === 0 ? "run_base" : `run_${index}`,
-                        selection: get(
-                            previewRunMetricStatsSelectorFamily({
-                                runId,
-                                stepKey: metric.stepKey,
-                                metricPath: metric.fullKey,
-                                metricKey: metric.rawKey,
-                            }),
-                        ),
-                    })),
+    const shouldBuildSelections =
+        evaluatorDefinitions?.length > 0 &&
+        metricCatalog.length > 0 &&
+        orderedRunIds.length > 0 &&
+        metricsLoadable.state !== "loading"
+
+    const metricSelectionsAtom = useMemo(() => {
+        if (!shouldBuildSelections) return emptyMetricSelectionsAtom
+
+        const perMetricAtoms = metricCatalog.map((metric) =>
+            atom((get) => ({
+                metric,
+                selections: orderedRunIds.map((runId, index) => ({
+                    runId,
+                    index,
+                    runKey: index === 0 ? "run_base" : `run_${index}`,
+                    selection: get(
+                        previewRunMetricStatsSelectorFamily({
+                            runId,
+                            stepKey: metric.stepKey,
+                            metricPath: metric.fullKey,
+                            metricKey: metric.rawKey,
+                        }),
+                    ),
                 })),
-            ),
-        [metricCatalogSignature, orderedRunIds],
-    )
-    const metricSelections = useAtomValueWithSchedule(metricSelectionsAtom, {
-        priority: LOW_PRIORITY,
-    })
+            })),
+        )
+
+        return atom((get) => perMetricAtoms.map((metricAtom) => get(metricAtom)))
+    }, [metricCatalog, orderedRunIds, selectionSignature, shouldBuildSelections])
+
+    const metricSelections = useAtomValue(metricSelectionsAtom)
 
     const selectorLoading = metricSelections.some(({selections}) =>
         selections.some(({selection}) => selection.state === "loading"),

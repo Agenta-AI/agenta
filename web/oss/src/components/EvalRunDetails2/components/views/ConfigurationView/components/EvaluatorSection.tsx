@@ -11,11 +11,11 @@ import {EVALUATOR_CATEGORY_LABEL_MAP} from "@/oss/components/pages/evaluations/o
 import {useEvaluatorDetails} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorDetails"
 import {useEvaluatorTypeFromConfigs} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeFromConfigs"
 import {useEvaluatorTypeMeta} from "@/oss/components/pages/evaluations/onlineEvaluation/hooks/useEvaluatorTypeMeta"
+import ReferenceTag from "@/oss/components/References/ReferenceTag"
 
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../../../atoms/table/evaluators"
 import type {EvaluatorDefinition} from "../../../../atoms/table/types"
 import useRunScopedUrls from "../../../../hooks/useRunScopedUrls"
-import ReferenceTag from "@/oss/components/References/ReferenceTag"
 import {stringifyError} from "../utils"
 
 import {SectionCard, SectionLabel} from "./SectionPrimitives"
@@ -218,7 +218,7 @@ const EvaluatorCard = ({
 
                         {!collapsed ? (
                             <>
-                                <div className="rounded-md border border-solid border-[#E4E7EC] p-3">
+                                <div className="rounded-md border-[#E4E7EC]">
                                     {view === "json" && hasEvaluatorJson ? (
                                         <div className="rounded-md border border-solid border-[#E4E7EC] bg-[#F8FAFC]">
                                             <JsonEditor

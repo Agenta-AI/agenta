@@ -2,8 +2,8 @@ import {memo, useMemo} from "react"
 
 import {Alert, Card, Tag, Typography} from "antd"
 
-import type {TemporalMetricPoint} from "@/oss/components/evaluations/atoms/runMetrics"
 import {isBooleanMetricStats} from "@/oss/components/EvalRunDetails2/utils/metricDistributions"
+import type {TemporalMetricPoint} from "@/oss/components/evaluations/atoms/runMetrics"
 
 import EvaluatorMetricsChart from "../../../EvaluatorMetricsChart"
 import {DEFAULT_SPIDER_SERIES_COLOR, SPIDER_SERIES_COLORS} from "../constants"
@@ -338,11 +338,11 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
 
     return (
         <Card
-            bordered
+            variant="outlined"
             title={
                 <div className="flex items-center gap-2">
                     <Typography.Text strong>{runDisplayName}</Typography.Text>
-                    <Tag color="geekblue">Base run</Tag>
+                    {/* <Tag color="geekblue">Base run</Tag> */}
                 </div>
             }
             extra={runStatus ? <Tag color="blue">{runStatus}</Tag> : undefined}

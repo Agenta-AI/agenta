@@ -5,9 +5,9 @@ import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evaluators"
 import {buildBooleanHistogram, isBooleanMetricStats} from "../../utils/metricDistributions"
 
@@ -326,11 +326,9 @@ const EvaluatorMetricsChart = ({
 
     return (
         <Card
-            className={clsx(
-                "h-full rounded-lg border border-neutral-200 shadow-sm overflow-hidden",
-                className,
-            )}
-            classNames={{header: "!p-0", body: "!p-0"}}
+            className={clsx("h-full rounded-lg overflow-hidden !shadow-none", className)}
+            classNames={{header: "!p-0", body: "!p-0 shadow-none"}}
+            variant="borderless"
             title={
                 <div className="flex items-center justify-between px-4 py-3">
                     <div className="flex flex-col gap-0.5">
@@ -347,7 +345,7 @@ const EvaluatorMetricsChart = ({
             }
         >
             <div className="flex flex-col gap-4 px-4 pb-4">
-                <div className="flex h-[70px] items-center justify-center border-b border-neutral-200">
+                <div className="flex h-[70px] items-center justify-center">
                     <Typography.Text
                         className="text-xl font-medium"
                         style={{color: resolvedBaseColor}}

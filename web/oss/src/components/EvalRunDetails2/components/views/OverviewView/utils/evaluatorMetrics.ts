@@ -1,10 +1,10 @@
-import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 import type {RunIndex} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
+import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 interface EvaluatorDefinitionLike {
     id?: string | null
     slug?: string | null
-    metrics?: Array<{path?: string | null; name?: string | null}>
+    metrics?: {path?: string | null; name?: string | null}[]
 }
 
 interface EvaluatorStepMeta {
@@ -58,6 +58,7 @@ export const buildEvaluatorMetricEntries = (
     statsMap: Record<string, unknown> | null | undefined,
     evaluatorSteps: EvaluatorStepMeta[],
     fallbackMetricsByStep?: Record<string, EvaluatorMetricDefinition[]>,
+    evaluatorDefinitions?: EvaluatorDefinitionLike[],
 ): EvaluatorMetricEntry[] => {
     if (!evaluatorSteps.length) {
         return []
@@ -109,7 +110,9 @@ export const buildEvaluatorMetricEntries = (
 
             return {
                 stepKey,
-                label,
+                label:
+                    evaluatorDefinitions?.find?.((def) => def.id === evaluatorRef?.id)?.name ??
+                    label,
                 evaluatorRef,
                 metrics: Array.from(unique.values()),
             }
