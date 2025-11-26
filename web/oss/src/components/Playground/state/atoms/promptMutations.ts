@@ -79,7 +79,7 @@ export const deletePromptMessageMutationAtomFamily = atomFamily((compoundKey: st
 
 // Add a tool for a prompt identified by `${revisionId}:${promptId}`
 export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) =>
-    atom(null, (get, set) => {
+    atom(null, (get, set, payload?: Record<string, any>) => {
         const [revisionId, promptId] = compoundKey.split(":", 2)
         const newTool = {
             __id: uuidv4(),
@@ -112,7 +112,7 @@ export const addPromptToolMutationAtomFamily = atomFamily((compoundKey: string) 
                 },
                 required: ["name", "description", "parameters"],
             }),
-            value: {
+            value: payload || {
                 type: "function",
                 function: {
                     name: "get_weather",
