@@ -95,14 +95,7 @@ const ProjectHeaderActions = () => {
         },
         onSuccess: async () => {
             message.success("Project deleted")
-            const fallback = project?.project_id ? findFallbackProject(project.project_id) : null
-            if (fallback) {
-                navigateToProject(fallback)
-            }
             await refetch()
-            if (!fallback && project?.workspace_id) {
-                await router.push(`/w/${encodeURIComponent(project.workspace_id)}`)
-            }
         },
         onError: (error: any) => {
             const detail =
