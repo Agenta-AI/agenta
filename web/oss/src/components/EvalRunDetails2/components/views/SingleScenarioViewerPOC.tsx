@@ -36,6 +36,57 @@ interface SingleScenarioViewerPOCProps {
 
 const EMPTY_ARRAY = []
 
+const stepType = (step: any) =>
+    ((step?.type ?? step?.kind ?? step?.stepType ?? step?.step_type ?? "") as string).toLowerCase()
+
+export const classifyStep = (step: any): "input" | "invocation" | "annotation" | null => {
+    const t = stepType(step)
+    if (t === "input" || t === "invocation" || t === "annotation") return t
+
+    if (
+        step?.inputs ||
+        step?.input ||
+        step?.groundTruth ||
+        step?.testcase ||
+        step?.data?.inputs ||
+        step?.data?.input ||
+        step?.payload?.inputs ||
+        step?.payload?.input
+    ) {
+        return "input"
+    }
+
+    if (
+        step?.annotation ||
+        step?.annotations ||
+        step?.data?.annotations ||
+        step?.payload?.annotations
+    ) {
+        return "annotation"
+    }
+
+    if (
+        step?.traceId ||
+        step?.invocationParameters ||
+        step?.outputs ||
+        step?.output ||
+        step?.response ||
+        step?.result ||
+        step?.data?.outputs ||
+        step?.data?.output ||
+        step?.payload?.outputs ||
+        step?.payload?.output
+    ) {
+        return "invocation"
+    }
+
+    const key = (step?.stepKey ?? step?.step_key ?? step?.key ?? "") as string
+    if (key.includes("human") || key.includes("annotation")) return "annotation"
+    if (key) return "invocation"
+
+    return null
+}
+
 const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     const effectiveRunId = useRunId() || runId
     const {rows, paginationInfo, loadNextPage} = useInfiniteTablePagination({
@@ -130,59 +181,6 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         },
         [setUrlState, router],
     )
-
-    const stepType = (step: any) =>
-        (
-            (step?.type ?? step?.kind ?? step?.stepType ?? step?.step_type ?? "") as string
-        ).toLowerCase()
-
-    const classifyStep = (step: any): "input" | "invocation" | "annotation" | null => {
-        const t = stepType(step)
-        if (t === "input" || t === "invocation" || t === "annotation") return t
-
-        if (
-            step?.inputs ||
-            step?.input ||
-            step?.groundTruth ||
-            step?.testcase ||
-            step?.data?.inputs ||
-            step?.data?.input ||
-            step?.payload?.inputs ||
-            step?.payload?.input
-        ) {
-            return "input"
-        }
-
-        if (
-            step?.annotation ||
-            step?.annotations ||
-            step?.data?.annotations ||
-            step?.payload?.annotations
-        ) {
-            return "annotation"
-        }
-
-        if (
-            step?.traceId ||
-            step?.invocationParameters ||
-            step?.outputs ||
-            step?.output ||
-            step?.response ||
-            step?.result ||
-            step?.data?.outputs ||
-            step?.data?.output ||
-            step?.payload?.outputs ||
-            step?.payload?.output
-        ) {
-            return "invocation"
-        }
-
-        const key = (step?.stepKey ?? step?.step_key ?? step?.key ?? "") as string
-        if (key.includes("human") || key.includes("annotation")) return "annotation"
-        if (key) return "invocation"
-
-        return null
-    }
 
     const steps = scenarioStepsQuery?.data?.steps ?? []
 
@@ -444,14 +442,14 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
 
     return (
         <section className="relative flex min-h-0 w-full h-full overflow-hidden">
-            <div className="flex w-full min-h-0 flex-col gap-3">
+            <div className="flex w-full min-h-0 flex-col gap-3 px-3">
                 <ScenarioNavigator
                     runId={effectiveRunId}
                     scenarioId={activeId}
                     onChange={handleScenarioChange}
                 />
 
-                <div className="flex min-h-0 flex-col gap-3">
+                <div className="flex min-h-0 flex-col gap-3 w-full">
                     <Card
                         title={
                             <Typography.Title level={5} className="!mb-0 text-[#1D2939]">
@@ -471,186 +469,171 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                         </div>
                     </Card>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <Card title="Inputs">
-                            {!columnResult ? (
-                                <Typography.Text type="secondary">Loading inputs…</Typography.Text>
-                            ) : inputColumns.length ? (
-                                <div className="flex flex-col gap-4">
-                                    {inputColumns.map((column) => (
-                                        <div key={column.id} className="flex flex-col gap-2">
-                                            <Typography.Text strong>
-                                                {column.displayLabel ?? column.label}
-                                            </Typography.Text>
-                                            <ColumnValueView column={column} />
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : inputSteps.length ? (
-                                <div className="flex flex-col gap-4">
-                                    {inputSteps.map((step) => (
-                                        <div
-                                            key={step.id ?? step.stepKey ?? step.key}
-                                            className="flex flex-col gap-2"
-                                        >
-                                            <Typography.Text strong>
-                                                {step.stepKey ?? step.key ?? "Input"}
-                                            </Typography.Text>
-                                            {renderStepContent(step)}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <Typography.Text type="secondary">No input data.</Typography.Text>
-                            )}
-                        </Card>
-
-                        <Card title="Invocation">
-                            {!columnResult ? (
-                                <Typography.Text type="secondary">
-                                    Loading invocation…
-                                </Typography.Text>
-                            ) : outputColumns.length ? (
-                                <div className="flex flex-col gap-4">
-                                    {outputColumns.map((column) => (
-                                        <div key={column.id} className="flex flex-col gap-2">
-                                            <Typography.Text strong>
-                                                {column.displayLabel ?? column.label}
-                                            </Typography.Text>
-                                            <ColumnValueView column={column} />
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : invocationSteps.length ? (
-                                <div className="flex flex-col gap-4">
-                                    {invocationSteps.map((step) => (
-                                        <div
-                                            key={step.id ?? step.stepKey ?? step.key}
-                                            className="flex flex-col gap-2"
-                                        >
-                                            <Typography.Text strong>
-                                                {step.stepKey ?? step.key ?? "Invocation"}
-                                            </Typography.Text>
-                                            {renderStepContent(step)}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <Typography.Text type="secondary">
-                                    No invocation data.
-                                </Typography.Text>
-                            )}
-                        </Card>
-
-                        {/* <Card title="Annotations">
-                            {annotationSteps.length ? (
-                                <div className="flex flex-col gap-4">
-                                    {annotationSteps.map((step) => (
-                                        <div
-                                            key={step.id ?? step.stepKey ?? step.key}
-                                            className="flex flex-col gap-2"
-                                        >
-                                            <Typography.Text strong>
-                                                {step.stepKey ?? step.key ?? "Annotation"}
-                                            </Typography.Text>
-                                            {renderStepContent(step)}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <Typography.Text type="secondary">
-                                    No annotations available.
-                                </Typography.Text>
-                            )}
-                        </Card> */}
-                    </div>
-
-                    <Card title="Annotations">
-                        {hasInvocationOutput ? (
-                            <div className="flex flex-col gap-3">
-                                {annotationsQuery?.isFetching ? (
+                    <div className="flex gap-3 w-full">
+                        {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-3"> */}
+                        <div className="flex flex-col gap-3 shrink min-w-0">
+                            <Card title="Inputs">
+                                {!columnResult ? (
                                     <Typography.Text type="secondary">
-                                        Loading annotations…
+                                        Loading inputs…
                                     </Typography.Text>
+                                ) : inputColumns.length ? (
+                                    <div className="flex flex-col gap-4">
+                                        {inputColumns.map((column) => (
+                                            <div key={column.id} className="flex flex-col gap-2">
+                                                <Typography.Text strong>
+                                                    {column.displayLabel ?? column.label}
+                                                </Typography.Text>
+                                                <ColumnValueView column={column} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : inputSteps.length ? (
+                                    <div className="flex flex-col gap-4">
+                                        {inputSteps.map((step) => (
+                                            <div
+                                                key={step.id ?? step.stepKey ?? step.key}
+                                                className="flex flex-col gap-2"
+                                            >
+                                                <Typography.Text strong>
+                                                    {step.stepKey ?? step.key ?? "Input"}
+                                                </Typography.Text>
+                                                {renderStepContent(step)}
+                                            </div>
+                                        ))}
+                                    </div>
                                 ) : (
-                                    <Annotate
-                                        annotations={annotationsForAnnotate}
-                                        updatedMetrics={annotationMetrics}
-                                        setUpdatedMetrics={setAnnotationMetrics}
-                                        selectedEvaluators={selectedEvaluators}
-                                        errorMessage={annotationErrors}
-                                        disabled={!hasInvocationOutput}
-                                    />
-                                )}
-                                <div className="flex items-center justify-between">
                                     <Typography.Text type="secondary">
-                                        Changes are local in this preview.
+                                        No input data.
                                     </Typography.Text>
-                                    <Button
-                                        type="primary"
-                                        size="small"
-                                        disabled={
-                                            !hasPendingAnnotationChanges ||
-                                            annotationsQuery?.isFetching
-                                        }
-                                        onClick={() => {
-                                            const changedEntries = Object.entries(
-                                                annotationMetrics ?? {},
-                                            ).filter(([slug, fields]) => {
-                                                const baseline =
-                                                    (baselineMetrics as any)?.[slug] || {}
-                                                return Object.entries(fields || {}).some(
-                                                    ([key, field]) => {
-                                                        const nextVal = (field as any)?.value
-                                                        const prevVal = (baseline as any)?.[key]
-                                                            ?.value
-                                                        return !deepEqual(prevVal, nextVal)
-                                                    },
-                                                )
-                                            })
-                                            if (!changedEntries.length) return
-                                            const traceId = traceIds[0] ?? "local-trace"
-                                            const next = changedEntries.map(([slug, fields]) => ({
-                                                id: `local-${slug}-${Date.now()}`,
-                                                data: {
-                                                    outputs: {
-                                                        metrics: Object.fromEntries(
-                                                            Object.entries(fields || {}).map(
-                                                                ([key, field]) => [
-                                                                    key,
-                                                                    (field as any)?.value,
-                                                                ],
-                                                            ),
-                                                        ),
-                                                    },
-                                                },
-                                                references: {
-                                                    evaluator: {slug},
-                                                    invocation: {trace_id: traceId},
-                                                },
-                                            }))
-                                            setLocalAnnotations((prev) => {
-                                                const filtered = prev.filter((ann) => {
-                                                    const slug = ann?.references?.evaluator?.slug
-                                                    return !next.some(
-                                                        (n) => n.references?.evaluator?.slug === slug,
+                                )}
+                            </Card>
+
+                            <Card title="Output">
+                                {!columnResult ? (
+                                    <Typography.Text type="secondary">
+                                        Loading invocation…
+                                    </Typography.Text>
+                                ) : outputColumns.length ? (
+                                    <div className="flex flex-col gap-4">
+                                        {outputColumns.map((column) => (
+                                            <div key={column.id} className="flex flex-col gap-2">
+                                                <ColumnValueView column={column} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : invocationSteps.length ? (
+                                    <div className="flex flex-col gap-4">
+                                        {invocationSteps.map((step) => (
+                                            <div
+                                                key={step.id ?? step.stepKey ?? step.key}
+                                                className="flex flex-col gap-2"
+                                            >
+                                                {renderStepContent(step)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <Typography.Text type="secondary">
+                                        No invocation data.
+                                    </Typography.Text>
+                                )}
+                            </Card>
+                        </div>
+
+                        <div className="flex grow w-full max-w-[400px]">
+                            <Card title="Annotations" className="w-full">
+                                {hasInvocationOutput ? (
+                                    <div className="flex flex-col gap-3">
+                                        {annotationsQuery?.isFetching ? (
+                                            <Typography.Text type="secondary">
+                                                Loading annotations…
+                                            </Typography.Text>
+                                        ) : (
+                                            <Annotate
+                                                annotations={annotationsForAnnotate}
+                                                updatedMetrics={annotationMetrics}
+                                                setUpdatedMetrics={setAnnotationMetrics}
+                                                selectedEvaluators={selectedEvaluators}
+                                                errorMessage={annotationErrors}
+                                                disabled={!hasInvocationOutput}
+                                            />
+                                        )}
+                                        <div className="flex items-center justify-between">
+                                            <Button
+                                                type="primary"
+                                                className="w-full"
+                                                disabled={
+                                                    !hasPendingAnnotationChanges ||
+                                                    annotationsQuery?.isFetching
+                                                }
+                                                onClick={() => {
+                                                    const changedEntries = Object.entries(
+                                                        annotationMetrics ?? {},
+                                                    ).filter(([slug, fields]) => {
+                                                        const baseline =
+                                                            (baselineMetrics as any)?.[slug] || {}
+                                                        return Object.entries(fields || {}).some(
+                                                            ([key, field]) => {
+                                                                const nextVal = (field as any)
+                                                                    ?.value
+                                                                const prevVal = (baseline as any)?.[
+                                                                    key
+                                                                ]?.value
+                                                                return !deepEqual(prevVal, nextVal)
+                                                            },
+                                                        )
+                                                    })
+                                                    if (!changedEntries.length) return
+                                                    const traceId = traceIds[0] ?? "local-trace"
+                                                    const next = changedEntries.map(
+                                                        ([slug, fields]) => ({
+                                                            id: `local-${slug}-${Date.now()}`,
+                                                            data: {
+                                                                outputs: {
+                                                                    metrics: Object.fromEntries(
+                                                                        Object.entries(
+                                                                            fields || {},
+                                                                        ).map(([key, field]) => [
+                                                                            key,
+                                                                            (field as any)?.value,
+                                                                        ]),
+                                                                    ),
+                                                                },
+                                                            },
+                                                            references: {
+                                                                evaluator: {slug},
+                                                                invocation: {trace_id: traceId},
+                                                            },
+                                                        }),
                                                     )
-                                                })
-                                                return [...filtered, ...next]
-                                            })
-                                            setAnnotationMetrics({})
-                                        }}
-                                    >
-                                        Annotate
-                                    </Button>
-                                </div>
-                            </div>
-                        ) : (
-                            <Typography.Text type="secondary">
-                                To annotate, please generate output.
-                            </Typography.Text>
-                        )}
-                    </Card>
+                                                    setLocalAnnotations((prev) => {
+                                                        const filtered = prev.filter((ann) => {
+                                                            const slug =
+                                                                ann?.references?.evaluator?.slug
+                                                            return !next.some(
+                                                                (n) =>
+                                                                    n.references?.evaluator
+                                                                        ?.slug === slug,
+                                                            )
+                                                        })
+                                                        return [...filtered, ...next]
+                                                    })
+                                                    setAnnotationMetrics({})
+                                                }}
+                                            >
+                                                Annotate
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <Typography.Text type="secondary">
+                                        To annotate, please generate output.
+                                    </Typography.Text>
+                                )}
+                            </Card>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>

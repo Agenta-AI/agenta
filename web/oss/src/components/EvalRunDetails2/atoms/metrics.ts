@@ -569,8 +569,8 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                         const metricPayload: Record<string, any> = {}
                         // metricPayload.run_id = effectiveRunId
                         if (unique.length) {
+                            // For scenario-scoped queries, do not constrain by run_ids to avoid over-filtering.
                             metricPayload.scenario_ids = unique
-                            metricPayload.run_ids = [effectiveRunId]
                         } else {
                             metricPayload.run_ids = [effectiveRunId]
                         }

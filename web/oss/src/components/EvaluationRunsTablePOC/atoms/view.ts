@@ -599,10 +599,15 @@ export const evaluationRunsFilterOptionsAtom = atom((get) => {
                       return {label, value, slug: slug || undefined}
                   })
                   .filter(
-                      (option, index, self): option is {label: string; value: string; slug?: string} => {
+                      (
+                          option,
+                          index,
+                          self,
+                      ): option is {label: string; value: string; slug?: string} => {
                           if (!option) return false
                           return (
-                              self.findIndex((candidate) => candidate?.value === option.value) === index
+                              self.findIndex((candidate) => candidate?.value === option.value) ===
+                              index
                           )
                       },
                   )

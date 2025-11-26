@@ -19,6 +19,7 @@ import usePrimeScenarioHydration from "./hooks/usePrimeScenarioHydration"
 import useResizablePreviewColumns from "./hooks/useResizablePreviewColumns"
 import {openFocusDrawerAtom, setFocusDrawerTargetAtom} from "./state/focusDrawerAtom"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
+import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails2/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
 
 type TableRowData = PreviewTableRow
 
@@ -234,6 +235,7 @@ const EvalRunDetailsTable = ({
                     }}
                 />
             </div>
+            <VirtualizedScenarioTableAnnotateDrawer runId={runId} />
         </section>
     )
 }

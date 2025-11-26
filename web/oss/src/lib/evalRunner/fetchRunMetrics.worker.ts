@@ -40,9 +40,10 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
             annotationSlugMap = {},
         } = payload
         const url = `${apiUrl}/preview/evaluations/metrics/query?project_id=${projectId}`
+        // Fetch run-level metrics (scenario_ids: false) with a descending order to prefer latest.
         const body: Record<string, any> = {
-            metrics: {run_ids: [runId], scenario_ids: true},
-            windowing: {},
+            metrics: {run_ids: [runId], scenario_ids: false, timestamps: true},
+            windowing: {order: "descending"},
         }
         const resp = await fetch(url, {
             method: "POST",
@@ -57,9 +58,10 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
         const camel = Array.isArray(json.metrics) ? json.metrics.map((m) => m) : []
 
         try {
+            // Fetch scenario-level metrics explicitly
             const scenarioBody = {
                 ...body,
-                metrics: {...body.metrics, scenario_ids: false},
+                metrics: {...body.metrics, scenario_ids: true},
             }
             const scenarioResp = await fetch(url, {
                 method: "POST",

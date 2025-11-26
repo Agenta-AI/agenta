@@ -174,8 +174,8 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
             const evaluatorRef: EvaluatorRef | null =
                 evaluator || evaluatorRefMeta.id || evaluatorRefMeta.slug
                     ? {
-                          id: evaluator?.id ?? (evaluatorRefMeta.id ?? null),
-                          slug: evaluator?.slug ?? (evaluatorRefMeta.slug ?? null),
+                          id: evaluator?.id ?? evaluatorRefMeta.id ?? null,
+                          slug: evaluator?.slug ?? evaluatorRefMeta.slug ?? null,
                       }
                     : null
             return {stepKey, label, evaluatorRef}

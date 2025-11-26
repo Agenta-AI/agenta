@@ -1,7 +1,7 @@
 import {memo, useMemo, useCallback} from "react"
 
 import {Spin} from "antd"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import RunActionButton from "./actions/RunActionButton"
 import AnnotateActionButton from "./actions/AnnotateActionButton"
@@ -11,12 +11,14 @@ import {
 } from "../../hooks/useScenarioStepsSelectors"
 import {activePreviewRunIdAtom} from "../../atoms/run"
 import {evaluationRunIndexAtomFamily} from "../../atoms/table/run"
+import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
 
 const normalizeStatus = (status: string | undefined): string => status?.toLowerCase() ?? ""
 
 const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: string}) => {
     const fallbackRunId = useAtomValue(activePreviewRunIdAtom)
     const effectiveRunId = runId ?? fallbackRunId ?? undefined
+    const setAnnotateDrawer = useSetAtom(virtualScenarioTableAnnotateDrawerAtom)
 
     const runIndex = useAtomValue(evaluationRunIndexAtomFamily(effectiveRunId ?? null))
     const handleRunClick = useCallback((scenarioId: string, runId?: string, stepKey?: string) => {
@@ -27,9 +29,24 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
         })
     }, [])
 
-    const handleAnnotateClick = useCallback((scenarioId: string, runId?: string) => {
-        console.info("[EvalRunDetails2] Annotate action triggered", {scenarioId, runId})
-    }, [])
+    const handleAnnotateClick = useCallback(
+        (scenarioId: string, runId?: string) => {
+            console.info("[EvalRunDetails2] Annotate action triggered", {scenarioId, runId})
+            setAnnotateDrawer((prev) => ({
+                ...prev,
+                open: true,
+                scenarioId,
+                runId,
+                title: "Annotate scenario",
+                context: {
+                    scenarioId,
+                    runId,
+                    usePOC: false,
+                },
+            }))
+        },
+        [setAnnotateDrawer],
+    )
 
     const humanInvocationKeys = useMemo(() => {
         if (!runIndex) return []

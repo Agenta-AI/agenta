@@ -500,9 +500,15 @@ const runMetricsBatchFetcher = createBatchFetcher<RunMetricsBatchRequest, any[]>
 
         for (const [, entry] of groups) {
             const basePayload = {
-                run_ids: Array.from(entry.runIds),
-                scenario_ids: false,
-                timestamps: false,
+                metrics: {
+                    run_ids: Array.from(entry.runIds),
+                    // scenario_ids: false,
+                    // timestamps: false,
+                },
+                // windowing: {
+                //     limit: 1,
+                //     order: "descending",
+                // },
             }
 
             const response = await axios.post(`/preview/evaluations/metrics/query`, basePayload, {
