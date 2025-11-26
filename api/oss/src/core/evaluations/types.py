@@ -181,9 +181,6 @@ class EvaluationRunQuery(Header, Metadata):
 
     references: Optional[List[References]] = None
 
-    evaluation_kind: Optional[str] = None
-    evaluation_kinds: Optional[List[str]] = None
-
     ids: Optional[List[UUID]] = None
 
 
