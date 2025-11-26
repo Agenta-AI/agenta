@@ -1,6 +1,6 @@
 import {memo, useCallback, useEffect, useMemo, useState} from "react"
 
-import {Button, Card, Typography} from "antd"
+import {Button, Card, Tag, Typography} from "antd"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
@@ -9,11 +9,13 @@ import {useRouter} from "next/router"
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 import {getInitialMetricsFromAnnotations} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
 import {useRunId} from "@/oss/contexts/RunIdContext"
+import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
 
 import {scenarioAnnotationsQueryAtomFamily} from "../../atoms/annotations"
 import {scenarioStepsQueryFamily} from "../../atoms/scenarioSteps"
 import type {EvaluationTableColumn} from "../../atoms/table"
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evaluators"
+import {evaluationRunIndexAtomFamily} from "../../atoms/table/run"
 import {evaluationPreviewTableStore} from "../../evaluationPreviewTableStore"
 import usePreviewTableData from "../../hooks/usePreviewTableData"
 import {useScenarioStepValue} from "../../hooks/useScenarioStepValue"
@@ -26,6 +28,13 @@ const Annotate = dynamic(
     () =>
         import(
             "@agenta/oss/src/components/pages/observability/drawer/AnnotateDrawer/assets/Annotate"
+        ),
+    {ssr: false},
+)
+const GenerationResultUtils = dynamic(
+    () =>
+        import(
+            "@agenta/oss/src/components/Playground/Components/PlaygroundGenerations/assets/GenerationResultUtils"
         ),
     {ssr: false},
 )
@@ -94,6 +103,9 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         scopeId: effectiveRunId,
         pageSize: 50,
     })
+    const runIndex = useAtomValue(
+        useMemo(() => evaluationRunIndexAtomFamily(effectiveRunId ?? null), [effectiveRunId]),
+    )
 
     const scenarioRows = useMemo(
         () => rows.filter((row) => !row.__isSkeleton && row.scenarioId),
@@ -184,26 +196,168 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
 
     const steps = scenarioStepsQuery?.data?.steps ?? []
 
-    let inputSteps =
-        scenarioStepsQuery?.data?.inputSteps && scenarioStepsQuery.data.inputSteps.length
-            ? [...scenarioStepsQuery.data.inputSteps]
-            : []
-    if (!inputSteps.length && scenarioStepsQuery?.data?.inputStep) {
-        inputSteps = [scenarioStepsQuery.data.inputStep as any]
-    }
-    if (!inputSteps.length) {
-        inputSteps.push(...steps.filter((step) => classifyStep(step) === "input"))
-    }
+    const inputSteps = useMemo(() => {
+        const base =
+            scenarioStepsQuery?.data?.inputSteps && scenarioStepsQuery.data.inputSteps.length
+                ? [...scenarioStepsQuery.data.inputSteps]
+                : scenarioStepsQuery?.data?.inputStep
+                  ? [scenarioStepsQuery.data.inputStep as any]
+                  : steps
 
-    const invocationSteps =
-        scenarioStepsQuery?.data?.invocationSteps && scenarioStepsQuery.data.invocationSteps.length
-            ? scenarioStepsQuery.data.invocationSteps
-            : steps.filter((step) => classifyStep(step) === "invocation")
+        const inputKeysFromIndex = new Set<string>()
+        if (runIndex?.steps) {
+            Object.values(runIndex.steps).forEach((meta: any) => {
+                if (meta?.kind === "input" && meta?.key) {
+                    inputKeysFromIndex.add(String(meta.key))
+                }
+            })
+        }
 
-    const annotationSteps =
-        scenarioStepsQuery?.data?.annotationSteps && scenarioStepsQuery.data.annotationSteps.length
-            ? scenarioStepsQuery.data.annotationSteps
-            : steps.filter((step) => classifyStep(step) === "annotation")
+        return base.filter((step) => {
+            const key = String(step?.stepKey || step?.step_key || step?.key || "")
+            const type = (
+                step?.type ||
+                step?.kind ||
+                step?.stepType ||
+                step?.step_type ||
+                ""
+            ).toLowerCase()
+
+            const isInputByIndex = inputKeysFromIndex.size ? inputKeysFromIndex.has(key) : false
+            const isInput = isInputByIndex || type === "input" || classifyStep(step) === "input"
+            return isInput
+        })
+    }, [scenarioStepsQuery?.data?.inputSteps, scenarioStepsQuery?.data?.inputStep, steps, runIndex])
+
+    const invocationSteps = useMemo(() => {
+        const base =
+            scenarioStepsQuery?.data?.invocationSteps &&
+            scenarioStepsQuery.data.invocationSteps.length
+                ? scenarioStepsQuery.data.invocationSteps
+                : steps
+
+        const invocationKeysFromIndex = new Set<string>()
+        if (runIndex?.steps) {
+            Object.values(runIndex.steps).forEach((meta: any) => {
+                if (meta?.kind === "invocation" && meta?.key) {
+                    invocationKeysFromIndex.add(String(meta.key))
+                }
+            })
+        }
+
+        // Defensive filter to keep only actual invocation steps with outputs/trace
+        return base.filter((step) => {
+            const keyRaw = step?.stepKey || step?.step_key || step?.key || ""
+            const key = String(keyRaw)
+            const type = (
+                step?.type ||
+                step?.kind ||
+                step?.stepType ||
+                step?.step_type ||
+                ""
+            ).toLowerCase()
+
+            const isInvocationByIndex = invocationKeysFromIndex.size
+                ? invocationKeysFromIndex.has(key)
+                : false
+
+            // Prefer explicit invocation type; fallback to classifier
+            const isInvocation =
+                isInvocationByIndex || type === "invocation" || classifyStep(step) === "invocation"
+            if (!isInvocation) return false
+
+            const outputs =
+                step?.outputs ??
+                step?.output ??
+                step?.response ??
+                step?.result ??
+                step?.data?.outputs ??
+                step?.data?.output ??
+                step?.payload?.outputs ??
+                step?.payload?.output ??
+                null
+            const trace =
+                step?.traceId ||
+                step?.trace_id ||
+                step?.trace ||
+                step?.response?.tree ||
+                step?.data?.outputs?.trace
+            const hasResultPayload =
+                step?.result ||
+                step?.response ||
+                step?.data?.result ||
+                step?.data?.response ||
+                step?.payload?.result ||
+                step?.payload?.response
+            const hasLinkingIds = Boolean((step as any)?.traceId || (step as any)?.trace_id)
+            const hasTestcase = Boolean((step as any)?.testcaseId || (step as any)?.testcase_id)
+            // If runIndex exists, trust its keys; otherwise fall back to the data-based checks
+            if (invocationKeysFromIndex.size) {
+                return invocationKeysFromIndex.has(key)
+            }
+            return Boolean(outputs || trace || hasResultPayload || (hasLinkingIds && hasTestcase))
+        })
+    }, [scenarioStepsQuery?.data?.invocationSteps, steps, runIndex])
+    const primaryInvocation = invocationSteps[0]
+    const primaryInvocationKey =
+        primaryInvocation?.stepKey ?? primaryInvocation?.step_key ?? primaryInvocation?.key
+    const {trace: invocationTrace} = useInvocationResult({
+        scenarioId: activeId ?? undefined,
+        stepKey: primaryInvocationKey,
+        runId: effectiveRunId,
+    })
+
+    const annotationSteps = useMemo(() => {
+        const base =
+            scenarioStepsQuery?.data?.annotationSteps &&
+            scenarioStepsQuery.data.annotationSteps.length
+                ? scenarioStepsQuery.data.annotationSteps
+                : steps
+
+        const annotationKeysFromIndex = new Set<string>()
+        if (runIndex?.steps) {
+            Object.values(runIndex.steps).forEach((meta: any) => {
+                if (meta?.kind === "annotation" && meta?.key) {
+                    annotationKeysFromIndex.add(String(meta.key))
+                }
+            })
+        }
+
+        return base.filter((step) => {
+            const keyRaw = step?.stepKey || step?.step_key || step?.key || ""
+            const key = String(keyRaw)
+            const type = (
+                step?.type ||
+                step?.kind ||
+                step?.stepType ||
+                step?.step_type ||
+                ""
+            ).toLowerCase()
+
+            const isAnnotationByIndex = annotationKeysFromIndex.size
+                ? annotationKeysFromIndex.has(key)
+                : false
+
+            const isAnnotation =
+                isAnnotationByIndex || type === "annotation" || classifyStep(step) === "annotation"
+            if (!isAnnotation) return false
+
+            // Keep if it looks like an annotation payload
+            const hasEvaluator = Boolean(step?.references?.evaluator)
+            const hasOutputs =
+                step?.annotation ||
+                step?.annotations ||
+                step?.data?.annotations ||
+                step?.payload?.annotations ||
+                step?.data?.outputs ||
+                step?.data?.output
+
+            if (annotationKeysFromIndex.size) {
+                return annotationKeysFromIndex.has(key)
+            }
+            return Boolean(hasEvaluator || hasOutputs)
+        })
+    }, [scenarioStepsQuery?.data?.annotationSteps, steps, runIndex])
 
     const isLoadingScenarios = rows.length === 0 && paginationInfo.isFetching
     const isLoadingSteps =
@@ -239,7 +393,34 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         )
     }
 
-    const renderStepContent = (step: any) => {
+    const getTraceTree = (step: any) => {
+        const candidate =
+            step?.trace ??
+            step?.traceData ??
+            step?.trace_data ??
+            step?.data?.trace ??
+            step?.data?.outputs?.trace ??
+            step?.response?.tree ??
+            step?.result?.trace ??
+            step?.result?.response?.tree ??
+            invocationTrace ??
+            null
+        if (!candidate) return null
+        if (candidate?.nodes) return candidate
+        return {nodes: [candidate]}
+    }
+
+    const buildGenerationResult = (step: any) => {
+        const tree = getTraceTree(step)
+        if (!tree) return null
+        return {
+            response: {
+                tree,
+            },
+        }
+    }
+
+    const renderStepContent = (step: any, includeTraceUtils = false) => {
         const inputs =
             step?.inputs ??
             step?.input ??
@@ -261,6 +442,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
             step?.payload?.output ??
             step?.data ??
             null
+        const tree = getTraceTree(step)
 
         const renderBlock = (label: string, value: any) => {
             const display =
@@ -283,6 +465,9 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
             <div className="flex flex-col gap-3">
                 {inputs ? renderBlock("Inputs", inputs) : null}
                 {outputs ? renderBlock("Outputs", outputs) : null}
+                {includeTraceUtils && tree ? (
+                    <GenerationResultUtils className="!mt-1" result={buildGenerationResult(step)} />
+                ) : null}
                 {!inputs && !outputs ? (
                     <Typography.Text type="secondary">No content</Typography.Text>
                 ) : null}
@@ -424,6 +609,16 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     const hasInvocationOutput =
         invocationSteps.some((step) => Boolean(extractOutputs(step))) || outputColumns.length > 0
 
+    const scenarioStatus = scenarioRow?.status
+    const scenarioStatusColor = useMemo(() => {
+        const status = scenarioStatus?.toLowerCase?.()
+        if (!status) return "default"
+        if (["success", "succeeded", "completed"].includes(status)) return "success"
+        if (["failed", "error"].includes(status)) return "error"
+        if (["running", "in_progress", "pending"].includes(status)) return "processing"
+        return "default"
+    }, [scenarioStatus])
+
     if (isLoadingScenarios) {
         return <ScenarioLoadingIndicator message="Loading scenarios..." />
     }
@@ -443,32 +638,32 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     return (
         <section className="relative flex min-h-0 w-full h-full overflow-hidden">
             <div className="flex w-full min-h-0 flex-col gap-3 px-3">
-                <ScenarioNavigator
-                    runId={effectiveRunId}
-                    scenarioId={activeId}
-                    onChange={handleScenarioChange}
-                />
+                <div className="w-full p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <ScenarioNavigator
+                            runId={effectiveRunId}
+                            scenarioId={activeId}
+                            onChange={handleScenarioChange}
+                            showScenarioIdTag={false}
+                        />
+                        <div className="flex items-center gap-2 text-xs">
+                            {scenarioStatus ? (
+                                <Tag color={scenarioStatusColor} className="m-0">
+                                    {scenarioStatus}
+                                </Tag>
+                            ) : null}
+                            <Typography.Text
+                                type="secondary"
+                                copyable={{text: activeId}}
+                                className="text-xs"
+                            >
+                                {activeId}
+                            </Typography.Text>
+                        </div>
+                    </div>
+                </div>
 
                 <div className="flex min-h-0 flex-col gap-3 w-full">
-                    <Card
-                        title={
-                            <Typography.Title level={5} className="!mb-0 text-[#1D2939]">
-                                {scenarioRow?.scenarioIndex
-                                    ? `Scenario #${scenarioRow.scenarioIndex}`
-                                    : "Scenario"}
-                            </Typography.Title>
-                        }
-                        className="w-full"
-                    >
-                        <div className="flex flex-col gap-2">
-                            <Typography.Text type="secondary">Scenario ID</Typography.Text>
-                            <Typography.Text code>{activeId}</Typography.Text>
-                            {scenarioRow?.status ? (
-                                <Typography.Text>Status: {scenarioRow.status}</Typography.Text>
-                            ) : null}
-                        </div>
-                    </Card>
-
                     <div className="flex gap-3 w-full">
                         {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-3"> */}
                         <div className="flex flex-col gap-3 shrink min-w-0">
@@ -521,6 +716,20 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                                                 <ColumnValueView column={column} />
                                             </div>
                                         ))}
+                                        {invocationSteps.length
+                                            ? (() => {
+                                                  const result = buildGenerationResult(
+                                                      invocationSteps[0],
+                                                  )
+                                                  if (!result) return null
+                                                  return (
+                                                      <GenerationResultUtils
+                                                          className="!mt-1"
+                                                          result={result}
+                                                      />
+                                                  )
+                                              })()
+                                            : null}
                                     </div>
                                 ) : invocationSteps.length ? (
                                     <div className="flex flex-col gap-4">
@@ -529,7 +738,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                                                 key={step.id ?? step.stepKey ?? step.key}
                                                 className="flex flex-col gap-2"
                                             >
-                                                {renderStepContent(step)}
+                                                {renderStepContent(step, true)}
                                             </div>
                                         ))}
                                     </div>
@@ -542,7 +751,13 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                         </div>
 
                         <div className="flex grow w-full max-w-[400px]">
-                            <Card title="Annotations" className="w-full">
+                            <Card
+                                title="Annotations"
+                                className="w-full"
+                                classNames={{
+                                    body: "!p-2",
+                                }}
+                            >
                                 {hasInvocationOutput ? (
                                     <div className="flex flex-col gap-3">
                                         {annotationsQuery?.isFetching ? (
