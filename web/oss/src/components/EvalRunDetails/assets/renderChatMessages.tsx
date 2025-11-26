@@ -7,9 +7,32 @@ import ImagePreview from "@/oss/components/Common/ImagePreview"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
 import SimpleDropdownSelect from "@/oss/components/Playground/Components/PlaygroundVariantPropertyControl/assets/SimpleDropdownSelect"
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
+import {isBase64, dataUriToObjectUrl, isUrl} from "@/oss/lib/helpers/utils"
 
 const Tooltip = dynamic(() => import("antd").then((mod) => mod.Tooltip), {ssr: false})
 
+const formatFiles = (msg: {content: any[]; role: string}) => {
+    const files = msg.content.filter((content) => content.type === "file")
+
+    const formattedFiles = files?.map((f, idx) => {
+        const filename = !f.file?.filename
+            ? `Document ${idx + 1}${f.file.format ? `.${f.file.format}` : ""}`
+            : f.file.filename
+
+        return {
+            filename,
+            format: f.file?.format,
+            size: f.file?.size,
+            dataUri: f.file?.file_id
+                ? f.file?.file_id
+                : isBase64(f.file?.file_data ?? "")
+                  ? dataUriToObjectUrl(f.file?.file_data || "")
+                  : "",
+        }
+    })
+
+    return formattedFiles
+}
 /**
  * Renders an array of chat messages (OpenAI format) as readonly SharedEditor blocks.
  * Returns an array of <section> nodes so callers can embed them directly in their JSX.
@@ -42,6 +65,9 @@ export function renderChatMessages({
             const images = Array.isArray(msg.content)
                 ? msg.content.filter((content) => content.type === "image_url")
                 : []
+
+            const files = Array.isArray(msg.content) ? formatFiles(msg) : []
+
             const showDivider = i < messages.length - 1
 
             return (
@@ -65,6 +91,27 @@ export function renderChatMessages({
                             ))}
                         </div>
                     ) : null}
+
+                    {files.length ? (
+                        <div className="flex gap-2 flex-wrap">
+                            {files.map((fileContent: any, index: number) => (
+                                <div key={`msg-file-${index}`} className="mt-1 text-xs">
+                                    {isUrl(fileContent?.dataUri) ? (
+                                        <a
+                                            href={fileContent.dataUri}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[#1677ff]"
+                                        >
+                                            {fileContent.filename}
+                                        </a>
+                                    ) : (
+                                        <span>{fileContent?.dataUri}</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : null}
                     {showDivider ? (
                         <div className="h-px w-full bg-slate-200/90 dark:bg-slate-700/60 rounded-full" />
                     ) : null}
@@ -80,6 +127,8 @@ export function renderChatMessages({
         const images = Array.isArray(msg.content)
             ? msg.content.filter((content) => content.type === "image_url")
             : []
+
+        const files = Array.isArray(msg.content) ? formatFiles(msg) : []
         const showDivider = i < messages.length - 1
 
         return (
@@ -114,6 +163,23 @@ export function renderChatMessages({
                                         alt="Preview"
                                         size={48}
                                     />
+                                ))}
+
+                                {files.map((fileContent: any, index: number) => (
+                                    <div key={`msg-file-${index}`} className="mt-1 text-xs">
+                                        {isUrl(fileContent?.dataUri) ? (
+                                            <a
+                                                href={fileContent.dataUri}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-[#1677ff]"
+                                            >
+                                                {fileContent.filename}
+                                            </a>
+                                        ) : (
+                                            <span>{fileContent?.dataUri}</span>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                         }
@@ -162,6 +228,23 @@ export function renderChatMessages({
                                         alt="Preview"
                                         size={48}
                                     />
+                                ))}
+
+                                {files.map((fileContent: any, index: number) => (
+                                    <div key={`msg-file-${index}`} className="mt-1 text-xs">
+                                        {isUrl(fileContent?.dataUri) ? (
+                                            <a
+                                                href={fileContent?.dataUri}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-[#1677ff]"
+                                            >
+                                                {fileContent.filename}
+                                            </a>
+                                        ) : (
+                                            <span>{fileContent?.dataUri}</span>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                         }
