@@ -124,7 +124,7 @@ async def aclose(
 async def aurl(
     *,
     run_id: UUID,
-) -> str:
+) -> Optional[str]:
     response = authed_api()(
         method="GET",
         endpoint=f"/projects/current",
@@ -136,10 +136,10 @@ async def aurl(
         print(response.text)
         raise
 
-    if len(response.json()) != 1:
-        return None
+    project_info = response.json()
 
-    project_info = response.json()[0]
+    if not project_info:
+        return None
 
     workspace_id = project_info.get("workspace_id")
     project_id = project_info.get("project_id")
