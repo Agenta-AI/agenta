@@ -132,8 +132,7 @@ export const projectIdAtom = atom((get) => get(appIdentifiersAtom).projectId)
 export const projectAtom = eagerAtom((get) => {
     const projects = get(projectsAtom) as ProjectsResponse[]
     const organization = get(selectedOrgAtom)
-    const identifiers = get(appIdentifiersAtom)
-    const workspaceId = identifiers.workspaceId ?? organization?.default_workspace?.id ?? null
+    const workspaceId = organization?.default_workspace?.id || null
     const projectId = get(projectIdAtom)
 
     if (!projects.length) return null
