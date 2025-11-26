@@ -108,6 +108,10 @@ const ConfigureProviderDrawerContent = ({
         () => [...customProviders, ...standardProviders],
         [standardProviders, customProviders],
     )
+    const defaultProviderNames = useMemo(
+        () => new Set(standardProviders.map((provider) => provider.toLowerCase())),
+        [standardProviders],
+    )
 
     const providerValue = useWatch("provider", form) || ""
     const normalizedProviderKind = useMemo(() => {
@@ -224,6 +228,15 @@ const ConfigureProviderDrawerContent = ({
                                                               if (!isAppNameInputValid(value)) {
                                                                   return Promise.reject(
                                                                       "Name must contain only letters, numbers, underscore, or dash without any spaces.",
+                                                                  )
+                                                              }
+                                                              if (
+                                                                  defaultProviderNames.has(
+                                                                      value.trim().toLowerCase(),
+                                                                  )
+                                                              ) {
+                                                                  return Promise.reject(
+                                                                      "Name cannot match a default provider. Please choose a different name.",
                                                                   )
                                                               }
                                                               return Promise.resolve()
