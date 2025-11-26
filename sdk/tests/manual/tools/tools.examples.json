@@ -22,9 +22,7 @@
                     "description": "City name"
                   }
                 },
-                "required": [
-                  "location"
-                ]
+                "required": ["location"]
               }
             }
           }
@@ -175,9 +173,7 @@
                     "description": "City name"
                   }
                 },
-                "required": [
-                  "location"
-                ]
+                "required": ["location"]
               }
             }
           }
@@ -310,9 +306,7 @@
                     "description": "City name"
                   }
                 },
-                "required": [
-                  "location"
-                ]
+                "required": ["location"]
               }
             }
           }

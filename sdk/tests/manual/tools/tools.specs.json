@@ -14,9 +14,7 @@
                 "description": "Parameter description"
               }
             },
-            "required": [
-              "param_name"
-            ]
+            "required": ["param_name"]
           }
         }
       }
@@ -44,10 +42,7 @@
       {
         "type": "web_search",
         "filters": {
-          "allowed_domains": [
-            "pubmed.ncbi.nlm.nih.gov",
-            "clinicaltrials.gov"
-          ]
+          "allowed_domains": ["pubmed.ncbi.nlm.nih.gov", "clinicaltrials.gov"]
         }
       }
     ],
@@ -90,9 +85,7 @@
                 "type": "string"
               }
             },
-            "required": [
-              "param"
-            ]
+            "required": ["param"]
           }
         }
       }
@@ -148,9 +141,7 @@
                 "type": "string"
               }
             },
-            "required": [
-              "param"
-            ]
+            "required": ["param"]
           }
         }
       }
