@@ -85,7 +85,7 @@ async def list_organizations(
 
 
 @router.get(
-    "/{organization_id}/",
+    "/{organization_id}",
     operation_id="fetch_organization_details",
     response_model=OrganizationDetails,
 )
@@ -168,7 +168,7 @@ async def fetch_organization_details(
 
 
 @router.post(
-    "/{organization_id}/workspaces/{workspace_id}/invite/",
+    "/{organization_id}/workspaces/{workspace_id}/invite",
     operation_id="invite_user_to_workspace",
 )
 async def invite_user_to_organization(
@@ -250,7 +250,7 @@ async def invite_user_to_organization(
 
 
 @router.post(
-    "/{organization_id}/workspaces/{workspace_id}/invite/resend/",
+    "/{organization_id}/workspaces/{workspace_id}/invite/resend",
     operation_id="resend_invitation",
 )
 async def resend_user_invitation_to_organization(
@@ -306,7 +306,7 @@ async def resend_user_invitation_to_organization(
 
 
 @router.post(
-    "/{organization_id}/workspaces/{workspace_id}/invite/accept/",
+    "/{organization_id}/workspaces/{workspace_id}/invite/accept",
     operation_id="accept_invitation",
 )
 async def accept_organization_invitation(
