@@ -1,0 +1,176 @@
+{
+  "openai": {
+    "function_calling": [
+      {
+        "type": "function",
+        "function": {
+          "name": "example_function",
+          "description": "Description of the function",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "param_name": {
+                "type": "string",
+                "description": "Parameter description"
+              }
+            },
+            "required": [
+              "param_name"
+            ]
+          }
+        }
+      }
+    ],
+    "code_execution": [
+      {
+        "type": "code_interpreter",
+        "container": {
+          "type": "auto",
+          "memory_limit": "4g"
+        }
+      }
+    ],
+    "bash_scripting": [
+      {
+        "type": "local_shell"
+      }
+    ],
+    "web_search": [
+      {
+        "type": "web_search"
+      }
+    ],
+    "web_search_with_filters": [
+      {
+        "type": "web_search",
+        "filters": {
+          "allowed_domains": [
+            "pubmed.ncbi.nlm.nih.gov",
+            "clinicaltrials.gov"
+          ]
+        }
+      }
+    ],
+    "file_search": [
+      {
+        "type": "file_search"
+      }
+    ],
+    "mcp_calling": [
+      {
+        "type": "remote_mcp",
+        "server": {
+          "url": "https://example-mcp-server.com",
+          "token": "your-auth-token"
+        }
+      }
+    ],
+    "computer_use": [
+      {
+        "type": "computer_use"
+      }
+    ],
+    "image_generation": [
+      {
+        "type": "image_generation"
+      }
+    ]
+  },
+  "anthropic": {
+    "function_calling": [
+      {
+        "type": "function",
+        "function": {
+          "name": "example_function",
+          "description": "Description",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "param": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "param"
+            ]
+          }
+        }
+      }
+    ],
+    "code_execution": [
+      {
+        "type": "code_execution_20250825",
+        "name": "code_execution"
+      }
+    ],
+    "bash_scripting": [
+      {
+        "type": "bash_20250124",
+        "name": "bash"
+      }
+    ],
+    "text_editor": [
+      {
+        "type": "text_editor_20250728",
+        "name": "str_replace_based_edit_tool"
+      }
+    ],
+    "web_search": [
+      {
+        "type": "web_search_20250305",
+        "name": "web_search"
+      }
+    ],
+    "computer_use": [
+      {
+        "type": "computer_20241022",
+        "name": "computer",
+        "display_width_px": 1024,
+        "display_height_px": 768,
+        "display_number": 1
+      }
+    ],
+    "extra_headers": {
+      "anthropic-beta": "code-execution-2025-08-25"
+    }
+  },
+  "google": {
+    "function_calling": [
+      {
+        "type": "function",
+        "function": {
+          "name": "example_function",
+          "description": "Description",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "param": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "param"
+            ]
+          }
+        }
+      }
+    ],
+    "code_execution": [
+      {
+        "code_execution": {}
+      }
+    ],
+    "web_search": [
+      {
+        "googleSearch": {}
+      }
+    ],
+    "web_search_with_options": [
+      {
+        "googleSearch": {
+          "web_search_options": "medium"
+        }
+      }
+    ]
+  }
+}
