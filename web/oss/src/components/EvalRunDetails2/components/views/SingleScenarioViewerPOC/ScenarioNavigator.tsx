@@ -11,11 +11,17 @@ interface ScenarioNavigatorProps {
     runId: string
     scenarioId: string | null
     onChange: (scenarioId: string) => void
+    showScenarioIdTag?: boolean
 }
 
 const PAGE_SIZE = 50
 
-const ScenarioNavigator = ({runId, scenarioId, onChange}: ScenarioNavigatorProps) => {
+const ScenarioNavigator = ({
+    runId,
+    scenarioId,
+    onChange,
+    showScenarioIdTag = true,
+}: ScenarioNavigatorProps) => {
     const {rows, paginationInfo, loadNextPage} = useInfiniteTablePagination({
         store: evaluationPreviewTableStore,
         scopeId: runId,
@@ -100,7 +106,11 @@ const ScenarioNavigator = ({runId, scenarioId, onChange}: ScenarioNavigatorProps
     )
 
     return (
-        <div className="flex items-center justify-between gap-3 pr-4">
+        <div
+            className={`flex items-center gap-3 ${
+                showScenarioIdTag ? "justify-between pr-4" : "flex-wrap"
+            }`}
+        >
             <div className="flex items-center gap-2">
                 <Button
                     icon={<LeftOutlined />}
@@ -139,7 +149,7 @@ const ScenarioNavigator = ({runId, scenarioId, onChange}: ScenarioNavigatorProps
                     )}
                 />
             </div>
-            {selectedOption?.description ? (
+            {showScenarioIdTag && selectedOption?.description ? (
                 <Tag bordered={false} className="bg-[#0517290F] font-normal">
                     <Typography.Text copyable={{text: selectedOption.description}}>
                         {selectedOption.description}
