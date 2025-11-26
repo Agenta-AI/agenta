@@ -3,7 +3,6 @@ from uuid import UUID
 from asyncio import sleep
 
 from oss.src.core.tracing.dtos import OTelSpansTree
-from oss.src.core.evaluations.types import EvaluationRun
 
 # Divides cleanly into 1, 2, 3, 4, 5, 6, 8, 10, ...
 BLOCKS = 1 * 2 * 3 * 4 * 5

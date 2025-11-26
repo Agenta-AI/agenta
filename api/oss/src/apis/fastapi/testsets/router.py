@@ -1380,21 +1380,16 @@ class SimpleTestsetsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        requested_refs = simple_testset_query_request.testset_refs or []
-        has_only_ref_ids = requested_refs and all(ref.id for ref in requested_refs)
-
-        testsets = (
-            await self.simple_testsets_service.testsets_service.query_testsets(
-                project_id=UUID(request.state.project_id),
-                #
-                testset_query=simple_testset_query_request.testset,
-                #
-                testset_refs=simple_testset_query_request.testset_refs,
-                #
-                include_archived=simple_testset_query_request.include_archived,
-                #
-                windowing=simple_testset_query_request.windowing,
-            )
+        testsets = await self.simple_testsets_service.testsets_service.query_testsets(
+            project_id=UUID(request.state.project_id),
+            #
+            testset_query=simple_testset_query_request.testset,
+            #
+            testset_refs=simple_testset_query_request.testset_refs,
+            #
+            include_archived=simple_testset_query_request.include_archived,
+            #
+            windowing=simple_testset_query_request.windowing,
         )
 
         simple_testsets: List[SimpleTestset] = []
