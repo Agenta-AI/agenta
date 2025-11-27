@@ -14,7 +14,6 @@ import {
     type EvaluationTableColumnsResult,
     type MetricColumnDefinition,
 } from "../../atoms/table"
-import {evaluationTypeFromKind} from "../../components/views/OverviewView/utils/metrics"
 import usePreviewTableData from "../../hooks/usePreviewTableData"
 import {buildSkeletonColumnResult} from "../../utils/buildSkeletonColumns"
 import {
@@ -140,7 +139,7 @@ const ScenarioColumnVisibilityPopoverContent = ({
     const {columnResult} = usePreviewTableData({runId})
 
     const columnData = useMemo(
-        () => selectColumnsForType(columnResult, evaluationTypeFromKind(evaluationType)),
+        () => selectColumnsForType(columnResult, evaluationType),
         [columnResult, evaluationType],
     )
 
