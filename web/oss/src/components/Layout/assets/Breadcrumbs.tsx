@@ -129,12 +129,12 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
                     className="w-[120px] h-[30px]"
                 >
                     <img
-                        src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1031958&theme=light&t=1764244389189"
+                        src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1031958&theme=dark&t=1764244389189"
                         alt="Agenta - Open-source prompt management & evals for AI teams | Product Hunt"
                         className="w-[120px] h-[30px]"
                     />
                 </a>
-                <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
+                {/* <Typography.Text>agenta v{packageJsonData.version}</Typography.Text> */}
             </div>
         </section>
     )
