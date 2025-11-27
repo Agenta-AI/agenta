@@ -10,7 +10,6 @@ import {appIdentifiersAtom, appStateSnapshotAtom, requestNavigationAtom} from "@
 import {userAtom} from "@/oss/state/profile/selectors/user"
 import {sessionExistsAtom} from "@/oss/state/session"
 import {logAtom} from "@/oss/state/utils/logAtom"
-import {fetchWorkspaceDetails} from "@/oss/services/workspace/api"
 
 const WORKSPACE_ORG_MAP_KEY = "workspaceOrgMap"
 const LAST_USED_WORKSPACE_ID_KEY = "lastUsedWorkspaceId"
@@ -85,7 +84,6 @@ export const orgsQueryAtom = atomWithQuery<Org[]>((get) => {
 })
 
 const logOrgs = process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true"
-const debugOrgSelection = process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true"
 logAtom(orgsQueryAtom, "orgsQueryAtom", logOrgs)
 
 export const orgsAtom = eagerAtom<Org[]>((get) => {
@@ -161,16 +159,6 @@ const normalizeOrgIdentifier = async (
     const mapped = resolveOrgId(id)
     if (mapped) {
         return {orgId: mapped, workspaceId: id}
-    }
-
-    try {
-        const workspace = await fetchWorkspaceDetails(id)
-        if (workspace?.organization) {
-            cacheWorkspaceOrgPair(id, workspace.organization)
-            return {orgId: workspace.organization, workspaceId: id}
-        }
-    } catch (error) {
-        console.warn("[org] Failed to normalize org identifier", {id, error})
     }
 
     return {orgId: id, workspaceId: null}
