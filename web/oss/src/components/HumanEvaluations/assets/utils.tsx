@@ -37,7 +37,8 @@ import {_Evaluation, EvaluationStatus} from "@/oss/lib/Types"
 import {BasicStats} from "@/oss/services/runMetrics/api/types"
 import {appDetailQueryAtomFamily} from "@/oss/state/app"
 
-import {GeneralAutoEvalMetricColumns} from "../../EvalRunDetails/components/VirtualizedScenarioTable/assets/constants"
+// import {GeneralAutoEvalMetricColumns} from "../../EvalRunDetails/components/VirtualizedScenarioTable/assets/constants"
+import {GeneralAutoEvalMetricColumns} from "../../EvalRunDetails2/constants/table"
 import {EvaluationRow} from "../types"
 
 import EvaluationStatusCell from "./EvaluationStatusCell"

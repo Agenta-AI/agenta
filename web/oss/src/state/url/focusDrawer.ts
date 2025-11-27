@@ -2,12 +2,6 @@ import {getDefaultStore} from "jotai"
 import Router from "next/router"
 
 import {
-    focusDrawerAtom as legacyFocusDrawerAtom,
-    openFocusDrawerAtom as openLegacyFocusDrawerAtom,
-    resetFocusDrawerAtom as resetLegacyFocusDrawerAtom,
-    setFocusDrawerTargetAtom as setLegacyFocusDrawerTargetAtom,
-} from "@/oss/components/EvalRunDetails/state/focusScenarioAtom"
-import {
     focusDrawerAtom as previewFocusDrawerAtom,
     openFocusDrawerAtom as openPreviewFocusDrawerAtom,
     resetFocusDrawerAtom as resetPreviewFocusDrawerAtom,

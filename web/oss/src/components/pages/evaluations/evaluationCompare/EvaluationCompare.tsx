@@ -16,9 +16,13 @@ import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import useURL from "@/oss/hooks/useURL"
 import {evaluatorsAtom} from "@/oss/lib/atoms/evaluation"
+import {
+    getFilterParams,
+    getTypedValue,
+    removeCorrectAnswerPrefix,
+} from "@/oss/lib/evaluations/legacy"
 import AgGridReact, {type AgGridReactType} from "@/oss/lib/helpers/agGrid"
 import {getColorPairFromStr, getRandomColors} from "@/oss/lib/helpers/colors"
-import {getFilterParams, getTypedValue, removeCorrectAnswerPrefix} from "@/oss/lib/helpers/evaluate"
 import {escapeNewlines} from "@/oss/lib/helpers/fileManipulations"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
 import {isValidId} from "@/oss/lib/helpers/serviceValidations"

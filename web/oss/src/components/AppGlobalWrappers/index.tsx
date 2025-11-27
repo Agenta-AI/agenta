@@ -13,11 +13,6 @@ const TraceDrawer = dynamic(
     {ssr: false},
 )
 
-const EvalRunFocusDrawer = dynamic(
-    () => import("@/oss/components/EvalRunDetails/AutoEvalRun/components/EvalRunFocusDrawer"),
-    {ssr: false},
-)
-
 const EvalRunFocusDrawerPreview = dynamic(
     () => import("@/oss/components/EvalRunDetails2/components/FocusDrawer"),
     {ssr: false},
@@ -171,13 +166,12 @@ const NavigationCommandListener = () => {
 }
 
 const AppGlobalWrappers = () => {
-    const legacyFocusDrawerEnabled = useAtomValue(legacyFocusDrawerEnabledAtom)
     useAtomValue(urlQuerySyncAtom)
     return (
         <>
             <NavigationCommandListener />
             <TraceDrawer />
-            {legacyFocusDrawerEnabled ? <EvalRunFocusDrawer /> : <EvalRunFocusDrawerPreview />}
+            <EvalRunFocusDrawerPreview />
             <DeleteAppModalWrapper />
             <EditAppModalWrapper />
             <VariantDrawerWrapper />
