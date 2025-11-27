@@ -3,9 +3,11 @@ import React, {useCallback, useMemo, useState} from "react"
 import clsx from "clsx"
 import {useSetAtom} from "jotai"
 import {Button, Divider, Dropdown, Input, Typography} from "antd"
+import {MagnifyingGlass} from "@phosphor-icons/react"
 
 import {getPromptById, getLLMConfig} from "@/oss/components/Playground/context/promptShape"
 import {usePromptsSource} from "@/oss/components/Playground/context/PromptsSource"
+import LLMIconMap from "@/oss/components/LLMIcons"
 
 import AddButton from "../../../assets/AddButton"
 import {
@@ -21,6 +23,19 @@ interface Props {
     compoundKey: string
     viewOnly?: boolean
 }
+
+const TOOL_PROVIDERS_META: Record<string, {label: string; iconKey?: keyof typeof LLMIconMap}> = {
+    openai: {label: "Open AI", iconKey: "OpenAI"},
+    anthropic: {label: "Anthropic", iconKey: "Anthropic"},
+    google: {label: "Google Gemini", iconKey: "Google Gemini"},
+}
+
+const formatToolLabel = (toolCode: string) =>
+    toolCode
+        .split("_")
+        .filter(Boolean)
+        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+        .join(" ")
 
 const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnly}) => {
     const addNewMessage = useSetAtom(addPromptMessageMutationAtomFamily(compoundKey))
@@ -39,16 +54,50 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
     }, [prompts, promptId])
     const responseFormatId = responseFormatInfo.enhancedId as string | undefined
 
-    // const filteredToolOptions = useMemo(() => {
-    //     if (!searchTerm) return MOCK_TOOL_OPTIONS
-    //     const lowerTerm = searchTerm.toLowerCase()
-    //     return MOCK_TOOL_OPTIONS.filter(
-    //         (tool) =>
-    //             tool.name.toLowerCase().includes(lowerTerm) ||
-    //             tool.toolCode.toLowerCase().includes(lowerTerm) ||
-    //             tool.description.toLowerCase().includes(lowerTerm),
-    //     )
-    // }, [searchTerm])
+    const filteredToolGroups = useMemo(() => {
+        const normalizedTerm = searchTerm.trim().toLowerCase()
+
+        return Object.entries(toolsSpecs).reduce<
+            {
+                key: string
+                label: string
+                Icon?: React.FC<{className?: string}>
+                tools: {code: string; label: string; payload: Record<string, any>}[]
+            }[]
+        >((groups, [providerKey, tools]) => {
+            const meta = TOOL_PROVIDERS_META[providerKey] ?? {label: providerKey}
+            const Icon = meta.iconKey ? LLMIconMap[meta.iconKey] : undefined
+            const providerMatches =
+                normalizedTerm && meta.label.toLowerCase().includes(normalizedTerm)
+
+            const toolEntries = Object.entries(tools).map(([toolCode, toolSpec]) => {
+                return {
+                    code: toolCode,
+                    label: formatToolLabel(toolCode),
+                    payload: Array.isArray(toolSpec) ? toolSpec[0] : toolSpec,
+                }
+            })
+
+            const matchingTools = toolEntries.filter((tool) => {
+                if (!normalizedTerm) return true
+                const toolMatches =
+                    tool.label.toLowerCase().includes(normalizedTerm) ||
+                    tool.code.toLowerCase().includes(normalizedTerm)
+                return providerMatches || toolMatches
+            })
+
+            if (matchingTools.length) {
+                groups.push({
+                    key: providerKey,
+                    label: meta.label,
+                    Icon,
+                    tools: matchingTools,
+                })
+            }
+
+            return groups
+        }, [])
+    }, [searchTerm])
 
     const handleAddTool = useCallback(
         (payload?: Record<string, any>) => {
@@ -68,6 +117,7 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
                     placeholder="Search"
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
+                    prefix={<MagnifyingGlass size={16} className="text-[#98A2B3]" />}
                     className="flex-1 border-none outline-none"
                 />
                 <Button
@@ -82,35 +132,40 @@ const ActionsOutputRenderer: React.FC<Props> = ({variantId, compoundKey, viewOnl
 
             <Divider className="m-0" type="horizontal" />
 
-            <div className="max-h-64 overflow-y-auto flex flex-col p-2">
-                {Object.entries(toolsSpecs).map(([llm, tools], index) => {
-                    return (
-                        <div key={index}>
-                            <Typography.Text>{llm}</Typography.Text>
-                            {Object.entries(tools).map(([toolCode, tool], index) => {
-                                return (
+            <div className="max-h-64 overflow-y-auto flex flex-col gap-3 p-3">
+                {filteredToolGroups.length > 0 ? (
+                    filteredToolGroups.map(({key, label, Icon, tools}) => (
+                        <div key={key} className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2 px-1">
+                                {Icon && (
+                                    <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-[#F8FAFC]">
+                                        <Icon className="h-4 w-4" />
+                                    </span>
+                                )}
+                                <Typography.Text className="font-medium text-[#0F172A]">
+                                    {label}
+                                </Typography.Text>
+                            </div>
+                            <div className="flex flex-col">
+                                {tools.map(({code, label, payload}) => (
                                     <Button
-                                        key={index}
+                                        key={code}
                                         type="text"
                                         block
-                                        className="justify-start text-left"
-                                        onClick={() =>
-                                            handleAddTool(Array.isArray(tool) ? tool[0] : tool)
-                                        }
+                                        className="flex items-center gap-2 justify-start text-left px-1 hover:!bg-[#F8FAFC]"
+                                        onClick={() => handleAddTool(payload)}
                                     >
-                                        <span className="text-[#0F172A]">{toolCode}</span>
+                                        <span className="text-[#0F172A]">{label}</span>
                                     </Button>
-                                )
-                            })}
+                                ))}
+                            </div>
                         </div>
-                    )
-                })}
-
-                {/* {filteredToolOptions.length === 0 && (
-                    <div className="text-center text-[12px] leading-5 text-[#7E8B99]">
+                    ))
+                ) : (
+                    <div className="py-8 text-center text-[12px] leading-5 text-[#7E8B99]">
                         No tools found
                     </div>
-                )} */}
+                )}
             </div>
         </div>
     )
