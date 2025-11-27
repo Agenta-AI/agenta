@@ -27,27 +27,16 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
         [selectedOrg],
     )
 
-    console.log("EE ApiKeyInput rendered. WorkspaceId:", initialWorkspaceId)
-
-    // Verify component mount
-    useState(() => {
-        console.log("EE ApiKeyInput mounted")
-    })
-
     const handleGenerateApiKey = async () => {
         try {
-            console.log("handleGenerateApiKey started")
             setIsLoadingApiKey(true)
 
             let projectId = getProjectValues().projectId
             let finalWorkspaceId = initialWorkspaceId
-            console.log("Initial projectId:", projectId)
-            console.log("Initial workspaceId:", finalWorkspaceId)
 
             // Always wait for context during onboarding to ensure we have the correct workspace
             // The hook might return the default workspace which could be wrong if the user just created a new one
             if (!projectId || !finalWorkspaceId) {
-                console.log("Waiting for workspace context...")
                 try {
                     const context = await waitForWorkspaceContext({
                         timeoutMs: 3000,
@@ -58,7 +47,6 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
                     projectId = context.projectId
                     // We temporarily set finalWorkspaceId from context, but we will verify it against the project below
                     finalWorkspaceId = context.workspaceId || ""
-                    console.log("Resolved context:", context)
                 } catch (e) {
                     console.warn("waitForWorkspaceContext failed or timed out", e)
                 }
@@ -66,10 +54,8 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
 
             // Verify workspace ID by fetching project details
             // This fixes the issue where the URL workspace might differ from the project's actual workspace
-            console.log("Verifying workspace for project:", projectId)
             try {
                 const projects = await fetchAllProjects()
-                console.log("Fetched projects:", projects)
 
                 let project
                 if (projectId) {
@@ -78,33 +64,22 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
 
                 if (!project && projects.length > 0) {
                     // Fallback: if project not found or not set, pick the first one
-                    console.log("Project not found or not set. Picking first available project.")
                     project = projects[0]
                     projectId = project.project_id
                 }
 
                 if (project) {
                     finalWorkspaceId = project.workspace_id
-                    console.log("Found project:", project)
-                    console.log("Using workspace from project:", finalWorkspaceId)
-                } else {
-                    console.warn("No projects found.")
                 }
             } catch (e) {
                 console.error("Failed to fetch projects manually", e)
             }
 
-            console.log("Final WorkspaceId:", finalWorkspaceId)
-            console.log("isDemo:", isDemo())
-
             if (finalWorkspaceId) {
-                console.log("Calling createApiKey...")
                 const {data} = await createApiKey(finalWorkspaceId, false, projectId)
-                console.log("createApiKey success:", data)
                 onApiKeyChange(data)
                 message.success("Successfully generated API Key")
             } else {
-                console.warn("Skipping createApiKey: workspaceId missing")
                 message.error("Could not determine workspace. Please try refreshing.")
             }
         } catch (error) {
