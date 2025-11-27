@@ -75,7 +75,23 @@ const extractPrimarySpan = (response: any, traceId?: string | null): TraceSpanNo
     return sorted[0]
 }
 
-const readMetric = (span: TraceSpanNode | undefined, paths: string[]): number | undefined => {
+type MetricPath = string | {path: string; valueKeys?: string[]}
+
+const extractNumber = (value: unknown, valueKeys?: string[]): number | undefined => {
+    const direct = numeric(value)
+    if (direct !== undefined) return direct
+    if (value && typeof value === "object") {
+        const keys = valueKeys && valueKeys.length ? valueKeys : ["total", "value", "duration"]
+        for (const key of keys) {
+            const candidate = (value as any)[key]
+            const num = numeric(candidate)
+            if (num !== undefined) return num
+        }
+    }
+    return undefined
+}
+
+const readMetric = (span: TraceSpanNode | undefined, paths: MetricPath[]): number | undefined => {
     if (!span) return undefined
     const sources = [
         span,
@@ -86,10 +102,12 @@ const readMetric = (span: TraceSpanNode | undefined, paths: string[]): number | 
         (span as any).attributes?.ag?.metrics,
     ].filter(Boolean)
 
-    for (const path of paths) {
+    for (const pathEntry of paths) {
+        const path = typeof pathEntry === "string" ? pathEntry : pathEntry.path
+        const valueKeys = typeof pathEntry === "string" ? undefined : pathEntry.valueKeys
         for (const source of sources) {
             const value = resolvePath(source, path)
-            const num = numeric(value)
+            const num = extractNumber(value, valueKeys)
             if (num !== undefined) return num
         }
     }
@@ -123,9 +141,11 @@ const SharedGenerationResultUtils = ({
         if (!primarySpan) return undefined
         const raw = (primarySpan.status_code as StatusCode | undefined) ?? undefined
         const hasError =
-            readMetric(primarySpan, ["attributes.ag.metrics.errors.cumulative.total"]) ??
-            readMetric(primarySpan, ["metrics.errors.total"]) ??
-            0
+            readMetric(primarySpan, [
+                "attributes.ag.metrics.errors.cumulative.total",
+                "metrics.errors.total",
+                "errors.total",
+            ]) ?? 0
         if (hasError && hasError > 0) return StatusCode.STATUS_CODE_ERROR
         if (raw) return raw
         return StatusCode.STATUS_CODE_OK
@@ -135,9 +155,11 @@ const SharedGenerationResultUtils = ({
         () =>
             readMetric(primarySpan, [
                 "attributes.ag.metrics.duration.cumulative.total",
+                {path: "attributes.ag.metrics.duration.cumulative", valueKeys: ["total", "duration"]},
+                "metrics.acc.duration.total",
+                "metrics.unit.duration.total",
                 "metrics.duration.total",
-                "duration.total",
-                "duration",
+                {path: "duration", valueKeys: ["total", "value"]},
             ]),
         [primarySpan],
     )
@@ -146,9 +168,9 @@ const SharedGenerationResultUtils = ({
         () =>
             readMetric(primarySpan, [
                 "attributes.ag.metrics.tokens.cumulative.total",
+                {path: "attributes.ag.metrics.tokens.cumulative", valueKeys: ["total"]},
                 "metrics.tokens.total",
-                "tokens.total",
-                "tokens",
+                {path: "tokens", valueKeys: ["total"]},
             ]),
         [primarySpan],
     )
@@ -157,8 +179,9 @@ const SharedGenerationResultUtils = ({
         () =>
             readMetric(primarySpan, [
                 "attributes.ag.metrics.tokens.cumulative.prompt",
+                {path: "attributes.ag.metrics.tokens.cumulative", valueKeys: ["prompt", "prompt_tokens"]},
                 "metrics.tokens.prompt",
-                "tokens.prompt",
+                {path: "tokens", valueKeys: ["prompt", "prompt_tokens"]},
             ]),
         [primarySpan],
     )
@@ -167,8 +190,12 @@ const SharedGenerationResultUtils = ({
         () =>
             readMetric(primarySpan, [
                 "attributes.ag.metrics.tokens.cumulative.completion",
+                {
+                    path: "attributes.ag.metrics.tokens.cumulative",
+                    valueKeys: ["completion", "completion_tokens"],
+                },
                 "metrics.tokens.completion",
-                "tokens.completion",
+                {path: "tokens", valueKeys: ["completion", "completion_tokens"]},
             ]),
         [primarySpan],
     )
@@ -177,8 +204,9 @@ const SharedGenerationResultUtils = ({
         () =>
             readMetric(primarySpan, [
                 "attributes.ag.metrics.costs.cumulative.total",
+                {path: "attributes.ag.metrics.costs.cumulative", valueKeys: ["total", "cost"]},
                 "metrics.costs.total",
-                "costs.total",
+                {path: "costs", valueKeys: ["total"]},
                 "cost",
             ]),
         [primarySpan],
