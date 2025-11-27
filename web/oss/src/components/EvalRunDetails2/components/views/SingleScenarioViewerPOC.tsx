@@ -509,6 +509,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                     <SharedGenerationResultUtils
                         className="!mt-1"
                         traceId={getTraceIdForStep(step)}
+                        showStatus={false}
                     />
                 ) : null}
                 {!inputs && !outputs ? (
@@ -709,7 +710,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                 <div className="flex min-h-0 flex-col gap-3 w-full">
                     <div className="flex gap-3 w-full">
                         {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-3"> */}
-                        <div className="flex flex-col gap-3 shrink min-w-0">
+                        <div className="flex flex-col gap-3 shrink min-w-0 grow">
                             <Card title="Inputs">
                                 {!columnResult ? (
                                     <Typography.Text type="secondary">
@@ -769,6 +770,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                                                       <SharedGenerationResultUtils
                                                           className="!mt-1"
                                                           traceId={traceId}
+                                                          showStatus={false}
                                                       />
                                                   )
                                               })()
