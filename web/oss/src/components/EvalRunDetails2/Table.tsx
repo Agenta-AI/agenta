@@ -4,13 +4,13 @@ import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails2/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
+import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails2/components/columnVisibility/ColumnVisibilityPopoverContent"
 import {
     InfiniteVirtualTableFeatureShell,
     type TableFeaturePagination,
     type TableScopeConfig,
     useInfiniteTablePagination,
 } from "@/oss/components/InfiniteVirtualTable"
-import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails2/components/columnVisibility/ColumnVisibilityPopoverContent"
 
 import {MAX_COMPARISON_RUNS, compareRunIdsAtom, getComparisonColor} from "./atoms/compare"
 import {DEFAULT_SCENARIO_PAGE_SIZE} from "./atoms/table"
@@ -169,7 +169,7 @@ const EvalRunDetailsTable = ({
         return result
     }, [basePagination.rows, compareSlots, compareRowsBySlot])
 
-    usePrimeScenarioHydration(mergedRows)
+    // usePrimeScenarioHydration(mergedRows)
 
     const handleRowClick = useCallback(
         (record: TableRowData) => {
