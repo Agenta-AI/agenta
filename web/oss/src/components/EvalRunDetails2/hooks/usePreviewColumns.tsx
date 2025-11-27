@@ -392,7 +392,7 @@ function VisibilityNodeTitle({
 }) {
     return (
         <div className="flex flex-col leading-tight">
-            <Typography.Text className={emphasize ? "font-semibold text-sm" : "text-sm"} ellipsis>
+            <Typography.Text className={emphasize ? "font-semibold" : ""} ellipsis>
                 {label}
             </Typography.Text>
             {secondary ? (

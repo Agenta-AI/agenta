@@ -109,7 +109,7 @@ const TestsetCard = ({
             {!collapsed ? (
                 <div className="flex flex-col gap-3 mt-1">
                     {simple?.description ? (
-                        <Text type="secondary" className="text-sm leading-5">
+                        <Text type="secondary" className="leading-5">
                             {simple.description}
                         </Text>
                     ) : null}
@@ -121,18 +121,6 @@ const TestsetCard = ({
                                 {testcaseCount ?? "—"}
                             </Tag>
                         </div>
-                        {/* <div className="flex items-center gap-2">
-                    <Text className="text-sm font-medium text-neutral-800">
-                        Columns{columnCount ? ` (${columnCount})` : ""}
-                    </Text>
-                    {columnCount ? (
-                        <Tag className="!m-0 !bg-[#F2F4F7] !border-[#E4E7EC] !text-[#344054]">
-                            {columnCount}
-                        </Tag>
-                    ) : (
-                        <Text type="secondary">—</Text>
-                    )}
-                </div> */}
                     </div>
 
                     <div className="flex flex-col gap-1">

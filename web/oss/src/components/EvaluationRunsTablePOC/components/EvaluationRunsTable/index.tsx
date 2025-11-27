@@ -75,7 +75,7 @@ const InactiveTablePlaceholder = ({className}: {className?: string}) => (
                 <div className="h-8 w-28 rounded bg-gray-100" />
             </div>
         </div>
-        <div className="flex-1 min-h-0 rounded border border-dashed text-sm text-gray-500">
+        <div className="flex-1 min-h-0 rounded border border-dashed text-gray-500">
             <div className="flex h-full items-center justify-center">Preparing tab…</div>
         </div>
     </div>

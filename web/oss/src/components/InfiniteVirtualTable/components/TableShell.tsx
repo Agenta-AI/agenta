@@ -53,12 +53,12 @@ const TableShell = ({
             <div className="flex min-w-[200px] flex-1 flex-col gap-2">
                 {title ? (
                     <div className="flex items-center gap-3">
-                        <div className="text-base font-medium text-[#101828]">{title}</div>
+                        <div className="font-medium text-[#101828]">{title}</div>
 
                         {badge}
                     </div>
                 ) : null}
-                {description ? <div className="text-sm text-[#475467]">{description}</div> : null}
+                {description ? <div className="text-[#475467]">{description}</div> : null}
                 {filters}
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">

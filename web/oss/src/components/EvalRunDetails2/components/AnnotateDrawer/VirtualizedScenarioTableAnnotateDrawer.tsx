@@ -347,7 +347,7 @@ const PreviewAnnotateContent = ({
     return (
         <div className="annotate-control-wrapper flex flex-col gap-3 min-h-[400px]">
             {!hasInvocationOutput ? (
-                <div className="text-sm text-neutral-500">
+                <div className="text-neutral-500">
                     To annotate, please generate output for this scenario.
                 </div>
             ) : (
@@ -431,7 +431,7 @@ const VirtualizedScenarioTableAnnotateDrawer = ({
     const renderContent = useMemo(() => {
         if (!scenarioId || !runId) {
             return (
-                <div className="flex items-center justify-center h-full text-neutral-500 text-sm">
+                <div className="flex items-center justify-center h-full text-neutral-500">
                     No scenario selected.
                 </div>
             )

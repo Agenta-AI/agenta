@@ -356,7 +356,7 @@ const ConfigurationSectionColumn = memo(
         } else if (columnHasData || section.alwaysVisible) {
             content = section.render(runId, {compareIndex})
         } else if (section.fallbackMessage) {
-            content = <Text className="text-sm text-neutral-500">{section.fallbackMessage}</Text>
+            content = <Text className="text-neutral-500">{section.fallbackMessage}</Text>
         }
 
         const accentColor =

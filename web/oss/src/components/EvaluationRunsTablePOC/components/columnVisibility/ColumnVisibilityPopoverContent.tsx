@@ -185,7 +185,7 @@ const MetricGroupLabel = ({
         "Evaluator"
 
     return (
-        <Typography.Text className="font-semibold text-sm" ellipsis>
+        <Typography.Text className="font-semibold" ellipsis>
             {label}
         </Typography.Text>
     )
@@ -220,9 +220,7 @@ const MetricColumnLabel = ({
 
     return (
         <div className="flex flex-col leading-tight">
-            <Typography.Text className="text-sm" ellipsis>
-                {primaryLabel}
-            </Typography.Text>
+            <Typography.Text ellipsis>{primaryLabel}</Typography.Text>
             {groupLabel ? (
                 <Typography.Text type="secondary" className="text-xs" ellipsis>
                     {groupLabel}
@@ -233,7 +231,7 @@ const MetricColumnLabel = ({
 }
 
 const DefaultNodeLabel = ({label, emphasize}: {label: string; emphasize?: boolean}) => (
-    <Typography.Text className={emphasize ? "font-semibold text-sm" : "text-sm"} ellipsis>
+    <Typography.Text className={emphasize ? "font-semibold" : ""} ellipsis>
         {label}
     </Typography.Text>
 )

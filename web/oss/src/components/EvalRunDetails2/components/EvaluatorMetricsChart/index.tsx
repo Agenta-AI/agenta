@@ -242,7 +242,7 @@ const EvaluatorMetricsChart = ({
         if (isBooleanMetric) {
             if (!booleanChartData.length) {
                 return (
-                    <div className="flex h-full items-center justify-center text-sm text-neutral-500">
+                    <div className="flex h-full items-center justify-center text-neutral-500">
                         No distribution data available.
                     </div>
                 )
@@ -278,7 +278,7 @@ const EvaluatorMetricsChart = ({
 
         if (!histogramAvailable) {
             return (
-                <div className="flex h-full items-center justify-center text-sm text-neutral-500">
+                <div className="flex h-full items-center justify-center text-neutral-500">
                     No distribution data available.
                 </div>
             )
@@ -318,7 +318,7 @@ const EvaluatorMetricsChart = ({
         }
 
         return (
-            <div className="flex h-full items-center justify-center text-sm text-neutral-500">
+            <div className="flex h-full items-center justify-center text-neutral-500">
                 No distribution data available.
             </div>
         )
@@ -357,7 +357,7 @@ const EvaluatorMetricsChart = ({
                     {isLoading ? (
                         <Skeleton active className="w-full h-full" />
                     ) : hasError && !resolvedStats ? (
-                        <div className="flex h-full items-center justify-center text-sm text-neutral-500">
+                        <div className="flex h-full items-center justify-center text-neutral-500">
                             Unable to load metric data.
                         </div>
                     ) : (

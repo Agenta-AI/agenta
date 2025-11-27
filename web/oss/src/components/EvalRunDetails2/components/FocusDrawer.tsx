@@ -371,7 +371,7 @@ const ScenarioColumnValue = memo(
                                 stepType={descriptor.stepType}
                             >
                                 <span
-                                    className={`text-sm ${
+                                    className={`${
                                         isPlaceholder ? "text-neutral-500" : "text-neutral-900"
                                     }`}
                                 >
@@ -410,7 +410,7 @@ const ScenarioColumnValue = memo(
 
             try {
                 return (
-                    <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-sm text-[#1D2939]">
+                    <pre className="max-h-64 overflow-auto whitespace-pre-wrap text-[#1D2939]">
                         {JSON.stringify(resolvedValue, null, 2)}
                     </pre>
                 )
@@ -478,11 +478,9 @@ const InvocationMetaChips = memo(
 
         return (
             <div className="flex flex-col gap-1 px-4 pb-1">
-                {appLabel ? (
-                    <span className="text-sm font-medium text-[#101828]">{appLabel}</span>
-                ) : null}
+                {appLabel ? <span className="font-medium text-[#101828]">{appLabel}</span> : null}
                 {variantLabel ? (
-                    <div className="flex items-center gap-2 text-sm text-[#475467]">
+                    <div className="flex items-center gap-2 text-[#475467]">
                         <span>{variantLabel}</span>
                         {revisionBadge ? (
                             <span className="rounded-full bg-[#F2F4F7] px-2 py-0.5 text-xs font-semibold text-[#344054]">

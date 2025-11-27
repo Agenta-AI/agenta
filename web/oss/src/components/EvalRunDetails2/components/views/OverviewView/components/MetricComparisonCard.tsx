@@ -272,13 +272,13 @@ const MetricComparisonCard = ({metric}: MetricComparisonCardProps) => {
                         </BarChart>
                     </ResponsiveContainer>
                 ) : (
-                    <div className="flex h-full items-center justify-center text-sm text-neutral-500">
+                    <div className="flex h-full items-center justify-center text-neutral-500">
                         Distribution data not available for this metric.
                     </div>
                 )}
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-4 text-sm text-neutral-600">
+            <div className="mt-3 flex flex-wrap gap-4 text-neutral-600">
                 {runMeta.map((run) => {
                     const summaryLabel = (() => {
                         if (!run.summary) return null
