@@ -93,7 +93,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         padding: 24,
         backgroundColor: theme.colorBgContainer,
         borderRadius: theme.borderRadiusLG,
-        border: `1px solid ${theme.colorBorderSecondary}`
+        border: `1px solid ${theme.colorBorderSecondary}`,
+        marginBottom: 40
     }
 }))
 
