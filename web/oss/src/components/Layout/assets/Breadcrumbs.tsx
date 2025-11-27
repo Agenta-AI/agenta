@@ -121,7 +121,19 @@ const BreadcrumbContainer = memo(({appTheme}: {appTheme: string}) => {
                 </div>
             </div>
 
-            <div className={clsx(classes.topRightBar, "shrink-0")}>
+            <div className={clsx(classes.topRightBar, "shrink-0 flex items-center gap-2")}>
+                <a
+                    href="https://www.producthunt.com/products/agenta?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-agenta"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="w-[120px] h-[30px]"
+                >
+                    <img
+                        src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1031958&theme=light&t=1764244389189"
+                        alt="Agenta - Open-source prompt management & evals for AI teams | Product Hunt"
+                        className="w-[120px] h-[30px]"
+                    />
+                </a>
                 <Typography.Text>agenta v{packageJsonData.version}</Typography.Text>
             </div>
         </section>
