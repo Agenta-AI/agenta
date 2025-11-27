@@ -77,26 +77,15 @@ const ApplicationManagementSection = ({
 
     return (
         <>
-            <div className="my-10 flex flex-col gap-2">
-                <Flex justify="space-between" align="center" wrap>
-                    <Space>
-                        <Title level={2} className="!my-2 shrink-0">
-                            Application
-                        </Title>
-                        <Button
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            onClick={() => {
-                                setIsAddAppFromTemplatedModal(true)
-                            }}
-                        >
-                            Create New Prompt
-                        </Button>
-                    </Space>
-                    <Space>
+            <div className="my-10 flex flex-col gap-6">
+                <Flex justify="space-between" align="center" wrap gap={16}>
+                    <Title level={3} className="!m-0">
+                        Applications
+                    </Title>
+                    <Space size={16}>
                         <Input.Search
-                            placeholder="Search"
-                            className="w-[400px]"
+                            placeholder="Search apps..."
+                            className="w-[320px]"
                             allowClear
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
@@ -112,6 +101,16 @@ const ApplicationManagementSection = ({
                                 <Cards size={16} className="h-full" />
                             </Radio.Button>
                         </Radio.Group>
+
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => {
+                                setIsAddAppFromTemplatedModal(true)
+                            }}
+                        >
+                            Create New App
+                        </Button>
                     </Space>
                 </Flex>
 

@@ -164,7 +164,6 @@ const AppManagement: React.FC = () => {
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
-                        <Title className="!m-0">App Management</Title>
 
                         <GetStartedSection
                             selectedOrg={selectedOrg}

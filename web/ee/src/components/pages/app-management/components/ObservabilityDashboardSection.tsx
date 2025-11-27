@@ -2,6 +2,7 @@ import {useMemo, type ComponentProps} from "react"
 
 import {AreaChart} from "@tremor/react"
 import {Spin, Typography} from "antd"
+import dayjs from "dayjs"
 import round from "lodash/round"
 import {createUseStyles} from "react-jss"
 
@@ -51,16 +52,18 @@ const ObservabilityDashboardSection = () => {
 
     const defaultGraphProps = useMemo<ComponentProps<typeof AreaChart>>(
         () => ({
-            className: "h-[168px] p-0",
-            colors: ["cyan", "red"],
+            className: "h-[160px]",
             connectNulls: true,
-            tickGap: 15,
             curveType: "monotone",
             showGridLines: false,
             showLegend: false,
+            showYAxis: true,
+            showXAxis: true,
             index: "timestamp",
             data: chartData,
             categories: [],
+            showAnimation: false,
+            autoMinValue: true,
         }),
         [chartData],
     )
@@ -96,6 +99,7 @@ const ObservabilityDashboardSection = () => {
                         >
                             <AreaChart
                                 {...defaultGraphProps}
+                                colors={["slate", "rose"]}
                                 categories={
                                     (data?.failure_rate ?? 0) > 0
                                         ? ["success_count", "failure_count"]
@@ -118,7 +122,11 @@ const ObservabilityDashboardSection = () => {
                                 </div>
                             }
                         >
-                            <AreaChart {...defaultGraphProps} categories={["latency"]} />
+                            <AreaChart
+                                {...defaultGraphProps}
+                                colors={["slate"]}
+                                categories={["latency"]}
+                            />
                         </WidgetCard>
                     </div>
                     <div className="flex-1">
@@ -141,7 +149,11 @@ const ObservabilityDashboardSection = () => {
                                 </div>
                             }
                         >
-                            <AreaChart {...defaultGraphProps} categories={["cost"]} />
+                            <AreaChart
+                                {...defaultGraphProps}
+                                colors={["slate"]}
+                                categories={["cost"]}
+                            />
                         </WidgetCard>
                     </div>
                     <div className="flex-1">
@@ -168,7 +180,11 @@ const ObservabilityDashboardSection = () => {
                                 </div>
                             }
                         >
-                            <AreaChart {...defaultGraphProps} categories={["total_tokens"]} />
+                            <AreaChart
+                                {...defaultGraphProps}
+                                colors={["slate"]}
+                                categories={["total_tokens"]}
+                            />
                         </WidgetCard>
                     </div>
                 </div>

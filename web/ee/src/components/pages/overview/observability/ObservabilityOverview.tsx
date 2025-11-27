@@ -25,16 +25,18 @@ const ObservabilityOverview = () => {
 
     const defaultGraphProps = useMemo<React.ComponentProps<typeof AreaChart>>(
         () => ({
-            className: "h-[168px] p-0",
-            colors: ["cyan", "red"],
+            className: "h-[160px]",
             connectNulls: true,
-            tickGap: 15,
             curveType: "monotone",
             showGridLines: false,
             showLegend: false,
+            showYAxis: true,
+            showXAxis: true,
             index: "timestamp",
             data: chartData,
             categories: [],
+            showAnimation: false,
+            autoMinValue: true,
         }),
         [chartData],
     )
@@ -65,6 +67,7 @@ const ObservabilityOverview = () => {
                         >
                             <AreaChart
                                 {...defaultGraphProps}
+                                colors={["slate", "rose"]}
                                 categories={
                                     (data?.failure_rate ?? 0) > 0
                                         ? ["success_count", "failure_count"]
@@ -85,7 +88,11 @@ const ObservabilityOverview = () => {
                                 </Typography.Text>
                             }
                         >
-                            <AreaChart {...defaultGraphProps} categories={["latency"]} />
+                            <AreaChart
+                                {...defaultGraphProps}
+                                colors={["slate"]}
+                                categories={["latency"]}
+                            />
                         </WidgetCard>
                     </Col>
                     <Col span={12}>
@@ -104,7 +111,11 @@ const ObservabilityOverview = () => {
                                 </Typography.Text>
                             }
                         >
-                            <AreaChart {...defaultGraphProps} categories={["cost"]} />
+                            <AreaChart
+                                {...defaultGraphProps}
+                                colors={["slate"]}
+                                categories={["cost"]}
+                            />
                         </WidgetCard>
                     </Col>
                     <Col span={12}>
@@ -123,7 +134,11 @@ const ObservabilityOverview = () => {
                                 </Typography.Text>
                             }
                         >
-                            <AreaChart {...defaultGraphProps} categories={["total_tokens"]} />
+                            <AreaChart
+                                {...defaultGraphProps}
+                                colors={["slate"]}
+                                categories={["total_tokens"]}
+                            />
                         </WidgetCard>
                     </Col>
                 </Row>

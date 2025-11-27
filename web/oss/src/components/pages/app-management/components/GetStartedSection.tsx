@@ -1,7 +1,7 @@
 import {Dispatch, SetStateAction} from "react"
 
-import {Code, Info, Rocket, TreeView} from "@phosphor-icons/react"
-import {Card, Tooltip, Typography} from "antd"
+import {Code, Rocket, TreeView} from "@phosphor-icons/react"
+import {Typography} from "antd"
 import {createUseStyles} from "react-jss"
 
 import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
@@ -16,40 +16,48 @@ interface GetStartedSectionProps {
 }
 
 const useStyles = createUseStyles((theme: JSSTheme) => ({
-    getStartedCard: {
-        width: 226,
+    container: {
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+        gap: 16,
+    },
+    card: {
+        border: `1px solid ${theme.colorBorderSecondary}`,
+        borderRadius: theme.borderRadiusLG,
+        padding: 24,
         cursor: "pointer",
-        transition: "all 0.025s ease-in",
-        "& .ant-card-head": {
-            padding: 12,
-            borderBottom: "none",
-            minHeight: "auto",
-            marginBottom: "auto",
-            color: "inherit",
-            "& .ant-card-head-title": {
-                display: "flex",
-            },
-        },
-        "& .ant-card-body": {
-            padding: 12,
-            "& span.ant-typography": {
-                textOverflow: "ellipsis",
-                fontSize: theme.fontSizeLG,
-                fontWeight: theme.fontWeightMedium,
-                lineHeight: theme.lineHeightLG,
-                color: "inherit",
-            },
-        },
+        transition: "all 0.2s ease",
+        backgroundColor: theme.colorBgContainer,
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        height: "100%",
         "&:hover": {
+            borderColor: theme.colorPrimary,
+            transform: "translateY(-2px)",
             boxShadow: theme.boxShadowTertiary,
         },
-        "&:first-of-type": {
-            backgroundColor: theme.colorPrimary,
-            color: `${theme.colorWhite} !important`,
-            "&:hover": {
-                backgroundColor: theme.colorPrimaryHover,
-            },
-        },
+    },
+    iconWrapper: {
+        width: 48,
+        height: 48,
+        borderRadius: 12,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: theme.controlItemBgActive,
+        color: theme.colorPrimary,
+        fontSize: 24,
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: 600,
+        color: theme.colorText,
+    },
+    cardDesc: {
+        fontSize: 14,
+        color: theme.colorTextSecondary,
+        lineHeight: 1.5,
     },
 }))
 
@@ -66,53 +74,62 @@ const GetStartedSection = ({
     const classes = useStyles()
 
     return (
-        <div className="my-6 flex flex-col gap-4">
-            <Title level={2}>Get Started</Title>
+        <div className="my-8 flex flex-col gap-6">
+            <Title level={3} className="!m-0">Get Started</Title>
 
-            <div className="flex gap-4">
-                <Card
-                    title={<Rocket size={24} />}
-                    className={classes.getStartedCard}
+            <div className={classes.container}>
+                <div
+                    className={classes.card}
                     onClick={() => {
                         setIsAddAppFromTemplatedModal(true)
                     }}
                 >
-                    <div className="flex items-center justify-between">
-                        <Text>Create New Prompt</Text>
-
-                        <Tooltip title="Create new prompt and edit it in the playground">
-                            <Info size={16} />
-                        </Tooltip>
+                    <div className={classes.iconWrapper}>
+                        <Rocket />
                     </div>
-                </Card>
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <div className={classes.cardTitle}>Create New Prompt</div>
+                        </div>
+                        <div className={classes.cardDesc}>
+                            Create new prompt and edit it in the playground
+                        </div>
+                    </div>
+                </div>
 
-                <Card
-                    title={<TreeView size={24} />}
-                    className={classes.getStartedCard}
+                <div
+                    className={classes.card}
                     onClick={() => setIsSetupTracingModal(true)}
                 >
-                    <div className="flex items-center justify-between">
-                        <Text>Set Up Tracing</Text>
-
-                        <Tooltip title="Start instrumenting your LLM application">
-                            <Info size={16} />
-                        </Tooltip>
+                    <div className={classes.iconWrapper}>
+                        <TreeView />
                     </div>
-                </Card>
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <div className={classes.cardTitle}>Set Up Tracing</div>
+                        </div>
+                        <div className={classes.cardDesc}>
+                            Start instrumenting your LLM application
+                        </div>
+                    </div>
+                </div>
 
-                <Card
-                    title={<Code size={24} />}
-                    className={classes.getStartedCard}
+                <div
+                    className={classes.card}
                     onClick={() => setIsWriteOwnAppModal(true)}
                 >
-                    <div className="flex items-center justify-between">
-                        <Text>Create Custom Workflow</Text>
-
-                        <Tooltip title="Create a playground for your custom workflows (RAG, agents..)">
-                            <Info size={16} />
-                        </Tooltip>
+                    <div className={classes.iconWrapper}>
+                        <Code />
                     </div>
-                </Card>
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <div className={classes.cardTitle}>Create Custom Workflow</div>
+                        </div>
+                        <div className={classes.cardDesc}>
+                            Create a playground for your custom workflows
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     )
