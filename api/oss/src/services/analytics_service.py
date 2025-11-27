@@ -6,6 +6,7 @@ from typing import Callable, Optional
 import posthog
 from fastapi import Request
 from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.common import is_oss
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -106,6 +107,27 @@ async def _set_activation_property(
 
     except Exception as e:
         log.error(f"Error setting activation property '{property_name}': {e}")
+
+
+def capture_oss_deployment_created(user_email: str, organization_id: str):
+    """
+    Captures the 'oss_deployment_created' event in PostHog.
+    This event is triggered when the first user signs up in an OSS instance.
+    """
+
+    if is_oss() and env.POSTHOG_API_KEY:
+        try:
+            posthog.capture(
+                distinct_id=user_email,
+                event="oss_deployment_created",
+                properties={
+                    "organization_id": organization_id,
+                    "deployment_type": "oss",
+                },
+            )
+            log.info(f"Captured 'oss_deployment_created' event for {user_email}")
+        except Exception as e:
+            log.error(f"Error capturing 'oss_deployment_created' event: {e}")
 
 
 async def analytics_middleware(request: Request, call_next: Callable):
