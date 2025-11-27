@@ -9,7 +9,7 @@ import {renderScenarioChatMessages} from "../../utils/chatMessages"
 
 import InvocationTraceSummary from "./InvocationTraceSummary"
 
-const CONTAINER_CLASS = "scenario-table-cell min-h-[96px] gap-2"
+const CONTAINER_CLASS = "scenario-table-cell min-h-[96px] h-full gap-2"
 
 const resolveColumnWidth = (column: EvaluationTableColumn): number => {
     if (typeof column.width === "number") return column.width

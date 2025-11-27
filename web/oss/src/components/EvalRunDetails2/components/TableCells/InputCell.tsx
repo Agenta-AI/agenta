@@ -26,18 +26,6 @@ const normalizeValue = (value: unknown): string => {
 
 const CONTAINER_CLASS = "scenario-table-cell min-h-[96px]"
 
-const resolveColumnWidth = (column: EvaluationTableColumn): number => {
-    if (typeof column.width === "number") return column.width
-    if (typeof column.minWidth === "number") return column.minWidth
-    if (column.stepType === "invocation" || column.stepType === "output") {
-        return COLUMN_WIDTHS.response
-    }
-    if (column.stepType === "annotation" || column.stepType === "metric") {
-        return COLUMN_WIDTHS.metric
-    }
-    return COLUMN_WIDTHS.input
-}
-
 const PreviewEvaluationInputCell = ({
     scenarioId,
     runId,
