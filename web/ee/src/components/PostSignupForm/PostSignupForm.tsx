@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Checkbox, Form, Input, Radio, Space, Spin, Typography} from "antd"
+import {Button, Checkbox, Form, Input, Radio, Rate, Space, Spin, Typography} from "antd"
 import Image from "next/image"
 import {useRouter} from "next/router"
 import {MultipleSurveyQuestion, SurveyQuestion, SurveyQuestionType} from "posthog-js"
@@ -333,6 +333,56 @@ const PostSignupForm = () => {
                                 </Radio>
                             ))}
                         </Radio.Group>
+                    </Form.Item>
+                </div>
+            )
+        }
+
+        if (!choices.length) {
+            if (question.type === SurveyQuestionType.Open) {
+                return (
+                    <div key={question.id}>
+                        <Form.Item
+                            name={fieldName}
+                            className={classes.formItem}
+                            label={question.question}
+                            rules={[{required: true, message: "Please enter a response"}]}
+                        >
+                            <Input.TextArea rows={3} placeholder="Type here" />
+                        </Form.Item>
+                    </div>
+                )
+            }
+
+            if (question.type === SurveyQuestionType.Rating) {
+                const ratingMax =
+                    (question as {scaleMax?: number; scale_max?: number}).scaleMax ??
+                    (question as {scaleMax?: number; scale_max?: number}).scale_max ??
+                    5
+
+                return (
+                    <div key={question.id}>
+                        <Form.Item
+                            name={fieldName}
+                            className={classes.formItem}
+                            label={question.question}
+                            rules={[{required: true, message: "Please provide a rating"}]}
+                        >
+                            <Rate count={ratingMax} />
+                        </Form.Item>
+                    </div>
+                )
+            }
+
+            return (
+                <div key={question.id}>
+                    <Form.Item
+                        name={fieldName}
+                        className={classes.formItem}
+                        label={question.question}
+                        rules={[{required: true, message: "Please provide a response"}]}
+                    >
+                        <Input placeholder="Type here" />
                     </Form.Item>
                 </div>
             )
