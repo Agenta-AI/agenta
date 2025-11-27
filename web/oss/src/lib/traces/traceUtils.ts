@@ -25,6 +25,10 @@ export function resolvePath(obj: any, path: string): any {
     const parts = path.split(".")
     let current: any = obj
     for (let i = 0; i < parts.length && current !== undefined; i++) {
+        // Guard: 'in' operator only works on objects, not primitives
+        if (current === null || typeof current !== "object") {
+            return undefined
+        }
         const key = parts[i]
         if (key in current) {
             current = current[key]

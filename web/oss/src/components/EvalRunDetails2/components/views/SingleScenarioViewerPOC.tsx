@@ -30,11 +30,8 @@ const Annotate = dynamic(
         ),
     {ssr: false},
 )
-const GenerationResultUtils = dynamic(
-    () =>
-        import(
-            "@agenta/oss/src/components/Playground/Components/PlaygroundGenerations/assets/GenerationResultUtils"
-        ),
+const SharedGenerationResultUtils = dynamic(
+    () => import("@agenta/oss/src/components/SharedGenerationResultUtils"),
     {ssr: false},
 )
 
@@ -409,14 +406,58 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         return {nodes: [candidate]}
     }
 
-    const buildGenerationResult = (step: any) => {
+    const getTraceIdForStep = (step: any) => {
+        const directCandidates = [
+            step?.traceId,
+            step?.trace_id,
+            step?.trace?.trace_id,
+            step?.trace?.id,
+            step?.traceData?.trace_id,
+            step?.trace_data?.trace_id,
+            step?.data?.trace_id,
+            step?.data?.trace?.id,
+            step?.data?.trace_id,
+            step?.response?.trace_id,
+            step?.result?.trace_id,
+            step?.result?.response?.trace_id,
+            invocationTrace?.tree?.id,
+        ].filter(Boolean)
+
+        if (directCandidates.length) {
+            return String(directCandidates[0])
+        }
+
         const tree = getTraceTree(step)
         if (!tree) return null
-        return {
-            response: {
-                tree,
-            },
-        }
+
+        const treeId =
+            tree?.tree?.id ??
+            (typeof tree?.tree === "string" ? tree.tree : null) ??
+            (tree as any)?.id ??
+            null
+        if (treeId) return String(treeId)
+
+        const firstNode = (() => {
+            if (Array.isArray((tree as any).nodes)) {
+                return (tree as any).nodes[0]
+            }
+            const nodeValues = Object.values((tree as any).nodes ?? {})
+            if (nodeValues.length) {
+                const candidate = nodeValues[0] as any
+                if (Array.isArray(candidate)) return candidate[0]
+                return candidate
+            }
+            return null
+        })()
+
+        const nodeTraceId =
+            firstNode?.trace_id ??
+            firstNode?.traceId ??
+            firstNode?.node?.trace_id ??
+            firstNode?.node?.id ??
+            null
+
+        return nodeTraceId ? String(nodeTraceId) : null
     }
 
     const renderStepContent = (step: any, includeTraceUtils = false) => {
@@ -465,7 +506,10 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                 {inputs ? renderBlock("Inputs", inputs) : null}
                 {outputs ? renderBlock("Outputs", outputs) : null}
                 {includeTraceUtils && tree ? (
-                    <GenerationResultUtils className="!mt-1" result={buildGenerationResult(step)} />
+                    <SharedGenerationResultUtils
+                        className="!mt-1"
+                        traceId={getTraceIdForStep(step)}
+                    />
                 ) : null}
                 {!inputs && !outputs ? (
                     <Typography.Text type="secondary">No content</Typography.Text>
@@ -717,14 +761,14 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                                         ))}
                                         {invocationSteps.length
                                             ? (() => {
-                                                  const result = buildGenerationResult(
+                                                  const traceId = getTraceIdForStep(
                                                       invocationSteps[0],
                                                   )
-                                                  if (!result) return null
+                                                  if (!traceId) return null
                                                   return (
-                                                      <GenerationResultUtils
+                                                      <SharedGenerationResultUtils
                                                           className="!mt-1"
-                                                          result={result}
+                                                          traceId={traceId}
                                                       />
                                                   )
                                               })()
