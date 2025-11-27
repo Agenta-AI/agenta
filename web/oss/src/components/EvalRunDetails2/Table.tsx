@@ -21,7 +21,6 @@ import {
 } from "./evaluationPreviewTableStore"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
-import usePrimeScenarioHydration from "./hooks/usePrimeScenarioHydration"
 import useResizablePreviewColumns from "./hooks/useResizablePreviewColumns"
 import {openFocusDrawerAtom, setFocusDrawerTargetAtom} from "./state/focusDrawerAtom"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
@@ -168,8 +167,6 @@ const EvalRunDetailsTable = ({
 
         return result
     }, [basePagination.rows, compareSlots, compareRowsBySlot])
-
-    // usePrimeScenarioHydration(mergedRows)
 
     const handleRowClick = useCallback(
         (record: TableRowData) => {
