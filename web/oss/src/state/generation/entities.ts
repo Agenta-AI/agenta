@@ -179,6 +179,12 @@ function messageHasContent(node: any): boolean {
                 part?.imageUrl?.url?.value ??
                 part?.imageUrl?.url
             if (typeof url === "string" && url.trim().length > 0) return true
+            const fileId =
+                part?.file?.file_id?.value ??
+                part?.file?.file_id ??
+                part?.file_id?.value ??
+                part?.file_id
+            if (typeof fileId === "string" && fileId.trim().length > 0) return true
             return false
         })
     }
