@@ -32,16 +32,30 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            gap: 16,
-            padding: 24,
+            padding: 0,
             height: "100%",
-            justifyContent: "center"
+            width: "100%"
         }
+    },
+    iconContainer: {
+        height: "50%",
+        width: "100%",
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+        paddingBottom: 24,
+    },
+    textContainer: {
+        height: "50%",
+        width: "100%",
+        padding: "12px 24px",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
     },
     icon: {
         fontSize: 48,
         color: theme.colorText,
-        marginBottom: 8
     },
     cardTitle: {
         fontSize: 18,
@@ -191,11 +205,13 @@ export const OnboardingScreen = () => {
                         className={classes.card}
                         onClick={() => handleSelection("trace")}
                     >
-                        <TreeView className={classes.icon} />
-                        <div>
-                            <div className={classes.cardTitle}>Trace an Application</div>
+                        <div className={classes.iconContainer}>
+                            <TreeView className={classes.icon} />
+                        </div>
+                        <div className={classes.textContainer}>
+                            <div className={classes.cardTitle}>Trace your application</div>
                             <div className={classes.cardDesc}>
-                                Analyze and debug applications using traces.
+                                Monitor and debug your application.
                             </div>
                         </div>
                     </Card>
@@ -204,11 +220,13 @@ export const OnboardingScreen = () => {
                         className={classes.card}
                         onClick={() => handleSelection("test_prompt")}
                     >
-                        <Rocket className={classes.icon} />
-                        <div>
-                            <div className={classes.cardTitle}>Create prompt in the playground</div>
+                        <div className={classes.iconContainer}>
+                            <Rocket className={classes.icon} />
+                        </div>
+                        <div className={classes.textContainer}>
+                            <div className={classes.cardTitle}>Create and test prompts</div>
                             <div className={classes.cardDesc}>
-                                Iterate and test on prompts across any model or provider.
+                                Manage and test prompts across models
                             </div>
                         </div>
                     </Card>
@@ -217,11 +235,13 @@ export const OnboardingScreen = () => {
                         className={classes.card}
                         onClick={() => handleSelection("eval")}
                     >
-                        <Code className={classes.icon} />
-                        <div>
+                        <div className={classes.iconContainer}>
+                            <Code className={classes.icon} />
+                        </div>
+                        <div className={classes.textContainer}>
                             <div className={classes.cardTitle}>Run an evaluation from SDK</div>
                             <div className={classes.cardDesc}>
-                                Measure app performance: identify failures, compare changes, ensure reliability.
+                                Evaluate complex AI apps to compare changes and ensure they are reliable.
                             </div>
                         </div>
                     </Card>

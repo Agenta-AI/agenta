@@ -75,7 +75,7 @@ export const RunEvaluationView = () => {
             <Space direction="vertical">
                 <Title level={3}>Run an evaluation from SDK</Title>
                 <Text>
-                    Measure app performance: identify failures, compare changes, ensure reliability.
+                    Evaluate complex AI apps to compare changes and ensure they are reliable.
                 </Text>
             </Space>
 
