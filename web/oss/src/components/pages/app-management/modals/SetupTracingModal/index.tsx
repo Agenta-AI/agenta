@@ -1,7 +1,7 @@
 import {MouseEvent, useMemo, useState} from "react"
 
 import {CloseOutlined, PythonOutlined} from "@ant-design/icons"
-import {CodeBlock, FileTs, Play} from "@phosphor-icons/react"
+import {Book, CodeBlock, FileTs, Play} from "@phosphor-icons/react"
 import {Button, ModalProps, Space, Tabs, TabsProps, Typography} from "antd"
 import dynamic from "next/dynamic"
 
@@ -128,12 +128,30 @@ export const SetupTracingModalContent = ({
                 </div>
             )}
             <div className={classes.modalBody}>
-                <Space direction="vertical">
-                    <Title>Tracing</Title>
+                <div className="flex flex-col gap-1 mb-8">
+                    <div className="flex justify-between items-center">
+                        <Title style={{margin: 0}}>Setup Tracing</Title>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                icon={<Play size={16} />}
+                                href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
+                                target="_blank"
+                            >
+                                Run in Colab
+                            </Button>
+                            <Button
+                                icon={<Book size={16} />}
+                                href="https://agenta.ai/docs/observability/quickstart-python"
+                                target="_blank"
+                            >
+                                Read the Docs
+                            </Button>
+                        </div>
+                    </div>
                     <Text>
                         Debug effectively, bootstrap testsets, monitor and compare app versions
                     </Text>
-                </Space>
+                </div>
                 <Tabs defaultActiveKey="openai" items={items} className={classes.tabs} />
             </div>
         </div>
