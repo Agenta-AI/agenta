@@ -11,6 +11,8 @@ import {isDemo} from "@/oss/lib/helpers/utils"
 import {generateCodeBlocks} from "./assets/generateCodeBlocks"
 import {useStyles} from "./assets/styles"
 
+export {useStyles}
+
 const TracingTabContent = dynamic(
     () => import("./components/TracingTabContent").then((m) => m.TracingTabContent),
     {
@@ -20,11 +22,13 @@ const TracingTabContent = dynamic(
 
 const {Text, Title} = Typography
 
-const SetupTracingModalContent = ({
+export const SetupTracingModalContent = ({
     classes,
+    isModal = true,
     ...props
 }: {
     classes: any
+    isModal?: boolean
     onCancel: ModalProps["onCancel"]
 }) => {
     const [apiKeyValue, setApiKeyValue] = useState("")
@@ -106,21 +110,23 @@ const SetupTracingModalContent = ({
 
     return (
         <div className="h-full flex flex-col">
-            <div className={classes.modalHeader}>
-                <Button
-                    onClick={() => props.onCancel?.({} as any)}
-                    type="text"
-                    icon={<CloseOutlined />}
-                />
-                <Text>Set up tracing</Text>
-                <Button
-                    target="_blank"
-                    href="https://agenta.ai/docs/observability/observability-sdk"
-                >
-                    <Play />
-                    Tutorial
-                </Button>
-            </div>
+            {isModal && (
+                <div className={classes.modalHeader}>
+                    <Button
+                        onClick={() => props.onCancel?.({} as any)}
+                        type="text"
+                        icon={<CloseOutlined />}
+                    />
+                    <Text>Set up tracing</Text>
+                    <Button
+                        target="_blank"
+                        href="https://agenta.ai/docs/observability/observability-sdk"
+                    >
+                        <Play />
+                        Tutorial
+                    </Button>
+                </div>
+            )}
             <div className={classes.modalBody}>
                 <Space direction="vertical">
                     <Title>Tracing</Title>

@@ -16,6 +16,7 @@ import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postL
 
 import {useStyles} from "./assets/styles"
 import {FormDataType} from "./assets/types"
+import {OnboardingScreen} from "./OnboardingScreen"
 
 // Fisher-Yates shuffle algorithm
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -68,6 +69,7 @@ const PostSignupForm = () => {
     const formData = Form.useWatch([], form)
     const [stepOneFormData, setStepOneFormData] = useState<any>({} as any)
     const [currentStep, setCurrentStep] = useState(0)
+    const [showOnboarding, setShowOnboarding] = useState(false)
     const {survey, loading, error} = useSurvey("Signup 2")
     const {baseAppURL} = useURL()
     const [autoRedirectAttempted, setAutoRedirectAttempted] = useState(false)
@@ -207,7 +209,7 @@ const PostSignupForm = () => {
             } catch (error) {
                 console.error("Error submitting form:", error)
             } finally {
-                await navigateToPostSignupDestination()
+                setShowOnboarding(true)
             }
         },
         [
@@ -464,9 +466,13 @@ const PostSignupForm = () => {
                 />
             </section>
 
-            <Spin spinning={isSurveyLoading}>
-                {showSurveyForm ? steps[currentStep]?.content : null}
-            </Spin>
+            {showOnboarding ? (
+                <OnboardingScreen />
+            ) : (
+                <Spin spinning={isSurveyLoading}>
+                    {showSurveyForm ? steps[currentStep]?.content : null}
+                </Spin>
+            )}
         </>
     )
 }

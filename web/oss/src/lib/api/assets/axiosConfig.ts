@@ -53,6 +53,20 @@ axios.interceptors.request.use(async (config) => {
     const projectId = store.get(projectIdAtom)
 
     if (!jwt || !user || !projectId) {
+        // Check if project_id is explicitly provided in params or URL
+        const hasExplicitProjectId =
+            config.params?.["project_id"] ||
+            config.url?.includes("?project_id=") ||
+            config.url?.includes("&project_id=")
+
+        if (hasExplicitProjectId) {
+            // If explicit project_id is present, we still need to add the JWT header
+            if (jwt) {
+                config.headers.set("Authorization", `Bearer ${jwt}`)
+            }
+            return config
+        }
+
         const controller = new AbortController()
         const configuredUri = axios.getUri(config)
         if (!ENDPOINTS_PROJECT_ID_WHITELIST.some((endpoint) => configuredUri.includes(endpoint))) {
