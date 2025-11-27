@@ -25,7 +25,6 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
         [selectedOrg],
     )
 
-
     const handleGenerateApiKey = async () => {
         try {
             setIsLoadingApiKey(true)
@@ -52,7 +51,12 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
                         const projects = await fetchAllProjects()
                         if (projects.length > 0) {
                             // Find a project that belongs to this workspace
-                            const project = projects.find(p => p.workspace_id === finalWorkspaceId || p.organization_id === finalWorkspaceId) || projects[0]
+                            const project =
+                                projects.find(
+                                    (p) =>
+                                        p.workspace_id === finalWorkspaceId ||
+                                        p.organization_id === finalWorkspaceId,
+                                ) || projects[0]
                             projectId = project.project_id
                         }
                     } catch (e) {
