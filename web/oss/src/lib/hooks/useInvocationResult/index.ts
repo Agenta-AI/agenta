@@ -25,17 +25,17 @@ export function useInvocationResult({
     viewType = "single",
 }: UseInvocationResultArgs): UseInvocationResult {
     // Use provided runId or fallback to current run context (memoized to prevent infinite loops)
-    const contextRunId = useRunId()
+    // const contextRunId = useRunId()
     const runId = useMemo(() => {
         if (maybeRunId) return maybeRunId
-        if (contextRunId) return contextRunId
+        // if (contextRunId) return contextRunId
         try {
             return getCurrentRunId()
         } catch (error) {
             console.warn("[useInvocationResult] No run ID available:", error)
             return null
         }
-    }, [maybeRunId, contextRunId])
+    }, [maybeRunId])
 
     const evalType = useAtomValue(evalTypeAtom)
     const projectId = useAtomValue(projectIdAtom)

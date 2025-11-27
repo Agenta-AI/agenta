@@ -8,7 +8,6 @@ import {useRouter} from "next/router"
 
 import TooltipWithCopyAction from "@/oss/components/TooltipWithCopyAction"
 import UserAvatarTag from "@/oss/components/ui/UserAvatarTag"
-import {EnrichedEvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 import {urlStateAtom} from "../../state/urlState"
 
@@ -22,6 +21,8 @@ import {
     normalizeId,
     prettifyVariantLabel,
 } from "./variantUtils"
+
+import {EnrichedEvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 interface EvalNameTagProps extends TagProps {
     run: EnrichedEvaluationRun

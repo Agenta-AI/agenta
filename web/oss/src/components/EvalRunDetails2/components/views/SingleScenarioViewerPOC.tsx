@@ -8,7 +8,6 @@ import {useRouter} from "next/router"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 import {getInitialMetricsFromAnnotations} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
-import {useRunId} from "@/oss/contexts/RunIdContext"
 import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
 
 import {scenarioAnnotationsQueryAtomFamily} from "../../atoms/annotations"
@@ -97,7 +96,7 @@ export const classifyStep = (step: any): "input" | "invocation" | "annotation" |
 }
 
 const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
-    const effectiveRunId = useRunId() || runId
+    const effectiveRunId = runId
     const {rows, paginationInfo, loadNextPage} = useInfiniteTablePagination({
         store: evaluationPreviewTableStore,
         scopeId: effectiveRunId,

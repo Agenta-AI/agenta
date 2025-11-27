@@ -1,5 +1,4 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
-import type {ReactNode} from "react"
 
 import {FolderOpenOutlined, FileOutlined} from "@ant-design/icons"
 import {ArrowCounterClockwise} from "@phosphor-icons/react"
@@ -162,7 +161,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
             })
 
         return mapNodes(columnTree)
-    }, [columnTree, defaultNodeMeta, resolveNodeMeta])
+    }, [columnTree, defaultNodeMeta, resolvedNodeMetaMap])
 
     const filterTreeData = useCallback(
         (nodes: VisibilityTreeNode[], query: string): VisibilityTreeNode[] =>

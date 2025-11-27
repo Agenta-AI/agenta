@@ -20,12 +20,7 @@ import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import StepGroupHeader from "../components/TableHeaders/StepGroupHeader"
 import {buildPreviewColumns, SkeletonRenderContext} from "../utils/buildPreviewColumns"
 import {buildSkeletonColumnResult} from "../utils/buildSkeletonColumns"
-import {
-    formatReferenceLabel,
-    humanizeIdentifier,
-    humanizeStepKey,
-    titleize,
-} from "../utils/labelHelpers"
+import {humanizeStepKey, resolveGroupLabel, titleize} from "../utils/labelHelpers"
 
 type TableRowData = PreviewTableRow
 
@@ -329,7 +324,15 @@ const usePreviewColumns = ({
                 {type: "fallback", fallback},
             )
         },
-        [visibilityColumnMap, visibilityGroupMap, visibilityStaticMetricMap],
+        [
+            visibilityColumnMap,
+            visibilityGroupMap,
+            visibilityStaticMetricMap,
+            resolveGroupLabel,
+            humanizeStepKey,
+            normalizeMetricLabel,
+            titleize,
+        ],
     )
 
     const visibilityVersion = useMemo(
@@ -376,53 +379,6 @@ function normalizeMetricLabel(metricKey?: string | null) {
     const normalized = stripOutputsNamespace(metricKey) ?? metricKey
     if (!normalized) return undefined
     return humanizeMetricPath(normalized) || normalized
-}
-
-function resolveGroupLabel(group: EvaluationTableColumnGroup) {
-    const meta = group.meta ?? {}
-    const refs = (meta.refs ?? {}) as Record<string, any>
-    const stepRole = (meta.stepRole as string | undefined) ?? (group.kind as string | undefined)
-
-    if (stepRole === "input") {
-        const testsetName =
-            humanizeIdentifier(refs.testset?.name) ??
-            humanizeIdentifier(refs.testset?.slug) ??
-            formatReferenceLabel(refs.testset)
-        if (testsetName) {
-            return `Testset ${testsetName}`
-        }
-
-        const queryLabel =
-            formatReferenceLabel(refs.query) ?? formatReferenceLabel(refs.query_revision)
-        if (queryLabel) {
-            return `Query ${queryLabel}`
-        }
-    }
-
-    if (stepRole === "invocation") {
-        const applicationLabel =
-            humanizeIdentifier(refs.application?.name) ??
-            humanizeIdentifier(refs.application?.slug) ??
-            formatReferenceLabel(refs.application) ??
-            formatReferenceLabel(refs.agent) ??
-            formatReferenceLabel(refs.tool)
-        const variantLabel =
-            humanizeIdentifier(refs.application_variant?.name) ??
-            humanizeIdentifier(refs.variant?.name) ??
-            formatReferenceLabel(refs.application_variant) ??
-            formatReferenceLabel(refs.variant)
-
-        const revisionVersion =
-            refs.application_revision?.version ?? refs.application_revision?.revision ?? null
-
-        const parts = []
-        if (applicationLabel) parts.push(`Application ${applicationLabel}`)
-        if (variantLabel && variantLabel !== applicationLabel) parts.push(`Variant ${variantLabel}`)
-        if (revisionVersion) parts.push(`Rev ${revisionVersion}`)
-        if (parts.length) return parts.join(" · ")
-    }
-
-    return null
 }
 
 function VisibilityNodeTitle({

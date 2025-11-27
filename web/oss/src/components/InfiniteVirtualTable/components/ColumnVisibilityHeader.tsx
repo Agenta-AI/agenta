@@ -6,6 +6,7 @@ export type VisibilityRegistrationHandler = (columnKey: string, node: HTMLElemen
 
 interface ColumnVisibilityHeaderProps {
     columnKey: string
+    columnVisibilityLabel?: string
     children: ReactNode
 }
 

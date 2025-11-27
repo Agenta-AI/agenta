@@ -1,3 +1,5 @@
+import type {EvaluationTableColumnGroup} from "../atoms/table/types"
+
 export const titleize = (value: string) =>
     value
         .replace(/[_\-.]+/g, " ")
@@ -61,4 +63,51 @@ export const formatReferenceLabel = (
 
     const label = humanizeIdentifier(candidate)
     return label ?? fallback
+}
+
+export const resolveGroupLabel = (group: EvaluationTableColumnGroup): string | undefined => {
+    const meta = group.meta ?? {}
+    const refs = (meta.refs ?? {}) as Record<string, any>
+    const stepRole = (meta.stepRole as string | undefined) ?? (group.kind as string | undefined)
+
+    if (stepRole === "input") {
+        const testsetName =
+            humanizeIdentifier(refs.testset?.name) ??
+            humanizeIdentifier(refs.testset?.slug) ??
+            formatReferenceLabel(refs.testset)
+        if (testsetName) {
+            return `Testset ${testsetName}`
+        }
+
+        const queryLabel =
+            formatReferenceLabel(refs.query) ?? formatReferenceLabel(refs.query_revision)
+        if (queryLabel) {
+            return `Query ${queryLabel}`
+        }
+    }
+
+    if (stepRole === "invocation") {
+        const applicationLabel =
+            humanizeIdentifier(refs.application?.name) ??
+            humanizeIdentifier(refs.application?.slug) ??
+            formatReferenceLabel(refs.application) ??
+            formatReferenceLabel(refs.agent) ??
+            formatReferenceLabel(refs.tool)
+        const variantLabel =
+            humanizeIdentifier(refs.application_variant?.name) ??
+            humanizeIdentifier(refs.variant?.name) ??
+            formatReferenceLabel(refs.application_variant) ??
+            formatReferenceLabel(refs.variant)
+
+        const revisionVersion =
+            refs.application_revision?.version ?? refs.application_revision?.revision ?? null
+
+        const parts = []
+        if (applicationLabel) parts.push(`Application ${applicationLabel}`)
+        if (variantLabel && variantLabel !== applicationLabel) parts.push(`Variant ${variantLabel}`)
+        if (revisionVersion) parts.push(`Rev ${revisionVersion}`)
+        if (parts.length) return parts.join(" · ")
+    }
+
+    return group.label || humanizeStepKey(group.id, group.kind)
 }

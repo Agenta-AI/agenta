@@ -10,7 +10,6 @@ import {
     EVAL_BG_COLOR,
     EVAL_TAG_COLOR,
 } from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/utils"
-import RenameEvalButton from "@/oss/components/EvalRunDetails/HumanEvalRun/components/Modals/RenameEvalModal/assets/RenameEvalButton"
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import {
     ApplicationReferenceLabel,
@@ -18,7 +17,6 @@ import {
     VariantReferenceLabel,
 } from "@/oss/components/References"
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
-import {RunIdProvider} from "@/oss/contexts/RunIdContext"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 import {projectIdAtom, useProjectData} from "@/oss/state/project"
 
@@ -178,21 +176,9 @@ const MetadataRunNameCell = memo(({runId, compareIndex}: MetadataCellProps) => {
     }
     const color = EVAL_TAG_COLOR?.[compareIndex + 1]
     return (
-        <RunIdProvider runId={runId}>
-            <div className="group flex items-center justify-between gap-2 w-full">
-                <EvalNameTag run={runData} color={color} />
-                <span className="opacity-0 transition-opacity group-hover:opacity-100">
-                    <RenameEvalButton
-                        id={runId}
-                        runId={runId}
-                        name={runData?.name ?? undefined}
-                        description={(runData as any)?.description ?? undefined}
-                        type="text"
-                        size="small"
-                    />
-                </span>
-            </div>
-        </RunIdProvider>
+        <div className="group flex items-center justify-between gap-2 w-full">
+            <EvalNameTag run={runData} color={color} />
+        </div>
     )
 })
 

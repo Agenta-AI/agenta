@@ -46,7 +46,6 @@ const PreviewEvaluationInputCell = ({
     const {ref, selection, showSkeleton} = useScenarioCellValue({scenarioId, runId, column})
     const {value} = selection
 
-    const width = resolveColumnWidth(column)
     const widthStyle = {width: "100%"}
     const chatNodes = useMemo(
         () =>

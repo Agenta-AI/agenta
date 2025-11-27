@@ -16,6 +16,7 @@ import PreviewEvaluationInputCell from "../components/TableCells/InputCell"
 import PreviewEvaluationInvocationCell from "../components/TableCells/InvocationCell"
 import PreviewEvaluationMetricCell from "../components/TableCells/MetricCell"
 import StepGroupHeader from "../components/TableHeaders/StepGroupHeader"
+import {humanizeStepKey, resolveGroupLabel} from "./labelHelpers"
 import {COLUMN_WIDTHS} from "../constants/table"
 
 const TITLEIZE = (value: string) =>
@@ -157,6 +158,7 @@ const createStaticMetricColumns = <RowType,>(
             return {
                 key: `${groupId}::${metric.path}`,
                 title: wrapHeader(pseudoColumn.id, titleNode ?? headerLabel ?? pseudoColumn.id),
+                columnVisibilityLabel: headerLabel ?? pseudoColumn.id,
                 width: metricColumnWidth,
                 minWidth: metricColumnWidth,
                 ellipsis: true,
@@ -186,6 +188,7 @@ const createStaticMetricColumns = <RowType,>(
                 titleNode ?? headerLabel ?? pseudoColumn.id,
                 headerLabel ?? pseudoColumn.id,
             ),
+            columnVisibilityLabel: headerLabel ?? pseudoColumn.id,
             width: metricColumnWidth,
             minWidth: metricColumnWidth,
             ellipsis: true,
@@ -307,6 +310,7 @@ export function buildPreviewColumns<RowType>({
                         titleNode ?? headerLabel ?? column.id,
                         headerLabel,
                     ),
+                    columnVisibilityLabel: headerLabel ?? column.id,
                     width,
                     minWidth: width,
                     fixed: column.sticky,
@@ -330,6 +334,7 @@ export function buildPreviewColumns<RowType>({
                         titleNode ?? headerLabel ?? column.id,
                         headerLabel,
                     ),
+                    columnVisibilityLabel: headerLabel ?? column.id,
                     width,
                     minWidth: width,
                     fixed: column.sticky,
@@ -385,6 +390,7 @@ export function buildPreviewColumns<RowType>({
         return {
             key: column.id,
             title: wrapHeader(column.id, titleNode ?? headerLabel ?? column.id, headerLabel),
+            columnVisibilityLabel: headerLabel ?? column.id,
             width,
             minWidth: width,
             ellipsis: true,
@@ -435,12 +441,16 @@ export function buildPreviewColumns<RowType>({
             return
         }
 
-        const groupLabel = group.label ?? ""
+        const resolvedGroupLabel =
+            resolveGroupLabel(group) ??
+            group.label ??
+            (group.kind ? humanizeStepKey(group.id, group.kind) : undefined) ??
+            group.id
         const titleNode =
             group.kind === "input" || group.kind === "invocation" ? (
-                <StepGroupHeader group={group} fallbackLabel={groupLabel} />
-            ) : groupLabel ? (
-                <Tooltip title={groupLabel} placement="top">
+                <StepGroupHeader group={group} fallbackLabel={resolvedGroupLabel} />
+            ) : resolvedGroupLabel ? (
+                <Tooltip title={resolvedGroupLabel} placement="top">
                     <span
                         style={{
                             display: "block",
@@ -451,7 +461,7 @@ export function buildPreviewColumns<RowType>({
                             textAlign: "left",
                         }}
                     >
-                        {groupLabel}
+                        {resolvedGroupLabel}
                     </span>
                 </Tooltip>
             ) : null
@@ -460,9 +470,10 @@ export function buildPreviewColumns<RowType>({
             key: group.id,
             title: wrapHeader(
                 group.id,
-                titleNode ?? groupLabel ?? group.id,
-                groupLabel ?? group.id,
+                titleNode ?? resolvedGroupLabel ?? group.id,
+                resolvedGroupLabel ?? group.id,
             ),
+            columnVisibilityLabel: resolvedGroupLabel ?? group.id,
             align: "left",
             children,
         })
@@ -479,6 +490,7 @@ export function buildPreviewColumns<RowType>({
         builtColumns.push({
             key: "__fallback__",
             title: wrapHeader("__fallback__", "Columns", "Columns"),
+            columnVisibilityLabel: "Columns",
         })
     }
 
