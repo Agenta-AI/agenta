@@ -130,7 +130,7 @@ const PreviewEvaluationInvocationCell = ({
     if (value === undefined || value === null) {
         return (
             <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                <span className="scenario-table-text scenario-table-placeholder">—</span>
+                <span className="scenario-table-text scenario-table-placeholder font-mono">—</span>
             </div>
         )
     }
@@ -152,7 +152,9 @@ const PreviewEvaluationInvocationCell = ({
 
     return (
         <div ref={ref} className={clsx(CONTAINER_CLASS, "!justify-between")} style={widthStyle}>
-            <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
+            <span className="scenario-table-text whitespace-pre-wrap font-mono">
+                {displayValue}
+            </span>
             <InvocationTraceSummary
                 scenarioId={scenarioId}
                 stepKey={column.stepKey}
