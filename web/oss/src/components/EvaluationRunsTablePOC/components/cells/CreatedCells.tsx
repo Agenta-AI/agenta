@@ -1,8 +1,11 @@
+import {memo} from "react"
+
 import {Typography} from "antd"
+
+import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 
 import {useRunRowSummary} from "../../context/RunRowDataContext"
 import type {EvaluationRunTableRow} from "../../types"
-import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 
 const formatDate = (value?: string | null) => {
     if (!value) return "—"
@@ -19,42 +22,40 @@ const formatDate = (value?: string | null) => {
     }
 }
 
-const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
+const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2 whitespace-nowrap"
 
 export const PreviewCreatedCellSkeleton = () => <SkeletonLine width="45%" />
 
-export const PreviewCreatedCell = ({
-    record,
-    isVisible = true,
-}: {
-    record: EvaluationRunTableRow
-    isVisible?: boolean
-}) => {
-    const {summary, isLoading} = useRunRowSummary(record, isVisible)
+export const PreviewCreatedCell = memo(
+    ({record, isVisible = true}: {record: EvaluationRunTableRow; isVisible?: boolean}) => {
+        const {summary, isLoading} = useRunRowSummary(record, isVisible)
 
-    if (record.__isSkeleton) {
+        if (record.__isSkeleton) {
+            return (
+                <div className={CELL_CLASS}>
+                    <PreviewCreatedCellSkeleton />
+                </div>
+            )
+        }
+
+        if (!isVisible) {
+            return null
+        }
+
+        if (isLoading) {
+            return (
+                <div className={CELL_CLASS}>
+                    <PreviewCreatedCellSkeleton />
+                </div>
+            )
+        }
+
         return (
             <div className={CELL_CLASS}>
-                <PreviewCreatedCellSkeleton />
+                <span className="text-ellipsis overflow-hidden">
+                    {formatDate(summary?.createdAt ?? record.createdAt)}
+                </span>
             </div>
         )
-    }
-
-    if (!isVisible) {
-        return null
-    }
-
-    if (isLoading) {
-        return (
-            <div className={CELL_CLASS}>
-                <PreviewCreatedCellSkeleton />
-            </div>
-        )
-    }
-
-    return (
-        <div className={CELL_CLASS}>
-            <Typography.Text>{formatDate(summary?.createdAt ?? record.createdAt)}</Typography.Text>
-        </div>
-    )
-}
+    },
+)

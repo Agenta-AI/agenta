@@ -1,4 +1,13 @@
-import {createInfiniteTableStore} from "@/oss/components/InfiniteVirtualTable"
+import type {Key} from "react"
+
+import {atom, useAtom} from "jotai"
+import {atomFamily} from "jotai/utils"
+
+import {
+    createInfiniteTableStore,
+    useInfiniteTablePagination,
+} from "@/oss/components/InfiniteVirtualTable"
+import type {InfiniteDatasetStore} from "@/oss/components/InfiniteVirtualTable/createInfiniteDatasetStore"
 
 import {effectiveProjectIdAtom} from "./atoms/run"
 import type {WindowingState, EvaluationScenarioRow} from "./atoms/table"
@@ -88,7 +97,7 @@ export const evaluationPreviewTableStore = createInfiniteTableStore<
             }
         }
 
-        const result = await fetchEvaluationScenarioWindow({
+        return fetchEvaluationScenarioWindow({
             projectId,
             runId: scopeId,
             cursor,
@@ -96,7 +105,63 @@ export const evaluationPreviewTableStore = createInfiniteTableStore<
             offset,
             windowing,
         })
-
-        return result
     },
 })
+
+// Lightweight dataset-style adapter so we can plug into InfiniteVirtualTableFeatureShell
+const rowSelectionAtomFamily = atomFamily(
+    ({scopeId}: {scopeId: string | null}) => atom<Key[]>([]),
+    (a, b) => a.scopeId === b.scopeId,
+)
+
+const useRowSelection = ({scopeId}: {scopeId: string | null}) =>
+    useAtom(rowSelectionAtomFamily({scopeId}))
+
+const usePagination = ({
+    scopeId,
+    pageSize,
+    resetOnScopeChange = true,
+}: {
+    scopeId: string | null
+    pageSize: number
+    resetOnScopeChange?: boolean
+}) =>
+    useInfiniteTablePagination<PreviewTableRow>({
+        store: evaluationPreviewTableStore,
+        scopeId,
+        pageSize,
+        resetOnScopeChange,
+    })
+
+export const evaluationPreviewDatasetStore: InfiniteDatasetStore<
+    PreviewTableRow,
+    EvaluationScenarioRow,
+    string | null
+> = {
+    store: evaluationPreviewTableStore,
+    config: {
+        key: "evaluation-preview-table",
+        metaAtom: effectiveProjectIdAtom,
+        createSkeletonRow,
+        mergeRow,
+        isEnabled: (meta) => Boolean(meta),
+        fetchPage: async () => ({
+            rows: [],
+            totalCount: 0,
+            hasMore: false,
+            nextOffset: null,
+            nextCursor: null,
+            nextWindowing: null,
+        }),
+    },
+    atoms: {
+        rowsAtom: (params) => evaluationPreviewTableStore.atoms.combinedRowsAtomFamily(params),
+        paginationAtom: (params) =>
+            evaluationPreviewTableStore.atoms.paginationInfoAtomFamily(params),
+        selectionAtom: (params) => rowSelectionAtomFamily(params),
+    },
+    hooks: {
+        usePagination,
+        useRowSelection,
+    },
+}

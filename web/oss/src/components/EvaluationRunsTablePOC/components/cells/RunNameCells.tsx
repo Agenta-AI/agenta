@@ -27,9 +27,9 @@ const PreviewRunNameCellContent = memo(({summary, runId}: {summary: any; runId: 
 
     return (
         <TooltipWithCopyAction title="Copy run ID" copyText={copyTarget}>
-            <Typography.Text className="font-medium text-primary cursor-copy">
+            <span className="font-medium text-primary cursor-copy whitespace-nowrap overflow-hidden text-ellipsis">
                 {displayName}
-            </Typography.Text>
+            </span>
         </TooltipWithCopyAction>
     )
 })

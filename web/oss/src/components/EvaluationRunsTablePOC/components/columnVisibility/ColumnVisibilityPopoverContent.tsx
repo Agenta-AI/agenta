@@ -4,7 +4,6 @@ import {Typography} from "antd"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import {
     type ColumnVisibilityState,
     type ColumnTreeNode,
@@ -18,6 +17,7 @@ import {
     type EvaluatorMetricGroupBlueprint,
 } from "@/oss/components/References/atoms/metricBlueprint"
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
+import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 
 import {evaluationRunsColumnVisibilityContextAtom} from "../../atoms/view"
 import type {EvaluationRunTableRow} from "../../types"

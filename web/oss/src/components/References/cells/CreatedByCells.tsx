@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {memo, useMemo} from "react"
 
 import {Typography} from "antd"
 import {useAtomValue} from "jotai"
@@ -18,7 +18,8 @@ const UserAvatarTag = dynamic(() => import("@/oss/components/ui/UserAvatarTag"),
     ssr: false,
 })
 
-const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
+const CELL_CLASS =
+    "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2 whitespace-nowrap overflow-hidden"
 
 export const PreviewCreatedByCellSkeleton = () => <SkeletonLine width="50%" />
 
@@ -134,8 +135,6 @@ const PreviewCreatedByCellContent = ({
                 (currentEmail && candidateNames.includes(currentEmail))),
     )
 
-    const resolvedLabel = createdBy ?? "—"
-
     if (!createdBy) {
         return <Typography.Text>—</Typography.Text>
     }
@@ -143,26 +142,22 @@ const PreviewCreatedByCellContent = ({
     return <UserAvatarTag modifiedBy={createdBy} isCurrentUser={isCurrentUser} />
 }
 
-export const PreviewCreatedByCell = ({
-    record,
-    isVisible = true,
-}: {
-    record: EvaluationRunTableRow
-    isVisible?: boolean
-}) => {
-    if (record.__isSkeleton) {
+export const PreviewCreatedByCell = memo(
+    ({record, isVisible = true}: {record: EvaluationRunTableRow; isVisible?: boolean}) => {
+        if (record.__isSkeleton) {
+            return (
+                <div className={CELL_CLASS}>
+                    <PreviewCreatedByCellSkeleton />
+                </div>
+            )
+        }
+
         return (
             <div className={CELL_CLASS}>
-                <PreviewCreatedByCellSkeleton />
+                <PreviewCreatedByCellContent record={record} isVisible={isVisible} />
             </div>
         )
-    }
-
-    return (
-        <div className={CELL_CLASS}>
-            <PreviewCreatedByCellContent record={record} isVisible={isVisible} />
-        </div>
-    )
-}
+    },
+)
 
 export default PreviewCreatedByCell

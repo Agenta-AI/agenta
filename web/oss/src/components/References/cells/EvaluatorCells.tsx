@@ -14,7 +14,8 @@ import {humanizeEvaluatorName} from "@/oss/lib/evaluations/utils/metrics"
 
 import useEvaluatorReference from "../hooks/useEvaluatorReference"
 
-const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
+const CELL_CLASS =
+    "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2 whitespace-nowrap overflow-hidden"
 
 export const PreviewEvaluatorCellSkeleton = () => <SkeletonLine width="60%" />
 
@@ -282,7 +283,7 @@ const PreviewEvaluatorCellContent = ({
         return <div className="not-available-table-cell" />
     }
 
-    return <Typography.Text>{displayLabel}</Typography.Text>
+    return <span className="whitespace-nowrap overflow-hidden text-ellipsis">{displayLabel}</span>
 }
 
 export const PreviewEvaluatorCell = ({

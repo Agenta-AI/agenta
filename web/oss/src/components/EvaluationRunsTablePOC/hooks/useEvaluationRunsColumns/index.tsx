@@ -96,7 +96,6 @@ const useEvaluationRunsColumns = ({
     const setEvaluatorBlueprint = useSetAtom(blueprintAtom)
     const stableRows = rows
 
-    console.log("evaluatorBlueprint", {evaluatorBlueprint})
     const previewRunEntries = useMemo(() => {
         return stableRows
             .filter((row) => !row.__isSkeleton && row.preview && row.previewMeta)
@@ -623,7 +622,7 @@ const useEvaluationRunsColumns = ({
         columnConfigs.push(...metricNodes)
 
         columnConfigs.push({
-            title: "Created on",
+            title: <span className="whitespace-nowrap">Created on</span>,
             key: "createdAt",
             width: 200,
             align: "left",
@@ -640,7 +639,7 @@ const useEvaluationRunsColumns = ({
         })
 
         columnConfigs.push({
-            title: "Created by",
+            title: <span className="whitespace-nowrap">Created by</span>,
             key: "createdBy",
             width: 200,
             align: "left",

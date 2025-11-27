@@ -54,13 +54,6 @@ const PreviewTestsetCellContent = ({
     )
 
     const primaryName = normalize(reference?.name)
-    //  ??
-    // (firstTestsetId ? normalize(testsetNames?.[firstTestsetId]) : null) ??
-    // normalize(slot?.values?.[0]?.label) ??
-    // normalize(slot?.values?.[0]?.slug) ??
-    // normalize(slot?.values?.[0]?.name) ??
-    // normalize(slot?.values?.[0]?.id)
-
     const label = primaryName ?? "—"
     if (summaryLoading || referenceLoading) {
         return <PreviewTestsetCellSkeleton />
@@ -73,8 +66,8 @@ const PreviewTestsetCellContent = ({
     }
 
     return (
-        <div className="flex flex-col items-start">
-            <Typography.Text>{label}</Typography.Text>
+        <div className="flex flex-col items-start overflow-hidden whitespace-nowrap">
+            <span className="w-full text-ellipsis overflow-hidden">{label}</span>
         </div>
     )
 }

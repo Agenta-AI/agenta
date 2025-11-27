@@ -1,25 +1,30 @@
 import {useCallback, useMemo} from "react"
 
-import type {ColumnsType} from "antd/es/table"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails2/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
 import {
-    InfiniteVirtualTable,
+    InfiniteVirtualTableFeatureShell,
+    type TableFeaturePagination,
+    type TableScopeConfig,
     useInfiniteTablePagination,
 } from "@/oss/components/InfiniteVirtualTable"
+import ScenarioColumnVisibilityPopoverContent from "@/oss/components/EvalRunDetails2/components/columnVisibility/ColumnVisibilityPopoverContent"
 
 import {MAX_COMPARISON_RUNS, compareRunIdsAtom, getComparisonColor} from "./atoms/compare"
 import {DEFAULT_SCENARIO_PAGE_SIZE} from "./atoms/table"
 import type {PreviewTableRow} from "./atoms/tableRows"
-import {evaluationPreviewTableStore} from "./evaluationPreviewTableStore"
+import {
+    evaluationPreviewDatasetStore,
+    evaluationPreviewTableStore,
+} from "./evaluationPreviewTableStore"
 import usePreviewColumns from "./hooks/usePreviewColumns"
 import usePreviewTableData from "./hooks/usePreviewTableData"
 import usePrimeScenarioHydration from "./hooks/usePrimeScenarioHydration"
 import useResizablePreviewColumns from "./hooks/useResizablePreviewColumns"
 import {openFocusDrawerAtom, setFocusDrawerTargetAtom} from "./state/focusDrawerAtom"
 import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
-import VirtualizedScenarioTableAnnotateDrawer from "@/oss/components/EvalRunDetails2/components/AnnotateDrawer/VirtualizedScenarioTableAnnotateDrawer"
 
 type TableRowData = PreviewTableRow
 
@@ -34,14 +39,14 @@ const EvalRunDetailsTable = ({
     runId,
     evaluationType,
     skeletonRowCount = DEFAULT_SCENARIO_PAGE_SIZE,
-    projectId = null,
+    projectId: _projectId = null,
 }: EvalRunDetailsTableProps) => {
     const pageSize = skeletonRowCount ?? 50
     const compareRunIds = useAtomValue(compareRunIdsAtom)
     const setFocusDrawerTarget = useSetAtom(setFocusDrawerTargetAtom)
     const openFocusDrawer = useSetAtom(openFocusDrawerAtom)
 
-    const {rows, loadNextPage} = useInfiniteTablePagination({
+    const basePagination = useInfiniteTablePagination({
         store: evaluationPreviewTableStore,
         scopeId: runId,
         pageSize,
@@ -72,7 +77,7 @@ const EvalRunDetailsTable = ({
 
     const mergedRows = useMemo(() => {
         if (!compareSlots.some(Boolean)) {
-            return rows.map((row) => ({
+            return basePagination.rows.map((row) => ({
                 ...row,
                 baseScenarioId: row.scenarioId ?? row.id,
                 compareIndex: 0,
@@ -80,7 +85,7 @@ const EvalRunDetailsTable = ({
             }))
         }
 
-        const baseRows = rows.map((row) => ({
+        const baseRows = basePagination.rows.map((row) => ({
             ...row,
             baseScenarioId: row.scenarioId ?? row.id,
             compareIndex: 0,
@@ -162,7 +167,7 @@ const EvalRunDetailsTable = ({
         })
 
         return result
-    }, [rows, compareSlots, compareRowsBySlot])
+    }, [basePagination.rows, compareSlots, compareRowsBySlot])
 
     usePrimeScenarioHydration(mergedRows)
 
@@ -176,7 +181,6 @@ const EvalRunDetailsTable = ({
 
             const focusTarget = {focusRunId: targetRunId, focusScenarioId: scenarioId}
             if (process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true") {
-                // eslint-disable-next-line no-console
                 console.info("[EvalRunDetails2][Table] row click", {focusTarget, record})
             }
 
@@ -188,23 +192,60 @@ const EvalRunDetailsTable = ({
     )
 
     const handleLoadMore = useCallback(() => {
-        loadNextPage()
+        basePagination.loadNextPage()
         comparePaginations.forEach((pagination, idx) => {
             if (!compareSlots[idx]) return
             pagination.loadNextPage()
         })
-    }, [loadNextPage, comparePaginations, compareSlots])
+    }, [basePagination, comparePaginations, compareSlots])
+
+    const handleResetPages = useCallback(() => {
+        basePagination.resetPages()
+        comparePaginations.forEach((pagination, idx) => {
+            if (!compareSlots[idx]) return
+            pagination.resetPages()
+        })
+    }, [basePagination, comparePaginations, compareSlots])
+
+    const tableScope = useMemo<TableScopeConfig>(
+        () => ({
+            scopeId: runId,
+            pageSize,
+            enableInfiniteScroll: true,
+            columnVisibilityStorageKey: runId ? `eval-run:${runId}:columns` : undefined,
+        }),
+        [pageSize, runId],
+    )
+
+    const paginationForShell = useMemo<TableFeaturePagination<TableRowData>>(
+        () => ({
+            rows: mergedRows,
+            loadNextPage: handleLoadMore,
+            resetPages: handleResetPages,
+        }),
+        [handleLoadMore, handleResetPages, mergedRows],
+    )
 
     return (
         <section className="bg-zinc-1 w-full h-full overflow-scroll flex flex-col px-4 pt-2">
             <div className="w-full grow min-h-0 overflow-scroll">
-                <InfiniteVirtualTable<TableRowData>
-                    columns={resizableColumns as ColumnsType<TableRowData>}
-                    dataSource={mergedRows}
+                <InfiniteVirtualTableFeatureShell<TableRowData>
+                    datasetStore={evaluationPreviewDatasetStore}
+                    tableScope={tableScope}
+                    columns={resizableColumns}
                     rowKey={(record) => record.key}
-                    loadMore={handleLoadMore}
-                    containerClassName="w-full h-full overflow-hidden"
                     tableClassName="agenta-scenario-table"
+                    resizableColumns={false}
+                    columnVisibilityMenuRenderer={(controls, close, {scopeId}) => (
+                        <ScenarioColumnVisibilityPopoverContent
+                            controls={controls}
+                            onClose={close}
+                            scopeId={scopeId}
+                            runId={runId}
+                            evaluationType={evaluationType}
+                        />
+                    )}
+                    pagination={paginationForShell}
                     tableProps={{
                         components,
                         rowClassName: (record) =>
@@ -216,7 +257,6 @@ const EvalRunDetailsTable = ({
                         virtual: true,
                         bordered: true,
                         tableLayout: "fixed",
-                        scroll: {x: "max-content"},
                         onRow: (record) => ({
                             onClick: (event) => {
                                 const target = event.target as HTMLElement | null

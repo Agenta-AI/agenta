@@ -36,8 +36,10 @@ const renderEllipsisTitle = (label?: string | null) => {
     )
 }
 
-const wrapHeader = (columnKey: string, content: React.ReactNode) => (
-    <ColumnVisibilityHeader columnKey={columnKey}>{content ?? columnKey}</ColumnVisibilityHeader>
+const wrapHeader = (columnKey: string, content: React.ReactNode, label?: string) => (
+    <ColumnVisibilityHeader columnKey={columnKey} columnVisibilityLabel={label}>
+        {content ?? columnKey}
+    </ColumnVisibilityHeader>
 )
 
 const STATUS_STYLE_MAP: Record<string, {dotClass: string; textClass: string}> = {
@@ -179,7 +181,11 @@ const createStaticMetricColumns = <RowType,>(
 
         return {
             key: `${groupId}::${metric.path}`,
-            title: wrapHeader(pseudoColumn.id, titleNode ?? headerLabel ?? pseudoColumn.id),
+            title: wrapHeader(
+                pseudoColumn.id,
+                titleNode ?? headerLabel ?? pseudoColumn.id,
+                headerLabel ?? pseudoColumn.id,
+            ),
             width: metricColumnWidth,
             minWidth: metricColumnWidth,
             ellipsis: true,
@@ -296,7 +302,11 @@ export function buildPreviewColumns<RowType>({
                 return {
                     key: column.id,
                     dataIndex: "scenarioIndex",
-                    title: wrapHeader(column.id, titleNode ?? headerLabel ?? column.id),
+                    title: wrapHeader(
+                        column.id,
+                        titleNode ?? headerLabel ?? column.id,
+                        headerLabel,
+                    ),
                     width,
                     minWidth: width,
                     fixed: column.sticky,
@@ -315,7 +325,11 @@ export function buildPreviewColumns<RowType>({
                 )
                 return {
                     key: column.id,
-                    title: wrapHeader(column.id, titleNode ?? headerLabel ?? column.id),
+                    title: wrapHeader(
+                        column.id,
+                        titleNode ?? headerLabel ?? column.id,
+                        headerLabel,
+                    ),
                     width,
                     minWidth: width,
                     fixed: column.sticky,
@@ -370,7 +384,7 @@ export function buildPreviewColumns<RowType>({
 
         return {
             key: column.id,
-            title: wrapHeader(column.id, titleNode ?? headerLabel ?? column.id),
+            title: wrapHeader(column.id, titleNode ?? headerLabel ?? column.id, headerLabel),
             width,
             minWidth: width,
             ellipsis: true,
@@ -444,7 +458,11 @@ export function buildPreviewColumns<RowType>({
 
         builtColumns.push({
             key: group.id,
-            title: titleNode,
+            title: wrapHeader(
+                group.id,
+                titleNode ?? groupLabel ?? group.id,
+                groupLabel ?? group.id,
+            ),
             align: "left",
             children,
         })
@@ -460,7 +478,7 @@ export function buildPreviewColumns<RowType>({
     if (builtColumns.length === 0) {
         builtColumns.push({
             key: "__fallback__",
-            title: wrapHeader("__fallback__", "Columns"),
+            title: wrapHeader("__fallback__", "Columns", "Columns"),
         })
     }
 

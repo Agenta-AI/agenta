@@ -26,7 +26,8 @@ import {
 
 export const PreviewAppCellSkeleton = () => <SkeletonLine width="55%" />
 
-const CELL_CLASS = "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2"
+const CELL_CLASS =
+    "flex h-full w-full min-w-0 flex-col justify-center gap-1 px-2 whitespace-nowrap overflow-hidden text-ellipsis"
 
 export const PreviewAppCell = ({
     record,
@@ -136,18 +137,20 @@ export const PreviewAppCell = ({
 
     return (
         <div className={CELL_CLASS}>
-            <Typography.Text>
+            <span className="whitespace-nowrap overflow-hidden text-ellipsis">
                 {contentLabel}
                 {/* {additionalCount > 0 ? ` (+${additionalCount})` : ""} */}
-            </Typography.Text>
+            </span>
             {variantIsLoading && shouldFetchVariant ? (
                 <PreviewVariantCellSkeleton />
             ) : hasVariantDetails ? (
-                <div className="application-variant-row">
-                    <span className="application-variant-label">{displayVariantName}</span>
-                    {resolvedRevision ? (
-                        <span className="application-variant-chip">{`v${resolvedRevision}`}</span>
-                    ) : null}
+                <div className="application-variant-row whitespace-nowrap overflow-hidden text-ellipsis">
+                    <span className="application-variant-label whitespace-nowrap overflow-hidden text-ellipsis">
+                        {displayVariantName}{" "}
+                        {resolvedRevision ? (
+                            <span className="application-variant-chip">{`v${resolvedRevision}`}</span>
+                        ) : null}
+                    </span>
                 </div>
             ) : null}
         </div>

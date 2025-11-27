@@ -416,7 +416,7 @@ const TestsetDrawer = ({
         [mappingData, selectedTestsetColumns, selectedTestsetRows, isNewTestset],
     )
 
-    const onSaveTestset = async () => {
+    const onSaveTestset = useCallback(async () => {
         try {
             setIsLoading(true)
 
@@ -435,16 +435,23 @@ const TestsetDrawer = ({
                 message.success("Testset updated successfully")
             }
 
-            mutate()
-            onClose()
-            setIsConfirmSave(false)
+            await mutate()
+            // onClose()
+            // setIsConfirmSave(false)
         } catch (error) {
             console.error(error)
             message.error("Something went wrong. Please try again later")
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [
+        mappingData,
+        selectedTestsetColumns,
+        newTestsetName,
+        selectedTestsetRows,
+        isNewTestset,
+        mutate,
+    ])
 
     const hasInvalidColumnMappings = useCallback(() => {
         const columnMappings = new Map<string, Set<string>>() // Map of column name to set of paths

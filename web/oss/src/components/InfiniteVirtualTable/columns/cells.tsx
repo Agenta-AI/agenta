@@ -154,7 +154,6 @@ const ColumnVisibilityAwareCell = memo(
         placeholder?: ReactNode | ((row: Row, index: number) => ReactNode)
         keepMounted?: boolean
     }) => {
-        console.log("ColumnVisibilityAwareCell")
         const isVisible = useColumnVisibilityFlag(columnKey)
         if (!keepMounted && !isVisible) {
             if (placeholder) {

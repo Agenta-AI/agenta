@@ -182,24 +182,24 @@ export const createMetricProcessor = ({
 
     const markRunLevelGap = (reason: string) => {
         state.runLevelFlags.push(reason)
-        console.info("[EvalRunDetails2] Metric processor run-level gap (debug mode)", {
-            projectId,
-            runId,
-            source,
-            reason,
-        })
+        // console.info("[EvalRunDetails2] Metric processor run-level gap (debug mode)", {
+        //     projectId,
+        //     runId,
+        //     source,
+        //     reason,
+        // })
     }
 
     const markScenarioGap = (scenarioId: string, reason: string) => {
         state.scenarioGaps.push({scenarioId, reason})
         state.scenarioIds.add(scenarioId)
-        console.info("[EvalRunDetails2] Metric processor scenario gap (debug mode)", {
-            projectId,
-            runId,
-            source,
-            scenarioId,
-            reason,
-        })
+        // console.info("[EvalRunDetails2] Metric processor scenario gap (debug mode)", {
+        //     projectId,
+        //     runId,
+        //     source,
+        //     scenarioId,
+        //     reason,
+        // })
     }
 
     const getPendingActions = () => {
