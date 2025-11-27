@@ -35,7 +35,6 @@ TABLES_WITH_PROJECT_ID_NULLABLE = [
     "human_evaluations",
     "human_evaluations_scenarios",
     "project_invitations",
-    "project_members",
     "testsets",
 ]
 
@@ -57,9 +56,7 @@ def upgrade() -> None:
             nullable=False,
         )
 
-    # 3) Fix missing CASCADE on project_invitations / project_members
-
-    # project_invitations.project_id -> projects.id ON DELETE CASCADE
+    # 3) Fix missing ON DELETE CASCADE on project_invitations
     op.drop_constraint(
         "project_invitations_project_id_fkey",
         "project_invitations",
@@ -68,21 +65,6 @@ def upgrade() -> None:
     op.create_foreign_key(
         "project_invitations_project_id_fkey",
         "project_invitations",
-        "projects",
-        ["project_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
-
-    # project_members.project_id -> projects.id ON DELETE CASCADE
-    op.drop_constraint(
-        "project_members_project_id_fkey",
-        "project_members",
-        type_="foreignkey",
-    )
-    op.create_foreign_key(
-        "project_members_project_id_fkey",
-        "project_members",
         "projects",
         ["project_id"],
         ["id"],
@@ -104,15 +86,6 @@ def upgrade() -> None:
 
     # 5) Create FKs with ON DELETE CASCADE
     op.create_foreign_key(
-        "api_keys_project_id_fkey",
-        "api_keys",
-        "projects",
-        ["project_id"],
-        ["id"],
-        ondelete="CASCADE",
-    )
-
-    op.create_foreign_key(
         "nodes_project_id_fkey",
         "nodes",
         "projects",
@@ -130,39 +103,15 @@ def upgrade() -> None:
         ondelete="CASCADE",
     )
 
-    # 6) Drop organizations.is_paying (moved back to OSS-only)
-    #
-
 
 def downgrade() -> None:
     uuid_type = postgresql.UUID()
 
-    # 1) Re-add organizations.is_paying
-    #
-    #
-    #
-    #
-
-    # 2) Drop FKs again (schema-only rollback)
+    # 1) Drop FKs again (schema-only rollback)
     op.drop_constraint("secrets_project_id_fkey", "secrets", type_="foreignkey")
     op.drop_constraint("nodes_project_id_fkey", "nodes", type_="foreignkey")
-    op.drop_constraint("api_keys_project_id_fkey", "api_keys", type_="foreignkey")
 
-    # 3) Reverse FK CASCADE → NO ACTION
-    op.drop_constraint(
-        "project_members_project_id_fkey",
-        "project_members",
-        type_="foreignkey",
-    )
-    op.create_foreign_key(
-        "project_members_project_id_fkey",
-        "project_members",
-        "projects",
-        ["project_id"],
-        ["id"],
-        ondelete=None,
-    )
-
+    # 2) Reverse FK CASCADE → NO ACTION
     op.drop_constraint(
         "project_invitations_project_id_fkey",
         "project_invitations",
@@ -177,7 +126,7 @@ def downgrade() -> None:
         ondelete=None,
     )
 
-    # 4) Allow NULLs again on project_id (schema-only rollback)
+    # 3) Allow NULLs again on project_id (schema-only rollback)
     for table in TABLES_WITH_PROJECT_ID_NULLABLE:
         op.alter_column(
             table,
