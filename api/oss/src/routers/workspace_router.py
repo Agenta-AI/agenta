@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager
 from oss.src.utils.common import APIRouter, is_ee
-from oss.src.models.api.workspace_models import Workspace
+from oss.src.models.api.workspace_models import Workspace, WorkspaceResponse
 
 if is_ee():
     from ee.src.utils.permissions import check_rbac_permission
@@ -51,6 +51,44 @@ async def get_workspace(request: Request):
         )
         for workspace_db in workspaces_db
     ]
+
+
+@router.get(
+    "/{workspace_id}",
+    operation_id="get_workspace_details",
+    response_model=WorkspaceResponse,
+)
+async def get_workspace_details(workspace_id: str):
+    """
+    Retrieve details for a specific workspace.
+
+    Args:
+        workspace_id (str): The ID of the workspace.
+
+    Returns:
+        WorkspaceResponse: Details of the requested workspace.
+    """
+
+    workspace_db = await db_manager.get_workspace(workspace_id)
+    if not workspace_db:
+        return JSONResponse(
+            status_code=404,
+            content={"detail": f"Workspace with id {workspace_id} not found"},
+        )
+
+    if is_ee():
+        return await converters.get_workspace_in_format(workspace_db)
+
+    return WorkspaceResponse(
+        id=str(workspace_db.id),
+        name=str(workspace_db.name),
+        description=str(workspace_db.description),
+        type=workspace_db.type,  # type: ignore
+        organization=str(workspace_db.organization_id),
+        created_at=str(workspace_db.created_at),
+        updated_at=str(workspace_db.updated_at),
+        members=[],
+    )
 
 
 @router.get(
