@@ -583,7 +583,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
     const existingAnnotations = annotationsQuery?.data?.length
         ? annotationsQuery.data
         : (annotationSteps
-              .map((step) => step?.annotation ?? step?.annotations ?? step?.data?.annotations)
+              .map((step: any) => step?.annotation ?? step?.annotations ?? step?.data?.annotations)
               .filter(Boolean) as any[])
 
     const [annotationMetrics, setAnnotationMetrics] = useState<Record<string, any>>({})
@@ -637,25 +637,62 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         [evaluatorDtos, annotatedSlugs],
     )
 
-    const baselineMetrics = useMemo(() => {
+    const baselineMetricsRaw = useMemo(() => {
         try {
-            return getInitialMetricsFromAnnotations({
+            const result = getInitialMetricsFromAnnotations({
                 annotations: combinedAnnotations ?? [],
                 evaluators: evaluatorDtos as any[],
             })
-        } catch {
+            console.log("[ANNOTATE_DEBUG] getInitialMetricsFromAnnotations result:", {
+                combinedAnnotationsCount: combinedAnnotations?.length,
+                combinedAnnotations: combinedAnnotations?.map((a) => ({
+                    slug: a?.references?.evaluator?.slug,
+                    outputs: a?.data?.outputs,
+                })),
+                evaluatorDtosCount: evaluatorDtos?.length,
+                evaluatorSlugs: evaluatorDtos?.map((e: any) => e?.slug),
+                resultKeys: Object.keys(result),
+                result,
+            })
+            return result
+        } catch (e) {
+            console.error("[ANNOTATE_DEBUG] getInitialMetricsFromAnnotations error:", e)
             return {}
         }
     }, [combinedAnnotations, evaluatorDtos])
 
+    // Stabilize reference to avoid infinite loops
+    const baselineMetricsKey = useMemo(
+        () => JSON.stringify(baselineMetricsRaw),
+        [baselineMetricsRaw],
+    )
+    const baselineMetrics = useMemo(() => baselineMetricsRaw, [baselineMetricsKey])
+
+    // Reset local annotations when scenario changes
     useEffect(() => {
-        if (!combinedAnnotations?.length) return
-        if (!baselineMetrics || Object.keys(baselineMetrics).length === 0) return
+        console.log("[ANNOTATE_DEBUG] Resetting local state for activeId:", activeId)
+        setLocalAnnotations([])
+        setAnnotationErrors([])
+    }, [activeId])
+
+    // Sync annotation metrics with baseline - always keep in sync
+    useEffect(() => {
+        console.log("[ANNOTATE_DEBUG] Sync effect - baselineMetrics:", {
+            baselineMetricsKeys: Object.keys(baselineMetrics),
+            baselineMetrics,
+        })
         setAnnotationMetrics((prev) => {
-            if (prev && Object.keys(prev).length > 0) return prev
+            const isEqual = deepEqual(prev, baselineMetrics)
+            console.log("[ANNOTATE_DEBUG] setAnnotationMetrics:", {
+                prevKeys: Object.keys(prev),
+                baselineKeys: Object.keys(baselineMetrics),
+                isEqual,
+                willUpdate: !isEqual,
+            })
+            if (isEqual) return prev
             return baselineMetrics
         })
-    }, [combinedAnnotations, baselineMetrics])
+    }, [baselineMetrics])
 
     const hasPendingAnnotationChanges = useMemo(() => {
         if (!annotationMetrics || Object.keys(annotationMetrics).length === 0) return false
@@ -829,14 +866,35 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
                                                 Loading annotations…
                                             </Typography.Text>
                                         ) : (
-                                            <Annotate
-                                                annotations={annotationsForAnnotate}
-                                                updatedMetrics={annotationMetrics}
-                                                setUpdatedMetrics={setAnnotationMetrics}
-                                                selectedEvaluators={selectedEvaluators}
-                                                errorMessage={annotationErrors}
-                                                disabled={!hasInvocationOutput}
-                                            />
+                                            <>
+                                                {console.log(
+                                                    "[ANNOTATE_DEBUG] Rendering Annotate with:",
+                                                    {
+                                                        annotationsForAnnotateCount:
+                                                            annotationsForAnnotate?.length,
+                                                        annotationsForAnnotate:
+                                                            annotationsForAnnotate?.map(
+                                                                (a: any) => ({
+                                                                    slug: a?.references?.evaluator
+                                                                        ?.slug,
+                                                                    outputs: a?.data?.outputs,
+                                                                }),
+                                                            ),
+                                                        annotationMetricsKeys:
+                                                            Object.keys(annotationMetrics),
+                                                        annotationMetrics,
+                                                        selectedEvaluators,
+                                                    },
+                                                )}
+                                                <Annotate
+                                                    annotations={annotationsForAnnotate}
+                                                    updatedMetrics={annotationMetrics}
+                                                    setUpdatedMetrics={setAnnotationMetrics}
+                                                    selectedEvaluators={selectedEvaluators}
+                                                    errorMessage={annotationErrors}
+                                                    disabled={!hasInvocationOutput}
+                                                />
+                                            </>
                                         )}
                                         <div className="flex items-center justify-between">
                                             <Button
