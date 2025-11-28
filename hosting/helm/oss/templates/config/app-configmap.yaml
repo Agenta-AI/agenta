@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agenta-oss.fullname" . }}-config
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    {{- include "agenta-oss.labels" . | nindent 4 }}
+data:
+  # License configuration
+  AGENTA_LICENSE: {{ .Values.config.license | quote }}
+  
+  # External URLs
+  AGENTA_API_URL: {{ .Values.externalUrls.api | quote }}
+  AGENTA_WEB_URL: {{ .Values.externalUrls.web | quote }}
+  AGENTA_SERVICES_URL: {{ .Values.externalUrls.services | quote }}
+  
+  # Internal URLs
+  AGENTA_API_INTERNAL_URL: "http://{{ include "agenta-oss.fullname" . }}-api:8000"
+  SUPERTOKENS_CONNECTION_URI: "http://{{ include "agenta-oss.fullname" . }}-supertokens:3567"
+  
+  # Feature flags
+  AGENTA_AUTO_MIGRATIONS: {{ .Values.config.autoMigrations | quote }}
+  AGENTA_TELEMETRY_ENABLED: {{ .Values.config.telemetryEnabled | quote }}
+  AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED: {{ .Values.config.serviceMiddlewareCacheEnabled | quote }}
+  
+  # Database configurations
+  POSTGRES_URI_CORE: "{{ include "agenta-oss.postgres.core" . }}"
+  POSTGRES_URI_TRACING: "{{ include "agenta-oss.postgres.tracing" . }}"
+  POSTGRES_URI_SUPERTOKENS: "{{ include "agenta-oss.postgres.supertokens" . }}"
+  POSTGRES_USERNAME: {{ .Values.postgresql.auth.username | quote }}
+  
+  # Cache and messaging
+  REDIS_URL: "redis://{{ include "agenta-oss.fullname" . }}-redis-master:6379/0"
+  CELERY_BROKER_URL: "amqp://guest@{{ include "agenta-oss.fullname" . }}-rabbitmq://"
+  CELERY_RESULT_BACKEND: "redis://{{ include "agenta-oss.fullname" . }}-redis-master:6379/0"
+  
+  # Alembic paths
+  ALEMBIC_CFG_PATH: "/app/oss/databases/postgres/migrations/alembic.oss.ini"
+  ALEMBIC_CFG_PATH_CORE: "/app/oss/databases/postgres/migrations/core/alembic.ini"
+  ALEMBIC_CFG_PATH_TRACING: "/app/oss/databases/postgres/migrations/tracing/alembic.ini"
+  
+  # Web-specific configuration
+  DOMAIN_NAME: {{ .Values.externalUrls.web | quote }}
+  WEBSITE_DOMAIN_NAME: {{ .Values.externalUrls.web | quote }}
+  POSTHOG_API_KEY: "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
+  CRISP_WEBSITE_ID: ""

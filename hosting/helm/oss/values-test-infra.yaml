@@ -1,0 +1,41 @@
+# Test values for infrastructure only
+externalUrls:
+  api: "http://144.76.237.122/api"
+  web: "http://144.76.237.122"
+  services: "http://144.76.237.122/services"
+
+# Enable only infrastructure for testing
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "password"
+    username: "username"
+    password: "password"
+    database: "agenta_oss_core"
+  primary:
+    persistence:
+      enabled: false  # Disable for testing
+    initdb:
+      scripts:
+        init-db.sql: |
+          CREATE DATABASE agenta_oss_tracing;
+          CREATE DATABASE agenta_oss_supertokens;
+
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: false  # Disable for testing
+
+rabbitmq:
+  enabled: true
+  auth:
+    username: "guest"
+    password: "guest"
+  persistence:
+    enabled: false  # Disable for testing
+
+supertokens:
+  enabled: true
