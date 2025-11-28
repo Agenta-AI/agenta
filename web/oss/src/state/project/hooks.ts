@@ -1,10 +1,10 @@
-import {useCallback} from "react"
+import {useCallback, useEffect} from "react"
 
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
 
 import {projectsQueryAtom} from "./selectors/project"
-import {projectAtom, projectsAtom, projectIdAtom} from "./selectors/project"
+import {cacheLastUsedProjectId, projectAtom, projectsAtom, projectIdAtom} from "./selectors/project"
 
 export const useProjectData = () => {
     const [{data: projects, isPending, isLoading, refetch}] = useAtom(projectsQueryAtom)
@@ -12,6 +12,12 @@ export const useProjectData = () => {
     const projectId = useAtomValue(projectIdAtom)
     const isProjectId = !!projectId
     const queryClient = useQueryClient()
+
+    useEffect(() => {
+        if (!project?.project_id) return
+        const workspaceKey = project.workspace_id || project.organization_id || null
+        cacheLastUsedProjectId(workspaceKey, project.project_id)
+    }, [project?.organization_id, project?.project_id, project?.workspace_id])
 
     const reset = useCallback(async () => {
         return await queryClient.removeQueries({queryKey: ["projects"]})

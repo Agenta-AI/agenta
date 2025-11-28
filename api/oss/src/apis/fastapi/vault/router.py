@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request, status, HTTPException
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
 
 from oss.src.core.secrets.services import VaultService
@@ -17,7 +17,7 @@ from oss.src.core.secrets.dtos import (
 )
 
 if is_ee():
-    from ee.src.models.db_models import Permission
+    from ee.src.models.shared_models import Permission
     from ee.src.utils.permissions import check_action_access
 
 
