@@ -136,7 +136,14 @@ async def aurl(
         print(response.text)
         raise
 
-    project_info = response.json()
+    response_json = response.json()
+
+    if isinstance(response_json, list):
+        project_info = response_json[0] if response_json else None
+    elif isinstance(response_json, dict):
+        project_info = response_json
+    else:
+        project_info = None
 
     if not project_info:
         return None
