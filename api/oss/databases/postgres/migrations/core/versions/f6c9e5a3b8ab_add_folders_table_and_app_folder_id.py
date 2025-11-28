@@ -13,6 +13,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 from sqlalchemy_utils import LtreeType
 
+from oss.src.core.folders.types import FolderKind
+
 # revision identifiers, used by Alembic.
 revision: str = "7a3d1c4f5b6a"
 down_revision: Union[str, None] = "baa02d66a365"
@@ -94,9 +96,8 @@ def upgrade() -> None:
         ),
         sa.Column(
             "kind",
-            sa.Enum("applications", name="folder_kind_enum"),
-            nullable=False,
-            server_default="applications",
+            sa.Enum(FolderKind, name="folder_kind_enum"),
+            nullable=True,
         ),
         sa.Column(
             "path",

@@ -1,6 +1,8 @@
 from typing import Optional
 from uuid import UUID
 
+from sqlalchemy_utils import Ltree
+
 from oss.src.core.folders.types import Folder, FolderCreate, FolderEdit
 from oss.src.dbs.postgres.folders.dbes import FolderDBE
 
@@ -13,7 +15,8 @@ def create_dbe_from_dto(
     parent_path: Optional[str] = None,
 ) -> FolderDBE:
     """Create a FolderDBE from a FolderCreate DTO."""
-    path = dto.slug if not parent_path else f"{parent_path}.{dto.slug}"
+    path_str = dto.slug if not parent_path else f"{parent_path}.{dto.slug}"
+    path = Ltree(path_str)
 
     return DBE(
         project_id=project_id,
@@ -29,7 +32,7 @@ def create_dbe_from_dto(
         #
         parent_id=dto.parent_id,
         path=path,
-        kind=dto.kind,
+        kind=dto.kind.value if dto.kind else None,
     )
 
 
@@ -56,6 +59,9 @@ def edit_dbe_from_dto(
 
     if dto.meta is not None:
         dbe.meta = dto.meta
+
+    if dto.kind is not None:
+        dbe.kind = dto.kind.value
 
     # Apply any additional kwargs (like updated_at, updated_by_id)
     for key, value in kwargs.items():
@@ -90,6 +96,6 @@ def create_dto_from_dbe(
         meta=dbe.meta,
         #
         parent_id=dbe.parent_id,
-        path=dbe.path,
+        path=str(dbe.path),
         kind=dbe.kind,
     )

@@ -13,8 +13,8 @@ from oss.src.core.folders.types import (
 
 
 def _validate_folder_name(name: Optional[str]) -> None:
-    """Allow unicode word chars, spaces, dots, and hyphens."""
-    if not name or not fullmatch(r"[\w .-]+", name):
+    """Allow unicode word chars, spaces, and hyphens."""
+    if not name or not fullmatch(r"[\w -]+", name):
         raise FolderNameInvalid()
 
 

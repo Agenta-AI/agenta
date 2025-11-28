@@ -1,0 +1,906 @@
+@host = http://localhost
+@token = change-me-auth
+@api_url = {{host}}/api
+@folders_url = {{api_url}}/folders
+@apps_url = {{api_url}}/apps
+
+###
+# Setup: Create account for authorization
+# @name create_account
+POST {{api_url}}/admin/account
+Content-Type: application/json
+Authorization: Access {{token}}
+
+###
+@user_id = {{create_account.response.body.user.id}}
+@authorization = {{create_account.response.body.scopes[0].credentials}}
+@project_id = {{create_account.response.body.scopes[0].project_id}}
+
+###
+# Create root folder "Applications"
+# @name create_root_folder
+POST {{folders_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "name": "Applications",
+    "slug": "applications",
+    "description": "Root folder for applications",
+    "kind": "applications",
+    "parent_id": null,
+    "tags": {
+      "environment": "production"
+    },
+    "flags": {
+      "archived": false
+    },
+    "meta": {
+      "custom_field": "root_value"
+    }
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "<uuid>",
+#     "project_id": "<uuid>",
+#     "name": "Applications",
+#     "slug": "applications",
+#     "description": "Root folder for applications",
+#     "kind": "applications",
+#     "path": "applications",
+#     "parent_id": null,
+#     "created_at": "<timestamp>",
+#     "updated_at": null,
+#     "deleted_at": null,
+#     "created_by_id": "<uuid>",
+#     "updated_by_id": null,
+#     "deleted_by_id": null,
+#     "tags": { "environment": "production" },
+#     "flags": { "archived": false },
+#     "meta": { "custom_field": "root_value" }
+#   }
+# }
+
+###
+@root_folder_id = {{create_root_folder.response.body.folder.id}}
+
+###
+# Create child folder "LLM Apps"
+# @name create_llm_folder
+POST {{folders_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "name": "LLM Apps",
+    "slug": "llm-apps",
+    "description": "Folder for LLM-based applications",
+    "kind": "applications",
+    "parent_id": "{{root_folder_id}}"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "<uuid>",
+#     "project_id": "<uuid>",
+#     "name": "LLM Apps",
+#     "slug": "llm-apps",
+#     "kind": "applications",
+#     "path": "applications.llm-apps",
+#     "parent_id": "{{root_folder_id}}",
+#     "created_at": "<timestamp>",
+#     ...
+#   }
+# }
+
+###
+@llm_folder_id = {{create_llm_folder.response.body.folder.id}}
+
+###
+# Create grandchild folder "Chat Models"
+# @name create_chat_folder
+POST {{folders_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "name": "Chat Models",
+    "slug": "chat-models",
+    "kind": "applications",
+    "parent_id": "{{llm_folder_id}}"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "<uuid>",
+#     "path": "applications.llm-apps.chat-models",
+#     "parent_id": "{{llm_folder_id}}",
+#     ...
+#   }
+# }
+
+###
+@chat_folder_id = {{create_chat_folder.response.body.folder.id}}
+
+###
+# Create sibling folder "Completion Models"
+# @name create_completion_folder
+POST {{folders_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "name": "Completion Models",
+    "slug": "completion-models",
+    "kind": "applications",
+    "parent_id": "{{llm_folder_id}}"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "<uuid>",
+#     "path": "applications.llm-apps.completion-models",
+#     "parent_id": "{{llm_folder_id}}",
+#     ...
+#   }
+# }
+
+###
+@completion_folder_id = {{create_completion_folder.response.body.folder.id}}
+
+###
+# Fetch root folder by ID
+# @name fetch_root_folder
+GET {{folders_url}}/{{root_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "{{root_folder_id}}",
+#     "name": "Applications",
+#     "slug": "applications",
+#     "path": "applications",
+#     "parent_id": null,
+#     ...
+#   }
+# }
+
+###
+# Fetch child folder by ID
+# @name fetch_llm_folder
+GET {{folders_url}}/{{llm_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "{{llm_folder_id}}",
+#     "name": "LLM Apps",
+#     "slug": "llm-apps",
+#     "path": "applications.llm-apps",
+#     "parent_id": "{{root_folder_id}}",
+#     ...
+#   }
+# }
+
+###
+# Edit folder name and metadata
+# @name edit_llm_folder
+PUT {{folders_url}}/{{llm_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "id": "{{llm_folder_id}}",
+    "name": "Language Models",
+    "slug": "language-models",
+    "description": "Updated description for language models",
+    "kind": "applications",
+    "parent_id": "{{root_folder_id}}",
+    "tags": {
+      "environment": "production",
+      "category": "ml"
+    },
+    "meta": {
+      "version": "2.0"
+    }
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "{{llm_folder_id}}",
+#     "name": "Language Models",
+#     "slug": "language-models",
+#     "path": "applications.language-models",
+#     "updated_at": "<timestamp>",
+#     "updated_by_id": "<uuid>",
+#     "tags": { "environment": "production", "category": "ml" },
+#     ...
+#   }
+# }
+
+###
+# Query folders by kind
+# @name query_by_kind
+POST {{folders_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "kind": "applications"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 4,
+#   "folders": [
+#     { "id": "{{root_folder_id}}", "slug": "applications", ... },
+#     { "id": "{{llm_folder_id}}", "slug": "language-models", ... },
+#     { "id": "{{chat_folder_id}}", "slug": "chat-models", ... },
+#     { "id": "{{completion_folder_id}}", "slug": "completion-models", ... }
+#   ]
+# }
+
+###
+# Query folders by slug
+# @name query_by_slug
+POST {{folders_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "slug": "chat-models"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folders": [
+#     { "id": "{{chat_folder_id}}", "slug": "chat-models", "path": "applications.language-models.chat-models", ... }
+#   ]
+# }
+
+###
+# Query folders by parent_id (direct children)
+# @name query_by_parent_id
+POST {{folders_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "parent_id": "{{llm_folder_id}}"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 2,
+#   "folders": [
+#     { "id": "{{chat_folder_id}}", "slug": "chat-models", ... },
+#     { "id": "{{completion_folder_id}}", "slug": "completion-models", ... }
+#   ]
+# }
+
+###
+# Query folders by path (exact match)
+# @name query_by_path
+POST {{folders_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "path": "applications.language-models.chat-models"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folders": [
+#     { "id": "{{chat_folder_id}}", "path": "applications.language-models.chat-models", ... }
+#   ]
+# }
+
+###
+# Query folders by prefix (ltree prefix matching)
+# Returns all folders under a given prefix path
+# @name query_by_prefix
+POST {{folders_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "prefix": "applications.language-models"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 2,
+#   "folders": [
+#     { "id": "{{chat_folder_id}}", "path": "applications.language-models.chat-models", ... },
+#     { "id": "{{completion_folder_id}}", "path": "applications.language-models.completion-models", ... }
+#   ]
+# }
+
+###
+# Query by multiple prefixes (ltree prefix matching with OR logic)
+# Returns all folders matching any of the given prefixes
+# @name query_by_multiple_prefixes
+POST {{folders_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "prefixes": ["applications.language-models", "applications.archive"]
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 3,
+#   "folders": [
+#     { "id": "{{chat_folder_id}}", "path": "applications.language-models.chat-models", ... },
+#     { "id": "{{completion_folder_id}}", "path": "applications.language-models.completion-models", ... },
+#     { "id": "{{archive_folder_id}}", "path": "applications.archive", ... }
+#   ]
+# }
+
+###
+# Query multiple IDs
+# @name query_by_ids
+POST {{folders_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "ids": ["{{root_folder_id}}", "{{chat_folder_id}}"]
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 2,
+#   "folders": [
+#     { "id": "{{root_folder_id}}", "slug": "applications", ... },
+#     { "id": "{{chat_folder_id}}", "slug": "chat-models", ... }
+#   ]
+# }
+
+###
+# Query multiple slugs
+# @name query_by_slugs
+POST {{folders_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "slugs": ["chat-models", "completion-models"]
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 2,
+#   "folders": [
+#     { "id": "{{chat_folder_id}}", "slug": "chat-models", ... },
+#     { "id": "{{completion_folder_id}}", "slug": "completion-models", ... }
+#   ]
+# }
+
+###
+# Test uniqueness constraint: duplicate slug at same parent level should fail
+# @name create_duplicate_slug
+POST {{folders_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "name": "Chat Models Duplicate",
+    "slug": "chat-models",
+    "kind": "applications",
+    "parent_id": "{{llm_folder_id}}"
+  }
+}
+
+# HTTP/1.1 400 Bad Request or 409 Conflict
+# {
+#   "detail": "Unique constraint violation on (project_id, parent_id, slug)"
+# }
+
+###
+# Move folder to different parent by editing parent_id
+# @name move_completion_folder
+PUT {{folders_url}}/{{completion_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "id": "{{completion_folder_id}}",
+    "name": "Completion Models",
+    "slug": "completion-models",
+    "kind": "applications",
+    "parent_id": "{{root_folder_id}}"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "{{completion_folder_id}}",
+#     "path": "applications.completion-models",
+#     "parent_id": "{{root_folder_id}}",
+#     "updated_at": "<timestamp>",
+#     ...
+#   }
+# }
+
+###
+# Delete folder without children
+# @name delete_completion_folder
+DELETE {{folders_url}}/{{completion_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "id": "{{completion_folder_id}}"
+# }
+
+###
+# Verify folder is soft-deleted (has deleted_at timestamp)
+# @name fetch_deleted_folder
+GET {{folders_url}}/{{completion_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK (empty response due to soft delete)
+# {
+#   "count": 0,
+#   "folder": null
+# }
+
+###
+# Delete folder with children (should cascade soft-delete)
+# @name delete_llm_folder
+DELETE {{folders_url}}/{{llm_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "id": "{{llm_folder_id}}"
+# }
+
+###
+# Verify child folder was cascade deleted
+# @name fetch_cascaded_deleted_folder
+GET {{folders_url}}/{{chat_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK (empty response)
+# {
+#   "count": 0,
+#   "folder": null
+# }
+
+###
+# Query to verify cascade deletion
+# @name query_after_cascade_delete
+POST {{folders_url}}/query
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "kind": "applications"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folders": [
+#     { "id": "{{root_folder_id}}", "slug": "applications", ... }
+#   ]
+# }
+
+###
+# Test invalid folder name with special characters
+# @name create_invalid_folder_name
+POST {{folders_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "name": "Invalid@Folder#Name",
+    "slug": "invalid-folder",
+    "kind": "applications",
+    "parent_id": "{{root_folder_id}}"
+  }
+}
+
+# HTTP/1.1 400 Bad Request
+# {
+#   "detail": "Folder name contains invalid characters..."
+# }
+
+###
+# =====================================================
+# APP AND FOLDER INTEGRATION TESTS
+# =====================================================
+# These tests verify the relationship between apps and folders
+# Apps can be assigned to folders via folder_id
+# When a folder is deleted, apps remain but folder_id is set to NULL (SET NULL constraint)
+# =====================================================
+
+###
+# Create a new folder for apps
+# @name create_apps_folder
+POST {{folders_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "name": "Active Apps",
+    "slug": "active-apps",
+    "description": "Folder containing active applications",
+    "kind": "applications",
+    "parent_id": "{{root_folder_id}}"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "<uuid>",
+#     "path": "applications.active-apps",
+#     ...
+#   }
+# }
+
+###
+@apps_folder_id = {{create_apps_folder.response.body.folder.id}}
+
+###
+# Create an app and assign it to the apps folder
+# @name create_app_in_folder
+POST {{apps_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "app_name": "Chat Application",
+  "folder_id": "{{apps_folder_id}}",
+  "template_key": "completion"
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "<uuid>",
+#   "app_name": "Chat Application",
+#   "folder_id": "{{apps_folder_id}}",
+#   ...
+# }
+
+###
+@app1_id = {{create_app_in_folder.response.body.app_id}}
+
+###
+# Create another app in the same folder
+# @name create_app2_in_folder
+POST {{apps_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "app_name": "Translation Service",
+  "folder_id": "{{apps_folder_id}}",
+  "template_key": "completion"
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "<uuid>",
+#   "app_name": "Translation Service",
+#   "folder_id": "{{apps_folder_id}}",
+#   ...
+# }
+
+###
+@app2_id = {{create_app2_in_folder.response.body.app_id}}
+
+###
+# Create a third app without assigning it to a folder
+# @name create_app_without_folder
+POST {{apps_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "app_name": "Standalone App",
+  "folder_id": null,
+  "template_key": "completion"
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "<uuid>",
+#   "app_name": "Standalone App",
+#   "folder_id": null,
+#   ...
+# }
+
+###
+@app3_id = {{create_app_without_folder.response.body.app_id}}
+
+###
+# Fetch app1 and verify it has folder_id set
+# @name fetch_app1
+GET {{apps_url}}/{{app1_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "{{app1_id}}",
+#   "app_name": "Chat Application",
+#   "folder_id": "{{apps_folder_id}}",
+#   ...
+# }
+
+###
+# Move app1 to a different folder by updating its folder_id
+# @name create_other_folder
+POST {{folders_url}}/
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "folder": {
+    "name": "Archive",
+    "slug": "archive",
+    "kind": "applications",
+    "parent_id": "{{root_folder_id}}"
+  }
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "folder": {
+#     "id": "<uuid>",
+#     "path": "applications.archive",
+#     ...
+#   }
+# }
+
+###
+@archive_folder_id = {{create_other_folder.response.body.folder.id}}
+
+###
+# Update app1 to move it to the archive folder
+# @name move_app1_to_archive
+PATCH {{apps_url}}/{{app1_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "id": "{{app1_id}}",
+  "folder_id": "{{archive_folder_id}}"
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "{{app1_id}}",
+#   "app_name": "Chat Application",
+#   "folder_id": "{{archive_folder_id}}",
+#   ...
+# }
+
+###
+# Verify app1 has been moved to archive folder
+# @name fetch_app1_moved
+GET {{apps_url}}/{{app1_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "{{app1_id}}",
+#   "folder_id": "{{archive_folder_id}}",
+#   ...
+# }
+
+###
+# Delete the apps_folder (folder should be soft-deleted)
+# This tests the SET NULL constraint: apps should keep their data but folder_id becomes NULL
+# @name delete_apps_folder
+DELETE {{folders_url}}/{{apps_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "id": "{{apps_folder_id}}"
+# }
+
+###
+# Verify app2 still exists but folder_id is now NULL
+# The SET NULL foreign key constraint should have nullified the reference
+# @name fetch_app2_after_folder_delete
+GET {{apps_url}}/{{app2_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "app": {
+#     "id": "{{app2_id}}",
+#     "app_name": "Translation Service",
+#     "folder_id": null,
+#     ...
+#   }
+# }
+
+###
+# Verify app1 still exists with archive folder (not affected by apps_folder deletion)
+# @name fetch_app1_after_apps_folder_delete
+GET {{apps_url}}/{{app1_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "app": {
+#     "id": "{{app1_id}}",
+#     "folder_id": "{{archive_folder_id}}",
+#     ...
+#   }
+# }
+
+###
+# Verify app3 (standalone app) was not affected
+# @name fetch_app3_unchanged
+GET {{apps_url}}/{{app3_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "app": {
+#     "id": "{{app3_id}}",
+#     "app_name": "Standalone App",
+#     "folder_id": null,
+#     ...
+#   }
+# }
+
+###
+# Update app2 to assign it to archive folder
+# @name move_app2_to_archive
+PATCH {{apps_url}}/{{app2_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "id": "{{app2_id}}",
+  "folder_id": "{{archive_folder_id}}"
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "{{app2_id}}",
+#   "folder_id": "{{archive_folder_id}}",
+#   ...
+# }
+
+###
+# Remove folder_id from app1 (set it to null)
+# @name remove_folder_from_app1
+PATCH {{apps_url}}/{{app1_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+{
+  "id": "{{app1_id}}",
+  "folder_id": null
+}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "{{app1_id}}",
+#   "folder_id": null,
+#   ...
+# }
+
+###
+# Verify app1 no longer has a folder reference
+# @name fetch_app1_no_folder
+GET {{apps_url}}/{{app1_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "{{app1_id}}",
+#   "folder_id": null,
+#   ...
+# }
+
+###
+# Delete archive folder
+# Apps assigned to this folder should have folder_id set to NULL via CASCADE
+# @name delete_archive_folder
+DELETE {{folders_url}}/{{archive_folder_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "count": 1,
+#   "id": "{{archive_folder_id}}"
+# }
+
+###
+# Verify app2 folder_id is NULL after archive folder deletion
+# @name fetch_app2_after_archive_delete
+GET {{apps_url}}/{{app2_id}}
+Content-Type: application/json
+Authorization: {{authorization}}
+
+# HTTP/1.1 200 OK
+# {
+#   "app_id": "{{app2_id}}",
+#   "folder_id": null,
+#   ...
+# }

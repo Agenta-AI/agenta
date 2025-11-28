@@ -2,13 +2,21 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select, text
+from sqlalchemy import select, text, or_, Text
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
 from oss.src.core.folders.interface import FoldersDAOInterface
-from oss.src.core.folders.types import FolderKind, Folder, FolderCreate, FolderEdit, FolderQuery
+from oss.src.core.folders.types import (
+    FolderKind,
+    Folder,
+    FolderCreate,
+    FolderEdit,
+    FolderQuery,
+    PathConflict,
+)
 from oss.src.dbs.postgres.shared.engine import engine
 from oss.src.dbs.postgres.folders.dbes import FolderDBE
 from oss.src.dbs.postgres.folders.mappings import (
@@ -32,7 +40,6 @@ async def _get_folder_row(
         .filter(FolderDBE.project_id == project_id)
         .filter(FolderDBE.id == folder_id)
         .filter(FolderDBE.kind == kind)
-        .filter(FolderDBE.deleted_at.is_(None))
         .limit(1)
     )
     result = await session.execute(stmt)
@@ -43,7 +50,6 @@ async def _update_folder_path(
     *,
     session,
     project_id: UUID,
-    kind: FolderKind,
     current_path,
     new_prefix,
 ) -> None:
@@ -52,56 +58,50 @@ async def _update_folder_path(
         text(
             """
             UPDATE folders
-            SET path = (:new_prefix)::ltree || subpath(path, nlevel(:old_path))
+            SET path = CASE
+                -- Exact folder being renamed: just use the new prefix
+                WHEN path = CAST(:old_path AS ltree) THEN CAST(:new_prefix AS ltree)
+                -- Descendants: keep the suffix relative to old_path
+                ELSE CAST(:new_prefix AS ltree)
+                     || subpath(path, nlevel(CAST(:old_path AS ltree)))
+            END
             WHERE project_id = :project_id
-              AND kind = :kind
-              AND path <@ (:old_path)::ltree
+              AND path <@ CAST(:old_path AS ltree)
             """
         ),
         {
             "new_prefix": new_prefix,
             "old_path": current_path,
             "project_id": str(project_id),
-            "kind": kind.value,
         },
     )
 
 
-async def _soft_delete_folder_tree(
+async def _delete_folder_tree(
     *,
     session,
     project_id: UUID,
-    kind: FolderKind,
     folder_path: str,
-    user_id: UUID,
-    now: datetime,
 ) -> None:
-    """Soft delete folder and all descendants using ltree."""
-    await session.execute(
-        text(
-            """
-            UPDATE folders
-            SET deleted_at = :now, deleted_by_id = :user_id
-            WHERE project_id = :project_id
-              AND kind = :kind
-              AND path <@ :path
-            """
-        ),
-        {
-            "now": now,
-            "user_id": user_id,
-            "project_id": project_id,
-            "kind": kind.value,
-            "path": folder_path,
-        },
+    """Delete folder and all descendants using ltree."""
+    escaped_path = folder_path.replace("'", "''")
+    stmt = (
+        select(FolderDBE)
+        .filter(FolderDBE.project_id == project_id)
+        .filter(FolderDBE.path.op("<@")(text(f"'{escaped_path}'::ltree")))
     )
+    result = await session.execute(stmt)
+    folder_dbes = result.scalars().all()
+
+    for folder_dbe in folder_dbes:
+        await session.delete(folder_dbe)
 
 
 class FoldersDAO(FoldersDAOInterface):
     def __init__(self):
         pass
 
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[PathConflict])
     async def create(
         self,
         *,
@@ -134,14 +134,19 @@ class FoldersDAO(FoldersDAOInterface):
         folder_dbe.created_by_id = user_id
 
         async with engine.core_session() as session:
-            session.add(folder_dbe)
-            await session.commit()
-            await session.refresh(folder_dbe)
+            try:
+                session.add(folder_dbe)
+                await session.commit()
+                await session.refresh(folder_dbe)
 
-            return create_dto_from_dbe(
-                DTO=Folder,
-                dbe=folder_dbe,
-            )
+                return create_dto_from_dbe(
+                    DTO=Folder,
+                    dbe=folder_dbe,
+                )
+            except IntegrityError as e:
+                if "uq_folders_project_path" in str(e):
+                    raise PathConflict()
+                raise
 
     @suppress_exceptions()
     async def fetch(
@@ -165,68 +170,7 @@ class FoldersDAO(FoldersDAOInterface):
                 dbe=folder,
             )
 
-    @suppress_exceptions(default=[])
-    async def query(
-        self,
-        *,
-        project_id: UUID,
-        folder_query: FolderQuery,
-    ) -> List[Folder]:
-        async with engine.core_session() as session:
-            stmt = (
-                select(FolderDBE)
-                .filter(FolderDBE.project_id == project_id)
-                .filter(FolderDBE.deleted_at.is_(None))
-            )
-
-            if folder_query.ids or folder_query.id:
-                ids = folder_query.ids or []
-                if folder_query.id:
-                    ids.append(folder_query.id)
-                stmt = stmt.filter(FolderDBE.id.in_(ids))
-
-            if folder_query.parent_ids or folder_query.parent_id is not None:
-                parent_ids = folder_query.parent_ids or []
-                if folder_query.parent_id:
-                    parent_ids.append(folder_query.parent_id)
-                stmt = stmt.filter(FolderDBE.parent_id.in_(parent_ids))
-
-            if folder_query.slugs or folder_query.slug:
-                slugs = folder_query.slugs or []
-                if folder_query.slug:
-                    slugs.append(folder_query.slug)
-                stmt = stmt.filter(FolderDBE.slug.in_(slugs))
-
-            if folder_query.kind:
-                stmt = stmt.filter(FolderDBE.kind == folder_query.kind)
-            if folder_query.kinds:
-                stmt = stmt.filter(FolderDBE.kind.in_(folder_query.kinds))
-
-            if folder_query.paths or folder_query.path:
-                paths = folder_query.paths or []
-                if folder_query.path:
-                    paths.append(folder_query.path)
-                stmt = stmt.filter(FolderDBE.path.in_(paths))
-
-            if folder_query.glob:
-                stmt = stmt.filter(text("path ~ :glob")).params(glob=folder_query.glob)
-
-            if folder_query.tags is not None:
-                stmt = stmt.filter(FolderDBE.tags.contains(folder_query.tags))
-
-            if folder_query.meta is not None:
-                stmt = stmt.filter(FolderDBE.meta.contains(folder_query.meta))
-
-            result = await session.execute(stmt)
-            return [
-                create_dto_from_dbe(
-                    DTO=Folder,
-                    dbe=folder_dbe,
-                )
-                for folder_dbe in result.scalars().all()
-            ]
-
-    @suppress_exceptions()
+    @suppress_exceptions(exclude=[PathConflict])
     async def edit(
         self,
         *,
@@ -251,10 +195,8 @@ class FoldersDAO(FoldersDAOInterface):
             new_slug = folder_edit.slug or folder.slug  # type: ignore[attr-defined]
 
             new_parent_path = None
-            new_parent_id = folder.parent_id
 
             if folder_edit.parent_id is not None:
-                new_parent_id = folder_edit.parent_id
                 if folder_edit.parent_id:
                     parent = await _get_folder_row(
                         session=session,
@@ -281,28 +223,32 @@ class FoldersDAO(FoldersDAOInterface):
                 new_slug if not new_parent_path else f"{new_parent_path}.{new_slug}"
             )
 
-            await _update_folder_path(
-                session=session,
-                project_id=project_id,
-                kind=kind,
-                current_path=current_path,
-                new_prefix=new_prefix,
-            )
+            try:
+                await _update_folder_path(
+                    session=session,
+                    project_id=project_id,
+                    current_path=current_path,
+                    new_prefix=new_prefix,
+                )
 
-            folder = edit_dbe_from_dto(
-                dbe=folder,
-                dto=folder_edit,
-                updated_by_id=user_id,
-                updated_at=datetime.now(timezone.utc),
-            )
+                folder = edit_dbe_from_dto(
+                    dbe=folder,
+                    dto=folder_edit,
+                    updated_by_id=user_id,
+                    updated_at=datetime.now(timezone.utc),
+                )
 
-            await session.commit()
-            await session.refresh(folder)
+                await session.commit()
+                await session.refresh(folder)
 
-            return create_dto_from_dbe(
-                DTO=Folder,
-                dbe=folder,
-            )
+                return create_dto_from_dbe(
+                    DTO=Folder,
+                    dbe=folder,
+                )
+            except IntegrityError as e:
+                if "uq_folders_project_path" in str(e):
+                    raise PathConflict()
+                raise
 
     @suppress_exceptions()
     async def delete(
@@ -322,16 +268,91 @@ class FoldersDAO(FoldersDAOInterface):
             if not folder:
                 return None
 
-            now = datetime.now(timezone.utc)
-
-            await _soft_delete_folder_tree(
+            await _delete_folder_tree(
                 session=session,
                 project_id=project_id,
-                kind=FolderKind.APPLICATIONS,
                 folder_path=str(folder.path),
-                user_id=user_id,
-                now=now,
             )
 
             await session.commit()
             return folder_id
+
+    @suppress_exceptions()
+    async def query(
+        self,
+        *,
+        project_id: UUID,
+        folder_query: FolderQuery,
+    ) -> List[Folder]:
+        async with engine.core_session() as session:
+            stmt = (
+                select(FolderDBE)
+                .filter(FolderDBE.project_id == project_id)
+            )
+
+            if folder_query.id is not None:
+                stmt = stmt.filter(FolderDBE.id == folder_query.id)
+
+            if folder_query.ids:
+                stmt = stmt.filter(FolderDBE.id.in_(folder_query.ids))
+
+            if folder_query.slug is not None:
+                stmt = stmt.filter(FolderDBE.slug == folder_query.slug)
+
+            if folder_query.slugs:
+                stmt = stmt.filter(FolderDBE.slug.in_(folder_query.slugs))
+
+            if folder_query.kind is not None:
+                stmt = stmt.filter(FolderDBE.kind == folder_query.kind.value)
+
+            if folder_query.kinds is not None:
+                if folder_query.kinds is False:
+                    stmt = stmt.filter(FolderDBE.kind.is_(None))
+                elif folder_query.kinds is True:
+                    stmt = stmt.filter(FolderDBE.kind.isnot(None))
+                else:
+                    stmt = stmt.filter(
+                        FolderDBE.kind.in_([k.value for k in folder_query.kinds])
+                    )
+
+            if folder_query.parent_id is not None:
+                stmt = stmt.filter(FolderDBE.parent_id == folder_query.parent_id)
+
+            if folder_query.parent_ids:
+                stmt = stmt.filter(FolderDBE.parent_id.in_(folder_query.parent_ids))
+
+            if folder_query.path is not None:
+                stmt = stmt.filter(FolderDBE.path.cast(Text) == folder_query.path)
+
+            if folder_query.paths:
+                stmt = stmt.filter(FolderDBE.path.cast(Text).in_(folder_query.paths))
+
+            if folder_query.prefix is not None:
+                escaped_prefix = folder_query.prefix.replace("'", "''")
+                stmt = stmt.filter(FolderDBE.path.op("<@")(text(f"'{escaped_prefix}'::ltree")))
+
+            if folder_query.prefixes:
+                prefix_filters = []
+                for prefix in folder_query.prefixes:
+                    escaped_prefix = prefix.replace("'", "''")
+                    prefix_filters.append(FolderDBE.path.op("<@")(text(f"'{escaped_prefix}'::ltree")))
+                stmt = stmt.filter(or_(*prefix_filters))
+
+            if folder_query.tags is not None:
+                stmt = stmt.filter(FolderDBE.tags.contains(folder_query.tags))
+
+            if folder_query.flags is not None:
+                stmt = stmt.filter(FolderDBE.flags.contains(folder_query.flags))
+
+            if folder_query.meta is not None:
+                stmt = stmt.filter(FolderDBE.meta.contains(folder_query.meta))
+
+            result = await session.execute(stmt)
+
+            return [
+                create_dto_from_dbe(
+                    DTO=Folder,
+                    dbe=folder_dbe,
+                )
+                for folder_dbe in result.scalars().all()
+            ]

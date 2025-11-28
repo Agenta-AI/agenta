@@ -47,3 +47,13 @@ class FolderNameInvalidException(HTTPException):
         message: str = "Folder name contains invalid characters.",
     ):
         super().__init__(status_code=400, detail=message)
+
+
+class PathConflictException(HTTPException):
+    """Exception raised when a folder path already exists in the project."""
+
+    def __init__(
+        self,
+        message: str = "A folder with this path already exists in this project.",
+    ):
+        super().__init__(status_code=409, detail=message)

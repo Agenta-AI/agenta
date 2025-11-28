@@ -17,7 +17,7 @@ class FoldersDAOInterface:
         user_id: UUID,
         #
         folder_create: FolderCreate,
-    ) -> Folder:
+    ) -> Optional[Folder]:
         raise NotImplementedError()
 
     async def fetch(

@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Union
 from enum import Enum
 from uuid import UUID
 
@@ -44,7 +44,8 @@ class FolderQuery(Header, Metadata):
     slugs: Optional[List[str]] = None
 
     kind: Optional[FolderKind] = None
-    kinds: Optional[List[FolderKind]] = None
+    # kinds filter supports: bool (False=is None, True=is not None) or list of FolderKind values
+    kinds: Optional[Union[bool, List[FolderKind]]] = None
 
     parent_id: Optional[UUID] = None
     parent_ids: Optional[List[UUID]] = None
@@ -52,7 +53,8 @@ class FolderQuery(Header, Metadata):
     path: Optional[str] = None
     paths: Optional[List[str]] = None
 
-    glob: Optional[str] = None  # ltree glob / pattern (e.g., "*.foo")
+    prefix: Optional[str] = None
+    prefixes: Optional[List[str]] = None
 
 
 class FolderNameInvalid(Exception):
@@ -60,8 +62,18 @@ class FolderNameInvalid(Exception):
         self,
         message: str = (
             "Folder name contains invalid characters. Allowed characters are: "
-            "letters and digits from any language, underscores (_), spaces, dots (.), and hyphens (-)."
+            "letters and digits from any language, underscores (_), spaces, and hyphens (-)."
         ),
+    ):
+        self.message = message
+
+        super().__init__(message)
+
+
+class PathConflict(Exception):
+    def __init__(
+        self,
+        message: str = "A folder with this path already exists in this project.",
     ):
         self.message = message
 

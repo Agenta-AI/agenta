@@ -3,7 +3,7 @@ from sqlalchemy import (
     ForeignKey,
     UniqueConstraint,
     Index,
-    Enum as SAEnum,
+    Enum,
     PrimaryKeyConstraint,
     ForeignKeyConstraint,
 )
@@ -87,6 +87,6 @@ class FolderDBE(
     )
 
     kind = Column(
-        SAEnum(FolderKind, name="folder_kind_enum"),
-        nullable=False,
+        Enum(FolderKind, name="folder_kind_enum"),
+        nullable=True,
     )

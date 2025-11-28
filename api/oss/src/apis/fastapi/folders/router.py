@@ -16,16 +16,17 @@ from oss.src.apis.fastapi.folders.models import (
     FoldersResponse,
     FolderIdResponse,
     FolderNameInvalidException,
+    PathConflictException,
 )
 
 from oss.src.core.folders.service import FoldersService
-from oss.src.core.folders.types import FolderNameInvalid
+from oss.src.core.folders.types import FolderNameInvalid, PathConflict
 
 
 log = get_module_logger(__name__)
 
 
-def handle_folder_name_invalid_exception():
+def handle_folder_exceptions():
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -33,6 +34,10 @@ def handle_folder_name_invalid_exception():
                 return await func(*args, **kwargs)
             except FolderNameInvalid as e:
                 raise FolderNameInvalidException(
+                    message=e.message,
+                ) from e
+            except PathConflict as e:
+                raise PathConflictException(
                     message=e.message,
                 ) from e
             except Exception as e:
@@ -104,7 +109,7 @@ class FoldersRouter:
 
     # POST /folders/
     @intercept_exceptions()
-    @handle_folder_name_invalid_exception()
+    @handle_folder_exceptions()
     async def create_folder(
         self,
         *,
@@ -147,7 +152,7 @@ class FoldersRouter:
 
     # PUT /folders/{folder_id}
     @intercept_exceptions()
-    @handle_folder_name_invalid_exception()
+    @handle_folder_exceptions()
     async def edit_folder(
         self,
         *,
