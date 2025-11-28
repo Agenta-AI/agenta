@@ -20,9 +20,7 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
     const [isLoadingApiKey, setIsLoadingApiKey] = useState(false)
     const {selectedOrg} = useOrgData()
 
-    // Don't rely solely on useOrgData during onboarding as it might be stale
-    // We will resolve it via waitForWorkspaceContext
-    const initialWorkspaceId: string = useMemo(
+    const workspaceId: string = useMemo(
         () => selectedOrg?.default_workspace.id || "",
         [selectedOrg],
     )
@@ -32,10 +30,8 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
             setIsLoadingApiKey(true)
 
             let projectId = getProjectValues().projectId
-            let finalWorkspaceId = initialWorkspaceId
+            let finalWorkspaceId = workspaceId
 
-            // Always wait for context during onboarding to ensure we have the correct workspace
-            // The hook might return the default workspace which could be wrong if the user just created a new one
             if (!projectId || !finalWorkspaceId) {
                 try {
                     const context = await waitForWorkspaceContext({
@@ -45,34 +41,28 @@ const ApiKeyInput: React.FC<ApiKeyInputProps> = ({apiKeyValue, onApiKeyChange}) 
                         requireOrgData: true,
                     })
                     projectId = context.projectId
-                    // We temporarily set finalWorkspaceId from context, but we will verify it against the project below
                     finalWorkspaceId = context.workspaceId || ""
                 } catch (e) {
                     console.warn("waitForWorkspaceContext failed or timed out", e)
                 }
-            }
 
-            // Verify workspace ID by fetching project details
-            // This fixes the issue where the URL workspace might differ from the project's actual workspace
-            try {
-                const projects = await fetchAllProjects()
-
-                let project
-                if (projectId) {
-                    project = projects.find((p) => p.project_id === projectId)
+                if (!projectId && finalWorkspaceId) {
+                    try {
+                        const projects = await fetchAllProjects()
+                        if (projects.length > 0) {
+                            // Find a project that belongs to this workspace
+                            const project =
+                                projects.find(
+                                    (p) =>
+                                        p.workspace_id === finalWorkspaceId ||
+                                        p.organization_id === finalWorkspaceId,
+                                ) || projects[0]
+                            projectId = project.project_id
+                        }
+                    } catch (e) {
+                        console.error("Failed to fetch projects manually", e)
+                    }
                 }
-
-                if (!project && projects.length > 0) {
-                    // Fallback: if project not found or not set, pick the first one
-                    project = projects[0]
-                    projectId = project.project_id
-                }
-
-                if (project) {
-                    finalWorkspaceId = project.workspace_id
-                }
-            } catch (e) {
-                console.error("Failed to fetch projects manually", e)
             }
 
             if (finalWorkspaceId) {
