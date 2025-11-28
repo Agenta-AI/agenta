@@ -12,9 +12,11 @@ from pydantic import BaseModel
 from sqlalchemy import Connection, delete, insert
 from sqlalchemy.future import select
 
-from oss.src.models.db_models import UserDB
-from ee.src.models.db_models import (
+from oss.src.models.db_models import (
     ProjectDB,
+    UserDB,
+)
+from ee.src.models.db_models import (
     OrganizationMemberDB,
     WorkspaceMemberDB,
     ProjectMemberDB,

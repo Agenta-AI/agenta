@@ -5,7 +5,7 @@ import {JSSTheme} from "@/oss/lib/Types"
 export const useStyles = createUseStyles((theme: JSSTheme) => ({
     uploadDragger: {
         width: "100%",
-        border: "1px dashed #BDC7D1",
+        border: "1px solid #BDC7D1",
         display: "flex",
         alignItems: "center",
         gap: 16,

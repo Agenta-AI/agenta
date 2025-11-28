@@ -15,7 +15,7 @@ import Link from "next/link"
 import {createUseStyles} from "react-jss"
 
 import {useDurationCounter} from "@/oss/hooks/useDurationCounter"
-import {getTypedValue} from "@/oss/lib/helpers/evaluate"
+import {getTypedValue} from "@/oss/lib/evaluations/legacy"
 import {
     EvaluationStatus,
     EvaluatorConfig,

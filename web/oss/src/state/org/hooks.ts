@@ -8,7 +8,7 @@ import {fetchSingleOrg} from "@/oss/services/organization/api"
 import type {ProjectsResponse} from "@/oss/services/project/types"
 import {requestNavigationAtom} from "@/oss/state/appState"
 
-import {projectsAtom} from "../project/selectors/project"
+import {getLastUsedProjectId, projectsAtom} from "../project/selectors/project"
 
 import {
     cacheWorkspaceOrgPair,
@@ -101,16 +101,14 @@ export const useOrgData = () => {
                 const {workspaceId, preferredProject} = await resolveWorkspaceForOrg(organizationId)
                 if (!workspaceId) return
 
-                if (preferredProject?.organization_id) {
-                    cacheWorkspaceOrgPair(
-                        preferredProject.workspace_id ?? workspaceId,
-                        preferredProject.organization_id,
-                    )
-                }
+                const lastUsedProjectId = getLastUsedProjectId(workspaceId)
+                if (organizationId) cacheWorkspaceOrgPair(workspaceId, organizationId)
 
-                const href = preferredProject
-                    ? `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(preferredProject.project_id)}/apps`
-                    : `/w/${encodeURIComponent(workspaceId)}`
+                const href = lastUsedProjectId
+                    ? `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(lastUsedProjectId)}/apps`
+                    : preferredProject
+                      ? `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(preferredProject.project_id)}/apps`
+                      : `/w/${encodeURIComponent(workspaceId)}`
 
                 navigate({type: "href", href, method: "push", shallow: false})
                 onSuccess?.()

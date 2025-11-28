@@ -1,6 +1,7 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {Typography} from "antd"
+import {useRouter} from "next/router"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -26,6 +27,8 @@ import ApplicationManagementSection from "./components/ApplicationManagementSect
 import GetStartedSection from "./components/GetStartedSection"
 import HelpAndSupportSection from "./components/HelpAndSupportSection"
 import useCustomWorkflowConfig from "./modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
+import ProjectHeaderActions from "./components/ProjectHeaderActions"
+import {useProjectData} from "@/oss/state/project"
 
 const CreateAppStatusModal: any = dynamic(
     () => import("@/oss/components/pages/app-management/modals/CreateAppStatusModal"),
@@ -47,6 +50,7 @@ const ObservabilityDashboardSection: any = dynamic(
 const {Title} = Typography
 
 const AppManagement: React.FC = () => {
+    const {project} = useProjectData()
     const statusData = useAtomValue(appCreationStatusAtom)
     const setStatusData = useSetAtom(appCreationStatusAtom)
     const resetAppCreation = useSetAtom(resetAppCreationAtom)
@@ -103,6 +107,15 @@ const AppManagement: React.FC = () => {
         })
     }
 
+    const {query: routerQuery, isReady} = useRouter()
+
+    useEffect(() => {
+        if (!isReady) return
+        if (routerQuery.create_prompt === "true") {
+            setIsAddAppFromTemplatedModal(true)
+        }
+    }, [isReady, routerQuery.create_prompt])
+
     const onErrorRetry = async () => {
         if (statusData.appId) {
             setStatusData((prev) => ({...prev, status: "cleanup", details: undefined}))
@@ -154,7 +167,21 @@ const AppManagement: React.FC = () => {
                     <ResultComponent status={"error"} title="Failed to load" />
                 ) : (
                     <>
-                        <Title className="!m-0">App Management</Title>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <Title level={3} className="!m-0 flex items-center gap-2 min-w-0">
+                                <span
+                                    className="truncate max-w-[360px]"
+                                    title={project?.project_name || "Project"}
+                                >
+                                    {project?.project_name || "Project"}
+                                </span>
+                                <span className="text-neutral-500 whitespace-nowrap">
+                                    App Management
+                                </span>
+                            </Title>
+
+                            <ProjectHeaderActions />
+                        </div>
 
                         <GetStartedSection
                             selectedOrg={selectedOrg}

@@ -22,9 +22,9 @@ const VariantUserAvatarTag = memo(
             fallback ||
             "-"
         return (
-            <Tag bordered={false}>
+            <span className="text-ellipsis overflow-hidden">
                 <Avatar name={name} className="w-4 h-4 text-[9px]" /> {name}
-            </Tag>
+            </span>
         )
     },
 )
@@ -47,9 +47,9 @@ const UserAvatarTag = memo(({modifiedBy, variantId, nameOverride}: UserAvatarTag
     }
     const name = nameOverride || modifiedBy || "-"
     return (
-        <Tag bordered={false}>
+        <span className="text-ellipsis overflow-hidden">
             <Avatar name={name} className="w-4 h-4 text-[9px]" /> {name}
-        </Tag>
+        </span>
     )
 })
 

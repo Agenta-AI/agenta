@@ -1,15 +1,14 @@
 import re
 import traceback
 from datetime import datetime
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import posthog
 from fastapi import Request
-
+from oss.src.utils.caching import get_cache, set_cache
+from oss.src.utils.common import is_oss
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import set_cache, get_cache
-
 
 log = get_module_logger(__name__)
 
@@ -35,6 +34,17 @@ LIMITED_EVENTS_PER_AUTH = {
     "spans_fetched": 3,
 }
 
+# Activation events and their corresponding person properties
+# Maps event names to (property_name, allowed_auth_methods)
+# If allowed_auth_methods is None, all auth methods are allowed
+ACTIVATION_EVENTS = {
+    "app_revision_fetched": ("activated_prompt_management", {"ApiKey"}),
+    "query_created": ("activated_online_evaluation", None),
+    "spans_created": ("activated_observability", {"ApiKey"}),
+    "evaluation_created": ("activated_evaluation", None),
+    "app_variant_created": ("activated_playground", None),
+}
+
 
 if POSTHOG_API_KEY:
     posthog.api_key = POSTHOG_API_KEY
@@ -42,6 +52,82 @@ if POSTHOG_API_KEY:
     log.info("Agenta - PostHog URL: %s", POSTHOG_HOST)
 else:
     log.warn("PostHog API key not found in environment variables")
+
+
+async def _set_activation_property(
+    distinct_id: str,
+    property_name: str,
+    request: Request,
+) -> None:
+    """
+    Set a person property for user activation.
+    Uses caching to ensure the property is only set once per user.
+    Uses PostHog's $set_once to ensure idempotency.
+    """
+    if not distinct_id or not env.POSTHOG_API_KEY:
+        return
+
+    # Check if we've already set this property for this user
+    cache_key = {"property": property_name}
+
+    already_set = await get_cache(
+        project_id=request.state.project_id,
+        user_id=request.state.user_id,
+        namespace="posthog:activations",
+        key=cache_key,
+        retry=False,
+    )
+
+    if already_set:
+        # Property already set, skip
+        return
+
+    try:
+        # Set the property using PostHog's $set_once (idempotent)
+        posthog.identify(
+            distinct_id=distinct_id,
+            properties={
+                "$set_once": {
+                    property_name: True,
+                }
+            },
+        )
+
+        # Mark in cache that we've set this property
+        await set_cache(
+            project_id=request.state.project_id,
+            user_id=request.state.user_id,
+            namespace="posthog:activations",
+            key=cache_key,
+            value=True,
+            ttl=365 * 24 * 60 * 60,  # 1 year (effectively permanent)
+        )
+
+        log.debug(f"Set activation property '{property_name}' for user {distinct_id}")
+
+    except Exception as e:
+        log.error(f"Error setting activation property '{property_name}': {e}")
+
+
+def capture_oss_deployment_created(user_email: str, organization_id: str):
+    """
+    Captures the 'oss_deployment_created' event in PostHog.
+    This event is triggered when the first user signs up in an OSS instance.
+    """
+
+    if is_oss() and env.POSTHOG_API_KEY:
+        try:
+            posthog.capture(
+                distinct_id=user_email,
+                event="oss_deployment_created",
+                properties={
+                    "organization_id": organization_id,
+                    "deployment_type": "oss",
+                },
+            )
+            log.info(f"Captured 'oss_deployment_created' event for {user_email}")
+        except Exception as e:
+            log.error(f"Error capturing 'oss_deployment_created' event: {e}")
 
 
 async def analytics_middleware(request: Request, call_next: Callable):
@@ -153,6 +239,21 @@ async def analytics_middleware(request: Request, call_next: Callable):
                     properties=properties or {},
                 )
 
+                # Check if this is an activation event
+                if event_name in ACTIVATION_EVENTS:
+                    property_name, allowed_auth_methods = ACTIVATION_EVENTS[event_name]
+
+                    # Check if auth method is allowed for this activation
+                    if (
+                        allowed_auth_methods is None
+                        or auth_method in allowed_auth_methods
+                    ):
+                        await _set_activation_property(
+                            distinct_id=distinct_id,
+                            property_name=property_name,
+                            request=request,
+                        )
+
         except Exception as e:
             log.error(f"❌ Error capturing event in PostHog: {e}")
 
@@ -215,7 +316,11 @@ def _get_event_name_from_path(
     elif method == "PUT" and "/evaluators/configs/" in path:
         return "evaluator_updated"
 
-    elif method == "POST" and path == "/preview/evaluations/runs/":
+    elif method == "POST" and (
+        path == "/preview/evaluations/runs/"
+        or "/evaluations/preview/start" in path
+        or path == "/preview/simple/evaluations/"
+    ):
         return "evaluation_created"
 
     elif method == "POST" and "/human-evaluations" in path:
@@ -231,6 +336,14 @@ def _get_event_name_from_path(
     ):
         return "spans_fetched"
     # <----------- End of Observability Events ------------->
+
+    # <----------- Query/Prompt Management Events ------------->
+    if method == "POST" and path == "/preview/queries/":
+        return "query_created"
+
+    elif method == "POST" and path == "/preview/simple/queries/":
+        return "query_created"
+    # <----------- End of Query/Prompt Management Events ------------->
 
     # <----------- User Lifecycle Events ------------->
     if (

@@ -20,9 +20,9 @@ import stripe
 from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import UserDB
 from oss.src.models.db_models import AppDB
-from ee.src.models.db_models import OrganizationDB
+from oss.src.models.db_models import OrganizationDB
 from ee.src.models.db_models import OrganizationMemberDB
-from ee.src.models.db_models import ProjectDB
+from oss.src.models.db_models import ProjectDB
 from ee.src.models.db_models import ProjectMemberDB
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 from ee.src.dbs.postgres.meters.dbes import MeterDBE

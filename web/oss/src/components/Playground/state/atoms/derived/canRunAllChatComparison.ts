@@ -29,6 +29,15 @@ const hasValidUser = (val: any): boolean => {
                         ""
                     if (url) return true
                 }
+                if (type === "file" || p?.file) {
+                    const fileId =
+                        p?.file?.file_id?.value ??
+                        p?.file?.file_id ??
+                        p?.file_id?.value ??
+                        p?.file_id ??
+                        ""
+                    if (fileId) return true
+                }
             }
         } catch {}
     }

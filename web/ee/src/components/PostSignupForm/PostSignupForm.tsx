@@ -1,10 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowRight} from "@phosphor-icons/react"
-import {Button, Checkbox, Form, FormProps, Input, Radio, Space, Spin, Typography} from "antd"
+import {Button, Checkbox, Form, Input, Radio, Rate, Space, Spin, Typography} from "antd"
 import Image from "next/image"
 import {useRouter} from "next/router"
-import {MultipleSurveyQuestion} from "posthog-js"
+import {MultipleSurveyQuestion, SurveyQuestion, SurveyQuestionType} from "posthog-js"
 
 import ListOfOrgs from "@/oss/components/Sidebar/components/ListOfOrgs"
 import useURL from "@/oss/hooks/useURL"
@@ -15,7 +15,61 @@ import {useProfileData} from "@/oss/state/profile"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 import {useStyles} from "./assets/styles"
-import {FormDataType} from "./assets/types"
+import {OnboardingScreen} from "./OnboardingScreen"
+
+// Fisher-Yates shuffle algorithm
+const shuffleArray = <T,>(array: T[]): T[] => {
+    const shuffled = [...array]
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    }
+    return shuffled
+}
+
+const calculateICP = (
+    companySize?: string,
+    userRole?: string,
+    userExperience?: string,
+): boolean => {
+    if (!companySize || !userRole || !userExperience) {
+        return false
+    }
+
+    const isTargetCompanySize = ["11-50", "51-200", "201+"].includes(companySize)
+    const isNotHobbyist = userRole !== "Hobbyist"
+    const isNotJustExploring = userExperience !== "Just exploring"
+
+    return isTargetCompanySize && isNotHobbyist && isNotJustExploring
+}
+
+const convertInterestsToBinaryProperties = (
+    interests?: string | string[],
+): Record<string, boolean> => {
+    const safeInterests = Array.isArray(interests) ? interests : interests ? [interests] : []
+
+    return {
+        interest_evaluation: safeInterests.includes("Evaluating LLM Applications"),
+        interest_no_code: safeInterests.includes("No-code LLM application building"),
+        interest_prompt_management: safeInterests.includes("Prompt management and versioning"),
+        interest_prompt_engineering: safeInterests.includes("Prompt engineering"),
+        interest_observability: safeInterests.includes("Observability, tracing and monitoring"),
+    }
+}
+
+const QUESTIONS_PER_PAGE = 3
+
+type AnySurveyQuestion = SurveyQuestion & {
+    hasOpenChoice?: boolean
+    shuffleOptions?: boolean
+    originalQuestionIndex?: number
+}
+
+type QuestionMeta = {
+    question: AnySurveyQuestion
+    index: number
+    originalIndex: number
+}
 
 const PostSignupForm = () => {
     const [form] = Form.useForm()
@@ -24,17 +78,20 @@ const PostSignupForm = () => {
     const {user} = useProfileData()
     const classes = useStyles()
     const {orgs} = useOrgData()
-    const selectedHearAboutUsOption = Form.useWatch("hearAboutUs", form)
     const formData = Form.useWatch([], form)
-    const [stepOneFormData, setStepOneFormData] = useState<any>({} as any)
     const [currentStep, setCurrentStep] = useState(0)
+    const [showOnboarding, setShowOnboarding] = useState(false)
     const {survey, loading, error} = useSurvey("Signup 2")
     const {baseAppURL} = useURL()
     const [autoRedirectAttempted, setAutoRedirectAttempted] = useState(false)
-    const redirectParam = useMemo(
-        () => (router.query.redirect as string) || "",
-        [router.query.redirect],
-    )
+
+    // Safely handle redirect query as string | string[]
+    const redirectParam = useMemo(() => {
+        const r = router.query.redirect
+        if (Array.isArray(r)) return r[0] || ""
+        return (r as string) || ""
+    }, [router.query.redirect])
+
     const redirect = useCallback(
         async (target: string | null | undefined) => {
             if (!target) return false
@@ -82,261 +139,323 @@ const PostSignupForm = () => {
         void navigateToPostSignupDestination()
     }, [autoRedirectAttempted, error, navigateToPostSignupDestination])
 
-    const handleStepOneFormData: FormProps<FormDataType>["onFinish"] = useCallback(
-        async (values: any) => {
-            setStepOneFormData(values)
-            setCurrentStep(1)
-        },
-        [],
-    )
+    /**
+     * Wrap all survey questions with their array index and a stable "originalIndex".
+     * originalIndex uses question.originalQuestionIndex when available, else falls back to index.
+     */
+    const allQuestions: QuestionMeta[] = useMemo(() => {
+        if (!survey?.questions) return []
+        return survey.questions.map(
+            (q: SurveyQuestion & {originalQuestionIndex?: number}, index) => {
+                const originalIndex =
+                    typeof q.originalQuestionIndex === "number" ? q.originalQuestionIndex : index
 
-    const handleSubmitFormData: FormProps<FormDataType>["onFinish"] = useCallback(
-        async (values: any) => {
-            const hearAboutUs =
-                values.hearAboutUs == "Other" ? values.hearAboutUsInputOption : values.hearAboutUs
+                return {
+                    question: q as AnySurveyQuestion,
+                    index,
+                    originalIndex,
+                }
+            },
+        )
+    }, [survey?.questions])
 
+    /**
+     * Filter out questions that should not be shown (for example, email question).
+     */
+    const visibleQuestions: QuestionMeta[] = useMemo(() => {
+        return allQuestions.filter(({question, originalIndex}) => {
+            // Filter out the email question based on known original index or wording
+            if (originalIndex === 5) return false
+            if (
+                question.type === SurveyQuestionType.Open &&
+                question.question.toLowerCase().includes("email")
+            ) {
+                return false
+            }
+            return true
+        })
+    }, [allQuestions])
+
+    const totalSteps = Math.ceil(visibleQuestions.length / QUESTIONS_PER_PAGE)
+
+    const handleNextStep = useCallback(async () => {
+        try {
+            await form.validateFields()
+            setCurrentStep((prev) => prev + 1)
+        } catch {
+            // Validation failed, do nothing
+        }
+    }, [form])
+
+    const handleSubmitFormData = useCallback(
+        async (values: any) => {
             try {
-                const responses = survey?.questions?.reduce(
-                    (acc: Record<string, unknown>, question, index) => {
-                        const key = `$survey_response_${question.id}`
-                        switch (index) {
-                            case 0:
-                                acc[key] = [stepOneFormData.companySize]
-                                break
-                            case 1:
-                                acc[key] = stepOneFormData.userRole
-                                break
-                            case 2:
-                                acc[key] = stepOneFormData.userExperience
-                                break
-                            case 3:
-                                acc[key] = values.userInterests
-                                break
-                            case 4:
-                                acc[key] = [hearAboutUs]
-                                break
-                            case 5:
-                                // the user's email is captured as a survey
-                                // response only; posthog.identify is called
-                                // elsewhere so we don't send a separate
-                                // `user_email` property
-                                acc[key] = user?.email
-                                break
-                        }
-                        return acc
-                    },
-                    {},
+                // Get all values including unmounted fields from previous steps
+                const allValues = {...form.getFieldsValue(true), ...values}
+
+                const responses: Record<string, unknown> = {}
+                const personProperties: Record<string, any> = {}
+
+                allQuestions.forEach(({question, index, originalIndex}) => {
+                    const key = `$survey_response_${question.id}`
+                    const fieldName = `question_${index}`
+                    let answer = allValues[fieldName]
+
+                    // Handle "Other" input
+                    if (
+                        Array.isArray(answer) &&
+                        answer.includes("Other") &&
+                        allValues[`${fieldName}_other`]
+                    ) {
+                        answer = answer.map((a: string) =>
+                            a === "Other" ? allValues[`${fieldName}_other`] : a,
+                        )
+                    } else if (answer === "Other" && allValues[`${fieldName}_other`]) {
+                        answer = allValues[`${fieldName}_other`]
+                    }
+
+                    // Special handling for email question if it was skipped in the form
+                    if (
+                        originalIndex === 5 ||
+                        (question.type === SurveyQuestionType.Open &&
+                            question.question.toLowerCase().includes("email"))
+                    ) {
+                        responses[key] = user?.email
+                        return
+                    }
+
+                    if (answer !== undefined) {
+                        responses[key] = answer
+                    }
+
+                    // Map to legacy person properties for ICP calculation
+                    if (originalIndex === 0) {
+                        personProperties.company_size_v1 = Array.isArray(answer)
+                            ? answer[0]
+                            : answer
+                    } else if (originalIndex === 1) {
+                        personProperties.user_role_v1 = answer
+                    } else if (originalIndex === 2) {
+                        personProperties.user_experience_v1 = answer
+                    } else if (originalIndex === 3) {
+                        Object.assign(personProperties, convertInterestsToBinaryProperties(answer))
+                    }
+                })
+
+                const isICP = calculateICP(
+                    personProperties.company_size_v1,
+                    personProperties.user_role_v1,
+                    personProperties.user_experience_v1,
                 )
+                personProperties.is_icp_v1 = isICP
 
                 await posthog?.capture?.("survey sent", {
                     $survey_id: survey?.id,
                     $survey_name: survey?.name,
                     ...responses,
+                    $set: personProperties,
                 })
 
                 form.resetFields()
             } catch (error) {
                 console.error("Error submitting form:", error)
             } finally {
-                await navigateToPostSignupDestination()
+                setShowOnboarding(true)
             }
         },
         [
+            allQuestions,
             form,
+            navigateToPostSignupDestination,
             posthog,
-            stepOneFormData.companySize,
-            stepOneFormData.userExperience,
-            stepOneFormData.userRole,
             survey?.id,
             survey?.name,
             user?.email,
-            navigateToPostSignupDestination,
         ],
     )
 
-    const steps = useMemo(() => {
-        return [
-            {
-                content: (
-                    <Form
-                        layout="vertical"
-                        form={form}
-                        onFinish={handleStepOneFormData}
-                        className={classes.mainContainer}
+    // Memoize shuffled choices keyed by the stable question index
+    const questionChoices = useMemo(() => {
+        if (!allQuestions.length) return {}
+        const choicesMap: Record<number, string[]> = {}
+
+        allQuestions.forEach(({question, index}) => {
+            // Choices only exist on multiple / single choice questions
+            const q = question as MultipleSurveyQuestion & {shuffleOptions?: boolean}
+            if (!q.choices) {
+                choicesMap[index] = []
+                return
+            }
+
+            const choices = Array.isArray(q.choices) ? q.choices : []
+            const otherIndex = choices.indexOf("Other")
+            const hasOther = otherIndex !== -1
+            let choicesToShuffle = choices
+
+            if (hasOther) {
+                choicesToShuffle = choices.filter((choice) => choice !== "Other")
+            }
+
+            const shuffled = q.shuffleOptions ? shuffleArray(choicesToShuffle) : choicesToShuffle
+            choicesMap[index] = hasOther ? [...shuffled, "Other"] : shuffled
+        })
+
+        return choicesMap
+    }, [allQuestions])
+
+    const renderQuestion = (meta: QuestionMeta) => {
+        const {question, index, originalIndex} = meta
+        const fieldName = `question_${index}`
+        const choices = questionChoices[index] || []
+        const isMultiple = question.type === SurveyQuestionType.MultipleChoice
+        const hasOpenChoice = question.hasOpenChoice || choices.includes("Other")
+
+        const currentValue = formData?.[fieldName]
+        const showOtherInput = isMultiple
+            ? Array.isArray(currentValue) && currentValue.includes("Other")
+            : currentValue === "Other"
+
+        // Special rendering for the "Company Size" question
+        if (originalIndex === 0) {
+            return (
+                <div key={question.id}>
+                    <Form.Item
+                        name={fieldName}
+                        className={classes.formItem}
+                        label={question.question}
+                        rules={[{required: true, message: "Please select an option"}]}
                     >
-                        <div className={classes.container}>
-                            <div className="space-y-1">
-                                <Typography.Paragraph>1/2</Typography.Paragraph>
-                                <Typography.Title level={3}>
-                                    Tell us about yourself
-                                </Typography.Title>
-                            </div>
-
-                            <div>
-                                <Form.Item
-                                    name="companySize"
-                                    className={classes.formItem}
-                                    label={survey?.questions[0].question}
-                                >
-                                    <Radio.Group
-                                        optionType="button"
-                                        className="*:w-full text-center flex justify-between *:whitespace-nowrap"
-                                    >
-                                        {(
-                                            survey?.questions[0] as MultipleSurveyQuestion
-                                        )?.choices?.map((choice: string) => (
-                                            <Radio key={choice} value={choice}>
-                                                {choice}
-                                            </Radio>
-                                        ))}
-                                    </Radio.Group>
-                                </Form.Item>
-
-                                <Form.Item
-                                    name="userExperience"
-                                    className={classes.formItem}
-                                    label={survey?.questions[2].question}
-                                >
-                                    <Radio.Group>
-                                        <Space direction="vertical">
-                                            {(
-                                                survey?.questions[2] as MultipleSurveyQuestion
-                                            )?.choices?.map((choice: string) => (
-                                                <Radio key={choice} value={choice}>
-                                                    {choice}
-                                                </Radio>
-                                            ))}
-                                        </Space>
-                                    </Radio.Group>
-                                </Form.Item>
-
-                                <Form.Item
-                                    name="userRole"
-                                    className={classes.formItem}
-                                    label={survey?.questions[1].question}
-                                >
-                                    <Radio.Group>
-                                        <Space direction="vertical">
-                                            {(
-                                                survey?.questions[1] as MultipleSurveyQuestion
-                                            )?.choices.map((choice: string) => (
-                                                <Radio key={choice} value={choice}>
-                                                    {choice}
-                                                </Radio>
-                                            ))}
-                                        </Space>
-                                    </Radio.Group>
-                                </Form.Item>
-                            </div>
-                        </div>
-
-                        <Button
-                            size="large"
-                            type="primary"
-                            htmlType="submit"
-                            className="w-full"
-                            iconPosition="end"
-                            icon={<ArrowRight className="mt-[3px]" />}
-                            disabled={
-                                !formData?.companySize ||
-                                !formData?.userRole ||
-                                !formData?.userExperience
-                            }
+                        <Radio.Group
+                            optionType="button"
+                            className="*:w-full text-center flex justify-between *:whitespace-nowrap"
                         >
-                            Continue
-                        </Button>
-                    </Form>
-                ),
-            },
-            {
-                content: (
-                    <Form
-                        form={form}
-                        layout="vertical"
-                        onFinish={handleSubmitFormData}
-                        className={classes.mainContainer}
+                            {choices.map((choice: string) => (
+                                <Radio key={choice} value={choice}>
+                                    {choice}
+                                </Radio>
+                            ))}
+                        </Radio.Group>
+                    </Form.Item>
+                </div>
+            )
+        }
+
+        if (!choices.length) {
+            if (question.type === SurveyQuestionType.Open) {
+                return (
+                    <div key={question.id}>
+                        <Form.Item
+                            name={fieldName}
+                            className={classes.formItem}
+                            label={question.question}
+                            rules={[{required: true, message: "Please enter a response"}]}
+                        >
+                            <Input.TextArea rows={3} placeholder="Type here" />
+                        </Form.Item>
+                    </div>
+                )
+            }
+
+            if (question.type === SurveyQuestionType.Rating) {
+                const ratingMax =
+                    (question as {scaleMax?: number; scale_max?: number}).scaleMax ??
+                    (question as {scaleMax?: number; scale_max?: number}).scale_max ??
+                    5
+
+                return (
+                    <div key={question.id}>
+                        <Form.Item
+                            name={fieldName}
+                            className={classes.formItem}
+                            label={question.question}
+                            rules={[{required: true, message: "Please provide a rating"}]}
+                        >
+                            <Rate count={ratingMax} />
+                        </Form.Item>
+                    </div>
+                )
+            }
+
+            return (
+                <div key={question.id}>
+                    <Form.Item
+                        name={fieldName}
+                        className={classes.formItem}
+                        label={question.question}
+                        rules={[{required: true, message: "Please provide a response"}]}
                     >
-                        <div className={classes.container}>
-                            <div className="space-y-1">
-                                <Typography.Paragraph>2/2</Typography.Paragraph>
-                                <Typography.Title level={3}>What brings you here?</Typography.Title>
-                            </div>
+                        <Input placeholder="Type here" />
+                    </Form.Item>
+                </div>
+            )
+        }
 
-                            <div>
-                                <Form.Item
-                                    name="userInterests"
-                                    className={classes.formItem}
-                                    label={survey?.questions[3].question}
-                                >
-                                    <Checkbox.Group>
-                                        <Space direction="vertical">
-                                            {(
-                                                survey?.questions[3] as MultipleSurveyQuestion
-                                            )?.choices?.map((role: string) => (
-                                                <Checkbox key={role} value={role}>
-                                                    {role}
-                                                </Checkbox>
-                                            ))}
-                                        </Space>
-                                    </Checkbox.Group>
-                                </Form.Item>
+        return (
+            <div key={question.id}>
+                <Form.Item
+                    name={fieldName}
+                    className={classes.formItem}
+                    label={question.question}
+                    rules={[{required: true, message: "Please select an option"}]}
+                >
+                    {isMultiple ? (
+                        <Checkbox.Group>
+                            <Space direction="vertical">
+                                {choices.map((choice: string) => (
+                                    <Checkbox key={choice} value={choice}>
+                                        {choice}
+                                    </Checkbox>
+                                ))}
+                            </Space>
+                        </Checkbox.Group>
+                    ) : (
+                        <Radio.Group>
+                            <Space direction="vertical" className="w-full">
+                                {choices.map((choice: string) => (
+                                    <Radio key={choice} value={choice}>
+                                        {choice}
+                                    </Radio>
+                                ))}
+                            </Space>
+                        </Radio.Group>
+                    )}
+                </Form.Item>
 
-                                <Form.Item
-                                    className={classes.formItem}
-                                    name="hearAboutUs"
-                                    label={survey?.questions[4].question}
-                                >
-                                    <Radio.Group>
-                                        <Space direction="vertical">
-                                            {(
-                                                survey?.questions[4] as MultipleSurveyQuestion
-                                            )?.choices?.map((choice: string) => (
-                                                <Radio key={choice} value={choice}>
-                                                    {choice}
-                                                </Radio>
-                                            ))}
-                                        </Space>
-                                    </Radio.Group>
-                                </Form.Item>
+                {hasOpenChoice && showOtherInput && (
+                    <Form.Item
+                        name={`${fieldName}_other`}
+                        className="-mt-3"
+                        rules={[{required: true, message: "Please specify"}]}
+                    >
+                        <Input placeholder="Type here" />
+                    </Form.Item>
+                )}
+            </div>
+        )
+    }
 
-                                {selectedHearAboutUsOption == "Other" && (
-                                    <Form.Item name="hearAboutUsInputOption" className="-mt-3">
-                                        <Input placeholder="Type here" />
-                                    </Form.Item>
-                                )}
-                            </div>
-                        </div>
+    const currentQuestions = useMemo(() => {
+        const start = currentStep * QUESTIONS_PER_PAGE
+        return visibleQuestions.slice(start, start + QUESTIONS_PER_PAGE)
+    }, [currentStep, visibleQuestions])
 
-                        <Button
-                            size="large"
-                            type="primary"
-                            htmlType="submit"
-                            className="w-full"
-                            iconPosition="end"
-                            icon={<ArrowRight className="mt-[3px]" />}
-                            disabled={!formData?.userInterests?.length || !formData?.hearAboutUs}
-                        >
-                            Continue
-                        </Button>
-                    </Form>
-                ),
-            },
-        ]
-    }, [
-        classes.container,
-        classes.formItem,
-        classes.mainContainer,
-        form,
-        formData?.companySize,
-        formData?.hearAboutUs,
-        formData?.userExperience,
-        formData?.userInterests?.length,
-        formData?.userRole,
-        handleStepOneFormData,
-        handleSubmitFormData,
-        selectedHearAboutUsOption,
-        survey?.questions,
-    ])
+    // Calculate if current step is valid to enable the button
+    const isCurrentStepValid = useMemo(() => {
+        if (!formData) return false
+
+        return currentQuestions.every(({index}) => {
+            const fieldName = `question_${index}`
+            const val = formData[fieldName]
+
+            if (!val || (Array.isArray(val) && val.length === 0)) return false
+
+            if (val === "Other" || (Array.isArray(val) && val.includes("Other"))) {
+                if (!formData[`${fieldName}_other`]) return false
+            }
+
+            return true
+        })
+    }, [currentQuestions, formData])
 
     const showSurveyForm = Boolean(survey?.questions?.length)
     const isSurveyLoading = loading && !error
@@ -356,13 +475,53 @@ const PostSignupForm = () => {
                     interactive={true}
                     orgSelectionEnabled={false}
                     buttonProps={{className: "w-[186px] !p-1 !h-10 rounded"}}
-                    overrideOrgId={orgs?.[0]?.id}
+                    overrideOrgId={orgs && orgs.length > 0 ? orgs[0]?.id : undefined}
                 />
             </section>
 
-            <Spin spinning={isSurveyLoading}>
-                {showSurveyForm ? steps[currentStep]?.content : null}
-            </Spin>
+            {showOnboarding ? (
+                <OnboardingScreen />
+            ) : (
+                <Spin spinning={isSurveyLoading}>
+                    {showSurveyForm && (
+                        <Form
+                            layout="vertical"
+                            form={form}
+                            onFinish={handleSubmitFormData}
+                            className={classes.mainContainer}
+                        >
+                            <div className={classes.container}>
+                                <div className="space-y-1">
+                                    <Typography.Paragraph>
+                                        {currentStep + 1}/{totalSteps || 1}
+                                    </Typography.Paragraph>
+                                    <Typography.Title level={3}>
+                                        {currentStep === 0
+                                            ? "Tell us about yourself"
+                                            : "Almost done"}
+                                    </Typography.Title>
+                                </div>
+
+                                <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
+                            </div>
+
+                            <Button
+                                size="large"
+                                type="primary"
+                                onClick={
+                                    currentStep < totalSteps - 1 ? handleNextStep : form.submit
+                                }
+                                className="w-full"
+                                iconPosition="end"
+                                icon={<ArrowRight className="mt-[3px]" />}
+                                disabled={!isCurrentStepValid}
+                            >
+                                {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
+                            </Button>
+                        </Form>
+                    )}
+                </Spin>
+            )}
         </>
     )
 }

@@ -25,6 +25,20 @@ export const shippedFeatures: ShippedFeature[] = [
   // Observability: DE74FF
   // Evaluation: 86B7FF
   // Integration: FFA500
+    {
+    id: "jinja2-playground",
+    title: "Jinja2 Template Support in the Playground",
+    description:
+      "Use Jinja2 templating in prompts to add conditional logic, filters, and template blocks. The template format is stored in the configuration schema, and the SDK handles rendering automatically.",
+    changelogPath: "/docs/changelog/jinja2-template-support",
+    shippedAt: "2025-11-17",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
   {
     id: "evaluation-sdk",
     title: "Programmatic Evaluation through the SDK",
@@ -231,6 +245,45 @@ export const shippedFeatures: ShippedFeature[] = [
 ];
 export const inProgressFeatures: PlannedFeature[] = [
   {
+    id: "chat-session-view",
+    title: "Chat Session View in Observability",
+    description:
+      "Display entire chat sessions in one consolidated view. Currently, each trace in a chat session appears in a separate tab. This feature will group traces by session ID and show the complete conversation in a single view.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/3052",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
+    id: "trace-linking",
+    title: "Navigation Links from Traces to App/Environment/Variant",
+    description:
+      "Add clickable links in the observability trace and drawer view to navigate to the application, variant, version, and environment used in each trace. Makes it easy to jump directly to the configuration that generated a specific trace.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2699",
+    labels: [
+      {
+        name: "Observability",
+        color: "DE74FF",
+      },
+    ],
+  },
+  {
+    id: "tools-playground",
+    title: "Support for built-in LLM Tools (e.g. web search) in the Playground",
+    description:
+      "We are adding the ability to use built-in LLM tools (e.g. web search) in the playground.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2577",
+    labels: [
+      {
+        name: "Playground",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
     id: "prompt-folders",
     title: "Folders for Prompt Organization",
     description:
@@ -253,19 +306,6 @@ export const inProgressFeatures: PlannedFeature[] = [
       {
         name: "Misc",
         color: "000000",
-      },
-    ],
-  },
-  {
-    id: "jinja2-playground",
-    title: "Jinja2 Template Support in the Playground",
-    description:
-      "Add Jinja2 template support to enable conditional logic, filters, and template blocks in prompts. The prompt type will be stored in the schema, and the SDK will handle rendering.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2856",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
       },
     ],
   },
@@ -415,19 +455,6 @@ export const plannedFeatures: PlannedFeature[] = [
       {
         name: "Evaluation",
         color: "86B7FF",
-      },
-    ],
-  },
-  {
-    id: "tools-playground",
-    title: "Support for built-in LLM Tools (e.g. web search) in the Playground",
-    description:
-      "We are adding the ability to use built-in LLM tools (e.g. web search) in the playground.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/discussions/2577",
-    labels: [
-      {
-        name: "Playground",
-        color: "BCFF78",
       },
     ],
   },

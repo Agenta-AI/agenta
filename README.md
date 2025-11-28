@@ -7,18 +7,31 @@
         <img alt="Shows the logo of agenta" src="https://github.com/user-attachments/assets/fdc5f23f-2095-4cfc-9511-14c6851c1262" >
       </picture>
   </a>
-
+  
 <div align="center">
   <strong> <h1> The Open-source LLMOps Platform </h1></strong>
   Build reliable LLM applications faster with integrated prompt management, evaluation, and observability.
 </div>
+
+
+---
+
+<div align="center">
+
+<strong>We're live today on Product Hunt and would appreciate your support!</strong>
+<br /><br />
+<a href="https://www.producthunt.com/products/agenta?embed=true&utm_source=badge-featured&utm_medium=badge&utm_source=badge-agenta" target="_blank"><img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1031958&theme=light&t=1764327133736" alt="Agenta - Open&#0045;source&#0032;prompt&#0032;management&#0032;&#0038;&#0032;evals&#0032;for&#0032;AI&#0032;teams | Product Hunt" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+</div>
+
+---
+
   <br />
       <div align="center" >
         <a href="https://cloud.agenta.ai?utm_source=github&utm_medium=referral&utm_campaign=readme">
           <picture >
-        <source media="(prefers-color-scheme: dark)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/9a4fde42-c96c-4ec2-b8d1-c8c0e3851a00/large"  >
-        <source media="(prefers-color-scheme: light)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/98140352-14c0-4db1-bafb-a1e8d271d500/large"  >
-        <img alt="Shows the logo of agenta" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/98140352-14c0-4db1-bafb-a1e8d271d500/large" >
+        <source media="(prefers-color-scheme: dark)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
+        <source media="(prefers-color-scheme: light)" srcset="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large"  >
+        <img alt="Shows the logo of agenta" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/6fa19a9d-9785-4acf-5d08-e81b1e38b100/large" >
           </picture>
         </a>
     </div>
@@ -110,10 +123,10 @@ Get visibility into your LLM applications in production.
 
 ## 📸 Screenshots
 
-<img alt="Playground" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/e7d16967-d564-4148-3615-03bfe2a29d00/large" />
-<img alt="Prompt Management" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/b4210a13-b41e-4dfd-d383-4286fb011e00/large" />
-<img alt="Evaluation" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/4b1c62b9-ff6e-4bd1-4c8d-de59b8485e00/large" />
-<img  alt="Observability" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/5c764759-e525-499e-544a-1077c45e9600/large" />
+<img alt="Playground" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/a4f67ac4-1acc-40c6-7a1a-5616eee7bb00/large" />
+<img alt="Prompt Management" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/65f697d0-3221-4e3c-7232-f350b1976a00/large" />
+<img alt="Evaluation" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/19b5b77e-6945-4419-15b9-cfea197e1300/large" />
+<img  alt="Observability" src="https://imagedelivery.net/UNvjPBCIZFONpkVPQTxVuA/efc8a24c-2a2a-427c-f285-7d8b41200700/large" />
 
 ## 🚀 Getting Started 
 
@@ -182,7 +195,7 @@ We welcome contributions of all kinds — from filing issues and sharing ideas t
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-50-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-51-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -254,6 +267,10 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/jp-agenta"><img src="https://avatars.githubusercontent.com/u/174311389?v=4?s=100" width="100px;" alt="jp-agenta"/><br /><sub><b>jp-agenta</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=jp-agenta" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Ajp-agenta" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://mrunhap.github.io"><img src="https://avatars.githubusercontent.com/u/24653356?v=4?s=100" width="100px;" alt="Mr Unhappy"/><br /><sub><b>Mr Unhappy</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Amrunhap" title="Bug reports">🐛</a> <a href="#infra-mrunhap" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/morenobonaventura"><img src="https://avatars.githubusercontent.com/u/2118854?v=4?s=100" width="100px;" alt="Moreno Bonaventura"/><br /><sub><b>Moreno Bonaventura</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Amorenobonaventura" title="Bug reports">🐛</a></td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://ikazoy.me/"><img src="https://avatars.githubusercontent.com/u/385109?v=4?s=100" width="100px;" alt="Yoshiki Ozaki"/><br /><sub><b>Yoshiki Ozaki</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/issues?q=author%3Aikazoy" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ahmed-agenta"><img src="https://avatars.githubusercontent.com/u/194256084?v=4?s=100" width="100px;" alt="ahmed-agenta"/><br /><sub><b>ahmed-agenta</b></sub></a><br /><a href="#design-ahmed-agenta" title="Design">🎨</a></td>
     </tr>
   </tbody>
 </table>
