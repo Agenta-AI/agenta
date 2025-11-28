@@ -3,7 +3,10 @@ import {Typography, Card, Button, Space} from "antd"
 import {ArrowLeft, Code, TreeView, Rocket} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-import {SetupTracingModalContent, useStyles as useTracingStyles} from "@/oss/components/pages/app-management/modals/SetupTracingModal"
+import {
+    SetupTracingModalContent,
+    useStyles as useTracingStyles,
+} from "@/oss/components/pages/app-management/modals/SetupTracingModal"
 import {RunEvaluationView} from "./RunEvaluationView"
 import {createUseStyles} from "react-jss"
 import {JSSTheme} from "@/oss/lib/Types"
@@ -34,8 +37,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
             alignItems: "center",
             padding: 0,
             height: "100%",
-            width: "100%"
-        }
+            width: "100%",
+        },
     },
     iconContainer: {
         height: "50%",
@@ -60,12 +63,12 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
     cardTitle: {
         fontSize: 18,
         fontWeight: 600,
-        marginBottom: 8
+        marginBottom: 8,
     },
     cardDesc: {
         color: theme.colorTextSecondary,
         fontSize: 14,
-        lineHeight: 1.5
+        lineHeight: 1.5,
     },
     container: {
         display: "flex",
@@ -74,17 +77,17 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         justifyContent: "center",
         minHeight: "60vh",
         gap: 40,
-        padding: "40px 20px"
+        padding: "40px 20px",
     },
     cardsContainer: {
         display: "flex",
         gap: 24,
         flexWrap: "wrap",
-        justifyContent: "center"
+        justifyContent: "center",
     },
     backButton: {
         alignSelf: "flex-start",
-        marginBottom: 20
+        marginBottom: 20,
     },
     detailContainer: {
         width: "100%",
@@ -94,8 +97,8 @@ const useStyles = createUseStyles((theme: JSSTheme) => ({
         backgroundColor: theme.colorBgContainer,
         borderRadius: theme.borderRadiusLG,
         border: `1px solid ${theme.colorBorderSecondary}`,
-        marginBottom: 40
-    }
+        marginBottom: 40,
+    },
 }))
 
 type ViewState = "selection" | "trace" | "eval"
@@ -110,7 +113,7 @@ export const OnboardingScreen = () => {
 
     const handleSelection = async (selection: "trace" | "eval" | "test_prompt") => {
         posthog?.capture?.("onboarding_selection_v1", {
-            selection
+            selection,
         })
 
         if (selection === "test_prompt") {
@@ -156,15 +159,15 @@ export const OnboardingScreen = () => {
         if (view === "trace") {
             return (
                 <div className={classes.detailContainer}>
-                    <SetupTracingModalContent 
-                        classes={tracingClasses} 
+                    <SetupTracingModalContent
+                        classes={tracingClasses}
                         onCancel={() => {}} // Not used in this context
                         isModal={false}
                     />
                     <div className="flex justify-between mt-6">
-                        <Button 
-                            type="text" 
-                            icon={<ArrowLeft />} 
+                        <Button
+                            type="text"
+                            icon={<ArrowLeft />}
                             onClick={() => setView("selection")}
                         >
                             Back
@@ -182,14 +185,19 @@ export const OnboardingScreen = () => {
                 <div className={classes.detailContainer}>
                     <RunEvaluationView />
                     <div className="flex justify-between mt-6">
-                         <Button 
-                            type="text" 
-                            icon={<ArrowLeft />} 
+                        <Button
+                            type="text"
+                            icon={<ArrowLeft />}
                             onClick={() => setView("selection")}
                         >
                             Back
                         </Button>
-                        <Button type="primary" onClick={() => handleNext("evaluations")}>
+                        <Button
+                            type="primary"
+                            onClick={() =>
+                                handleNext("evaluations?selectedEvaluation=custom_evaluation")
+                            }
+                        >
                             Next
                         </Button>
                     </div>
@@ -200,12 +208,9 @@ export const OnboardingScreen = () => {
         return (
             <div className={classes.container}>
                 <Title level={2}>How would you like to start?</Title>
-                
+
                 <div className={classes.cardsContainer}>
-                    <Card 
-                        className={classes.card}
-                        onClick={() => handleSelection("trace")}
-                    >
+                    <Card className={classes.card} onClick={() => handleSelection("trace")}>
                         <div className={classes.iconContainer}>
                             <TreeView className={classes.icon} />
                         </div>
@@ -217,10 +222,7 @@ export const OnboardingScreen = () => {
                         </div>
                     </Card>
 
-                    <Card 
-                        className={classes.card}
-                        onClick={() => handleSelection("test_prompt")}
-                    >
+                    <Card className={classes.card} onClick={() => handleSelection("test_prompt")}>
                         <div className={classes.iconContainer}>
                             <Rocket className={classes.icon} />
                         </div>
@@ -232,22 +234,20 @@ export const OnboardingScreen = () => {
                         </div>
                     </Card>
 
-                    <Card 
-                        className={classes.card}
-                        onClick={() => handleSelection("eval")}
-                    >
+                    <Card className={classes.card} onClick={() => handleSelection("eval")}>
                         <div className={classes.iconContainer}>
                             <Code className={classes.icon} />
                         </div>
                         <div className={classes.textContainer}>
                             <div className={classes.cardTitle}>Run an evaluation from SDK</div>
                             <div className={classes.cardDesc}>
-                                Evaluate complex AI apps to compare changes and ensure they are reliable.
+                                Evaluate complex AI apps to compare changes and ensure they are
+                                reliable.
                             </div>
                         </div>
                     </Card>
                 </div>
-                
+
                 <Button type="link" onClick={() => router.push("/apps")}>
                     Skip
                 </Button>
