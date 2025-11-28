@@ -10,6 +10,7 @@ import {isDemo} from "@/oss/lib/helpers/utils"
 
 import {generateCodeBlocks} from "./assets/generateCodeBlocks"
 import {useStyles} from "./assets/styles"
+import clsx from "clsx"
 
 export {useStyles}
 
@@ -25,11 +26,13 @@ const {Text, Title} = Typography
 export const SetupTracingModalContent = ({
     classes,
     isModal = true,
+    isPostLogin = false,
     ...props
 }: {
     classes: any
     isModal?: boolean
     onCancel: ModalProps["onCancel"]
+    isPostLogin?: boolean
 }) => {
     const [apiKeyValue, setApiKeyValue] = useState("")
     const codeBlocks = useMemo(() => generateCodeBlocks(apiKeyValue, isDemo()), [apiKeyValue])
@@ -118,35 +121,47 @@ export const SetupTracingModalContent = ({
                         icon={<CloseOutlined />}
                     />
                     <Text>Set up tracing</Text>
-                    <Button
-                        target="_blank"
-                        href="https://agenta.ai/docs/observability/observability-sdk"
-                    >
-                        <Play />
-                        Tutorial
-                    </Button>
+
+                    <div className="flex gap-2 items-center">
+                        <Button
+                            icon={<Play size={16} className="mt-1" />}
+                            href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
+                            target="_blank"
+                        >
+                            Run in colab
+                        </Button>
+                        <Button
+                            target="_blank"
+                            href="https://agenta.ai/docs/observability/observability-sdk"
+                            icon={<Book size={16} className="mt-1" />}
+                        >
+                            Read the docs
+                        </Button>
+                    </div>
                 </div>
             )}
             <div className={classes.modalBody}>
-                <div className="flex flex-col gap-1 mb-8">
+                <div className={clsx("flex flex-col gap-1", isPostLogin && "mb-8")}>
                     <div className="flex justify-between items-center">
                         <Title style={{margin: 0}}>Setup Tracing</Title>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                icon={<Play size={16} className="mt-1" />}
-                                href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
-                                target="_blank"
-                            >
-                                Run in colab
-                            </Button>
-                            <Button
-                                icon={<Book size={16} className="mt-1" />}
-                                href="https://agenta.ai/docs/observability/quickstart-python"
-                                target="_blank"
-                            >
-                                Read the docs
-                            </Button>
-                        </div>
+                        {isPostLogin && (
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    icon={<Play size={16} className="mt-1" />}
+                                    href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
+                                    target="_blank"
+                                >
+                                    Run in colab
+                                </Button>
+                                <Button
+                                    icon={<Book size={16} className="mt-1" />}
+                                    href="https://agenta.ai/docs/observability/quickstart-python"
+                                    target="_blank"
+                                >
+                                    Read the docs
+                                </Button>
+                            </div>
+                        )}
                     </div>
                     <Text>
                         Debug effectively, bootstrap testsets, monitor and compare app versions

@@ -163,6 +163,7 @@ export const OnboardingScreen = () => {
                         classes={tracingClasses}
                         onCancel={() => {}} // Not used in this context
                         isModal={false}
+                        isPostLogin={true}
                     />
                     <div className="flex justify-between mt-6">
                         <Button
