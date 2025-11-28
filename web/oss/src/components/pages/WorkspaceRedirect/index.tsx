@@ -1,8 +1,8 @@
 import {useEffect, useMemo} from "react"
 
 import {Spin} from "antd"
-import {useRouter} from "next/router"
 import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
 import {projectsAtom} from "@/oss/state/project"
@@ -20,8 +20,7 @@ const WorkspaceRedirect = () => {
             return workspaceMatch || orgMatch
         })
         if (!belonging.length) return null
-        const nonDemo = belonging.find((project) => !project.is_demo)
-        return (nonDemo ?? belonging[0])?.project_id ?? null
+        return belonging[0]?.project_id ?? null
     }, [projects, workspaceId])
 
     const targetPath = useMemo(() => {
