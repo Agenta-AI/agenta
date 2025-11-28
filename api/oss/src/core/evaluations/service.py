@@ -785,294 +785,6 @@ class EvaluationsService:
             windowing=windowing,
         )
 
-    @staticmethod
-    def _normalize_metric_path(raw_path: Optional[str]) -> Optional[str]:
-        if not raw_path or not isinstance(raw_path, str):
-            return None
-        path = raw_path.lstrip(".")
-        prefixes = (
-            "attributes.ag.data.outputs.",
-            "ag.data.outputs.",
-            "data.outputs.",
-            "outputs.",
-        )
-        for prefix in prefixes:
-            if path.startswith(prefix):
-                path = path[len(prefix) :]
-                break
-        return path or None
-
-    @staticmethod
-    def _to_dict(value: Any) -> Dict[str, Any]:
-        if value is None:
-            return {}
-        if hasattr(value, "model_dump"):
-            return value.model_dump()
-        if isinstance(value, dict):
-            return value
-        return {}
-
-    async def _build_step_metric_specs(
-        self,
-        *,
-        project_id: UUID,
-        run: EvaluationRun,
-    ) -> Dict[str, List[Dict[str, str]]]:
-        steps_metrics_keys: Dict[str, List[Dict[str, str]]] = {}
-
-        run_data = getattr(run, "data", None)
-        if not run_data or not getattr(run_data, "steps", None):
-            return steps_metrics_keys
-
-        mappings_by_step: Dict[str, List[str]] = {}
-        for mapping in run_data.mappings or []:
-            if not mapping:
-                continue
-            step = getattr(mapping, "step", None) or {}
-            column = getattr(mapping, "column", None) or {}
-            step_key = (
-                getattr(step, "key", None)
-                if not isinstance(step, dict)
-                else step.get("key")
-            )
-            raw_path = (
-                getattr(step, "path", None)
-                if not isinstance(step, dict)
-                else step.get("path")
-            )
-            kind_value = (
-                getattr(column, "kind", None)
-                if not isinstance(column, dict)
-                else column.get("kind")
-            )
-            kind = (kind_value or "").lower()
-            if not step_key or not raw_path or kind not in {"annotation", "evaluator"}:
-                continue
-            normalized = self._normalize_metric_path(raw_path)
-            if normalized:
-                mappings_by_step.setdefault(step_key, []).append(normalized)
-
-        for step in run_data.steps:
-            step_key = getattr(step, "key", None)
-            if not step_key:
-                continue
-
-            steps_metrics_keys[step_key] = [dict(metric) for metric in DEFAULT_METRICS]
-
-            if getattr(step, "type", None) != "annotation":
-                continue
-
-            references = getattr(step, "references", {}) or {}
-            evaluator_revision_ref = references.get("evaluator_revision")
-
-            if not evaluator_revision_ref:
-                log.warning("[WARN] Evaluator revision reference not found")
-                continue
-
-            evaluator_revision = await self.evaluators_service.fetch_evaluator_revision(
-                project_id=project_id,
-                evaluator_revision_ref=evaluator_revision_ref,
-            )
-
-            if not evaluator_revision:
-                log.warning("[WARN] Evaluator revision not found")
-                continue
-
-            metrics_keys: List[Dict[str, str]] = []
-            evaluator_data = self._to_dict(getattr(evaluator_revision, "data", None))
-
-            if evaluator_data:
-                schemas = self._to_dict(evaluator_data.get("schemas")).get("outputs")
-                if schemas:
-                    metrics_keys.extend(
-                        get_metrics_keys_from_schema(schema=schemas),
-                    )
-
-                service_format = self._to_dict(evaluator_data.get("service")).get(
-                    "format"
-                )
-                if service_format:
-                    metrics_keys.extend(
-                        get_metrics_keys_from_schema(schema=service_format),
-                    )
-
-            if not metrics_keys and step_key in mappings_by_step:
-                for mapped_path in mappings_by_step[step_key]:
-                    metrics_keys.append({"path": mapped_path, "type": "string"})
-
-            sanitized_metrics = []
-            for metric_key in metrics_keys:
-                normalized = self._normalize_metric_path(
-                    metric_key.get("path")
-                    if isinstance(metric_key, dict)
-                    else getattr(metric_key, "path", None)
-                )
-                if not normalized:
-                    continue
-                metric_type = (
-                    metric_key.get("type")
-                    if isinstance(metric_key, dict)
-                    else getattr(metric_key, "type", None)
-                ) or "string"
-                sanitized_metrics.append(
-                    {
-                        "path": f"attributes.ag.data.outputs.{normalized}",
-                        "type": metric_type,
-                    }
-                )
-
-            if sanitized_metrics:
-                steps_metrics_keys[step_key] += sanitized_metrics
-
-        return steps_metrics_keys
-
-    async def _collect_metrics_snapshot(
-        self,
-        *,
-        project_id: UUID,
-        run_id: UUID,
-        scenario_id: Optional[UUID],
-        timestamp: Optional[datetime],
-        interval: Optional[int],
-        step_metric_specs: Dict[str, List[Dict[str, str]]],
-    ) -> Dict[str, Any]:
-        metrics_data: Dict[str, Any] = {}
-        steps_trace_ids: Dict[str, List[str]] = {}
-
-        if not step_metric_specs:
-            return metrics_data
-
-        for step_key in step_metric_specs.keys():
-            results = await self.query_results(
-                project_id=project_id,
-                result=EvaluationResultQuery(
-                    run_id=run_id,
-                    scenario_id=scenario_id,
-                    step_key=step_key,
-                    timestamp=timestamp,
-                    interval=interval,
-                ),
-            )
-
-            if not results:
-                continue
-
-            trace_ids = [result.trace_id for result in results if result.trace_id]
-            if trace_ids:
-                steps_trace_ids[step_key] = trace_ids
-
-        for step_key, step_trace_ids in steps_trace_ids.items():
-            try:
-                query = TracingQuery(
-                    filtering=Filtering(
-                        conditions=[
-                            Condition(
-                                field="trace_id",
-                                operator=ListOperator.IN,
-                                value=step_trace_ids,
-                            )
-                        ]
-                    )
-                )
-
-                specs = [
-                    MetricSpec(
-                        type=MetricType(metric.get("type")),
-                        path=metric.get("path") or "*",
-                    )
-                    for metric in step_metric_specs.get(step_key, [])
-                ] + [
-                    MetricSpec(
-                        type=MetricType.JSON,
-                        path="atttributes.ag",
-                    )
-                ]
-
-                buckets = await self.tracing_service.analytics(
-                    project_id=project_id,
-                    query=query,
-                    specs=specs,
-                )
-
-                if len(buckets) != 1:
-                    log.warning("[WARN] There should be one and only one bucket")
-                    log.warning("[WARN] Buckets:", buckets)
-                    continue
-
-                bucket = buckets[0]
-
-                if not bucket.metrics:
-                    log.warning("[WARN] Bucket metrics should not be empty")
-                    log.warning("[WARN] Bucket:", bucket)
-                    continue
-
-                metrics_data[step_key] = bucket.metrics
-
-            except Exception as e:  # pylint: disable=broad-except
-                log.error(e, exc_info=True)
-
-        return metrics_data
-
-    async def _upsert_metric_record(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        run_id: UUID,
-        scenario_id: Optional[UUID],
-        timestamp: Optional[datetime],
-        interval: Optional[int],
-        data: Dict[str, Any],
-    ) -> List[EvaluationMetrics]:
-        if not data:
-            return []
-
-        filter_kwargs: Dict[str, Any] = {"run_id": run_id}
-        if scenario_id is None:
-            filter_kwargs["scenario_ids"] = False
-        else:
-            filter_kwargs["scenario_id"] = scenario_id
-
-        if timestamp is None:
-            filter_kwargs["timestamps"] = False
-        else:
-            filter_kwargs["timestamp"] = timestamp
-
-        existing = await self.query_metrics(
-            project_id=project_id,
-            metric=EvaluationMetricsQuery(**filter_kwargs),
-        )
-
-        if existing:
-            edits = [
-                EvaluationMetricsEdit(
-                    id=existing[0].id,
-                    data=data,
-                    status=EvaluationStatus.SUCCESS,
-                )
-            ]
-            return await self.edit_metrics(
-                project_id=project_id,
-                user_id=user_id,
-                metrics=edits,
-            )
-
-        creates = [
-            EvaluationMetricsCreate(
-                run_id=run_id,
-                scenario_id=scenario_id,
-                timestamp=timestamp,
-                interval=interval,
-                status=EvaluationStatus.SUCCESS,
-                data=data,
-            )
-        ]
-        return await self.create_metrics(
-            project_id=project_id,
-            user_id=user_id,
-            metrics=creates,
-        )
-
     async def refresh_metrics(
         self,
         *,
@@ -1158,6 +870,8 @@ class EvaluationsService:
         timestamp: Optional[datetime] = None,
         interval: Optional[int] = None,
     ) -> List[EvaluationMetrics]:
+        metrics_data: Dict[str, Any] = dict()
+
         run = await self.fetch_run(
             project_id=project_id,
             #
@@ -1168,62 +882,148 @@ class EvaluationsService:
             log.warning("[WARN] run or run.data or run.data.steps not found")
             return []
 
-        step_metric_specs = await self._build_step_metric_specs(
-            project_id=project_id,
-            run=run,
-        )
+        steps_metrics_keys: Dict[str, List[Dict[str, str]]] = dict()
 
-        if not step_metric_specs:
+        for step in run.data.steps:
+            steps_metrics_keys[step.key] = DEFAULT_METRICS
+
+            if step.type == "annotation":
+                evaluator_revision_ref = step.references.get("evaluator_revision")
+
+                if not evaluator_revision_ref:
+                    log.warning("[WARN] Evaluator revision reference not found")
+                    continue
+
+                evaluator_revision = (
+                    await self.evaluators_service.fetch_evaluator_revision(
+                        project_id=project_id,
+                        evaluator_revision_ref=evaluator_revision_ref,
+                    )
+                )
+
+                if not evaluator_revision:
+                    log.warning("[WARN] Evaluator revision not found")
+                    continue
+
+                if evaluator_revision.data and evaluator_revision.data.schemas:
+                    metrics_keys = get_metrics_keys_from_schema(
+                        schema=(evaluator_revision.data.schemas.get("outputs")),
+                    )
+
+                    steps_metrics_keys[step.key] += [
+                        {
+                            "path": "ag.data.outputs." + metric_key.get("path", ""),
+                            "type": metric_key.get("type", ""),
+                        }
+                        for metric_key in metrics_keys
+                    ]
+
+        if not steps_metrics_keys:
             log.warning("[WARN] No steps metrics keys found")
             return []
 
-        metrics_data = await self._collect_metrics_snapshot(
-            project_id=project_id,
-            run_id=run_id,
-            scenario_id=scenario_id,
-            timestamp=timestamp,
-            interval=interval,
-            step_metric_specs=step_metric_specs,
-        )
+        step_keys = list(steps_metrics_keys.keys())
+
+        steps_trace_ids: Dict[str, List[str]] = dict()
+
+        for step_key in step_keys:
+            results = await self.query_results(
+                project_id=project_id,
+                result=EvaluationResultQuery(
+                    run_id=run_id,
+                    scenario_id=scenario_id,
+                    step_key=step_key,
+                    timestamp=timestamp,
+                    interval=interval,
+                ),
+            )
+
+            if not results:
+                # log.warning("[WARN] No results found")
+                continue
+
+            trace_ids = [result.trace_id for result in results if result.trace_id]
+
+            if trace_ids:
+                steps_trace_ids[step_key] = trace_ids
+
+        for step_key in steps_metrics_keys.keys() & steps_trace_ids.keys():
+            step_metrics_keys = steps_metrics_keys[step_key]
+            step_trace_ids = steps_trace_ids[step_key]
+
+            try:
+                query = TracingQuery(
+                    filtering=Filtering(
+                        conditions=[
+                            Condition(
+                                field="trace_id",
+                                operator=ListOperator.IN,
+                                value=step_trace_ids,
+                            )
+                        ]
+                    )
+                )
+
+                specs = [
+                    MetricSpec(
+                        type=MetricType(metric.get("type")),
+                        path=metric.get("path") or "*",
+                    )
+                    for metric in step_metrics_keys
+                ] + [
+                    MetricSpec(
+                        type=MetricType.JSON,
+                        path="atttributes.ag",
+                    )
+                ]
+
+                buckets = await self.tracing_service.analytics(
+                    project_id=project_id,
+                    #
+                    query=query,
+                    specs=specs,
+                )
+
+                if len(buckets) != 1:
+                    log.warning("[WARN] There should be one and only one bucket")
+                    log.warning("[WARN] Buckets:", buckets)
+                    continue
+
+                bucket = buckets[0]
+
+                if not bucket.metrics:
+                    log.warning("[WARN] Bucket metrics should not be empty")
+                    log.warning("[WARN] Bucket:", bucket)
+                    continue
+
+                metrics_data |= {step_key: bucket.metrics}
+
+            except Exception as e:
+                log.error(e, exc_info=True)
 
         if not metrics_data:
+            # log.warning("[WARN] No metrics data: no metrics will be stored")
             return []
 
-        metrics: List[EvaluationMetrics] = []
-        metrics.extend(
-            await self._upsert_metric_record(
-                project_id=project_id,
-                user_id=user_id,
+        metrics_create = [
+            EvaluationMetricsCreate(
                 run_id=run_id,
                 scenario_id=scenario_id,
                 timestamp=timestamp,
                 interval=interval,
+                #
+                status=EvaluationStatus.SUCCESS,
+                #
                 data=metrics_data,
             )
+        ]
+
+        metrics = await self.create_metrics(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            metrics=metrics_create,
         )
-
-        if timestamp is not None:
-            aggregate_data = await self._collect_metrics_snapshot(
-                project_id=project_id,
-                run_id=run_id,
-                scenario_id=scenario_id,
-                timestamp=None,
-                interval=None,
-                step_metric_specs=step_metric_specs,
-            )
-
-            if aggregate_data:
-                metrics.extend(
-                    await self._upsert_metric_record(
-                        project_id=project_id,
-                        user_id=user_id,
-                        run_id=run_id,
-                        scenario_id=scenario_id,
-                        timestamp=None,
-                        interval=None,
-                        data=aggregate_data,
-                    )
-                )
 
         return metrics
 
