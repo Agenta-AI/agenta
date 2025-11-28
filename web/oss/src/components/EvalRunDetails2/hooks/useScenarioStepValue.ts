@@ -2,8 +2,6 @@ import {useMemo} from "react"
 
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import type {EvaluationTableColumn} from "../atoms/table"
-
 import {
     buildColumnValueConfig,
     scenarioColumnValueAtomFamily,
@@ -11,6 +9,7 @@ import {
     type ScenarioColumnValueSelection,
     type ScenarioStepValueResult,
 } from "../atoms/scenarioColumnValues"
+import type {EvaluationTableColumn} from "../atoms/table"
 
 export function useScenarioStepValue(
     {
@@ -31,7 +30,9 @@ export function useScenarioStepValue(
         [scenarioId, runId, columnConfig],
     )
 
-    return useAtomValueWithSchedule(valueAtom, {priority: LOW_PRIORITY})
+    const x = useAtomValueWithSchedule(valueAtom, {priority: LOW_PRIORITY})
+    console.log("useScenarioStepValue", x)
+    return x
 }
 
 export function useScenarioStepValueSelection(

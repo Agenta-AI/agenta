@@ -349,6 +349,7 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
             const evalType = get(previewEvalTypeAtom)
             const scenarioLoadable =
                 runId && scenarioId ? get(loadableScenarioStepFamily({runId, scenarioId})) : null
+            console.log("scenarioLoadable", scenarioLoadable)
             const scenarioData =
                 scenarioLoadable && scenarioLoadable.state === "hasData"
                     ? scenarioLoadable.data

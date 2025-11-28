@@ -1,7 +1,7 @@
 import type {EvaluationTableColumn} from "../atoms/table"
 
-import {useScenarioStepValueSelection} from "./useScenarioStepValue"
 import {useCellVisibility} from "./useCellVisibility"
+import {useScenarioStepValueSelection} from "./useScenarioStepValue"
 
 interface UseScenarioCellValueArgs {
     scenarioId?: string
@@ -19,6 +19,7 @@ const useScenarioCellValue = ({
     const {ref, isVisible} = useCellVisibility()
     const enabled = disableVisibilityTracking ? true : isVisible
     const selection = useScenarioStepValueSelection({scenarioId, runId, column}, {enabled: enabled})
+    console.log("useScenarioCellValue", selection)
     const showSkeleton = disableVisibilityTracking
         ? selection.isLoading
         : !isVisible || selection.isLoading
