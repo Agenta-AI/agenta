@@ -155,7 +155,10 @@ const SharedGenerationResultUtils = ({
         () =>
             readMetric(primarySpan, [
                 "attributes.ag.metrics.duration.cumulative.total",
-                {path: "attributes.ag.metrics.duration.cumulative", valueKeys: ["total", "duration"]},
+                {
+                    path: "attributes.ag.metrics.duration.cumulative",
+                    valueKeys: ["total", "duration"],
+                },
                 "metrics.acc.duration.total",
                 "metrics.unit.duration.total",
                 "metrics.duration.total",
@@ -179,7 +182,10 @@ const SharedGenerationResultUtils = ({
         () =>
             readMetric(primarySpan, [
                 "attributes.ag.metrics.tokens.cumulative.prompt",
-                {path: "attributes.ag.metrics.tokens.cumulative", valueKeys: ["prompt", "prompt_tokens"]},
+                {
+                    path: "attributes.ag.metrics.tokens.cumulative",
+                    valueKeys: ["prompt", "prompt_tokens"],
+                },
                 "metrics.tokens.prompt",
                 {path: "tokens", valueKeys: ["prompt", "prompt_tokens"]},
             ]),

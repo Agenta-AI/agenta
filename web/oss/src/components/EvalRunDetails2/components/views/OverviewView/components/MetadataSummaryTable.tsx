@@ -5,11 +5,6 @@ import type {ColumnsType} from "antd/es/table"
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import EvalNameTag from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/EvalNameTag"
-import {
-    EVAL_BG_COLOR,
-    EVAL_TAG_COLOR,
-} from "@/oss/components/EvalRunDetails/AutoEvalRun/assets/utils"
 import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
 import {
     ApplicationReferenceLabel,
@@ -18,7 +13,7 @@ import {
 } from "@/oss/components/References"
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
 import type {BasicStats} from "@/oss/lib/metricUtils"
-import {projectIdAtom, useProjectData} from "@/oss/state/project"
+import {useProjectData} from "@/oss/state/project"
 
 import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"
 import {
@@ -31,12 +26,14 @@ import {
     evaluationRunIndexAtomFamily,
     evaluationRunQueryAtomFamily,
 } from "../../../../atoms/table/run"
+import {getComparisonColor} from "../../../../atoms/compare"
 import type {
     QueryConditionPayload,
     QueryFilteringPayload,
 } from "../../../../services/onlineEvaluations/api"
 import {useRunMetricData} from "../hooks/useRunMetricData"
 import {resolveMetricValue} from "../utils/metrics"
+import RunNameTag from "./RunNameTag"
 
 interface MetadataSummaryTableProps {
     runIds: string[]
@@ -115,6 +112,8 @@ interface MetadataCellProps {
     runId: string
     compareIndex: number
     projectURL?: string | null
+    runName?: string | null
+    accentColor?: string | null
 }
 
 interface RunReferenceSnapshot {
@@ -164,23 +163,33 @@ const LegacyVariantCell = memo(({runId}: MetadataCellProps) => (
     </div>
 ))
 
-const MetadataRunNameCell = memo(({runId, compareIndex}: MetadataCellProps) => {
-    const runQuery = useRunDetails(runId)
-    const runData = runQuery?.data?.camelRun ?? runQuery?.data?.rawRun ?? null
-    const isLoading = runQuery?.isPending && !runData
-    if (isLoading) {
-        return <Typography.Text type="secondary">…</Typography.Text>
-    }
-    if (!runData) {
-        return <Typography.Text type="secondary">—</Typography.Text>
-    }
-    const color = EVAL_TAG_COLOR?.[compareIndex + 1]
-    return (
-        <div className="group flex items-center justify-between gap-2 w-full">
-            <EvalNameTag run={runData} color={color} />
-        </div>
-    )
-})
+const MetadataRunNameCell = memo(
+    ({runId, compareIndex: _compareIndex, runName, accentColor}: MetadataCellProps) => {
+        const runQuery = useRunDetails(runId)
+        const runData = runQuery?.data?.camelRun ?? runQuery?.data?.rawRun ?? null
+        const isLoading = runQuery?.isPending && !runData
+        if (isLoading) {
+            return <Typography.Text type="secondary">…</Typography.Text>
+        }
+        if (!runData && !runName) {
+            return <Typography.Text type="secondary">—</Typography.Text>
+        }
+        const resolvedName =
+            runName ??
+            runData?.name ??
+            (typeof runData?.id === "string" ? runData.id : null) ??
+            runId ??
+            "—"
+        const accent =
+            accentColor ??
+            (typeof runData?.accentColor === "string" ? (runData as any).accentColor : null)
+        return (
+            <div className="group flex items-center justify-between gap-2 w-full">
+                <RunNameTag runId={runId} label={resolvedName} accentColor={accent} />
+            </div>
+        )
+    },
+)
 
 const LegacyTestsetsCell = memo(({runId, projectURL}: MetadataCellProps) => {
     const testsetAtom = useMemo(() => runTestsetIdsAtomFamily(runId), [runId])
@@ -356,13 +365,12 @@ const METADATA_ROWS: MetadataRowRecord[] = [
 const EvaluatorNameLabel = ({evaluatorId}: {evaluatorId: string}) => {
     const projectId = useProjectData()?.projectId
     const x = useEvaluatorReference({evaluatorId, projectId})
-    console.log("EvaluatorNameLabel", {x, evaluatorId})
     return x?.reference?.name ?? "--"
 }
 
 const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) => {
     const orderedRunIds = useMemo(() => runIds.filter((id): id is string => Boolean(id)), [runIds])
-    const {metricSelections} = useRunMetricData(orderedRunIds)
+    const {metricSelections, runColorMap, runDescriptors} = useRunMetricData(orderedRunIds)
     const runReferenceSnapshotsAtom = useMemo(
         () =>
             atom((get) =>
@@ -382,6 +390,14 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
     const runReferenceSnapshots = useAtomValueWithSchedule(runReferenceSnapshotsAtom, {
         priority: LOW_PRIORITY,
     })
+
+    const runNameMap = useMemo(() => {
+        const map = new Map<string, string>()
+        runDescriptors.forEach(({runId, displayName}) => {
+            map.set(runId, displayName ?? runId)
+        })
+        return map
+    }, [runDescriptors])
 
     const rowContext = useMemo<MetadataRowContext>(
         () => ({
@@ -536,16 +552,22 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
                 if (!isComparison || record.key === "query_config" || record.key === "testsets") {
                     return {}
                 }
-                const tone = (EVAL_BG_COLOR as Record<number, string>)[index + 1]
+                const tone = getComparisonColor(index)
                 return tone ? {style: {backgroundColor: tone}} : {}
             },
             render: (_: unknown, record: MetadataRowRecord) => (
-                <record.Cell runId={runId} compareIndex={index} projectURL={projectURL} />
+                <record.Cell
+                    runId={runId}
+                    compareIndex={index}
+                    projectURL={projectURL}
+                    runName={runNameMap.get(runId)}
+                    accentColor={runColorMap.get(runId)}
+                />
             ),
         }))
 
         return [baseColumn, ...runColumns]
-    }, [isComparison, orderedRunIds, projectURL])
+    }, [isComparison, orderedRunIds, projectURL, runColorMap, runNameMap])
 
     return (
         <div className="border border-solid border-[#EAEFF5] rounded h-full">
