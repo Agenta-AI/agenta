@@ -1,6 +1,7 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {Typography} from "antd"
+import {useRouter} from "next/router"
 import dayjs from "dayjs"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -102,6 +103,15 @@ const AppManagement: React.FC = () => {
             },
         })
     }
+
+    const {query: routerQuery, isReady} = useRouter()
+
+    useEffect(() => {
+        if (!isReady) return
+        if (routerQuery.create_prompt === "true") {
+            setIsAddAppFromTemplatedModal(true)
+        }
+    }, [isReady, routerQuery.create_prompt])
 
     const onErrorRetry = async () => {
         if (statusData.appId) {
