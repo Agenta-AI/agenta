@@ -9,7 +9,7 @@ import {renderScenarioChatMessages} from "../../utils/chatMessages"
 import CellContentPopover from "./CellContentPopover"
 import InvocationTraceSummary from "./InvocationTraceSummary"
 
-const CONTAINER_CLASS = "scenario-table-cell min-h-[96px] h-full gap-2"
+const CONTAINER_CLASS = "scenario-table-cell min-h-[96px] h-full"
 
 const extractAssistantContent = (entry: any): string | undefined => {
     if (!entry) return undefined
@@ -149,12 +149,16 @@ const PreviewEvaluationInvocationCell = ({
         return (
             <CellContentPopover content={popoverContent}>
                 <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                    <div className="flex w-full flex-col gap-2">{chatNodes}</div>
-                    <InvocationTraceSummary
-                        scenarioId={scenarioId}
-                        stepKey={column.stepKey}
-                        runId={runId}
-                    />
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        <div className="flex w-full flex-col gap-2">{chatNodes}</div>
+                    </div>
+                    <div className="flex-shrink-0 mt-2">
+                        <InvocationTraceSummary
+                            scenarioId={scenarioId}
+                            stepKey={column.stepKey}
+                            runId={runId}
+                        />
+                    </div>
                 </div>
             </CellContentPopover>
         )
@@ -163,12 +167,16 @@ const PreviewEvaluationInvocationCell = ({
     return (
         <CellContentPopover content={popoverContent}>
             <div ref={ref} className={clsx(CONTAINER_CLASS, "!justify-between")} style={widthStyle}>
-                <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
-                <InvocationTraceSummary
-                    scenarioId={scenarioId}
-                    stepKey={column.stepKey}
-                    runId={runId}
-                />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                    <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
+                </div>
+                <div className="flex-shrink-0 mt-2">
+                    <InvocationTraceSummary
+                        scenarioId={scenarioId}
+                        stepKey={column.stepKey}
+                        runId={runId}
+                    />
+                </div>
             </div>
         </CellContentPopover>
     )
