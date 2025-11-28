@@ -133,18 +133,18 @@ export const SetupTracingModalContent = ({
                         <Title style={{margin: 0}}>Setup Tracing</Title>
                         <div className="flex items-center gap-2">
                             <Button
-                                icon={<Play size={16} />}
+                                icon={<Play size={16} className="mt-1" />}
                                 href="https://colab.research.google.com/github/Agenta-AI/agenta/blob/main/examples/jupyter/observability/quickstart.ipynb"
                                 target="_blank"
                             >
-                                Run in Colab
+                                Run in colab
                             </Button>
                             <Button
-                                icon={<Book size={16} />}
+                                icon={<Book size={16} className="mt-1" />}
                                 href="https://agenta.ai/docs/observability/quickstart-python"
                                 target="_blank"
                             >
-                                Read the Docs
+                                Read the docs
                             </Button>
                         </div>
                     </div>
