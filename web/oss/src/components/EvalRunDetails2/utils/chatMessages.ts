@@ -2,8 +2,6 @@ import {ReactNode} from "react"
 
 import {renderChatMessages} from "@/oss/components/EvalRunDetails2/utils/renderChatMessages"
 
-type ChatPayload = {role?: string; sender?: string; author?: string; content?: any; text?: any}
-
 const CHAT_ARRAY_KEYS = [
     "messages",
     "message_history",
@@ -37,6 +35,7 @@ const isChatEntry = (entry: any): boolean => {
             entry.message !== undefined ||
             Array.isArray(entry.content) ||
             Array.isArray(entry.parts) ||
+            Array.isArray(entry.tool_calls) ||
             typeof entry.delta?.content === "string"
         )
     }
@@ -68,7 +67,7 @@ const extractMessageArray = (value: any): any[] | null => {
     return null
 }
 
-const normalizeMessages = (messages: any[]): {role: string; content: any}[] => {
+const normalizeMessages = (messages: any[]): {role: string; content: any; tool_calls?: any[]}[] => {
     return messages
         .map((entry) => {
             if (!entry) return null
@@ -90,13 +89,18 @@ const normalizeMessages = (messages: any[]): {role: string; content: any}[] => {
                 entry.response ??
                 (Array.isArray(entry.parts) ? entry.parts : undefined)
 
-            if (content === undefined) {
+            const toolCalls = Array.isArray(entry.tool_calls) ? entry.tool_calls : undefined
+
+            // Accept entry if it has content OR tool_calls
+            if (content === undefined && !toolCalls) {
                 return null
             }
 
-            return {role, content}
+            return {role, content, tool_calls: toolCalls}
         })
-        .filter((entry): entry is {role: string; content: any} => Boolean(entry?.content))
+        .filter((entry): entry is {role: string; content: any; tool_calls?: any[]} =>
+            Boolean(entry?.content !== undefined || entry?.tool_calls),
+        )
 }
 
 export const renderScenarioChatMessages = (

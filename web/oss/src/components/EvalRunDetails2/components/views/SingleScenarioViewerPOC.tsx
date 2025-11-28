@@ -18,6 +18,7 @@ import {evaluationPreviewTableStore} from "../../evaluationPreviewTableStore"
 import usePreviewTableData from "../../hooks/usePreviewTableData"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {pocUrlStateAtom} from "../../state/urlState"
+import {renderScenarioChatMessages} from "../../utils/chatMessages"
 
 import ScenarioLoadingIndicator from "./SingleScenarioViewerPOC/ScenarioLoadingIndicator"
 import ScenarioNavigator from "./SingleScenarioViewerPOC/ScenarioNavigator"
@@ -371,6 +372,16 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
             disableVisibilityTracking: true,
         })
         const {value, displayValue} = selection
+
+        const chatNodes = useMemo(
+            () =>
+                renderScenarioChatMessages(
+                    value,
+                    `${activeId ?? "scenario"}-${column.id ?? column.path ?? "col"}`,
+                ),
+            [activeId, column.id, column.path, value],
+        )
+
         if (showSkeleton) {
             return <Typography.Text type="secondary">Loading…</Typography.Text>
         }
@@ -378,6 +389,11 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         if (resolved === null || typeof resolved === "undefined") {
             return <Typography.Text type="secondary">—</Typography.Text>
         }
+
+        if (chatNodes && chatNodes.length) {
+            return <div className="flex w-full flex-col gap-2">{chatNodes}</div>
+        }
+
         if (
             typeof resolved === "string" ||
             typeof resolved === "number" ||

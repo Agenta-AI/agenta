@@ -37,6 +37,16 @@ const formatFiles = (msg: {content: any[]; role: string}) => {
  * Renders an array of chat messages (OpenAI format) as readonly SharedEditor blocks.
  * Returns an array of <section> nodes so callers can embed them directly in their JSX.
  */
+const formatToolCalls = (toolCalls: any[]): string => {
+    return toolCalls
+        .map((tc) => {
+            const name = tc?.function?.name || tc?.name || "tool"
+            const args = tc?.function?.arguments || tc?.arguments || ""
+            return `${name}(${typeof args === "string" ? args : JSON.stringify(args)})`
+        })
+        .join("\n")
+}
+
 export function renderChatMessages({
     keyPrefix,
     rawJson,
@@ -48,7 +58,7 @@ export function renderChatMessages({
     view?: "table" | "single"
     editorType?: "simple" | "shared" | "normal"
 }): ReactNode[] {
-    let messages: {role: string; content: any}[] = []
+    let messages: {role: string; content: any; tool_calls?: any[]}[] = []
     try {
         messages = JSON.parse(rawJson)
         if (!Array.isArray(messages))
@@ -67,6 +77,7 @@ export function renderChatMessages({
                 : []
 
             const files = Array.isArray(msg.content) ? formatFiles(msg) : []
+            const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : []
 
             const showDivider = i < messages.length - 1
 
@@ -78,6 +89,16 @@ export function renderChatMessages({
                     <span className="capitalize text-[11px] text-gray-500">{msg.role}</span>
                     {textContent ? (
                         <pre className="whitespace-pre-wrap break-words">{textContent}</pre>
+                    ) : null}
+                    {toolCalls.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-gray-400 font-medium">
+                                Tool Calls:
+                            </span>
+                            <pre className="whitespace-pre-wrap break-words text-[11px] bg-gray-50 rounded px-2 py-1">
+                                {formatToolCalls(toolCalls)}
+                            </pre>
+                        </div>
                     ) : null}
                     {images.length ? (
                         <div className="flex flex-wrap gap-2">

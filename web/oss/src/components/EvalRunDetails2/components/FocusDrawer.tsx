@@ -37,6 +37,7 @@ import {
     resetFocusDrawerAtom,
 } from "../state/focusDrawerAtom"
 import {clearFocusDrawerQueryParams} from "../state/urlFocusDrawer"
+import {renderScenarioChatMessages} from "../utils/chatMessages"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../utils/metricFormatter"
 
 import FocusDrawerHeader from "./FocusDrawerHeader"
@@ -329,6 +330,16 @@ const ScenarioColumnValue = memo(
             disableVisibilityTracking: true,
         })
 
+        // Try to render as chat messages (must be called before any conditional returns)
+        const chatNodes = useMemo(
+            () =>
+                renderScenarioChatMessages(
+                    selection.value,
+                    `${scenarioId}-${column.id ?? column.path ?? "col"}`,
+                ),
+            [scenarioId, column.id, column.path, selection.value],
+        )
+
         // For run metric columns, delegate to RunMetricValue component
         if (isMetric && isRunMetric) {
             return (
@@ -394,6 +405,10 @@ const ScenarioColumnValue = memo(
         const renderValue = () => {
             if (showSkeleton && resolvedValue === undefined) {
                 return <Skeleton active paragraph={{rows: 1}} />
+            }
+
+            if (chatNodes && chatNodes.length) {
+                return <div className="flex w-full flex-col gap-2">{chatNodes}</div>
             }
 
             if (isValidElement(resolvedValue)) {
