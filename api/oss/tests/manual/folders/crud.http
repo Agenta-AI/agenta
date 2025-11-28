@@ -781,13 +781,10 @@ Authorization: {{authorization}}
 
 # HTTP/1.1 200 OK
 # {
-#   "count": 1,
-#   "app": {
-#     "id": "{{app2_id}}",
-#     "app_name": "Translation Service",
-#     "folder_id": null,
-#     ...
-#   }
+#   "app_id": "{{app2_id}}",
+#   "app_name": "Translation Service",
+#   "folder_id": null,
+#   ...
 # }
 
 ###
@@ -799,12 +796,9 @@ Authorization: {{authorization}}
 
 # HTTP/1.1 200 OK
 # {
-#   "count": 1,
-#   "app": {
-#     "id": "{{app1_id}}",
-#     "folder_id": "{{archive_folder_id}}",
-#     ...
-#   }
+#   "app_id": "{{app1_id}}",
+#   "folder_id": "{{archive_folder_id}}",
+#   ...
 # }
 
 ###
@@ -816,13 +810,10 @@ Authorization: {{authorization}}
 
 # HTTP/1.1 200 OK
 # {
-#   "count": 1,
-#   "app": {
-#     "id": "{{app3_id}}",
-#     "app_name": "Standalone App",
-#     "folder_id": null,
-#     ...
-#   }
+#   "app_id": "{{app3_id}}",
+#   "app_name": "Standalone App",
+#   "folder_id": null,
+#   ...
 # }
 
 ###
