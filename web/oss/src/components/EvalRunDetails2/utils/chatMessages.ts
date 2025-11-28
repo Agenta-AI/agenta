@@ -1,6 +1,6 @@
 import {ReactNode} from "react"
 
-import {renderChatMessages} from "@/oss/components/EvalRunDetails/assets/renderChatMessages"
+import {renderChatMessages} from "@/oss/components/EvalRunDetails2/utils/renderChatMessages"
 
 type ChatPayload = {role?: string; sender?: string; author?: string; content?: any; text?: any}
 

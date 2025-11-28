@@ -3,7 +3,7 @@ import {useEffect, useMemo, useState} from "react"
 import {useRunId} from "@agenta/oss/src/contexts/RunIdContext"
 import {useAtomValue} from "jotai"
 
-import {renderChatMessages} from "@/oss/components/EvalRunDetails/assets/renderChatMessages"
+import {renderChatMessages} from "@/oss/components/EvalRunDetails2/utils/renderChatMessages"
 import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
 import {resolveInvocationTraceValue} from "@/oss/components/EvalRunDetails2/utils/traceValue"
 import axios from "@/oss/lib/api/assets/axiosConfig"
