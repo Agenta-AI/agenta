@@ -5,6 +5,7 @@ import type {StepMeta} from "@/oss/lib/evaluations/buildRunIndex"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import {GeneralAutoEvalMetricColumns, GeneralHumanEvalMetricColumns} from "../../constants/table"
+import {previewEvalTypeAtom} from "../../state/evalType"
 import {
     titleize,
     formatReferenceLabel,
@@ -62,7 +63,10 @@ const splitPath = (path: string) => path.split(".").filter(Boolean)
 
 const METRIC_TYPE_FALLBACK = "string"
 
-const createMetaColumns = (options?: {includeAction?: boolean}): EvaluationTableColumn[] => {
+const createMetaColumns = (options?: {
+    includeAction?: boolean
+    includeTimestamp?: boolean
+}): EvaluationTableColumn[] => {
     const columns: EvaluationTableColumn[] = [
         {
             id: "meta:scenario-index-status",
@@ -81,6 +85,25 @@ const createMetaColumns = (options?: {includeAction?: boolean}): EvaluationTable
             isSortable: false,
         },
     ]
+
+    // Add timestamp column for online evaluations
+    if (options?.includeTimestamp) {
+        columns.push({
+            id: "meta:timestamp",
+            label: "Timestamp",
+            displayLabel: "Timestamp",
+            kind: "meta",
+            path: "timestamp",
+            pathSegments: ["timestamp"],
+            stepType: "meta",
+            order: 1,
+            width: 140,
+            minWidth: 140,
+            visibleFor: ["online"],
+            metaRole: "timestamp",
+            isSortable: true,
+        })
+    }
 
     if (options?.includeAction ?? true) {
         columns.push({
@@ -112,7 +135,7 @@ const widthByStepType: Record<string, number> = {
 
 type StepRole = "input" | "invocation" | "query"
 
-type StepGroupInfo = {
+interface StepGroupInfo {
     id: string
     label: string
     kind: "input" | "invocation"
@@ -286,7 +309,28 @@ const tableColumnsBaseAtomFamily = atomFamily((runId: string | null) =>
         )
         const includeActionColumn = hasHumanInvocation || hasHumanAnnotation
 
-        const metaColumns = createMetaColumns({includeAction: includeActionColumn})
+        // Include timestamp column only for online evaluations
+        // Use the evaluation type from the atom (set by the page component)
+        const evaluationType = get(previewEvalTypeAtom)
+        const isOnlineEvaluation = evaluationType === "online"
+
+        console.log("[columns.ts] Building columns", {
+            evaluationType,
+            isOnlineEvaluation,
+            hasHumanInvocation,
+            hasHumanAnnotation,
+            runId,
+        })
+
+        const metaColumns = createMetaColumns({
+            includeAction: includeActionColumn,
+            includeTimestamp: isOnlineEvaluation,
+        })
+
+        console.log("[columns.ts] Meta columns created", {
+            metaColumnIds: metaColumns.map((c) => c.id),
+            hasTimestamp: metaColumns.some((c) => c.metaRole === "timestamp"),
+        })
 
         const evaluatorQuery = get(evaluationEvaluatorsByRunQueryAtomFamily(runId))
         const evaluators = evaluatorQuery?.data ?? []

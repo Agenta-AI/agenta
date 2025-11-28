@@ -6,7 +6,7 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 import {
     previewRunMetricStatsSelectorFamily,
     type RunLevelMetricSelection,
-} from "@/oss/components/evaluations/atoms/runMetrics"
+} from "@/oss/components/Evaluations/atoms/runMetrics"
 
 const idleMetricSelectionAtom = atom<RunLevelMetricSelection>({
     state: "loading",

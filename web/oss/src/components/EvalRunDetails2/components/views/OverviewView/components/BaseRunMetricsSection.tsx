@@ -3,7 +3,7 @@ import {memo, useMemo} from "react"
 import {Alert, Card, Tag, Typography} from "antd"
 
 import {isBooleanMetricStats} from "@/oss/components/EvalRunDetails2/utils/metricDistributions"
-import type {TemporalMetricPoint} from "@/oss/components/evaluations/atoms/runMetrics"
+import type {TemporalMetricPoint} from "@/oss/components/Evaluations/atoms/runMetrics"
 
 import EvaluatorMetricsChart from "../../../EvaluatorMetricsChart"
 import {DEFAULT_SPIDER_SERIES_COLOR, SPIDER_SERIES_COLORS} from "../constants"

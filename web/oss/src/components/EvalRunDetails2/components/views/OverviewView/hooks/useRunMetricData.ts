@@ -11,7 +11,7 @@ import {
     runTemporalMetricKeysAtomFamily,
     runTemporalMetricSeriesAtomFamily,
     TemporalMetricPoint,
-} from "@/oss/components/evaluations/atoms/runMetrics"
+} from "@/oss/components/Evaluations/atoms/runMetrics"
 import {humanizeEvaluatorName, humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 

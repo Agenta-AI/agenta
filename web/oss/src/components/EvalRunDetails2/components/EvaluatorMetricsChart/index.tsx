@@ -5,7 +5,7 @@ import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evaluators"

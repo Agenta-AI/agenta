@@ -27,9 +27,15 @@ import {patchFocusDrawerQueryParams} from "./state/urlFocusDrawer"
 
 type TableRowData = PreviewTableRow
 
+// Alternating background colors for timestamp-based batch grouping
+const TIMESTAMP_GROUP_COLORS = [
+    "rgba(59, 130, 246, 0.06)", // blue
+    "rgba(16, 185, 129, 0.06)", // green
+]
+
 interface EvalRunDetailsTableProps {
     runId: string
-    evaluationType: "auto" | "human"
+    evaluationType: "auto" | "human" | "online"
     skeletonRowCount?: number
     projectId?: string | null
 }
@@ -223,6 +229,21 @@ const EvalRunDetailsTable = ({
         [handleLoadMore, handleResetPages, mergedRows],
     )
 
+    // Build timestamp color map for row grouping (only for online evaluations)
+    const timestampColorMap = useMemo(() => {
+        const map = new Map<string, string>()
+        if (evaluationType !== "online") return map
+
+        // Process rows in order to assign consistent colors
+        mergedRows.forEach((row) => {
+            if (row.timestamp && !map.has(row.timestamp)) {
+                const colorIndex = map.size % TIMESTAMP_GROUP_COLORS.length
+                map.set(row.timestamp, TIMESTAMP_GROUP_COLORS[colorIndex])
+            }
+        })
+        return map
+    }, [evaluationType, mergedRows])
+
     return (
         <section className="bg-zinc-1 w-full h-full overflow-scroll flex flex-col px-4 pt-2">
             <div className="w-full grow min-h-0 overflow-scroll">
@@ -254,21 +275,31 @@ const EvalRunDetailsTable = ({
                         virtual: true,
                         bordered: true,
                         tableLayout: "fixed",
-                        onRow: (record) => ({
-                            onClick: (event) => {
-                                const target = event.target as HTMLElement | null
-                                if (target?.closest("[data-ivt-stop-row-click]")) return
-                                handleRowClick(record as TableRowData)
-                            },
-                            className: clsx({
-                                "comparison-row": record.isComparisonRow,
-                            }),
-                            style: record.compareIndex
-                                ? {
-                                      backgroundColor: getComparisonColor(record.compareIndex),
-                                  }
-                                : undefined,
-                        }),
+                        onRow: (record) => {
+                            // Determine background color: comparison color takes precedence, then timestamp grouping
+                            let backgroundColor: string | undefined
+                            if (record.compareIndex) {
+                                backgroundColor = getComparisonColor(record.compareIndex)
+                            } else if (
+                                evaluationType === "online" &&
+                                record.timestamp &&
+                                timestampColorMap.has(record.timestamp)
+                            ) {
+                                backgroundColor = timestampColorMap.get(record.timestamp)
+                            }
+
+                            return {
+                                onClick: (event) => {
+                                    const target = event.target as HTMLElement | null
+                                    if (target?.closest("[data-ivt-stop-row-click]")) return
+                                    handleRowClick(record as TableRowData)
+                                },
+                                className: clsx({
+                                    "comparison-row": record.isComparisonRow,
+                                }),
+                                style: backgroundColor ? {backgroundColor} : undefined,
+                            }
+                        },
                     }}
                 />
             </div>

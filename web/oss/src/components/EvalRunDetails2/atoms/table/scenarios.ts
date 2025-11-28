@@ -4,6 +4,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
+
 import {effectiveProjectIdAtom} from "../run"
 
 import type {EvaluationScenarioRow, ScenarioRowsQueryResult, WindowingState} from "./types"
@@ -63,14 +64,16 @@ const buildWindowingPayload = ({
     cursor,
     limit,
     windowing,
+    order = "ascending",
 }: {
     cursor: string | null
     limit: number
-    windowing?: WindowingState
+    windowing?: WindowingState | null
+    order?: "ascending" | "descending"
 }) => {
     const payload: Record<string, unknown> = {
         limit,
-        order: windowing?.order ?? "ascending",
+        order: windowing?.order ?? order,
     }
 
     const nextValue = windowing?.next ?? cursor ?? undefined
@@ -120,6 +123,7 @@ export interface ScenarioRowsFetchParams {
     limit: number
     offset: number
     windowing?: WindowingState | null
+    order?: "ascending" | "descending"
 }
 
 export const fetchEvaluationScenarioWindow = async ({
@@ -129,12 +133,13 @@ export const fetchEvaluationScenarioWindow = async ({
     limit,
     offset,
     windowing,
+    order = "ascending",
 }: ScenarioRowsFetchParams): Promise<ScenarioRowsQueryResult> => {
     const payload = {
         scenario: {
             run_id: runId,
         },
-        windowing: buildWindowingPayload({cursor, limit, windowing}),
+        windowing: buildWindowingPayload({cursor, limit, windowing, order}),
     }
 
     const response = await axios.post<ScenariosResponse>(
@@ -158,6 +163,7 @@ export const fetchEvaluationScenarioWindow = async ({
             createdById?: string
             updatedById?: string
             testcaseId?: string
+            timestamp?: string
         }
 
         const testcaseId = (() => {
@@ -174,6 +180,9 @@ export const fetchEvaluationScenarioWindow = async ({
             return undefined
         })()
 
+        // Extract timestamp for online evaluations (batch grouping)
+        const timestamp = (camel as any)?.timestamp ?? (scenario as any)?.timestamp ?? null
+
         return {
             id: camel.id,
             status: camel.status,
@@ -182,6 +191,7 @@ export const fetchEvaluationScenarioWindow = async ({
             createdById: camel.createdById,
             updatedById: camel.updatedById,
             testcaseId: testcaseId ?? null,
+            timestamp,
         }
     })
 

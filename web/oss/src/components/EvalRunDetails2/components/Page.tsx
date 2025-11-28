@@ -23,7 +23,7 @@ type ViewKey = "overview" | "focus" | "scenarios" | "configuration"
 
 interface EvalRunPreviewPageProps {
     runId: string
-    evaluationType: "auto" | "human"
+    evaluationType: "auto" | "human" | "online"
     projectId?: string | null
 }
 
@@ -34,6 +34,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const setLegacyFocusDrawerEnabled = useSetAtom(legacyFocusDrawerEnabledAtom)
 
     useEffect(() => {
+        console.log("[Page.tsx] Setting evaluation type", {evaluationType, runId, projectId})
         setActiveRunId(runId)
         setEvalType(evaluationType)
         setActiveProjectId(projectId)

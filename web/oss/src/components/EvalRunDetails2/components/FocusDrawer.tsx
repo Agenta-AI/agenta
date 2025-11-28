@@ -4,7 +4,7 @@ import {isValidElement} from "react"
 import {Skeleton, Tag, Typography} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {previewRunMetricStatsSelectorFamily} from "@/oss/components/evaluations/atoms/runMetrics"
+import {previewRunMetricStatsSelectorFamily} from "@/oss/components/Evaluations/atoms/runMetrics"
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import GenericDrawer from "@/oss/components/GenericDrawer"
 import {VariantReferenceChip, TestsetChipList} from "@/oss/components/References"
