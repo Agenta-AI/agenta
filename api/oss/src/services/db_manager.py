@@ -1,72 +1,66 @@
 import os
 import uuid
-from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
 from json import dumps
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
-from sqlalchemy.future import select
-from sqlalchemy import func, or_, asc, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from supertokens_python.types import AccountInfo
-from sqlalchemy.orm import joinedload, load_only, aliased
-from sqlalchemy.exc import NoResultFound, MultipleResultsFound, SQLAlchemyError
-from supertokens_python.asyncio import list_users_by_account_info
-from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
-
-from oss.src.utils.logging import get_module_logger
-from oss.src.models import converters
-from oss.src.services import user_service
-from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.models import converters
+from oss.src.services import analytics_service, user_service
 from oss.src.services.json_importer_helper import get_json
+from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
+from sqlalchemy import asc, func, or_
+from sqlalchemy.exc import MultipleResultsFound, NoResultFound, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.orm import aliased, joinedload, load_only
+from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
+from supertokens_python.asyncio import list_users_by_account_info
+from supertokens_python.types import AccountInfo
+
+if is_ee():
+    from ee.src.models.db_models import ProjectDB, WorkspaceDB
+else:
+    from oss.src.models.db_models import ProjectDB, WorkspaceDB
 
 from oss.src.models.db_models import (
-    WorkspaceDB,
-    ProjectDB,
-)
-
-from oss.src.models.db_models import (
-    AppDB,
-    UserDB,
     APIKeyDB,
-    TestsetDB,
-    IDsMappingDB,
-    DeploymentDB,
-    InvitationDB,
-    AppVariantDB,
-    VariantBaseDB,
-    OrganizationDB,
+    AppDB,
     AppEnvironmentDB,
-    EvaluatorConfigDB,
-    AppVariantRevisionsDB,
     AppEnvironmentRevisionDB,
-)
-from oss.src.models.shared_models import (
-    AppType,
-    ConfigDB,
-)
-from oss.src.models.shared_models import (
-    Result,
-    CorrectAnswer,
-    AggregatedResult,
-    EvaluationScenarioResult,
-    EvaluationScenarioInput,
-    EvaluationScenarioOutput,
-    HumanEvaluationScenarioInput,
-)
-from oss.src.models.db_models import (
+    AppVariantDB,
+    AppVariantRevisionsDB,
+    DeploymentDB,
+    EvaluationAggregatedResultDB,
     EvaluationDB,
-    HumanEvaluationDB,
+    EvaluationEvaluatorConfigDB,
     EvaluationScenarioDB,
+    EvaluationScenarioResultDB,
+    EvaluatorConfigDB,
+    HumanEvaluationDB,
     HumanEvaluationScenarioDB,
     HumanEvaluationVariantDB,
-    EvaluationScenarioResultDB,
-    EvaluationEvaluatorConfigDB,
-    EvaluationAggregatedResultDB,
+    IDsMappingDB,
+    InvitationDB,
+    OrganizationDB,
+    TestsetDB,
+    UserDB,
+    VariantBaseDB,
 )
-
+from oss.src.models.shared_models import (
+    AggregatedResult,
+    AppType,
+    ConfigDB,
+    CorrectAnswer,
+    EvaluationScenarioInput,
+    EvaluationScenarioOutput,
+    EvaluationScenarioResult,
+    HumanEvaluationScenarioInput,
+    Result,
+)
 
 log = get_module_logger(__name__)
 
@@ -588,9 +582,9 @@ async def create_new_app_variant(
         AppVariantDB: The created variant.
     """
 
-    assert config.parameters == {}, (
-        "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
-    )
+    assert (
+        config.parameters == {}
+    ), "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
 
     async with engine.core_session() as session:
         variant = AppVariantDB(
@@ -1018,6 +1012,12 @@ async def check_if_user_exists_and_create_organization(user_email: str):
                     "project_name": organization_name,
                 }
             )
+
+            analytics_service.capture_oss_deployment_created(
+                user_email=user_email,
+                organization_id=str(organization_db.id),
+            )
+
             return organization_db
 
         organizations_db = await get_organizations()
@@ -2522,7 +2522,9 @@ async def fetch_environment_revisions_for_environment(environment: AppEnvironmen
             query = query.options(
                 joinedload(
                     AppEnvironmentRevisionDB.modified_by.of_type(UserDB)
-                ).load_only(UserDB.username)  # type: ignore
+                ).load_only(
+                    UserDB.username
+                )  # type: ignore
             )
         else:
             query = query.options(
@@ -2712,9 +2714,9 @@ async def create_environment_revision(
     )
 
     if kwargs:
-        assert "deployed_app_variant_revision" in kwargs, (
-            "Deployed app variant revision is required"
-        )
+        assert (
+            "deployed_app_variant_revision" in kwargs
+        ), "Deployed app variant revision is required"
         assert (
             isinstance(
                 kwargs.get("deployed_app_variant_revision"), AppVariantRevisionsDB
@@ -2729,9 +2731,9 @@ async def create_environment_revision(
             )
 
         deployment = kwargs.get("deployment")
-        assert isinstance(deployment, DeploymentDB) == True, (
-            "Type of deployment in kwargs is not correct"
-        )
+        assert (
+            isinstance(deployment, DeploymentDB) == True
+        ), "Type of deployment in kwargs is not correct"
         if deployment is not None:
             environment_revision.deployment_id = deployment.id  # type: ignore
 
@@ -3485,9 +3487,9 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
         # Use the object_id directly if it is not a valid MongoDB ObjectId
         object_uuid_as_str = object_id
 
-    assert object_uuid_as_str is not None, (
-        f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
-    )
+    assert (
+        object_uuid_as_str is not None
+    ), f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
     return object_uuid_as_str
 
 
@@ -3623,7 +3625,9 @@ async def fetch_evaluation_by_id(
                 ),  # type: ignore
                 joinedload(
                     EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)
-                ).load_only(AppVariantRevisionsDB.revision),  # type: ignore
+                ).load_only(
+                    AppVariantRevisionsDB.revision
+                ),  # type: ignore
                 joinedload(
                     EvaluationDB.aggregated_results.of_type(
                         EvaluationAggregatedResultDB
@@ -3717,10 +3721,14 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
         query = base_query.options(
             joinedload(
                 HumanEvaluationVariantDB.variant.of_type(AppVariantDB)
-            ).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
+            ).load_only(
+                AppVariantDB.id, AppVariantDB.variant_name
+            ),  # type: ignore
             joinedload(
                 HumanEvaluationVariantDB.variant_revision.of_type(AppVariantRevisionsDB)
-            ).load_only(AppVariantRevisionsDB.id, AppVariantRevisionsDB.revision),  # type: ignore
+            ).load_only(
+                AppVariantRevisionsDB.id, AppVariantRevisionsDB.revision
+            ),  # type: ignore
         )
 
         result = await session.execute(query)
@@ -4080,7 +4088,9 @@ async def list_evaluations(app_id: str, project_id: str):
                 ),  # type: ignore
                 joinedload(
                     EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)
-                ).load_only(AppVariantRevisionsDB.revision),  # type: ignore
+                ).load_only(
+                    AppVariantRevisionsDB.revision
+                ),  # type: ignore
                 joinedload(
                     EvaluationDB.aggregated_results.of_type(
                         EvaluationAggregatedResultDB
