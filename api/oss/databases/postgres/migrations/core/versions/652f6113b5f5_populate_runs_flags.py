@@ -1,7 +1,7 @@
 """Populate runs flags
 
 Revision ID: 652f6113b5f5
-Revises: baa02d66a365
+Revises: 395af3695bca
 Create Date: 2025-11-23 12:00:00
 """
 
@@ -12,7 +12,7 @@ import json
 
 # revision identifiers, used by Alembic.
 revision: str = "652f6113b5f5"
-down_revision: Union[str, None] = "baa02d66a365"
+down_revision: Union[str, None] = "395af3695bca"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
