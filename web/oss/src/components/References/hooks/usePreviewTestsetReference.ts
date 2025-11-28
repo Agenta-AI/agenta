@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
 import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
@@ -6,6 +6,8 @@ import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 import {previewTestsetReferenceAtomFamily} from "@/oss/components/References/atoms/entityReferences"
 import type {TestsetReference} from "@/oss/components/References/atoms/entityReferences"
 import {projectIdAtom} from "@/oss/state/project"
+
+import {getCachedTestsetReference, setCachedTestsetReference} from "../cache/referenceCache"
 
 const defaultTestsetReferenceQueryAtom = atom(() => ({
     data: null as TestsetReference | null,
@@ -66,6 +68,12 @@ export const usePreviewTestsetReference = (
     })
     const effectiveProjectId = projectId ?? globalProjectId
 
+    // Check cache first for instant display when scrolling back into view
+    const cachedReference =
+        enabled && effectiveProjectId && testsetId
+            ? getCachedTestsetReference(effectiveProjectId, testsetId)
+            : undefined
+
     const referenceAtom = useMemo(() => {
         if (!enabled || !effectiveProjectId || !testsetId) return defaultTestsetReferenceQueryAtom
         return previewTestsetReferenceAtomFamily({projectId: effectiveProjectId, testsetId})
@@ -75,12 +83,19 @@ export const usePreviewTestsetReference = (
 
     const queryReference = enabled && effectiveProjectId && testsetId ? (query?.data ?? null) : null
 
+    // Update cache when we get new data
+    useEffect(() => {
+        if (!enabled || !effectiveProjectId || !testsetId || !queryReference) return
+        setCachedTestsetReference(effectiveProjectId, testsetId, queryReference)
+    }, [enabled, effectiveProjectId, testsetId, queryReference])
+
     const embeddedReference = useMemo(
         () => extractPreviewTestsetReference(stepReferences ?? null, testsetId ?? null),
         [stepReferences, testsetId],
     )
 
-    const reference = queryReference ?? embeddedReference
+    // Return cached value if query is still loading
+    const reference = queryReference ?? cachedReference ?? embeddedReference
     const hasReference = Boolean(reference)
     const isLoading = Boolean(
         enabled &&

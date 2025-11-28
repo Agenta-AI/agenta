@@ -49,12 +49,6 @@ export const syncFocusDrawerStateFromUrl = (nextUrl?: string) => {
 
         const focusTargets = [
             {
-                currentState: store.get(legacyFocusDrawerAtom),
-                setTargetAtom: setLegacyFocusDrawerTargetAtom,
-                openAtom: openLegacyFocusDrawerAtom,
-                resetAtom: resetLegacyFocusDrawerAtom,
-            },
-            {
                 currentState: store.get(previewFocusDrawerAtom),
                 setTargetAtom: setPreviewFocusDrawerTargetAtom,
                 openAtom: openPreviewFocusDrawerAtom,

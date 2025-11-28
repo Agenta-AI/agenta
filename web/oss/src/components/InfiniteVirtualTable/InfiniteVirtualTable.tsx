@@ -219,18 +219,76 @@ const InfiniteVirtualTableInner = <RecordType extends object>({
         onHeaderHeightChange(tableHeaderHeight)
     }, [onHeaderHeightChange, tableHeaderHeight])
 
+    // Use a ref to track pending RAF to avoid scheduling multiple frames
+    const scrollRafRef = useRef<number | null>(null)
+    const lastScrollTargetRef = useRef<HTMLDivElement | null>(null)
+
+    // Track vertical scrolling to suspend column visibility updates
+    const [isVerticalScrolling, setIsVerticalScrolling] = useState(false)
+    const verticalScrollTimeoutRef = useRef<number | null>(null)
+    const lastScrollTopRef = useRef<number>(0)
+
     const handleScroll = useCallback(
         (event: React.UIEvent<HTMLDivElement>) => {
             const container = event.currentTarget
-            const distanceToBottom =
-                container.scrollHeight - container.scrollTop - container.clientHeight
+            const currentScrollTop = container.scrollTop
 
-            if (distanceToBottom < scrollThreshold) {
-                loadMore()
+            // Detect vertical scroll by comparing scrollTop
+            const isVerticalScroll = Math.abs(currentScrollTop - lastScrollTopRef.current) > 1
+            lastScrollTopRef.current = currentScrollTop
+
+            // If scrolling vertically, suspend column visibility updates
+            if (isVerticalScroll) {
+                setIsVerticalScrolling(true)
+
+                // Clear existing timeout
+                if (verticalScrollTimeoutRef.current !== null) {
+                    window.clearTimeout(verticalScrollTimeoutRef.current)
+                }
+
+                // Resume updates after scroll stops (150ms debounce)
+                verticalScrollTimeoutRef.current = window.setTimeout(() => {
+                    setIsVerticalScrolling(false)
+                    verticalScrollTimeoutRef.current = null
+                }, 150)
             }
+
+            // Store the scroll target for RAF callback
+            lastScrollTargetRef.current = container
+
+            // Skip if we already have a pending RAF
+            if (scrollRafRef.current !== null) {
+                return
+            }
+
+            // Defer layout reads to next animation frame to avoid forced reflow during scroll
+            scrollRafRef.current = requestAnimationFrame(() => {
+                scrollRafRef.current = null
+                const target = lastScrollTargetRef.current
+                if (!target) return
+
+                const distanceToBottom =
+                    target.scrollHeight - target.scrollTop - target.clientHeight
+
+                if (distanceToBottom < scrollThreshold) {
+                    loadMore()
+                }
+            })
         },
         [loadMore, scrollThreshold],
     )
+
+    // Cleanup RAF and timeout on unmount
+    useEffect(() => {
+        return () => {
+            if (scrollRafRef.current !== null) {
+                cancelAnimationFrame(scrollRafRef.current)
+            }
+            if (verticalScrollTimeoutRef.current !== null) {
+                window.clearTimeout(verticalScrollTimeoutRef.current)
+            }
+        }
+    }, [])
 
     const shallowEqual = useCallback((a: Record<string, any> | null, b: Record<string, any>) => {
         if (a === b) return true
@@ -380,7 +438,7 @@ const InfiniteVirtualTableInner = <RecordType extends object>({
     const internalUserVisibilityHandler = useSetAtom(setColumnUserVisibilityAtom)
     const viewportVisibilityHandler =
         handleViewportVisibilityChange ?? internalViewportVisibilityHandler
-    const userVisibilityHandler = onColumnToggle ?? internalUserVisibilityHandler
+    const _userVisibilityHandler = onColumnToggle ?? internalUserVisibilityHandler
 
     useEffect(() => {
         visibilityRootRef.current = visibilityRoot ?? containerRef.current
@@ -450,7 +508,7 @@ const InfiniteVirtualTableInner = <RecordType extends object>({
         containerRef: visibilityRootRef,
         onVisibilityChange: viewportVisibilityHandler,
         enabled: visibilityTrackingEnabled,
-        suspendUpdates: isResizing,
+        suspendUpdates: isResizing || isVerticalScrolling,
         viewportMargin: columnVisibility?.viewportMargin,
         exitDebounceMs: columnVisibility?.viewportExitDebounceMs,
         excludeKeys: stickyColumnKeys,

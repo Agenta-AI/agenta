@@ -1,4 +1,4 @@
-import {useEffect, useMemo} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -28,7 +28,7 @@ import {PreviewStatusCell} from "../../components/cells/StatusCells"
 import MetricColumnHeader from "../../components/headers/MetricColumnHeader"
 import MetricGroupHeader from "../../components/headers/MetricGroupHeader"
 import {METRIC_COLUMN_CONFIG} from "../../constants"
-import type {EvaluationRunKind, EvaluationRunTableRow} from "../../types"
+import type {EvaluationRunTableRow} from "../../types"
 import type {EvaluationRunsColumnExportMetadata} from "../../types/exportMetadata"
 import type {RunMetricDescriptor} from "../../types/runMetrics"
 import {
@@ -96,8 +96,18 @@ const useEvaluationRunsColumns = ({
     const setEvaluatorBlueprint = useSetAtom(blueprintAtom)
     const stableRows = rows
 
+    // Track seen run IDs to avoid recomputing metric groups when only new rows are added
+    const seenRunIdsRef = useRef<Set<string>>(new Set())
+    const stablePreviewEntriesRef = useRef<
+        {
+            runId: string | null
+            projectId: string | null
+            meta: NonNullable<(typeof rows)[0]["previewMeta"]>
+        }[]
+    >([])
+
     const previewRunEntries = useMemo(() => {
-        return stableRows
+        const entries = stableRows
             .filter((row) => !row.__isSkeleton && row.preview && row.previewMeta)
             .map((row) => ({
                 runId: row.preview?.id ?? row.runId ?? null,
@@ -105,12 +115,45 @@ const useEvaluationRunsColumns = ({
                 meta: row.previewMeta!,
             }))
             .filter((entry) => Boolean(entry.runId))
+
+        // Check if we have any new run IDs that we haven't seen before
+        const currentRunIds = new Set(entries.map((e) => e.runId).filter(Boolean) as string[])
+        const hasNewRuns = [...currentRunIds].some((id) => !seenRunIdsRef.current.has(id))
+
+        if (hasNewRuns) {
+            // Update seen run IDs
+            currentRunIds.forEach((id) => seenRunIdsRef.current.add(id))
+            stablePreviewEntriesRef.current = entries
+            return entries
+        }
+
+        // Return stable reference if no new runs
+        return stablePreviewEntriesRef.current.length > 0
+            ? stablePreviewEntriesRef.current
+            : entries
     }, [stableRows])
 
-    const referenceBlueprint = useMemo(
-        () => buildReferenceBlueprint(stableRows, evaluationKind),
-        [stableRows, evaluationKind],
-    )
+    // Stabilize reference blueprint - only recompute when structure changes
+    const stableReferenceBlueprintRef = useRef<ReferenceColumnDescriptor[]>([])
+
+    const referenceBlueprint = useMemo(() => {
+        const newBlueprint = buildReferenceBlueprint(stableRows, evaluationKind)
+
+        // Check if blueprint structure changed (compare by role keys)
+        const prevKeys = stableReferenceBlueprintRef.current
+            .map((d) => `${d.role}:${d.roleOrdinal}`)
+            .join("|")
+        const newKeys = newBlueprint.map((d) => `${d.role}:${d.roleOrdinal}`).join("|")
+
+        if (prevKeys !== newKeys) {
+            stableReferenceBlueprintRef.current = newBlueprint
+            return newBlueprint
+        }
+
+        return stableReferenceBlueprintRef.current.length > 0
+            ? stableReferenceBlueprintRef.current
+            : newBlueprint
+    }, [stableRows, evaluationKind])
 
     const ensuredReferenceBlueprint = useMemo(() => {
         if (evaluationKind !== "all") {

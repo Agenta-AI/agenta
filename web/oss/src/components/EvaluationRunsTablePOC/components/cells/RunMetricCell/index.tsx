@@ -162,14 +162,12 @@ const RunMetricCellContent = memo(
                         label: entry.label,
                         percent: entry.count / total,
                     }))
-                    customChildren = (
-                        <EvaluatorMetricBar
-                            segments={frequencyEntries.map((entry) => ({
-                                label: entry.label,
-                                value: entry.count,
-                            }))}
-                        />
-                    )
+                    // Segments array is stable per stats object due to memo wrapper
+                    const segments = frequencyEntries.map((entry) => ({
+                        label: entry.label,
+                        value: entry.count,
+                    }))
+                    customChildren = <EvaluatorMetricBar segments={segments} />
                     display = `${normalized[0]?.label ?? ""} ${formatPercent(normalized[0]?.percent ?? 0)}`
                     highlight = display
                     fallback = stats ?? normalized
@@ -178,8 +176,6 @@ const RunMetricCellContent = memo(
         }
 
         const className = isUnavailable ? "not-available-table-cell" : undefined
-        const exportDisplay =
-            typeof display === "string" && display.trim().length > 0 ? display : "—"
 
         return (
             <MetricValueWithPopover

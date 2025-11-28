@@ -1,7 +1,8 @@
-import {Fragment, memo, useCallback, useMemo, useState, type ReactNode} from "react"
+import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
 import {Popover} from "antd"
-import {atom, useAtomValue} from "jotai"
+import {atom} from "jotai"
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {
     previewRunMetricStatsSelectorFamily,
@@ -285,7 +286,7 @@ const MetricPopoverContent = ({
         [prefetchedSelectionAtom, runId, metricKey, metricPath, stepKey, effectiveShouldLoad],
     )
 
-    const selection = useAtomValue(selectionAtom)
+    const selection = useAtomValueWithSchedule(selectionAtom, {priority: LOW_PRIORITY})
     const loading = selection.state === "loading"
     const hasError = selection.state === "hasError"
     const stats = selection.state === "hasData" ? selection.stats : undefined
@@ -320,32 +321,10 @@ const MetricPopoverContent = ({
         return undefined
     }, [primitiveRows, stats])
 
-    if (typeof window !== "undefined") {
-        console.info("[MetricPopover] scenario count derived", {
-            runId,
-            metricKey,
-            metricPath,
-            stepKey,
-            totalScenarios,
-            primitiveRows,
-            statsKeys: stats ? Object.keys(stats as any) : [],
-        })
-    }
     const chartData = useMemo(() => {
         if (!stats) return []
         const data = buildChartData(stats as Record<string, any>)
         const safeData = Array.isArray(data) ? data : []
-        if (typeof window !== "undefined") {
-            console.info("[EvalRunDetails2] MetricPopover chart data", {
-                runId,
-                metricKey,
-                metricPath,
-                stepKey,
-                shouldLoad,
-                statsShape: stats ? Object.keys(stats) : [],
-                chartData: safeData,
-            })
-        }
         return safeData
     }, [stats])
     const histogramCandidates = useMemo(
@@ -400,17 +379,6 @@ const MetricPopoverContent = ({
               })
               .filter((entry): entry is {label: string | number; count: number} => Boolean(entry))
     const hasFrequencyChart = frequencyChartData.length > 0
-    if (typeof window !== "undefined" && stats && shouldLoad) {
-        console.info("[EvalRunDetails2] MetricPopover chart selection", {
-            runId,
-            metricKey,
-            metricPath,
-            stepKey,
-            histogramBins: hasHistogram ? histogramChartData.length : 0,
-            frequencyBins: hasFrequencyChart ? frequencyChartData.length : 0,
-            chartType: hasHistogram ? "histogram" : hasFrequencyChart ? "frequency" : "none",
-        })
-    }
     const toScalar = (source: unknown): unknown => {
         if (source === undefined || source === null) return source
         if (typeof source === "boolean" || typeof source === "number" || typeof source === "string")
@@ -448,19 +416,6 @@ const MetricPopoverContent = ({
         summaryRows.length || hasHistogram || hasFrequencyChart || scenarioDisplay,
     )
     const isEmpty = !stats && !loading && !hasError
-    if (typeof window !== "undefined") {
-        console.info("[EvalRunDetails2] Scenario metric value", {
-            runId,
-            stats,
-            shouldLoad,
-            metricKey,
-            metricPath,
-            stepKey,
-            rawValue: fallbackValue,
-            scenarioValueToShow,
-            scenarioDisplay,
-        })
-    }
     const highlightSource =
         highlightValue !== undefined && highlightValue !== null ? highlightValue : fallbackValue
     const highlightScalar = toScalar(highlightSource)

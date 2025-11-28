@@ -1,7 +1,5 @@
 import {createContext, useContext, useMemo, type PropsWithChildren} from "react"
 
-import {useAtomValue} from "jotai"
-import {selectAtom} from "jotai/utils"
 import {IMMEDIATE_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {
@@ -34,14 +32,11 @@ export const useColumnVisibilityFlag = (columnKey?: string): boolean => {
     const scopeId = ctx?.scopeId ?? null
     const visibilityAtom = useMemo(
         () => scopedColumnVisibilityAtomFamily({scopeId, columnKey: columnKey ?? ""}),
-        // selectAtom(
-        //     (state) => state,
-        //     (a, b) => a === b,
-        // ),
         [scopeId, columnKey],
     )
-    return useAtomValue(visibilityAtom) ?? false
-    // useAtomValueWithSchedule(visibilityAtom, {priority: IMMEDIATE_PRIORITY})
+    // Use IMMEDIATE_PRIORITY to ensure visibility updates don't lag behind scroll
+    // but still allow batching with other updates
+    return useAtomValueWithSchedule(visibilityAtom, {priority: IMMEDIATE_PRIORITY}) ?? false
 }
 
 export default ColumnVisibilityFlagContext

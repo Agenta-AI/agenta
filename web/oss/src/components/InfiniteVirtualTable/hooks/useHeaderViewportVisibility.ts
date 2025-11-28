@@ -9,64 +9,6 @@ type ViewportVisibilityCallback = (
 // const intersectionThresholds = [0, 0.01, 0.02, 0.1]
 const intersectionThresholds = [0, 0, 0, 0]
 
-const parseRootMargin = (value?: string): [number, number, number, number] => {
-    if (!value) {
-        return [0, 160, 0, 160]
-    }
-    const parts = value
-        .split(/\s+/)
-        .map((part) => parseFloat(part.replace("px", "")))
-        .filter((num) => Number.isFinite(num))
-    if (!parts.length) {
-        return [0, 160, 0, 160]
-    }
-    if (parts.length === 1) {
-        return [parts[0], parts[0], parts[0], parts[0]]
-    }
-    if (parts.length === 2) {
-        return [parts[0], parts[1], parts[0], parts[1]]
-    }
-    if (parts.length === 3) {
-        return [parts[0], parts[1], parts[2], parts[1]]
-    }
-    return [parts[0], parts[1], parts[2], parts[3]]
-}
-
-const computeImmediateVisibility = (node: HTMLElement, root: Element | null, margin?: string) => {
-    if (typeof window === "undefined") return true
-    const rect = node.getBoundingClientRect()
-    if (rect.width <= 0 || rect.height <= 0) {
-        return false
-    }
-    const [marginTop, marginRight, marginBottom, marginLeft] = parseRootMargin(margin)
-    console.log("computeImmediateVisibility", {
-        node,
-        root,
-        margin,
-        rect,
-        marginTop,
-        marginRight,
-        marginBottom,
-        marginLeft,
-    })
-    if (root) {
-        const rootRect = (root as HTMLElement).getBoundingClientRect()
-        const expanded = {
-            top: rootRect.top - marginTop,
-            right: rootRect.right + marginRight,
-            bottom: rootRect.bottom + marginBottom,
-            left: rootRect.left - marginLeft,
-        }
-        return rect.right > expanded.left && rect.left < expanded.right
-    }
-    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0
-    const expandedViewport = {
-        left: -marginLeft,
-        right: viewportWidth + marginRight,
-    }
-    return rect.right > expandedViewport.left && rect.left < expandedViewport.right
-}
-
 const useHeaderViewportVisibility = ({
     scopeId,
     containerRef,
@@ -224,19 +166,50 @@ const useHeaderViewportVisibility = ({
         [clearHideTimeout, enqueueVisibilityChange, exitDebounceMs],
     )
 
+    // Track last known horizontal bounds to filter out vertical-only scroll events
+    const lastHorizontalBoundsRef = useRef(new Map<string, {left: number; right: number}>())
+
     const handleEntries = useCallback(
         (entries: IntersectionObserverEntry[]) => {
+            // Skip processing if updates are suspended (e.g., during resize or vertical scroll)
+            if (suspendUpdatesRef.current) return
             if (!onVisibilityChange || !scopeId) return
             entries.forEach((entry) => {
                 const columnKey = elementToKeyRef.current.get(entry.target as HTMLElement)
                 if (!columnKey) return
-                const intersectionWidth = entry.intersectionRect?.width ?? 0
-                const intersectionHeight = entry.intersectionRect?.height ?? 0
+
+                const boundingRect = entry.boundingClientRect
+                const intersectionRect = entry.intersectionRect
+
+                // Check if horizontal position actually changed (ignore vertical-only scroll)
+                const lastBounds = lastHorizontalBoundsRef.current.get(columnKey)
+                const currentLeft = Math.round(boundingRect.left)
+                const currentRight = Math.round(boundingRect.right)
+
+                if (lastBounds) {
+                    const horizontalDelta =
+                        Math.abs(currentLeft - lastBounds.left) +
+                        Math.abs(currentRight - lastBounds.right)
+                    // If horizontal position hasn't changed significantly, skip this update
+                    // This filters out intersection events triggered by vertical scrolling
+                    if (horizontalDelta < 2) {
+                        return
+                    }
+                }
+
+                // Update last known horizontal bounds
+                lastHorizontalBoundsRef.current.set(columnKey, {
+                    left: currentLeft,
+                    right: currentRight,
+                })
+
+                const intersectionWidth = intersectionRect?.width ?? 0
+                const intersectionHeight = intersectionRect?.height ?? 0
                 const isVisible =
                     entry.isIntersecting &&
                     intersectionWidth > 0 &&
                     intersectionHeight > 0 &&
-                    entry.boundingClientRect.width > 0
+                    boundingRect.width > 0
                 queueVisibilityUpdate(columnKey, isVisible)
             })
         },

@@ -1,6 +1,6 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
-import {atom, useAtomValue} from "jotai"
+import {atom} from "jotai"
 import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import {previewRunSummaryAtomFamily, type PreviewRunSummary} from "../atoms/runSummaries"
@@ -11,6 +11,13 @@ const defaultPreviewSummaryQueryAtom = atom(() => ({
     isFetching: false,
     isPending: false,
 }))
+
+/**
+ * Cache for run summaries to provide instant display when scrolling back into view.
+ */
+const summaryCache = new Map<string, PreviewRunSummary>()
+
+const buildCacheKey = (projectId: string, runId: string) => `${projectId}|${runId}`
 
 interface UsePreviewRunSummaryOptions {
     enabled?: boolean
@@ -27,14 +34,27 @@ export const usePreviewRunSummary = (
     options?: UsePreviewRunSummaryOptions,
 ) => {
     const enabled = options?.enabled ?? true
+
+    // Check cache first for instant display when scrolling back into view
+    const cacheKey = projectId && runId ? buildCacheKey(projectId, runId) : null
+    const cachedSummary = cacheKey ? summaryCache.get(cacheKey) : undefined
+
     const summaryAtom = useMemo(() => {
         if (!enabled || !projectId || !runId) return defaultPreviewSummaryQueryAtom
         return previewRunSummaryAtomFamily({projectId, runId})
     }, [enabled, projectId, runId])
 
-    const summaryQuery = useAtomValue(summaryAtom)
-    // useAtomValueWithSchedule(summaryAtom, {priority: LOW_PRIORITY})
-    const summary = enabled && projectId && runId ? (summaryQuery?.data ?? null) : null
+    const summaryQuery = useAtomValueWithSchedule(summaryAtom, {priority: LOW_PRIORITY})
+    const querySummary = enabled && projectId && runId ? (summaryQuery?.data ?? null) : null
+
+    // Update cache when we get new data
+    useEffect(() => {
+        if (!cacheKey || !querySummary) return
+        summaryCache.set(cacheKey, querySummary)
+    }, [cacheKey, querySummary])
+
+    // Priority: fresh data > cached data > null
+    const summary = querySummary ?? cachedSummary ?? null
     const hasSummary = Boolean(summary)
     const isLoading = Boolean(
         enabled &&
