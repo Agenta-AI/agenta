@@ -128,7 +128,6 @@ else:
 class ProjectScope(BaseModel):
     credentials: Credentials
     role: ProjectRole
-    tier: Tier
     # role: Union[OrganizationRole, WorkspaceRole, ProjectRole]
     #
     user: Reference
@@ -294,7 +293,6 @@ async def create_accounts(
                 scope = ProjectScope(
                     credentials=credentials,
                     role=request.role,
-                    tier="free" if organization.is_paying is False else "paying",
                     #
                     user=request.user_ref,
                     project=request.project_ref,

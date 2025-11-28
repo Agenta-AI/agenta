@@ -1,7 +1,7 @@
 import uuid
 
 from oss.src.dbs.postgres.shared.engine import engine
-from ee.src.models.db_models import DeploymentDB
+from oss.src.models.db_models import DeploymentDB
 
 
 async def create_deployment(
