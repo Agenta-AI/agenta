@@ -2,7 +2,6 @@ import {atom} from "jotai"
 import {atomFamily, selectAtom} from "jotai/utils"
 
 import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
-import {loadableScenarioStepFamily} from "@/oss/lib/hooks/useEvaluationRunData/assets/atoms/runScopedScenarios"
 import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
 
 import {readInvocationResponse} from "../../../lib/traces/traceUtils"
@@ -347,52 +346,20 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                 })
             }
             const evalType = get(previewEvalTypeAtom)
-            const scenarioLoadable =
-                runId && scenarioId ? get(loadableScenarioStepFamily({runId, scenarioId})) : null
-            console.log("scenarioLoadable", scenarioLoadable)
-            const scenarioData =
-                scenarioLoadable && scenarioLoadable.state === "hasData"
-                    ? scenarioLoadable.data
-                    : undefined
-            const scenarioDataLoading =
-                Boolean(scenarioLoadable) && scenarioLoadable.state === "loading"
 
             const stepsQuery = get(scenarioStepsQueryFamily({scenarioId, runId}))
-            const baseSteps =
-                (scenarioData?.steps && scenarioData.steps.length
-                    ? scenarioData.steps
-                    : stepsQuery.data?.steps) ?? []
+            const stepsQueryLoading = stepsQuery.isLoading || stepsQuery.isPending
+            const baseSteps = stepsQuery.data?.steps ?? []
             const derivedByKind = extractStepsByKind(baseSteps)
-            const inputs = scenarioData?.inputSteps?.length
-                ? (scenarioData.inputSteps as IStepResponse[])
-                : derivedByKind.inputs
-            const invocations = scenarioData?.invocationSteps?.length
-                ? (scenarioData.invocationSteps as IStepResponse[])
-                : derivedByKind.invocations
-            const annotations = scenarioData?.annotationSteps?.length
-                ? (scenarioData.annotationSteps as IStepResponse[])
-                : derivedByKind.annotations
+            const inputs = derivedByKind.inputs
+            const invocations = derivedByKind.invocations
+            const annotations = derivedByKind.annotations
             const steps = baseSteps
 
             const descriptorMap = get(columnValueDescriptorMapAtomFamily(runId ?? null))
             const descriptor =
                 (descriptorMap && column.id ? descriptorMap[column.id] : undefined) ??
                 createColumnValueDescriptor(toDescriptorInput(column), null)
-
-            if (
-                !scenarioData &&
-                scenarioLoadable &&
-                scenarioLoadable.state !== "hasData" &&
-                column.stepType !== "metric"
-            ) {
-                debugScenarioValue("Scenario data still loading", {
-                    scenarioId,
-                    runId,
-                    state: scenarioLoadable.state,
-                    columnId: column.id,
-                    stepType: column.stepType,
-                })
-            }
 
             if (column.stepType === "input") {
                 if (column.enabled === false) {
@@ -475,7 +442,7 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
 
                 if (
                     (value === undefined || value === null) &&
-                    !scenarioDataLoading &&
+                    !stepsQueryLoading &&
                     !stepsQuery.isLoading &&
                     !(testcaseMeta?.isLoading ?? false)
                 ) {
@@ -495,7 +462,7 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     displayValue: value,
                     isLoading:
                         !scenarioId ||
-                        scenarioDataLoading ||
+                        stepsQueryLoading ||
                         Boolean(stepsQuery.isLoading) ||
                         Boolean(
                             testcaseMeta?.isLoading &&
@@ -552,9 +519,9 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                 const pathSegments = descriptor.pathSegments
 
                 let scenarioInvocationValue: unknown = undefined
-                if (scenarioData && column.stepKey) {
+                if (invocations.length > 0 && column.stepKey) {
                     const invocationResponse = readInvocationResponse({
-                        scenarioData,
+                        scenarioData: {invocationSteps: invocations},
                         stepKey: column.stepKey,
                         path: column.path,
                         scenarioId,
@@ -594,19 +561,21 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                 const fallbackValue = resolveGenericStepValueByPath(targetStep, pathSegments)
                 const value = scenarioInvocationValue ?? traceValue ?? fallbackValue
 
-                const availableInvocationSteps = Array.isArray(
-                    (scenarioData as any)?.invocationSteps,
-                )
-                    ? (scenarioData as any).invocationSteps.map((step: any) => ({
-                          stepKey:
-                              step?.stepKey ?? step?.key ?? step?.step_key ?? step?.scenarioStepKey,
-                          traceId: step?.trace?.tree?.id ?? step?.traceId ?? step?.trace_id,
-                          shape: summarizeDataShape(step),
-                          dataShape: summarizeDataShape(step?.data),
-                          resultShape: summarizeDataShape(step?.result),
-                          outputsShape: summarizeDataShape(step?.outputs),
-                      }))
-                    : undefined
+                const availableInvocationSteps =
+                    invocations.length > 0
+                        ? invocations.map((step: any) => ({
+                              stepKey:
+                                  step?.stepKey ??
+                                  step?.key ??
+                                  step?.step_key ??
+                                  step?.scenarioStepKey,
+                              traceId: step?.trace?.tree?.id ?? step?.traceId ?? step?.trace_id,
+                              shape: summarizeDataShape(step),
+                              dataShape: summarizeDataShape(step?.data),
+                              resultShape: summarizeDataShape(step?.result),
+                              outputsShape: summarizeDataShape(step?.outputs),
+                          }))
+                        : undefined
 
                 debugScenarioValue(
                     "Invocation column probe",
@@ -633,13 +602,13 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     {
                         onceKey: `${scenarioId ?? "unknown"}:${column.id}:${
                             column.path
-                        }:${scenarioDataLoading || traceMeta?.isLoading ? "loading" : "ready"}`,
+                        }:${stepsQueryLoading || traceMeta?.isLoading ? "loading" : "ready"}`,
                     },
                 )
 
                 if (
                     (value === undefined || value === null) &&
-                    !scenarioDataLoading &&
+                    !stepsQueryLoading &&
                     !stepsQuery.isLoading &&
                     !(traceMeta?.isLoading ?? false)
                 ) {
@@ -662,7 +631,7 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     displayValue: value,
                     isLoading:
                         !scenarioId ||
-                        scenarioDataLoading ||
+                        stepsQueryLoading ||
                         Boolean(stepsQuery.isLoading) ||
                         Boolean(
                             traceMeta?.isLoading &&
@@ -852,7 +821,7 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
 
                 if (
                     (displaySource === undefined || displaySource === null) &&
-                    !scenarioDataLoading &&
+                    !stepsQueryLoading &&
                     !stepsQuery.isLoading &&
                     !annotationQuery.isLoading
                 ) {
@@ -871,7 +840,7 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                     displayValue,
                     isLoading:
                         !scenarioId ||
-                        scenarioDataLoading ||
+                        stepsQueryLoading ||
                         Boolean(stepsQuery.isLoading) ||
                         Boolean(
                             annotationQuery.isLoading &&

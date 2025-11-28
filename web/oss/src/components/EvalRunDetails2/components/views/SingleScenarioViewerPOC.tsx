@@ -8,7 +8,6 @@ import {useRouter} from "next/router"
 
 import {useInfiniteTablePagination} from "@/oss/components/InfiniteVirtualTable"
 import {getInitialMetricsFromAnnotations} from "@/oss/components/pages/observability/drawer/AnnotateDrawer/assets/transforms"
-import {useInvocationResult} from "@/oss/lib/hooks/useInvocationResult"
 
 import {scenarioAnnotationsQueryAtomFamily} from "../../atoms/annotations"
 import {scenarioStepsQueryFamily} from "../../atoms/scenarioSteps"
@@ -17,7 +16,7 @@ import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evalua
 import {evaluationRunIndexAtomFamily} from "../../atoms/table/run"
 import {evaluationPreviewTableStore} from "../../evaluationPreviewTableStore"
 import usePreviewTableData from "../../hooks/usePreviewTableData"
-import {useScenarioStepValue} from "../../hooks/useScenarioStepValue"
+import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {pocUrlStateAtom} from "../../state/urlState"
 
 import ScenarioLoadingIndicator from "./SingleScenarioViewerPOC/ScenarioLoadingIndicator"
@@ -295,13 +294,17 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         })
     }, [scenarioStepsQuery?.data?.invocationSteps, steps, runIndex])
     const primaryInvocation = invocationSteps[0]
-    const primaryInvocationKey =
-        primaryInvocation?.stepKey ?? primaryInvocation?.step_key ?? primaryInvocation?.key
-    const {trace: invocationTrace} = useInvocationResult({
-        scenarioId: activeId ?? undefined,
-        stepKey: primaryInvocationKey,
-        runId: effectiveRunId,
-    })
+    // Get trace directly from the primary invocation step data
+    const primaryInvocationTrace = useMemo(() => {
+        if (!primaryInvocation) return null
+        return (
+            primaryInvocation?.trace ??
+            primaryInvocation?.traceData ??
+            primaryInvocation?.trace_data ??
+            primaryInvocation?.data?.trace ??
+            null
+        )
+    }, [primaryInvocation])
 
     const annotationSteps = useMemo(() => {
         const base =
@@ -361,15 +364,15 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
         !scenarioStepsQuery?.data
 
     const ColumnValueView = ({column}: {column: EvaluationTableColumn}) => {
-        const {value, displayValue, isLoading, error} = useScenarioStepValue(
-            {scenarioId: activeId ?? undefined, runId: effectiveRunId, column},
-            {enabled: Boolean(activeId)},
-        )
-        if (isLoading) {
+        const {selection, showSkeleton} = useScenarioCellValue({
+            scenarioId: activeId ?? undefined,
+            runId: effectiveRunId,
+            column,
+            disableVisibilityTracking: true,
+        })
+        const {value, displayValue} = selection
+        if (showSkeleton) {
             return <Typography.Text type="secondary">Loading…</Typography.Text>
-        }
-        if (error) {
-            return <Typography.Text type="secondary">—</Typography.Text>
         }
         const resolved = (displayValue ?? value) as any
         if (resolved === null || typeof resolved === "undefined") {
@@ -399,7 +402,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
             step?.response?.tree ??
             step?.result?.trace ??
             step?.result?.response?.tree ??
-            invocationTrace ??
+            primaryInvocationTrace ??
             null
         if (!candidate) return null
         if (candidate?.nodes) return candidate
@@ -420,7 +423,7 @@ const SingleScenarioViewerPOC = ({runId}: SingleScenarioViewerPOCProps) => {
             step?.response?.trace_id,
             step?.result?.trace_id,
             step?.result?.response?.trace_id,
-            invocationTrace?.tree?.id,
+            primaryInvocationTrace?.tree?.id,
         ].filter(Boolean)
 
         if (directCandidates.length) {

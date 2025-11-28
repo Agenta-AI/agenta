@@ -1,4 +1,4 @@
-import {format3Sig} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
+import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 

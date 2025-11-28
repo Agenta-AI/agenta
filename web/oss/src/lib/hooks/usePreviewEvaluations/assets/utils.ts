@@ -6,7 +6,7 @@ import {getMetricsFromEvaluator} from "@/oss/components/pages/observability/draw
 import {useAppId} from "@/oss/hooks/useAppId"
 import {formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
-import {RunIndex, StepMeta} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
+import {RunIndex, StepMeta} from "@/oss/lib/evaluations/buildRunIndex"
 import useEvaluators from "@/oss/lib/hooks/useEvaluators"
 import {EvaluatorDto} from "@/oss/lib/hooks/useEvaluators/types"
 import {

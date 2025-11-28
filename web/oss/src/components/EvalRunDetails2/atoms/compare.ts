@@ -1,11 +1,10 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {buildRunIndex} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
+import {buildRunIndex, type RunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 
 import {evaluationRunQueryAtomFamily} from "./table/run"
 import type {EvaluationRunQueryResult} from "./table/run"
-import type {RunIndex} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
 
 export const MAX_COMPARISON_RUNS = 4
 

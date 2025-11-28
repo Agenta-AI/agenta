@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import type {StepMeta} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
+import type {StepMeta} from "@/oss/lib/evaluations/buildRunIndex"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 import {GeneralAutoEvalMetricColumns, GeneralHumanEvalMetricColumns} from "../../constants/table"

@@ -30,7 +30,6 @@ import {evaluationRunIndexAtomFamily} from "../atoms/table/run"
 import usePreviewTableData from "../hooks/usePreviewTableData"
 import useRunIdentifiers from "../hooks/useRunIdentifiers"
 import useScenarioCellValue from "../hooks/useScenarioCellValue"
-import {useScenarioStepValue} from "../hooks/useScenarioStepValue"
 import {
     closeFocusDrawerAtom,
     focusScenarioAtom,
@@ -320,26 +319,31 @@ const ScenarioColumnValue = memo(
     }) => {
         const displayLabel = column.displayLabel ?? column.label ?? column.id
         const isMetric = column.kind === "metric"
+        const isRunMetric = isRunMetricColumn(column)
 
+        // Always call hooks unconditionally at the top level
+        const {selection, showSkeleton} = useScenarioCellValue({
+            scenarioId,
+            runId,
+            column,
+            disableVisibilityTracking: true,
+        })
+
+        // For run metric columns, delegate to RunMetricValue component
+        if (isMetric && isRunMetric) {
+            return (
+                <RunMetricValue
+                    runId={runId}
+                    scenarioId={scenarioId}
+                    column={column}
+                    descriptor={descriptor}
+                />
+            )
+        }
+
+        // For metric columns (non-run metrics)
         if (isMetric) {
-            if (isRunMetricColumn(column)) {
-                return (
-                    <RunMetricValue
-                        runId={runId}
-                        scenarioId={scenarioId}
-                        column={column}
-                        descriptor={descriptor}
-                    />
-                )
-            }
-
-            const {selection, showSkeleton} = useScenarioCellValue({
-                runId,
-                scenarioId,
-                column,
-                disableVisibilityTracking: true,
-            })
-            const {value, displayValue, isLoading} = selection
+            const {value, displayValue} = selection
 
             const formattedValue =
                 displayValue ??
@@ -384,11 +388,11 @@ const ScenarioColumnValue = memo(
             )
         }
 
-        const valueResult = useScenarioStepValue({scenarioId, runId, column})
-        const resolvedValue = valueResult.displayValue ?? valueResult.value
+        // For non-metric columns (input, invocation, annotation, etc.)
+        const resolvedValue = selection.displayValue ?? selection.value
 
         const renderValue = () => {
-            if (valueResult.isLoading && resolvedValue === undefined) {
+            if (showSkeleton && resolvedValue === undefined) {
                 return <Skeleton active paragraph={{rows: 1}} />
             }
 

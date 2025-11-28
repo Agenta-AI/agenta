@@ -9,7 +9,6 @@ import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {createUseStyles} from "react-jss"
 
-import {LatestEvaluationRunsTable} from "@/oss/components/EvaluationRunsTablePOC"
 import useCustomWorkflowConfig from "@/oss/components/pages/app-management/modals/CustomWorkflowModal/hooks/useCustomWorkflowConfig"
 import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/modals/DeleteAppModal/store/deleteAppModalStore"
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
@@ -23,6 +22,9 @@ const CustomWorkflowHistory: any = dynamic(
 )
 const ObservabilityOverview: any = dynamic(
     () => import("@/oss/components/pages/overview/observability/ObservabilityOverview"),
+)
+const LatestEvaluationRunsTable: any = dynamic(() =>
+    import("@/oss/components/EvaluationRunsTablePOC").then((m) => m.LatestEvaluationRunsTable),
 )
 
 const {Title, Text} = Typography
@@ -109,8 +111,8 @@ const OverviewPage = () => {
                 <DeploymentOverview />
                 <VariantsOverview />
 
-                <LatestEvaluationRunsTable evaluationKind="auto" />
-                <LatestEvaluationRunsTable evaluationKind="human" />
+                <LatestEvaluationRunsTable title="Auto Evaluations" evaluationKind="auto" />
+                <LatestEvaluationRunsTable title="Human Evaluations" evaluationKind="human" />
             </div>
 
             <CustomWorkflowHistory

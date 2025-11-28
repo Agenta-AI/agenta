@@ -2,7 +2,7 @@ import {useEffect, useMemo, useState} from "react"
 
 import {EvaluationType} from "@/oss/lib/enums"
 
-import type {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
+import type {EvaluationRow} from "@/oss/components/SaveTestsetModal/types"
 import usePreviewEvaluations from "../../../../../lib/hooks/usePreviewEvaluations"
 import deepEqual from "fast-deep-equal"
 

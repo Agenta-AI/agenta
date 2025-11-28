@@ -7,9 +7,11 @@ import {
     previewRunMetricStatsSelectorFamily,
     type RunLevelMetricSelection,
 } from "@/oss/components/evaluations/atoms/runMetrics"
-import ResponsiveFrequencyChart from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/ResponsiveFrequencyChart"
-import ResponsiveMetricChart from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/ResponsiveMetricChart"
-import {buildChartData} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
+import {
+    ResponsiveFrequencyChart,
+    ResponsiveMetricChart,
+    buildChartData,
+} from "@/oss/components/Evaluations/MetricDetailsPopover"
 import {formatCurrency, formatLatency} from "@/oss/lib/helpers/formatters"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 

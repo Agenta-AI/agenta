@@ -2,12 +2,13 @@ import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
+import {buildRunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
-import {buildRunIndex} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
-import type {EvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 import {effectiveProjectIdAtom} from "../run"
+
 import {getPreviewRunBatcher} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
+import type {EvaluationRun} from "@/agenta-oss-common/lib/hooks/usePreviewEvaluations/types"
 
 export interface EvaluationRunQueryResult {
     rawRun: EvaluationRun

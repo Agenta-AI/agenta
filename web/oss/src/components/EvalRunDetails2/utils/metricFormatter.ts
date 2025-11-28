@@ -1,4 +1,4 @@
-import {formatMetricValue as formatMetricValueWithKey} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
+import {formatMetricValue as formatMetricValueWithKey} from "@/oss/components/Evaluations/MetricDetailsPopover"
 import {
     formatEvaluatorMetricValue,
     isBasicStats,

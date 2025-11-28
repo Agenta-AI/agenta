@@ -3,7 +3,7 @@ import {memo, useEffect, useMemo, type ReactNode} from "react"
 import {Typography} from "antd"
 import {useSetAtomWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
 
-import EvaluatorMetricBar from "@/oss/components/HumanEvaluations/assets/EvaluatorMetricBar"
+import EvaluatorMetricBar from "@/oss/components/Evaluations/EvaluatorMetricBar"
 import SkeletonLine from "@/oss/components/InfiniteVirtualTable/components/common/SkeletonLine"
 import {resolvedMetricLabelsAtomFamily} from "@/oss/components/References/atoms/resolvedMetricLabels"
 import {humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"

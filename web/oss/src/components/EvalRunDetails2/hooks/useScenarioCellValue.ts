@@ -1,7 +1,15 @@
+import {useMemo} from "react"
+
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
+
+import {
+    buildColumnValueConfig,
+    scenarioColumnValueSelectionAtomFamily,
+    type ScenarioColumnValueSelection,
+} from "../atoms/scenarioColumnValues"
 import type {EvaluationTableColumn} from "../atoms/table"
 
 import {useCellVisibility} from "./useCellVisibility"
-import {useScenarioStepValueSelection} from "./useScenarioStepValue"
 
 interface UseScenarioCellValueArgs {
     scenarioId?: string
@@ -10,6 +18,10 @@ interface UseScenarioCellValueArgs {
     disableVisibilityTracking?: boolean
 }
 
+/**
+ * Hook for fetching scenario cell values with visibility-based lazy loading.
+ * Uses atoms directly for data fetching.
+ */
 const useScenarioCellValue = ({
     scenarioId,
     runId,
@@ -18,8 +30,15 @@ const useScenarioCellValue = ({
 }: UseScenarioCellValueArgs) => {
     const {ref, isVisible} = useCellVisibility()
     const enabled = disableVisibilityTracking ? true : isVisible
-    const selection = useScenarioStepValueSelection({scenarioId, runId, column}, {enabled: enabled})
-    console.log("useScenarioCellValue", selection)
+
+    const columnConfig = useMemo(() => buildColumnValueConfig(column, {enabled}), [column, enabled])
+    const selectionAtom = useMemo(
+        () => scenarioColumnValueSelectionAtomFamily({scenarioId, runId, column: columnConfig}),
+        [scenarioId, runId, columnConfig],
+    )
+
+    const selection = useAtomValueWithSchedule(selectionAtom, {priority: LOW_PRIORITY})
+
     const showSkeleton = disableVisibilityTracking
         ? selection.isLoading
         : !isVisible || selection.isLoading
@@ -32,4 +51,5 @@ const useScenarioCellValue = ({
     }
 }
 
+export type {ScenarioColumnValueSelection}
 export default useScenarioCellValue

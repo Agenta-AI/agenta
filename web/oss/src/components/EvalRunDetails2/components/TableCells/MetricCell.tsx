@@ -3,7 +3,7 @@ import {memo, useMemo} from "react"
 import clsx from "clsx"
 
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
-import EvaluatorMetricBar from "@/oss/components/HumanEvaluations/assets/EvaluatorMetricBar"
+import EvaluatorMetricBar from "@/oss/components/Evaluations/EvaluatorMetricBar"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import type {EvaluationTableColumn} from "../../atoms/table"

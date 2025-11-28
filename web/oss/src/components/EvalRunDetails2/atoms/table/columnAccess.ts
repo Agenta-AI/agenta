@@ -1,21 +1,22 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import type {RunIndex} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
+import type {RunIndex} from "@/oss/lib/evaluations/buildRunIndex"
+
+import {splitPath} from "../../utils/valueAccess"
 
 import {tableColumnsAtomFamily} from "./columns"
 import {evaluationRunIndexAtomFamily} from "./run"
 import type {EvaluationTableColumn} from "./types"
-import {splitPath} from "../../utils/valueAccess"
 
-type AnnotationDescriptor = {
+interface AnnotationDescriptor {
     metricPathCandidates: string[][]
     segmentVariants: string[][]
     coerceBoolean: boolean
 }
 
-type InvocationDescriptor = {
-    traceValueCandidates: Array<{path: string; valueKey?: string}>
+interface InvocationDescriptor {
+    traceValueCandidates: {path: string; valueKey?: string}[]
 }
 
 export interface ColumnValueDescriptor {

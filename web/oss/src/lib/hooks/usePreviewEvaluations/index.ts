@@ -9,6 +9,7 @@ import {v4 as uuidv4} from "uuid"
 import {useAppId} from "@/oss/hooks/useAppId"
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationType} from "@/oss/lib/enums"
+import {buildRunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {EvaluationStatus, SnakeToCamelCaseKeys, Testset} from "@/oss/lib/Types"
 import {slugify} from "@/oss/lib/utils/slugify"
@@ -21,9 +22,6 @@ import {
     setProjectVariantReferencesAtom,
 } from "@/oss/state/projectVariantConfig"
 import {usePreviewTestsetsData, useTestsetsData} from "@/oss/state/testset"
-
-import {buildRunIndex} from "../useEvaluationRunData/assets/helpers/buildRunIndex"
-import {getEvaluationRunScenariosKey} from "../useEvaluationRunScenarios"
 
 import {primePreviewRunCache} from "./assets/previewRunBatcher"
 import {fetchPreviewRunsShared} from "./assets/previewRunsRequest"

@@ -1,4 +1,4 @@
-import {ChartDatum, MetricFormatter} from "../types"
+import type {ChartDatum, MetricFormatter} from "../types"
 
 /**
  * Transforms the input data into an array of ChartDatum objects for chart rendering.

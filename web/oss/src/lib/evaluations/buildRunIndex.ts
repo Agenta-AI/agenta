@@ -30,8 +30,6 @@ export interface StepMeta {
     upstream: string[]
     /** Raw references blob – may contain application, evaluator, etc. */
     refs: Record<string, any>
-    /** Step origin ("auto" | "human" | other) when provided */
-    origin?: string
 }
 
 export interface RunIndex {
@@ -115,10 +113,9 @@ export function buildRunIndex(rawRun: any): RunIndex {
         steps[s.key] = {
             key: s.key,
             kind,
-            origin: typeof s.origin === "string" ? s.origin : undefined,
+            origin,
             upstream: (s.inputs ?? []).map((i: any) => i.key),
             refs: s.references ?? {},
-            origin,
         }
     }
 
@@ -169,31 +166,6 @@ export function buildRunIndex(rawRun: any): RunIndex {
         if (meta.kind === "annotation") annotationKeys.add(meta.key)
         if (meta.kind === "input") inputKeys.add(meta.key)
     }
-
-    // if (shouldLogRunIndex) {
-    //     try {
-    //         const sampleColumns = Object.entries(columnsByStep).map(([stepKey, cols]) => ({
-    //             stepKey,
-    //             columnCount: cols.length,
-    //             sample: cols.slice(0, 3).map((col) => ({
-    //                 name: col.name,
-    //                 kind: col.kind,
-    //                 path: col.path,
-    //             })),
-    //         }))
-
-    //         // console.info("[EvalRunDetails2][RunIndex] constructed", {
-    //         //     runId: rawRun?.id ?? rawRun?.run_id ?? rawRun?.runId ?? rawRun?.data?.id,
-    //         //     stepCount: Object.keys(steps).length,
-    //         //     inputKeys: [...inputKeys],
-    //         //     invocationKeys: [...invocationKeys],
-    //         //     annotationKeys: [...annotationKeys],
-    //         //     columnsByStep: sampleColumns,
-    //         // })
-    //     } catch (error) {
-    //         console.warn("[EvalRunDetails2][RunIndex] failed to log summary", {error})
-    //     }
-    // }
 
     return {steps, columnsByStep, invocationKeys, annotationKeys, inputKeys}
 }

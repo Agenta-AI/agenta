@@ -1,4 +1,4 @@
-import type {RunIndex} from "@/oss/lib/hooks/useEvaluationRunData/assets/helpers/buildRunIndex"
+import type {RunIndex} from "@/oss/lib/evaluations/buildRunIndex"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
 interface EvaluatorDefinitionLike {
