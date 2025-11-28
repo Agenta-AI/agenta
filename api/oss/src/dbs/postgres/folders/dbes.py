@@ -8,7 +8,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.dialects import postgresql
+from sqlalchemy_utils import LtreeType
 
 from oss.src.core.folders.types import FolderKind
 from oss.src.dbs.postgres.shared.base import Base
@@ -69,7 +69,7 @@ class FolderDBE(
     )
 
     path = Column(
-        postgresql.LTREE(),  # type: ignore[attr-defined]
+        LtreeType(),
         nullable=False,
     )
 

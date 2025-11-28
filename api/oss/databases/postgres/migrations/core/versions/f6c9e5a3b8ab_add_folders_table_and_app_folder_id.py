@@ -11,6 +11,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+from sqlalchemy_utils import LtreeType
 
 # revision identifiers, used by Alembic.
 revision: str = "7a3d1c4f5b6a"
@@ -103,7 +104,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "path",
-            postgresql.LTREE(),
+            LtreeType(),
             nullable=False,
         ),
         sa.Column(
