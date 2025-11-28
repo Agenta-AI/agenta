@@ -133,7 +133,7 @@ const PreviewEvaluationInvocationCell = ({
     if (value === undefined || value === null) {
         return (
             <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                <span className="scenario-table-text scenario-table-placeholder font-mono">—</span>
+                <span className="scenario-table-text scenario-table-placeholder">—</span>
             </div>
         )
     }
@@ -142,7 +142,7 @@ const PreviewEvaluationInvocationCell = ({
     const popoverContent = popoverChatNodes?.length ? (
         <div className="flex w-full flex-col gap-2">{popoverChatNodes}</div>
     ) : (
-        <pre className="whitespace-pre-wrap break-words m-0 font-mono text-xs">{displayValue}</pre>
+        <span className="whitespace-pre-wrap break-words block text-xs">{displayValue}</span>
     )
 
     if (chatNodes && chatNodes.length) {
@@ -163,9 +163,7 @@ const PreviewEvaluationInvocationCell = ({
     return (
         <CellContentPopover content={popoverContent}>
             <div ref={ref} className={clsx(CONTAINER_CLASS, "!justify-between")} style={widthStyle}>
-                <span className="scenario-table-text whitespace-pre-wrap font-mono">
-                    {displayValue}
-                </span>
+                <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
                 <InvocationTraceSummary
                     scenarioId={scenarioId}
                     stepKey={column.stepKey}

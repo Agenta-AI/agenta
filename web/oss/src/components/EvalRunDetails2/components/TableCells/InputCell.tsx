@@ -75,7 +75,7 @@ const PreviewEvaluationInputCell = ({
     const popoverContent = popoverChatNodes?.length ? (
         <div className="flex w-full flex-col gap-2">{popoverChatNodes}</div>
     ) : (
-        <pre className="whitespace-pre-wrap break-words m-0">{displayValue}</pre>
+        <span className="whitespace-pre-wrap break-words block">{displayValue}</span>
     )
 
     if (chatNodes && chatNodes.length) {

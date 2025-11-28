@@ -88,16 +88,16 @@ export function renderChatMessages({
                 >
                     <span className="capitalize text-[11px] text-gray-500">{msg.role}</span>
                     {textContent ? (
-                        <pre className="whitespace-pre-wrap break-words">{textContent}</pre>
+                        <span className="whitespace-pre-wrap break-words block">{textContent}</span>
                     ) : null}
                     {toolCalls.length > 0 ? (
                         <div className="flex flex-col gap-1">
                             <span className="text-[10px] text-gray-400 font-medium">
                                 Tool Calls:
                             </span>
-                            <pre className="whitespace-pre-wrap break-words text-[11px] bg-gray-50 rounded px-2 py-1">
+                            <span className="whitespace-pre-wrap break-words text-[11px] bg-gray-50 rounded px-2 py-1 block">
                                 {formatToolCalls(toolCalls)}
-                            </pre>
+                            </span>
                         </div>
                     ) : null}
                     {images.length ? (
