@@ -108,8 +108,10 @@ const StepGroupHeader = ({
             refs.variant?.id,
             refs.variant?.variant_id,
             refs.variant?.variantId,
-            refs.application_revision?.id,
-            refs.applicationRevision?.id,
+            // Extract variant_id from revision refs, not the revision id itself
+            refs.application_revision?.variant_id,
+            refs.applicationRevision?.variant_id,
+            refs.applicationRevision?.variantId,
         ) ?? null
 
     const testsetQuery = useQueryAtom<{name?: string | null; slug?: string | null}>(
