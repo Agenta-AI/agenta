@@ -27,36 +27,6 @@ const metricKeyAliases: Record<string, string> = {
     "tokens.completion": "completionTokens",
 }
 
-const deleteMetricsByIds = async ({
-    projectId,
-    metricIds,
-}: {
-    projectId: string
-    metricIds: string[]
-}) => {
-    const uniqueMetricIds = Array.from(new Set(metricIds.filter(Boolean)))
-    if (!uniqueMetricIds.length) return false
-
-    try {
-        await axios.delete(`/preview/evaluations/metrics/`, {
-            params: {project_id: projectId},
-            data: {metrics_ids: uniqueMetricIds},
-        })
-        console.info("[EvalRunDetails2] Deleted stale metrics after refresh", {
-            projectId,
-            metricIds: uniqueMetricIds,
-        })
-        return true
-    } catch (error) {
-        console.warn("[EvalRunDetails2] Failed to delete stale metrics", {
-            projectId,
-            metricIds: uniqueMetricIds,
-            error,
-        })
-        return false
-    }
-}
-
 const MAX_CATEGORICAL_ENTRIES = 20
 const STAT_KEYS_TO_DROP = [
     "pcts",
@@ -661,37 +631,18 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                             processor.markRunLevelGap("missing-run-level-entry")
                         }
 
-                        const processed = entries.map((entry: any) => {
+                        // Process all metrics to track which need refresh, but don't filter them out
+                        // Refresh is a background operation that may not succeed, so we should
+                        // still display existing data
+                        entries.forEach((entry: any) => {
                             const scope: MetricScope =
                                 entry?.scenario_id || entry?.scenarioId ? "scenario" : "run"
-                            const result = processor.processMetric(entry, scope)
-                            return {entry, result}
+                            processor.processMetric(entry, scope)
                         })
-
-                        const filtered = processed
-                            .filter(({result}) => !result.shouldRefresh)
-                            .map(({entry}) => entry)
-
-                        if (
-                            hasRunLevelEntry &&
-                            !filtered.some(
-                                (entry: any) => !entry?.scenario_id && !entry?.scenarioId,
-                            )
-                        ) {
-                            processor.markRunLevelGap("missing-run-level-entry")
-                        }
 
                         const flushResult = await processor.flush({triggerRefresh})
 
-                        return {metrics: filtered, flushResult}
-                    }
-
-                    const attemptCleanup = async (
-                        flushResult: Awaited<ReturnType<typeof processMetrics>>["flushResult"],
-                    ) => {
-                        const staleMetricIds = flushResult.staleMetricIds ?? []
-                        if (!staleMetricIds.length) return false
-                        return deleteMetricsByIds({projectId, metricIds: staleMetricIds})
+                        return {metrics: entries, flushResult}
                     }
 
                     let {metrics, flushResult} = await processMetrics({
@@ -700,9 +651,8 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                         triggerRefresh: true,
                     })
 
-                    let cleanupPerformed = await attemptCleanup(flushResult)
-
-                    if (cleanupPerformed || flushResult.refreshed) {
+                    // Re-fetch after refresh to get updated metrics
+                    if (flushResult.refreshed) {
                         const refreshedMetrics = await fetchMetrics()
                         const retry = await processMetrics({
                             entries: refreshedMetrics,
@@ -711,10 +661,6 @@ const previewRunMetricStatsQueryFamily = atomFamily(
                         })
 
                         metrics = retry.metrics
-                        flushResult = retry.flushResult
-
-                        const retryCleanupPerformed = await attemptCleanup(flushResult)
-                        cleanupPerformed = cleanupPerformed || retryCleanupPerformed
                     }
 
                     if (process.env.NODE_ENV !== "production") {

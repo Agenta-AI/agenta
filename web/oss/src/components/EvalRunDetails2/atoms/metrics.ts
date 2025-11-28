@@ -20,36 +20,6 @@ import {
 } from "./metricProcessor"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 
-const deleteMetricsByIds = async ({
-    projectId,
-    metricIds,
-}: {
-    projectId: string
-    metricIds: string[]
-}) => {
-    const uniqueMetricIds = Array.from(new Set(metricIds.filter(Boolean)))
-    if (!uniqueMetricIds.length) return false
-
-    try {
-        await axios.delete(`/preview/evaluations/metrics/`, {
-            params: {project_id: projectId},
-            data: {metrics_ids: uniqueMetricIds},
-        })
-        console.info("[EvalRunDetails2] Deleted stale scenario metrics after refresh", {
-            projectId,
-            metricIds: uniqueMetricIds,
-        })
-        return true
-    } catch (error) {
-        console.warn("[EvalRunDetails2] Failed to delete stale scenario metrics", {
-            projectId,
-            metricIds: uniqueMetricIds,
-            error,
-        })
-        return false
-    }
-}
-
 interface EvaluationMetricEntry {
     id?: string
     runId: string
@@ -107,7 +77,8 @@ const buildGroupedMetrics = (
     rawMetrics.forEach((rawMetric: any) => {
         const metric = snakeToCamelCaseKeys(rawMetric) as EvaluationMetricEntry
         const scope: MetricScope = metric.scenarioId ? "scenario" : "run"
-        const result = processor.processMetric(metric, scope)
+        // Process metric to track refresh state, but don't use result for filtering
+        processor.processMetric(metric, scope)
 
         const scenarioId = metric.scenarioId ?? undefined
         if (!scenarioId || !requestedScenarioSet.has(scenarioId)) {
@@ -116,11 +87,8 @@ const buildGroupedMetrics = (
 
         returnedScenarioCounts.set(scenarioId, (returnedScenarioCounts.get(scenarioId) ?? 0) + 1)
 
-        if (result.shouldRefresh) {
-            grouped[scenarioId] = null
-            return
-        }
-
+        // Always include metric data even if flagged for refresh - refresh is a background
+        // operation that may not succeed, so we should still display existing data
         const bucket = grouped[scenarioId]
         if (!bucket) return
 
@@ -613,14 +581,6 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                             return {grouped, flushResult}
                         }
 
-                        const attemptCleanup = async (
-                            flushResult: Awaited<ReturnType<typeof processMetrics>>["flushResult"],
-                        ) => {
-                            const staleMetricIds = flushResult.staleMetricIds ?? []
-                            if (!staleMetricIds.length) return false
-                            return deleteMetricsByIds({projectId, metricIds: staleMetricIds})
-                        }
-
                         const initial = await processMetrics({
                             entries: await fetchMetrics(),
                             source: "scenario-metric-batcher",
@@ -629,9 +589,9 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
 
                         let grouped = initial.grouped
                         let flushResult = initial.flushResult
-                        let cleanupPerformed = await attemptCleanup(flushResult)
 
-                        if (cleanupPerformed || flushResult.refreshed) {
+                        // Re-fetch after refresh to get updated metrics
+                        if (flushResult.refreshed) {
                             const retry = await processMetrics({
                                 entries: await fetchMetrics(),
                                 source: "scenario-metric-batcher:retry",
@@ -639,9 +599,6 @@ export const evaluationMetricBatcherFamily = atomFamily(({runId}: {runId?: strin
                             })
 
                             grouped = retry.grouped
-                            flushResult = retry.flushResult
-                            const retryCleanupPerformed = await attemptCleanup(flushResult)
-                            cleanupPerformed = cleanupPerformed || retryCleanupPerformed
                         }
 
                         return grouped

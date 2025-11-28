@@ -58,6 +58,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationMetricsIdsRequest,
     EvaluationMetricsResponse,
     EvaluationMetricsIdsResponse,
+    EvaluationMetricsRefreshRequest,
     # EVALUATION QUEUES
     EvaluationQueuesCreateRequest,
     EvaluationQueueEditRequest,
@@ -1303,14 +1304,29 @@ class EvaluationsRouter:
         self,
         request: Request,
         *,
-        run_id: Optional[UUID] = None,
-        run_ids: Optional[List[UUID]] = None,
-        scenario_id: Optional[UUID] = None,
-        scenario_ids: Optional[List[UUID]] = None,
-        timestamp: Optional[datetime] = None,
-        timestamps: Optional[List[datetime]] = None,
-        interval: Optional[int] = None,
+        payload: EvaluationMetricsRefreshRequest,
     ) -> EvaluationMetricsResponse:
+        # Extract values from the request body
+        run_id = payload.run_id
+        run_ids = payload.run_ids
+        scenario_id = payload.scenario_id
+        scenario_ids = payload.scenario_ids
+        interval = payload.interval
+
+        # Parse timestamps if provided
+        timestamp = None
+        if payload.timestamp:
+            timestamp = datetime.fromisoformat(payload.timestamp.replace("Z", "+00:00"))
+
+        timestamps = None
+        if payload.timestamps:
+            timestamps = [
+                datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                for ts in payload.timestamps
+            ]
+
+        print(f"[METRIC_REFRESH_ROUTER] refresh_metrics called: run_id={run_id}, scenario_id={scenario_id}, scenario_ids={scenario_ids}")
+
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,

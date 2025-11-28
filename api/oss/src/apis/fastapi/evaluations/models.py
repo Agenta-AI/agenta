@@ -241,6 +241,16 @@ class EvaluationMetricsIdsResponse(BaseModel):
     metrics_ids: List[UUID] = []
 
 
+class EvaluationMetricsRefreshRequest(BaseModel):
+    run_id: Optional[UUID] = None
+    run_ids: Optional[List[UUID]] = None
+    scenario_id: Optional[UUID] = None
+    scenario_ids: Optional[List[UUID]] = None
+    timestamp: Optional[str] = None  # ISO datetime string
+    timestamps: Optional[List[str]] = None  # ISO datetime strings
+    interval: Optional[int] = None
+
+
 # - EVALUATION QUEUES ----------------------------------------------------------
 
 
