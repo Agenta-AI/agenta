@@ -7,17 +7,10 @@ import EvaluatorMetricBar from "@/oss/components/HumanEvaluations/assets/Evaluat
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
 import type {EvaluationTableColumn} from "../../atoms/table"
-import {COLUMN_WIDTHS} from "../../constants/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../../utils/metricFormatter"
 
 const CONTAINER_CLASS = "scenario-table-cell min-h-[96px]"
-
-const resolveColumnWidth = (column: EvaluationTableColumn): number => {
-    if (typeof column.width === "number") return column.width
-    if (typeof column.minWidth === "number") return column.minWidth
-    return COLUMN_WIDTHS.metric
-}
 
 const PreviewEvaluationMetricCell = ({
     scenarioId,
