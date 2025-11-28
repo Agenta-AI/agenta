@@ -4,7 +4,10 @@ import click
 from sqlalchemy.future import select
 from sqlalchemy import delete, Connection, insert, func
 
-from ee.src.models.db_models import ProjectDB, WorkspaceDB
+from oss.src.models.db_models import (
+    WorkspaceDB,
+    ProjectDB,
+)
 from ee.src.models.db_models import (
     WorkspaceMemberDB,
     ProjectMemberDB,

@@ -1,66 +1,72 @@
 import os
 import uuid
-from datetime import datetime, timezone
-from json import dumps
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+from json import dumps
 
 from fastapi import HTTPException
-from oss.src.dbs.postgres.shared.engine import engine
-from oss.src.models import converters
-from oss.src.services import analytics_service, user_service
-from oss.src.services.json_importer_helper import get_json
-from oss.src.utils.common import is_ee
-from oss.src.utils.logging import get_module_logger
-from sqlalchemy import asc, func, or_
-from sqlalchemy.exc import MultipleResultsFound, NoResultFound, SQLAlchemyError
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm import aliased, joinedload, load_only
-from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
-from supertokens_python.asyncio import list_users_by_account_info
+from sqlalchemy import func, or_, asc, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from supertokens_python.types import AccountInfo
+from sqlalchemy.orm import joinedload, load_only, aliased
+from sqlalchemy.exc import NoResultFound, MultipleResultsFound, SQLAlchemyError
+from supertokens_python.asyncio import list_users_by_account_info
+from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
 
-if is_ee():
-    from ee.src.models.db_models import ProjectDB, WorkspaceDB
-else:
-    from oss.src.models.db_models import ProjectDB, WorkspaceDB
+from oss.src.utils.logging import get_module_logger
+from oss.src.models import converters
+from oss.src.services import user_service
+from oss.src.utils.common import is_ee
+from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.services.json_importer_helper import get_json
 
 from oss.src.models.db_models import (
-    APIKeyDB,
+    WorkspaceDB,
+    ProjectDB,
+)
+
+from oss.src.models.db_models import (
     AppDB,
-    AppEnvironmentDB,
-    AppEnvironmentRevisionDB,
-    AppVariantDB,
-    AppVariantRevisionsDB,
-    DeploymentDB,
-    EvaluationAggregatedResultDB,
-    EvaluationDB,
-    EvaluationEvaluatorConfigDB,
-    EvaluationScenarioDB,
-    EvaluationScenarioResultDB,
-    EvaluatorConfigDB,
-    HumanEvaluationDB,
-    HumanEvaluationScenarioDB,
-    HumanEvaluationVariantDB,
-    IDsMappingDB,
-    InvitationDB,
-    OrganizationDB,
-    TestsetDB,
     UserDB,
+    APIKeyDB,
+    TestsetDB,
+    IDsMappingDB,
+    DeploymentDB,
+    InvitationDB,
+    AppVariantDB,
     VariantBaseDB,
+    OrganizationDB,
+    AppEnvironmentDB,
+    EvaluatorConfigDB,
+    AppVariantRevisionsDB,
+    AppEnvironmentRevisionDB,
 )
 from oss.src.models.shared_models import (
-    AggregatedResult,
     AppType,
     ConfigDB,
+)
+from oss.src.models.shared_models import (
+    Result,
     CorrectAnswer,
+    AggregatedResult,
+    EvaluationScenarioResult,
     EvaluationScenarioInput,
     EvaluationScenarioOutput,
-    EvaluationScenarioResult,
     HumanEvaluationScenarioInput,
-    Result,
 )
+from oss.src.models.db_models import (
+    EvaluationDB,
+    HumanEvaluationDB,
+    EvaluationScenarioDB,
+    HumanEvaluationScenarioDB,
+    HumanEvaluationVariantDB,
+    EvaluationScenarioResultDB,
+    EvaluationEvaluatorConfigDB,
+    EvaluationAggregatedResultDB,
+)
+
 
 log = get_module_logger(__name__)
 
@@ -85,6 +91,26 @@ async def fetch_project_by_id(
         )
 
         return project
+
+
+async def fetch_projects_by_workspace(
+    workspace_id: str,
+) -> List[ProjectDB]:
+    """
+    Retrieve all projects that belong to a workspace ordered by creation date.
+    Args:
+        workspace_id (str): Workspace identifier.
+    Returns:
+        List[ProjectDB]: Projects scoped to the workspace.
+    """
+
+    async with engine.core_session() as session:
+        result = await session.execute(
+            select(ProjectDB)
+            .filter(ProjectDB.workspace_id == uuid.UUID(workspace_id))
+            .order_by(ProjectDB.created_at.asc())
+        )
+        return result.scalars().all()
 
 
 async def fetch_workspace_by_id(
@@ -562,9 +588,9 @@ async def create_new_app_variant(
         AppVariantDB: The created variant.
     """
 
-    assert config.parameters == {}, (
-        "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
-    )
+    assert (
+        config.parameters == {}
+    ), "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
 
     async with engine.core_session() as session:
         variant = AppVariantDB(
@@ -992,12 +1018,6 @@ async def check_if_user_exists_and_create_organization(user_email: str):
                     "project_name": organization_name,
                 }
             )
-
-            analytics_service.capture_oss_deployment_created(
-                user_email=user_email,
-                organization_id=str(organization_db.id),
-            )
-
             return organization_db
 
         organizations_db = await get_organizations()
@@ -1369,8 +1389,6 @@ async def get_workspace(workspace_id: str) -> WorkspaceDB:
 
     async with engine.core_session() as session:
         query = select(WorkspaceDB).filter_by(id=uuid.UUID(workspace_id))
-        if is_ee():
-            query = query.options(joinedload(WorkspaceDB.members))
 
         result = await session.execute(query)
         workspace = result.scalars().first()
@@ -1644,6 +1662,193 @@ async def get_default_project_id_from_workspace(
                 f"No default project for the provided workspace_id {workspace_id} found"
             )
         return str(project.id)
+
+
+async def create_workspace_project(
+    project_name: str,
+    workspace_id: str,
+    organization_id: Optional[str] = None,
+    *,
+    set_default: bool = False,
+    session: Optional[AsyncSession] = None,
+) -> ProjectDB:
+    """
+    Create a project scoped to the provided workspace.
+
+    Args:
+        project_name (str): Display name for the project.
+        workspace_id (str): Workspace identifier.
+        organization_id (Optional[str]): Explicit organization id. If omitted it will be
+            inferred from the workspace.
+        set_default (bool): Whether the project should become the workspace default.
+        session (Optional[AsyncSession]): Existing db session reuse.
+
+    Returns:
+        ProjectDB: Newly created project.
+    """
+
+    workspace_uuid = uuid.UUID(workspace_id)
+
+    async def _create(
+        db_session: AsyncSession,
+    ) -> ProjectDB:
+        workspace = await db_session.get(WorkspaceDB, workspace_uuid)
+        if workspace is None:
+            raise NoResultFound(f"Workspace with ID {workspace_id} not found")
+
+        org_uuid = (
+            uuid.UUID(organization_id) if organization_id else workspace.organization_id
+        )
+
+        should_be_default = set_default
+        if not should_be_default:
+            result = await db_session.execute(
+                select(ProjectDB.id).filter(
+                    ProjectDB.workspace_id == workspace_uuid,
+                    ProjectDB.is_default == True,
+                )
+            )
+            has_default = result.scalars().first() is not None
+            should_be_default = not has_default
+
+        if should_be_default:
+            await db_session.execute(
+                update(ProjectDB)
+                .where(
+                    ProjectDB.workspace_id == workspace_uuid,
+                    ProjectDB.is_default == True,
+                )
+                .values(is_default=False)
+            )
+
+        project_db = ProjectDB(
+            project_name=project_name,
+            is_default=should_be_default,
+            organization_id=org_uuid,
+            workspace_id=workspace_uuid,
+        )
+
+        db_session.add(project_db)
+        await db_session.commit()
+        await db_session.refresh(project_db)
+
+        log.info(
+            "[scopes] project created",
+            organization_id=str(org_uuid),
+            workspace_id=str(workspace_uuid),
+            project_id=str(project_db.id),
+            is_default=project_db.is_default,
+        )
+
+        return project_db
+
+    if session is not None:
+        return await _create(session)
+
+    async with engine.core_session() as new_session:
+        return await _create(new_session)
+
+
+async def delete_project(project_id: str) -> None:
+    """
+    Delete a project if it is not the default one.
+
+    Args:
+        project_id (str): Identifier of project to delete.
+    """
+
+    async with engine.core_session() as session:
+        project = await session.get(ProjectDB, uuid.UUID(project_id))
+        if project is None:
+            raise NoResultFound(f"Project with ID {project_id} not found")
+
+        if project.is_default:
+            raise ValueError("Default project cannot be deleted")
+
+        # this should cascade delete all related entities
+        await session.delete(project)
+        await session.commit()
+
+        log.info(
+            "[scopes] project deleted",
+            organization_id=str(project.organization_id),
+            workspace_id=str(project.workspace_id),
+            project_id=project_id,
+        )
+
+
+async def set_default_project(project_id: str) -> ProjectDB:
+    """
+    Mark the provided project as the default for its workspace.
+
+    Args:
+        project_id (str): Identifier of project to promote.
+
+    Returns:
+        ProjectDB: Updated project.
+    """
+
+    async with engine.core_session() as session:
+        project = await session.get(ProjectDB, uuid.UUID(project_id))
+        if project is None:
+            raise NoResultFound(f"Project with ID {project_id} not found")
+
+        if project.is_default:
+            return project
+
+        await session.execute(
+            update(ProjectDB)
+            .where(
+                ProjectDB.workspace_id == project.workspace_id,
+                ProjectDB.is_default == True,
+            )
+            .values(is_default=False)
+        )
+
+        project.is_default = True
+        await session.commit()
+        await session.refresh(project)
+
+        log.info(
+            "[scopes] project set as default",
+            organization_id=str(project.organization_id),
+            workspace_id=str(project.workspace_id),
+            project_id=project_id,
+        )
+
+        return project
+
+
+async def update_project_name(project_id: str, *, project_name: str) -> ProjectDB:
+    """
+    Update the project's name.
+
+    Args:
+        project_id (str): Identifier of project to update.
+        project_name (str): New name for the project.
+    """
+
+    if not project_name.strip():
+        raise ValueError("Project name cannot be empty")
+
+    async with engine.core_session() as session:
+        project = await session.get(ProjectDB, uuid.UUID(project_id))
+        if project is None:
+            raise NoResultFound(f"Project with ID {project_id} not found")
+
+        project.project_name = project_name.strip()
+        await session.commit()
+        await session.refresh(project)
+
+        log.info(
+            "[scopes] project renamed",
+            organization_id=str(project.organization_id),
+            workspace_id=str(project.workspace_id),
+            project_id=project_id,
+            project_name=project.project_name,
+        )
+
+        return project
 
 
 async def get_project_invitation_by_email(project_id: str, email: str) -> InvitationDB:
@@ -2317,7 +2522,9 @@ async def fetch_environment_revisions_for_environment(environment: AppEnvironmen
             query = query.options(
                 joinedload(
                     AppEnvironmentRevisionDB.modified_by.of_type(UserDB)
-                ).load_only(UserDB.username)  # type: ignore
+                ).load_only(
+                    UserDB.username
+                )  # type: ignore
             )
         else:
             query = query.options(
@@ -2507,9 +2714,9 @@ async def create_environment_revision(
     )
 
     if kwargs:
-        assert "deployed_app_variant_revision" in kwargs, (
-            "Deployed app variant revision is required"
-        )
+        assert (
+            "deployed_app_variant_revision" in kwargs
+        ), "Deployed app variant revision is required"
         assert (
             isinstance(
                 kwargs.get("deployed_app_variant_revision"), AppVariantRevisionsDB
@@ -2524,9 +2731,9 @@ async def create_environment_revision(
             )
 
         deployment = kwargs.get("deployment")
-        assert isinstance(deployment, DeploymentDB) == True, (
-            "Type of deployment in kwargs is not correct"
-        )
+        assert (
+            isinstance(deployment, DeploymentDB) == True
+        ), "Type of deployment in kwargs is not correct"
         if deployment is not None:
             environment_revision.deployment_id = deployment.id  # type: ignore
 
@@ -3280,9 +3487,9 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
         # Use the object_id directly if it is not a valid MongoDB ObjectId
         object_uuid_as_str = object_id
 
-    assert object_uuid_as_str is not None, (
-        f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
-    )
+    assert (
+        object_uuid_as_str is not None
+    ), f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
     return object_uuid_as_str
 
 
@@ -3418,7 +3625,9 @@ async def fetch_evaluation_by_id(
                 ),  # type: ignore
                 joinedload(
                     EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)
-                ).load_only(AppVariantRevisionsDB.revision),  # type: ignore
+                ).load_only(
+                    AppVariantRevisionsDB.revision
+                ),  # type: ignore
                 joinedload(
                     EvaluationDB.aggregated_results.of_type(
                         EvaluationAggregatedResultDB
@@ -3512,10 +3721,14 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
         query = base_query.options(
             joinedload(
                 HumanEvaluationVariantDB.variant.of_type(AppVariantDB)
-            ).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
+            ).load_only(
+                AppVariantDB.id, AppVariantDB.variant_name
+            ),  # type: ignore
             joinedload(
                 HumanEvaluationVariantDB.variant_revision.of_type(AppVariantRevisionsDB)
-            ).load_only(AppVariantRevisionsDB.id, AppVariantRevisionsDB.revision),  # type: ignore
+            ).load_only(
+                AppVariantRevisionsDB.id, AppVariantRevisionsDB.revision
+            ),  # type: ignore
         )
 
         result = await session.execute(query)
@@ -3875,7 +4088,9 @@ async def list_evaluations(app_id: str, project_id: str):
                 ),  # type: ignore
                 joinedload(
                     EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)
-                ).load_only(AppVariantRevisionsDB.revision),  # type: ignore
+                ).load_only(
+                    AppVariantRevisionsDB.revision
+                ),  # type: ignore
                 joinedload(
                     EvaluationDB.aggregated_results.of_type(
                         EvaluationAggregatedResultDB
