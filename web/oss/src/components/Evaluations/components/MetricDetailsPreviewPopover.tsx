@@ -194,21 +194,34 @@ const formatScenarioValue = (value: unknown, metricKey?: string): string | null 
     }
     if (typeof value === "string") return value
     if (Array.isArray(value)) {
-        try {
-            return JSON.stringify(value)
-        } catch {
-            return String(value)
-        }
+        // Format each item and join with comma
+        const formatted = value
+            .map((v) => formatScenarioValue(v, metricKey))
+            .filter((v) => v !== null)
+        return formatted.length ? formatted.join(", ") : null
     }
     if (typeof value === "object") {
         const normalized = normalizeStatShape(value)
+        // Check if this is a categorical/multiple type - return ALL values
+        const isCategoricalMultiple =
+            normalized?.type === "categorical/multiple" ||
+            normalized?.type?.includes?.("categorical")
         const frequency = normalized?.frequency
         if (Array.isArray(frequency) && frequency.length) {
-            const best = [...frequency].sort(
-                (a: any, b: any) => (b?.count ?? 0) - (a?.count ?? 0),
-            )[0]
-            if (best && best.value !== undefined) {
-                return formatScenarioValue(best.value)
+            if (isCategoricalMultiple) {
+                // For multi-category, return all values
+                const allValues = frequency
+                    .map((entry: any) => formatScenarioValue(entry?.value))
+                    .filter((v: string | null) => v !== null)
+                if (allValues.length) return allValues.join(", ")
+            } else {
+                // For single category, return top value
+                const best = [...frequency].sort(
+                    (a: any, b: any) => (b?.count ?? 0) - (a?.count ?? 0),
+                )[0]
+                if (best && best.value !== undefined) {
+                    return formatScenarioValue(best.value)
+                }
             }
         }
         const mean = normalized?.mean
@@ -216,7 +229,16 @@ const formatScenarioValue = (value: unknown, metricKey?: string): string | null 
         const nestedValue = normalized?.value
         if (nestedValue !== undefined) return formatScenarioValue(nestedValue)
         const unique = normalized?.unique
-        if (Array.isArray(unique) && unique.length) return formatScenarioValue(unique[0])
+        if (Array.isArray(unique) && unique.length) {
+            if (isCategoricalMultiple) {
+                // For multi-category, return all unique values
+                const allValues = unique
+                    .map((v: any) => formatScenarioValue(v))
+                    .filter((v: string | null) => v !== null)
+                if (allValues.length) return allValues.join(", ")
+            }
+            return formatScenarioValue(unique[0])
+        }
         try {
             return JSON.stringify(normalized, null, 2)
         } catch {
@@ -379,11 +401,22 @@ const MetricPopoverContent = ({
               })
               .filter((entry): entry is {label: string | number; count: number} => Boolean(entry))
     const hasFrequencyChart = frequencyChartData.length > 0
+    const isCategoricalMultiple = (source: unknown): boolean => {
+        if (!source || typeof source !== "object") return false
+        const normalized = normalizeStatShape(source)
+        return (
+            normalized?.type === "categorical/multiple" ||
+            normalized?.type?.includes?.("categorical")
+        )
+    }
+
     const toScalar = (source: unknown): unknown => {
         if (source === undefined || source === null) return source
         if (typeof source === "boolean" || typeof source === "number" || typeof source === "string")
             return source
         if (typeof source === "object") {
+            // For categorical/multiple, return the full object so formatScenarioValue can handle it
+            if (isCategoricalMultiple(source)) return source
             const normalized = normalizeStatShape(source)
             const maybeMean = normalized?.mean
             if (typeof maybeMean === "number") return maybeMean

@@ -55,17 +55,23 @@ const PreviewEvaluationMetricCell = ({
     const highlightValue = value
     const fallbackValue = value ?? displayValue ?? formatted
 
-    // Detect array metrics by metricType or by value shape
+    // Detect array/categorical metrics by metricType or by value shape
     const isArrayMetric =
         column.metricType?.toLowerCase?.() === "array" ||
         Array.isArray(value) ||
-        (typeof value === "string" && value.startsWith("[") && value.endsWith("]"))
+        (typeof value === "string" && value.startsWith("[") && value.endsWith("]")) ||
+        // Detect categorical/multiple type from stats object
+        (typeof value === "object" &&
+            value !== null &&
+            ((value as any)?.type === "categorical/multiple" ||
+                (value as any)?.type?.includes?.("categorical")))
 
     const statsValue = useMemo<BasicStats | undefined>(() => {
         if (!value || typeof value !== "object") return undefined
         const candidate = value as BasicStats & Record<string, any>
         if (
             Array.isArray((candidate as any)?.frequency) ||
+            Array.isArray((candidate as any)?.freq) ||
             Array.isArray((candidate as any)?.rank) ||
             typeof (candidate as any)?.count === "number" ||
             typeof (candidate as any)?.mean === "number"
@@ -80,6 +86,7 @@ const PreviewEvaluationMetricCell = ({
         Boolean(
             statsValue &&
                 (Array.isArray((statsValue as any)?.frequency) ||
+                    Array.isArray((statsValue as any)?.freq) ||
                     Array.isArray((statsValue as any)?.rank)),
         )
 
