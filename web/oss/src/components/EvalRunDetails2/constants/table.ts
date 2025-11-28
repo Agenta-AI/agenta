@@ -12,7 +12,9 @@ export const COLUMN_WIDTHS = {
 
 // Table layout constants
 export const TABLE_LAYOUT = {
-    rowHeight: 54, // approximate height of one table row (px)
+    rowHeight: 160, // fixed max height for scenario table cells (px)
+    cellMinHeight: 96, // minimum height for cells
+    cellMaxHeight: 160, // maximum height for cells (matches CSS)
 } as const
 
 export const SKELETON_ROW_COUNT = 5

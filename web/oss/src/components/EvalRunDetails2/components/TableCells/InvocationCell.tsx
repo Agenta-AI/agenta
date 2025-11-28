@@ -3,19 +3,13 @@ import {memo, useMemo} from "react"
 import clsx from "clsx"
 
 import type {EvaluationTableColumn} from "../../atoms/table"
-import {COLUMN_WIDTHS} from "../../constants/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {renderScenarioChatMessages} from "../../utils/chatMessages"
 
+import CellContentPopover from "./CellContentPopover"
 import InvocationTraceSummary from "./InvocationTraceSummary"
 
 const CONTAINER_CLASS = "scenario-table-cell min-h-[96px] h-full gap-2"
-
-const resolveColumnWidth = (column: EvaluationTableColumn): number => {
-    if (typeof column.width === "number") return column.width
-    if (typeof column.minWidth === "number") return column.minWidth
-    return COLUMN_WIDTHS.response
-}
 
 const extractAssistantContent = (entry: any): string | undefined => {
     if (!entry) return undefined
@@ -108,13 +102,22 @@ const PreviewEvaluationInvocationCell = ({
     const {ref, selection, showSkeleton} = useScenarioCellValue({scenarioId, runId, column})
     const {value} = selection
 
-    const width = resolveColumnWidth(column)
     const widthStyle = {width: "100%"}
     const chatNodes = useMemo(
         () =>
             renderScenarioChatMessages(
                 value,
                 `${scenarioId ?? "scenario"}-${column.stepKey ?? column.id ?? "invocation"}`,
+            ),
+        [column.id, column.stepKey, scenarioId, value],
+    )
+
+    // Generate popover content (full content without truncation)
+    const popoverChatNodes = useMemo(
+        () =>
+            renderScenarioChatMessages(
+                value,
+                `${scenarioId ?? "scenario"}-${column.stepKey ?? column.id ?? "invocation"}-popover`,
             ),
         [column.id, column.stepKey, scenarioId, value],
     )
@@ -135,32 +138,41 @@ const PreviewEvaluationInvocationCell = ({
         )
     }
 
+    const displayValue = normalizeValue(value)
+    const popoverContent = popoverChatNodes?.length ? (
+        <div className="flex w-full flex-col gap-2">{popoverChatNodes}</div>
+    ) : (
+        <pre className="whitespace-pre-wrap break-words m-0 font-mono text-xs">{displayValue}</pre>
+    )
+
     if (chatNodes && chatNodes.length) {
         return (
-            <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                <div className="flex w-full flex-col gap-2">{chatNodes}</div>
+            <CellContentPopover content={popoverContent}>
+                <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
+                    <div className="flex w-full flex-col gap-2">{chatNodes}</div>
+                    <InvocationTraceSummary
+                        scenarioId={scenarioId}
+                        stepKey={column.stepKey}
+                        runId={runId}
+                    />
+                </div>
+            </CellContentPopover>
+        )
+    }
+
+    return (
+        <CellContentPopover content={popoverContent}>
+            <div ref={ref} className={clsx(CONTAINER_CLASS, "!justify-between")} style={widthStyle}>
+                <span className="scenario-table-text whitespace-pre-wrap font-mono">
+                    {displayValue}
+                </span>
                 <InvocationTraceSummary
                     scenarioId={scenarioId}
                     stepKey={column.stepKey}
                     runId={runId}
                 />
             </div>
-        )
-    }
-
-    const displayValue = normalizeValue(value)
-
-    return (
-        <div ref={ref} className={clsx(CONTAINER_CLASS, "!justify-between")} style={widthStyle}>
-            <span className="scenario-table-text whitespace-pre-wrap font-mono">
-                {displayValue}
-            </span>
-            <InvocationTraceSummary
-                scenarioId={scenarioId}
-                stepKey={column.stepKey}
-                runId={runId}
-            />
-        </div>
+        </CellContentPopover>
     )
 }
 

@@ -1,9 +1,10 @@
 import {memo, useMemo} from "react"
 
 import type {EvaluationTableColumn} from "../../atoms/table"
-import {COLUMN_WIDTHS} from "../../constants/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {renderScenarioChatMessages} from "../../utils/chatMessages"
+
+import CellContentPopover from "./CellContentPopover"
 
 interface PreviewEvaluationInputCellProps {
     scenarioId?: string
@@ -44,6 +45,16 @@ const PreviewEvaluationInputCell = ({
         [column.id, column.path, scenarioId, value],
     )
 
+    // Generate popover content (full content without truncation)
+    const popoverChatNodes = useMemo(
+        () =>
+            renderScenarioChatMessages(
+                value,
+                `${scenarioId ?? "scenario"}-${column.id ?? column.path ?? "input"}-popover`,
+            ),
+        [column.id, column.path, scenarioId, value],
+    )
+
     if (showSkeleton) {
         return (
             <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
@@ -60,20 +71,29 @@ const PreviewEvaluationInputCell = ({
         )
     }
 
+    const displayValue = normalizeValue(value)
+    const popoverContent = popoverChatNodes?.length ? (
+        <div className="flex w-full flex-col gap-2">{popoverChatNodes}</div>
+    ) : (
+        <pre className="whitespace-pre-wrap break-words m-0">{displayValue}</pre>
+    )
+
     if (chatNodes && chatNodes.length) {
         return (
-            <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-                <div className="flex w-full flex-col gap-2">{chatNodes}</div>
-            </div>
+            <CellContentPopover content={popoverContent}>
+                <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
+                    <div className="flex w-full flex-col gap-2">{chatNodes}</div>
+                </div>
+            </CellContentPopover>
         )
     }
 
-    const displayValue = normalizeValue(value)
-
     return (
-        <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
-            <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
-        </div>
+        <CellContentPopover content={popoverContent}>
+            <div ref={ref} className={CONTAINER_CLASS} style={widthStyle}>
+                <span className="scenario-table-text whitespace-pre-wrap">{displayValue}</span>
+            </div>
+        </CellContentPopover>
     )
 }
 

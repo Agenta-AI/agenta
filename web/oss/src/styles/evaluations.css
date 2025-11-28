@@ -174,13 +174,17 @@
 .scenario-table-cell {
     width: 100%;
     min-height: 96px;
+    max-height: 160px;
     padding: 12px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     justify-content: flex-start;
     gap: 8px;
+    overflow: hidden;
+    position: relative;
 }
+
 
 .scenario-table-text {
     font-size: 13px;
@@ -199,4 +203,15 @@
 
 .scenario-table-cell .ant-tag {
     border-radius: 999px;
+}
+
+/* Scenario cell hover popover styles */
+.scenario-cell-popover .ant-popover-inner {
+    padding: 12px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.scenario-cell-popover .ant-popover-inner-content {
+    padding: 0;
 }
