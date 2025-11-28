@@ -20,6 +20,8 @@ import type {EvaluationRunTableRow} from "../../../types"
 import type {RunMetricDescriptor} from "../../../types/runMetrics"
 import MetricValueWithPopover from "../../common/MetricValueWithPopover"
 
+import CategoryTags from "./CategoryTags"
+
 const RunMetricCellSkeleton = () => <SkeletonLine width="55%" />
 
 const OUTPUT_METRIC_PATH_PREFIX = /^attributes\.ag\.data\.outputs\.?/i
@@ -162,13 +164,29 @@ const RunMetricCellContent = memo(
                         label: entry.label,
                         percent: entry.count / total,
                     }))
-                    // Segments array is stable per stats object due to memo wrapper
-                    const segments = frequencyEntries.map((entry) => ({
-                        label: entry.label,
-                        value: entry.count,
-                    }))
-                    customChildren = <EvaluatorMetricBar segments={segments} />
-                    display = `${normalized[0]?.label ?? ""} ${formatPercent(normalized[0]?.percent ?? 0)}`
+
+                    // Check if this is an array-type metric (more than 2 categories)
+                    // Array metrics should display as category tags, not a bar
+                    const isArrayType = descriptor.outputType?.toLowerCase() === "array"
+                    const hasMoreThanTwoCategories = frequencyEntries.length > 2
+
+                    if (isArrayType || hasMoreThanTwoCategories) {
+                        // Use category tags for array-type metrics
+                        customChildren = <CategoryTags entries={frequencyEntries} />
+                        // Display the top category with count
+                        display = frequencyEntries[0]
+                            ? `${frequencyEntries[0].label} (${frequencyEntries[0].count})`
+                            : ""
+                    } else {
+                        // Use bar for boolean/binary metrics
+                        const segments = frequencyEntries.map((entry) => ({
+                            label: entry.label,
+                            value: entry.count,
+                        }))
+                        customChildren = <EvaluatorMetricBar segments={segments} />
+                        display = `${normalized[0]?.label ?? ""} ${formatPercent(normalized[0]?.percent ?? 0)}`
+                    }
+
                     highlight = display
                     fallback = stats ?? normalized
                 }

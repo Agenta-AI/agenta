@@ -1,9 +1,12 @@
-import {useMemo} from "react"
+import {useEffect, useMemo} from "react"
 
 import {Typography} from "antd"
-import {useAtomValueWithSchedule, LOW_PRIORITY} from "jotai-scheduler"
+import {LOW_PRIORITY, useAtomValueWithSchedule} from "jotai-scheduler"
 
 import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluatorReference"
+import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
+
+import {createEvaluatorOutputTypesKey, setOutputTypesMap} from "../../atoms/evaluatorOutputTypes"
 import {evaluationRunsProjectIdAtom} from "../../atoms/view"
 
 interface MetricGroupHeaderProps {
@@ -42,6 +45,29 @@ const MetricGroupHeader = ({
             enabled: Boolean(effectiveProjectId && (sanitizedSlug || evaluatorId)),
         },
     )
+
+    // Update the output types atom when evaluator reference is loaded
+    const outputTypesKey = useMemo(
+        () => createEvaluatorOutputTypesKey(effectiveProjectId, sanitizedSlug),
+        [effectiveProjectId, sanitizedSlug],
+    )
+
+    useEffect(() => {
+        if (!evaluatorReference?.metrics?.length) return
+
+        const outputTypesMap = new Map<string, string | null>()
+        evaluatorReference.metrics.forEach((metric) => {
+            if (metric.canonicalPath) {
+                outputTypesMap.set(
+                    canonicalizeMetricKey(metric.canonicalPath),
+                    metric.outputType ?? null,
+                )
+            }
+        })
+
+        // Use module-level cache instead of Jotai atom (works across stores)
+        setOutputTypesMap(outputTypesKey, outputTypesMap)
+    }, [evaluatorReference?.metrics, outputTypesKey])
 
     const label =
         evaluatorReference?.name ??

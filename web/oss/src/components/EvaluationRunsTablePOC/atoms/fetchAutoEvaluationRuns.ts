@@ -222,8 +222,14 @@ const extractPreviewRunMeta = (run: PreviewEvaluationRun): PreviewRunColumnMeta 
                       const trimmed = path.replace(/^\.+/, "")
                       path = `attributes.ag.${trimmed}`
                   }
+                  const outputType =
+                      normalizeString(mapping?.outputType) ??
+                      normalizeString(mapping?.output_type) ??
+                      normalizeString(mapping?.column?.outputType) ??
+                      normalizeString(mapping?.column?.output_type) ??
+                      normalizeString(mapping?.column?.type)
                   if (!stepKey || !path) return null
-                  return {kind, name, stepKey, path}
+                  return {kind, name, stepKey, path, outputType}
               })
               .filter(isNonNullable)
         : []

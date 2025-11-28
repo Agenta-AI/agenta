@@ -12,7 +12,7 @@ import {evaluationEvaluatorsByRunQueryAtomFamily} from "../../atoms/table/evalua
 import {buildBooleanHistogram, isBooleanMetricStats} from "../../utils/metricDistributions"
 
 import HistogramChart from "./HistogramChart"
-import {buildHistogramChartData} from "./utils/chartData"
+import {buildFrequencyChartData, buildHistogramChartData} from "./utils/chartData"
 
 const format3Sig = (value: number) => {
     if (!Number.isFinite(value)) return String(value)
@@ -121,6 +121,11 @@ const EvaluatorMetricsChart = ({
     }, [stats])
 
     const hasNumericHistogram = numericHistogramData.length > 0
+    const categoricalFrequencyData = useMemo(
+        () => buildFrequencyChartData(stats as unknown as Record<string, any>),
+        [stats],
+    )
+    const hasCategoricalFrequency = categoricalFrequencyData.length > 0
 
     const isBooleanMetric = isBooleanMetricStats(stats)
     const numericHistogramAvailable = numericHistogramData.length > 0
@@ -187,6 +192,20 @@ const EvaluatorMetricsChart = ({
         }))
     }, [comparisonSeries])
 
+    const comparisonCategoricalFrequencies = useMemo(() => {
+        const withStats = comparisonSeries.filter(
+            (entry): entry is ComparisonSeriesEntry & {stats: BasicStats} => Boolean(entry.stats),
+        )
+        return withStats
+            .map((entry) => ({
+                runId: entry.runId,
+                runName: entry.runName,
+                color: entry.color,
+                frequency: buildFrequencyChartData(entry.stats as any),
+            }))
+            .filter((entry) => entry.frequency.length > 0)
+    }, [comparisonSeries])
+
     const baseSeriesKey = "base"
     const resolvedRunName = runDisplayName ?? runId
     const resolvedBaseColor = baseColor ?? "#4096FF"
@@ -227,16 +246,28 @@ const EvaluatorMetricsChart = ({
     ])
 
     const histogramAvailable =
-        numericHistogramAvailable || (isBooleanMetric && booleanChartData.length > 0)
+        numericHistogramAvailable ||
+        (isBooleanMetric && booleanChartData.length > 0) ||
+        hasCategoricalFrequency
 
-    const summaryValue = useMemo(() => {
+    const summaryValue = useMemo((): string | null => {
         if (isBooleanMetric) {
             const percentage = booleanHistogram.percentages.true
             return Number.isFinite(percentage) ? `${percentage.toFixed(2)}%` : "—"
         }
+        if (hasCategoricalFrequency && categoricalFrequencyData.length) {
+            return null
+        }
         if (typeof stats.mean === "number") return format3Sig(stats.mean)
         return "—"
-    }, [booleanHistogram.percentages.true, isBooleanMetric, stats])
+    }, [
+        booleanHistogram.percentages.true,
+        categoricalFrequencyData,
+        effectiveScenarioCount,
+        hasCategoricalFrequency,
+        isBooleanMetric,
+        stats,
+    ])
 
     const chartContent = () => {
         if (isBooleanMetric) {
@@ -270,6 +301,89 @@ const EvaluatorMetricsChart = ({
                     yKey={baseSeriesKey}
                     tooltipLabel="Percentage"
                     yDomain={[0, 100]}
+                    series={series}
+                    barCategoryGap="20%"
+                />
+            )
+        }
+
+        if (hasCategoricalFrequency) {
+            const labelKey = (value: any) => JSON.stringify(value ?? "")
+            const labelSet = new Set<string>()
+            const baseMap = new Map<string, number>()
+            categoricalFrequencyData.forEach((entry) => {
+                const key = labelKey(entry.label)
+                labelSet.add(key)
+                baseMap.set(key, Number(entry.value) ?? 0)
+            })
+            const comparisonMaps = comparisonCategoricalFrequencies.map((entry) => {
+                const map = new Map<string, number>()
+                entry.frequency.forEach((freq) => {
+                    const key = labelKey(freq.label)
+                    labelSet.add(key)
+                    map.set(key, Number(freq.value) ?? 0)
+                })
+                return {...entry, map}
+            })
+
+            const sortedKeys = Array.from(labelSet.values()).sort((a, b) => {
+                const maxA = Math.max(
+                    baseMap.get(a) ?? 0,
+                    ...comparisonMaps.map((entry) => entry.map.get(a) ?? 0),
+                )
+                const maxB = Math.max(
+                    baseMap.get(b) ?? 0,
+                    ...comparisonMaps.map((entry) => entry.map.get(b) ?? 0),
+                )
+                if (maxB !== maxA) return maxB - maxA
+                return a.localeCompare(b)
+            })
+
+            const rows = sortedKeys.map((key) => {
+                const parsedLabel = (() => {
+                    try {
+                        const parsed = JSON.parse(key)
+                        if (typeof parsed === "string" || typeof parsed === "number") {
+                            return parsed
+                        }
+                        return key
+                    } catch {
+                        return key
+                    }
+                })()
+                const row: Record<string, string | number> = {
+                    key,
+                    label: String(parsedLabel),
+                    [baseSeriesKey]: baseMap.get(key) ?? 0,
+                }
+                comparisonMaps.forEach((entry) => {
+                    row[entry.runId] = entry.map.get(key) ?? 0
+                })
+                return row
+            })
+
+            const series = [
+                {
+                    key: baseSeriesKey,
+                    name: resolvedRunName,
+                    color: resolvedBaseColor,
+                    barProps: {radius: [8, 8, 0, 0]},
+                },
+                ...comparisonMaps.map((entry) => ({
+                    key: entry.runId,
+                    name: entry.runName,
+                    color: entry.color,
+                    barProps: {radius: [8, 8, 0, 0]},
+                })),
+            ]
+
+            return (
+                <HistogramChart
+                    data={rows}
+                    xKey="label"
+                    yKey={baseSeriesKey}
+                    tooltipLabel="Count"
+                    yDomain={[0, "auto"]}
                     series={series}
                     barCategoryGap="20%"
                 />
@@ -346,12 +460,14 @@ const EvaluatorMetricsChart = ({
         >
             <div className="flex flex-col gap-4 px-4 pb-4">
                 <div className="flex h-[70px] items-center justify-center">
-                    <Typography.Text
-                        className="text-xl font-medium"
-                        style={{color: resolvedBaseColor}}
-                    >
-                        {summaryValue}
-                    </Typography.Text>
+                    {summaryValue !== null ? (
+                        <Typography.Text
+                            className="text-xl font-medium"
+                            style={{color: resolvedBaseColor}}
+                        >
+                            {summaryValue}
+                        </Typography.Text>
+                    ) : null}
                 </div>
                 <div className="h-[300px]">
                     {isLoading ? (

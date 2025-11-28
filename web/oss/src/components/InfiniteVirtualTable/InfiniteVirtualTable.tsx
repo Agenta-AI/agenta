@@ -819,6 +819,7 @@ const InfiniteVirtualTableInner = <RecordType extends object>({
         }
     }, [resolvedScopeId])
 
+    console.log("InfiniteVirtualTableInner")
     return (
         <VirtualTableScrollContainerContext.Provider value={scrollContainer}>
             <ColumnVisibilityProvider<RecordType>
@@ -876,6 +877,8 @@ function InfiniteVirtualTable<RecordType extends object>(
     if (!activeStore) {
         return content
     }
+
+    console.log("InfiniteVirtualTable")
 
     return (
         <Provider store={activeStore}>

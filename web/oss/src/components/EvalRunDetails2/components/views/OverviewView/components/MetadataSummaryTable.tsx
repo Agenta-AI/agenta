@@ -15,6 +15,7 @@ import useEvaluatorReference from "@/oss/components/References/hooks/useEvaluato
 import type {BasicStats} from "@/oss/lib/metricUtils"
 import {useProjectData} from "@/oss/state/project"
 
+import {buildFrequencyChartData} from "../../../EvaluatorMetricsChart/utils/chartData"
 import {evaluationQueryRevisionAtomFamily} from "../../../../atoms/query"
 import {
     runCreatedAtAtomFamily,
@@ -241,6 +242,29 @@ const formatLatency = (seconds: number | undefined | null) => {
     return `${seconds.toFixed(2)} s`
 }
 
+const formatCategoryLabel = (value: unknown): string => {
+    if (value === null || value === undefined) return "—"
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    try {
+        return JSON.stringify(value)
+    } catch {
+        return String(value)
+    }
+}
+
+const extractTopCategories = (stats: BasicStats | undefined, limit = 3) => {
+    const frequencies = buildFrequencyChartData((stats ?? {}) as any)
+    if (!frequencies.length) return []
+    return [...frequencies]
+        .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+        .slice(0, limit)
+        .map((entry) => ({
+            label: formatCategoryLabel(entry.label),
+            count: Number(entry.value) ?? 0,
+        }))
+}
+
 const makeMetricCell = (metricKey: string, format: (stats: any) => ReactNode) =>
     memo(({runId}: MetadataCellProps) => {
         const selection = useAtomValueWithSchedule(
@@ -416,6 +440,11 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
             if (metric.evaluatorLabel === "Invocation") {
                 return
             }
+            const isStringMetric = metric.metricType?.toLowerCase?.() === "string"
+            const isArrayMetric = metric.metricType?.toLowerCase?.() === "array"
+            if (isStringMetric) {
+                return
+            }
 
             const baseSelection = selections[0]?.selection
             if (!baseSelection || baseSelection.state !== "hasData" || !baseSelection.stats) {
@@ -439,6 +468,25 @@ const MetadataSummaryTable = ({runIds, projectURL}: MetadataSummaryTableProps) =
                 }
 
                 const stats = selection.stats as BasicStats
+                if (isArrayMetric) {
+                    const top = extractTopCategories(stats)
+                    if (!top.length) {
+                        return <Typography.Text type="secondary">—</Typography.Text>
+                    }
+                    return (
+                        <div className="flex flex-col items-start gap-1">
+                            {top.map((entry) => (
+                                <span
+                                    key={`${entry.label}-${entry.count}`}
+                                    className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-700"
+                                >
+                                    {entry.label} ({entry.count})
+                                </span>
+                            ))}
+                        </div>
+                    )
+                }
+
                 const scenarioCount =
                     typeof stats?.count === "number" && Number.isFinite(stats.count)
                         ? stats.count

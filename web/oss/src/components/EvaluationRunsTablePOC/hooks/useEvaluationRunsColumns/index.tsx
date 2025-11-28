@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import type {ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -19,6 +19,12 @@ import {PreviewCreatedByCell} from "@/oss/components/References/cells/CreatedByC
 import {humanizeEvaluatorName, humanizeMetricPath} from "@/oss/lib/evaluations/utils/metrics"
 import {canonicalizeMetricKey} from "@/oss/lib/metricUtils"
 
+import {
+    createEvaluatorOutputTypesKey,
+    getOutputTypesMap,
+    isStringOutputType,
+    subscribeToOutputTypes,
+} from "../../atoms/evaluatorOutputTypes"
 import RunActionsCell from "../../components/cells/ActionsCell"
 import {PreviewCreatedCell} from "../../components/cells/CreatedCells"
 import PreviewKindCell from "../../components/cells/KindCell"
@@ -260,6 +266,7 @@ const useEvaluationRunsColumns = ({
                 const descriptorId = `${stepInfo.slug}:${canonicalPath}`
                 const metricLabelSource = mapping?.name ?? metricPath
                 const metricLabel = humanizeMetricPath(metricLabelSource ?? metricPath)
+                const outputType = normalizeString(mapping?.outputType)?.toLowerCase() ?? null
 
                 const handles = {...(stepInfo.handles ?? {})}
                 if (projectId && !handles.projectId) {
@@ -299,6 +306,7 @@ const useEvaluationRunsColumns = ({
                         metricPath,
                         stepKey,
                         kind: "evaluator",
+                        outputType,
                         stepKeysByRunId: {[runId]: stepKey},
                         metricPathsByRunId: {[runId]: metricPath},
                         evaluatorRef: {
@@ -323,6 +331,10 @@ const useEvaluationRunsColumns = ({
                     }
                     if (!descriptor.label || descriptor.label === descriptor.id) {
                         descriptor.label = metricLabel
+                    }
+                    // Preserve outputType if already set, otherwise use the new one
+                    if (!descriptor.outputType && outputType) {
+                        descriptor.outputType = outputType
                     }
                     const priorRef = descriptor.evaluatorRef ?? {}
                     descriptor.evaluatorRef = {
@@ -381,6 +393,82 @@ const useEvaluationRunsColumns = ({
                 : evaluatorBlueprint
             : []
 
+    // Track output types version to trigger re-renders when they change
+    const [outputTypesVersion, setOutputTypesVersion] = useState(0)
+
+    // Subscribe to output types changes for all groups (using module-level cache)
+    useEffect(() => {
+        const unsubscribes: (() => void)[] = []
+
+        // Check if any output types are already loaded (in case MetricGroupHeader set them before we subscribed)
+        let hasExistingData = false
+        metricGroupsForRendering.forEach((group) => {
+            const groupHandles = group.handles ?? null
+            const groupSlug = groupHandles?.slug ?? group.id
+            const groupProjectId = groupHandles?.projectId ?? group.projectId ?? null
+            const key = createEvaluatorOutputTypesKey(groupProjectId, groupSlug)
+            const currentValue = getOutputTypesMap(key)
+
+            if (currentValue.size > 0) {
+                hasExistingData = true
+            }
+
+            // Subscribe to changes using module-level cache
+            const unsubscribe = subscribeToOutputTypes(key, () => {
+                setOutputTypesVersion((v) => v + 1)
+            })
+            unsubscribes.push(unsubscribe)
+        })
+
+        // If we found existing data, trigger a re-render immediately
+        if (hasExistingData) {
+            setOutputTypesVersion((v) => v + 1)
+        }
+
+        return () => {
+            unsubscribes.forEach((unsub) => unsub())
+        }
+    }, [metricGroupsForRendering])
+
+    // Helper function to check if a metric should be hidden (string output types are filtered out)
+    const isMetricHidden = useCallback(
+        (groupId: string, metricPath: string, descriptorOutputType: string | null | undefined) => {
+            // First check descriptor's outputType
+            if (descriptorOutputType === "string") {
+                return true
+            }
+
+            // Find the group to get its project ID and slug
+            const group = metricGroupsForRendering.find((g) => g.id === groupId)
+            if (!group) return false
+
+            const groupHandles = group.handles ?? null
+            const groupSlug = groupHandles?.slug ?? group.id
+            const groupProjectId = groupHandles?.projectId ?? group.projectId ?? null
+            const key = createEvaluatorOutputTypesKey(groupProjectId, groupSlug)
+            const outputTypesMap = getOutputTypesMap(key)
+
+            if (outputTypesMap.size === 0) {
+                return false
+            }
+
+            // Extract the metric name from the full path
+            const metricName = metricPath.includes(".")
+                ? (metricPath.split(".").pop() ?? metricPath)
+                : metricPath
+            const canonicalPath = canonicalizeMetricKey(metricName)
+            const outputType = outputTypesMap.get(canonicalPath)
+
+            if (outputType === undefined) {
+                return false
+            }
+
+            return isStringOutputType(outputType)
+        },
+
+        [metricGroupsForRendering, outputTypesVersion],
+    )
+
     const metricNodes: TableColumnConfig<EvaluationRunTableRow>[] = useMemo(() => {
         if (supportsPreviewMetrics) {
             const evaluatorNodes = metricGroupsForRendering
@@ -397,6 +485,10 @@ const useEvaluationRunsColumns = ({
                     const groupProjectId = groupHandles?.projectId ?? group.projectId ?? null
                     const sanitizedGroupLabel =
                         sanitizeGroupLabel(group.label) ?? group.label ?? group.id
+                    // Filter out columns with outputType "string" as they cannot be aggregated
+                    const filteredColumns = group.columns.filter(
+                        (col) => !isMetricHidden(group.id, col.metricPath, col.outputType),
+                    )
                     return {
                         title: withColumnVisibilityHeader(
                             groupColumnKey,
@@ -411,16 +503,34 @@ const useEvaluationRunsColumns = ({
                         key: groupColumnKey,
                         visibilityLabel: sanitizedGroupLabel ?? groupColumnKey,
                         align: "left" as const,
-                        children: group.columns.map((descriptor) => {
+                        children: filteredColumns.map((descriptor) => {
                             const normalizedLabel =
                                 normalizeDescriptorLabelForGroup(
                                     descriptor.label,
                                     sanitizedGroupLabel,
                                     descriptor.evaluatorRef?.slug ?? groupSlug,
                                 ) ?? descriptor.label
-                            const normalizedDescriptor = normalizedLabel
-                                ? {...descriptor, label: normalizedLabel}
-                                : descriptor
+
+                            // Enrich descriptor with outputType from the cache if not already set
+                            let enrichedOutputType = descriptor.outputType
+                            if (!enrichedOutputType) {
+                                const key = createEvaluatorOutputTypesKey(groupProjectId, groupSlug)
+                                const outputTypesMap = getOutputTypesMap(key)
+                                if (outputTypesMap.size > 0) {
+                                    const metricName = descriptor.metricPath.includes(".")
+                                        ? (descriptor.metricPath.split(".").pop() ??
+                                          descriptor.metricPath)
+                                        : descriptor.metricPath
+                                    const canonicalPath = canonicalizeMetricKey(metricName)
+                                    enrichedOutputType = outputTypesMap.get(canonicalPath) ?? null
+                                }
+                            }
+
+                            const normalizedDescriptor = {
+                                ...descriptor,
+                                ...(normalizedLabel ? {label: normalizedLabel} : {}),
+                                ...(enrichedOutputType ? {outputType: enrichedOutputType} : {}),
+                            }
                             return {
                                 title: (
                                     <MetricColumnHeader
@@ -553,6 +663,7 @@ const useEvaluationRunsColumns = ({
         evaluationKind,
         supportsPreviewMetrics,
         isAutoOrHuman,
+        isMetricHidden,
     ])
 
     const columns = useMemo<ColumnsType<EvaluationRunTableRow>>(() => {

@@ -54,6 +54,7 @@ export interface RunMetricSelectionEntry {
         rawKey: string
         fullKey: string
         displayLabel: string
+        metricType?: string
     }
     selections: {
         runId: string
@@ -217,6 +218,7 @@ export const useRunMetricData = (runIds: string[]): RunMetricData => {
                     rawKey: metric.rawKey,
                     fullKey: metric.fullKey,
                     displayLabel,
+                    metricType: metric.metricType,
                 }
             }),
         )

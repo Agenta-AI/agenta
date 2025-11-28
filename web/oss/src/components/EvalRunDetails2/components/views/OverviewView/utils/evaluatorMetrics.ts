@@ -17,6 +17,7 @@ export interface EvaluatorMetricDefinition {
     canonicalKey: string
     rawKey: string
     fullKey: string
+    metricType?: string
 }
 
 export interface EvaluatorMetricEntry {
@@ -69,9 +70,17 @@ export const buildEvaluatorMetricEntries = (
             const prefix = `${stepKey}.`
             const unique = new Map<string, EvaluatorMetricDefinition>()
             const fallbackMetrics = fallbackMetricsByStep?.[stepKey] ?? []
+            const fallbackByCanonicalKey = new Map<string, EvaluatorMetricDefinition>()
             const allowedCanonicalKeys = new Set(
                 fallbackMetrics
-                    .map((metric) => metric.canonicalKey || canonicalizeMetricKey(metric.rawKey))
+                    .map((metric) => {
+                        const canonicalKey =
+                            metric.canonicalKey || canonicalizeMetricKey(metric.rawKey)
+                        if (canonicalKey) {
+                            fallbackByCanonicalKey.set(canonicalKey, {...metric, canonicalKey})
+                        }
+                        return canonicalKey
+                    })
                     .filter((key): key is string => Boolean(key)),
             )
             const hasSchema = allowedCanonicalKeys.size > 0
@@ -86,10 +95,12 @@ export const buildEvaluatorMetricEntries = (
                         return
                     }
                     if (!unique.has(canonicalKey)) {
+                        const fallbackDefinition = fallbackByCanonicalKey.get(canonicalKey)
                         unique.set(canonicalKey, {
                             canonicalKey,
                             rawKey,
                             fullKey: key,
+                            metricType: fallbackDefinition?.metricType,
                         })
                     }
                 })
@@ -103,6 +114,7 @@ export const buildEvaluatorMetricEntries = (
                             canonicalKey: fallbackKey,
                             rawKey: metric.rawKey,
                             fullKey: metric.fullKey,
+                            metricType: metric.metricType,
                         })
                     }
                 })
@@ -148,6 +160,7 @@ export const buildEvaluatorFallbackMetricsByStep = (
                     canonicalKey: canonicalizeMetricKey(normalized),
                     rawKey: normalized,
                     fullKey: normalized,
+                    metricType: metric.metricType,
                 }
             }) ?? []
         const filtered = entries.filter(Boolean) as EvaluatorMetricDefinition[]
@@ -176,6 +189,7 @@ export const buildEvaluatorFallbackMetricsByStep = (
             fullKey: metric.fullKey.startsWith(`${stepKey}.`)
                 ? metric.fullKey
                 : `${stepKey}.${metric.rawKey}`,
+            metricType: metric.metricType,
         }))
     })
 

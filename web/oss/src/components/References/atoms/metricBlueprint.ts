@@ -1,7 +1,7 @@
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import type {RunMetricDescriptor} from "../types/runMetrics"
+import type {RunMetricDescriptor} from "@/oss/components/EvaluationRunsTablePOC/types/runMetrics"
 
 export interface EvaluatorMetricGroupBlueprint {
     id: string

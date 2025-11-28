@@ -1,5 +1,6 @@
 import {memo, useMemo} from "react"
 
+import {Tag} from "antd"
 import clsx from "clsx"
 
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
@@ -9,8 +10,24 @@ import type {BasicStats} from "@/oss/lib/metricUtils"
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../../utils/metricFormatter"
+import {buildFrequencyChartData} from "../EvaluatorMetricsChart/utils/chartData"
 
 const CONTAINER_CLASS = "scenario-table-cell min-h-[96px]"
+
+// Color palette for category tags (same as CategoryTags component)
+const TAG_COLORS = ["green", "blue", "purple", "orange", "cyan", "magenta", "gold", "lime"]
+const getTagColor = (index: number) => TAG_COLORS[index % TAG_COLORS.length]
+
+const formatCategoryLabel = (value: unknown): string => {
+    if (value === null || value === undefined) return "—"
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean") return String(value)
+    try {
+        return JSON.stringify(value)
+    } catch {
+        return String(value)
+    }
+}
 
 const PreviewEvaluationMetricCell = ({
     scenarioId,
@@ -21,12 +38,12 @@ const PreviewEvaluationMetricCell = ({
     runId?: string
     column: EvaluationTableColumn
 }) => {
-    const {ref, selection, showSkeleton, isVisible} = useScenarioCellValue({
+    const {ref, selection, showSkeleton} = useScenarioCellValue({
         scenarioId,
         runId,
         column,
     })
-    const {value, displayValue, isLoading} = selection
+    const {value, displayValue} = selection
 
     const formatted = formatMetricDisplay({
         value,
@@ -37,6 +54,12 @@ const PreviewEvaluationMetricCell = ({
     const isPlaceholder = formatted === METRIC_EMPTY_PLACEHOLDER
     const highlightValue = value
     const fallbackValue = value ?? displayValue ?? formatted
+
+    // Detect array metrics by metricType or by value shape
+    const isArrayMetric =
+        column.metricType?.toLowerCase?.() === "array" ||
+        Array.isArray(value) ||
+        (typeof value === "string" && value.startsWith("[") && value.endsWith("]"))
 
     const statsValue = useMemo<BasicStats | undefined>(() => {
         if (!value || typeof value !== "object") return undefined
@@ -60,8 +83,93 @@ const PreviewEvaluationMetricCell = ({
                     Array.isArray((statsValue as any)?.rank)),
         )
 
-    const displayNode = useMemo(
-        () => (
+    // Parse array values into individual tags (handles comma-separated strings)
+    const arrayTags = useMemo(() => {
+        if (!isArrayMetric) return []
+
+        // First try to get from stats (aggregated view)
+        const fromStats = statsValue ? buildFrequencyChartData((statsValue as any) ?? {}) : []
+        if (fromStats.length > 0) {
+            return fromStats
+                .map((entry) => ({
+                    label: formatCategoryLabel(entry.label),
+                    count: Number(entry.value) || 0,
+                }))
+                .filter((entry) => Number.isFinite(entry.count))
+                .slice(0, 3)
+        }
+
+        // For individual cells, parse the value directly
+        // Handle arrays
+        if (Array.isArray(value)) {
+            return value
+                .map((v) => formatCategoryLabel(v))
+                .filter((v) => v !== "—")
+                .map((label) => ({label, count: 1}))
+                .slice(0, 3)
+        }
+
+        // Handle JSON array strings like '["cat-1","cat-2"]'
+        if (typeof value === "string" && value.startsWith("[")) {
+            try {
+                const parsed = JSON.parse(value)
+                if (Array.isArray(parsed)) {
+                    return parsed
+                        .map((v) => formatCategoryLabel(v))
+                        .filter((v) => v !== "—")
+                        .map((label) => ({label, count: 1}))
+                        .slice(0, 3)
+                }
+            } catch {
+                // Not valid JSON, continue to other parsing methods
+            }
+        }
+
+        // Handle comma-separated strings (from formatters)
+        if (typeof value === "string" && value.includes(",")) {
+            return value
+                .split(",")
+                .map((v) => v.trim())
+                .filter(Boolean)
+                .map((label) => ({label, count: 1}))
+                .slice(0, 3)
+        }
+
+        // Handle newline-separated strings
+        if (typeof value === "string" && value.includes("\n")) {
+            return value
+                .split("\n")
+                .map((v) => v.trim())
+                .filter(Boolean)
+                .map((label) => ({label, count: 1}))
+                .slice(0, 3)
+        }
+
+        // Single value
+        if (value && typeof value === "string" && value !== "—") {
+            return [{label: value, count: 1}]
+        }
+
+        return []
+    }, [isArrayMetric, statsValue, value])
+
+    const displayNode = useMemo(() => {
+        if (arrayTags.length) {
+            return (
+                <div className="metric-cell-content scenario-table-text flex flex-col items-start gap-1">
+                    {arrayTags.map((entry, index) => (
+                        <Tag
+                            key={`${entry.label}-${index}`}
+                            color={getTagColor(index)}
+                            className="m-0 text-xs"
+                        >
+                            {entry.label}
+                        </Tag>
+                    ))}
+                </div>
+            )
+        }
+        return (
             <span
                 className={clsx("metric-cell-content scenario-table-text whitespace-pre-wrap", {
                     "scenario-table-placeholder": isPlaceholder,
@@ -69,9 +177,8 @@ const PreviewEvaluationMetricCell = ({
             >
                 {formatted}
             </span>
-        ),
-        [formatted, isPlaceholder],
-    )
+        )
+    }, [arrayTags, formatted, isPlaceholder])
 
     const content = useMemo(() => {
         if (hasDistribution) {

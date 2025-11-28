@@ -88,6 +88,10 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
             if (metric.evaluatorLabel === "Invocation") {
                 return
             }
+            const isStringMetric = metric.metricType?.toLowerCase?.() === "string"
+            if (isStringMetric) {
+                return
+            }
             attempted += 1
             const baseSelectionEntry = selections[0]
             if (!baseSelectionEntry) return
@@ -181,6 +185,7 @@ const BaseRunMetricsSection = ({baseRunId, comparisonRunIds}: BaseRunMetricsSect
         return metricSelections
             .map(({metric}) => {
                 if (!metric.stepKey) return null
+                if (metric.metricType?.toLowerCase?.() === "string") return null
                 const seriesKey = `${metric.stepKey}:${metric.canonicalKey}`
                 const rawSeries = temporalSeriesByMetric[seriesKey]
                 if (!rawSeries || !rawSeries.length) return null

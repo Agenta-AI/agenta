@@ -224,6 +224,7 @@ interface VariantConfigRequest {
 export interface EvaluatorReferenceMetric {
     canonicalPath: string
     label?: string | null
+    outputType?: string | null
 }
 
 export interface EvaluatorReference {
@@ -441,9 +442,12 @@ const evaluatorReferenceBatchFetcher = createBatchFetcher<
                     (typeof schema?.title === "string" && schema.title.trim().length
                         ? schema.title.trim()
                         : null) ?? rawKey
+                const outputType =
+                    typeof schema?.type === "string" ? schema.type.toLowerCase() : null
                 return {
                     canonicalPath: canonicalizeMetricKey(rawKey),
                     label,
+                    outputType,
                 }
             })
         }

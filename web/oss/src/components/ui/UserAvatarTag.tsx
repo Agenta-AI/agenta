@@ -23,7 +23,7 @@ const VariantUserAvatarTag = memo(
             "-"
         return (
             <span className="text-ellipsis overflow-hidden">
-                <Avatar name={name} className="w-4 h-4 text-[9px]" /> {name} shit
+                <Avatar name={name} className="w-4 h-4 text-[9px]" /> {name}
             </span>
         )
     },
@@ -48,7 +48,7 @@ const UserAvatarTag = memo(({modifiedBy, variantId, nameOverride}: UserAvatarTag
     const name = nameOverride || modifiedBy || "-"
     return (
         <span className="text-ellipsis overflow-hidden">
-            <Avatar name={name} className="w-4 h-4 text-[9px]" /> {name} shit
+            <Avatar name={name} className="w-4 h-4 text-[9px]" /> {name}
         </span>
     )
 })

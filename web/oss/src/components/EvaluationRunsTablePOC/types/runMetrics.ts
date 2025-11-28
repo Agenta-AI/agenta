@@ -10,6 +10,7 @@ export interface RunMetricDescriptor {
     metricPathsByRunId?: Record<string, string>
     kind: RunMetricKind
     width?: number
+    outputType?: string | null
     evaluatorRef?: {
         id?: string | null
         slug?: string | null

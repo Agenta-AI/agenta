@@ -24,6 +24,7 @@ export interface PreviewRunColumnMeta {
         name?: string | null
         stepKey?: string | null
         path?: string | null
+        outputType?: string | null
     }>
     evaluators?: Array<{
         id?: string | null
