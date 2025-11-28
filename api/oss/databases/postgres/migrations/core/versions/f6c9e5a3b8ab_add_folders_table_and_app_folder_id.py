@@ -20,12 +20,8 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-folder_kind_enum = sa.Enum("applications", name="folder_kind_enum")
-
-
 def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS ltree")
-    folder_kind_enum.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "folders",
@@ -98,7 +94,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "kind",
-            folder_kind_enum,
+            sa.Enum("applications", name="folder_kind_enum"),
             nullable=False,
             server_default="applications",
         ),
@@ -122,9 +118,14 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["parent_id"],
-            ["folders.id"],
+            ["project_id", "parent_id"],
+            ["folders.project_id", "folders.id"],
             ondelete="CASCADE",
+        ),
+        sa.UniqueConstraint(
+            "project_id",
+            "path",
+            name="uq_folders_project_path",
         ),
         sa.UniqueConstraint(
             "project_id",
@@ -133,11 +134,16 @@ def upgrade() -> None:
             name="uq_folders_project_parent_slug",
         ),
         sa.Index(
-            "ix_folders_project_kind_path",
+            "ix_folders_project_kind",
             "project_id",
             "kind",
+            postgresql_using="btree",
+        ),
+        sa.Index(
+            "ix_folders_project_path",
+            "project_id",
             "path",
-            postgresql_using="gist",
+            postgresql_using="btree",
         ),
     )
 
@@ -149,8 +155,8 @@ def upgrade() -> None:
         "fk_app_db_folder_id_folders",
         "app_db",
         "folders",
-        ["folder_id"],
-        ["id"],
+        ["project_id", "folder_id"],
+        ["project_id", "id"],
         ondelete="SET NULL",
     )
 
@@ -159,8 +165,10 @@ def downgrade() -> None:
     op.drop_constraint("fk_app_db_folder_id_folders", "app_db", type_="foreignkey")
     op.drop_column("app_db", "folder_id")
 
-    op.drop_index("ix_folders_project_kind_path", table_name="folders")
+    op.drop_index("ix_folders_project_path", table_name="folders")
+    op.drop_index("ix_folders_project_kind", table_name="folders")
     op.drop_constraint("uq_folders_project_parent_slug", "folders", type_="unique")
+    op.drop_constraint("uq_folders_project_path", "folders", type_="unique")
     op.drop_table("folders")
 
-    folder_kind_enum.drop(op.get_bind(), checkfirst=True)
+    op.execute("DROP TYPE IF EXISTS folder_kind_enum")
