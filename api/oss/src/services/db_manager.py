@@ -1,26 +1,25 @@
 import os
 import uuid
-from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
 from json import dumps
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
-from sqlalchemy.future import select
-from sqlalchemy import func, or_, asc
-from sqlalchemy.ext.asyncio import AsyncSession
-from supertokens_python.types import AccountInfo
-from sqlalchemy.orm import joinedload, load_only, aliased
-from sqlalchemy.exc import NoResultFound, MultipleResultsFound, SQLAlchemyError
-from supertokens_python.asyncio import list_users_by_account_info
-from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
-
-from oss.src.utils.logging import get_module_logger
-from oss.src.models import converters
-from oss.src.services import user_service
-from oss.src.utils.common import is_ee
 from oss.src.dbs.postgres.shared.engine import engine
+from oss.src.models import converters
+from oss.src.services import analytics_service, user_service
 from oss.src.services.json_importer_helper import get_json
+from oss.src.utils.common import is_ee
+from oss.src.utils.logging import get_module_logger
+from sqlalchemy import asc, func, or_
+from sqlalchemy.exc import MultipleResultsFound, NoResultFound, SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.orm import aliased, joinedload, load_only
+from supertokens_python.asyncio import delete_user as delete_user_from_supertokens
+from supertokens_python.asyncio import list_users_by_account_info
+from supertokens_python.types import AccountInfo
 
 if is_ee():
     from ee.src.models.db_models import ProjectDB, WorkspaceDB
@@ -28,45 +27,40 @@ else:
     from oss.src.models.db_models import ProjectDB, WorkspaceDB
 
 from oss.src.models.db_models import (
-    AppDB,
-    UserDB,
     APIKeyDB,
-    TestsetDB,
-    IDsMappingDB,
-    DeploymentDB,
-    InvitationDB,
-    AppVariantDB,
-    VariantBaseDB,
-    OrganizationDB,
+    AppDB,
     AppEnvironmentDB,
-    EvaluatorConfigDB,
-    AppVariantRevisionsDB,
     AppEnvironmentRevisionDB,
-)
-from oss.src.models.shared_models import (
-    AppType,
-    ConfigDB,
-)
-from oss.src.models.shared_models import (
-    Result,
-    CorrectAnswer,
-    AggregatedResult,
-    EvaluationScenarioResult,
-    EvaluationScenarioInput,
-    EvaluationScenarioOutput,
-    HumanEvaluationScenarioInput,
-)
-from oss.src.models.db_models import (
+    AppVariantDB,
+    AppVariantRevisionsDB,
+    DeploymentDB,
+    EvaluationAggregatedResultDB,
     EvaluationDB,
-    HumanEvaluationDB,
+    EvaluationEvaluatorConfigDB,
     EvaluationScenarioDB,
+    EvaluationScenarioResultDB,
+    EvaluatorConfigDB,
+    HumanEvaluationDB,
     HumanEvaluationScenarioDB,
     HumanEvaluationVariantDB,
-    EvaluationScenarioResultDB,
-    EvaluationEvaluatorConfigDB,
-    EvaluationAggregatedResultDB,
+    IDsMappingDB,
+    InvitationDB,
+    OrganizationDB,
+    TestsetDB,
+    UserDB,
+    VariantBaseDB,
 )
-
+from oss.src.models.shared_models import (
+    AggregatedResult,
+    AppType,
+    ConfigDB,
+    CorrectAnswer,
+    EvaluationScenarioInput,
+    EvaluationScenarioOutput,
+    EvaluationScenarioResult,
+    HumanEvaluationScenarioInput,
+    Result,
+)
 
 log = get_module_logger(__name__)
 
@@ -1003,6 +997,12 @@ async def check_if_user_exists_and_create_organization(user_email: str):
                     "project_name": organization_name,
                 }
             )
+
+            analytics_service.capture_oss_deployment_created(
+                user_email=user_email,
+                organization_id=str(organization_db.id),
+            )
+
             return organization_db
 
         organizations_db = await get_organizations()
