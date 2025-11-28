@@ -39,7 +39,8 @@ export const evaluationAnnotationBatcherFamily = atomFamily(
             if (!batcher) {
                 annotationBatcherCache.clear()
                 batcher = createBatchFetcher<string, AnnotationDto[] | null>({
-                    serializeKey: (key) => key,
+                    // Normalize trace_id for consistent caching (UUID with dashes -> hex)
+                    serializeKey: (key) => normalizeTraceKey(key),
                     batchFn: async (traceIds) => {
                         const unique = Array.from(new Set(traceIds.filter(Boolean)))
                         if (!unique.length) {
@@ -64,16 +65,15 @@ export const evaluationAnnotationBatcherFamily = atomFamily(
                                 ? response.data.annotations
                                 : []
 
-                            const annotationMap = new Map<string, AnnotationDto[]>()
+                            // Map normalized trace_id -> annotations (use Set to avoid duplicates)
+                            const annotationMap = new Map<string, Set<AnnotationDto>>()
                             const addToMap = (key: string, annotation: AnnotationDto) => {
+                                // Always use normalized key for consistency
                                 const normalizedKey = normalizeTraceKey(key)
-                                // Add to both original and normalized keys
-                                for (const k of [key, normalizedKey]) {
-                                    if (!annotationMap.has(k)) {
-                                        annotationMap.set(k, [])
-                                    }
-                                    annotationMap.get(k)!.push(annotation)
+                                if (!annotationMap.has(normalizedKey)) {
+                                    annotationMap.set(normalizedKey, new Set())
                                 }
+                                annotationMap.get(normalizedKey)!.add(annotation)
                             }
 
                             rawAnnotations.forEach((raw: any) => {
@@ -81,45 +81,27 @@ export const evaluationAnnotationBatcherFamily = atomFamily(
 
                                 // Extract trace_ids from all link entries (links have dynamic keys)
                                 const links = transformed?.links ?? raw?.links ?? {}
-                                const linkTraceIds: string[] = []
                                 Object.values(links).forEach((link: any) => {
                                     if (link?.trace_id) {
-                                        linkTraceIds.push(link.trace_id)
+                                        addToMap(link.trace_id, transformed)
                                     }
                                 })
 
                                 // Also include the annotation's own trace_id as fallback
                                 const ownTraceId = transformed?.trace_id ?? raw?.trace_id
                                 if (ownTraceId) {
-                                    linkTraceIds.push(ownTraceId)
+                                    addToMap(ownTraceId, transformed)
                                 }
-
-                                // Store annotation under all associated trace_ids
-                                linkTraceIds.forEach((traceId) => {
-                                    addToMap(traceId, transformed)
-                                })
-
-                                console.log("[ANNOTATE_DEBUG] Annotation indexed:", {
-                                    evaluatorSlug: transformed?.references?.evaluator?.slug,
-                                    linkTraceIds,
-                                    ownTraceId,
-                                })
                             })
 
                             const result: Record<string, AnnotationDto[] | null> = {}
                             unique.forEach((traceId) => {
                                 const normalizedKey = normalizeTraceKey(traceId)
-                                const annotations =
-                                    annotationMap.get(normalizedKey) ??
-                                    annotationMap.get(traceId) ??
-                                    null
-                                console.log("[ANNOTATE_DEBUG] Looking up annotations:", {
-                                    inputTraceId: traceId,
-                                    normalizedKey,
-                                    foundCount: annotations?.length ?? 0,
-                                    mapKeys: Array.from(annotationMap.keys()),
-                                })
+                                const annotationSet = annotationMap.get(normalizedKey)
+                                // Key by BOTH original and normalized to ensure lookup works
+                                const annotations = annotationSet ? Array.from(annotationSet) : null
                                 result[traceId] = annotations
+                                result[normalizedKey] = annotations
                             })
 
                             return result
