@@ -80,7 +80,7 @@ const PreviewEvalRunHeader = ({
         ]
 
         if (evalType === "human") {
-            base.splice(1, 0, {label: "Focus", value: "focus"})
+            base.push({label: "Focus", value: "focus"})
         }
 
         return base

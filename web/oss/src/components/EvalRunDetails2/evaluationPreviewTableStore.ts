@@ -109,9 +109,9 @@ export const evaluationPreviewTableStore = createInfiniteTableStore<
             }
         }
 
-        // For human evaluations (online), use descending order (latest first)
-        // For auto evaluations, use ascending order (oldest first)
-        const order = evaluationType === "human" ? "descending" : "ascending"
+        // For online evaluations, use descending order (latest first)
+        // For auto and human evaluations, use ascending order (oldest first)
+        const order = evaluationType === "online" ? "descending" : "ascending"
 
         return fetchEvaluationScenarioWindow({
             projectId,

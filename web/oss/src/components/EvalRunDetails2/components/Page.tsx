@@ -34,7 +34,6 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const setLegacyFocusDrawerEnabled = useSetAtom(legacyFocusDrawerEnabledAtom)
 
     useEffect(() => {
-        console.log("[Page.tsx] Setting evaluation type", {evaluationType, runId, projectId})
         setActiveRunId(runId)
         setEvalType(evaluationType)
         setActiveProjectId(projectId)
@@ -69,7 +68,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
         }
     }, [])
 
-    const defaultView = evaluationType === "human" ? "focus" : "overview"
+    const defaultView = "overview"
     const [activeViewParam, setActiveViewParam] = useQueryParam("view", defaultView, "replace")
     const activeView = (activeViewParam as ViewKey) ?? defaultView
 
@@ -98,19 +97,6 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                                 </div>
                             ),
                         },
-                        ...(evaluationType === "human"
-                            ? [
-                                  {
-                                      key: "focus",
-                                      label: "Focus",
-                                      children: (
-                                          <div className="h-full min-h-0">
-                                              <FocusView runId={runId} />
-                                          </div>
-                                      ),
-                                  } satisfies (typeof Tabs)["prototype"]["props"]["items"][number],
-                              ]
-                            : []),
                         {
                             key: "scenarios",
                             label: "Scenarios",
@@ -133,6 +119,19 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
                                 </div>
                             ),
                         },
+                        ...(evaluationType === "human"
+                            ? [
+                                  {
+                                      key: "focus",
+                                      label: "Focus",
+                                      children: (
+                                          <div className="h-full min-h-0">
+                                              <FocusView runId={runId} />
+                                          </div>
+                                      ),
+                                  } satisfies (typeof Tabs)["prototype"]["props"]["items"][number],
+                              ]
+                            : []),
                     ]}
                 />
             </div>
