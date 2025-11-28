@@ -40,6 +40,7 @@ from oss.src.core.evaluations.types import (
     EvaluationMetricsCreate,
     EvaluationMetricsEdit,
     EvaluationMetricsQuery,
+    EvaluationMetricsRefresh,
     # EVALUATION QUEUE
     EvaluationQueue,
     EvaluationQueueCreate,
@@ -1073,6 +1074,80 @@ class EvaluationsService:
         )
 
     async def refresh_metrics(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        metrics: EvaluationMetricsRefresh,
+    ) -> List[EvaluationMetrics]:
+        # Extract values from the request body
+        run_id = metrics.run_id
+        run_ids = metrics.run_ids
+        scenario_id = metrics.scenario_id
+        scenario_ids = metrics.scenario_ids
+        timestamp = metrics.timestamp
+        timestamps = metrics.timestamps
+        interval = metrics.interval
+
+        log.debug(
+            "[METRICS] [REFRESH]",
+            run_id=run_id,
+            run_ids=run_ids,
+            scenario_id=scenario_id,
+            scenario_ids=scenario_ids,
+            timestamp=timestamp,
+            timestamps=timestamps,
+            interval=interval,
+        )
+
+        if run_ids:
+            for _run_id in run_ids:
+                return await self._refresh_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=_run_id,
+                )
+
+        # !run_ids
+        elif not run_id:
+            return list()
+
+        # !run_ids & run_id
+        elif scenario_ids:
+            for _scenario_id in scenario_ids:
+                return await self._refresh_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run_id,
+                    scenario_id=_scenario_id,
+                )
+
+        # !run_ids & run_id & !scenario_ids
+        elif timestamps:
+            for _timestamp in timestamps:
+                return await self._refresh_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run_id,
+                    timestamp=_timestamp,
+                    interval=interval,
+                )
+
+        # !run_ids & run_id & !scenario_ids & !timestamps
+        else:
+            return await self._refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                run_id=run_id,
+                scenario_id=scenario_id,
+                timestamp=timestamp,
+                interval=interval,
+            )
+
+        return list()
+
+    async def _refresh_metrics(
         self,
         *,
         project_id: UUID,

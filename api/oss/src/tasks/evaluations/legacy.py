@@ -93,6 +93,7 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioEdit,
     EvaluationResultCreate,
     EvaluationMetricsCreate,
+    EvaluationMetricsRefresh,
 )
 
 from oss.src.core.shared.dtos import Reference
@@ -1464,8 +1465,10 @@ def annotate(
                             project_id=project_id,
                             user_id=user_id,
                             #
-                            run_id=run_id,
-                            scenario_id=scenario.id,
+                            metrics=EvaluationMetricsRefresh(
+                                run_id=run_id,
+                                scenario_id=scenario.id,
+                            ),
                         )
                     )
 
@@ -1501,7 +1504,9 @@ def annotate(
                     project_id=project_id,
                     user_id=user_id,
                     #
-                    run_id=run_id,
+                    metrics=EvaluationMetricsRefresh(
+                        run_id=run_id,
+                    ),
                 )
             )
 
