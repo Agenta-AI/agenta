@@ -247,6 +247,7 @@ async def create_app(
             payload.app_name,
             project_id=request.state.project_id,
             template_key=payload.template_key,
+            folder_id=payload.folder_id,
         )
     except ValueError:
         raise HTTPException(
@@ -264,6 +265,7 @@ async def create_app(
         app_type=AppType.friendly_tag(app_db.app_type),
         created_at=str(app_db.created_at),
         updated_at=str(app_db.updated_at),
+        folder_id=str(app_db.folder_id) if app_db.folder_id else None,
     )
 
 
@@ -311,6 +313,7 @@ async def read_app(
         app_type=AppType.friendly_tag(app.app_type),
         created_at=str(app.created_at),
         updated_at=str(app.updated_at),
+        folder_id=str(app.folder_id) if app.folder_id else None,
     )
 
 
@@ -353,7 +356,9 @@ async def update_app(
                 {"detail": error_msg},
                 status_code=403,
             )
-    await db_manager.update_app(app_id=app_id, values_to_update=payload.model_dump())
+    await db_manager.update_app(
+        app_id=app_id, values_to_update=payload.model_dump(exclude_unset=True)
+    )
 
     app = await db_manager.fetch_app_by_id(app_id)
 
@@ -367,6 +372,7 @@ async def update_app(
         app_type=AppType.friendly_tag(app.app_type),
         created_at=str(app.created_at),
         updated_at=str(app.updated_at),
+        folder_id=str(app.folder_id) if app.folder_id else None,
     )
 
 

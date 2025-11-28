@@ -226,6 +226,7 @@ def app_db_to_pydantic(app_db: AppDB) -> App:
         app_name=app_db.app_name,
         app_id=str(app_db.id),
         app_type=AppType.friendly_tag(app_db.app_type),
+        folder_id=str(app_db.folder_id) if app_db.folder_id else None,
         updated_at=str(app_db.updated_at),
     )
 
