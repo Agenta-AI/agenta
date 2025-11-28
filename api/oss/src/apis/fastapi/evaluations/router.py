@@ -1304,29 +1304,8 @@ class EvaluationsRouter:
         self,
         request: Request,
         *,
-        payload: EvaluationMetricsRefreshRequest,
+        metrics_refresh_request: EvaluationMetricsRefreshRequest,
     ) -> EvaluationMetricsResponse:
-        # Extract values from the request body
-        run_id = payload.run_id
-        run_ids = payload.run_ids
-        scenario_id = payload.scenario_id
-        scenario_ids = payload.scenario_ids
-        interval = payload.interval
-
-        # Parse timestamps if provided
-        timestamp = None
-        if payload.timestamp:
-            timestamp = datetime.fromisoformat(payload.timestamp.replace("Z", "+00:00"))
-
-        timestamps = None
-        if payload.timestamps:
-            timestamps = [
-                datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                for ts in payload.timestamps
-            ]
-
-        print(f"[METRIC_REFRESH_ROUTER] refresh_metrics called: run_id={run_id}, scenario_id={scenario_id}, scenario_ids={scenario_ids}")
-
         if is_ee():
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
@@ -1335,54 +1314,12 @@ class EvaluationsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        metrics = list()
-
-        if run_ids:
-            for _run_id in run_ids:
-                _metrics = await self.evaluations_service.refresh_metrics(
-                    project_id=UUID(request.state.project_id),
-                    user_id=UUID(request.state.user_id),
-                    run_id=_run_id,
-                )
-                metrics.extend(_metrics)
-
-        # !run_ids
-        elif not run_id:
-            metrics = []
-
-        # !run_ids & run_id
-        elif scenario_ids:
-            for _scenario_id in scenario_ids:
-                _metrics = await self.evaluations_service.refresh_metrics(
-                    project_id=UUID(request.state.project_id),
-                    user_id=UUID(request.state.user_id),
-                    run_id=run_id,
-                    scenario_id=_scenario_id,
-                )
-                metrics.extend(_metrics)
-
-        # !run_ids & run_id & !scenario_ids
-        elif timestamps:
-            for _timestamp in timestamps:
-                _metrics = await self.evaluations_service.refresh_metrics(
-                    project_id=UUID(request.state.project_id),
-                    user_id=UUID(request.state.user_id),
-                    run_id=run_id,
-                    timestamp=_timestamp,
-                    interval=interval,
-                )
-                metrics.extend(_metrics)
-
-        # !run_ids & run_id & !scenario_ids & !timestamps
-        else:
-            metrics = await self.evaluations_service.refresh_metrics(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                run_id=run_id,
-                scenario_id=scenario_id,
-                timestamp=timestamp,
-                interval=interval,
-            )
+        metrics = await self.evaluations_service.refresh_metrics(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(request.state.user_id),
+            #
+            metrics=metrics_refresh_request.metrics,
+        )
 
         metrics_response = EvaluationMetricsResponse(
             count=len(metrics),

@@ -296,8 +296,10 @@ export const createMetricProcessor = ({
                     const response = await axios.post(
                         `/preview/evaluations/metrics/refresh`,
                         {
-                            run_id: runId,
-                            scenario_ids: uniqueScenarioIds,
+                            metrics: {
+                                run_id: runId,
+                                scenario_ids: uniqueScenarioIds,
+                            },
                         },
                         {
                             params,
@@ -351,8 +353,10 @@ export const createMetricProcessor = ({
                             const response = await axios.post(
                                 `/preview/evaluations/metrics/refresh`,
                                 {
-                                    run_id: runId,
-                                    scenario_id: scenarioId,
+                                    metrics: {
+                                        run_id: runId,
+                                        scenario_id: scenarioId,
+                                    },
                                 },
                                 {
                                     params,
@@ -464,7 +468,9 @@ export const createMetricProcessor = ({
                 const response = await axios.post(
                     `/preview/evaluations/metrics/refresh`,
                     {
-                        run_id: runId,
+                        metrics: {
+                            run_id: runId,
+                        },
                     },
                     {
                         params,

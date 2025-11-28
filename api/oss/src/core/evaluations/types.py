@@ -355,6 +355,19 @@ class EvaluationMetricsQuery(Metadata):
 
 
 class EvaluationMetricsRefresh(BaseModel):
+    interval: Optional[int] = None
+
+    timestamp: Optional[datetime] = None
+    timestamps: Optional[List[datetime]] = None
+
+    scenario_id: Optional[UUID] = None
+    scenario_ids: Optional[List[UUID]] = None
+
+    run_id: Optional[UUID] = None
+    run_ids: Optional[List[UUID]] = None
+
+
+class EvaluationMetricsSpecsRefresh(BaseModel):
     query: Optional[TracingQuery] = None
     specs: Optional[List[MetricSpec]] = None
 
