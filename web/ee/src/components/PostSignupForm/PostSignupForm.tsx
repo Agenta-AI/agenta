@@ -15,6 +15,7 @@ import {useProfileData} from "@/oss/state/profile"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 import {useStyles} from "./assets/styles"
+import {OnboardingScreen} from "./OnboardingScreen"
 
 // Fisher-Yates shuffle algorithm
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -79,6 +80,7 @@ const PostSignupForm = () => {
     const {orgs} = useOrgData()
     const formData = Form.useWatch([], form)
     const [currentStep, setCurrentStep] = useState(0)
+    const [showOnboarding, setShowOnboarding] = useState(false)
     const {survey, loading, error} = useSurvey("Signup 2")
     const {baseAppURL} = useURL()
     const [autoRedirectAttempted, setAutoRedirectAttempted] = useState(false)
@@ -258,7 +260,7 @@ const PostSignupForm = () => {
             } catch (error) {
                 console.error("Error submitting form:", error)
             } finally {
-                await navigateToPostSignupDestination()
+                setShowOnboarding(true)
             }
         },
         [
@@ -477,41 +479,49 @@ const PostSignupForm = () => {
                 />
             </section>
 
-            <Spin spinning={isSurveyLoading}>
-                {showSurveyForm && (
-                    <Form
-                        layout="vertical"
-                        form={form}
-                        onFinish={handleSubmitFormData}
-                        className={classes.mainContainer}
-                    >
-                        <div className={classes.container}>
-                            <div className="space-y-1">
-                                <Typography.Paragraph>
-                                    {currentStep + 1}/{totalSteps || 1}
-                                </Typography.Paragraph>
-                                <Typography.Title level={3}>
-                                    {currentStep === 0 ? "Tell us about yourself" : "Almost done"}
-                                </Typography.Title>
+            {showOnboarding ? (
+                <OnboardingScreen />
+            ) : (
+                <Spin spinning={isSurveyLoading}>
+                    {showSurveyForm && (
+                        <Form
+                            layout="vertical"
+                            form={form}
+                            onFinish={handleSubmitFormData}
+                            className={classes.mainContainer}
+                        >
+                            <div className={classes.container}>
+                                <div className="space-y-1">
+                                    <Typography.Paragraph>
+                                        {currentStep + 1}/{totalSteps || 1}
+                                    </Typography.Paragraph>
+                                    <Typography.Title level={3}>
+                                        {currentStep === 0
+                                            ? "Tell us about yourself"
+                                            : "Almost done"}
+                                    </Typography.Title>
+                                </div>
+
+                                <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
                             </div>
 
-                            <div>{currentQuestions.map((meta) => renderQuestion(meta))}</div>
-                        </div>
-
-                        <Button
-                            size="large"
-                            type="primary"
-                            onClick={currentStep < totalSteps - 1 ? handleNextStep : form.submit}
-                            className="w-full"
-                            iconPosition="end"
-                            icon={<ArrowRight className="mt-[3px]" />}
-                            disabled={!isCurrentStepValid}
-                        >
-                            {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
-                        </Button>
-                    </Form>
-                )}
-            </Spin>
+                            <Button
+                                size="large"
+                                type="primary"
+                                onClick={
+                                    currentStep < totalSteps - 1 ? handleNextStep : form.submit
+                                }
+                                className="w-full"
+                                iconPosition="end"
+                                icon={<ArrowRight className="mt-[3px]" />}
+                                disabled={!isCurrentStepValid}
+                            >
+                                {currentStep < totalSteps - 1 ? "Continue" : "Submit"}
+                            </Button>
+                        </Form>
+                    )}
+                </Spin>
+            )}
         </>
     )
 }
