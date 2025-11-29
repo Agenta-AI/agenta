@@ -11,7 +11,6 @@ import {
 } from "@/oss/components/EvaluationRunsTablePOC"
 import {evaluationRunsTableContextSetterAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/context"
 import {evaluationRunsTypeFiltersAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/view"
-import {useAppId} from "@/oss/hooks/useAppId"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {useQueryParamState} from "@/oss/state/appState"
 import {projectIdAtom} from "@/oss/state/project"
@@ -23,7 +22,7 @@ type AppTabKey = EvaluationRunKind
 
 const TAB_CONTENT_SWITCH_DELAY_MS = 220
 
-const POC_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
+const PROJECT_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
     {key: "all", label: "All Evaluations"},
     {key: "auto", label: "Auto Evaluations"},
     {key: "human", label: "Human Evaluations"},
@@ -31,7 +30,14 @@ const POC_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
     {key: "custom", label: "SDK Evaluations"},
 ]
 
-const POC_TAB_COLOR_MAP: Record<AppTabKey, string> = {
+const APP_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
+    {key: "all", label: "All Evaluations"},
+    {key: "auto", label: "Auto Evaluations"},
+    {key: "human", label: "Human Evaluations"},
+    {key: "custom", label: "SDK Evaluations"},
+]
+
+const TAB_COLOR_MAP: Record<AppTabKey, string> = {
     all: "#e0f2fe",
     auto: "#dbeafe",
     human: "#ede9fe",
@@ -43,19 +49,14 @@ interface EvaluationTabsProps {
     scope: EvaluationScope
     tabItems: {key: AppTabKey; label: string}[]
     tabColorMap: Record<AppTabKey, string>
-    useRouteAppId: boolean
+    appId?: string
 }
 
-const EvaluationTabs = ({scope, tabItems, tabColorMap, useRouteAppId}: EvaluationTabsProps) => {
+const EvaluationTabs = ({scope, tabItems, tabColorMap, appId}: EvaluationTabsProps) => {
     const router = useRouter()
     const projectId = useAtomValue(projectIdAtom)
     const setEvaluationTypeFilters = useSetAtom(evaluationRunsTypeFiltersAtom)
     const setTableOverrides = useSetAtom(evaluationRunsTableContextSetterAtom)
-    const routeAppId = useAppId()
-    const determineAppId = useMemo(
-        () => (useRouteAppId ? (routeAppId ?? null) : null),
-        [routeAppId, useRouteAppId],
-    )
     const [kindParam, setKindParam] = useQueryParamState("kind", "auto")
     const [isPending, startTransition] = useTransition()
     const [displayedTab, setDisplayedTab] = useState<AppTabKey>(
@@ -96,7 +97,7 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, useRouteAppId}: Evaluatio
     useEffect(() => {
         if (isNavigatingAway) return
         const next = {
-            appId: determineAppId,
+            appId: appId ?? null,
             projectIdOverride: projectId ?? null,
             includePreview: true,
             evaluationKind: displayedRunKind,
@@ -114,7 +115,7 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, useRouteAppId}: Evaluatio
         }
         lastOverridesRef.current = next
         setTableOverrides(next)
-    }, [displayedRunKind, projectId, determineAppId, scope, setTableOverrides, isNavigatingAway])
+    }, [displayedRunKind, projectId, appId, scope, setTableOverrides, isNavigatingAway])
 
     useEffect(() => {
         const handleStart = (url: string) => {
@@ -218,25 +219,18 @@ const EvaluationTabs = ({scope, tabItems, tabColorMap, useRouteAppId}: Evaluatio
 
 interface EvaluationsViewProps {
     scope?: EvaluationScope
+    appId?: string
 }
 
-const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
-    if (scope === "project") {
-        return (
-            <EvaluationTabs
-                scope="project"
-                tabItems={POC_TAB_ITEMS}
-                tabColorMap={POC_TAB_COLOR_MAP as Record<AppTabKey, string>}
-                useRouteAppId={false}
-            />
-        )
-    }
+const EvaluationsView = ({scope = "app", appId}: EvaluationsViewProps) => {
+    const tabItems = scope === "project" ? PROJECT_TAB_ITEMS : APP_TAB_ITEMS
+
     return (
         <EvaluationTabs
-            scope="app"
-            tabItems={POC_TAB_ITEMS}
-            tabColorMap={POC_TAB_COLOR_MAP as Record<AppTabKey, string>}
-            useRouteAppId={true}
+            scope={scope}
+            tabItems={tabItems}
+            tabColorMap={TAB_COLOR_MAP}
+            appId={appId}
         />
     )
 }
