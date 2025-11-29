@@ -45,7 +45,7 @@ restrictedpython =  { version = "^8.0", python = ">=3.11,<3.14" }
 # audit fixes
 h11 = "^0.16.0"
 decorator = "^5.2.1"
-openai = ">=1.106.0"
+openai = ">=2.8.0"
 tiktoken = "0.11.0"
 google-auth = ">=2.23,<3"
 
