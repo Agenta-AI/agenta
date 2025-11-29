@@ -48,7 +48,7 @@ async def main_async() -> int:
         validate_required_env_vars()
 
         # Create durable Redis client for streams
-        redis_client = Redis.from_url(env.REDIS_STREAM_URL, decode_responses=False)
+        redis_client = Redis.from_url(env.REDIS_STREAMS_URL, decode_responses=False)
 
         # Initialize DAO
         tracing_dao = TracingDAO()
