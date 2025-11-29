@@ -959,10 +959,6 @@ class EvaluationsService:
             if trace_ids:
                 steps_trace_ids[step_key] = trace_ids
 
-        log.debug("----")
-        log.debug(steps_metrics_keys)
-        log.debug(steps_trace_ids)
-
         for step_key in steps_metrics_keys.keys() & steps_trace_ids.keys():
             step_metrics_keys = steps_metrics_keys[step_key]
             step_trace_ids = steps_trace_ids[step_key]

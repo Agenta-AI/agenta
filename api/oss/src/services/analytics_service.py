@@ -103,7 +103,7 @@ async def _set_activation_property(
             ttl=365 * 24 * 60 * 60,  # 1 year (effectively permanent)
         )
 
-        log.debug(f"Set activation property '{property_name}' for user {distinct_id}")
+        # log.debug(f"Set activation property '{property_name}' for user {distinct_id}")
 
     except Exception as e:
         log.error(f"Error setting activation property '{property_name}': {e}")
