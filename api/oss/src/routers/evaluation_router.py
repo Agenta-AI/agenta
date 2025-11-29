@@ -10,10 +10,14 @@ from oss.src.utils.caching import get_cache, set_cache
 from oss.src.services import converters
 from oss.src.services import evaluation_service
 
-from oss.src.tasks.evaluations.legacy import (
-    setup_evaluation,
-    annotate,
-)
+from oss.src.core.evaluations.tasks.legacy import setup_evaluation
+
+# Import worker tasks from queues.py where they're instantiated
+from queues import evaluations_worker
+
+# Alias for backward compatibility
+annotate = evaluations_worker.annotate_legacy
+
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.evaluation_model import (
     Evaluation,
@@ -38,6 +42,118 @@ from oss.src.routers.testset_router import _validate_testset_limits
 
 from oss.src.apis.fastapi.evaluations.models import EvaluationRunsResponse
 
+
+from oss.src.dbs.postgres.queries.dbes import (
+    QueryArtifactDBE,
+    QueryVariantDBE,
+    QueryRevisionDBE,
+)
+from oss.src.dbs.postgres.testcases.dbes import TestcaseBlobDBE
+from oss.src.dbs.postgres.testsets.dbes import (
+    TestsetArtifactDBE,
+    TestsetVariantDBE,
+    TestsetRevisionDBE,
+)
+from oss.src.dbs.postgres.workflows.dbes import (
+    WorkflowArtifactDBE,
+    WorkflowVariantDBE,
+    WorkflowRevisionDBE,
+)
+from oss.src.dbs.postgres.tracing.dao import TracingDAO
+from oss.src.dbs.postgres.blobs.dao import BlobsDAO
+from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
+from oss.src.core.tracing.service import TracingService
+from oss.src.core.queries.service import QueriesService
+from oss.src.core.testcases.service import TestcasesService
+from oss.src.core.testsets.service import TestsetsService, SimpleTestsetsService
+from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
+from oss.src.core.evaluations.service import EvaluationsService
+from oss.src.apis.fastapi.tracing.router import TracingRouter
+from oss.src.apis.fastapi.testsets.router import SimpleTestsetsRouter
+from oss.src.apis.fastapi.evaluators.router import SimpleEvaluatorsRouter
+
+
+tracing_dao = TracingDAO()
+
+testcases_dao = BlobsDAO(
+    BlobDBE=TestcaseBlobDBE,
+)
+
+queries_dao = GitDAO(
+    ArtifactDBE=QueryArtifactDBE,
+    VariantDBE=QueryVariantDBE,
+    RevisionDBE=QueryRevisionDBE,
+)
+
+testsets_dao = GitDAO(
+    ArtifactDBE=TestsetArtifactDBE,
+    VariantDBE=TestsetVariantDBE,
+    RevisionDBE=TestsetRevisionDBE,
+)
+
+workflows_dao = GitDAO(
+    ArtifactDBE=WorkflowArtifactDBE,
+    VariantDBE=WorkflowVariantDBE,
+    RevisionDBE=WorkflowRevisionDBE,
+)
+
+evaluations_dao = EvaluationsDAO()
+
+tracing_service = TracingService(
+    tracing_dao=tracing_dao,
+)
+
+queries_service = QueriesService(
+    queries_dao=queries_dao,
+)
+
+testcases_service = TestcasesService(
+    testcases_dao=testcases_dao,
+)
+
+testsets_service = TestsetsService(
+    testsets_dao=testsets_dao,
+    testcases_service=testcases_service,
+)
+
+simple_testsets_service = SimpleTestsetsService(
+    testsets_service=testsets_service,
+)
+
+workflows_service = WorkflowsService(
+    workflows_dao=workflows_dao,
+)
+
+evaluators_service = EvaluatorsService(
+    workflows_service=workflows_service,
+)
+
+simple_evaluators_service = SimpleEvaluatorsService(
+    evaluators_service=evaluators_service,
+)
+
+evaluations_service = EvaluationsService(
+    evaluations_dao=evaluations_dao,
+    tracing_service=tracing_service,
+    queries_service=queries_service,
+    testsets_service=testsets_service,
+    evaluators_service=evaluators_service,
+    evaluations_worker=evaluations_worker,
+)
+
+tracing_router = TracingRouter(
+    tracing_service=tracing_service,
+)
+
+simple_testsets_router = SimpleTestsetsRouter(
+    simple_testsets_service=simple_testsets_service,
+)
+
+simple_evaluators_router = SimpleEvaluatorsRouter(
+    simple_evaluators_service=simple_evaluators_service,
+)
 
 router = APIRouter()
 
@@ -479,6 +595,13 @@ async def start_evaluation(
                 revision_id=payload.revisions_ids[i],
                 #
                 autoeval_ids=payload.evaluators_configs,
+                #
+                evaluations_service=evaluations_service,
+                queries_service=queries_service,
+                workflows_service=workflows_service,
+                simple_testsets_router=simple_testsets_router,
+                simple_evaluators_router=simple_evaluators_router,
+                tracing_router=tracing_router,
             )
 
             if not run:
@@ -486,7 +609,7 @@ async def start_evaluation(
 
             runs.append(run)
 
-            annotate.delay(
+            await annotate.kiq(
                 project_id=request.state.project_id,
                 user_id=request.state.user_id,
                 #
