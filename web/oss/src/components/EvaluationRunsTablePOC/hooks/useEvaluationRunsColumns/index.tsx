@@ -112,6 +112,24 @@ const useEvaluationRunsColumns = ({
         }[]
     >([])
 
+    // Stabilize reference blueprint - only recompute when structure changes
+    const stableReferenceBlueprintRef = useRef<ReferenceColumnDescriptor[]>([])
+
+    // Track the previous evaluationKind to detect tab changes
+    const prevEvaluationKindRef = useRef(evaluationKind)
+
+    // Reset refs and evaluator blueprint when evaluationKind changes (tab switch)
+    useEffect(() => {
+        if (prevEvaluationKindRef.current !== evaluationKind) {
+            seenRunIdsRef.current = new Set()
+            stablePreviewEntriesRef.current = []
+            stableReferenceBlueprintRef.current = []
+            // Also reset the evaluator blueprint atom to clear stale column data
+            setEvaluatorBlueprint([])
+            prevEvaluationKindRef.current = evaluationKind
+        }
+    }, [evaluationKind, setEvaluatorBlueprint])
+
     const previewRunEntries = useMemo(() => {
         const entries = stableRows
             .filter((row) => !row.__isSkeleton && row.preview && row.previewMeta)
@@ -138,9 +156,6 @@ const useEvaluationRunsColumns = ({
             ? stablePreviewEntriesRef.current
             : entries
     }, [stableRows])
-
-    // Stabilize reference blueprint - only recompute when structure changes
-    const stableReferenceBlueprintRef = useRef<ReferenceColumnDescriptor[]>([])
 
     const referenceBlueprint = useMemo(() => {
         const newBlueprint = buildReferenceBlueprint(stableRows, evaluationKind)
