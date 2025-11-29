@@ -13,6 +13,14 @@ import type {ScenarioStepsBatchResult} from "./types"
 
 const scenarioStepsBatcherCache = new Map<string, BatchFetcher<string, ScenarioStepsBatchResult>>()
 
+/**
+ * Invalidate the scenario steps batcher cache.
+ * Call this after updating step results to force a fresh fetch.
+ */
+export const invalidateScenarioStepsBatcherCache = () => {
+    scenarioStepsBatcherCache.clear()
+}
+
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
     runId ?? get(activePreviewRunIdAtom) ?? undefined
 

@@ -14,6 +14,14 @@ import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 
 const annotationBatcherCache = new Map<string, BatchFetcher<string, AnnotationDto[] | null>>()
 
+/**
+ * Invalidate the annotation batcher cache.
+ * Call this after creating/updating annotations to force a fresh fetch.
+ */
+export const invalidateAnnotationBatcherCache = () => {
+    annotationBatcherCache.clear()
+}
+
 const normalizeTraceKey = (traceId: string) => {
     const hex = uuidToTraceId(traceId)
     if (hex) return hex

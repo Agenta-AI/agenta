@@ -1,7 +1,7 @@
 import {memo, useMemo, useCallback} from "react"
 
 import {Spin} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, getDefaultStore} from "jotai"
 
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
 
@@ -17,10 +17,12 @@ import RunActionButton from "./actions/RunActionButton"
 
 const normalizeStatus = (status: string | undefined): string => status?.toLowerCase() ?? ""
 
+// Use global store to communicate with drawer outside the table's isolated Jotai Provider
+const globalStore = getDefaultStore()
+
 const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: string}) => {
     const fallbackRunId = useAtomValue(activePreviewRunIdAtom)
     const effectiveRunId = runId ?? fallbackRunId ?? undefined
-    const setAnnotateDrawer = useSetAtom(virtualScenarioTableAnnotateDrawerAtom)
 
     const runIndex = useAtomValue(evaluationRunIndexAtomFamily(effectiveRunId ?? null))
     const handleRunClick = useCallback((scenarioId: string, runId?: string, stepKey?: string) => {
@@ -31,24 +33,22 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
         })
     }, [])
 
-    const handleAnnotateClick = useCallback(
-        (scenarioId: string, runId?: string) => {
-            console.info("[EvalRunDetails2] Annotate action triggered", {scenarioId, runId})
-            setAnnotateDrawer((prev) => ({
-                ...prev,
-                open: true,
+    const handleAnnotateClick = useCallback((scenarioId: string, runId?: string) => {
+        console.info("[EvalRunDetails2] Annotate action triggered", {scenarioId, runId})
+        // Use global store to update the drawer state (table has isolated Jotai Provider)
+        globalStore.set(virtualScenarioTableAnnotateDrawerAtom, (prev) => ({
+            ...prev,
+            open: true,
+            scenarioId,
+            runId,
+            title: "Annotate scenario",
+            context: {
                 scenarioId,
                 runId,
-                title: "Annotate scenario",
-                context: {
-                    scenarioId,
-                    runId,
-                    usePOC: false,
-                },
-            }))
-        },
-        [setAnnotateDrawer],
-    )
+                usePOC: false,
+            },
+        }))
+    }, [])
 
     const humanInvocationKeys = useMemo(() => {
         if (!runIndex) return []
@@ -90,7 +90,10 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
         )
     }
 
-    if (humanInvocationKeys.length === 0 && humanAnnotationKeys.length === 0) {
+    // Show nothing if no human-origin steps exist (neither invocation nor annotation)
+    // This is evaluation-type agnostic - we only care about human-origin steps
+    const hasHumanSteps = humanInvocationKeys.length > 0 || humanAnnotationKeys.length > 0
+    if (!hasHumanSteps) {
         return (
             <div className="flex h-full items-center justify-center text-xs text-neutral-400">
                 —
@@ -106,11 +109,14 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
         )
     }
 
-    const pendingInvocationStepKey = humanInvocationKeys.find((key) => {
+    // Check if there's a pending human invocation (needs to be run)
+    const pendingHumanInvocationStepKey = humanInvocationKeys.find((key) => {
         const status = normalizeStatus(invocationMap.get(key))
         return status !== "success"
     })
 
+    // For annotation to be enabled, ALL invocations must be successful (regardless of origin)
+    // This ensures mixed evaluations (automated + human) work correctly
     const allInputsSuccessful =
         inputSelection.steps.length > 0 &&
         inputSelection.steps.every((step) => normalizeStatus(step.status) === "success")
@@ -119,25 +125,32 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
         invocationSelection.steps.length > 0 &&
         invocationSelection.steps.every((step) => normalizeStatus(step.status) === "success")
 
-    const showAnnotateButton =
-        pendingInvocationStepKey === undefined &&
+    // Show annotate button when:
+    // 1. Human annotation steps exist in the run index (evaluation-type agnostic)
+    // 2. No pending human invocation (if any human invocations exist)
+    // 3. All inputs are successful
+    // 4. All invocations are successful (regardless of origin - supports mixed evaluations)
+    const canAnnotate =
         humanAnnotationKeys.length > 0 &&
+        pendingHumanInvocationStepKey === undefined &&
         allInputsSuccessful &&
         allInvocationsSuccessful
 
-    if (pendingInvocationStepKey) {
+    // Priority: Show Run button if there's a pending human invocation
+    if (pendingHumanInvocationStepKey) {
         return (
             <div className="flex h-full items-center justify-center">
                 <RunActionButton
                     onClick={() =>
-                        handleRunClick(scenarioId, effectiveRunId, pendingInvocationStepKey)
+                        handleRunClick(scenarioId, effectiveRunId, pendingHumanInvocationStepKey)
                     }
                 />
             </div>
         )
     }
 
-    if (showAnnotateButton) {
+    // Show Annotate button if conditions are met
+    if (canAnnotate) {
         return (
             <div className="flex h-full items-center justify-center">
                 <AnnotateActionButton

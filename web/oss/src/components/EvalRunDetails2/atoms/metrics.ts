@@ -46,6 +46,14 @@ export interface RunLevelMetricData {
 
 const metricBatcherCache = new Map<string, BatchFetcher<string, ScenarioMetricData | null>>()
 
+/**
+ * Invalidate the metric batcher cache.
+ * Call this after updating metrics to force a fresh fetch.
+ */
+export const invalidateMetricBatcherCache = () => {
+    metricBatcherCache.clear()
+}
+
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
     runId ?? get(activePreviewRunIdAtom) ?? undefined
 

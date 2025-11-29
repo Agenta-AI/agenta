@@ -829,25 +829,29 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
 
                 // For string-type metrics, fall through to annotation lookup
                 if (isPlaceholder) {
-                    // First, try to get trace ID from any available step
-                    let targetStep = pickStep(
-                        annotations.length ? annotations : invocations,
-                        column.stepKey,
-                    )
-                    // If no step found by stepKey, try to get any invocation step for trace ID
-                    if (!targetStep && invocations.length === 0 && steps.length > 0) {
-                        // Try to find any step with a traceId
-                        targetStep = steps.find((s: IStepResponse) => toTraceId(s)) as
-                            | IStepResponse
-                            | undefined
-                    }
-                    const traceId = toTraceId(targetStep)
-                    if (traceId) {
+                    // For string metrics, we need to use the INVOCATION's trace ID to query annotations
+                    // (not the annotation step's trace ID, which is the annotation's own ID)
+                    // The annotation query API looks for annotations by their links.*.trace_id
+                    const invocationStep = invocations[0]
+                    const invocationTraceId = toTraceId(invocationStep)
+
+                    if (invocationTraceId) {
                         const annotationQuery = get(
-                            evaluationAnnotationQueryAtomFamily({traceId, runId}),
-                        ) as QueryState<AnnotationDto | null>
-                        const annotationData =
-                            annotationQuery.data ?? (targetStep as any)?.annotation ?? null
+                            evaluationAnnotationQueryAtomFamily({
+                                traceId: invocationTraceId,
+                                runId,
+                            }),
+                        ) as QueryState<AnnotationDto[] | null>
+
+                        // Filter annotations by evaluator slug to get the right one for this column
+                        const allAnnotations = annotationQuery.data ?? []
+                        const evaluatorSlug = column.stepKey?.split(".").pop() // e.g., "new-human" from "completion_testset-xxx.new-human"
+                        const matchingAnnotation = allAnnotations.find(
+                            (ann: AnnotationDto) =>
+                                ann?.references?.evaluator?.slug === evaluatorSlug,
+                        )
+
+                        const annotationData = matchingAnnotation ?? null
                         const valueFromAnnotation = resolveAnnotationValue(
                             annotationData,
                             column,
