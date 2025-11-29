@@ -588,9 +588,9 @@ async def create_new_app_variant(
         AppVariantDB: The created variant.
     """
 
-    assert (
-        config.parameters == {}
-    ), "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
+    assert config.parameters == {}, (
+        "Parameters should be empty when calling create_new_app_variant (otherwise revision should not be set to 0)"
+    )
 
     async with engine.core_session() as session:
         variant = AppVariantDB(
@@ -2522,9 +2522,7 @@ async def fetch_environment_revisions_for_environment(environment: AppEnvironmen
             query = query.options(
                 joinedload(
                     AppEnvironmentRevisionDB.modified_by.of_type(UserDB)
-                ).load_only(
-                    UserDB.username
-                )  # type: ignore
+                ).load_only(UserDB.username)  # type: ignore
             )
         else:
             query = query.options(
@@ -2714,9 +2712,9 @@ async def create_environment_revision(
     )
 
     if kwargs:
-        assert (
-            "deployed_app_variant_revision" in kwargs
-        ), "Deployed app variant revision is required"
+        assert "deployed_app_variant_revision" in kwargs, (
+            "Deployed app variant revision is required"
+        )
         assert (
             isinstance(
                 kwargs.get("deployed_app_variant_revision"), AppVariantRevisionsDB
@@ -2731,9 +2729,9 @@ async def create_environment_revision(
             )
 
         deployment = kwargs.get("deployment")
-        assert (
-            isinstance(deployment, DeploymentDB) == True
-        ), "Type of deployment in kwargs is not correct"
+        assert isinstance(deployment, DeploymentDB) == True, (
+            "Type of deployment in kwargs is not correct"
+        )
         if deployment is not None:
             environment_revision.deployment_id = deployment.id  # type: ignore
 
@@ -3487,9 +3485,9 @@ async def get_object_uuid(object_id: str, table_name: str) -> str:
         # Use the object_id directly if it is not a valid MongoDB ObjectId
         object_uuid_as_str = object_id
 
-    assert (
-        object_uuid_as_str is not None
-    ), f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
+    assert object_uuid_as_str is not None, (
+        f"{table_name} Object UUID cannot be none. Is the object_id {object_id} a valid MongoDB ObjectId?"
+    )
     return object_uuid_as_str
 
 
@@ -3625,9 +3623,7 @@ async def fetch_evaluation_by_id(
                 ),  # type: ignore
                 joinedload(
                     EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)
-                ).load_only(
-                    AppVariantRevisionsDB.revision
-                ),  # type: ignore
+                ).load_only(AppVariantRevisionsDB.revision),  # type: ignore
                 joinedload(
                     EvaluationDB.aggregated_results.of_type(
                         EvaluationAggregatedResultDB
@@ -3721,14 +3717,10 @@ async def fetch_human_evaluation_variants(human_evaluation_id: str):
         query = base_query.options(
             joinedload(
                 HumanEvaluationVariantDB.variant.of_type(AppVariantDB)
-            ).load_only(
-                AppVariantDB.id, AppVariantDB.variant_name
-            ),  # type: ignore
+            ).load_only(AppVariantDB.id, AppVariantDB.variant_name),  # type: ignore
             joinedload(
                 HumanEvaluationVariantDB.variant_revision.of_type(AppVariantRevisionsDB)
-            ).load_only(
-                AppVariantRevisionsDB.id, AppVariantRevisionsDB.revision
-            ),  # type: ignore
+            ).load_only(AppVariantRevisionsDB.id, AppVariantRevisionsDB.revision),  # type: ignore
         )
 
         result = await session.execute(query)
@@ -4088,9 +4080,7 @@ async def list_evaluations(app_id: str, project_id: str):
                 ),  # type: ignore
                 joinedload(
                     EvaluationDB.variant_revision.of_type(AppVariantRevisionsDB)
-                ).load_only(
-                    AppVariantRevisionsDB.revision
-                ),  # type: ignore
+                ).load_only(AppVariantRevisionsDB.revision),  # type: ignore
                 joinedload(
                     EvaluationDB.aggregated_results.of_type(
                         EvaluationAggregatedResultDB
