@@ -21,9 +21,6 @@ const ensureOnlineEvalView = (view: "overview" | "results" | "configuration") =>
     getDefaultStore().set(urlStateAtom, (draft) => {
         if (draft.view === view) return
         draft.view = view
-        // if (view !== "focus") {
-        //     draft.scenarioId = undefined
-        // }
     })
 }
 
@@ -41,6 +38,7 @@ export const CREATE_NEW_ONLINE_EVALUATION_STEPS = [
         pointerRadius: 12,
         onCleanup: closeOnlineEvalDrawer,
         onEnter: closeOnlineEvalDrawer,
+        advanceOnClick: true,
     },
     {
         icon: "📝",
@@ -80,6 +78,7 @@ export const CREATE_NEW_ONLINE_EVALUATION_STEPS = [
         pointerRadius: 12,
         onEnter: openOnlineEvalDrawer,
         onCleanup: closeOnlineEvalDrawer,
+        advanceOnClick: true,
     },
 ]
 
@@ -108,6 +107,7 @@ export const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
         pointerPadding: 12,
         pointerRadius: 12,
         onEnter: () => ensureOnlineEvalView("results"),
+        advanceOnClick: true,
     },
     {
         icon: "🗂️",
@@ -120,6 +120,7 @@ export const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
         pointerPadding: 12,
         pointerRadius: 12,
         onEnter: () => ensureOnlineEvalView("results"),
+        advanceOnClick: true,
     },
     {
         icon: "🏁",
@@ -166,6 +167,7 @@ export const ONLINE_EVAL_RUN_STEPS: TourDefinition[number]["steps"] = [
         pointerPadding: 12,
         pointerRadius: 12,
         onEnter: () => ensureOnlineEvalView("overview"),
+        advanceOnClick: true,
     },
 ]
 

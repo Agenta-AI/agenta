@@ -56,6 +56,7 @@ const AUTO_EVALUATION_STEPS: TourDefinition[number]["steps"] = [
         pointerRadius: 12,
         onEnter: closeAutoEvalModal,
         onCleanup: closeAutoEvalModal,
+        advanceOnClick: true,
     },
     {
         icon: "📱",

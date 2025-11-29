@@ -11,6 +11,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {NextStep, useNextStep} from "nextstepjs"
 import {useEffect, useRef} from "react"
 import OnboardingCard from "../../index"
+import OnboardingAutoAdvance from "../OnboardingAutoAdvance"
 
 const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
     const onboardingSteps = useAtomValue(onboardingStepsAtom)
@@ -108,6 +109,7 @@ const CustomNextStepProvider = ({children}: {children: React.ReactNode}) => {
             showNextStep={true}
             onComplete={handleComplete}
         >
+            <OnboardingAutoAdvance />
             {children}
         </NextStep>
     )

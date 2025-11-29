@@ -27,6 +27,13 @@ import ErrorFallback from "./ErrorFallback"
 import {SidebarIsland} from "./SidebarIsland"
 import {getDeviceTheme, useAppTheme} from "./ThemeContextProvider"
 
+const OnboardingWidget = dynamic(
+    () => import("../Onboarding/components/OnboardingWidget").then((m) => m.OnboardingWidget),
+    {
+        ssr: false,
+        loading: () => null,
+    },
+)
 const FooterIsland = dynamic(() => import("./FooterIsland").then((m) => m.FooterIsland), {
     ssr: false,
     loading: () => null,
@@ -267,6 +274,7 @@ const App: React.FC<LayoutProps> = ({children}) => {
                         {children}
                         {contextHolder}
                     </AppWithVariants>
+                    <OnboardingWidget />
                 </ProtectedRoute>
             )}
         </Suspense>

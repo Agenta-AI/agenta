@@ -6,7 +6,9 @@ export type UserOnboardingStatus<T = OnboardingState> = {
     apps: T
     playground: T
     playgroundPostRun: T
-    evaluations: T
+    autoEvaluations: T
+    humanEvaluations: T
+    onlineEvaluations: T
     observability: T
     trace: T
     fullJourney: T
@@ -17,6 +19,7 @@ export type OnboardingStep = Tour["steps"][number] & {
     onExit?: () => void
     onCleanup?: () => void
     onboardingSection?: keyof UserOnboardingStatus
+    advanceOnClick?: boolean
 }
 
 export type CurrentOnboardingStep = OnboardingStep
@@ -26,3 +29,12 @@ export interface CurrentOnboardingStepExtended extends CurrentOnboardingStep {
     currentStep?: number
     totalSteps?: number
 }
+
+export type OnboardingLandingFeatureKey =
+    | "apps"
+    | "playground"
+    | "auto-evaluation"
+    | "online-evaluation"
+    | "human-evaluation"
+    | "observability"
+    | "projects"

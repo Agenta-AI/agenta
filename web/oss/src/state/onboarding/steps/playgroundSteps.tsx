@@ -33,6 +33,7 @@ export const PLAYGROUND_COMPLETION_TOUR: TourDefinition[number]["steps"] = [
         showSkip: true,
         pointerPadding: 12,
         pointerRadius: 12,
+        advanceOnClick: true,
     },
     {
         icon: "⚡️",
@@ -45,6 +46,7 @@ export const PLAYGROUND_COMPLETION_TOUR: TourDefinition[number]["steps"] = [
         pointerPadding: 6,
         pointerRadius: 12,
         viewportId: "scrollable-viewport",
+        advanceOnClick: true,
     },
 ]
 
@@ -111,6 +113,7 @@ export const PLAYGROUND_CHAT_TOUR: TourDefinition[number]["steps"] = [
         pointerPadding: 12,
         pointerRadius: 12,
         viewportId: "scrollable-viewport",
+        advanceOnClick: true,
     },
 ]
 
@@ -131,6 +134,7 @@ export const POST_PLAYGROUND_TOUR = [
         pointerPadding: 12,
         pointerRadius: 12,
         onboardingSection: "playgroundPostRun" as const,
+        advanceOnClick: true,
     },
     {
         icon: "🧪",
@@ -148,6 +152,7 @@ export const POST_PLAYGROUND_TOUR = [
         pointerPadding: 12,
         pointerRadius: 12,
         onboardingSection: "playgroundPostRun" as const,
+        advanceOnClick: true,
     },
 ]
 

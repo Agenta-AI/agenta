@@ -41,6 +41,7 @@ export const TRACE_DRAWER_STEPS: TourDefinition[number]["steps"] = [
         pointerPadding: 12,
         pointerRadius: 12,
         viewportID: TRACE_DRAWER_VIEWPORT_ID,
+        advanceOnClick: true,
     },
     {
         icon: "📊",
@@ -58,6 +59,7 @@ export const TRACE_DRAWER_STEPS: TourDefinition[number]["steps"] = [
         pointerPadding: 12,
         pointerRadius: 12,
         viewportID: TRACE_DRAWER_VIEWPORT_ID,
+        advanceOnClick: true,
     },
     {
         icon: "🧪",
@@ -75,6 +77,7 @@ export const TRACE_DRAWER_STEPS: TourDefinition[number]["steps"] = [
         pointerPadding: 12,
         pointerRadius: 12,
         viewportID: TRACE_DRAWER_VIEWPORT_ID,
+        advanceOnClick: true,
     },
     {
         icon: "✍️",
@@ -92,6 +95,7 @@ export const TRACE_DRAWER_STEPS: TourDefinition[number]["steps"] = [
         pointerPadding: 12,
         pointerRadius: 12,
         viewportID: TRACE_DRAWER_VIEWPORT_ID,
+        advanceOnClick: true,
     },
     {
         icon: "💬",

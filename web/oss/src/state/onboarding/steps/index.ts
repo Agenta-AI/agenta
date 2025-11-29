@@ -15,8 +15,14 @@ export const TOUR_STEPS: Record<string, (ctx: OnboardingStepsContext) => TourDef
     playgroundPostRun: (_ctx) => {
         return resolvePlaygroundPostRunTour()
     },
-    evaluations: (ctx) => {
-        return evaluationTour(ctx)
+    autoEvaluations: (ctx) => {
+        return evaluationTour(ctx, "auto")
+    },
+    humanEvaluations: (ctx) => {
+        return evaluationTour(ctx, "human")
+    },
+    onlineEvaluations: (ctx) => {
+        return evaluationTour(ctx, "online")
     },
     trace: (ctx) => {
         const resolver = TRACE_TOURS[ctx.userContext?.userRole] ?? TRACE_TOURS.Hobbyist
