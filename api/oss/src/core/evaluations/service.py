@@ -885,7 +885,7 @@ class EvaluationsService:
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = dict()
 
         for step in run.data.steps:
-            steps_metrics_keys[step.key] = DEFAULT_METRICS
+            steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
 
             if step.type == "annotation":
                 evaluator_revision_ref = step.references.get("evaluator_revision")
@@ -913,6 +913,18 @@ class EvaluationsService:
                     steps_metrics_keys[step.key] += [
                         {
                             "path": "ag.data.outputs." + metric_key.get("path", ""),
+                            "type": metric_key.get("type", ""),
+                        }
+                        for metric_key in metrics_keys
+                    ]
+                elif evaluator_revision.data and evaluator_revision.data.service:
+                    metrics_keys = get_metrics_keys_from_schema(
+                        schema=(evaluator_revision.data.service.get("format")),
+                    )
+
+                    steps_metrics_keys[step.key] += [
+                        {
+                            "path": "ag.data." + metric_key.get("path", ""),
                             "type": metric_key.get("type", ""),
                         }
                         for metric_key in metrics_keys
@@ -946,6 +958,10 @@ class EvaluationsService:
 
             if trace_ids:
                 steps_trace_ids[step_key] = trace_ids
+
+        log.debug("----")
+        log.debug(steps_metrics_keys)
+        log.debug(steps_trace_ids)
 
         for step_key in steps_metrics_keys.keys() & steps_trace_ids.keys():
             step_metrics_keys = steps_metrics_keys[step_key]
