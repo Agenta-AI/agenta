@@ -185,8 +185,21 @@ const SelectEvaluatorSection = <Preview extends boolean = false>({
         : EvaluatorConfig[] = useMemo(() => {
         if (preview) {
             // Explicitly narrow types for Preview = true
-            const data = evaluators as EvaluatorDto<"response">[]
-            if (!searchTerm) return data
+            let data = evaluators as EvaluatorDto<"response">[]
+
+            // Filter out human evaluators and evaluators without metrics
+            data = data.filter((item) => {
+                // Exclude human evaluators
+                if (item.flags?.is_human) return false
+
+                // Exclude evaluators without metric definitions
+                const metrics = getMetricsFromEvaluator(item)
+                if (Object.keys(metrics).length === 0) return false
+
+                return true
+            })
+
+            if (!searchTerm) return data as any
             return data.filter((item) =>
                 item.name.toLowerCase().includes(searchTerm.toLowerCase()),
             ) as any
