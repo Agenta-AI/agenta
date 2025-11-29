@@ -223,8 +223,8 @@ const InfiniteVirtualTableInner = <RecordType extends object>({
     const scrollRafRef = useRef<number | null>(null)
     const lastScrollTargetRef = useRef<HTMLDivElement | null>(null)
 
-    // Track vertical scrolling to suspend column visibility updates
-    const [isVerticalScrolling, setIsVerticalScrolling] = useState(false)
+    // Track vertical scrolling to suspend column visibility updates (use ref to avoid re-renders)
+    const isVerticalScrollingRef = useRef(false)
     const verticalScrollTimeoutRef = useRef<number | null>(null)
     const lastScrollTopRef = useRef<number>(0)
 
@@ -239,7 +239,7 @@ const InfiniteVirtualTableInner = <RecordType extends object>({
 
             // If scrolling vertically, suspend column visibility updates
             if (isVerticalScroll) {
-                setIsVerticalScrolling(true)
+                isVerticalScrollingRef.current = true
 
                 // Clear existing timeout
                 if (verticalScrollTimeoutRef.current !== null) {
@@ -248,7 +248,7 @@ const InfiniteVirtualTableInner = <RecordType extends object>({
 
                 // Resume updates after scroll stops (150ms debounce)
                 verticalScrollTimeoutRef.current = window.setTimeout(() => {
-                    setIsVerticalScrolling(false)
+                    isVerticalScrollingRef.current = false
                     verticalScrollTimeoutRef.current = null
                 }, 150)
             }
@@ -508,7 +508,7 @@ const InfiniteVirtualTableInner = <RecordType extends object>({
         containerRef: visibilityRootRef,
         onVisibilityChange: viewportVisibilityHandler,
         enabled: visibilityTrackingEnabled,
-        suspendUpdates: isResizing || isVerticalScrolling,
+        suspendUpdates: isResizing,
         viewportMargin: columnVisibility?.viewportMargin,
         exitDebounceMs: columnVisibility?.viewportExitDebounceMs,
         excludeKeys: stickyColumnKeys,

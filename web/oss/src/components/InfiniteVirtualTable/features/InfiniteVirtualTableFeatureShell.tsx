@@ -7,8 +7,8 @@ import clsx from "clsx"
 import ColumnVisibilityPopoverContent from "../components/columnVisibility/ColumnVisibilityPopoverContent"
 import TableShell from "../components/TableShell"
 import type {InfiniteDatasetStore} from "../createInfiniteDatasetStore"
-import InfiniteVirtualTable from "../InfiniteVirtualTable"
 import useTableExport, {type TableExportOptions} from "../hooks/useTableExport"
+import InfiniteVirtualTable from "../InfiniteVirtualTable"
 import type {
     ColumnVisibilityMenuRenderer,
     ColumnVisibilityState,
@@ -153,7 +153,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
     const handleLoadMore = useCallback(() => {
         if (!enableInfiniteScroll) return
         pagination.loadNextPage()
-    }, [enableInfiniteScroll, pagination])
+    }, [enableInfiniteScroll, pagination.loadNextPage])
 
     const [controlsHeight, setControlsHeight] = useState(0)
     const [tableHeaderHeight, setTableHeaderHeight] = useState<number | null>(null)
@@ -229,6 +229,28 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
         )
     }, [enableExport, exportHandler, isExporting, renderExportButton])
 
+    const viewportTrackingEnabled = useMemo(
+        () =>
+            tableScope.viewportTrackingEnabled ?? pagination.rows.some((row) => !row.__isSkeleton),
+        [pagination.rows, tableScope.viewportTrackingEnabled],
+    )
+
+    const columnVisibilityConfig = useMemo(
+        () => ({
+            storageKey: tableScope.columnVisibilityStorageKey ?? undefined,
+            defaultHiddenKeys: tableScope.columnVisibilityDefaults,
+            viewportTrackingEnabled,
+            renderMenuContent: columnVisibilityRenderer,
+        }),
+        [
+            columnVisibilityRenderer,
+            tableScope.columnVisibilityDefaults,
+            tableScope.columnVisibilityStorageKey,
+            viewportTrackingEnabled,
+        ],
+    )
+
+    console.log("InfiniteVirtualTableFeatureShellBase")
     return (
         <div
             className={clsx("flex flex-col", autoHeight ? "h-full min-h-0" : "min-h-0", className)}
@@ -258,14 +280,7 @@ function InfiniteVirtualTableFeatureShellBase<Row extends InfiniteTableRowBase>(
                     rowKey={rowKey}
                     rowSelection={rowSelection}
                     resizableColumns={resizableColumns}
-                    columnVisibility={{
-                        storageKey: tableScope.columnVisibilityStorageKey ?? undefined,
-                        defaultHiddenKeys: tableScope.columnVisibilityDefaults,
-                        viewportTrackingEnabled:
-                            tableScope.viewportTrackingEnabled ??
-                            pagination.rows.some((row) => !row.__isSkeleton),
-                        renderMenuContent: columnVisibilityRenderer,
-                    }}
+                    columnVisibility={columnVisibilityConfig}
                     bodyHeight={bodyHeight}
                     scopeId={scopeId}
                     containerClassName={resolvedContainerClassName}
