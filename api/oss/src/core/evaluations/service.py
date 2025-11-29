@@ -2,16 +2,17 @@ from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from uuid import UUID
 from asyncio import sleep
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta, Data
+from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta
 from oss.src.core.evaluations.interfaces import EvaluationsDAOInterface
 from oss.src.core.evaluations.types import (
     EvaluationStatus,
     # EVALUATION RUN
     EvaluationRunFlags,
+    EvaluationRunQueryFlags,
     EvaluationRunDataMappingColumn,
     EvaluationRunDataMappingStep,
     EvaluationRunDataMapping,
@@ -37,6 +38,7 @@ from oss.src.core.evaluations.types import (
     EvaluationMetricsCreate,
     EvaluationMetricsEdit,
     EvaluationMetricsQuery,
+    EvaluationMetricsRefresh,
     # EVALUATION QUEUE
     EvaluationQueue,
     EvaluationQueueCreate,
@@ -62,7 +64,6 @@ from oss.src.core.tracing.dtos import (
     Filtering,
     Condition,
     ListOperator,
-    MetricsBucket,
     MetricSpec,
     MetricType,
 )
@@ -77,7 +78,6 @@ from oss.src.core.evaluators.dtos import EvaluatorRevision
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.testsets.service import TestsetsService
 from oss.src.core.testsets.service import SimpleTestsetsService
-from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
 
 from oss.src.core.evaluations.utils import filter_scenario_ids
@@ -797,6 +797,80 @@ class EvaluationsService:
         project_id: UUID,
         user_id: UUID,
         #
+        metrics: EvaluationMetricsRefresh,
+    ) -> List[EvaluationMetrics]:
+        # Extract values from the request body
+        run_id = metrics.run_id
+        run_ids = metrics.run_ids
+        scenario_id = metrics.scenario_id
+        scenario_ids = metrics.scenario_ids
+        timestamp = metrics.timestamp
+        timestamps = metrics.timestamps
+        interval = metrics.interval
+
+        log.debug(
+            "[METRICS] [REFRESH]",
+            run_id=run_id,
+            run_ids=run_ids,
+            scenario_id=scenario_id,
+            scenario_ids=scenario_ids,
+            timestamp=timestamp,
+            timestamps=timestamps,
+            interval=interval,
+        )
+
+        if run_ids:
+            for _run_id in run_ids:
+                return await self._refresh_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=_run_id,
+                )
+
+        # !run_ids
+        elif not run_id:
+            return list()
+
+        # !run_ids & run_id
+        elif scenario_ids:
+            for _scenario_id in scenario_ids:
+                return await self._refresh_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run_id,
+                    scenario_id=_scenario_id,
+                )
+
+        # !run_ids & run_id & !scenario_ids
+        elif timestamps:
+            for _timestamp in timestamps:
+                return await self._refresh_metrics(
+                    project_id=project_id,
+                    user_id=user_id,
+                    run_id=run_id,
+                    timestamp=_timestamp,
+                    interval=interval,
+                )
+
+        # !run_ids & run_id & !scenario_ids & !timestamps
+        else:
+            return await self._refresh_metrics(
+                project_id=project_id,
+                user_id=user_id,
+                run_id=run_id,
+                scenario_id=scenario_id,
+                timestamp=timestamp,
+                interval=interval,
+            )
+
+        return list()
+
+    async def _refresh_metrics(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
         run_id: UUID,
         scenario_id: Optional[UUID] = None,
         timestamp: Optional[datetime] = None,
@@ -817,7 +891,7 @@ class EvaluationsService:
         steps_metrics_keys: Dict[str, List[Dict[str, str]]] = dict()
 
         for step in run.data.steps:
-            steps_metrics_keys[step.key] = DEFAULT_METRICS
+            steps_metrics_keys[step.key] = deepcopy(DEFAULT_METRICS)
 
             if step.type == "annotation":
                 evaluator_revision_ref = step.references.get("evaluator_revision")
@@ -845,6 +919,18 @@ class EvaluationsService:
                     steps_metrics_keys[step.key] += [
                         {
                             "path": "ag.data.outputs." + metric_key.get("path", ""),
+                            "type": metric_key.get("type", ""),
+                        }
+                        for metric_key in metrics_keys
+                    ]
+                elif evaluator_revision.data and evaluator_revision.data.service:
+                    metrics_keys = get_metrics_keys_from_schema(
+                        schema=(evaluator_revision.data.service.get("format")),
+                    )
+
+                    steps_metrics_keys[step.key] += [
+                        {
+                            "path": "ag.data." + metric_key.get("path", ""),
                             "type": metric_key.get("type", ""),
                         }
                         for metric_key in metrics_keys
@@ -2323,9 +2409,9 @@ class SimpleEvaluationsService:
         is_active: Optional[bool] = None,
     ) -> EvaluationRunFlags:
         return EvaluationRunFlags(
-            is_closed=is_closed,
-            is_live=is_live,
-            is_active=is_active,
+            is_closed=is_closed or False,
+            is_live=is_live or False,
+            is_active=is_active or False,
         )
 
     async def _make_evaluation_run_query(

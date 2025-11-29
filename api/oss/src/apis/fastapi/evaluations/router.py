@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timedelta
 
@@ -8,6 +8,8 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
+
+from oss.src.apis.fastapi.shared.utils import compute_next_windowing
 
 from oss.src.core.queries.service import (
     QueriesService,
@@ -56,6 +58,7 @@ from oss.src.apis.fastapi.evaluations.models import (
     EvaluationMetricsIdsRequest,
     EvaluationMetricsResponse,
     EvaluationMetricsIdsResponse,
+    EvaluationMetricsRefreshRequest,
     # EVALUATION QUEUES
     EvaluationQueuesCreateRequest,
     EvaluationQueueEditRequest,
@@ -616,9 +619,16 @@ class EvaluationsRouter:
             windowing=run_query_request.windowing,
         )
 
+        windowing = compute_next_windowing(
+            entities=runs,
+            attribute="id",
+            windowing=run_query_request.windowing,
+        )
+
         runs_response = EvaluationRunsResponse(
             count=len(runs),
             runs=runs,
+            windowing=windowing,
         )
 
         return runs_response
@@ -1294,10 +1304,7 @@ class EvaluationsRouter:
         self,
         request: Request,
         *,
-        run_id: UUID,
-        scenario_id: Optional[UUID] = None,
-        timestamp: Optional[datetime] = None,
-        interval: Optional[int] = None,
+        metrics_refresh_request: EvaluationMetricsRefreshRequest,
     ) -> EvaluationMetricsResponse:
         if is_ee():
             if not await check_action_access(  # type: ignore
@@ -1311,10 +1318,7 @@ class EvaluationsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
-            run_id=run_id,
-            scenario_id=scenario_id,
-            timestamp=timestamp,
-            interval=interval,
+            metrics=metrics_refresh_request.metrics,
         )
 
         metrics_response = EvaluationMetricsResponse(

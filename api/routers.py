@@ -20,7 +20,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
     check_for_new_migrations as check_for_new_tracing_migrations,
 )
 
-from oss.src.services.auth_helper import authentication_middleware
+from oss.src.services.auth_service import authentication_middleware
 from oss.src.services.analytics_service import analytics_middleware
 
 from oss.src.routers import evaluation_router, human_evaluation_router
@@ -47,7 +47,6 @@ from oss.src.dbs.postgres.workflows.dbes import (
 
 # DAOs
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
-from oss.src.dbs.postgres.observability.dao import ObservabilityDAO
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
@@ -55,7 +54,6 @@ from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
-from oss.src.core.observability.service import ObservabilityService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.invocations.service import InvocationsService
 from oss.src.core.annotations.service import AnnotationsService
@@ -73,7 +71,7 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
-from oss.src.apis.fastapi.observability.router import ObservabilityRouter
+from oss.src.apis.fastapi.otlp.router import OTLPRouter
 from oss.src.apis.fastapi.tracing.router import TracingRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
@@ -183,8 +181,6 @@ if ee and is_ee():
 
 secrets_dao = SecretsDAO()
 
-observability_dao = ObservabilityDAO()
-
 tracing_dao = TracingDAO()
 
 testcases_dao = BlobsDAO(
@@ -215,10 +211,6 @@ evaluations_dao = EvaluationsDAO()
 
 vault_service = VaultService(
     secrets_dao=secrets_dao,
-)
-
-observability_service = ObservabilityService(
-    observability_dao=observability_dao,
 )
 
 tracing_service = TracingService(
@@ -285,8 +277,7 @@ secrets = VaultRouter(
     vault_service=vault_service,
 )
 
-observability = ObservabilityRouter(
-    observability_service=observability_service,
+otlp = OTLPRouter(
     tracing_service=tracing_service,
 )
 
@@ -367,21 +358,15 @@ app.include_router(
 )
 
 app.include_router(
-    router=observability.otlp,
-    prefix="/otlp",
-    tags=["Observability"],
-)
-
-app.include_router(
-    router=observability.router,
-    prefix="/observability/v1",
+    router=otlp.router,
+    prefix="/otlp/v1",
     tags=["Observability"],
 )
 
 app.include_router(
     router=tracing.router,
     prefix="/preview/tracing",
-    tags=["Tracing"],
+    tags=["Observability"],
 )
 
 app.include_router(

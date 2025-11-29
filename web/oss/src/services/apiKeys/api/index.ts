@@ -20,11 +20,16 @@ export const fetchAllListApiKeys = (workspaceId: string, ignoreAxiosError = fals
     )
 }
 
-export const createApiKey = (workspaceId: string, ignoreAxiosError = false) => {
-    const {projectId} = getProjectValues()
+export const createApiKey = (
+    workspaceId: string,
+    ignoreAxiosError = false,
+    projectId?: string | null,
+) => {
+    const {projectId: storeProjectId} = getProjectValues()
+    const finalProjectId = projectId ?? storeProjectId
 
     return axios.post(
-        `${getAgentaApiUrl()}/keys?workspace_id=${workspaceId}&project_id=${projectId}`,
+        `${getAgentaApiUrl()}/keys?workspace_id=${workspaceId}&project_id=${finalProjectId}`,
         undefined,
         {
             _ignoreError: ignoreAxiosError,

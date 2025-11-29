@@ -8,15 +8,15 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import {useRouter} from "next/router"
 
+import {formatMetricValue} from "@/oss/components/Evaluations/MetricDetailsPopover"
 import EditColumns from "@/oss/components/Filters/EditColumns"
 import {formatColumnTitle} from "@/oss/components/Filters/EditColumns/assets/helper"
-import {formatMetricValue} from "@/oss/components/HumanEvaluations/assets/MetricDetailsPopover/assets/utils"
-import {EvaluationRow} from "@/oss/components/HumanEvaluations/types"
+import {EvaluationRow} from "@/oss/components/SaveTestsetModal/types"
 import useURL from "@/oss/hooks/useURL"
+import {getTypedValue} from "@/oss/lib/evaluations/legacy"
 import {snakeToCamelCaseKeys} from "@/oss/lib/helpers/casing"
 import {formatDate24, formatDay} from "@/oss/lib/helpers/dateTimeHelper"
 import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
-import {getTypedValue} from "@/oss/lib/helpers/evaluate"
 import {convertToCsv, downloadCsv} from "@/oss/lib/helpers/fileManipulations"
 import {variantNameWithRev} from "@/oss/lib/helpers/variantHelper"
 import {searchQueryAtom} from "@/oss/lib/hooks/usePreviewEvaluations/states/queryFilterAtoms"
@@ -27,8 +27,8 @@ import {getAppValues} from "@/oss/state/app"
 
 import {statusMapper} from "../../cellRenderers/cellRenderers"
 import {buildEvaluationNavigationUrl} from "../../utils"
-import {useStyles} from "./styles"
 
+import {useStyles} from "./styles"
 import {AutoEvaluationHeaderProps} from "./types"
 
 const isLegacyEvaluation = (evaluation: any): boolean => "aggregated_results" in evaluation

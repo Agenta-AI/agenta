@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import Request
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.services.auth_helper import sign_secret_token
+from oss.src.services.auth_service import sign_secret_token
 from oss.src.services.db_manager import get_project_by_id
 from oss.src.core.secrets.utils import get_llm_providers_secrets
 
@@ -59,6 +59,7 @@ from oss.src.apis.fastapi.annotations.models import (
 )
 
 from oss.src.core.evaluations.types import (
+    EvaluationMetricsRefresh,
     EvaluationStatus,
     EvaluationScenarioCreate,
     EvaluationScenarioEdit,
@@ -777,8 +778,10 @@ async def evaluate(
                     project_id=project_id,
                     user_id=user_id,
                     #
-                    run_id=run_id,
-                    scenario_id=scenario_id,
+                    metrics=EvaluationMetricsRefresh(
+                        run_id=run_id,
+                        scenario_id=scenario_id,
+                    ),
                 )
             # ------------------------------------------------------------------
 
@@ -786,9 +789,11 @@ async def evaluate(
             project_id=project_id,
             user_id=user_id,
             #
-            run_id=run_id,
-            timestamp=timestamp,
-            interval=interval,
+            metrics=EvaluationMetricsRefresh(
+                run_id=run_id,
+                timestamp=timestamp,
+                interval=interval,
+            ),
         )
     except Exception as e:  # pylint: disable=broad-exception-caught
         log.error(e, exc_info=True)

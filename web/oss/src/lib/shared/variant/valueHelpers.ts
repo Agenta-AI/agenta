@@ -32,7 +32,14 @@ export const checkValidity = (obj: Record<string, any>, metadata: ConfigMetadata
             propMetadata.nullable === false &&
             (!(snakeCasePropName in obj) || !obj[snakeCasePropName])
         ) {
-            return false
+            // Special case for file objects: allow file_data to satisfy file_id requirement and vice versa
+            const hasAlternative =
+                (snakeCasePropName === "file_id" && Boolean(obj["file_data"])) ||
+                (snakeCasePropName === "file_data" && Boolean(obj["file_id"]))
+
+            if (!hasAlternative) {
+                return false
+            }
         }
     }
 
@@ -87,7 +94,7 @@ export function extractValueByMetadata(
             metadata.type === "number" ||
             metadata.type === "boolean")
     ) {
-        return shouldIncludeValue(enhanced.value, metadata) ? enhanced.value : undefined
+        return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
     }
 
     if (!metadata) {
@@ -118,9 +125,6 @@ export function extractValueByMetadata(
 
     const extract = () => {
         switch (metadata.type) {
-            case "function": {
-                return undefined
-            }
             case "array": {
                 if (!Array.isArray(enhanced.value)) return undefined
                 const arr = enhanced.value
@@ -161,12 +165,13 @@ export function extractValueByMetadata(
                                 acc[toSnakeCase(key)] = cloned
                             } else {
                                 const extracted = extractValueByMetadata(val, allMetadata, debug)
+
                                 if (shouldIncludeValue(extracted)) {
                                     acc[toSnakeCase(key)] = extracted
                                 }
                             }
                             if (key === "tools") {
-                                acc[key] = (acc[key] || []).map((tool) => {
+                                acc[key] = (acc[key] || []).map((tool: any) => {
                                     return tool.value
                                 })
                             }
@@ -223,7 +228,7 @@ export function extractValueByMetadata(
                 return extractValueByMetadata(enhanced.value, allMetadata, debug)
             }
             default:
-                return shouldIncludeValue(enhanced.value, metadata) ? enhanced.value : undefined
+                return shouldIncludeValue(enhanced.value) ? enhanced.value : undefined
         }
     }
 
