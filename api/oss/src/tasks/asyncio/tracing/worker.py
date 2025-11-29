@@ -47,6 +47,7 @@ class TracingWorker:
         consumer_name: Optional[str] = None,
         batch_size: int = 100,
         block_ms: int = 5000,
+        max_batch_bytes: int = 100 * 1024 * 1024,  # 100MB default
     ):
         """
         Initialize tracing worker.
@@ -59,6 +60,7 @@ class TracingWorker:
             consumer_name: Consumer name (defaults to "worker-{pid}")
             batch_size: Max messages to read per batch (COUNT in XREADGROUP)
             block_ms: Max milliseconds to block waiting for messages
+            max_batch_bytes: Max batch size in bytes (default: 100MB)
         """
         self.service = service
         self.redis = redis_client
@@ -67,6 +69,7 @@ class TracingWorker:
         self.consumer_name = consumer_name or f"worker-{os.getpid()}"
         self.batch_size = batch_size
         self.block_ms = block_ms
+        self.max_batch_bytes = max_batch_bytes
 
     async def create_consumer_group(self):
         """
@@ -146,26 +149,48 @@ class TracingWorker:
             log.error(f"[TracingWorker] Failed to ACK/DEL messages: {e}")
             # Don't raise - messages will remain pending and can be claimed later
 
-    async def process_batch(self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]):
+    async def process_batch(
+        self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
+    ) -> Tuple[int, List[bytes]]:
         """
-        Process batch of tracing spans.
+        Process batch of tracing spans with dual-limit enforcement.
 
-        Same logic as PR #1223 store_spans(), but reading from Redis Streams
-        instead of asyncio.Queue.
+        Enforces both span count (100 max) and byte size (100MB max) limits.
+        Stops processing when hitting either limit and leaves remaining
+        messages for next batch processing.
 
         Args:
             batch: List of (message_id, {b"data": serialized_span}) tuples
+
+        Returns:
+            Tuple of (processed_count, processed_message_ids) for ACK/DEL
         """
         # Group spans by org → (project, user) (same as PR #1223)
         spans_by_org: Dict[UUID, Dict[Tuple[UUID, UUID], List[OTelFlatSpan]]] = {}
+        processed_message_ids: List[bytes] = []
+        batch_bytes = 0
+        processed_count = 0
 
-        # 1. Deserialize & group by org + project/user
+        # 1. Deserialize & group by org + project/user (with size enforcement)
         for msg_id, data in batch:
             try:
                 # Extract serialized span from Redis message
                 span_bytes = data[b"data"]
 
-                # Deserialize (uses service method from PR #1223)
+                # Track cumulative batch size (compressed size)
+                batch_bytes += len(span_bytes)
+
+                # Check if we've exceeded the batch size limit
+                if batch_bytes > self.max_batch_bytes:
+                    log.warning(
+                        "[TracingWorker] Batch size limit exceeded, stopping batch processing",
+                        batch_bytes=batch_bytes,
+                        max_bytes=self.max_batch_bytes,
+                        processed_count=processed_count,
+                    )
+                    break
+
+                # Deserialize using service method (handles zlib decompression)
                 (
                     organization_id,
                     project_id,
@@ -178,6 +203,9 @@ class TracingWorker:
                     (project_id, user_id), []
                 ).append(span_dto)
 
+                processed_message_ids.append(msg_id)
+                processed_count += 1
+
             except Exception as e:
                 log.error(
                     f"[TracingWorker] Failed to deserialize span: {e}",
@@ -186,8 +214,20 @@ class TracingWorker:
                 # Continue processing other messages
 
         if not spans_by_org:
-            log.debug("[TracingWorker] No valid spans in batch")
-            return
+            log.debug(
+                "[TracingWorker] No valid spans in batch",
+                processed_count=processed_count,
+                batch_bytes=batch_bytes,
+            )
+            return (processed_count, processed_message_ids)
+
+        log.debug(
+            "[TracingWorker] Batch deserialized and grouped",
+            processed_count=processed_count,
+            batch_bytes=batch_bytes,
+            batch_bytes_mb=batch_bytes / (1024 * 1024),
+            org_count=len(spans_by_org),
+        )
 
         # 2. Enforce entitlements per org (Layer 2, authoritative - same as PR #1223)
         for organization_id, spans_by_proj_user in spans_by_org.items():
@@ -196,6 +236,9 @@ class TracingWorker:
                 len([s for s in spans if s.parent_span_id is None])
                 for spans in spans_by_proj_user.values()
             )
+
+            meter = None
+            allowed = True
 
             if is_ee() and delta > 0:
                 try:
@@ -241,6 +284,39 @@ class TracingWorker:
                         count=len(span_dtos),
                     )
 
+                    # Batch meter adjustment after successful create
+                    if is_ee() and meter and allowed:
+                        try:
+                            await meter.adjust(delta=delta)
+                            log.debug(
+                                "[TracingWorker] Adjusted meter",
+                                org_id=str(organization_id),
+                                delta=delta,
+                            )
+
+                            # Cache meter for soft checks (Layer 1) in OTLP router
+                            meter_data = {
+                                "value": meter.value,
+                                "synced": meter.synced,
+                                "delta": meter.delta,
+                                "month": meter.month,
+                                "year": meter.year,
+                                "key": meter.key,
+                            }
+                            await self.service.set_meter_cache(
+                                organization_id=organization_id,
+                                meter_data=meter_data,
+                                ttl=3600,  # 1 hour cache
+                            )
+
+                        except Exception as e:
+                            log.error(
+                                "[TracingWorker] Failed to adjust meter",
+                                org_id=str(organization_id),
+                                error=str(e),
+                                exc_info=True,
+                            )
+
                 except Exception as e:
                     log.error(
                         "[TracingWorker] Failed to create spans",
@@ -252,6 +328,9 @@ class TracingWorker:
                     )
                     # Sleep briefly to avoid hammering DB on errors
                     await asyncio.sleep(0.05)
+
+        # Return count and message IDs for ACK/DEL
+        return (processed_count, processed_message_ids)
 
     async def run(self):
         """
@@ -278,19 +357,24 @@ class TracingWorker:
                 if not batch:
                     continue
 
-                # 2. Extract message IDs for ACK later
-                message_ids = [msg_id for msg_id, _ in batch]
-
                 log.debug(
                     "[TracingWorker] Processing batch",
                     count=len(batch),
                 )
 
-                # 3. Process batch
-                await self.process_batch(batch)
+                # 3. Process batch (returns count and processed message IDs)
+                processed_count, processed_message_ids = await self.process_batch(batch)
 
-                # 4. ACK and DELETE on success
-                await self.ack_and_delete(message_ids)
+                log.debug(
+                    "[TracingWorker] Batch processing complete",
+                    total_count=len(batch),
+                    processed_count=processed_count,
+                    remaining_count=len(batch) - processed_count,
+                )
+
+                # 4. ACK and DELETE only the processed messages
+                if processed_message_ids:
+                    await self.ack_and_delete(processed_message_ids)
 
             except Exception as e:
                 log.error(

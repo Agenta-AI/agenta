@@ -45,7 +45,8 @@ import agenta as ag
 
 log = get_module_logger(__name__)
 
-# Initialize Agenta SDK
+# Initialize Agenta SDK for workflow invocation in evaluation tasks
+# Idempotent - safe to call multiple times
 ag.init(
     api_url=env.AGENTA_API_URL,
 )

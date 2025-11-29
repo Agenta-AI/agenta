@@ -9,18 +9,15 @@ from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
 )
 
 from oss.src.utils.env import env
-from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.common import is_ee
 
 from oss.src.apis.fastapi.otlp.models import CollectStatusResponse
 from oss.src.apis.fastapi.otlp.opentelemetry.otlp import parse_otlp_stream
 from oss.src.apis.fastapi.otlp.utils.processing import parse_from_otel_span_dto
 
 from oss.src.core.tracing.service import TracingService
-
-if is_ee():
-    from ee.src.utils.entitlements import check_entitlements, Counter
 
 
 MAX_OTLP_BATCH_SIZE = env.AGENTA_OTLP_MAX_BATCH_BYTES
@@ -63,6 +60,114 @@ class OTLPRouter:
     @intercept_exceptions()
     async def otlp_status(self):
         return CollectStatusResponse(status="ready")
+
+    async def _check_soft_meter(
+        self,
+        organization_id: str,
+        spans,
+    ) -> tuple[bool, str]:
+        """
+        Soft check: Validate TRACES quota using cached meter (Layer 1).
+
+        Returns:
+            (allowed: bool, error_message: str)
+        """
+        if not is_ee() or not spans:
+            return True, ""
+
+        try:
+            # Count root spans (same logic as hard check in worker)
+            delta = sum(1 for span in spans if span.parent_span_id is None)
+
+            if delta == 0:
+                return True, ""
+
+            # Get cached meter from Redis
+            cached_meter = await self.tracing.get_meter_cache(
+                organization_id=organization_id
+            )
+
+            if not cached_meter:
+                # No cached meter - allow and let hard check in worker handle it
+                log.debug(
+                    "[OTLP] No cached meter found, allowing tentatively",
+                    org_id=str(organization_id),
+                )
+                return True, ""
+
+            # Extract meter state
+            current_value = cached_meter.get("value", 0)
+            synced = cached_meter.get("synced", 0)
+            available = current_value - synced
+
+            if available >= delta:
+                # Soft check passes
+                log.debug(
+                    "[OTLP] Soft meter check passed",
+                    org_id=str(organization_id),
+                    delta=delta,
+                    available=available,
+                )
+                return True, ""
+            else:
+                # Soft check fails - reject immediately
+                log.warning(
+                    "[OTLP] Soft meter check failed - quota exceeded",
+                    org_id=str(organization_id),
+                    delta=delta,
+                    available=available,
+                )
+                return (
+                    False,
+                    "You have reached your monthly quota limit. Please upgrade your plan to continue.",
+                )
+
+        except Exception as e:
+            # On error in soft check, allow (will be caught by hard check in worker)
+            log.warning(
+                f"[OTLP] Soft meter check failed with exception: {e}",
+                org_id=str(organization_id),
+                exc_info=True,
+            )
+            return True, ""
+
+    async def _write_spans_to_stream(
+        self,
+        organization_id: str,
+        project_id: str,
+        user_id: str,
+        spans,
+    ):
+        """
+        Write parsed spans to Redis Streams for async processing.
+
+        Uses TracingService.publish_to_stream() which handles serialization
+        and zlib compression.
+        """
+        if not spans:
+            return
+
+        try:
+            await self.tracing.publish_to_stream(
+                organization_id=organization_id,
+                project_id=project_id,
+                user_id=user_id,
+                span_dtos=spans,
+            )
+
+            log.debug(
+                f"[OTLP] Wrote {len(spans)} spans to Redis Stream",
+                organization_id=str(organization_id),
+                project_id=str(project_id),
+                user_id=str(user_id),
+            )
+
+        except Exception as e:
+            log.error(
+                f"[OTLP] Failed to write spans to Redis Stream: {e}",
+                exc_info=True,
+            )
+            raise
 
     @intercept_exceptions()
     async def otlp_ingest(
@@ -156,47 +261,48 @@ class OTLPRouter:
             )
 
         # -------------------------------------------------------------------- #
-        # Update meter with internal traces count (EE only)
+        # Layer 1 Soft Check: Validate quota using cached meter
         # -------------------------------------------------------------------- #
-        if is_ee() and check_entitlements and Counter:  # type: ignore
-            delta = sum([1 for s in spans if s and s.parent_id is None])
-            check, _, _ = await check_entitlements(
-                organization_id=request.state.organization_id,
-                key=Counter.TRACES,
-                delta=delta,
+        allowed, error_msg = await self._check_soft_meter(
+            organization_id=request.state.organization_id,
+            spans=spans,
+        )
+
+        if not allowed:
+            log.warning(
+                "[OTLP] Quota check rejected at ingestion",
+                org_id=request.state.organization_id,
             )
-            if not check:
-                err_status = ProtoStatus(
-                    message="You have reached your quota limit. "
-                    "Please upgrade your plan to continue."
-                )
-                return Response(
-                    content=err_status.SerializeToString(),
-                    media_type="application/x-protobuf",
-                    status_code=status.HTTP_403_FORBIDDEN,
-                )
+            err_status = ProtoStatus(message=error_msg)
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
 
         # -------------------------------------------------------------------- #
-        # Store internal spans
+        # Write spans to Redis Streams for async processing
+        # Layer 2 Hard Check and database storage deferred to worker
         # -------------------------------------------------------------------- #
         try:
-            await self.tracing.create(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                span_dtos=spans,
+            await self._write_spans_to_stream(
+                organization_id=request.state.organization_id,
+                project_id=request.state.project_id,
+                user_id=request.state.user_id,
+                spans=spans,
             )
         except Exception:
-            log.warn(
-                "Failed to create spans from project %s with error:",
+            log.error(
+                "Failed to write spans to Redis Stream from project %s with error:",
                 request.state.project_id,
                 exc_info=True,
             )
-            for span in spans:
-                log.warn(
-                    "Span: [%s] %s",
-                    span.trace_id,
-                    span,
-                )
+            err_status = ProtoStatus(message="Failed to queue spans for processing.")
+            return Response(
+                content=err_status.SerializeToString(),
+                media_type="application/x-protobuf",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         # -------------------------------------------------------------------- #
         # According to the OTLP/HTTP spec a full-success response must be an

@@ -1,5 +1,6 @@
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID
+import zlib
 from orjson import dumps, loads
 from redis.asyncio import Redis
 
@@ -42,7 +43,9 @@ class TracingService:
         redis_client: Optional[Redis] = None,
     ):
         self.tracing_dao = tracing_dao
-        self.redis = redis_client or Redis.from_url(env.REDIS_URI, decode_responses=False)
+        self.redis = redis_client or Redis.from_url(
+            env.REDIS_URL, decode_responses=False
+        )
 
     async def create(
         self,
@@ -278,7 +281,7 @@ class TracingService:
         span_dto: OTelFlatSpan,
     ) -> bytes:
         """
-        Serialize span for Redis Streams.
+        Serialize span for Redis Streams with compression.
 
         Args:
             organization_id: Organization UUID
@@ -287,7 +290,7 @@ class TracingService:
             span_dto: Span to serialize
 
         Returns:
-            Serialized span bytes
+            Compressed serialized span bytes
         """
         data = dict(
             organization_id=organization_id.hex,
@@ -306,19 +309,24 @@ class TracingService:
                 .encode("utf-8")
             )
 
-        return span_bytes
+        # Compress with zlib for efficient storage
+        return zlib.compress(span_bytes)
 
-    def deserialize(self, *, span_bytes: bytes) -> Tuple[UUID, UUID, UUID, OTelFlatSpan]:
+    def deserialize(
+        self, *, span_bytes: bytes
+    ) -> Tuple[UUID, UUID, UUID, OTelFlatSpan]:
         """
-        Deserialize span from Redis Streams.
+        Deserialize span from Redis Streams with decompression.
 
         Args:
-            span_bytes: Serialized span bytes
+            span_bytes: Compressed serialized span bytes
 
         Returns:
             Tuple of (organization_id, project_id, user_id, span_dto)
         """
-        data = loads(span_bytes)
+        # Decompress with zlib
+        decompressed = zlib.decompress(span_bytes)
+        data = loads(decompressed)
 
         organization_id = UUID(hex=data["organization_id"])
         project_id = UUID(hex=data["project_id"])
@@ -326,6 +334,59 @@ class TracingService:
         span_dto = OTelFlatSpan(**data["span_dto"])
 
         return (organization_id, project_id, user_id, span_dto)
+
+    async def get_meter_cache(self, *, organization_id: UUID) -> Optional[dict]:
+        """
+        Get cached TRACES meter from Redis.
+
+        Used for soft checks (Layer 1) in OTLP router.
+
+        Args:
+            organization_id: Organization UUID
+
+        Returns:
+            Cached meter dict or None if not found
+        """
+        cache_key = f"meter:traces:{organization_id.hex}"
+        try:
+            cached = await self.redis.get(cache_key)
+            if cached:
+                return loads(cached)
+        except Exception as e:
+            log.warning(
+                f"[TracingService] Failed to get meter cache: {e}",
+                org_id=str(organization_id),
+            )
+        return None
+
+    async def set_meter_cache(
+        self, *, organization_id: UUID, meter_data: dict, ttl: int = 3600
+    ) -> None:
+        """
+        Cache TRACES meter in Redis.
+
+        Used after successful meter adjustment in worker.
+
+        Args:
+            organization_id: Organization UUID
+            meter_data: Meter state dict with value, synced, etc.
+            ttl: Cache TTL in seconds (default: 1 hour)
+        """
+        cache_key = f"meter:traces:{organization_id.hex}"
+        try:
+            cached = dumps(meter_data)
+            await self.redis.setex(cache_key, ttl, cached)
+            log.debug(
+                f"[TracingService] Cached TRACES meter",
+                org_id=str(organization_id),
+                ttl=ttl,
+            )
+        except Exception as e:
+            log.error(
+                f"[TracingService] Failed to set meter cache: {e}",
+                org_id=str(organization_id),
+                exc_info=True,
+            )
 
     async def publish_to_stream(
         self,

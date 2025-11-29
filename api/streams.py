@@ -65,7 +65,7 @@ async def main_async() -> int:
             stream_name="streams:otlp",
             consumer_group="otlp-workers",
             batch_size=100,  # From OTLP specs: max 1000, but 100 is good default
-            block_ms=5000,  # 5s block time
+            block_ms=1000,  # 1s block time (5x faster span detection when idle)
         )
 
         # Create consumer group (idempotent)
