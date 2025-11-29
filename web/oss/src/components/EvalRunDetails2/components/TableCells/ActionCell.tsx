@@ -3,15 +3,17 @@ import {memo, useMemo, useCallback} from "react"
 import {Spin} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import RunActionButton from "./actions/RunActionButton"
-import AnnotateActionButton from "./actions/AnnotateActionButton"
+import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
+
+import {activePreviewRunIdAtom} from "../../atoms/run"
+import {evaluationRunIndexAtomFamily} from "../../atoms/table/run"
 import {
     useScenarioInputSteps,
     useScenarioInvocationSteps,
 } from "../../hooks/useScenarioStepsSelectors"
-import {activePreviewRunIdAtom} from "../../atoms/run"
-import {evaluationRunIndexAtomFamily} from "../../atoms/table/run"
-import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
+
+import AnnotateActionButton from "./actions/AnnotateActionButton"
+import RunActionButton from "./actions/RunActionButton"
 
 const normalizeStatus = (status: string | undefined): string => status?.toLowerCase() ?? ""
 
@@ -62,8 +64,8 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
             .map((meta) => meta.key)
     }, [runIndex])
 
-    const inputSelection = useScenarioInputSteps(scenarioId)
-    const invocationSelection = useScenarioInvocationSteps(scenarioId)
+    const inputSelection = useScenarioInputSteps(scenarioId, undefined, effectiveRunId)
+    const invocationSelection = useScenarioInvocationSteps(scenarioId, undefined, effectiveRunId)
     const isLoading =
         inputSelection.isLoading ||
         invocationSelection.isLoading ||
@@ -79,6 +81,15 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
         })
         return map
     }, [invocationSelection.steps])
+
+    console.log("ActionCell debug", {
+        scenarioId,
+        humanInvocationKeys,
+        humanAnnotationKeys,
+        invocationSelection,
+        invocationMap,
+        runIndexInvocationKeys: runIndex ? [...(runIndex.invocationKeys ?? [])] : null,
+    })
 
     if (!scenarioId || !effectiveRunId || !runIndex) {
         return (

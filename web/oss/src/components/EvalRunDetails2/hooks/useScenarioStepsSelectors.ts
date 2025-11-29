@@ -4,8 +4,11 @@ import {useAtomValue} from "jotai"
 import {atom} from "jotai"
 import {atomFamily} from "jotai/utils"
 
-import {scenarioStepsQueryFamily} from "../atoms/scenarioSteps"
 import type {IStepResponse} from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
+
+import {activePreviewRunIdAtom} from "../atoms/run"
+import {scenarioStepsQueryFamily} from "../atoms/scenarioSteps"
+import {evaluationRunIndexAtomFamily} from "../atoms/table/run"
 
 interface ScenarioStepSelection {
     steps: IStepResponse[]
@@ -26,14 +29,41 @@ const buildScenarioStepsSelector = (kind: "input" | "invocation" | "annotation")
             return emptySelectionAtom
         }
         return atom((get) => {
-            const query = get(
-                scenarioStepsQueryFamily({scenarioId, runId: params?.runId ?? undefined}),
-            )
+            const effectiveRunId = params?.runId ?? get(activePreviewRunIdAtom) ?? undefined
+            const query = get(scenarioStepsQueryFamily({scenarioId, runId: effectiveRunId}))
+            const runIndex = get(evaluationRunIndexAtomFamily(effectiveRunId ?? null))
             const steps = query.data?.steps ?? []
-            let filtered: IStepResponse[] = steps
+
+            // Get the key set for the requested kind from runIndex
+            const kindKeySet =
+                kind === "input"
+                    ? runIndex?.inputKeys
+                    : kind === "invocation"
+                      ? runIndex?.invocationKeys
+                      : runIndex?.annotationKeys
+
+            // Debug: log raw steps and filtering
+            if (kind === "invocation") {
+                console.log("[useScenarioStepsSelectors] invocation filter debug", {
+                    scenarioId,
+                    effectiveRunId,
+                    rawStepsCount: steps.length,
+                    rawStepKeys: steps.map((s: IStepResponse) => s.stepKey),
+                    kindKeySet: kindKeySet ? [...kindKeySet] : null,
+                    queryData: query.data,
+                    queryStatus: {isLoading: query.isLoading, isFetching: query.isFetching},
+                })
+            }
+
+            // Filter steps by kind using runIndex key sets
+            // If runIndex is not available yet, return all steps (don't filter)
+            let filtered: IStepResponse[] =
+                runIndex && kindKeySet?.size
+                    ? steps.filter((step: IStepResponse) => kindKeySet.has(step.stepKey ?? ""))
+                    : steps
 
             if (params?.stepKey) {
-                const match = filtered.find((step) => step.key === params.stepKey)
+                const match = filtered.find((step) => step.stepKey === params.stepKey)
                 filtered = match ? [match] : filtered
             }
 
@@ -52,18 +82,28 @@ export const scenarioAnnotationStepsAtomFamily = buildScenarioStepsSelector("ann
 const useScenarioStepsSelector = (
     scenarioId: string | undefined,
     stepKey: string | undefined,
+    runId: string | undefined,
     family: ReturnType<typeof buildScenarioStepsSelector>,
 ) => {
-    const params = useMemo(() => ({scenarioId, stepKey}), [scenarioId, stepKey])
+    const params = useMemo(() => ({scenarioId, stepKey, runId}), [scenarioId, stepKey, runId])
     const atomInstance = useMemo(() => family(params), [family, params])
     return useAtomValue(atomInstance)
 }
 
-export const useScenarioInputSteps = (scenarioId: string | undefined, stepKey?: string) =>
-    useScenarioStepsSelector(scenarioId, stepKey, scenarioInputStepsAtomFamily)
+export const useScenarioInputSteps = (
+    scenarioId: string | undefined,
+    stepKey?: string,
+    runId?: string,
+) => useScenarioStepsSelector(scenarioId, stepKey, runId, scenarioInputStepsAtomFamily)
 
-export const useScenarioInvocationSteps = (scenarioId: string | undefined, stepKey?: string) =>
-    useScenarioStepsSelector(scenarioId, stepKey, scenarioInvocationStepsAtomFamily)
+export const useScenarioInvocationSteps = (
+    scenarioId: string | undefined,
+    stepKey?: string,
+    runId?: string,
+) => useScenarioStepsSelector(scenarioId, stepKey, runId, scenarioInvocationStepsAtomFamily)
 
-export const useScenarioAnnotationSteps = (scenarioId: string | undefined, stepKey?: string) =>
-    useScenarioStepsSelector(scenarioId, stepKey, scenarioAnnotationStepsAtomFamily)
+export const useScenarioAnnotationSteps = (
+    scenarioId: string | undefined,
+    stepKey?: string,
+    runId?: string,
+) => useScenarioStepsSelector(scenarioId, stepKey, runId, scenarioAnnotationStepsAtomFamily)
