@@ -842,18 +842,6 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                             | undefined
                     }
                     const traceId = toTraceId(targetStep)
-                    console.log("[scenarioColumnValues] String-type metric fallback", {
-                        columnId: column.id,
-                        metricKey: column.metricKey,
-                        stepKey: column.stepKey,
-                        metricValue,
-                        annotationsCount: annotations.length,
-                        invocationsCount: invocations.length,
-                        stepsCount: steps.length,
-                        stepsQueryLoading,
-                        targetStep,
-                        traceId,
-                    })
                     if (traceId) {
                         const annotationQuery = get(
                             evaluationAnnotationQueryAtomFamily({traceId, runId}),
@@ -865,12 +853,6 @@ const scenarioColumnValueBaseAtomFamily = atomFamily(
                             column,
                             descriptor,
                         )
-                        console.log("[scenarioColumnValues] Annotation lookup result", {
-                            columnId: column.id,
-                            annotationData,
-                            valueFromAnnotation,
-                            descriptor,
-                        })
                         if (valueFromAnnotation !== undefined) {
                             return {
                                 value: valueFromAnnotation,

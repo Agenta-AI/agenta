@@ -45,6 +45,9 @@ import FocusDrawerSidePanel from "./FocusDrawerSidePanel"
 
 const SECTION_CARD_CLASS = "rounded-xl border border-[#EAECF0] bg-white"
 
+// Color palette for category tags (same as MetricCell)
+const TAG_COLORS = ["green", "blue", "purple", "orange", "cyan", "magenta", "gold", "lime"]
+
 const toSectionAnchorId = (value: string) =>
     `focus-section-${value
         .toLowerCase()
@@ -319,7 +322,11 @@ const ScenarioColumnValue = memo(
         descriptor: ColumnValueDescriptor
     }) => {
         const displayLabel = column.displayLabel ?? column.label ?? column.id
-        const isMetric = column.kind === "metric"
+        const isMetric =
+            column.kind === "metric" ||
+            column.kind === "evaluator" ||
+            column.stepType === "metric" ||
+            column.stepType === "annotation"
         const isRunMetric = isRunMetricColumn(column)
 
         // Always call hooks unconditionally at the top level
@@ -366,6 +373,61 @@ const ScenarioColumnValue = memo(
 
             const isPlaceholder = formattedValue === METRIC_EMPTY_PLACEHOLDER
 
+            // Check if this is an array-type metric
+            const isArrayMetric =
+                descriptor.metricType?.toLowerCase?.() === "array" ||
+                Array.isArray(value) ||
+                (typeof value === "string" && value.startsWith("[") && value.endsWith("]"))
+
+            // Parse array values into tags
+            const arrayTags: string[] = (() => {
+                if (!isArrayMetric) return []
+                if (Array.isArray(value)) {
+                    return value.map((v) => String(v)).filter(Boolean)
+                }
+                if (typeof value === "string" && value.startsWith("[")) {
+                    try {
+                        const parsed = JSON.parse(value)
+                        if (Array.isArray(parsed)) {
+                            return parsed.map((v) => String(v)).filter(Boolean)
+                        }
+                    } catch {
+                        // Not valid JSON
+                    }
+                }
+                if (typeof value === "string" && value.includes(",")) {
+                    return value
+                        .split(",")
+                        .map((v) => v.trim())
+                        .filter(Boolean)
+                }
+                return []
+            })()
+
+            // Render array metrics as tags in a vertical stack
+            const renderMetricContent = () => {
+                if (arrayTags.length > 0) {
+                    return (
+                        <div className="flex flex-col gap-1">
+                            {arrayTags.map((tag, index) => (
+                                <Tag
+                                    key={`${tag}-${index}`}
+                                    color={TAG_COLORS[index % TAG_COLORS.length]}
+                                    className="m-0 w-fit"
+                                >
+                                    {tag}
+                                </Tag>
+                            ))}
+                        </div>
+                    )
+                }
+                return (
+                    <span className={`${isPlaceholder ? "text-neutral-500" : "text-neutral-900"}`}>
+                        {formattedValue}
+                    </span>
+                )
+            }
+
             return (
                 <div className="flex flex-col gap-1">
                     <Text strong>{displayLabel}</Text>
@@ -385,13 +447,7 @@ const ScenarioColumnValue = memo(
                                 fallbackValue={value ?? displayValue ?? formattedValue}
                                 stepType={descriptor.stepType}
                             >
-                                <span
-                                    className={`${
-                                        isPlaceholder ? "text-neutral-500" : "text-neutral-900"
-                                    }`}
-                                >
-                                    {formattedValue}
-                                </span>
+                                {renderMetricContent()}
                             </MetricDetailsPreviewPopover>
                         )}
                     </ReadOnlyBox>
