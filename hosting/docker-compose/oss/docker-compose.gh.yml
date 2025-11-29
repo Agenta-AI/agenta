@@ -273,10 +273,10 @@ services:
             retries: 5
 
     redis-volatile:
-        image: valkey:9
+        image: redis:8
 
         command: >
-            valkey-server
+            redis-server
             --appendonly no
             --save ""
             --maxmemory 512mb
@@ -298,17 +298,17 @@ services:
         restart: always
 
         healthcheck:
-            test: ["CMD", "valkey-cli", "-p", "6379", "ping"]
+            test: ["CMD", "redis-cli", "-p", "6379", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
             start_period: 5s
 
     redis-durable:
-        image: valkey:9
+        image: redis:8
 
         command: >
-            valkey-server
+            redis-server
             --appendonly yes
             --appendfsync no
             --save ""
@@ -331,7 +331,7 @@ services:
         restart: always
 
         healthcheck:
-            test: ["CMD", "valkey-cli", "-p", "6380", "ping"]
+            test: ["CMD", "redis-cli", "-p", "6380", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
