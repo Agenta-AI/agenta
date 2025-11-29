@@ -2,7 +2,7 @@ import {useCallback, useEffect, useMemo} from "react"
 
 import {CloseOutlined} from "@ant-design/icons"
 import {Scroll} from "@phosphor-icons/react"
-import {Typography, Space, Button, notification} from "antd"
+import {Button, notification, Space, Typography} from "antd"
 import {useAtom} from "jotai"
 
 import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
@@ -12,9 +12,9 @@ import {findCustomWorkflowPath, removeTrailingSlash} from "@/oss/lib/shared/vari
 import {updateVariant} from "@/oss/services/app-selector/api"
 import {useAppsData} from "@/oss/state/app"
 import {
-    customWorkflowValuesAtomFamily,
-    customWorkflowTestStatusAtom,
     customWorkflowConfiguringAtom,
+    customWorkflowTestStatusAtom,
+    customWorkflowValuesAtomFamily,
 } from "@/oss/state/customWorkflow/modalAtoms"
 
 import {useStyles} from "../assets/styles"
@@ -301,22 +301,23 @@ const CustomWorkflowModalContent = ({
                 )}
             </div>
 
-            <SharedEditor
-                header={<Typography className={classes.label}>Workflow URL *</Typography>}
-                initialValue={workflowUrlInput}
-                handleChange={(value) => {
-                    setValues((draft) => {
-                        draft.appUrl = value
-                    })
-                    setCustomWorkflowAppValues?.((prev) => ({...prev, appUrl: value}))
-                }}
-                editorType="border"
-                placeholder="Enter workflow URL"
-                editorClassName="!border-none !shadow-none px-0"
-                className="py-1 px-[11px] !w-auto"
-                useAntdInput
-            />
-
+            <div>
+                <SharedEditor
+                    header={<Typography className={classes.label}>Workflow URL *</Typography>}
+                    initialValue={workflowUrlInput}
+                    handleChange={(value) => {
+                        setValues((draft) => {
+                            draft.appUrl = value
+                        })
+                        setCustomWorkflowAppValues?.((prev) => ({...prev, appUrl: value}))
+                    }}
+                    editorType="border"
+                    placeholder="Enter workflow URL"
+                    editorClassName="!border-none !shadow-none px-0"
+                    className="py-1 px-[11px] !w-auto"
+                    useAntdInput
+                />
+            </div>
             {
                 <CustomWorkflowModalFooter
                     handleCancelButton={() => props.onCancel?.({} as any)}

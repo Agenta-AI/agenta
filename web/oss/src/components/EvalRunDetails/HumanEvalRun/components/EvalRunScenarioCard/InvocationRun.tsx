@@ -4,7 +4,7 @@ import InvocationInputs from "./InvocationInputs"
 import InvocationResponse from "./InvocationResponse"
 import {InvocationRunProps} from "./types"
 
-const InvocationRun = ({invStep, scenarioId, runId}: InvocationRunProps) => {
+const InvocationRun = ({invStep, scenarioId, runId, isPrimary = false}: InvocationRunProps) => {
     return (
         <div className="flex flex-col gap-6 w-full text-sm">
             <InvocationInputs
@@ -12,7 +12,12 @@ const InvocationRun = ({invStep, scenarioId, runId}: InvocationRunProps) => {
                 testcaseId={invStep.testcaseId}
                 runId={runId}
             />
-            <InvocationResponse scenarioId={scenarioId} stepKey={invStep.stepKey} runId={runId} />
+            <InvocationResponse
+                scenarioId={scenarioId}
+                stepKey={invStep.stepKey}
+                runId={runId}
+                highlightTour={isPrimary}
+            />
         </div>
     )
 }

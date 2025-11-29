@@ -93,6 +93,7 @@ const DeployVariantModal = ({
             confirmLoading={isLoading}
             title="Deploy variant"
             onOk={() => deployVariants()}
+            zIndex={900}
             okButtonProps={{
                 icon: <Rocket size={14} className="mt-0.5" />,
                 disabled: !selectedEnvName.length,

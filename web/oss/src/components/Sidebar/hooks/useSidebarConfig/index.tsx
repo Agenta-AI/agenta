@@ -2,26 +2,32 @@ import {AppstoreOutlined, DatabaseOutlined, GithubFilled} from "@ant-design/icon
 import {
     ChartDonut,
     ChartLineUp,
+    ChatCircle,
+    CloudArrowUp,
     Desktop,
+    Gauge,
+    Gear,
+    Lightning,
     PaperPlane,
     Phone,
     Question,
+    Rocket,
     Scroll,
     SlackLogo,
-    Gear,
     TreeView,
-    Lightning,
-    Rocket,
-    CloudArrowUp,
-    ChatCircle,
-    Gauge,
 } from "@phosphor-icons/react"
+
+import {useSetAtom} from "jotai"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
 import useURL from "@/oss/hooks/useURL"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {useAppsData} from "@/oss/state/app"
+import {
+    onboardingWidgetClosedAtom,
+    onboardingWidgetMinimizedAtom,
+} from "@/oss/state/onboarding/atoms/widgetAtom"
 import {useOrgData} from "@/oss/state/org"
 
 import {SidebarConfig} from "../../types"
@@ -32,6 +38,8 @@ export const useSidebarConfig = () => {
     const {selectedOrg} = useOrgData()
     const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
+    const setWidgetMinimized = useSetAtom(onboardingWidgetMinimizedAtom)
+    const setWidgetClosed = useSetAtom(onboardingWidgetClosedAtom)
 
     const hasProjectURL = Boolean(projectURL)
 
@@ -163,6 +171,16 @@ export const useSidebarConfig = () => {
             icon: <Question size={16} />,
             isBottom: true,
             submenu: [
+                {
+                    key: "onboarding-guide",
+                    title: "Onboarding Guide",
+                    icon: <Rocket size={16} />,
+                    onClick: (e) => {
+                        e.preventDefault()
+                        setWidgetClosed(false)
+                        setWidgetMinimized(false)
+                    },
+                },
                 {
                     key: "docs",
                     title: "Documentation",

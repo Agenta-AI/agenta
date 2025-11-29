@@ -98,7 +98,11 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "appPanel",
                 label: (
-                    <TabLabel tabTitle="Application" completed={appSelectionComplete}>
+                    <TabLabel
+                        id="tour-new-eval-tab-application"
+                        tabTitle="Application"
+                        completed={appSelectionComplete}
+                    >
                         {appSelectionComplete && (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}
@@ -113,7 +117,7 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                     </TabLabel>
                 ),
                 children: (
-                    <div className="flex flex-col gap-2">
+                    <div id="tour-new-eval-content-application" className="flex flex-col gap-2">
                         {hasAppOptions ? (
                             <>
                                 <SelectAppSection
@@ -143,7 +147,12 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "variantPanel",
                 label: (
-                    <TabLabel tabTitle="Variant" completed={selectedVariants.length > 0}>
+                    <TabLabel
+                        id="tour-new-eval-tab-variant"
+                        tabTitle="Variant"
+                        completed={selectedVariants.length > 0}
+                        className="!w-full"
+                    >
                         {selectedVariants.map((v) => (
                             <Tag
                                 key={v.id}
@@ -160,16 +169,18 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                     </TabLabel>
                 ),
                 children: appSelectionComplete ? (
-                    <SelectVariantSection
-                        handlePanelChange={handlePanelChange}
-                        selectedVariantRevisionIds={selectedVariantRevisionIds}
-                        setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
-                        evaluationType={evaluationType}
-                        variants={variants}
-                        isVariantLoading={variantsLoading}
-                        className="pt-2"
-                        selectedTestsetId={selectedTestsetId}
-                    />
+                    <div id="tour-new-eval-content-variant">
+                        <SelectVariantSection
+                            handlePanelChange={handlePanelChange}
+                            selectedVariantRevisionIds={selectedVariantRevisionIds}
+                            setSelectedVariantRevisionIds={setSelectedVariantRevisionIds}
+                            evaluationType={evaluationType}
+                            variants={variants}
+                            isVariantLoading={variantsLoading}
+                            className="pt-2"
+                            selectedTestsetId={selectedTestsetId}
+                        />
+                    </div>
                 ) : (
                     requireAppMessage
                 ),
@@ -177,7 +188,11 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "testsetPanel",
                 label: (
-                    <TabLabel tabTitle="Testset" completed={selectedTestset !== null}>
+                    <TabLabel
+                        id="tour-new-eval-tab-testset"
+                        tabTitle="Testset"
+                        completed={selectedTestset !== null}
+                    >
                         {selectedTestset ? (
                             <Tag
                                 closeIcon={<CloseCircleOutlined />}
@@ -191,14 +206,16 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                     </TabLabel>
                 ),
                 children: appSelectionComplete ? (
-                    <SelectTestsetSection
-                        handlePanelChange={handlePanelChange}
-                        selectedTestsetId={selectedTestsetId}
-                        setSelectedTestsetId={setSelectedTestsetId}
-                        testsets={testsets}
-                        selectedVariantRevisionIds={selectedVariantRevisionIds}
-                        className="pt-2"
-                    />
+                    <div id="tour-new-eval-content-testset">
+                        <SelectTestsetSection
+                            handlePanelChange={handlePanelChange}
+                            selectedTestsetId={selectedTestsetId}
+                            setSelectedTestsetId={setSelectedTestsetId}
+                            testsets={testsets}
+                            selectedVariantRevisionIds={selectedVariantRevisionIds}
+                            className="pt-2"
+                        />
+                    </div>
                 ) : (
                     requireAppMessage
                 ),
@@ -206,7 +223,11 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
             {
                 key: "evaluatorPanel",
                 label: (
-                    <TabLabel tabTitle="Evaluators" completed={selectedEvalConfig.length > 0}>
+                    <TabLabel
+                        id="tour-new-eval-tab-evaluators"
+                        tabTitle="Evaluators"
+                        completed={selectedEvalConfig.length > 0}
+                    >
                         {selectedEvalConfig.map((cfg: any) => {
                             return (
                                 <Tag
@@ -226,16 +247,18 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                     </TabLabel>
                 ),
                 children: appSelectionComplete ? (
-                    <SelectEvaluatorSection
-                        handlePanelChange={handlePanelChange}
-                        selectedEvalConfigs={selectedEvalConfigs}
-                        setSelectedEvalConfigs={setSelectedEvalConfigs}
-                        preview={preview}
-                        evaluators={evaluators as any}
-                        evaluatorConfigs={evaluatorConfigs}
-                        selectedAppId={selectedAppId}
-                        className="pt-2"
-                    />
+                    <div id="tour-new-eval-content-evaluators">
+                        <SelectEvaluatorSection
+                            handlePanelChange={handlePanelChange}
+                            selectedEvalConfigs={selectedEvalConfigs}
+                            setSelectedEvalConfigs={setSelectedEvalConfigs}
+                            preview={preview}
+                            evaluators={evaluators as any}
+                            evaluatorConfigs={evaluatorConfigs}
+                            selectedAppId={selectedAppId}
+                            className="pt-2"
+                        />
+                    </div>
                 ) : (
                     requireAppMessage
                 ),
@@ -245,7 +268,11 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                       {
                           key: "advancedSettingsPanel",
                           label: (
-                              <TabLabel tabTitle="Advanced Settings" completed={true}>
+                              <TabLabel
+                                  id="tour-new-eval-tab-advanced"
+                                  tabTitle="Advanced Settings"
+                                  completed={true}
+                              >
                                   {Object.entries(advanceSettings).map(([key, value]) => (
                                       <Tag key={key} className="max-w-[200px] truncate">
                                           {key}: {value}
@@ -254,10 +281,12 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
                               </TabLabel>
                           ),
                           children: appSelectionComplete ? (
-                              <AdvancedSettings
-                                  advanceSettings={advanceSettings}
-                                  setAdvanceSettings={setAdvanceSettings}
-                              />
+                              <div id="tour-new-eval-content-advanced">
+                                  <AdvancedSettings
+                                      advanceSettings={advanceSettings}
+                                      setAdvanceSettings={setAdvanceSettings}
+                                  />
+                              </div>
                           ) : (
                               requireAppMessage
                           ),
@@ -290,7 +319,10 @@ const NewEvaluationModalContent: FC<NewEvaluationModalContentProps> = ({
     ])
 
     return (
-        <div className="flex flex-col w-full gap-4 h-full overflow-hidden">
+        <div
+            id="tour-new-evaluation-modal"
+            className="flex flex-col w-full gap-4 h-full overflow-hidden"
+        >
             <div className="flex flex-col gap-2">
                 <Typography.Text className="font-medium">Evaluation name</Typography.Text>
                 <Input

@@ -21,6 +21,17 @@ import {SelectLLMProviderProps} from "./types"
 
 const {Option, OptGroup} = Select
 
+type ProviderOption = {
+    label: string
+    value: string
+    key?: string
+}
+
+type ProviderGroup = {
+    label?: string
+    options: ProviderOption[]
+}
+
 const SelectLLMProvider = ({
     showAddProvider = false,
     showGroup = false,
@@ -61,58 +72,94 @@ const SelectLLMProvider = ({
         [],
     )
 
-    const labeledProviders = useMemo(
-        () =>
-            extendedProviders.map((provider) => ({
-                key: provider,
-                label: PROVIDER_LABELS[provider] ?? provider,
-            })),
-        [extendedProviders],
-    )
+    const labeledProviders = useMemo(() => {
+        const labelMap = new Map<string, {key: string; label: string}>()
+
+        extendedProviders.forEach((provider) => {
+            const label = PROVIDER_LABELS[provider] ?? provider
+            labelMap.set(label.toLowerCase(), {key: provider, label})
+        })
+
+        return Array.from(labelMap.values())
+    }, [extendedProviders])
 
     const providers = useMemo(
         () =>
-            labeledProviders.map(({key, label}) => ({
+            labeledProviders.map<ProviderGroup>(({key, label}) => ({
                 label,
-                options: [label],
-                value: key,
+                options: [
+                    {
+                        label,
+                        value: key,
+                        key,
+                    },
+                ],
             })),
         [labeledProviders],
     )
 
     const filteredProviders = useMemo(() => {
+        const normalizedSearchTerm = searchTerm.trim().toLowerCase()
+
+        const filterGroupOptions = (group: ProviderGroup) => ({
+            label: group?.label,
+            options: group.options.filter((option) =>
+                option.label.toLowerCase().includes(normalizedSearchTerm),
+            ),
+        })
+
         if (options) {
-            const groupOptions = options.map((group) => ({
+            const groupOptions: ProviderGroup[] = options.map((group) => ({
                 label: group?.label,
-                options: group.options.map((option: any) => option?.value),
+                options:
+                    (group.options
+                        ?.map((option: any) => {
+                            if (!option) return undefined
+                            if (typeof option === "string") {
+                                return {
+                                    label: option,
+                                    value: option,
+                                    key: option,
+                                }
+                            }
+                            const optionLabel = option?.label ?? option?.value
+                            const optionValue = option?.value ?? option?.label
+
+                            if (!optionLabel && !optionValue) return undefined
+                            const resolvedLabel = optionLabel || optionValue
+                            const resolvedValue = optionValue || optionLabel
+
+                            return {
+                                label: resolvedLabel,
+                                value: resolvedValue,
+                                key: option?.key ?? resolvedValue,
+                            }
+                        })
+                        .filter(Boolean) as ProviderOption[]) ?? [],
             }))
 
-            const groupCustomProviders = customRowSecrets
-                .map((value) =>
-                    showCustomSecretsOnOptions
-                        ? {
-                              label: capitalize(value.name as string),
-                              options: value.modelKeys,
-                          }
-                        : {},
-                )
-                .concat(groupOptions as any)
-                .filter((group) =>
-                    group.options?.some((opt: any) =>
-                        opt.toLowerCase().includes(searchTerm.toLowerCase()),
-                    ),
-                )
+            const groupCustomProviders: ProviderGroup[] = customRowSecrets
+                .map((value) => {
+                    if (!showCustomSecretsOnOptions) return undefined
+                    return {
+                        label: capitalize(value.name as string),
+                        options: (value.modelKeys ?? []).map((modelKey: string) => ({
+                            label: modelKey,
+                            value: modelKey,
+                            key: modelKey,
+                        })),
+                    }
+                })
+                .filter(Boolean) as ProviderGroup[]
 
             return groupCustomProviders
+                .concat(groupOptions)
+                .map(filterGroupOptions)
+                .filter((group) => group.options.length)
         }
 
-        return providers.map((group) => ({
-            label: group?.label,
-            options: group.options.filter((option: any) =>
-                option?.toLowerCase().includes(searchTerm.toLowerCase()),
-            ),
-        }))
-    }, [providers, searchTerm, options, customRowSecrets])
+        return providers.map(filterGroupOptions).filter((group) => group.options.length)
+    }, [providers, searchTerm, options, customRowSecrets, showCustomSecretsOnOptions])
 
     return (
         <>
@@ -187,19 +234,23 @@ const SelectLLMProvider = ({
                                 </div>
                             }
                         >
-                            {group.options?.map((option: string) => (
-                                <Option key={option} value={option}>
-                                    {option}
-                                </Option>
-                            ))}
+                            {group.options?.map((option) => {
+                                const Icon = LLMIcons[option.label]
+                                return (
+                                    <Option key={option.key ?? option.value} value={option.value}>
+                                        {Icon && <Icon className="w-4 h-4" />}
+                                        <span>{option.label}</span>
+                                    </Option>
+                                )
+                            })}
                         </OptGroup>
                     ) : (
-                        group.options?.map((option: string) => {
-                            const Icon = LLMIcons[option]
+                        group.options?.map((option) => {
+                            const Icon = LLMIcons[option.label]
                             return (
                                 <Option
-                                    key={option}
-                                    value={option}
+                                    key={option.key ?? option.value}
+                                    value={option.value}
                                     className={clsx([
                                         "[&_.ant-select-item-option-content]:flex",
                                         "[&_.ant-select-item-option-content]:items-center",
@@ -208,7 +259,7 @@ const SelectLLMProvider = ({
                                     ])}
                                 >
                                     {Icon && <Icon className="w-4 h-4" />}
-                                    <span>{option}</span>
+                                    <span>{option.label}</span>
                                 </Option>
                             )
                         })

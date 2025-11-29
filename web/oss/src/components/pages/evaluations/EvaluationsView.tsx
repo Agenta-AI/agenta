@@ -5,12 +5,13 @@ import clsx from "clsx"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 import {createUseStyles} from "react-jss"
-import {useLocalStorage} from "usehooks-ts"
+import {useAtom} from "jotai"
 
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useQueryParam} from "@/oss/hooks/useQuery"
 import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {JSSTheme} from "@/oss/lib/Types"
+import {lastVisitedEvaluationAtom} from "./state/lastVisitedEvaluationAtom"
 
 const AutoEvaluation = dynamic(
     () => import("@/oss/components/pages/evaluations/autoEvaluation/AutoEvaluation"),
@@ -84,10 +85,7 @@ const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
         return parts[parts.length - 1] || "app"
     }, [scope, routeAppId])
 
-    const [defaultKey, setDefaultKey] = useLocalStorage(
-        `${uniqueScopeKey}-last-visited-evaluation`,
-        "auto_evaluation",
-    )
+    const [defaultKey, setDefaultKey] = useAtom(lastVisitedEvaluationAtom)
     const [selectedEvaluation, setSelectedEvaluation] = useQueryParam(
         "selectedEvaluation",
         defaultKey,
@@ -127,8 +125,8 @@ const EvaluationsView = ({scope = "app"}: EvaluationsViewProps) => {
         {
             breadcrumbs:
                 scope === "app"
-                    ? {appPage: {label: formatLabel(selectedEvaluation)}}
-                    : {projectPage: {label: formatLabel(selectedEvaluation)}},
+                    ? {appPage: {label: formatLabel(selectedEvaluation || "auto_evaluation")}}
+                    : {projectPage: {label: formatLabel(selectedEvaluation || "auto_evaluation")}},
             type: "append",
             condition: !!selectedEvaluation,
         },

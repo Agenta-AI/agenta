@@ -9,8 +9,8 @@ import {runViewTypeAtom} from "../../state/urlState"
 
 import {
     ENABLE_CARD_VIEW,
-    VIEW_HUMAN_OPTIONS,
     VIEW_AUTO_OPTIONS,
+    VIEW_HUMAN_OPTIONS,
     VIEW_ONLINE_OPTIONS,
 } from "./assets/constants"
 
@@ -23,6 +23,7 @@ const EvalRunScenariosViewSelector = () => {
     const router = useRouter()
 
     // Sync local atom from urlStateAtom changes
+
     return (
         <div className="flex items-center gap-2 shrink-0">
             <Radio.Group
@@ -50,20 +51,22 @@ const EvalRunScenariosViewSelector = () => {
                 defaultValue={evalType === "online" ? "results" : "focus"}
                 value={ENABLE_CARD_VIEW ? viewType : viewType === "list" ? "focus" : viewType}
             >
-                {(evalType === "human"
-                    ? VIEW_HUMAN_OPTIONS
-                    : evalType === "online"
-                      ? VIEW_ONLINE_OPTIONS
-                      : VIEW_AUTO_OPTIONS
-                ).map((option) => (
-                    <Radio.Button
-                        key={option.value}
-                        value={option.value}
-                        disabled={option.disabled}
-                    >
-                        {option.label}
-                    </Radio.Button>
-                ))}
+                <div>
+                    {(evalType === "human"
+                        ? VIEW_HUMAN_OPTIONS
+                        : evalType === "online"
+                          ? VIEW_ONLINE_OPTIONS
+                          : VIEW_AUTO_OPTIONS
+                    ).map((option) => (
+                        <Radio.Button
+                            key={option.value}
+                            value={option.value}
+                            disabled={option.disabled}
+                        >
+                            {option.label}
+                        </Radio.Button>
+                    ))}
+                </div>
             </Radio.Group>
         </div>
     )

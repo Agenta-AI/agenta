@@ -86,6 +86,7 @@ const ApplicationManagementSection = ({
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
+                            id="tour-create-new-prompt"
                             onClick={() => {
                                 setIsAddAppFromTemplatedModal(true)
                             }}

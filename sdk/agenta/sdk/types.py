@@ -421,6 +421,14 @@ class ModelConfig(BaseModel):
         le=2.0,
         description="Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far",
     )
+    reasoning_effort: Optional[Literal["none", "low", "medium", "high"]] = Field(
+        default=None,
+        description="Controls the reasoning effort for thinking models. Options: 'none' (cost-optimized, 0 tokens), 'low' (1024 tokens), 'medium' (2048 tokens), 'high' (4096 tokens)",
+        json_schema_extra={
+            "x-parameter": "choice",
+            "enum": ["none", "low", "medium", "high"],
+        },
+    )
     response_format: Optional[ResponseFormat] = Field(
         default=None,
         description="An object specifying the format that the model must output",
@@ -818,6 +826,9 @@ class PromptTemplate(BaseModel):
 
         if self.llm_config.presence_penalty is not None:
             kwargs["presence_penalty"] = self.llm_config.presence_penalty
+
+        if self.llm_config.reasoning_effort is not None:
+            kwargs["reasoning_effort"] = self.llm_config.reasoning_effort
 
         if self.llm_config.response_format:
             kwargs["response_format"] = self.llm_config.response_format.dict(

@@ -5,4 +5,6 @@ export interface GenerationCompletionRowProps extends BaseContainerProps {
     rowId: string
     inputOnly?: boolean
     view?: string
+    isPrimaryVariant?: boolean
+    isPrimaryRow?: boolean
 }

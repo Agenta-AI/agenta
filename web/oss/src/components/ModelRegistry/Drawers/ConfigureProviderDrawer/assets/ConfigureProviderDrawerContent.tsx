@@ -108,6 +108,10 @@ const ConfigureProviderDrawerContent = ({
         () => [...customProviders, ...standardProviders],
         [standardProviders, customProviders],
     )
+    const defaultProviderNames = useMemo(
+        () => new Set(standardProviders.map((provider) => provider.toLowerCase())),
+        [standardProviders],
+    )
 
     const providerValue = useWatch("provider", form) || ""
     const normalizedProviderKind = useMemo(() => {
@@ -122,14 +126,13 @@ const ConfigureProviderDrawerContent = ({
     }, [providerValue])
 
     const shouldFilter = validProviders.includes(normalizedProviderKind)
+    const hasSelectedProvider = !!(providerValue && providerValue.toString().trim().length)
 
     useEffect(() => {
         if (selectedProvider) {
             form.setFieldsValue({
                 ...selectedProvider,
-                provider: selectedProvider.provider
-                    ? (PROVIDER_LABELS[selectedProvider.provider] ?? selectedProvider.provider)
-                    : selectedProvider.provider,
+                provider: selectedProvider.provider ?? "",
             })
         } else {
             form.resetFields()
@@ -176,7 +179,7 @@ const ConfigureProviderDrawerContent = ({
             }}
         >
             <section className="[&_>.ant-form-item]:!mb-0 flex flex-col gap-4">
-                {errorMessage && (
+                {hasSelectedProvider && errorMessage && (
                     <Typography.Text className="mb-1 flex items-center gap-1" type="danger">
                         <WarningCircle size={16} /> {errorMessage.replace("Value error,", "")}
                     </Typography.Text>
@@ -191,108 +194,131 @@ const ConfigureProviderDrawerContent = ({
                     </Form.Item>
                 </div>
 
-                {PROVIDER_FIELDS.filter((field) => {
-                    if (shouldFilter) {
-                        return !field.model || field.model.includes(normalizedProviderKind)
-                    }
-                    return true
-                }).map((rawField) => {
-                    const field = rawField as FieldWithAttributes
-                    const isJson = field.attributes?.kind === "json"
-                    const isRequired =
-                        field.key === "apiBaseUrl" ? false : !shouldFilter ? !!field.required : true
+                {hasSelectedProvider && (
+                    <>
+                        {PROVIDER_FIELDS.filter((field) => {
+                            if (shouldFilter) {
+                                return !field.model || field.model.includes(normalizedProviderKind)
+                            }
+                            return true
+                        }).map((rawField) => {
+                            const field = rawField as FieldWithAttributes
+                            const isJson = field.attributes?.kind === "json"
+                            const isRequired =
+                                field.key === "apiBaseUrl"
+                                    ? false
+                                    : !shouldFilter
+                                      ? !!field.required
+                                      : true
 
-                    return (
-                        <React.Fragment key={field.key}>
-                            <Form.Item
-                                name={field.key}
-                                rules={[
-                                    {
-                                        required: isRequired,
-                                        ...(field.key === "name"
-                                            ? {
-                                                  validator(_, value) {
-                                                      if (!value)
-                                                          return Promise.reject("Please enter name")
-                                                      if (!isAppNameInputValid(value)) {
-                                                          return Promise.reject(
-                                                              "Name must contain only letters, numbers, underscore, or dash without any spaces.",
-                                                          )
+                            return (
+                                <React.Fragment key={field.key}>
+                                    <Form.Item
+                                        name={field.key}
+                                        rules={[
+                                            {
+                                                required: isRequired,
+                                                ...(field.key === "name"
+                                                    ? {
+                                                          validator(_, value) {
+                                                              if (!value)
+                                                                  return Promise.reject(
+                                                                      "Please enter name",
+                                                                  )
+                                                              if (!isAppNameInputValid(value)) {
+                                                                  return Promise.reject(
+                                                                      "Name must contain only letters, numbers, underscore, or dash without any spaces.",
+                                                                  )
+                                                              }
+                                                              if (
+                                                                  defaultProviderNames.has(
+                                                                      value.trim().toLowerCase(),
+                                                                  )
+                                                              ) {
+                                                                  return Promise.reject(
+                                                                      "Name cannot match a default provider. Please choose a different name.",
+                                                                  )
+                                                              }
+                                                              return Promise.resolve()
+                                                          },
                                                       }
-                                                      return Promise.resolve()
-                                                  },
-                                              }
-                                            : {}),
-                                    },
-                                    ...(isJson
-                                        ? [
-                                              {
-                                                  validator(_, value) {
-                                                      if (!value) return Promise.resolve()
-                                                      try {
-                                                          JSON.parse(value)
-                                                          return Promise.resolve()
-                                                      } catch {
-                                                          return Promise.reject(
-                                                              "Must be valid JSON",
-                                                          )
-                                                      }
-                                                  },
-                                              },
-                                          ]
-                                        : []),
-                                ]}
-                            >
-                                {renderControl(field, isRequired)}
-                            </Form.Item>
+                                                    : {}),
+                                            },
+                                            ...(isJson
+                                                ? [
+                                                      {
+                                                          validator(_, value) {
+                                                              if (!value) return Promise.resolve()
+                                                              try {
+                                                                  JSON.parse(value)
+                                                                  return Promise.resolve()
+                                                              } catch {
+                                                                  return Promise.reject(
+                                                                      "Must be valid JSON",
+                                                                  )
+                                                              }
+                                                          },
+                                                      },
+                                                  ]
+                                                : []),
+                                        ]}
+                                    >
+                                        {renderControl(field, isRequired)}
+                                    </Form.Item>
 
-                            {field.note && (
-                                <Text className="text-[#586673] -mt-2">{field.note}</Text>
-                            )}
-                        </React.Fragment>
-                    )
-                })}
+                                    {field.note && (
+                                        <Text className="text-[#586673] -mt-2">{field.note}</Text>
+                                    )}
+                                </React.Fragment>
+                            )
+                        })}
 
-                <Form.List name="models">
-                    {(fields, {add, remove}) => (
-                        <div className="flex flex-col gap-2">
-                            <div className="w-full flex items-center justify-between">
-                                <Text className="font-medium">Models</Text>
-                                <Button
-                                    icon={<Plus size={14} />}
-                                    size="small"
-                                    onClick={() => add()}
-                                >
-                                    Add
-                                </Button>
-                            </div>
-
-                            {fields.length === 0 ? (
-                                <Text className="text-[#586673]">No custom models configured</Text>
-                            ) : (
-                                fields.map((field) => {
-                                    const {key, ...restField} = field
-                                    return (
-                                        <Form.Item
-                                            key={key}
-                                            {...restField}
-                                            rules={[
-                                                {
-                                                    required: true,
-                                                    message: "Please add a model name",
-                                                    min: 1,
-                                                },
-                                            ]}
-                                            className="mb-0"
+                        <Form.List name="models">
+                            {(fields, {add, remove}) => (
+                                <div className="flex flex-col gap-2">
+                                    <div className="w-full flex items-center justify-between">
+                                        <Text className="font-medium">Models</Text>
+                                        <Button
+                                            icon={<Plus size={14} />}
+                                            size="small"
+                                            onClick={() => add()}
                                         >
-                                            <ModelNameInput onDelete={() => remove(field.name)} />
-                                        </Form.Item>
-                                    )
-                                })
+                                            Add
+                                        </Button>
+                                    </div>
+
+                                    {fields.length === 0 ? (
+                                        <Text className="text-[#586673]">
+                                            No custom models configured
+                                        </Text>
+                                    ) : (
+                                        fields.map((field) => {
+                                            const {key, ...restField} = field
+                                            return (
+                                                <Form.Item
+                                                    key={key}
+                                                    {...restField}
+                                                    rules={[
+                                                        {
+                                                            required: true,
+                                                            message: "Please add a model name",
+                                                            min: 1,
+                                                        },
+                                                    ]}
+                                                    className="mb-0"
+                                                >
+                                                    <ModelNameInput
+                                                        onDelete={() => remove(field.name)}
+                                                    />
+                                                </Form.Item>
+                                            )
+                                        })
+                                    )}
+                                </div>
                             )}
-                        </div>
-                    )}
-                </Form.List>
+                        </Form.List>
+                    </>
+                )}
             </section>
         </Form>
     )

@@ -99,7 +99,7 @@ class OTLPExporter(OTLPSpanExporter):
 
             credentials = None
             if self.credentials:
-                credentials = str(self.credentials.get(trace_id))
+                credentials = self.credentials.get(trace_id)
 
             if credentials not in grouped_spans:
                 grouped_spans[credentials] = list()
@@ -158,11 +158,11 @@ class OTLPExporter(OTLPSpanExporter):
                     # )
 
             if _ASYNC_EXPORT is True:
-                # log.debug("[SPAN] [ASYNC.X]")
-                thread = Thread(target=__export, daemon=True)
+                # log.debug("[SPAN] [ASYNC.X]", credentials=(credentials is not None))
+                thread = Thread(target=__export, daemon=False)
                 thread.start()
             else:
-                # log.debug("[SPAN] [ SYNC.X]")
+                # log.debug("[SPAN] [ SYNC.X]", credentials=(credentials is not None))
                 return __export()
 
         except Exception as e:

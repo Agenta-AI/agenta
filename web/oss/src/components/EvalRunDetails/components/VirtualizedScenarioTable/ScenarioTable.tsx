@@ -6,6 +6,7 @@ import dynamic from "next/dynamic"
 import {useResizeObserver} from "usehooks-ts"
 
 import EnhancedTable from "@/oss/components/EnhancedUIs/Table"
+import NextViewport from "@/oss/components/Onboarding/components/NextViewport"
 import {evalTypeAtom} from "@/oss/components/EvalRunDetails/state/evalType"
 import QueryFiltersSummaryCard from "@/oss/components/pages/evaluations/onlineEvaluation/components/QueryFiltersSummaryCard"
 import {useRunId} from "@/oss/contexts/RunIdContext"
@@ -26,6 +27,7 @@ import {EvalRunTestcaseTableSkeleton} from "../../AutoEvalRun/components/EvalRun
 import useScrollToScenario from "./hooks/useScrollToScenario"
 import useTableDataSource from "./hooks/useTableDataSource"
 import type {TableRow} from "./types"
+import {HUMAN_EVAL_TABLE_VIEWPORT_ID} from "./assets/constants"
 
 const VirtualizedScenarioTableAnnotateDrawer = dynamic(
     () => import("./assets/VirtualizedScenarioTableAnnotateDrawer"),
@@ -212,7 +214,11 @@ const ScenarioTable = ({runId: propRunId}: {runId?: string}) => {
     }
 
     return (
-        <div ref={tableContainerRef} className="grow flex flex-col w-full min-h-0">
+        <div
+            ref={tableContainerRef}
+            className="grow flex flex-col w-full min-h-0"
+            id={evalType === "online" ? "tour-online-eval-results-table" : undefined}
+        >
             <div
                 className={clsx([
                     "relative w-full flex-1 min-h-0",

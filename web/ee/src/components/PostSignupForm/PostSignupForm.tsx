@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Checkbox, Form, FormProps, Input, Radio, Space, Spin, Typography} from "antd"
+import {useSetAtom} from "jotai"
 import Image from "next/image"
 import {useRouter} from "next/router"
 import {MultipleSurveyQuestion} from "posthog-js"
@@ -10,10 +11,12 @@ import ListOfOrgs from "@/oss/components/Sidebar/components/ListOfOrgs"
 import useURL from "@/oss/hooks/useURL"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {useSurvey} from "@/oss/lib/helpers/analytics/hooks/useSurvey"
+import {userOnboardingProfileAtom} from "@/oss/state/onboarding"
 import {useOrgData} from "@/oss/state/org"
 import {useProfileData} from "@/oss/state/profile"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
+import {USER_EXPERIENCES, USER_INTERESTS, USER_ROLES} from "./assets/constants"
 import {useStyles} from "./assets/styles"
 import {FormDataType} from "./assets/types"
 
@@ -63,6 +66,7 @@ const PostSignupForm = () => {
     const {user} = useProfileData()
     const classes = useStyles()
     const {orgs} = useOrgData()
+    const setUserOnboardingProfileContext = useSetAtom(userOnboardingProfileAtom)
     const selectedHearAboutUsOption = Form.useWatch("hearAboutUs", form)
     const selectedUserInterests = Form.useWatch("userInterests", form)
     const formData = Form.useWatch([], form)
@@ -75,6 +79,10 @@ const PostSignupForm = () => {
         () => (router.query.redirect as string) || "",
         [router.query.redirect],
     )
+
+    const isPosthogSurveyAvailable = Boolean(survey?.questions?.length)
+    const isSurveyLoading = loading && !error
+
     const redirect = useCallback(
         async (target: string | null | undefined) => {
             if (!target) return false
@@ -119,7 +127,7 @@ const PostSignupForm = () => {
         if (!error || autoRedirectAttempted) return
 
         setAutoRedirectAttempted(true)
-        void navigateToPostSignupDestination()
+        // void navigateToPostSignupDestination()
     }, [autoRedirectAttempted, error, navigateToPostSignupDestination])
 
     const handleStepOneFormData: FormProps<FormDataType>["onFinish"] = useCallback(
@@ -143,6 +151,18 @@ const PostSignupForm = () => {
                 : values.userInterests
 
             try {
+                // Getting the user onboarding profile context from the form data to use in onboarding system
+                setUserOnboardingProfileContext({
+                    userRole:
+                        stepOneFormData.userRole === "Subject Matter Expert"
+                            ? "sme"
+                            : stepOneFormData.userRole,
+                    userExperience: stepOneFormData.userExperience,
+                    userInterest: userInterests,
+                })
+
+                if (!isPosthogSurveyAvailable) return
+
                 const responses = survey?.questions?.reduce(
                     (acc: Record<string, unknown>, question, index) => {
                         const key = `$survey_response_${question.id}`
@@ -273,35 +293,41 @@ const PostSignupForm = () => {
                             </div>
 
                             <div>
-                                <Form.Item
-                                    name="companySize"
-                                    className={classes.formItem}
-                                    label={survey?.questions[0].question}
-                                >
-                                    <Radio.Group
-                                        optionType="button"
-                                        className="*:w-full text-center flex justify-between *:whitespace-nowrap"
+                                {isPosthogSurveyAvailable && (
+                                    <Form.Item
+                                        name="companySize"
+                                        className={classes.formItem}
+                                        label={survey?.questions[0].question}
                                     >
-                                        {(questionChoices[0] || []).map((choice: string) => (
-                                            <Radio key={choice} value={choice}>
-                                                {choice}
-                                            </Radio>
-                                        ))}
-                                    </Radio.Group>
-                                </Form.Item>
-
-                                <Form.Item
-                                    name="userExperience"
-                                    className={classes.formItem}
-                                    label={survey?.questions[2].question}
-                                >
-                                    <Radio.Group>
-                                        <Space direction="vertical">
-                                            {(questionChoices[2] || []).map((choice: string) => (
+                                        <Radio.Group
+                                            optionType="button"
+                                            className="*:w-full text-center flex justify-between *:whitespace-nowrap"
+                                        >
+                                            {(
+                                                questionChoices[0] as MultipleSurveyQuestion
+                                            )?.choices?.map((choice: string) => (
                                                 <Radio key={choice} value={choice}>
                                                     {choice}
                                                 </Radio>
                                             ))}
+                                        </Radio.Group>
+                                    </Form.Item>
+                                )}
+
+                                <Form.Item
+                                    name="userExperience"
+                                    className={classes.formItem}
+                                    label={survey?.questions[2].question || USER_EXPERIENCES.label}
+                                >
+                                    <Radio.Group>
+                                        <Space direction="vertical">
+                                            {(questionChoices[2] || USER_EXPERIENCES)?.choices?.map(
+                                                (choice: string) => (
+                                                    <Radio key={choice} value={choice}>
+                                                        {choice}
+                                                    </Radio>
+                                                ),
+                                            )}
                                         </Space>
                                     </Radio.Group>
                                 </Form.Item>
@@ -309,11 +335,14 @@ const PostSignupForm = () => {
                                 <Form.Item
                                     name="userRole"
                                     className={classes.formItem}
-                                    label={survey?.questions[1].question}
+                                    label={survey?.questions[1].question || USER_ROLES.label}
                                 >
                                     <Radio.Group>
                                         <Space direction="vertical">
-                                            {(questionChoices[1] || []).map((choice: string) => (
+                                            {(
+                                                (questionChoices[1] as MultipleSurveyQuestion) ||
+                                                USER_ROLES
+                                            )?.choices.map((choice: string) => (
                                                 <Radio key={choice} value={choice}>
                                                     {choice}
                                                 </Radio>
@@ -332,7 +361,7 @@ const PostSignupForm = () => {
                             iconPosition="end"
                             icon={<ArrowRight className="mt-[3px]" />}
                             disabled={
-                                !formData?.companySize ||
+                                (!formData?.companySize && isPosthogSurveyAvailable) ||
                                 !formData?.userRole ||
                                 !formData?.userExperience
                             }
@@ -360,11 +389,14 @@ const PostSignupForm = () => {
                                 <Form.Item
                                     name="userInterests"
                                     className={classes.formItem}
-                                    label={survey?.questions[3].question}
+                                    label={survey?.questions[3].question || USER_INTERESTS.label}
                                 >
                                     <Checkbox.Group>
                                         <Space direction="vertical">
-                                            {(questionChoices[3] || []).map((role: string) => (
+                                            {(
+                                                (questionChoices[3] as MultipleSurveyQuestion) ||
+                                                USER_INTERESTS
+                                            )?.choices?.map((role: string) => (
                                                 <Checkbox key={role} value={role}>
                                                     {role}
                                                 </Checkbox>
@@ -379,26 +411,35 @@ const PostSignupForm = () => {
                                     </Form.Item>
                                 )}
 
-                                <Form.Item
-                                    className={classes.formItem}
-                                    name="hearAboutUs"
-                                    label={survey?.questions[4].question}
-                                >
-                                    <Radio.Group>
-                                        <Space direction="vertical">
-                                            {(questionChoices[4] || []).map((choice: string) => (
-                                                <Radio key={choice} value={choice}>
-                                                    {choice}
-                                                </Radio>
-                                            ))}
-                                        </Space>
-                                    </Radio.Group>
-                                </Form.Item>
-
-                                {selectedHearAboutUsOption == "Other" && (
-                                    <Form.Item name="hearAboutUsInputOption" className="-mt-3">
-                                        <Input placeholder="Type here" />
-                                    </Form.Item>
+                                {isPosthogSurveyAvailable && (
+                                    <>
+                                        {" "}
+                                        <Form.Item
+                                            className={classes.formItem}
+                                            name="hearAboutUs"
+                                            label={survey?.questions[4].question}
+                                        >
+                                            <Radio.Group>
+                                                <Space direction="vertical">
+                                                    {(questionChoices[4] || []).map(
+                                                        (choice: string) => (
+                                                            <Radio key={choice} value={choice}>
+                                                                {choice}
+                                                            </Radio>
+                                                        ),
+                                                    )}
+                                                </Space>
+                                            </Radio.Group>
+                                        </Form.Item>
+                                        {selectedHearAboutUsOption == "Other" && (
+                                            <Form.Item
+                                                name="hearAboutUsInputOption"
+                                                className="-mt-3"
+                                            >
+                                                <Input placeholder="Type here" />
+                                            </Form.Item>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -412,9 +453,10 @@ const PostSignupForm = () => {
                             icon={<ArrowRight className="mt-[3px]" />}
                             disabled={
                                 !formData?.userInterests?.length ||
-                                !formData?.hearAboutUs ||
+                                (!formData?.hearAboutUs && isPosthogSurveyAvailable) ||
                                 (selectedUserInterests?.includes("Other") &&
-                                    !formData?.userInterestsInputOption)
+                                    !formData?.userInterestsInputOption) ||
+                                isPosthogSurveyAvailable
                             }
                         >
                             Continue
@@ -442,9 +484,6 @@ const PostSignupForm = () => {
         survey?.questions,
     ])
 
-    const showSurveyForm = Boolean(survey?.questions?.length)
-    const isSurveyLoading = loading && !error
-
     return (
         <>
             <section className="w-[90%] flex items-center justify-between mx-auto mt-12 mb-5">
@@ -464,9 +503,7 @@ const PostSignupForm = () => {
                 />
             </section>
 
-            <Spin spinning={isSurveyLoading}>
-                {showSurveyForm ? steps[currentStep]?.content : null}
-            </Spin>
+            <Spin spinning={isSurveyLoading}>{steps[currentStep]?.content}</Spin>
         </>
     )
 }
