@@ -1,7 +1,7 @@
 """drop nodes
 
 Revision ID: cfa14a847972
-Revises: baa02d66a365
+Revises: a1b2c3d4e5f6
 Create Date: 2025-11-16 11:29:00.000000
 
 """
@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "cfa14a847972"
-down_revision: Union[str, None] = "baa02d66a365"
+down_revision: Union[str, None] = "a1b2c3d4e5f6"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
