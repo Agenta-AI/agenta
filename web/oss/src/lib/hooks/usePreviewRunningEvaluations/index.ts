@@ -1,30 +1,40 @@
 import {atomFamily} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import axios from "@/oss/lib/api/assets/axiosConfig"
 import {EvaluationStatus} from "@/oss/lib/Types"
 import {getProjectValues} from "@/oss/state/project"
-
-import {EnrichedEvaluationRun} from "../usePreviewEvaluations/types"
+import {getPreviewRunBatcher} from "../usePreviewEvaluations/assets/previewRunBatcher"
 
 const REFETCH_INTERVAL = 10000
 
+interface ResourceStatusResponse {
+    count: number
+    run: any
+}
+
 export const resourceStatusQueryFamily = atomFamily((id) =>
-    atomWithQuery<EnrichedEvaluationRun>((get) => {
+    atomWithQuery<ResourceStatusResponse>((get) => {
         const projectId = getProjectValues().projectId
 
         return {
             queryKey: ["resourceStatus", id, projectId],
             queryFn: async () => {
-                const res = await axios.get(
-                    `/preview/evaluations/runs/${id}?project_id=${projectId}`,
-                )
-                return res.data
+                if (!projectId) {
+                    throw new Error("resourceStatusQueryFamily requires projectId")
+                }
+
+                const batcher = getPreviewRunBatcher()
+                const run = await batcher({projectId, runId: id})
+
+                return {
+                    count: run ? 1 : 0,
+                    run,
+                }
             },
 
             // Poll every 5s until success; then stop polling.
             refetchInterval: (query) => {
-                const data = query.state.data as EnrichedEvaluationRun | undefined
+                const data = query.state.data as ResourceStatusResponse | undefined
 
                 if (
                     ![

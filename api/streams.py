@@ -47,16 +47,15 @@ async def main_async() -> int:
         warn_deprecated_env_vars()
         validate_required_env_vars()
 
-        # Create shared Redis client
-        redis_client = Redis.from_url(env.REDIS_URI, decode_responses=False)
+        # Create durable Redis client for streams
+        redis_client = Redis.from_url(env.REDIS_STREAM_URL, decode_responses=False)
 
         # Initialize DAO
         tracing_dao = TracingDAO()
 
-        # Initialize service with Redis client
+        # Initialize service
         tracing_service = TracingService(
             tracing_dao=tracing_dao,
-            redis_client=redis_client,
         )
 
         # Initialize worker

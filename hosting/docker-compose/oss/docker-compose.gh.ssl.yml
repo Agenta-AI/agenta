@@ -93,7 +93,9 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
-            redis:
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
                 condition: service_healthy
         restart: always
 
@@ -122,7 +124,9 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
-            redis:
+            redis-volatile:
+                condition: service_healthy
+            redis-durable:
                 condition: service_healthy
         restart: always
 
@@ -274,7 +278,7 @@ services:
             timeout: 5s
             retries: 5
 
-    redis:
+    redis-volatile:
         image: redis:8
 
         command: >
@@ -283,12 +287,13 @@ services:
             --save ""
             --maxmemory 512mb
             --maxmemory-policy volatile-lru
+            --port 6379
 
         ports:
             - "6379:6379"
 
         volumes:
-            - redis-data:/data
+            - redis-volatile-data:/data
 
         networks:
             - agenta-gh-ssl-network
@@ -299,7 +304,40 @@ services:
         restart: always
 
         healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
+            test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
+    redis-durable:
+        image: redis:8
+
+        command: >
+            redis-server
+            --appendonly yes
+            --appendfsync no
+            --save ""
+            --maxmemory 512mb
+            --maxmemory-policy noeviction
+            --port 6380
+
+        ports:
+            - "6380:6380"
+
+        volumes:
+            - redis-durable-data:/data
+
+        networks:
+            - agenta-gh-ssl-network
+
+        labels:
+            - "traefik.enable=false"
+
+        restart: always
+
+        healthcheck:
+            test: ["CMD", "redis-cli", "-p", "6380", "ping"]
             interval: 10s
             timeout: 5s
             retries: 5
@@ -344,4 +382,5 @@ networks:
 
 volumes:
     postgres-data:
-    redis-data:
+    redis-volatile-data:
+    redis-durable-data:

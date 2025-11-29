@@ -250,6 +250,7 @@ export const prefetchProjectVariantConfigs = (references: ProjectVariantConfigKe
         const params = parseKey(serialized)
         if (!params.projectId || (!params.variantId && !params.variantSlug)) return
 
+        console.log("prefetchProjectVariantConfigs")
         queryClient
             .ensureQueryData({
                 queryKey: [

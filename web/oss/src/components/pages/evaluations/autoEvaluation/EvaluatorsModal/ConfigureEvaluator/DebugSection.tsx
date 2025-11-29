@@ -9,14 +9,15 @@ import {
 } from "@ant-design/icons"
 import {Database, Lightning, Play} from "@phosphor-icons/react"
 import {Button, Dropdown, Flex, FormInstance, message, Space, Tabs, Tooltip, Typography} from "antd"
+import clsx from "clsx"
 import {atom, useAtomValue} from "jotai"
 import yaml from "js-yaml"
 import {createUseStyles} from "react-jss"
 
+import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
 import {useAppId} from "@/oss/hooks/useAppId"
 import {useVaultSecret} from "@/oss/hooks/useVaultSecret"
-import {mapTestcaseAndEvalValues, transformTraceKeysInSettings} from "@/oss/lib/helpers/evaluate"
-import {buildNodeTree, observabilityTransformer} from "@/oss/lib/helpers/observability_helpers"
+import {transformTraceKeysInSettings, mapTestcaseAndEvalValues} from "@/oss/lib/evaluations/legacy"
 import {isBaseResponse, isFuncResponse} from "@/oss/lib/helpers/playgroundResp"
 import {
     apiKeyObject,
@@ -33,6 +34,7 @@ import {getRequestSchema} from "@/oss/lib/shared/variant/openapiUtils"
 import {derivePromptsFromSpec} from "@/oss/lib/shared/variant/transformer/transformer"
 import {transformToRequestBody} from "@/oss/lib/shared/variant/transformer/transformToRequestBody"
 import {EnhancedVariant} from "@/oss/lib/shared/variant/transformer/types"
+import {buildNodeTree, observabilityTransformer} from "@/oss/lib/traces/observability_helpers"
 import {
     buildNodeTreeV3,
     fromBaseResponseToTraceSpanType,
@@ -65,8 +67,6 @@ import {appSchemaAtom, appUriInfoAtom} from "@/oss/state/variant/atoms/fetcher"
 import EvaluatorTestcaseModal from "./EvaluatorTestcaseModal"
 import EvaluatorVariantModal from "./EvaluatorVariantModal"
 import {buildVariantFromRevision} from "./variantUtils"
-import SharedEditor from "@/oss/components/Playground/Components/SharedEditor"
-import clsx from "clsx"
 
 interface DebugSectionProps {
     selectedTestcase: {

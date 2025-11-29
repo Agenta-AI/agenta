@@ -519,6 +519,16 @@ class ConfigResponseModel(ConfigDTO):
     pass
 
 
+class ConfigsQueryRequestModel(BaseModel):
+    variant_refs: Optional[List[ReferenceRequestModel]] = None
+    application_ref: Optional[ReferenceRequestModel] = None
+
+
+class ConfigsResponseModel(BaseModel):
+    count: int = 0
+    configs: List[ConfigDTO] = []
+
+
 @router.post(
     "/configs/add",
     operation_id="configs_add",
@@ -690,6 +700,51 @@ async def configs_fork(
     )
 
     return config
+
+
+@router.post(
+    "/configs/query",
+    operation_id="configs_query",
+    response_model=ConfigsResponseModel,
+)
+@intercept_exceptions()
+async def configs_query(
+    request: Request,
+    query: ConfigsQueryRequestModel,
+) -> ConfigsResponseModel:
+    application_ref = query.application_ref
+    variant_refs = query.variant_refs or []
+
+    if not variant_refs:
+        return ConfigsResponseModel(count=0, configs=[])
+
+    seen_keys = set()
+    configs: List[ConfigDTO] = []
+
+    for variant_ref in variant_refs:
+        dedup_key = (
+            str(variant_ref.id) if variant_ref.id else None,
+            variant_ref.slug or None,
+            variant_ref.version or None,
+        )
+        if dedup_key in seen_keys:
+            continue
+
+        seen_keys.add(dedup_key)
+
+        config = await configs_fetch(
+            request=request,
+            variant_ref=variant_ref,
+            application_ref=application_ref,
+        )
+
+        if config:
+            configs.append(config)
+
+    return ConfigsResponseModel(
+        count=len(configs),
+        configs=configs,
+    )
 
 
 @router.post(

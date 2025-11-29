@@ -111,17 +111,65 @@ class EnvironSettings(BaseModel):
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
 
-    # REDIS (REQUIRED)
-    REDIS_URI: str | None = os.getenv("REDIS_URI")
-    REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "cache"
-    REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6378")
+    # REDIS - Split into volatile (caches/channels) and durable (queues/streams)
+    # Runtime: Valkey 7+ (fully Redis-compatible)
+
+    # Global fallback
+    REDIS_URL: str | None = os.getenv("REDIS_URL")
+
+    # Class-level URLs (volatile for caches/channels, durable for queues/streams)
+    REDIS_VOLATILE_URL: str | None = os.getenv("REDIS_VOLATILE_URL")
+    REDIS_DURABLE_URL: str | None = os.getenv("REDIS_DURABLE_URL")
+
+    # Per-kind URLs (highest precedence)
+    REDIS_CACHE_URL: str | None = os.getenv("REDIS_CACHE_URL")
+    REDIS_CHANNEL_URL: str | None = os.getenv("REDIS_CHANNEL_URL")
+    REDIS_QUEUE_URL: str | None = os.getenv("REDIS_QUEUE_URL")
+    REDIS_STREAM_URL: str | None = os.getenv("REDIS_STREAM_URL")
+
+    REDIS_CACHE_HOST: str = os.getenv("REDIS_CACHE_HOST") or "redis-volatile"
+    REDIS_CACHE_PORT: int = int(os.getenv("REDIS_CACHE_PORT") or "6379")
 
     @model_validator(mode="after")
-    def build_redis_uri(self):
-        """Ensure REDIS_URI exists, fallback to computed or default."""
-        if not self.REDIS_URI:
-            self.REDIS_URI = (
-                f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
+    def build_redis_urls(self):
+        """Build Redis URLs with proper precedence: per-kind → class-level → global → defaults."""
+        # Set class-level defaults if not provided
+        if not self.REDIS_VOLATILE_URL:
+            self.REDIS_VOLATILE_URL = f"redis://{self.REDIS_CACHE_HOST}:6379/0"
+        if not self.REDIS_DURABLE_URL:
+            self.REDIS_DURABLE_URL = "redis://redis-durable:6380/0"
+
+        # Build per-kind URLs with precedence rules
+        # CACHE: REDIS_CACHE_URL → REDIS_VOLATILE_URL → REDIS_URL → default
+        if not self.REDIS_CACHE_URL:
+            self.REDIS_CACHE_URL = (
+                self.REDIS_VOLATILE_URL
+                or self.REDIS_URL
+                or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
+            )
+
+        # CHANNEL: REDIS_CHANNEL_URL → REDIS_VOLATILE_URL → REDIS_URL → default
+        if not self.REDIS_CHANNEL_URL:
+            self.REDIS_CHANNEL_URL = (
+                self.REDIS_VOLATILE_URL
+                or self.REDIS_URL
+                or f"redis://{self.REDIS_CACHE_HOST}:{self.REDIS_CACHE_PORT}/0"
+            )
+
+        # QUEUE: REDIS_QUEUE_URL → REDIS_DURABLE_URL → REDIS_URL → default
+        if not self.REDIS_QUEUE_URL:
+            self.REDIS_QUEUE_URL = (
+                self.REDIS_DURABLE_URL
+                or self.REDIS_URL
+                or "redis://redis-durable:6380/0"
+            )
+
+        # STREAM: REDIS_STREAM_URL → REDIS_DURABLE_URL → REDIS_URL → default
+        if not self.REDIS_STREAM_URL:
+            self.REDIS_STREAM_URL = (
+                self.REDIS_DURABLE_URL
+                or self.REDIS_URL
+                or "redis://redis-durable:6380/0"
             )
 
         return self

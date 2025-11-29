@@ -84,7 +84,6 @@ export const orgsQueryAtom = atomWithQuery<Org[]>((get) => {
 })
 
 const logOrgs = process.env.NEXT_PUBLIC_LOG_ORG_ATOMS === "true"
-const debugOrgSelection = process.env.NEXT_PUBLIC_APP_STATE_DEBUG === "true"
 logAtom(orgsQueryAtom, "orgsQueryAtom", logOrgs)
 
 export const orgsAtom = eagerAtom<Org[]>((get) => {
@@ -146,6 +145,24 @@ export const selectedOrgIdAtom = atom((get) => {
 
     return null
 })
+
+const normalizeOrgIdentifier = async (
+    id: string,
+    get: (a: any) => any,
+): Promise<{orgId: string; workspaceId: string | null}> => {
+    const orgs = get(orgsAtom) as Org[]
+
+    if (Array.isArray(orgs) && orgs.some((org) => org.id === id)) {
+        return {orgId: id, workspaceId: null}
+    }
+
+    const mapped = resolveOrgId(id)
+    if (mapped) {
+        return {orgId: mapped, workspaceId: id}
+    }
+
+    return {orgId: id, workspaceId: null}
+}
 
 export const selectedOrgNavigationAtom = atom(null, (get, set, next: string | null) => {
     const {workspaceId} = get(appIdentifiersAtom)
@@ -233,7 +250,11 @@ export const selectedOrgQueryAtom = atomWithQuery<OrgDetails | null>((get) => {
         queryKey: ["selectedOrg", id],
         queryFn: async () => {
             if (!id) return null
-            const org = await fetchSingleOrg({organizationId: id})
+            const {orgId} = await normalizeOrgIdentifier(id, get)
+            const org = await fetchSingleOrg({organizationId: orgId})
+            if (org?.default_workspace?.id && org?.id) {
+                cacheWorkspaceOrgPair(org.default_workspace.id, org.id)
+            }
             return org
         },
         staleTime: 60_000,

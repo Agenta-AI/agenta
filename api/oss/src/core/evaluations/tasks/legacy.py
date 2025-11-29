@@ -7,7 +7,7 @@ from fastapi import Request
 from oss.src.utils.helpers import parse_url, get_slug_from_name_and_id
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
-from oss.src.services.auth_helper import sign_secret_token
+from oss.src.services.auth_service import sign_secret_token
 from oss.src.services import llm_apps_service
 from oss.src.models.shared_models import InvokationResult
 from oss.src.services.db_manager import (
@@ -82,6 +82,7 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataStep,
     EvaluationRunData,
     EvaluationRunFlags,
+    EvaluationRunQueryFlags,
     EvaluationRun,
     EvaluationRunCreate,
     EvaluationRunEdit,
@@ -89,6 +90,7 @@ from oss.src.core.evaluations.types import (
     EvaluationScenarioEdit,
     EvaluationResultCreate,
     EvaluationMetricsCreate,
+    EvaluationMetricsRefresh,
 )
 
 from oss.src.core.shared.dtos import Reference
@@ -167,7 +169,7 @@ async def setup_evaluation(
             #
             flags=(
                 EvaluationRunFlags(
-                    is_closed=None,
+                    is_closed=False,
                     is_live=True,
                     is_active=True,
                 )
@@ -1331,8 +1333,10 @@ async def annotate(
                         project_id=project_id,
                         user_id=user_id,
                         #
-                        run_id=run_id,
-                        scenario_id=scenario.id,
+                        metrics=EvaluationMetricsRefresh(
+                            run_id=run_id,
+                            scenario_id=scenario.id,
+                        ),
                     )
 
                     if not metrics:
@@ -1364,7 +1368,9 @@ async def annotate(
                 project_id=project_id,
                 user_id=user_id,
                 #
-                run_id=run_id,
+                metrics=EvaluationMetricsRefresh(
+                    run_id=run_id,
+                ),
             )
 
             if not metrics:

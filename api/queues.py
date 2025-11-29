@@ -51,11 +51,12 @@ ag.init(
 )
 
 # BROKER -------------------------------------------------------------------
-# Create broker with Redis Streams (analogous to FastAPI app in routers.py)
+# Create broker with durable Redis Streams for task queues
+# Valkey 7+ compatible
 broker = RedisStreamBroker(
-    url=env.REDIS_URI,
-    queue_name="streams:tasks",
-    consumer_group_name="streams:tasks",
+    url=env.REDIS_QUEUE_URL,
+    queue_name="queues:taskiq:evaluations",
+    consumer_group_name="taskiq-workers",
 )
 
 

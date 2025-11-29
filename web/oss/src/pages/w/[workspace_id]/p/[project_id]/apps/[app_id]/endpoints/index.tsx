@@ -70,9 +70,10 @@ export const createParams = (
             secondaryParams[item.name] = item.default || value
         }
     })
-    const isChat = Array.isArray(inputParams)
+    const hasMessagesParam = Array.isArray(inputParams)
         ? inputParams.some((p) => p?.name === "messages")
         : false
+    const isChat = app?.app_type === "chat" || hasMessagesParam
     if (isChat) {
         mainParams["messages"] = [
             {

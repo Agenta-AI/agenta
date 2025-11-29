@@ -5,37 +5,28 @@ import {useRouter} from "next/router"
 import {useAtomValue} from "jotai"
 
 import useURL from "@/oss/hooks/useURL"
-import {projectsAtom} from "@/oss/state/project"
+import {projectAtom} from "@/oss/state/project"
 
 const WorkspaceRedirect = () => {
     const router = useRouter()
-    const projects = useAtomValue(projectsAtom)
+
     const {workspaceId, baseAppURL} = useURL()
 
-    const fallbackProjectId = useMemo(() => {
-        if (!workspaceId || !Array.isArray(projects)) return null
-        const belonging = projects.filter((project) => {
-            const workspaceMatch = project.workspace_id === workspaceId
-            const orgMatch = project.organization_id === workspaceId
-            return workspaceMatch || orgMatch
-        })
-        if (!belonging.length) return null
-        const nonDemo = belonging.find((project) => !project.is_demo)
-        return (nonDemo ?? belonging[0])?.project_id ?? null
-    }, [projects, workspaceId])
+    const project = useAtomValue(projectAtom)
 
     const targetPath = useMemo(() => {
         if (baseAppURL) return baseAppURL
-        if (workspaceId && fallbackProjectId) {
+
+        if (workspaceId && project?.project_id) {
             return `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(
-                fallbackProjectId,
+                project.project_id,
             )}/apps`
         }
         if (workspaceId) {
             return `/w/${encodeURIComponent(workspaceId)}`
         }
         return null
-    }, [baseAppURL, fallbackProjectId, workspaceId])
+    }, [baseAppURL, workspaceId, project?.project_id])
 
     useEffect(() => {
         if (!router.isReady) return

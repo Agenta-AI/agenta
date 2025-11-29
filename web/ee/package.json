@@ -1,6 +1,6 @@
 {
     "name": "@agenta/ee",
-    "version": "0.62.6",
+    "version": "0.64.0",
     "private": true,
     "engines": {
         "node": ">=18"
@@ -57,6 +57,7 @@
         "jotai-devtools": "^0.12.0",
         "jotai-eager": "^0.2.3",
         "jotai-immer": "^0.4.1",
+        "jotai-scheduler": "^0.0.5",
         "jotai-tanstack-query": "^0.11.0",
         "js-yaml": "^4.1.0",
         "jsonrepair": "^3.13.0",
