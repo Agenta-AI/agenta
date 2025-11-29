@@ -617,8 +617,12 @@ class SubscriptionsRouter:
             _subscription = None
 
         if _subscription:
-            _status["period_start"] = int(_subscription.current_period_start)
-            _status["period_end"] = int(_subscription.current_period_end)
+            # Get period dates from the first subscription item
+            items = _subscription.get("items")
+            if items and items.get("data") and len(items["data"]) > 0:
+                item = items["data"][0]
+                _status["period_start"] = int(item.get("current_period_start"))
+                _status["period_end"] = int(item.get("current_period_end"))
             _status["free_trial"] = _subscription.status == "trialing"
 
             return _status
