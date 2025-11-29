@@ -22,18 +22,15 @@ import CustomWorkflowBanner from "../CustomWorkflowBanner"
 import ProtectedRoute from "../ProtectedRoute/ProtectedRoute"
 
 import BreadcrumbContainer from "./assets/Breadcrumbs"
-import {useStyles} from "./assets/styles"
+import {StyleProps, useStyles} from "./assets/styles"
 import ErrorFallback from "./ErrorFallback"
 import {SidebarIsland} from "./SidebarIsland"
 import {getDeviceTheme, useAppTheme} from "./ThemeContextProvider"
 
-const OnboardingWidget = dynamic(
-    () => import("../Onboarding/components/OnboardingWidget").then((m) => m.OnboardingWidget),
-    {
-        ssr: false,
-        loading: () => null,
-    },
-)
+const OnboardingWidget = dynamic(() => import("../Onboarding/components/OnboardingWidget"), {
+    ssr: false,
+    loading: () => null,
+})
 const FooterIsland = dynamic(() => import("./FooterIsland").then((m) => m.FooterIsland), {
     ssr: false,
     loading: () => null,

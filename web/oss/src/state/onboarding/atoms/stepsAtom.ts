@@ -15,7 +15,7 @@ import {
     OnboardingState,
     UserOnboardingStatus,
 } from "../types"
-import {fullJourneyStateAtom, playgroundHasFirstRunAtom} from "./helperAtom"
+import {playgroundHasFirstRunAtom} from "./helperAtom"
 import {isAddAppFromTemplatedAtom} from "@/oss/components/pages/app-management/state/atom"
 import {lastVisitedEvaluationAtom} from "@/oss/components/pages/evaluations/state/lastVisitedEvaluationAtom"
 
@@ -232,7 +232,6 @@ export const onboardingStepsAtom = atom<Tour[]>((get) => {
                 : requestedState
         return resolveStepsForState(effectiveState)
     }
-
 
     return []
 })
