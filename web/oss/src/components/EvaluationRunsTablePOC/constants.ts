@@ -37,8 +37,8 @@ export const FLAG_LABELS: Record<FlagKey, string> = {
 export const EVALUATION_KIND_LABELS: Record<ConcreteEvaluationRunKind, string> = {
     auto: "Automatic",
     human: "Human",
-    online: "Live",
-    custom: "Custom",
+    online: "Online",
+    custom: "SDK",
 }
 
 export const EVALUATION_KIND_FILTER_OPTIONS: {
