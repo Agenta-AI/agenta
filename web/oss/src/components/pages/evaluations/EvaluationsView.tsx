@@ -23,18 +23,18 @@ type AppTabKey = EvaluationRunKind
 const TAB_CONTENT_SWITCH_DELAY_MS = 220
 
 const PROJECT_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
-    {key: "all", label: "All Evaluations"},
-    {key: "auto", label: "Auto Evaluations"},
-    {key: "human", label: "Human Evaluations"},
-    {key: "online", label: "Online Evaluations"},
-    {key: "custom", label: "SDK Evaluations"},
+    {key: "all", label: "All Evals"},
+    {key: "auto", label: "Auto Evals"},
+    {key: "human", label: "Human Evals"},
+    {key: "online", label: "Online Evals"},
+    {key: "custom", label: "SDK Evals"},
 ]
 
 const APP_TAB_ITEMS: {key: AppTabKey; label: string}[] = [
-    {key: "all", label: "All Evaluations"},
-    {key: "auto", label: "Auto Evaluations"},
-    {key: "human", label: "Human Evaluations"},
-    {key: "custom", label: "SDK Evaluations"},
+    {key: "all", label: "All Evals"},
+    {key: "auto", label: "Auto Evals"},
+    {key: "human", label: "Human Evals"},
+    {key: "custom", label: "SDK Evals"},
 ]
 
 const TAB_COLOR_MAP: Record<AppTabKey, string> = {
