@@ -87,7 +87,7 @@ const normalizeValue = (value: unknown): string => {
     }
 }
 
-const CONTAINER_CLASS = "scenario-table-cell min-h-[96px]"
+const CONTAINER_CLASS = "scenario-table-cell"
 
 const PreviewEvaluationInputCell = ({
     scenarioId,

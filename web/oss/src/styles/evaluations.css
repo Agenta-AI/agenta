@@ -173,7 +173,8 @@
 
 .scenario-table-cell {
     width: 100%;
-    min-height: 96px;
+    height: 160px;
+    min-height: 160px;
     max-height: 160px;
     padding: 12px;
     display: flex;
@@ -207,12 +208,11 @@
 
 /* Invalid metric cell state - no invocation present */
 .scenario-table-cell--invalid {
-    width: 100%;
-    min-height: 96px;
-    padding: 0 !important;
-    margin: -12px;
     width: calc(100% + 24px);
     height: calc(100% + 24px);
+    min-height: 160px;
+    padding: 0 !important;
+    margin: -12px;
     background: repeating-linear-gradient(
         -45deg,
         transparent,

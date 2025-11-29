@@ -9,7 +9,7 @@ import {renderScenarioChatMessages} from "../../utils/chatMessages"
 import CellContentPopover from "./CellContentPopover"
 import InvocationTraceSummary from "./InvocationTraceSummary"
 
-const CONTAINER_CLASS = "scenario-table-cell min-h-[96px] h-full"
+const CONTAINER_CLASS = "scenario-table-cell"
 
 const extractAssistantContent = (entry: any): string | undefined => {
     if (!entry) return undefined

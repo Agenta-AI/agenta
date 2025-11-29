@@ -14,7 +14,7 @@ import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../../utils/metricFormatter"
 import {buildFrequencyChartData} from "../EvaluatorMetricsChart/utils/chartData"
 
-const CONTAINER_CLASS = "scenario-table-cell min-h-[96px]"
+const CONTAINER_CLASS = "scenario-table-cell"
 
 // Color palette for category tags (same as CategoryTags component)
 const TAG_COLORS = ["green", "blue", "purple", "orange", "cyan", "magenta", "gold", "lime"]
