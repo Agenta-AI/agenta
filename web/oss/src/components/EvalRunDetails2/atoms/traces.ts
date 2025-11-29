@@ -3,12 +3,12 @@ import {atomFamily, selectAtom} from "jotai/utils"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {uuidToTraceId} from "@/oss/lib/traces/helpers"
 import type {
     TraceData,
     TraceNode,
     TraceTree,
 } from "@/oss/lib/hooks/useEvaluationRunScenarioSteps/types"
+import {uuidToTraceId} from "@/oss/lib/traces/helpers"
 import {transformTracesResponseToTree} from "@/oss/services/tracing/lib/helpers"
 import type {TraceSpanNode, TracesResponse} from "@/oss/services/tracing/types"
 import {getProjectValues} from "@/oss/state/project"
@@ -19,6 +19,14 @@ import {resolveInvocationTraceValue} from "../utils/traceValue"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 
 const traceBatcherCache = new Map<string, BatchFetcher<string, TraceData | null>>()
+
+/**
+ * Invalidate the trace batcher cache.
+ * Call this after running an invocation to force a fresh fetch of trace data.
+ */
+export const invalidateTraceBatcherCache = () => {
+    traceBatcherCache.clear()
+}
 
 const resolveEffectiveRunId = (get: any, runId?: string | null) =>
     runId ?? get(activePreviewRunIdAtom) ?? undefined

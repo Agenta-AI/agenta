@@ -1,11 +1,12 @@
 import {memo, useMemo, useCallback} from "react"
 
 import {Spin} from "antd"
-import {useAtomValue, getDefaultStore} from "jotai"
+import {useAtomValue, useSetAtom, getDefaultStore} from "jotai"
 
 import {virtualScenarioTableAnnotateDrawerAtom} from "@/oss/lib/atoms/virtualTable"
 
 import {activePreviewRunIdAtom} from "../../atoms/run"
+import {triggerRunInvocationAtom, runningInvocationsAtom} from "../../atoms/runInvocationAction"
 import {evaluationRunIndexAtomFamily} from "../../atoms/table/run"
 import {
     useScenarioInputSteps,
@@ -25,13 +26,24 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
     const effectiveRunId = runId ?? fallbackRunId ?? undefined
 
     const runIndex = useAtomValue(evaluationRunIndexAtomFamily(effectiveRunId ?? null))
-    const handleRunClick = useCallback((scenarioId: string, runId?: string, stepKey?: string) => {
-        console.info("[EvalRunDetails2] Run scenario action triggered", {
-            scenarioId,
-            runId,
-            stepKey,
-        })
-    }, [])
+    const runningInvocations = useAtomValue(runningInvocationsAtom)
+    const triggerRunInvocation = useSetAtom(triggerRunInvocationAtom)
+
+    const handleRunClick = useCallback(
+        (scenarioId: string, runId?: string, stepKey?: string) => {
+            if (!runId || !stepKey) {
+                console.warn("[EvalRunDetails2] Run action missing runId or stepKey")
+                return
+            }
+            console.info("[EvalRunDetails2] Run scenario action triggered", {
+                scenarioId,
+                runId,
+                stepKey,
+            })
+            triggerRunInvocation({scenarioId, runId, stepKey})
+        },
+        [triggerRunInvocation],
+    )
 
     const handleAnnotateClick = useCallback((scenarioId: string, runId?: string) => {
         console.info("[EvalRunDetails2] Annotate action triggered", {scenarioId, runId})
@@ -138,12 +150,14 @@ const PreviewActionCell = ({scenarioId, runId}: {scenarioId?: string; runId?: st
 
     // Priority: Show Run button if there's a pending human invocation
     if (pendingHumanInvocationStepKey) {
+        const isRunning = runningInvocations.has(`${scenarioId}:${pendingHumanInvocationStepKey}`)
         return (
             <div className="flex h-full items-center justify-center">
                 <RunActionButton
                     onClick={() =>
                         handleRunClick(scenarioId, effectiveRunId, pendingHumanInvocationStepKey)
                     }
+                    loading={isRunning}
                 />
             </div>
         )

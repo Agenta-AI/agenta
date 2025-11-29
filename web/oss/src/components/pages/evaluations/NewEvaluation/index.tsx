@@ -445,16 +445,22 @@ const NewEvaluationModal = <Preview extends boolean = true>({
                         baseAppURL,
                         projectURL,
                         appId: targetAppId,
-                        path: `/evaluations/single_model_test/${runId}`,
+                        path: `/evaluations/results/${runId}`,
                     })
 
                     if (scope === "project") {
                         router.push({
                             pathname: targetPath,
-                            query: targetAppId ? {app_id: targetAppId} : undefined,
+                            query: {
+                                ...(targetAppId ? {app_id: targetAppId} : {}),
+                                type: "human",
+                            },
                         })
                     } else {
-                        router.push(targetPath)
+                        router.push({
+                            pathname: targetPath,
+                            query: {type: "human"},
+                        })
                     }
                 }
             } else {

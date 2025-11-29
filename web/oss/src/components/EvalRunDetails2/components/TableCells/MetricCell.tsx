@@ -2,11 +2,13 @@ import {memo, useMemo} from "react"
 
 import {Tag} from "antd"
 import clsx from "clsx"
+import {useAtomValue} from "jotai"
 
 import MetricDetailsPreviewPopover from "@/oss/components/Evaluations/components/MetricDetailsPreviewPopover"
 import EvaluatorMetricBar from "@/oss/components/Evaluations/EvaluatorMetricBar"
 import type {BasicStats} from "@/oss/lib/metricUtils"
 
+import {invocationTraceSummaryAtomFamily} from "../../atoms/invocationTraceSummary"
 import type {EvaluationTableColumn} from "../../atoms/table"
 import useScenarioCellValue from "../../hooks/useScenarioCellValue"
 import {formatMetricDisplay, METRIC_EMPTY_PLACEHOLDER} from "../../utils/metricFormatter"
@@ -45,13 +47,21 @@ const PreviewEvaluationMetricCell = ({
     })
     const {value, displayValue} = selection
 
+    // Check if invocation has been run for this scenario (for annotation/evaluator metrics)
+    const invocationSummary = useAtomValue(
+        useMemo(() => invocationTraceSummaryAtomFamily({scenarioId, runId}), [scenarioId, runId]),
+    )
+    const hasInvocation = invocationSummary.state === "ready" && Boolean(invocationSummary.traceId)
+    const isAnnotationColumn = column.stepType === "annotation"
+    const showInvalidState = isAnnotationColumn && !hasInvocation && !showSkeleton
+
     const formatted = formatMetricDisplay({
         value,
         metricKey: column.metricKey ?? column.valueKey ?? column.path,
         metricType: column.metricType,
     })
 
-    const isPlaceholder = formatted === METRIC_EMPTY_PLACEHOLDER
+    const isPlaceholder = formatted === METRIC_EMPTY_PLACEHOLDER || showInvalidState
     const highlightValue = value
     const fallbackValue = value ?? displayValue ?? formatted
 
@@ -210,6 +220,11 @@ const PreviewEvaluationMetricCell = ({
                 <div className="h-3 w-full rounded bg-neutral-200 animate-pulse" />
             </div>
         )
+    }
+
+    // Show invalid state styling when annotation column has no invocation
+    if (showInvalidState) {
+        return <div ref={ref} className="scenario-table-cell--invalid" data-cell-type="metric" />
     }
 
     return (

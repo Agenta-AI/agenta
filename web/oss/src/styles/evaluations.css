@@ -205,6 +205,23 @@
     border-radius: 999px;
 }
 
+/* Invalid metric cell state - no invocation present */
+.scenario-table-cell--invalid {
+    width: 100%;
+    min-height: 96px;
+    padding: 0 !important;
+    margin: -12px;
+    width: calc(100% + 24px);
+    height: calc(100% + 24px);
+    background: repeating-linear-gradient(
+        -45deg,
+        transparent,
+        transparent 4px,
+        rgba(0, 0, 0, 0.03) 4px,
+        rgba(0, 0, 0, 0.03) 8px
+    );
+}
+
 /* Scenario cell hover popover styles */
 .scenario-cell-popover .ant-popover-inner {
     padding: 12px;
