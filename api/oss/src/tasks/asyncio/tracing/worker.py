@@ -7,6 +7,7 @@ Keeps the same batching, grouping, and entitlements logic.
 
 import os
 import asyncio
+import time
 from typing import Dict, List, Tuple, Optional
 from uuid import UUID
 from redis.asyncio import Redis
@@ -45,9 +46,10 @@ class TracingWorker:
         stream_name: str,
         consumer_group: str,
         consumer_name: Optional[str] = None,
-        batch_size: int = 100,
-        block_ms: int = 5000,
-        max_batch_bytes: int = 100 * 1024 * 1024,  # 100MB default
+        max_batch_size: int = 50,  # 50 spans
+        max_block_ms: int = 5000,  # 5 seconds
+        max_delay_ms: int = 250,  # 250 milliseconds
+        max_batch_mb: int = 50,  # 50 MB
     ):
         """
         Initialize tracing worker.
@@ -58,18 +60,20 @@ class TracingWorker:
             stream_name: Name of the stream (e.g., "streams:otlp")
             consumer_group: Consumer group name (e.g., "otlp-workers")
             consumer_name: Consumer name (defaults to "worker-{pid}")
-            batch_size: Max messages to read per batch (COUNT in XREADGROUP)
-            block_ms: Max milliseconds to block waiting for messages
-            max_batch_bytes: Max batch size in bytes (default: 100MB)
+            max_batch_size: Max messages to read per batch (COUNT in XREADGROUP)
+            max_block_ms: Max milliseconds to block waiting for messages
+            max_batch_mb: Max batch size in megabytes (default: 100MB)
+            max_delay_ms: Max milliseconds to wait for batch accumulation when small batches arrive (default: 100ms)
         """
         self.service = service
         self.redis = redis_client
         self.stream_name = stream_name
         self.consumer_group = consumer_group
         self.consumer_name = consumer_name or f"worker-{os.getpid()}"
-        self.batch_size = batch_size
-        self.block_ms = block_ms
-        self.max_batch_bytes = max_batch_bytes
+        self.max_batch_size = max_batch_size
+        self.max_block_ms = max_block_ms
+        self.max_batch_mb = max_batch_mb
+        self.max_delay_ms = max_delay_ms
 
     async def create_consumer_group(self):
         """
@@ -97,18 +101,25 @@ class TracingWorker:
 
     async def read_batch(self) -> List[Tuple[bytes, Dict[bytes, bytes]]]:
         """
-        Read batch from stream using XREADGROUP.
+        Read batch from stream using XREADGROUP with time-based accumulation.
+
+        Strategy:
+        1. Read up to max_batch_size messages with max_block_ms timeout
+        2. If batch is smaller than max_batch_size, start accumulation timer and accumulate more messages
+        3. Continuously do blocking reads with remaining time until max_delay_ms elapsed from accumulation start
+        4. Return combined batch once full or time window expires
 
         Returns:
             List of (message_id, {field: value}) tuples
         """
         try:
+            # 1. Initial blocking read
             messages = await self.redis.xreadgroup(
                 groupname=self.consumer_group,
                 consumername=self.consumer_name,
                 streams={self.stream_name: ">"},  # Only new messages
-                count=self.batch_size,
-                block=self.block_ms,
+                count=self.max_batch_size,
+                block=self.max_block_ms,
             )
 
             if not messages:
@@ -117,7 +128,66 @@ class TracingWorker:
 
             # messages format: [(stream_name, [(id, data), (id, data), ...])]
             stream_data = messages[0]
-            batch = stream_data[1]  # Return [(id, data), ...]
+            batch = stream_data[1]  # [(id, data), ...]
+
+            # 2. If batch is small, accumulate more spans within time window
+            if len(batch) < self.max_batch_size:
+                log.debug(
+                    "[INGEST] Small batch received, accumulating",
+                    batch_size=len(batch),
+                    threshold=self.max_batch_size,
+                    max_delay_ms=self.max_delay_ms,
+                )
+
+                # Record when accumulation starts (after initial read returns)
+                start_time = time.time()
+                accumulated_total = 0
+
+                while True:
+                    elapsed = (time.time() - start_time) * 1000  # Convert to ms
+                    remaining_ms = self.max_delay_ms - elapsed
+
+                    # Stop if we've exceeded the max delay window
+                    if remaining_ms <= 0:
+                        log.debug(
+                            "[INGEST] Accumulation time window expired",
+                            elapsed_ms=int(elapsed),
+                            max_delay_ms=self.max_delay_ms,
+                            accumulated=accumulated_total,
+                        )
+                        break
+
+                    # Blocking read with remaining time to wait for more spans
+                    accumulated_messages = await self.redis.xreadgroup(
+                        groupname=self.consumer_group,
+                        consumername=self.consumer_name,
+                        streams={self.stream_name: ">"},
+                        count=self.max_batch_size,
+                        block=int(remaining_ms),  # Block for remaining time
+                    )
+
+                    if accumulated_messages:
+                        accumulated_batch = accumulated_messages[0][1]
+                        batch.extend(accumulated_batch)
+                        accumulated_total += len(accumulated_batch)
+
+                        elapsed = (time.time() - start_time) * 1000  # Update elapsed
+                        log.debug(
+                            "[INGEST] Batch accumulated",
+                            accumulated_size=len(accumulated_batch),
+                            accumulated_total=accumulated_total,
+                            batch_size=len(batch),
+                            elapsed_ms=int(elapsed),
+                        )
+
+                        # Stop if we've reached target batch size
+                        if len(batch) >= self.max_batch_size:
+                            log.debug(
+                                "[INGEST] Batch full, stopping accumulation",
+                                batch_size=len(batch),
+                            )
+                            break
+                    # If no messages, loop will check time and either read again or break
 
             # Calculate batch size in bytes
             batch_bytes = sum(len(data.get(b"data", b"")) for _, data in batch)
@@ -128,7 +198,7 @@ class TracingWorker:
                 batch_size=len(batch),
                 batch_bytes=batch_bytes,
                 batch_bytes_mb=batch_mb,
-                max_batch_size=self.batch_size,
+                max_batch_size=self.max_batch_size,
             )
 
             return batch
@@ -170,7 +240,7 @@ class TracingWorker:
         """
         Process batch of tracing spans with dual-limit enforcement.
 
-        Enforces both span count (100 max) and byte size (100MB max) limits.
+        Enforces both span count (100 max) and configurable byte size limits.
         Stops processing when hitting either limit and leaves remaining
         messages for next batch processing.
 
@@ -196,11 +266,11 @@ class TracingWorker:
                 batch_bytes += len(span_bytes)
 
                 # Check if we've exceeded the batch size limit
-                if batch_bytes > self.max_batch_bytes:
+                if batch_bytes > self.max_batch_mb * 1024 * 1024:
                     log.warning(
                         "[INGEST] Batch size limit exceeded, stopping batch processing",
                         batch_bytes=batch_bytes,
-                        max_bytes=self.max_batch_bytes,
+                        max_mb=self.max_batch_mb,
                         processed_count=processed_count,
                     )
                     break
@@ -361,7 +431,7 @@ class TracingWorker:
             stream=self.stream_name,
             consumer_group=self.consumer_group,
             consumer=self.consumer_name,
-            batch_size=self.batch_size,
+            max_batch_size=self.max_batch_size,
         )
 
         while True:

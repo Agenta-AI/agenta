@@ -13,13 +13,14 @@ Follows OTLP batching specs:
 - Two-tier caching for Layer 1 soft checks in router
 
 Batch Configuration:
-- batch_size: 100 (XREADGROUP COUNT) - messages per read
-- block_ms: 5000ms (XREADGROUP BLOCK) - wait time when queue is empty
-- max_batch_bytes: 100MB - memory safety limit per batch
+- max_batch_size: 50 (XREADGROUP COUNT) - max messages per read
+- max_block_ms: 5000ms (XREADGROUP BLOCK) - max wait time when queue is empty
+- max_batch_mb: 50 - max batch size in megabytes
+- max_delay_ms: 250ms - max wait time for batch accumulation when small batches arrive
 
 Performance Characteristics:
 - At 1000 requests/sec: ~90 spans/sec ingestion
-- With batch_size=100: spans grouped by (org, project, user)
+- With max_batch_size=50: spans grouped by (org, project, user)
 - Response time: <5ms per XREADGROUP call
 - DB operations: ~1 meter adjustment per org per second
 
