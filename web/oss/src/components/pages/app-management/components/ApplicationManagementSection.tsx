@@ -16,7 +16,6 @@ import {JSSTheme, ListAppsItem} from "@/oss/lib/Types"
 import AppCard from "./AppCard"
 import AppTable from "./AppTable"
 import EmptyAppView from "./EmptyAppView"
-import WelcomeModal from "@/oss/components/Onboarding/components/WelcomeModal"
 
 interface ApplicationManagementSectionProps {
     selectedOrg: any
@@ -156,7 +155,6 @@ const ApplicationManagementSection = ({
                     <EmptyAppView setIsAddAppFromTemplatedModal={setIsAddAppFromTemplatedModal} />
                 )}
             </div>
-            <WelcomeModal />
         </>
     )
 }

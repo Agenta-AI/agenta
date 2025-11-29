@@ -113,19 +113,12 @@ const OnboardingCard = ({
             skipTour?.()
             setTriggerOnboarding(null)
             if (!status) return
-            if (!isNewUser) return
 
             const resolvedSection =
                 extendedStep?.onboardingSection ?? resolveOnboardingSection(userSection)
             if (!resolvedSection) return
 
             updateOnboardingStatus({section: resolvedSection, status})
-
-            if (fullJourneyState.active) {
-                setFullJourneyState({active: false, state: null, journeyId: null})
-                updateOnboardingStatus({section: "fullJourney", status: status})
-                setTriggerOnboarding(null)
-            }
         },
         [
             step,
